@@ -31,6 +31,7 @@ class CloudHypervisorTests(Tool):
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
+    PERF_CMD_TIME_OUT = 600
 
     repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
 
@@ -126,9 +127,9 @@ class CloudHypervisorTests(Tool):
             trace: str = ""
             try:
                 result = self.run(
-                    f"tests --hypervisor {hypervisor} --metrics -- -- \
-                        --test-filter {testcase}",
-                    timeout=self.CMD_TIME_OUT,
+                    f"tests --hypervisor {hypervisor} --metrics -- --"
+                    f" --test-filter {testcase}",
+                    timeout=self.PERF_CMD_TIME_OUT,
                     force_run=True,
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
@@ -306,7 +307,7 @@ class CloudHypervisorTests(Tool):
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
-            timeout=self.CMD_TIME_OUT,
+            timeout=self.PERF_CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             shell=True,
