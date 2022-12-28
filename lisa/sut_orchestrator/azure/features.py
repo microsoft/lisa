@@ -1345,9 +1345,30 @@ class Resize(AzureFeatureMixin, features.Resize):
         assert_that(current_core_count).described_as(
             "Didn't return an integer to represent the current VM size core count."
         ).is_instance_of(int)
+        assert current_vm_size.capability.features
+        current_arch = [
+            feature
+            for feature in current_vm_size.capability.features
+            if feature.type == ArchitectureSettings.type
+        ]
         # Loop removes candidate vm sizes if they can't be resized to or if the
         # change in cores resulting from the resize is undesired
         for candidate_size in avail_eligible_intersect[:]:
+            assert candidate_size.capability.features
+            candidate_arch = [
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == ArchitectureSettings.type
+            ]
+            # Removing vm size from candidate list if the candidate architecture is
+            # different with current vm size
+            if isinstance(current_arch[0], ArchitectureSettings) and isinstance(
+                candidate_arch[0], ArchitectureSettings
+            ):
+                if candidate_arch[0].arch != current_arch[0].arch:
+                    avail_eligible_intersect.remove(candidate_size)
+                    continue
+
             candidate_network_interface = candidate_size.capability.network_interface
             assert_that(candidate_network_interface).described_as(
                 "candidate_network_interface is not of type "
@@ -1374,9 +1395,9 @@ class Resize(AzureFeatureMixin, features.Resize):
             # doesn't align with the ResizeAction passed into this function
             if (
                 resize_action == ResizeAction.IncreaseCoreCount
-                and candidate_core_count <= current_core_count  # type: ignore
+                and candidate_core_count < current_core_count  # type: ignore
                 or resize_action == ResizeAction.DecreaseCoreCount
-                and candidate_core_count >= current_core_count  # type: ignore
+                and candidate_core_count > current_core_count  # type: ignore
             ):
                 avail_eligible_intersect.remove(candidate_size)
 
