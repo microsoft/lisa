@@ -2,9 +2,10 @@
 # Licensed under the MIT license.
 import json
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
@@ -21,13 +22,15 @@ from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
 class CloudHypervisorTestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
+    message: str = ""
 
 
 class CloudHypervisorTests(Tool):
     CMD_TIME_OUT = 7200
-    # Slightly higher case timeout to give the case a window to extract
-    # sub test results from stdout and report them.
-    CASE_TIME_OUT = CMD_TIME_OUT + 300
+    # Slightly higher case timeout to give the case a window to
+    # - list subtests before running the tests.
+    # - extract sub test results from stdout and report them.
+    CASE_TIME_OUT = CMD_TIME_OUT + 1200
 
     repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
 
@@ -61,6 +64,8 @@ class CloudHypervisorTests(Tool):
         else:
             skip_args = ""
 
+        subtests = self._list_subtests(hypervisor, test_type)
+
         result = self.run(
             f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
             " -Z unstable-options --format json",
@@ -73,7 +78,7 @@ class CloudHypervisorTests(Tool):
 
         # Report subtest results and collect logs before doing any
         # assertions.
-        results = self._extract_test_results(result.stdout, log_path)
+        results = self._extract_test_results(result.stdout, log_path, subtests)
         failures = [r.name for r in results if r.status == TestStatus.FAILED]
 
         for r in results:
@@ -82,6 +87,7 @@ class CloudHypervisorTests(Tool):
                 environment,
                 r.name,
                 r.status,
+                r.message,
             )
 
         self._save_kernel_logs(log_path)
@@ -190,10 +196,25 @@ class CloudHypervisorTests(Tool):
 
         return self._check_exists()
 
+    def _list_subtests(self, hypervisor: str, test_type: str) -> Set[str]:
+        result = self.run(
+            f"tests --hypervisor {hypervisor} --{test_type} -- -- --list",
+            force_run=True,
+            cwd=self.repo_root,
+            no_info_log=False,
+            shell=True,
+        )
+        # e.g. "integration::test_vfio: test"
+        matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
+        self._log.debug(f"Subtests list: {matches}")
+        return set(matches)
+
     def _extract_test_results(
-        self, output: str, log_path: Path
+        self, output: str, log_path: Path, subtests: Set[str]
     ) -> List[CloudHypervisorTestResult]:
         results: List[CloudHypervisorTestResult] = []
+        unfinished_tests = deepcopy(subtests)
+        started_tests: Set[str] = set()
 
         # Cargo will output test status for each test separately in JSON format. Parse
         # the output line by line to obtain the list of all tests run along with their
@@ -215,7 +236,15 @@ class CloudHypervisorTests(Tool):
             if "type" not in result or result["type"] != "test":
                 continue
 
-            if "event" not in result or result["event"] not in ["ok", "failed"]:
+            if "event" not in result or result["event"] not in [
+                "started",
+                "ok",
+                "failed",
+            ]:
+                continue
+
+            if result["event"] == "started":
+                started_tests.add(result["name"])
                 continue
 
             status = TestStatus.PASSED if result["event"] == "ok" else TestStatus.FAILED
@@ -225,6 +254,7 @@ class CloudHypervisorTests(Tool):
                     status=status,
                 )
             )
+            unfinished_tests.remove(result["name"])
 
             # store stdout of failed subtests
             if status == TestStatus.FAILED:
@@ -234,6 +264,21 @@ class CloudHypervisorTests(Tool):
                 testcase_log_file = log_path / f"{testcase}.log"
                 with open(testcase_log_file, "w") as f:
                     f.write(result["stdout"])
+
+        for subtest in unfinished_tests:
+            if subtest in started_tests:
+                message = "Subtest failed to finish - timed out"
+                status = TestStatus.FAILED
+            else:
+                message = "Subtest did not start"
+                status = TestStatus.QUEUED
+            results.append(
+                CloudHypervisorTestResult(
+                    name=subtest,
+                    status=status,
+                    message=message,
+                )
+            )
 
         return results
 
