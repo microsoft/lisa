@@ -214,7 +214,7 @@ class Lscpu(Tool):
             return CpuType.AMD
         elif "GenuineIntel" in result.stdout:
             return CpuType.Intel
-        elif "ARM" in result.stdout:
+        elif "ARM" in result.stdout or "aarch64" in result.stdout:
             return CpuType.ARM
         else:
             raise LisaException(
