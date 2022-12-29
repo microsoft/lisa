@@ -66,6 +66,14 @@ class DiskInfo(object):
 
     @property
     def is_os_disk(self) -> bool:
+        # check if mountpoint is set
+        # WSL does not have a boot partition in the lsblk output
+        # so we check for the home directory instead
+        if self.mountpoint == "/":
+            return True
+
+        # check if the disk contains boot partition
+        # boot partitions start with /boot/{id}
         return any(
             partition.mountpoint.startswith("/boot") for partition in self.partitions
         )
@@ -167,6 +175,9 @@ class Lsblk(Tool):
                     partitions=disk_partition_map.get(lsblk_entry["name"], []),
                 )
             )
+
+        # sort disk with OS disk first
+        disks.sort(key=lambda disk: disk.is_os_disk, reverse=True)
 
         return disks
 

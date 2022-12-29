@@ -283,12 +283,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug(f"capturing system information to {saved_path}.")
         self.os.capture_system_information(saved_path)
 
-    def find_partition_with_freespace(self, size_in_gb: int) -> str:
+    def find_partition_with_freespace(
+        self, size_in_gb: int, use_os_drive: bool = True
+    ) -> str:
         if self.os.is_windows:
             raise NotImplementedError(
                 (
-                    "find_partition_with_freespace was called on a Windows node, "
-                    "this function is not implemented for Windows"
+                    "find_partition_with_freespace was called on a Windows "
+                    "node, this function is not implemented for Windows"
                 )
             )
 
@@ -298,13 +300,17 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         # find a disk/partition with required space
         for disk in disks:
-            # we do not write on the os disk
-            if disk.is_os_disk:
+            if disk.is_os_disk and not use_os_drive:
                 continue
 
             # if the disk contains partition, check the partitions
             if len(disk.partitions) > 0:
                 for partition in disk.partitions:
+
+                    # we only use root partition for OS disk
+                    if disk.is_os_disk and partition.mountpoint != "/":
+                        continue
+
                     if not partition.size_in_gb >= size_in_gb:
                         continue
 
