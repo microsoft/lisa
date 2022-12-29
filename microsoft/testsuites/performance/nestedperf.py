@@ -12,7 +12,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import Disk, NestedVirtualization
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
@@ -88,6 +88,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=2),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_kvm_storage_singledisk(
@@ -112,6 +113,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=7),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_kvm_storage_multidisk(
@@ -138,6 +140,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=1),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_hyperv_storage_singledisk(
@@ -164,6 +167,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=6),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_hyperv_storage_multidisk(
@@ -188,6 +192,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_kvm_ntttcp_private_bridge(
@@ -293,6 +298,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_kvm_ntttcp_different_l1_nat(
@@ -372,6 +378,7 @@ class KVMPerformance(TestSuite):  # noqa
             min_count=2,
             supported_os=[Windows],
             supported_platform_type=[AZURE, READY],
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_hyperv_ntttcp_different_l1_nat(
@@ -453,6 +460,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def perf_nested_kvm_netperf_pps_nat(

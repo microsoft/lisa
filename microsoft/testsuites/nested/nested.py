@@ -13,6 +13,7 @@ from lisa import (
     schema,
     search_space,
 )
+from lisa.features import NestedVirtualization
 from lisa.node import Node
 from lisa.testsuite import simple_requirement
 from lisa.tools import Cat, Echo, Qemu, Sshpass, Wget
@@ -48,7 +49,8 @@ class Nested(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
-            )
+            ),
+            supported_features=[NestedVirtualization],
         ),
     )
     def verify_nested_kvm_basic(
