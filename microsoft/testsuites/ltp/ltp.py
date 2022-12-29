@@ -55,6 +55,7 @@ class Ltp(Tool):
     LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
     LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
     LTP_SKIP_FILE = "/opt/ltp/skipfile"
+    COMPILE_TIMEOUT = 1800
 
     @property
     def command(self) -> str:
@@ -75,7 +76,8 @@ class Ltp(Tool):
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
-        drive_name: Optional[str] = None,
+        block_device: Optional[str] = None,
+        temp_dir: str = "/tmp/",
     ) -> List[LtpResult]:
         # tests cannot be empty
         assert_that(ltp_tests, "ltp_tests cannot be empty").is_not_empty()
@@ -103,9 +105,13 @@ class Ltp(Tool):
         # add the list of tests to run
         parameters += f"-f {','.join(ltp_tests)} "
 
-        # add logging and output file parameter
-        if drive_name:
-            parameters += f"-z {drive_name} "
+        # some tests require a big unmounted block device
+        # to run correctly.
+        if block_device:
+            parameters += f"-z {block_device} "
+
+        # directory where temporary files will be created
+        parameters += f"-d {temp_dir} "
 
         # add the list of skip tests to run
         if len(skip_tests) > 0:
@@ -321,7 +327,7 @@ class Ltp(Tool):
         build_dir = self.node.find_partition_with_freespace(
             self.BUILD_REQUIRED_DISK_SIZE_IN_GB
         )
-        top_src_dir = f"{build_dir}/{self.LTP_DIR_NAME}"
+        top_src_dir = f"{build_dir}/{self.LTP_DIR_NAME}".replace("//", "/")
 
         # remove build directory if it exists
         if self.node.tools[Ls].path_exists(top_src_dir, sudo=True):
@@ -346,7 +352,7 @@ class Ltp(Tool):
         self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
         make.make("autotools", cwd=ltp_path, sudo=True)
         self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
-        make.make("all", cwd=ltp_path, sudo=True)
+        make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
 
         # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
         # on the remote system's sysroot

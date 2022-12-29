@@ -58,6 +58,10 @@ class LtpTestsuite(TestSuite):
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
 
+        # block device is required for few ltp tests
+        # If not provided, we will find a disk with enough space
+        block_device = variables.get("ltp_block_device", None)
+
         # get comma seperated list of tests
         if tests:
             test_list = tests.split(",")
@@ -70,11 +74,13 @@ class LtpTestsuite(TestSuite):
         else:
             skip_test_list = []
 
-        # get drive name for running ltp tests
-        mountpoint = node.find_partition_with_freespace(
-            self.LTP_REQUIRED_DISK_SIZE_IN_GB
-        )
-        drive_name = node.tools[Lsblk].find_disk_by_mountpoint(mountpoint).device_name
+        if not block_device:
+            mountpoint = node.find_partition_with_freespace(
+                self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False
+            )
+            block_device = (
+                node.tools[Lsblk].find_disk_by_mountpoint(mountpoint).device_name
+            )
 
         # run ltp lite tests
         node.tools[Ltp].run_test(
@@ -83,7 +89,7 @@ class LtpTestsuite(TestSuite):
             test_list,
             skip_test_list,
             log_path,
-            drive_name=drive_name,
+            block_device=block_device,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
