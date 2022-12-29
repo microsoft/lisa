@@ -1187,7 +1187,7 @@ class AzurePlatform(Platform):
         else:
             log.debug(
                 "there is no way to detect vhd generation, unless user provides it"
-                f"current vhd generation is {azure_node_runbook.hyperv_generation}"
+                f" current vhd generation is {azure_node_runbook.hyperv_generation}"
             )
 
         if azure_node_runbook.is_linux is None:

@@ -1351,6 +1351,11 @@ class Resize(AzureFeatureMixin, features.Resize):
             for feature in current_vm_size.capability.features
             if feature.type == ArchitectureSettings.type
         ]
+        current_gen = [
+            feature
+            for feature in current_vm_size.capability.features
+            if feature.type == VhdGenerationSettings.type
+        ]
         # Loop removes candidate vm sizes if they can't be resized to or if the
         # change in cores resulting from the resize is undesired
         for candidate_size in avail_eligible_intersect[:]:
@@ -1369,6 +1374,22 @@ class Resize(AzureFeatureMixin, features.Resize):
                     avail_eligible_intersect.remove(candidate_size)
                     continue
 
+            candidate_gen = [
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == VhdGenerationSettings.type
+            ]
+            if isinstance(current_gen[0], VhdGenerationSettings) and isinstance(
+                candidate_gen[0], VhdGenerationSettings
+            ):
+                result = search_space.check_setspace(
+                    current_gen[0].gen, candidate_gen[0].gen
+                )
+                # Removing vm size from candidate list if the candidate vhd gen type is
+                # different with current vm size gen type
+                if not result.result:
+                    avail_eligible_intersect.remove(candidate_size)
+                    continue
             candidate_network_interface = candidate_size.capability.network_interface
             assert_that(candidate_network_interface).described_as(
                 "candidate_network_interface is not of type "
