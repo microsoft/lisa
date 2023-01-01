@@ -204,6 +204,8 @@ class Infiniband(Feature):
             "python-setuptools",
             "g++",
             "libc6-i386",
+            "cloud-init",
+            "walinuxagent",
         ]
         redhat_required_packages = [
             "git",
@@ -269,10 +271,14 @@ class Infiniband(Feature):
                     )
                     node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
-            if node.os.information.version >= "22.10.0":
-                ubuntu_required_packages.append("lib32gcc-9-dev python3-dev")
-            else:
-                ubuntu_required_packages.append("lib32gcc-8-dev python-dev")
+            for package in [
+                "lib32gcc-9-dev",
+                "python3-dev",
+                "lib32gcc-8-dev",
+                "python-dev",
+            ]:
+                if node.os.is_package_in_repo(package):
+                    ubuntu_required_packages.append(package)
             node.os.install_packages(ubuntu_required_packages)
         else:
             raise UnsupportedDistroException(
