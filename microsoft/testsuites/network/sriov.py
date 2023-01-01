@@ -479,7 +479,7 @@ class Sriov(TestSuite):
         client_ethtool = client_node.tools[Ethtool]
         vm_nics = initialize_nic_info(environment)
         # skip test if scatter-gather can't be updated
-        for _, client_nic_info in vm_nics[client_node.name].items():
+        for client_nic_info in vm_nics[client_node.name].values():
             device_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.upper, True
             )
@@ -530,7 +530,7 @@ class Sriov(TestSuite):
 
         # set on for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'on'
-        for _, client_nic_info in vm_nics[client_node.name].items():
+        for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.upper, True
             )
@@ -544,7 +544,7 @@ class Sriov(TestSuite):
 
         # set off for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'off'
-        for _, client_nic_info in vm_nics[client_node.name].items():
+        for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.upper, False
             )
@@ -566,7 +566,7 @@ class Sriov(TestSuite):
         vm_nics = initialize_nic_info(environment)
 
         # check VF's scatter-gather feature keep consistent with previous status
-        for _, client_nic_info in vm_nics[client_node.name].items():
+        for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.lower, True
             )
@@ -586,7 +586,7 @@ class Sriov(TestSuite):
         vm_nics = initialize_nic_info(environment)
 
         # check VF's scatter-gather feature keep consistent with previous status
-        for _, client_nic_info in vm_nics[client_node.name].items():
+        for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.lower, True
             )
@@ -596,24 +596,26 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # reload sriov modules
-        module_in_used = ""
-        for node in environment.nodes.list():
-            module_in_used = remove_module(node)
-        for node in environment.nodes.list():
-            load_module(node, module_in_used)
+        module_built_in = any(
+            node.tools[KernelConfig].is_built_in(get_used_config(node))
+            for node in environment.nodes.list()
+        )
+        if not module_built_in:
+            for node in environment.nodes.list():
+                load_module(node, remove_module(node))
 
-        # check VF still paired with synthetic nic
-        vm_nics = initialize_nic_info(environment)
+            # check VF still paired with synthetic nic
+            vm_nics = initialize_nic_info(environment)
 
-        # check VF's scatter-gather feature keep consistent with previous status
-        for _, client_nic_info in vm_nics[client_node.name].items():
-            device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.lower, True
-            )
-            assert_that(
-                device_vf_sg_settings.sg_setting,
-                "sg setting is not sync into VF.",
-            ).is_equal_to(False)
+            # check VF's scatter-gather feature keep consistent with previous status
+            for client_nic_info in vm_nics[client_node.name].values():
+                device_vf_sg_settings = client_ethtool.get_device_sg_settings(
+                    client_nic_info.lower, True
+                )
+                assert_that(
+                    device_vf_sg_settings.sg_setting,
+                    "sg setting is not sync into VF.",
+                ).is_equal_to(False)
 
         # check there is no error happen in iperf3 log
         # after above operations
