@@ -360,8 +360,9 @@ class RepoLocation(BaseLocation):
 
         code_path = self._node.get_pure_path(echo_result.stdout)
         git = self._node.tools[Git]
-        details = dict()
 
+        details = dict()
+        self._log.info(f"code path : {code_path}")
         details["commit_id"] = git.get_latest_commit_id(cwd=code_path)
         details["tag"] = git.get_tag(cwd=code_path)
 
