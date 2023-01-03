@@ -261,3 +261,62 @@ class Git(Tool):
 
     def _mark_safe(self, cwd: pathlib.PurePath) -> None:
         self.run(f"config --global --add safe.directory {cwd}", cwd=cwd)
+
+    def get_current_branch(self, cwd: pathlib.PurePath) -> str:
+        result = self.run(
+            "branch --show-current",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch current branch.",
+        )
+        return filter_ansi_escape(result.stdout)
+
+    def get_repo_url(self, cwd: pathlib.PurePath, name: str = "origin"):
+        result = self.run(
+            f"config --get remote.{name}.url",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch remote url.",
+        )
+        return filter_ansi_escape(result.stdout)
+
+    def get_latest_commit_details(self, cwd: pathlib.PurePath) -> dict:
+        result = dict()
+        latest_commit_id = self.run(
+            "--no-pager log -n 1 --pretty=format:%h",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        ).stdout
+
+        commit_message_name = self.run(
+            "--no-pager log -n 1 --pretty=format:%B",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        ).stdout
+
+        author_email = self.run(
+            "--no-pager log -n 1 --format='%ae'",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        ).stdout
+
+        result = {
+            "full_commit_id": filter_ansi_escape(latest_commit_id),
+            "commit_message_name": filter_ansi_escape(commit_message_name),
+            "contacts": filter_ansi_escape(author_email),
+        }
+
+        return result

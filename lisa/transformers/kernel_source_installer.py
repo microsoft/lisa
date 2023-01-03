@@ -360,8 +360,13 @@ class RepoLocation(BaseLocation):
         details = dict()
         if self.__code_path:
             self._log.info(f"code path : {self.__code_path}")
-            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            # details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
             details["tag"] = git.get_tag(cwd=self.__code_path)
+            details["git_repository_url"] = git.get_repo_url(cwd=self.__code_path)
+            details["git_repository_branch"] = git.get_current_branch(
+                cwd=self.__code_path
+            )
+            details.update(git.get_latest_commit_details(cwd=self.__code_path))
 
         return details
 
