@@ -94,7 +94,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
     def get_details(self) -> Dict[str, Any]:
-        raise NotImplementedError()
+        return dict()
 
 
 class KernelInstallerTransformer(Transformer):
@@ -131,10 +131,12 @@ class KernelInstallerTransformer(Transformer):
 
         installer.validate()
         installed_kernel_version = installer.install()
+        self._details = installer.get_details()
         self._log.info(f"installed kernel version: {installed_kernel_version}")
 
         # for ubuntu cvm kernel, there is no menuentry added into grub file
         if hasattr(installer.runbook, "source"):
+            self._log.info("Contains source. getting details")
             self._details = installer.get_details()
             if installer.runbook.source != "linux-image-azure-fde":
                 posix = cast(Posix, node.os)
@@ -170,7 +172,7 @@ class KernelInstallerTransformer(Transformer):
             f"kernel version after install: "
             f"{uname.get_linux_information(force_run=True)}"
         )
-        print("Returning details", self._details)
+        self._log.info("Returning details", self._details)
         return {self.__details_output_name: self._details}
 
 

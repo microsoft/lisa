@@ -80,7 +80,6 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 class SourceInstaller(BaseInstaller):
     _source_details: dict = {}
-    __source_details_name = "source_details"
 
     @classmethod
     def type_name(cls) -> str:
@@ -286,7 +285,7 @@ class SourceInstaller(BaseInstaller):
             )
 
     def get_details(self):
-        print("Invoked src get details", self._source_details)
+        self._log.info("Invoked src get details", self._source_details)
         return self._source_details
 
 
@@ -308,7 +307,7 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
 
     # Can be used to get arbitary details
     def get_details(self) -> dict:
-        raise NotImplementedError()
+        return dict()
 
 
 class RepoLocation(BaseLocation):
