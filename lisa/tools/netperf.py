@@ -111,7 +111,11 @@ class Netperf(Tool):
         make = self.node.tools[Make]
         if self.node.shell.exists(self.node.get_pure_path(f"{code_path}/autogen.sh")):
             self.node.execute("./autogen.sh", cwd=code_path).assert_exit_code()
-        self.node.execute("./configure", cwd=code_path).assert_exit_code()
+        configure_cmd = "./configure"
+        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == "aarch64":
+            configure_cmd += f" --build={arch}-unknown-linux-gnu"
+        self.node.execute(configure_cmd, cwd=code_path).assert_exit_code()
         arguments = ""
         # fix compile issue when gcc version >= 10
         if self.node.tools[Gcc].get_version() >= "10.0.0":
