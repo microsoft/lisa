@@ -338,6 +338,7 @@ class RepoLocation(BaseLocation):
         code_path = git.clone(
             url=runbook.repo, cwd=code_path, fail_on_exists=runbook.fail_on_code_exists
         )
+        self.__code_path = code_path
 
         git.fetch(cwd=code_path)
 
@@ -351,20 +352,12 @@ class RepoLocation(BaseLocation):
         return code_path
 
     def get_source_details(self) -> dict:
-        runbook = cast(RepoLocationSchema, self.runbook)
-        code_path = _get_code_path(runbook.path, self._node, f"{self.type_name()}_code")
-
-        # expand env variables
-        echo = self._node.tools[Echo]
-        echo_result = echo.run(str(code_path), shell=True)
-
-        code_path = self._node.get_pure_path(echo_result.stdout)
         git = self._node.tools[Git]
 
         details = dict()
-        self._log.info(f"code path : {code_path}")
-        details["commit_id"] = git.get_latest_commit_id(cwd=code_path)
-        details["tag"] = git.get_tag(cwd=code_path)
+        self._log.info(f"code path : {self.__code_path}")
+        details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+        details["tag"] = git.get_tag(cwd=self.__code_path)
 
         return details
 
