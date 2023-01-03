@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import PurePath
-from typing import Any, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
 
@@ -11,6 +12,8 @@ from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Redhat, Ubuntu
 from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
+from lisa.tools.gcc import Gcc
+from lisa.tools.lscpu import Lscpu
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -92,6 +95,8 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 
 class SourceInstaller(BaseInstaller):
+    _source_details: Dict[str, Any] = {}
+
     @classmethod
     def type_name(cls) -> str:
         return "source"
@@ -108,6 +113,9 @@ class SourceInstaller(BaseInstaller):
         # nothing to validate before source installer started.
         ...
 
+    # def _internal_run(self) -> Dict[str, Any]:
+    #     return {self.__source_details_name: self.source_details}
+
     def install(self) -> str:
         node = self._node
         runbook: SourceInstallerSchema = self.runbook
@@ -123,6 +131,8 @@ class SourceInstaller(BaseInstaller):
         code_path = source.get_source_code()
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
         self._log.info(f"kernel code path: {code_path}")
+
+        self._source_details.update(source.get_details())
 
         # modify code
         self._modify_code(node=node, code_path=code_path)
@@ -330,6 +340,9 @@ class SourceInstaller(BaseInstaller):
                 f"Implement its build dependencies installation there."
             )
 
+    def get_details(self) -> Dict[str, Any]:
+        return self._source_details
+
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
@@ -346,6 +359,10 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
 
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
+
+    # Can be used to get arbitary details
+    def get_details(self) -> Dict[str, Any]:
+        return dict()
 
 
 class RepoLocation(BaseLocation):
@@ -383,6 +400,7 @@ class RepoLocation(BaseLocation):
             auth_token=runbook.auth_token,
             timeout=1800,
         )
+        self.__code_path = code_path
 
         git.fetch(cwd=code_path)
 
@@ -394,6 +412,26 @@ class RepoLocation(BaseLocation):
         self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
 
         return code_path
+
+    def get_details(self) -> Dict[str, Any]:
+        git = self._node.tools[Git]
+        lscpu = self._node.tools[Lscpu]
+        gcc = self._node.tools[Gcc]
+        details = dict()
+        if self.__code_path:
+            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            details["tag"] = git.get_tag(cwd=self.__code_path)
+            details["git_repository_url"] = git.get_repo_url(cwd=self.__code_path)
+            details["git_repository_branch"] = git.get_current_branch(
+                cwd=self.__code_path
+            )
+            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            details["architecture"] = lscpu.get_architecture()
+            details["compiler"] = f"gcc {gcc.get_version()}"
+            details["build_start_time"] = datetime.now(timezone.utc).isoformat()
+            details.update(git.get_latest_commit_details(cwd=self.__code_path))
+
+        return details
 
 
 class LocalLocation(BaseLocation):
