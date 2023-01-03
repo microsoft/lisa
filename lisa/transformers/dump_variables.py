@@ -49,6 +49,7 @@ class DumpVariablesTransformer(Transformer):
         for var in runbook.variables:
             try:
                 var_data = variables_data[var]
+                self._log.info(f"Writing '{var_data}'")
                 required_data[var] = {
                     "value": var_data.data,
                     "is_case_visible": var_data.is_case_visible,
@@ -59,6 +60,7 @@ class DumpVariablesTransformer(Transformer):
         file_path = Path(runbook.file_path)
         if not file_path.is_absolute():
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
+        self._log.info(f"file path'{file_path}'")
         with open(file_path, "w") as dump_file:
             yaml.safe_dump(required_data, dump_file)
         return {}
