@@ -762,7 +762,7 @@ class AzureImageStandard(TestSuite):
         console_enabled_pattern = re.compile(
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
-
+        freebsd_pattern = re.compile(r"^(.*uart0: console \(115200,n,8,1\).*)$", re.M)
         cat = node.tools[Cat]
         if node.shell.exists(node.get_pure_path("/var/log/messages")):
             messages_log_file = "/var/log/messages"
@@ -773,12 +773,16 @@ class AzureImageStandard(TestSuite):
 
         log_output = cat.read(messages_log_file, force_run=True, sudo=True)
 
-        result = find_patterns_in_lines(log_output, [console_enabled_pattern])
-        assert_that(
-            result[0],
-            f"Fail to find console enabled line 'console [ttyS0] enabled' "
-            f"from {messages_log_file} output",
-        ).is_not_empty()
+        result = find_patterns_in_lines(
+            log_output, [console_enabled_pattern, freebsd_pattern]
+        )
+        if not (result[0] or result[1]):
+            raise LisaException(
+                "Fail to find console enabled line "
+                f"'console [{current_console_device}] enabled' "
+                "or 'uart0: console (115200,n,8,1)' "
+                f"from {messages_log_file} output",
+            )
 
     @TestCaseMetadata(
         description="""
