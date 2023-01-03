@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import PurePath
-from typing import Any, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
 
@@ -79,6 +79,9 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 
 class SourceInstaller(BaseInstaller):
+    source_details: dict = {}
+    __source_details_name = "source_details"
+
     @classmethod
     def type_name(cls) -> str:
         return "source"
@@ -89,11 +92,14 @@ class SourceInstaller(BaseInstaller):
 
     @property
     def _output_names(self) -> List[str]:
-        return []
+        return [self.__source_details_name]
 
     def validate(self) -> None:
         # nothing to validate before source installer started.
         ...
+
+    def _internal_run(self) -> Dict[str, Any]:
+        return {self.__source_details_name: self.source_details}
 
     def install(self) -> str:
         node = self._node
@@ -110,6 +116,8 @@ class SourceInstaller(BaseInstaller):
         code_path = source.get_source_code()
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
         self._log.info(f"kernel code path: {code_path}")
+
+        self.source_details.update(source.get_source_details())
 
         # modify code
         self._modify_code(node=node, code_path=code_path)
@@ -294,6 +302,10 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
 
+    # Can be used to get arbitary details
+    def get_source_details(self) -> dict:
+        raise NotImplementedError()
+
 
 class RepoLocation(BaseLocation):
     @classmethod
@@ -337,6 +349,23 @@ class RepoLocation(BaseLocation):
         self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
 
         return code_path
+
+    def get_source_details(self) -> dict:
+        runbook = cast(RepoLocationSchema, self.runbook)
+        code_path = _get_code_path(runbook.path, self._node, f"{self.type_name()}_code")
+
+        # expand env variables
+        echo = self._node.tools[Echo]
+        echo_result = echo.run(str(code_path), shell=True)
+
+        code_path = self._node.get_pure_path(echo_result.stdout)
+        git = self._node.tools[Git]
+        details = dict()
+
+        details["commit_id"] = git.get_latest_commit_id(cwd=code_path)
+        details["tag"] = git.get_tag(cwd=code_path)
+
+        return details
 
 
 class LocalLocation(BaseLocation):
