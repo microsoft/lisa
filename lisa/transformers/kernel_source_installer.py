@@ -79,7 +79,7 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 
 class SourceInstaller(BaseInstaller):
-    source_details: dict = {}
+    _source_details: dict = {}
     __source_details_name = "source_details"
 
     @classmethod
@@ -92,14 +92,14 @@ class SourceInstaller(BaseInstaller):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.__source_details_name]
+        return []
 
     def validate(self) -> None:
         # nothing to validate before source installer started.
         ...
 
-    def _internal_run(self) -> Dict[str, Any]:
-        return {self.__source_details_name: self.source_details}
+    # def _internal_run(self) -> Dict[str, Any]:
+    #     return {self.__source_details_name: self.source_details}
 
     def install(self) -> str:
         node = self._node
@@ -117,7 +117,7 @@ class SourceInstaller(BaseInstaller):
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
         self._log.info(f"kernel code path: {code_path}")
 
-        self.source_details.update(source.get_source_details())
+        self._source_details.update(source.get_details())
 
         # modify code
         self._modify_code(node=node, code_path=code_path)
@@ -285,6 +285,10 @@ class SourceInstaller(BaseInstaller):
                 f"Implement its build dependencies installation there."
             )
 
+    def get_details(self):
+        print("Invoked src get details", self._source_details)
+        return self._source_details
+
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
@@ -303,7 +307,7 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
     # Can be used to get arbitary details
-    def get_source_details(self) -> dict:
+    def get_details(self) -> dict:
         raise NotImplementedError()
 
 
@@ -351,13 +355,14 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
-    def get_source_details(self) -> dict:
+    def get_details(self) -> dict:
         git = self._node.tools[Git]
 
         details = dict()
-        self._log.info(f"code path : {self.__code_path}")
-        details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
-        details["tag"] = git.get_tag(cwd=self.__code_path)
+        if self.__code_path:
+            self._log.info(f"code path : {self.__code_path}")
+            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            details["tag"] = git.get_tag(cwd=self.__code_path)
 
         return details
 
