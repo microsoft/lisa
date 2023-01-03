@@ -74,7 +74,7 @@ class Lscpu(Tool):
     __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __valid_architecture_list = ["x86_64", "aarch64"]
+    __architecture_dict = {"x86_64": "x86_64", "aarch64": "aarch64", "amd64": "x86_64"}
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
@@ -121,9 +121,9 @@ class Lscpu(Tool):
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__valid_architecture_list}.",
-        ).is_subset_of(self.__valid_architecture_list)
-        return architecture
+            f"{self.__architecture_dict.keys()}.",
+        ).is_subset_of(self.__architecture_dict.keys())
+        return self.__architecture_dict[architecture]
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
