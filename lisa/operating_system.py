@@ -1399,6 +1399,9 @@ class Redhat(Fedora):
         r"^(?P<vendor>.*?)?(?: Enterprise)?(?: Linux)?(?: Server)?$"
     )
 
+    # Error: There are no enabled repositories in "/etc/yum.repos.d", "/etc/yum/repos.d", "/etc/distro.repos.d". # noqa: E501
+    _no_repo_enabled = re.compile("There are no enabled repositories", re.M)
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^rhel|Red|Rocky|Scientific|acronis|Actifio$")
@@ -1427,7 +1430,6 @@ class Redhat(Fedora):
             self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
                 sudo=True,
-                expected_exit_code=0,
             )
 
     def _install_packages(
@@ -1509,7 +1511,9 @@ class Redhat(Fedora):
         #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
         # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
-        self._node.execute(command, sudo=True, timeout=3600)
+        output = self._node.execute(command, sudo=True, timeout=3600).stdout
+        if self._no_repo_enabled.search(output):
+            raise RepoNotExistException(self._node.os)
 
     def _dnf_tool(self) -> str:
         return "yum"

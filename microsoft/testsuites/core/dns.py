@@ -13,7 +13,7 @@ from lisa import (
 )
 from lisa.operating_system import Debian, Posix
 from lisa.tools import Ping
-from lisa.util import PassedException, ReleaseEndOfLifeException
+from lisa.util import PassedException, ReleaseEndOfLifeException, RepoNotExistException
 
 
 @TestSuiteMetadata(
@@ -40,11 +40,19 @@ class Dns(TestSuite):
         priority=1,
     )
     def verify_dns_name_resolution_after_upgrade(self, node: Node) -> None:
+        is_passed_exception = False
         self._check_dns_name_resolution(node)
-        self._upgrade_system(node)
+        try:
+            self._upgrade_system(node)
+        except (ReleaseEndOfLifeException, RepoNotExistException) as identifier:
+            node.log.debug(identifier)
+            is_passed_exception = True
+            exception_identifier = identifier
         self._check_dns_name_resolution(node)
         node.reboot()
         self._check_dns_name_resolution(node)
+        if is_passed_exception:
+            raise PassedException(exception_identifier)
 
     @retry(tries=10, delay=0.5)
     def _check_dns_name_resolution(self, node: Node) -> None:
@@ -55,12 +63,7 @@ class Dns(TestSuite):
         if not isinstance(node.os, Posix):
             raise UnsupportedDistroException(node.os)
 
-        try:
-            node.os.update_packages("")
-        except ReleaseEndOfLifeException as identifier:
-            node.log.debug(identifier)
-            raise PassedException(identifier)
-
+        node.os.update_packages("")
         if isinstance(node.os, Debian):
             cmd_result = node.execute(
                 "which unattended-upgrade",
