@@ -312,7 +312,7 @@ class AzurePlatformSchema:
 
 class AzurePlatform(Platform):
     _diagnostic_storage_container_pattern = re.compile(
-        r"(https:\/\/)(?P<storage_name>.*)([.].*){4}\/" r"(?P<container_name>.*)\/",
+        r"(https:\/\/)(?P<storage_name>.*)([.].*){4}\/(?P<container_name>.*)\/",
         re.M,
     )
     _arm_template: Any = None
