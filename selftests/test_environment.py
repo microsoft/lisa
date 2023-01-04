@@ -222,9 +222,9 @@ class EnvironmentTestCase(TestCase):
         for n in env.nodes.list():
             # mock initializing
             n._is_initialized = True
-        self.assertEqual(search_space.IntRange(min=4), n.capability.core_count)
+            self.assertEqual(search_space.IntRange(min=4), n.capability.core_count)
+            self.assertIsNone(n.capability.disk)
 
-        self.assertIsNone(n.capability.disk)
         # check from env capability
         env_cap = env.capability
         self.assertEqual(1, len(env_cap.nodes))

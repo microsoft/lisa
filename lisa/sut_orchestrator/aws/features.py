@@ -158,14 +158,11 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
         self._initialize_information(self._node)
 
     def _get_primary(self, nics: List[Any]) -> Any:
-        found_primary = False
         for nic in nics:
             if nic["Attachment"]["DeviceIndex"] == 0:
-                found_primary = True
-                break
-        if not found_primary:
-            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
-        return nic
+                return nic
+
+        raise LisaException(f"failed to find primary nic for vm {self._node.name}")
 
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True

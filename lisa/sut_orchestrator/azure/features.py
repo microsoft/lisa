@@ -793,14 +793,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def _get_primary(
         self, nics: List[NetworkInterfaceReference]
     ) -> NetworkInterfaceReference:
-        found_primary = False
         for nic in nics:
             if nic.primary:
-                found_primary = True
-                break
-        if not found_primary:
-            raise LisaException(f"fail to find primary nic for vm {self._node.name}")
-        return nic
+                return nic
+
+        raise LisaException(f"failed to find primary nic for vm {self._node.name}")
 
     def _get_all_nics(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
