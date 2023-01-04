@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Type
 
@@ -20,6 +21,7 @@ DUMP_VARIABLES = "dump_variables"
 class DumpVariablesTransformerSchema(schema.Transformer):
     # variables to be dumped as yaml
     variables: List[str] = field(default_factory=list)
+    json_output: bool = field(default=False)
     file_path: str = field(
         default="./lisa_dumped_variables.yml",
     )
@@ -62,5 +64,8 @@ class DumpVariablesTransformer(Transformer):
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         self._log.info(f"file path'{file_path}'")
         with open(file_path, "w") as dump_file:
-            yaml.safe_dump(required_data, dump_file)
+            if runbook.json_output:
+                json.dump(required_data, dump_file)
+            else:
+                yaml.safe_dump(required_data, dump_file)
         return {}
