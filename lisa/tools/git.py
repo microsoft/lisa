@@ -264,7 +264,7 @@ class Git(Tool):
 
     def get_current_branch(self, cwd: pathlib.PurePath) -> str:
         result = self.run(
-            "branch --show-current",
+            "symbolic-ref --short HEAD",
             shell=True,
             cwd=cwd,
             force_run=True,
