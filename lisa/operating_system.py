@@ -1076,7 +1076,7 @@ class Ubuntu(Debian):
         super()._initialize_package_installation()
 
 
-class FreeBSD(BSD):
+class _update_packages(BSD):
     @retry(tries=10, delay=5)
     def _install_packages(
         self,
@@ -1482,10 +1482,9 @@ class Redhat(Fedora):
         #  Basic_A1, Standard_A5, Standard_A1_v2, Standard_D1
         # redhat rhel 7-lvm 7.7.2019102813 Basic_A1 cost 2371.568 seconds
         # redhat rhel 8.1 8.1.2020020415 Basic_A0 cost 2409.116 seconds
-        self._node.execute(command, sudo=True, timeout=3600)
-        #output = self._node.execute(command, sudo=True, timeout=3600).stdout
-        #if self._no_repo_enabled.search(output):
-        #    raise RepoNotExistException(self._node.os)
+        output = self._node.execute(command, sudo=True, timeout=3600).stdout
+        if self._no_repo_enabled.search(output):
+            raise RepoNotExistException(self._node.os)
 
     def _dnf_tool(self) -> str:
         return "yum"
