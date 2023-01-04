@@ -774,8 +774,6 @@ class AzurePlatform(Platform):
             information["location"] = node_runbook.location
             information["vmsize"] = node_runbook.vm_size
             information["image"] = node_runbook.get_image_name()
-            if node_runbook.vmgs:
-                information["vmgs"] = node_runbook.vmgs
 
         return information
 
@@ -1152,15 +1150,17 @@ class AzurePlatform(Platform):
                 "hyperv_generation need value 1 or 2, "
                 f"but {azure_node_runbook.hyperv_generation}",
             )
-        if azure_node_runbook.vhd and len(azure_node_runbook.vhd) > 0:
+        if azure_node_runbook.vhd and azure_node_runbook.vhd.vhd_path:
             # vhd is higher priority
-            azure_node_runbook.vhd = self._get_deployable_vhd_path(
-                azure_node_runbook.vhd, azure_node_runbook.location, log
+            vhd = azure_node_runbook.vhd
+            vhd.vhd_path = self._get_deployable_vhd_path(
+                vhd.vhd_path, azure_node_runbook.location, log
             )
-            if azure_node_runbook.vmgs:
-                azure_node_runbook.vmgs = self._get_deployable_vhd_path(
-                    azure_node_runbook.vmgs, azure_node_runbook.location, log
+            if vhd.vmgs_path:
+                vhd.vmgs_path = self._get_deployable_vhd_path(
+                    vhd.vmgs_path, azure_node_runbook.location, log
                 )
+            azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
         elif azure_node_runbook.shared_gallery:
@@ -1214,18 +1214,20 @@ class AzurePlatform(Platform):
         runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
         arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
 
-        if arm_parameters.vhd and len(arm_parameters.vhd) > 0:
+        if arm_parameters.vhd and arm_parameters.vhd.vhd_path:
             # vhd is higher priority
-            arm_parameters.vhd = self._get_deployable_vhd_path(
-                arm_parameters.vhd, arm_parameters.location, log
+            vhd = arm_parameters.vhd
+            vhd.vhd_path = self._get_deployable_vhd_path(
+                vhd.vhd_path, arm_parameters.location, log
             )
-            if arm_parameters.vmgs:
-                arm_parameters.vmgs = self._get_deployable_vhd_path(
-                    arm_parameters.vmgs, arm_parameters.location, log
+            if vhd.vmgs_path:
+                vhd.vmgs_path = self._get_deployable_vhd_path(
+                    vhd.vmgs_path, arm_parameters.location, log
                 )
+            arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
-                self._get_vhd_os_disk_size(arm_parameters.vhd),
+                self._get_vhd_os_disk_size(arm_parameters.vhd.vhd_path),
             )
         elif arm_parameters.shared_gallery:
             arm_parameters.osdisk_size_in_gb = max(
