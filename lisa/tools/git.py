@@ -264,16 +264,13 @@ class Git(Tool):
 
     def get_current_branch(self, cwd: pathlib.PurePath) -> str:
         result = self.run(
-            "symbolic-ref --short HEAD",
+            "rev-parse --abbrev-ref HEAD",
             shell=True,
             cwd=cwd,
             force_run=True,
-            # expected_exit_code=0,
-            # expected_exit_code_failure_message="Failed to fetch current branch.",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch current branch.",
         )
-        if result.exit_code != 0:
-            self._log.info(f"log here: {result.stderr}, {result.stdout}")
-            raise LisaException("error here")
         return filter_ansi_escape(result.stdout)
 
     def get_repo_url(self, cwd: pathlib.PurePath, name: str = "origin"):
@@ -290,7 +287,7 @@ class Git(Tool):
     def get_latest_commit_details(self, cwd: pathlib.PurePath) -> dict:
         result = dict()
         latest_commit_id = self.run(
-            "--no-pager log -n 1 --pretty=format:%h",
+            "--no-pager log -n 1 --pretty=format:%H",
             shell=True,
             cwd=cwd,
             force_run=True,
@@ -304,7 +301,7 @@ class Git(Tool):
             cwd=cwd,
             force_run=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+            expected_exit_code_failure_message="Failed to fetch latest commit message.",
         ).stdout
 
         author_email = self.run(
@@ -313,7 +310,7 @@ class Git(Tool):
             cwd=cwd,
             force_run=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+            expected_exit_code_failure_message="Failed to fetch author email.",
         ).stdout
 
         result = {

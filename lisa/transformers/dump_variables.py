@@ -23,7 +23,7 @@ class DumpVariablesTransformerSchema(schema.Transformer):
     variables: List[str] = field(default_factory=list)
     json_output: bool = field(default=False)
     file_path: str = field(
-        default="./lisa_dumped_variables.yml",
+        default="./lisa_dumped_variables",
     )
 
 
@@ -59,7 +59,7 @@ class DumpVariablesTransformer(Transformer):
             except KeyError:
                 self._log.info(f"Variable '{var}' is not found")
         # it will be used as log files
-        file_path = Path(runbook.file_path)
+        file_path = Path(self.__get_file_with_ext(runbook.file_path))
         if not file_path.is_absolute():
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         self._log.info(f"file path'{file_path}'")
@@ -69,3 +69,13 @@ class DumpVariablesTransformer(Transformer):
             else:
                 yaml.safe_dump(required_data, dump_file)
         return {}
+
+    def __get_file_with_ext(self, file_path: str) -> str:
+        if file_path.lower().endswith((".yml", ".json")):
+            return file_path
+
+        runbook: DumpVariablesTransformerSchema = self.runbook
+        if runbook.json_output:
+            return file_path + ".json"
+        else:
+            return file_path + ".yml"
