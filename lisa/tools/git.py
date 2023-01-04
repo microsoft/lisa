@@ -272,7 +272,7 @@ class Git(Tool):
             # expected_exit_code_failure_message="Failed to fetch current branch.",
         )
         if result.exit_code != 0:
-            self._log.info(result.stderr, result.stdout)
+            self._log.info(f"log here: {result.stderr}, {result.stdout}")
             raise LisaException("error here")
         return filter_ansi_escape(result.stdout)
 
