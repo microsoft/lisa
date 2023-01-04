@@ -853,7 +853,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             or not capability.memory_mb
         ):
             result.add_reason(
-                "node_count, core_count, memory_mb " "shouldn't be None or zero."
+                "node_count, core_count, memory_mb shouldn't be None or zero."
             )
 
         if isinstance(self.node_count, int) and isinstance(capability.node_count, int):
