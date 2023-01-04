@@ -268,9 +268,12 @@ class Git(Tool):
             shell=True,
             cwd=cwd,
             force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to fetch current branch.",
+            # expected_exit_code=0,
+            # expected_exit_code_failure_message="Failed to fetch current branch.",
         )
+        if result.exit_code != 0:
+            self._log.info(result.stderr, result.stdout)
+            raise LisaException("error here")
         return filter_ansi_escape(result.stdout)
 
     def get_repo_url(self, cwd: pathlib.PurePath, name: str = "origin"):
