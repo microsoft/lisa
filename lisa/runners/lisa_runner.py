@@ -719,7 +719,7 @@ class LisaRunner(BaseRunner):
             if test_result.can_run:
                 assert test_req.environment
 
-                environment_requirement = copy.copy(test_req.environment)
+                environment_requirement = copy.deepcopy(test_req.environment)
                 if platform_requirement:
                     for index, node_requirement in enumerate(
                         environment_requirement.nodes
