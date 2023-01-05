@@ -12,6 +12,8 @@ from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import Redhat, Ubuntu
 from lisa.tools import Echo, Git, Make, Sed, Uname
+from lisa.tools.gcc import Gcc
+from lisa.tools.lscpu import Lscpu
 from lisa.util import LisaException, field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -356,7 +358,8 @@ class RepoLocation(BaseLocation):
 
     def get_details(self) -> dict:
         git = self._node.tools[Git]
-
+        lscpu = self._node.tools[Lscpu]
+        gcc = self._node.tools[Gcc]
         details = dict()
         if self.__code_path:
             self._log.info(f"code path : {self.__code_path}")
@@ -366,6 +369,8 @@ class RepoLocation(BaseLocation):
             details["git_repository_branch"] = git.get_current_branch(
                 cwd=self.__code_path
             )
+            details["architecture"] = lscpu.get_architecture()
+            details["compiler"] = f"gcc {gcc.get_version()}"
             details.update(git.get_latest_commit_details(cwd=self.__code_path))
 
         return details
