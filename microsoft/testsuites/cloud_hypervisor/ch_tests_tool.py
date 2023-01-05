@@ -57,8 +57,12 @@ class CloudHypervisorTests(Tool):
         test_type: str,
         hypervisor: str,
         log_path: Path,
+        ref: str = "",
         skip: Optional[List[str]] = None,
     ) -> None:
+
+        if ref:
+            self.node.tools[Git].checkout(ref, self.repo_root)
 
         if skip is not None:
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
@@ -114,8 +118,13 @@ class CloudHypervisorTests(Tool):
         environment: Environment,
         hypervisor: str,
         log_path: Path,
+        ref: str = "",
         skip: Optional[List[str]] = None,
     ) -> None:
+
+        if ref:
+            self.node.tools[Git].checkout(ref, self.repo_root)
+
         perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
         failed_testcases = []
 
