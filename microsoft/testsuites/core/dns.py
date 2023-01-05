@@ -40,21 +40,22 @@ class Dns(TestSuite):
         priority=1,
     )
     def verify_dns_name_resolution_after_upgrade(self, node: Node) -> None:
-        is_passed_exception = False
+
         self._check_dns_name_resolution(node)
+
         try:
             self._upgrade_system(node)
+
         except ReleaseEndOfLifeException as identifier:
             # If the release is end of life, skip the step of upgrading system.
             # Continue the following test
             node.log.debug(identifier)
-            is_passed_exception = True
-            exception_identifier = identifier
-        self._check_dns_name_resolution(node)
-        node.reboot()
-        self._check_dns_name_resolution(node)
-        if is_passed_exception:
-            raise PassedException(exception_identifier)
+            raise PassedException(identifier) from identifier
+
+        finally:
+            self._check_dns_name_resolution(node)
+            node.reboot()
+            self._check_dns_name_resolution(node)
 
     @retry(tries=10, delay=0.5)
     def _check_dns_name_resolution(self, node: Node) -> None:
