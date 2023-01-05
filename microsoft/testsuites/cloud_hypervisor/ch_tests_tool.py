@@ -241,6 +241,7 @@ class CloudHypervisorTests(Tool):
                 "started",
                 "ok",
                 "failed",
+                "ignored",
             ]:
                 continue
 
@@ -248,7 +249,12 @@ class CloudHypervisorTests(Tool):
                 started_tests.add(result["name"])
                 continue
 
-            status = TestStatus.PASSED if result["event"] == "ok" else TestStatus.FAILED
+            if result["event"] == "ok":
+                status = TestStatus.PASSED
+            elif result["event"] == "failed":
+                status = TestStatus.FAILED
+            elif result["event"] == "ignored":
+                status = TestStatus.SKIPPED
             results.append(
                 CloudHypervisorTestResult(
                     name=result["name"],
