@@ -49,8 +49,7 @@ class MockItem(RequirementMixin):
 class SearchSpaceTestCase(unittest.TestCase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        id = f"{'.'.join(self.id().split('.')[-2:])}"
-        self._log = get_logger(id)
+        self._log = get_logger(f"{'.'.join(self.id().split('.')[-2:])}")
 
     def test_supported_intrange(self) -> None:
         self._verify_matrix(

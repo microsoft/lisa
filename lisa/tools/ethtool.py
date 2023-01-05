@@ -678,11 +678,11 @@ class Ethtool(Tool):
         return msg_level_settings
 
     def set_unset_device_message_flag_by_name(
-        self, interface: str, msg_flag: List[str], set: bool
+        self, interface: str, msg_flag: List[str], flag_set: bool
     ) -> DeviceMessageLevel:
-        if set:
+        if flag_set:
             result = self.run(
-                f"-s {interface} msglvl {' on '.join(flag for flag in msg_flag)} on",
+                f"-s {interface} msglvl {' on '.join(msg_flag)} on",
                 sudo=True,
                 force_run=True,
             )
@@ -691,7 +691,7 @@ class Ethtool(Tool):
             )
         else:
             result = self.run(
-                f"-s {interface} msglvl {' off '.join(flag for flag in msg_flag)} off",
+                f"-s {interface} msglvl {' off '.join(msg_flag)} off",
                 sudo=True,
                 force_run=True,
             )

@@ -387,7 +387,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         find_tool = self._node.tools[Find]
         file_list = find_tool.find_files(
             self._node.get_pure_path("/var/log/azure/"),
-            type="f",
+            file_type="f",
             sudo=True,
             ignore_not_exist=True,
         )

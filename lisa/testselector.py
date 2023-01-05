@@ -31,9 +31,9 @@ def select_testcases(
         selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
-        for filter in filters:
+        for filter_ in filters:
             selected = _apply_filter(
-                filter, selected, force_included, force_excluded, full_list
+                filter_, selected, force_included, force_excluded, full_list
             )
         results: List[TestCaseRuntimeData] = []
         for case in selected.values():

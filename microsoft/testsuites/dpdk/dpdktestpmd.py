@@ -592,7 +592,7 @@ class DpdkTestpmd(Tool):
                 # dpdk stopped using a default branch
                 # if a branch is not specified, get latest version tag.
                 self._dpdk_branch = git_tool.get_tag(
-                    self.dpdk_path, filter=r"^v.*"  # starts w 'v'
+                    self.dpdk_path, filter_=r"^v.*"  # starts w 'v'
                 )
 
             git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)

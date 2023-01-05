@@ -44,7 +44,7 @@ class NFSClient(Tool):
         self.node.tools[Mount].mount(
             name=f"{server_ip}:{server_shared_dir}",
             point=mount_dir,
-            type=FileSystem.nfs,
+            fs_type=FileSystem.nfs,
             options=options,
         )
 

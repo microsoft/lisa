@@ -50,7 +50,7 @@ class Disk(Feature):
     def add_data_disk(
         self,
         count: int,
-        type: schema.DiskType = schema.DiskType.StandardHDDLRS,
+        disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
     ) -> List[str]:
         raise NotImplementedError

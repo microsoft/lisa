@@ -27,10 +27,10 @@ class PartitionInfo(object):
     # /dev/sdc
     _disk_regex = re.compile(r"\s*\/dev\/(?P<disk>\D+).*")
 
-    def __init__(self, name: str, mount_point: str, type: str) -> None:
+    def __init__(self, name: str, mount_point: str, fs_type: str) -> None:
         self.name = name
         self.mount_point = mount_point
-        self.type = type
+        self.type = fs_type
         matched = self._disk_regex.fullmatch(name)
         assert matched
         self.disk = matched.group("disk")
@@ -73,29 +73,31 @@ class Mount(Tool):
         self,
         name: str,
         point: str,
-        type: Optional[FileSystem] = None,
+        fs_type: Optional[FileSystem] = None,
         options: str = "",
-        format: bool = False,
+        format_: bool = False,
     ) -> None:
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
         runline = [self.command]
-        if type:
-            runline.append(f"-t {type.name}")
+        if fs_type:
+            runline.append(f"-t {fs_type.name}")
         if options:
             runline.append(f"-o {options}")
-        if format:
-            format_type = type if type else self._DEFAULT_TYPE
+        if format_:
+            format_type = fs_type or self._DEFAULT_TYPE
             self.node.tools[Mkfs].format_disk(name, format_type)
         runline.append(f"{name} {point}")
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
     def umount(
-        self, disk_name: str, point: str, erase: bool = True, type: str = ""
+        self, disk_name: str, point: str, erase: bool = True, fs_type: str = ""
     ) -> None:
-        if type:
-            type = f"-t {type}"
-        cmd_result = self.node.execute(f"umount {type} {point}", shell=True, sudo=True)
+        if fs_type:
+            fs_type = f"-t {fs_type}"
+        cmd_result = self.node.execute(
+            f"umount {fs_type} {point}", shell=True, sudo=True
+        )
         if erase:
             fdisk = self.node.tools[Fdisk]
             fdisk.delete_partitions(disk_name)

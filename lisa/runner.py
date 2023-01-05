@@ -28,8 +28,7 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
         for raw_filter in raw_filters:
             if constants.TYPE not in raw_filter:
                 raw_filter[constants.TYPE] = constants.TESTCASE_TYPE_LISA
-            filter = factory.load_typed_runbook(raw_filter)
-            filters.append(filter)
+            filters.append(factory.load_typed_runbook(raw_filter))
     else:
         filters = [schema.TestCase(name="test", criteria=schema.Criteria(area="demo"))]
     return filters
@@ -293,13 +292,13 @@ class RootRunner(Action):
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in runbook.testcase_raw:
             # by default run all filtered cases unless 'enable' is specified as false
-            filter = schema.load_by_type(schema.BaseTestCaseFilter, raw_filter)
-            if filter.enabled:
+            filter_ = schema.load_by_type(schema.BaseTestCaseFilter, raw_filter)
+            if filter_.enabled:
                 raw_filters: List[schema.BaseTestCaseFilter] = runner_filters.get(
-                    filter.type, []
+                    filter_.type, []
                 )
                 if not raw_filters:
-                    runner_filters[filter.type] = raw_filters
+                    runner_filters[filter_.type] = raw_filters
                 raw_filters.append(raw_filter)
             else:
                 self._log.debug(f"Skip disabled filter: {raw_filter}.")

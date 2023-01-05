@@ -49,7 +49,7 @@ class WaAgentBvt(TestSuite):
         result = extension.create_or_update(
             name="CustomScript",
             publisher="Microsoft.Azure.Extensions",
-            type="CustomScript",
+            type_="CustomScript",
             type_handler_version="2.0",
             auto_upgrade_minor_version=True,
             settings=settings,
