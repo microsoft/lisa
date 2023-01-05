@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from typing import Dict, List, Optional
 
 from lisa.executable import Tool
@@ -67,21 +68,16 @@ class InterruptInspector(Tool):
         # Note : Some IRQ numbers have single entry because they're not actually
         # CPU stats, but events count belonging to the IO-APIC controller. For
         # example, `ERR` is incremented in the case of errors in the IO-APIC bus.
-        result = (
-            self.node.tools[Cat]
-            .run("/proc/interrupts", sudo=True, force_run=True)
-            .stdout
-        )
-        mappings_with_header = result.splitlines(keepends=False)
-        mappings = mappings_with_header[1:]
-        assert len(mappings) > 0
+        result = self.node.tools[Cat].run("/proc/interrupts", sudo=True, force_run=True)
+        mappings = result.stdout.splitlines(keepends=False)[1:]
+        assert mappings
 
         interrupts = []
         for line in mappings:
             matched = self._interrupt_regex.fullmatch(line)
             assert matched
             cpu_counter = [int(count) for count in matched.group("cpu_counter").split()]
-            counter_sum = sum([int(x) for x in cpu_counter])
+            counter_sum = sum(int(x) for x in cpu_counter)
             interrupts.append(
                 Interrupt(
                     irq_number=matched.group("irq_number"),
@@ -108,24 +104,24 @@ class InterruptInspector(Tool):
             if pci_slot in x.metadata
             and all(y not in x.metadata for y in exclude_key_words)
         ]
-        for interrupt in matched_interrupts:
-            interrupts_sum_by_irqs.append({interrupt.irq_number: interrupt.counter_sum})
+        interrupts_sum_by_irqs.extend(
+            {interrupt.irq_number: interrupt.counter_sum}
+            for interrupt in matched_interrupts
+        )
         return interrupts_sum_by_irqs
 
     def sum_cpu_counter_by_index(self, pci_slot: str) -> Dict[int, int]:
-        interrupts_sum_by_cpus: Dict[int, int] = {}
-        interrupts = self.get_interrupt_data()
-        matched_interrupts = [x for x in interrupts if pci_slot in x.metadata]
-        for cpu_index in range(0, len(matched_interrupts[0].cpu_counter)):
-            interrupts_sum_by_cpus[cpu_index] = self._get_sum_of_interrupt_data_per_cpu(
-                matched_interrupts, cpu_index
-            )
-        return interrupts_sum_by_cpus
 
-    def _get_sum_of_interrupt_data_per_cpu(
-        self, interrupts: List[Interrupt], index: int
-    ) -> int:
-        sum = 0
-        for interrupt in interrupts:
-            sum += interrupt.cpu_counter[index]
-        return sum
+        interrupts_by_cpu: Counter[int] = Counter()
+        for interrupt in self.get_interrupt_data():
+
+            # Ignore unrelated entries
+            if pci_slot not in interrupt.metadata:
+                continue
+
+            # For each CPU, add count to totals
+            for cpu_index, count in enumerate(interrupt.cpu_counter):
+                interrupts_by_cpu[cpu_index] += count
+
+        # Return a standard dictionary
+        return dict(interrupts_by_cpu)

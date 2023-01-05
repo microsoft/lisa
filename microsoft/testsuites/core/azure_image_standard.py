@@ -719,9 +719,9 @@ class AzureImageStandard(TestSuite):
                 expected_repo_list += ["mariner-official-update"]
             elif 2 == node.os.information.version.major:
                 expected_repo_list += ["mariner-official-extras"]
-            for id in expected_repo_list:
+            for id_ in expected_repo_list:
                 is_repository_present = any(
-                    [id in repository.id for repository in mariner_repositories]
+                    id_ in repository.id for repository in mariner_repositories
                 )
                 assert_that(
                     is_repository_present,

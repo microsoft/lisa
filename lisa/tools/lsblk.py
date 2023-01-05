@@ -38,7 +38,7 @@ class PartitionInfo(object):
         name: str,
         mountpoint: str,
         size: int = 0,
-        type: str = "",
+        dev_type: str = "",
         available_blocks: int = 0,
         used_blocks: int = 0,
         total_blocks: int = 0,
@@ -48,7 +48,7 @@ class PartitionInfo(object):
         self.name = name
         self.mountpoint = mountpoint
         self.size_in_gb = int(size / (1024 * 1024 * 1024))
-        self.type = type
+        self.type = dev_type
         self.available_blocks = available_blocks
         self.used_blocks = used_blocks
         self.total_blocks = total_blocks
@@ -66,12 +66,9 @@ class DiskInfo(object):
 
     @property
     def is_os_disk(self) -> bool:
-        # check if the disk contains boot partition
-        # boot partitions start with /boot/{id}
-        for partition in self.partitions:
-            if partition.mountpoint.startswith("/boot"):
-                return True
-        return False
+        return any(
+            partition.mountpoint.startswith("/boot") for partition in self.partitions
+        )
 
     @property
     def is_mounted(self) -> bool:
@@ -79,11 +76,7 @@ class DiskInfo(object):
         if self.mountpoint:
             return True
 
-        for partition in self.partitions:
-            if partition.mountpoint:
-                return True
-
-        return False
+        return any(partition.mountpoint for partition in self.partitions)
 
     @property
     def device_name(self) -> str:
@@ -94,13 +87,13 @@ class DiskInfo(object):
         name: str,
         mountpoint: str,
         size: int = 0,
-        type: str = "",
+        dev_type: str = "",
         partitions: Optional[List[PartitionInfo]] = None,
     ):
         self.name = name
         self.mountpoint = mountpoint
         self.size_in_gb = int(size / (1024 * 1024 * 1024))
-        self.type = type
+        self.type = dev_type
         self.partitions = partitions if partitions is not None else []
 
 
@@ -152,7 +145,7 @@ class Lsblk(Tool):
                 PartitionInfo(
                     name=lsblk_entry["name"],
                     size=int(lsblk_entry["size"]),
-                    type=lsblk_entry["type"],
+                    dev_type=lsblk_entry["type"],
                     mountpoint=lsblk_entry["mountpoint"],
                     fstype=lsblk_entry["fstype"],
                 )
@@ -170,7 +163,7 @@ class Lsblk(Tool):
                     name=lsblk_entry["name"],
                     mountpoint=lsblk_entry["mountpoint"],
                     size=int(lsblk_entry["size"]),
-                    type=lsblk_entry["type"],
+                    dev_type=lsblk_entry["type"],
                     partitions=disk_partition_map.get(lsblk_entry["name"], []),
                 )
             )

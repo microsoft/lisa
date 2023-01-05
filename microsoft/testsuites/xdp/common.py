@@ -64,7 +64,7 @@ def set_hugepage(node: Node) -> None:
     mount = node.tools[Mount]
     for point, options in _huge_page_disks.items():
         mount.mount(
-            name="nodev", point=point, type=FileSystem.hugetlbfs, options=options
+            name="nodev", point=point, fs_type=FileSystem.hugetlbfs, options=options
         )
     echo = node.tools[Echo]
     echo.write_to_file(
@@ -102,7 +102,7 @@ def remove_hugepage(node: Node) -> None:
 
     mount = node.tools[Mount]
     for point in _huge_page_disks:
-        mount.umount(disk_name="nodev", point=point, type="hugetlbfs", erase=False)
+        mount.umount(disk_name="nodev", point=point, fs_type="hugetlbfs", erase=False)
         pure_path = node.get_pure_path(point)
         node.execute(f"rm -rf {pure_path}", sudo=True)
 

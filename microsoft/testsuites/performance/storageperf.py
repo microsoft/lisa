@@ -251,7 +251,7 @@ class StoragePerformance(TestSuite):
             ]
         failed_test_cases = []
         for testcase in testcases:
-            id = str(uuid.uuid4())
+
             try:
                 start_iodepth = testcase.get("start_iodepth", 1)
                 max_iodepth = testcase.get("max_iodepth", 1)
@@ -274,7 +274,7 @@ class StoragePerformance(TestSuite):
                     node=node,
                     start_iodepth=start_iodepth,
                     max_iodepth=max_iodepth,
-                    filename=f"{size_mb}_MB_FIO_{id}",
+                    filename=f"{size_mb}_MB_FIO_{uuid.uuid4()}",
                     test_result=result,
                     test_name=test_name,
                     num_jobs=num_jobs,

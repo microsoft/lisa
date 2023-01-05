@@ -102,8 +102,7 @@ class Iperf3(Tool):
         posix_os.install_packages("iperf3")
         install_from_src = False
         if self._check_exists():
-            help = self.help()
-            if "--logfile" not in help.stdout:
+            if "--logfile" not in self.help().stdout:
                 install_from_src = True
         else:
             install_from_src = True
@@ -235,8 +234,7 @@ class Iperf3(Tool):
         if log_file:
             if self.node.shell.exists(self.node.get_pure_path(log_file)):
                 self.node.shell.remove(self.node.get_pure_path(log_file))
-            help = self.help()
-            if "--logfile" not in help.stdout:
+            if "--logfile" not in self.help().stdout:
                 self._install_from_src()
             cmd += f" --logfile {log_file}"
 

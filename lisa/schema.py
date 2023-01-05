@@ -356,13 +356,13 @@ class FeatureSettings(
 
     @staticmethod
     def create(
-        type: str, extended_schemas: Optional[Dict[Any, Any]] = None
+        type_: str, extended_schemas: Optional[Dict[Any, Any]] = None
     ) -> "FeatureSettings":
         # If a feature has no setting, it will return the default settings.
         if extended_schemas:
-            feature = FeatureSettings(type=type, extended_schemas=extended_schemas)
+            feature = FeatureSettings(type=type_, extended_schemas=extended_schemas)
         else:
-            feature = FeatureSettings(type=type)
+            feature = FeatureSettings(type=type_)
         return feature
 
     def check(self, capability: Any) -> search_space.ResultReason:

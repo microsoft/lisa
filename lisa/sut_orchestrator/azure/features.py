@@ -307,14 +307,14 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         return self._ws
 
     def _write(self, cmd: str) -> None:
-        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+        self._initialize_serial_console(port_id=self.DEFAULT_SERIAL_PORT_ID)
 
         # connect to websocket and send command
         ws = self._get_connection()
         self._get_event_loop().run_until_complete(ws.send(cmd))
 
     def _read(self) -> str:
-        self._initialize_serial_console(id=self.DEFAULT_SERIAL_PORT_ID)
+        self._initialize_serial_console(port_id=self.DEFAULT_SERIAL_PORT_ID)
 
         # connect to websocket
         ws = self._get_connection()
@@ -371,7 +371,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
         return serial_port_connection_str
 
-    def _initialize_serial_console(self, id: int) -> None:
+    def _initialize_serial_console(self, port_id: int) -> None:
         if self._serial_console_initialized:
             return
 
@@ -400,20 +400,20 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         )
         serial_port_ids = [int(port.name) for port in serial_ports.value]
 
-        if id not in serial_port_ids:
+        if port_id not in serial_port_ids:
             self._serial_port: SerialPort = self._serial_port_operations.create(
                 resource_group_name=self._resource_group_name,
                 resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
                 parent_resource_type=self.PARENT_RESOURCE_TYPE,
                 parent_resource=self._vm_name,
-                serial_port=id,
+                serial_port=port_id,
                 parameters=SerialPort(state=SerialPortState.ENABLED),
             )
         else:
             self._serial_port = [
                 serialport
                 for serialport in serial_ports.value
-                if int(serialport.name) == id
+                if int(serialport.name) == port_id
             ][0]
 
         # setup shared web socket connection variable
@@ -1125,10 +1125,10 @@ class Disk(AzureFeatureMixin, features.Disk):
     def add_data_disk(
         self,
         count: int,
-        type: schema.DiskType = schema.DiskType.StandardHDDLRS,
+        disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
     ) -> List[str]:
-        disk_sku = _disk_type_mapping.get(type, None)
+        disk_sku = _disk_type_mapping.get(disk_type, None)
         assert disk_sku
         assert self._node.capability.disk
         assert isinstance(self._node.capability.disk.data_disk_count, int)
@@ -1827,7 +1827,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
     def create_or_update(
         self,
-        type: str,
+        type_: str,
         name: str = "",
         tags: Optional[Dict[str, str]] = None,
         publisher: str = "Microsoft.Azure.Extensions",
@@ -1851,7 +1851,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             force_update_tag=force_update_tag,
             publisher=publisher,
             auto_upgrade_minor_version=auto_upgrade_minor_version,
-            type_properties_type=type,
+            type_properties_type=type_,
             type_handler_version=type_handler_version,
             enable_automatic_upgrade=enable_automatic_upgrade,
             settings=settings,

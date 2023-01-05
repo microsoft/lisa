@@ -9,9 +9,9 @@ from lisa.util import find_patterns_in_lines
 
 
 class ProcessInfo(object):
-    def __init__(self, name: str, id: str) -> None:
+    def __init__(self, name: str, pid: str) -> None:
         self.name = name
-        self.id = id
+        self.id = pid
 
     def __repr__(self) -> str:
         return f"name: {self.name}, id: {self.id}"
@@ -38,7 +38,7 @@ class Pgrep(Tool):
             f'-l "{process_identifier}"', sudo=True, force_run=True
         ).stdout
         found_processes = find_patterns_in_lines(output, [self._process_map_regex])
-        for item in found_processes[0]:
-            running_process.append(ProcessInfo(name=item[1], id=item[0]))
-
+        running_process.extend(
+            ProcessInfo(name=item[1], pid=item[0]) for item in found_processes[0]
+        )
         return running_process

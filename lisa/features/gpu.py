@@ -153,8 +153,8 @@ class Gpu(Feature):
         lsvmbus_tool = self._node.tools[Lsvmbus]
         device_list = lsvmbus_tool.get_device_channels()
         for device in device_list:
-            for name, id, bridge_count in NvidiaSmi.gpu_devices:
-                if id in device.device_id:
+            for name, id_, bridge_count in NvidiaSmi.gpu_devices:
+                if id_ in device.device_id:
                     lsvmbus_device_count += 1
                     bridge_device_count = bridge_count
                     self._log.debug(f"GPU device {name} found!")

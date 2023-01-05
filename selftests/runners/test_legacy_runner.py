@@ -131,10 +131,13 @@ class ResultStateManagerTestCase(TestCase):
         completed_count: int,
         expected_statuses: List[TestStatus],
     ) -> None:
-        all = self._create_information(all_count, TestStatus.QUEUED)
-        running = self._create_information(running_count, TestStatus.RUNNING)
-        completed = self._create_information(completed_count, TestStatus.PASSED)
-        state.set_states(all, running, completed)
+
+        state.set_states(
+            self._create_information(all_count, TestStatus.QUEUED),
+            self._create_information(running_count, TestStatus.RUNNING),
+            self._create_information(completed_count, TestStatus.PASSED),
+        )
+
         self.assertListEqual([x.status for x in state._results], expected_statuses)
 
     def _create_information(

@@ -44,7 +44,7 @@ class TcpDump(Tool):
     def dump_async(
         self,
         nic_name: str = "",
-        filter: str = "",
+        expression: str = "",
         timeout: int = 0,
         packet_filename: str = "tcp_dump.pcap",
     ) -> Process:
@@ -52,11 +52,10 @@ class TcpDump(Tool):
         # -n not resolve address to domain name.
         # -i specify the nic name
         # -w write to pcap file.
-        command = f"{self.command} -n -i {nic_name} {filter} -w {full_name}"
+        command = f"{self.command} -n -i {nic_name} {expression} -w {full_name}"
         if timeout > 0:
             command = f"timeout {timeout} {command}"
-        process = self.node.execute_async(cmd=command, shell=True, sudo=True)
-        return process
+        return self.node.execute_async(cmd=command, shell=True, sudo=True)
 
     # It may be called too fast, and the capture file may not be ready.
     # Use retry to wait it completed.

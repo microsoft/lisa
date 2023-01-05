@@ -72,10 +72,10 @@ def _get_environment_id() -> int:
     global _global_environment_id
 
     with _global_environment_id_lock:
-        id = _global_environment_id
+        env_id = _global_environment_id
         _global_environment_id += 1
 
-    return id
+    return env_id
 
 
 @dataclass

@@ -178,7 +178,7 @@ class VhdTransformer(Transformer):
         # get vhd container
         if not runbook.storage_account_name:
             runbook.storage_account_name = get_storage_account_name(
-                subscription_id=platform.subscription_id, location=location, type="t"
+                subscription_id=platform.subscription_id, location=location, type_="t"
             )
 
         check_or_create_storage_account(

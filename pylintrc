@@ -46,7 +46,6 @@ disable=
     pointless-statement,
     pointless-string-statement,
     redefined-argument-from-local,
-    redefined-builtin,
     redefined-outer-name,
     super-init-not-called,
     unbalanced-tuple-unpacking,

@@ -398,7 +398,7 @@ class Storage(TestSuite):
             raise BadEnvironmentStateException
 
     def _hot_add_disk_serial(
-        self, log: Logger, node: Node, type: DiskType, size: int
+        self, log: Logger, node: Node, disk_type: DiskType, size: int
     ) -> None:
         disk = node.features[Disk]
         lsblk = node.tools[Lsblk]
@@ -423,7 +423,7 @@ class Storage(TestSuite):
         for _ in range(disks_to_add):
             # add data disk
             log.debug("Adding 1 managed disk")
-            disks_added = disk.add_data_disk(1, type, size)
+            disks_added = disk.add_data_disk(1, disk_type, size)
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
@@ -457,7 +457,7 @@ class Storage(TestSuite):
             )
 
     def _hot_add_disk_parallel(
-        self, log: Logger, node: Node, type: DiskType, size: int
+        self, log: Logger, node: Node, disk_type: DiskType, size: int
     ) -> None:
         disk = node.features[Disk]
         lsblk = node.tools[Lsblk]
@@ -481,7 +481,7 @@ class Storage(TestSuite):
 
         # add data disks
         log.debug(f"Adding {disks_to_add} managed disks")
-        disks_added = disk.add_data_disk(disks_to_add, type, size)
+        disks_added = disk.add_data_disk(disks_to_add, disk_type, size)
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct

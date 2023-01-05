@@ -123,7 +123,7 @@ def reset_partitions(
     partition_disks: List[str] = []
     for data_disk in disk_names:
         fdisk.delete_partitions(data_disk)
-        partition_disks.append(fdisk.make_partition(data_disk, format=False))
+        partition_disks.append(fdisk.make_partition(data_disk, format_=False))
     return partition_disks
 
 

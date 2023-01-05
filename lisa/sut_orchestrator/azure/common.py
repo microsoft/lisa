@@ -759,11 +759,11 @@ def get_resource_management_client(
 
 
 def get_storage_account_name(
-    subscription_id: str, location: str, type: str = "s"
+    subscription_id: str, location: str, type_: str = "s"
 ) -> str:
     subscription_id_postfix = subscription_id[-8:]
     # name should be shorter than 24 character
-    return f"lisa{type}{location[0:11]}{subscription_id_postfix}"
+    return f"lisa{type_}{location[:11]}{subscription_id_postfix}"
 
 
 def get_marketplace_ordering_client(

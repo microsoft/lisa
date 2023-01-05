@@ -1948,7 +1948,7 @@ class AzurePlatform(Platform):
             )  # type: ignore
 
         storage_name = get_storage_account_name(
-            subscription_id=self.subscription_id, location=location, type="t"
+            subscription_id=self.subscription_id, location=location, type_="t"
         )
 
         check_or_create_storage_account(

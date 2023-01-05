@@ -51,11 +51,11 @@ class Nvmecli(Tool):
             )
         return cmd_result
 
-    def delete_namespace(self, namespace: str, id: int) -> ExecutableResult:
-        return self.run(f"delete-ns -n {id} {namespace}", shell=True, sudo=True)
+    def delete_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        return self.run(f"delete-ns -n {id_} {namespace}", shell=True, sudo=True)
 
-    def detach_namespace(self, namespace: str, id: int) -> ExecutableResult:
-        return self.run(f"detach-ns -n {id} {namespace}", shell=True, sudo=True)
+    def detach_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        return self.run(f"detach-ns -n {id_} {namespace}", shell=True, sudo=True)
 
     def format_namespace(self, namespace: str) -> ExecutableResult:
         return self.run(f"format {namespace}", shell=True, sudo=True)
