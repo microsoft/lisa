@@ -62,6 +62,7 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          sudo apt update
           sudo apt install libgirepository1.0-dev ${{ matrix.additional-sys-deps }}
         if: startsWith(matrix.os, 'ubuntu')
 
