@@ -567,7 +567,8 @@ class Posix(OperatingSystem, BaseClassMixin):
         timeout = 60 * timeout
         timer = create_timer()
         while timeout > timer.elapsed(False):
-            cmd_result = self._node.execute(f"pidof {process_name}")
+            # Some SUSE-based images need sudo privilege to run below command
+            cmd_result = self._node.execute(f"pidof {process_name}", sudo=True)
             if cmd_result.exit_code == 1:
                 # not found dpkg or zypper process, it's ok to exit.
                 break
