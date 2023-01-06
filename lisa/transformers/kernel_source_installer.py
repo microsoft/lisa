@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Type, cast
 
@@ -369,8 +370,10 @@ class RepoLocation(BaseLocation):
             details["git_repository_branch"] = git.get_current_branch(
                 cwd=self.__code_path
             )
+            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
             details["architecture"] = lscpu.get_architecture()
             details["compiler"] = f"gcc {gcc.get_version()}"
+            details["build_start_time"] = datetime.now(timezone.utc).isoformat()
             details.update(git.get_latest_commit_details(cwd=self.__code_path))
 
         return details
