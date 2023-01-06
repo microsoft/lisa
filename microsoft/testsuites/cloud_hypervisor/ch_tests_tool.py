@@ -234,6 +234,10 @@ class CloudHypervisorTests(Tool):
         # { "type": "test", "event": "ok", "name": "integration::test_vfio" }
         lines = output.split("\n")
         for line in lines:
+            matches = re.findall(r"{.*}", line)
+            if not matches:
+                continue
+            line = matches[0]
             result = {}
             try:
                 result = json.loads(line)
