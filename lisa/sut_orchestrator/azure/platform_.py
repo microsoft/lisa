@@ -2446,6 +2446,7 @@ class AzurePlatform(Platform):
             "westus3",
             "eastus",
             "westus2",
+            "eastus2",
             "centraluseuap",
             "eastus2euap",
         ]
