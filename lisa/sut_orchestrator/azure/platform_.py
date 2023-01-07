@@ -466,6 +466,10 @@ class AzurePlatform(Platform):
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             try:
+                location, deployment_parameters = self._create_deployment_parameters(
+                    resource_group_name, environment, log
+                )
+
                 if self._azure_runbook.deploy:
                     log.info(
                         f"creating or updating resource group: [{resource_group_name}]"
@@ -474,15 +478,11 @@ class AzurePlatform(Platform):
                         self.credential,
                         subscription_id=self.subscription_id,
                         resource_group_name=resource_group_name,
-                        location=RESOURCE_GROUP_LOCATION,
+                        location=location,
                         log=log,
                     )
                 else:
                     log.info(f"reusing resource group: [{resource_group_name}]")
-
-                location, deployment_parameters = self._create_deployment_parameters(
-                    resource_group_name, environment, log
-                )
 
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
