@@ -246,6 +246,8 @@ class AzurePlatformSchema:
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
+    # specify shared resource group location
+    shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
@@ -789,7 +791,7 @@ class AzurePlatform(Platform):
             self.credential,
             self.subscription_id,
             azure_runbook.shared_resource_group_name,
-            RESOURCE_GROUP_LOCATION,
+            azure_runbook.shared_resource_group_location,
             self._log,
         )
 
