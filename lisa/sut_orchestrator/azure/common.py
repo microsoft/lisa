@@ -21,6 +21,7 @@ from azure.mgmt.network.models import (  # type: ignore
     PrivateLinkServiceConnection,
     PrivateLinkServiceConnectionState,
     Subnet,
+    VirtualNetworkPeering,
 )
 from azure.mgmt.privatedns import PrivateDnsManagementClient  # type: ignore
 from azure.mgmt.privatedns.models import (  # type: ignore
@@ -717,6 +718,56 @@ def delete_private_dns_zone_groups(
         log.debug(f"delete private dns zone group: {private_dns_zone_group_name}")
     except Exception:
         log.debug(f"not find private dns zone group: {private_dns_zone_group_name}")
+
+
+def create_update_virtual_network_peerings(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    virtual_network_name: str,
+    remote_virtual_network_id: str,
+    log: Logger,
+    virtual_network_peering_name: str = "default",
+    allow_virtual_network_access: bool = True,
+) -> None:
+    network_client = get_network_client(platform)
+    network_client.virtual_network_peerings.begin_create_or_update(
+        resource_group_name=resource_group_name,
+        virtual_network_name=virtual_network_name,
+        virtual_network_peering_name=virtual_network_peering_name,
+        virtual_network_peering_parameters=VirtualNetworkPeering(
+            name=virtual_network_peering_name,
+            allow_virtual_network_access=allow_virtual_network_access,
+            remote_virtual_network=remote_virtual_network_id,
+        ),
+    )
+    log.debug(f"create virtual network peering: {virtual_network_peering_name}")
+
+
+def delete_virtual_network_peering(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    log: Logger,
+    virtual_network_name: str,
+    virtual_network_peering_name: str = "default",
+) -> None:
+    network_client = get_network_client(platform)
+    try:
+        network_client.virtual_network_peerings.get(
+            resource_group_name=resource_group_name,
+            virtual_network_name=virtual_network_name,
+            virtual_network_peering_name=virtual_network_peering_name,
+        )
+        log.debug(f"found virtual network peering: {virtual_network_peering_name}")
+        network_client.virtual_network_peerings.begin_delete(
+            resource_group_name=resource_group_name,
+            virtual_network_name=virtual_network_name,
+            virtual_network_peering_name=virtual_network_peering_name,
+        )
+        log.debug(f"deleted virtual network peering: {virtual_network_peering_name}")
+    except Exception:
+        log.debug(
+            f"did not find virtual network peering: {virtual_network_peering_name}"
+        )
 
 
 def get_virtual_networks(
