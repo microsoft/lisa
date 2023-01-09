@@ -15,15 +15,9 @@ from lisa.util.logger import Logger, get_logger
 @dataclass_json()
 @dataclass
 class UpgradeInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    repo_url: str = field(
-        default="",
-        metadata=field_metadata(required=True),
-    )
+    repo_url: str = field(default="")
 
-    proposed: bool = field(
-        default=False,
-        metadata=field_metadata(required=True),
-    )
+    proposed: bool = field(default=False)
 
 
 @dataclass_json
@@ -54,7 +48,7 @@ class UpgradeInstaller(subclasses.BaseClassWithRunbookMixin):
     def validate(self) -> None:
         raise NotImplementedError()
 
-    def install(self) -> None:
+    def install(self) -> List[str]:
         raise NotImplementedError()
 
 
@@ -118,11 +112,11 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
             f"The current os is {self._node.os.name}"
         )
 
-    def install(self) -> None:
+    def install(self) -> List[str]:
         if self.runbook.repo_url.strip():
             self._update_repo()
 
-        self._update_packages()
+        return self._update_packages()
 
     def _update_repo(self) -> None:
         node: Node = self._node
