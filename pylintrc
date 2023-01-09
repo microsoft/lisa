@@ -34,7 +34,6 @@ disable=
     cyclic-import,
     expression-not-assigned,
     keyword-arg-before-vararg,
-    modified-iterating-list,
     no-member,
     redefined-argument-from-local,
     redefined-outer-name,
