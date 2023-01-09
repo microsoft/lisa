@@ -4,6 +4,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Type
 
+import simpleeval  # type: ignore
 from dataclasses_json import dataclass_json
 
 from lisa import LisaException, schema
@@ -56,19 +57,31 @@ class ScriptTransformer(Transformer):
         runbook: ScriptTransformerSchema = self.runbook
         result: Dict[str, Any] = {}
         for item in runbook.scripts:
-            variables: Dict[str, Any] = {}
-            for key in item.variables:
-                variables[key] = self._runbook_builder.variables[key].data
+            variables: Dict[str, Any] = {
+                key: self._runbook_builder.variables[key].data for key in item.variables
+            }
+
+            evaluator = simpleeval.SimpleEval(
+                # Update ex: DEFAULT_OPERATORS | {ast.BitXor, operator.xor}
+                operators=simpleeval.DEFAULT_OPERATORS | {},
+                # Update ex: DEFAULT_FUNCTIONS | {'floor': math.floor}
+                functions=simpleeval.DEFAULT_FUNCTIONS | {},
+                names=simpleeval.DEFAULT_NAMES | variables,
+            )
 
             try:
-                eval_result = eval(item.script, variables.copy())
-            except Exception as identifier:
+                result[item.name] = evaluator.eval(item.script)
+
+            except simpleeval.InvalidExpression as e:
                 raise LisaException(
-                    f"'{item.script}' failed, variables: {variables}. {identifier}"
-                )
-            result[item.name] = eval_result
+                    f"'{item.script}' failed, variables: {variables}. {e}"
+                ) from e
+
             self._log.debug(
-                f"script: '{item.script}', variables: {variables}, "
-                f"result: {eval_result}"
+                "script: '%s', variables: %s, result: '%s'",
+                item.script,
+                variables,
+                result[item.name],
             )
+
         return result

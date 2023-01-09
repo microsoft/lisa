@@ -32,7 +32,6 @@ disable=
     abstract-method,
     broad-except,
     cyclic-import,
-    eval-used,
     expression-not-assigned,
     keyword-arg-before-vararg,
     modified-iterating-list,

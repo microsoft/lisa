@@ -23,6 +23,7 @@ dependencies = [
     "randmac ~= 0.1",
     "retry ~= 0.9.2",
     "semver ~= 2.13.0",
+    "simpleeval ~= 0.9.12",
     "spurplus ~= 2.3.4",
     "websockets ~= 10.3",
 ]
