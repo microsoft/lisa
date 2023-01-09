@@ -260,21 +260,19 @@ class RunbookBuilder:
         data_from_include: Dict[str, Any],
         data_from_current: Dict[str, Any],
     ) -> List[Any]:
-        old_extensions = self._load_extensions(merged_path, data_from_include)
-        extensions = self._load_extensions(merged_path, data_from_current)
-        # remove duplicate paths
-        for old_extension in old_extensions:
-            for extension in extensions:
-                if extension.path == old_extension.path:
-                    if not old_extension.name:
-                        # specify name as possible
-                        old_extension.name = extension.name
-                    extensions.remove(extension)
+        extensions = self._load_extensions(merged_path, data_from_include)
+        initial_len = len(extensions)
+
+        # Remove duplicate paths and append new extensions after old ones
+        for new_extension in self._load_extensions(merged_path, data_from_current):
+            for idx in range(initial_len):
+                old_extension = extensions[idx]
+                if not old_extension.name and new_extension.path == old_extension.path:
+                    old_extension.name = new_extension.name
                     break
-        if extensions or old_extensions:
-            # don't change the order, old ones should be imported earlier.
-            old_extensions.extend(extensions)
-            extensions = old_extensions
+            else:
+                extensions.append(new_extension)
+
         return extensions
 
     def _merge_data(
@@ -287,23 +285,16 @@ class RunbookBuilder:
         Merge included data to data_from_current. The current data has
         higher precedence.
         """
-        result = data_from_include.copy()
+        result = {**data_from_include, **data_from_current}
 
-        # merge others
-        result.update(data_from_current)
-
-        # merge variables, latest should be effective last
-        variables = self._merge_variables(
+        if variables := self._merge_variables(
             merged_path, data_from_include, data_from_current
-        )
-        if variables:
+        ):
             result[constants.VARIABLE] = variables
 
-        # merge extensions
-        extensions = self._merge_extensions(
+        if extensions := self._merge_extensions(
             merged_path, data_from_include, data_from_current
-        )
-        if extensions:
+        ):
             result[constants.EXTENSION] = extensions
 
         return result
