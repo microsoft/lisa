@@ -1527,14 +1527,10 @@ class AzurePlatform(Platform):
             )
             node_space.network_interface.max_nic_count = sku_nic_count
 
-        premium_io_supported = azure_raw_capabilities.get("PremiumIO", None)
-        if premium_io_supported and eval(premium_io_supported) is True:
+        if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
 
-        ephemeral_supported = azure_raw_capabilities.get(
-            "EphemeralOSDiskSupported", None
-        )
-        if ephemeral_supported and eval(ephemeral_supported) is True:
+        if azure_raw_capabilities.get("EphemeralOSDiskSupported", None) == "True":
             # Check if CachedDiskBytes is greater than 30GB
             # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
@@ -1543,8 +1539,7 @@ class AzurePlatform(Platform):
                 node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
 
         # set AN
-        an_enabled = azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None)
-        if an_enabled and eval(an_enabled) is True:
+        if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
             # refer
             # https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
