@@ -487,7 +487,7 @@ class NetworkSettings(TestSuite):
                     number_test_flag += int(msg_value, 16)
 
             # variable to indicate set or unset
-            set = True
+            flag_set = True
 
             # if test message flags are already set, pick first test flag in list.
             # validate change by first unsetting the flag and then unsetting
@@ -495,13 +495,13 @@ class NetworkSettings(TestSuite):
                 first_pair = list(msg_types.items())[0]
                 name_test_flag.append(first_pair[0])
                 number_test_flag = int(first_pair[1], 16)
-                set = False
+                flag_set = False
 
             # Testing set/unset message level by name
             new_settings = ethtool.set_unset_device_message_flag_by_name(
-                interface, name_test_flag, set
+                interface, name_test_flag, flag_set
             )
-            if set:
+            if flag_set:
                 assert_that(
                     new_settings.msg_level_name,
                     f"Setting msg flags - {' '.join(name_test_flag)} didn't"
@@ -515,9 +515,9 @@ class NetworkSettings(TestSuite):
                 ).does_not_contain(" ".join(name_test_flag))
 
             reverted_settings = ethtool.set_unset_device_message_flag_by_name(
-                interface, name_test_flag, not set
+                interface, name_test_flag, not flag_set
             )
-            if not set:
+            if not flag_set:
                 assert_that(
                     reverted_settings.msg_level_name,
                     f"Setting msg flags by name - {' '.join(name_test_flag)} didn't"

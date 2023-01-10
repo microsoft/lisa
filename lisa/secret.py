@@ -76,8 +76,8 @@ def add_secret(
             _secret_list = sorted(_secret_list, reverse=True, key=lambda x: len(x[0]))
 
 
-def mask(input: str) -> str:
+def mask(text: str) -> str:
     for secret in _secret_list:
-        if secret[0] in input:
-            input = input.replace(secret[0], secret[1])
-    return input
+        if secret[0] in text:
+            text = text.replace(secret[0], secret[1])
+    return text

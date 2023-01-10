@@ -246,6 +246,8 @@ class AzurePlatformSchema:
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
+    # specify shared resource group location
+    shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
@@ -464,6 +466,10 @@ class AzurePlatform(Platform):
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             try:
+                location, deployment_parameters = self._create_deployment_parameters(
+                    resource_group_name, environment, log
+                )
+
                 if self._azure_runbook.deploy:
                     log.info(
                         f"creating or updating resource group: [{resource_group_name}]"
@@ -472,15 +478,11 @@ class AzurePlatform(Platform):
                         self.credential,
                         subscription_id=self.subscription_id,
                         resource_group_name=resource_group_name,
-                        location=RESOURCE_GROUP_LOCATION,
+                        location=location,
                         log=log,
                     )
                 else:
                     log.info(f"reusing resource group: [{resource_group_name}]")
-
-                location, deployment_parameters = self._create_deployment_parameters(
-                    resource_group_name, environment, log
-                )
 
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
@@ -789,7 +791,7 @@ class AzurePlatform(Platform):
             self.credential,
             self.subscription_id,
             azure_runbook.shared_resource_group_name,
-            RESOURCE_GROUP_LOCATION,
+            azure_runbook.shared_resource_group_location,
             self._log,
         )
 
@@ -1948,7 +1950,7 @@ class AzurePlatform(Platform):
             )  # type: ignore
 
         storage_name = get_storage_account_name(
-            subscription_id=self.subscription_id, location=location, type="t"
+            subscription_id=self.subscription_id, location=location, type_="t"
         )
 
         check_or_create_storage_account(
@@ -2446,6 +2448,7 @@ class AzurePlatform(Platform):
             "westus3",
             "eastus",
             "westus2",
+            "eastus2",
             "centraluseuap",
             "eastus2euap",
         ]

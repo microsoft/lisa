@@ -455,7 +455,7 @@ class XdpFunctional(TestSuite):
         pcap_filename = f"{case_name}.pcap"
         tcpdump.dump_async(
             ping_source_node.nics.default_nic,
-            filter=f'"icmp and host {ping_address}"',
+            expression=f'"icmp and host {ping_address}"',
             packet_filename=pcap_filename,
         )
         xdpdump.test_by_ping(

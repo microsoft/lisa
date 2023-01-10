@@ -146,7 +146,7 @@ class DpdkOvs(Tool):
         version_major_and_minor = "\\.".join(minimum_version.split(".")[:2])
 
         # get the tags, picks the latest with that prefix
-        tag = git.get_tag(cwd=self.repo_dir, filter=f"^v{version_major_and_minor}.*")
+        tag = git.get_tag(cwd=self.repo_dir, filter_=f"^v{version_major_and_minor}.*")
 
         # checkout the revision into a local branch
         git.checkout(tag, cwd=self.repo_dir, checkout_branch=f"local-{tag}")

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from lisa import (
     Environment,
@@ -66,10 +66,12 @@ class CloudHypervisorTestSuite(TestSuite):
         environment: Environment,
         log_path: Path,
         result: TestResult,
+        variables: Dict[str, Any],
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
+        ref = variables.get("cloudhypervisor_ref", "")
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration", hypervisor, log_path
+            result, environment, "integration", hypervisor, log_path, ref
         )
 
     @TestCaseMetadata(
@@ -92,10 +94,12 @@ class CloudHypervisorTestSuite(TestSuite):
         environment: Environment,
         log_path: Path,
         result: TestResult,
+        variables: Dict[str, Any],
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
+        ref = variables.get("cloudhypervisor_ref", "")
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration-live-migration", hypervisor, log_path
+            result, environment, "integration-live-migration", hypervisor, log_path, ref
         )
 
     @TestCaseMetadata(
@@ -112,10 +116,12 @@ class CloudHypervisorTestSuite(TestSuite):
         environment: Environment,
         log_path: Path,
         result: TestResult,
+        variables: Dict[str, Any],
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
+        ref = variables.get("cloudhypervisor_ref", "")
         node.tools[CloudHypervisorTests].run_metrics_tests(
-            result, environment, hypervisor, log_path
+            result, environment, hypervisor, log_path, ref
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:

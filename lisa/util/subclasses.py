@@ -95,10 +95,10 @@ class Factory(InitializableMixin, Generic[T_BASECLASS], SubClassTypeDict):
         return cast(T_BASECLASS, sub_object)
 
     def _get_subclasses(
-        self, type: Type[BaseClassMixin]
+        self, cls: Type[BaseClassMixin]
     ) -> Iterable[Type[BaseClassMixin]]:
         # recursive loop subclasses of subclasses
-        for subclass_type in type.__subclasses__():
+        for subclass_type in cls.__subclasses__():
             yield subclass_type
             yield from self._get_subclasses(subclass_type)
 

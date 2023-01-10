@@ -85,11 +85,11 @@ class DpdkTestResources:
 
 def init_hugepages(node: Node) -> None:
     mount = node.tools[Mount]
-    mount.mount(name="nodev", point="/mnt/huge", type=FileSystem.hugetlbfs)
+    mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
     mount.mount(
         name="nodev",
         point="/mnt/huge-1G",
-        type=FileSystem.hugetlbfs,
+        fs_type=FileSystem.hugetlbfs,
         options="pagesize=1G",
     )
     _enable_hugepages(node)

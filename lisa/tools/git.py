@@ -216,7 +216,7 @@ class Git(Tool):
         sort_by: str = "v:refname",
         contains: str = "",
         return_last: bool = True,
-        filter: str = "",
+        filter_: str = "",
     ) -> str:
         sort_arg = ""
         contains_arg = ""
@@ -248,14 +248,14 @@ class Git(Tool):
                 "check sort and commit arguments are correct"
             ),
         ).stdout.splitlines()
-        if filter:
-            filter_re = re.compile(filter)
+        if filter_:
+            filter_re = re.compile(filter_)
             tags = [x for x in tags if filter_re.search(x)]
 
         # build some nice error info for failure cases
         error_info = f"sortby:{sort_by} contains:{contains}"
-        if filter:
-            error_info += f" filter:{filter}"
+        if filter_:
+            error_info += f" filter:{filter_}"
         assert_that(len(tags)).described_as(
             "Error: could not find any tags with this sort or "
             f"filter setting: {error_info}"

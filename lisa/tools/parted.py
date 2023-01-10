@@ -29,9 +29,9 @@ class Parted(Tool):
         )
         cmd_result.assert_exit_code()
 
-    def make_label(self, disk_name: str, type: str = "gpt") -> None:
+    def make_label(self, disk_name: str, disk_type: str = "gpt") -> None:
         cmd_result = self.run(
-            f"-s -- {disk_name} mklabel {type}",
+            f"-s -- {disk_name} mklabel {disk_type}",
             shell=True,
             sudo=True,
             force_run=True,

@@ -26,7 +26,7 @@ class Fdisk(Tool):
         self,
         disk_name: str,
         file_system: FileSystem = FileSystem.ext4,
-        format: bool = True,
+        format_: bool = True,
     ) -> str:
         """
         disk_name: make a partition against the disk.
@@ -67,7 +67,7 @@ class Fdisk(Tool):
             raise LisaException(
                 f"fail to find partition(s) after formatting disk {disk_name}"
             )
-        if format:
+        if format_:
             mkfs.format_disk(partition_disk[0], file_system)
         return partition_disk[0]
 

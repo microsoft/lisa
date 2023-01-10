@@ -25,7 +25,7 @@ from tools import update_file, update_summary  # type: ignore # noqa: E402
 # -- Project information -----------------------------------------------------
 
 project = "Linux Integration Services Automation (LISA)"
-copyright = "Microsoft Corporation"
+copyright = "Microsoft Corporation"  # pylint: disable=redefined-builtin
 author = "Microsoft"
 
 release = ""

@@ -312,7 +312,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     partition_name = partition.name
                     if not partition.is_mounted:
                         mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
-                        mount.mount(partition.device_name, mountpoint, format=True)
+                        mount.mount(partition.device_name, mountpoint, format_=True)
                     else:
                         mountpoint = partition.mountpoint
 
@@ -330,7 +330,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
-                    mount.mount(disk.device_name, mountpoint, format=True)
+                    mount.mount(disk.device_name, mountpoint, format_=True)
                 else:
                     mountpoint = disk.mountpoint
 

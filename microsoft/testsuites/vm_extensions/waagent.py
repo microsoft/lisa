@@ -13,7 +13,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.operating_system import FreeBSD
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -32,6 +34,11 @@ class WaAgentBvt(TestSuite):
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_vm_agent(self, log: Logger, node: Node) -> None:
+        # Some of the most common extensions, including Custom Script, are
+        # not supported on FreeBSD so skip the test on that case.
+        if isinstance(node.os, FreeBSD):
+            raise SkippedException(f"unsupported distro type: {type(node.os)}")
+
         # Any extension will do, use CustomScript for convenience.
         # Use the extension to create a unique file on the test machine.
         unique_name = str(uuid.uuid4())
@@ -42,7 +49,7 @@ class WaAgentBvt(TestSuite):
         result = extension.create_or_update(
             name="CustomScript",
             publisher="Microsoft.Azure.Extensions",
-            type="CustomScript",
+            type_="CustomScript",
             type_handler_version="2.0",
             auto_upgrade_minor_version=True,
             settings=settings,

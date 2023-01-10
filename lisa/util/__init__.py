@@ -651,10 +651,10 @@ def generate_random_chars(
     return "".join(random.choices(candidates, k=length))
 
 
-def strip_strs(object: Any, fields: List[str]) -> Any:
+def strip_strs(obj: Any, fields: List[str]) -> Any:
     for field in fields:
-        if hasattr(object, field):
-            value = getattr(object, field)
+        if hasattr(obj, field):
+            value = getattr(obj, field)
             value = value.strip() if isinstance(value, str) else value
-            setattr(object, field, value)
-    return object
+            setattr(obj, field, value)
+    return obj

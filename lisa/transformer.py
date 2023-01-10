@@ -73,22 +73,22 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
 def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     visited: Set[str] = set()
-    all: Dict[str, schema.Transformer] = {}
+    transformers_by_name: Dict[str, schema.Transformer] = {}
     sorted_transformers: List[schema.Transformer] = []
 
     # construct full set and check duplicates
     for transformer in transformers:
-        if transformer.name in all:
+        if transformer.name in transformers_by_name:
             raise LisaException(
                 f"found duplicate transformers: '{transformer.name}', "
                 f"use different names for them."
             )
-        all[transformer.name] = transformer
+        transformers_by_name[transformer.name] = transformer
 
     # build new sorted results
     for transformer in transformers:
         if transformer.name not in visited:
-            _sort_dfs(all, transformer, visited, sorted_transformers)
+            _sort_dfs(transformers_by_name, transformer, visited, sorted_transformers)
 
     # sort by phase: init, expanded.
     init_transformers: List[schema.Transformer] = []

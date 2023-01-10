@@ -124,10 +124,10 @@ class JUnit(Notifier):
 
     # Handle a test case message.
     def _received_test_result(self, message: TestResultMessage) -> None:
-        if message.status == TestStatus.RUNNING:
+        if message.status in [TestStatus.RUNNING, TestStatus.SKIPPED]:
             self._test_case_running(message)
 
-        elif message.is_completed:
+        if message.is_completed:
             self._test_case_completed(message)
 
     # Handle a sub test case message.

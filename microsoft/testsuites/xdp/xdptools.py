@@ -88,6 +88,7 @@ class XdpTool(Tool):
         # install dependencies
 
         config_envs: Dict[str, str] = {}
+        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         if isinstance(self.node.os, Debian):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
@@ -103,13 +104,21 @@ class XdpTool(Tool):
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
             package_list = [
-                "llvm libelf-dev libpcap-dev gcc-multilib build-essential "
-                "pkg-config m4 tshark"
+                "llvm libelf-dev libpcap-dev build-essential pkg-config m4 tshark"
             ]
-            if self.node.os.information.version >= "22.10.0":
+            if arch == "aarch64":
+                for package in [
+                    "gobjc-arm-linux-gnueabihf",
+                    "gobjc-multilib-arm-linux-gnueabihf",
+                ]:
+                    if self.node.os.is_package_in_repo(package):
+                        package_list.append(package)
+            else:
+                package_list.append("gcc-multilib")
+            if self.node.os.is_package_in_repo("clang-11"):
                 package_list.append("clang-11")
                 config_envs.update({"CLANG": "clang-11", "LLC": "llc-11"})
-            else:
+            elif self.node.os.is_package_in_repo("clang-10"):
                 package_list.append("clang-10")
                 config_envs.update({"CLANG": "clang-10", "LLC": "llc-10"})
             self.node.os.install_packages(package_list)
@@ -118,7 +127,7 @@ class XdpTool(Tool):
             if self.node.os.information.version >= "9.0.0":
                 self.node.os.install_packages(
                     "http://mirror.stream.centos.org/9-stream/AppStream/"
-                    "x86_64/os/Packages/libpcap-devel-1.10.0-4.el9.x86_64.rpm"
+                    f"{arch}/os/Packages/libpcap-devel-1.10.0-4.el9.{arch}.rpm"
                 )
             else:
                 if isinstance(self.node.os, CentOs):
@@ -127,7 +136,7 @@ class XdpTool(Tool):
                     self.node.os.install_packages("tc")
                 self.node.os.install_packages(
                     "https://vault.centos.org/centos/8/PowerTools/"
-                    "x86_64/os/Packages/libpcap-devel-1.9.1-5.el8.x86_64.rpm"
+                    f"{arch}/os/Packages/libpcap-devel-1.9.1-5.el8.{arch}.rpm"
                 )
             self.node.os.install_packages(
                 "llvm-toolset elfutils-devel m4 wireshark perf make gcc"
@@ -145,9 +154,12 @@ class XdpTool(Tool):
         # use xdpdump to detect if the tool is installed or not.
         self._command = self._code_path / "xdp-dump" / "xdpdump"
 
+        configure_cmd = "./configure"
+        if arch == "aarch64":
+            configure_cmd += f" --build={arch}-unknown-linux-gnu"
         # create a default version for exists checking.
         self.node.execute(
-            "./configure",
+            configure_cmd,
             cwd=code_root_path,
             update_envs=config_envs,
             expected_exit_code=0,
@@ -158,10 +170,14 @@ class XdpTool(Tool):
         # Errors happen if built with multi-threads. The program may not be
         # ready for concurrent build, but our make tool use multi-thread by
         # default. So set thread count to 1.
+        if arch == "aarch64":
+            update_envs = {"C_INCLUDE_PATH": "/usr/include/aarch64-linux-gnu/"}
+        else:
+            update_envs = {"ARCH": "x86_64"}
         make.make(
             arguments="",
             cwd=self._code_path,
-            update_envs={"ARCH": "x86_64"},
+            update_envs=update_envs,
             thread_count=1,
         )
 

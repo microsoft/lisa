@@ -24,7 +24,7 @@ class Find(Tool):
         start_path: PurePath,
         name_pattern: str = "",
         path_pattern: str = "",
-        type: str = "",
+        file_type: str = "",
         ignore_case: bool = False,
         sudo: bool = False,
         ignore_not_exist: bool = False,
@@ -46,8 +46,8 @@ class Find(Tool):
                 cmd += f" -ipath '{path_pattern}'"
             else:
                 cmd += f" -path '{path_pattern}'"
-        if type:
-            cmd += f" -type '{type}'"
+        if file_type:
+            cmd += f" -type '{file_type}'"
 
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"

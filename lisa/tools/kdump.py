@@ -99,7 +99,7 @@ class Kexec(Tool):
         tar.extract(kexec_tar, str(tool_path))
         find_tool = self.node.tools[Find]
         kexec_source_folder = find_tool.find_files(
-            tool_path, name_pattern="kexec-tools*", type="d"
+            tool_path, name_pattern="kexec-tools*", file_type="d"
         )
         code_path = tool_path.joinpath(kexec_source_folder[0])
         self.node.tools[Gcc]

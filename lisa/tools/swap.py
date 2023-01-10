@@ -44,15 +44,12 @@ class Swap(Tool):
         # example output:
         # sdb2   8:18   0   7.6G  0 part [SWAP]
         lsblk = self.node.tools[Lsblk].run().stdout
-        if "SWAP" in lsblk:
-            return True
-
-        return False
+        return "SWAP" in lsblk
 
     def create_swap(
-        self, path: str = "/tmp/swap", bytes: str = "1M", count: int = 1024
+        self, path: str = "/tmp/swap", size: str = "1M", count: int = 1024
     ) -> None:
-        self.node.execute(f"dd if=/dev/zero of={path} bs={bytes} count={count}")
+        self.node.execute(f"dd if=/dev/zero of={path} bs={size} count={count}")
         self.node.tools[MkSwap].run(path, sudo=True, force_run=True)
         self.node.tools[SwapOn].run(path, sudo=True, force_run=True)
 

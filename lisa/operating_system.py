@@ -41,7 +41,6 @@ from lisa.util import (
     ReleaseEndOfLifeException,
     RepoNotExistException,
     filter_ansi_escape,
-    find_group_in_lines,
     get_matched_str,
     parse_version,
 )
@@ -387,7 +386,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         find_tool = self._node.tools[Find]
         file_list = find_tool.find_files(
             self._node.get_pure_path("/var/log/azure/"),
-            type="f",
+            file_type="f",
             sudo=True,
             ignore_not_exist=True,
         )
@@ -1281,13 +1280,6 @@ class Fedora(RPMDistro):
     # Red Hat Enterprise Linux Server 7.8 (Maipo) => 7.8
     _fedora_release_pattern_version = re.compile(r"^.*release\s+([0-9\.]+).*$")
 
-    # 305.40.1.el8_4.x86_64
-    # 240.el8.x86_64
-    __kernel_version_parts_pattern = re.compile(
-        r"^(?P<part1>\d+)\.(?P<part2>\d+)?\.?(?P<part3>\d+)?\.?"
-        r"(?P<distro>.*?)\.(?P<platform>.*?)$"
-    )
-
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^Fedora|fedora$")
@@ -1297,23 +1289,9 @@ class Fedora(RPMDistro):
         # original parts: version_parts=['4', '18', '0', '305.40.1.el8_4.x86_64', '']
         # target parts: version_parts=['4', '18', '0', '305', '40', '1', 'el8_4',
         #   'x86_64']
-        groups = find_group_in_lines(
-            kernel_information.version_parts[3], self.__kernel_version_parts_pattern
-        )
         new_parts = kernel_information.version_parts[:3]
         # the default '1' is trying to build a meaningful Redhat version number.
-        new_parts.extend(
-            [
-                groups["part1"],
-                groups["part2"],
-                groups["part3"],
-                groups["distro"],
-                groups["platform"],
-            ]
-        )
-        for index, part in enumerate(new_parts):
-            if part is None:
-                new_parts[index] = ""
+        new_parts.extend(kernel_information.version_parts[3].split("."))
         kernel_information.version_parts = new_parts
 
         return kernel_information
