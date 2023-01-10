@@ -351,3 +351,29 @@ class TimeSync(TestSuite):
         chrony.check_sources_and_stats()
         # 5. Check chrony tracking.
         chrony.check_tracking()
+
+    @TestCaseMetadata(
+        description="""
+        This test is to check "initcall_blacklist=arm_pmu_acpi_init"
+        kernel parameter for ARM64 images.
+
+        Since Hyper-V right now doesn't surface a fully functional PMU. It is needed to
+        have "initcall_blacklist=arm_pmu_acpi_init" to disable the PMU driver
+        temporarily to fall back to a timer-based sampling instead of PMU-event-based
+        sampling.
+        """,
+        priority=1,
+    )
+    def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
+        lscpu = node.tools[Lscpu]
+        arch = lscpu.get_architecture()
+        if arch is not CpuArchitecture.ARM64:
+            raise SkippedException(
+                f"This test case does not support {arch}."
+                "This validation is only for ARM64."
+            )
+        # Check pmu is disabled in cmdline for arm64 images
+        cat = node.tools[Cat]
+        result = cat.run("/proc/cmdline", force_run=True)
+        if "initcall_blacklist=arm_pmu_acpi_init" not in result.stdout:
+            raise LisaException("PMU is not disabled in kernel cmdline")
