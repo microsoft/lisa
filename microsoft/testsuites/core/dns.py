@@ -13,7 +13,7 @@ from lisa import (
 )
 from lisa.operating_system import Debian, Posix
 from lisa.tools import Ping
-from lisa.util import PassedException, ReleaseEndOfLifeException
+from lisa.util import PassedException, ReleaseEndOfLifeException, RepoNotExistException
 
 
 @TestSuiteMetadata(
@@ -46,9 +46,9 @@ class Dns(TestSuite):
         try:
             self._upgrade_system(node)
 
-        except ReleaseEndOfLifeException as identifier:
-            # If the release is end of life, skip the step of upgrading system.
-            # Continue the following test
+        except (ReleaseEndOfLifeException, RepoNotExistException) as identifier:
+            # If the release is end of life, or there is no repo existing,
+            # then skip the step of upgrading system. Continue the following test
             node.log.debug(identifier)
             raise PassedException(identifier) from identifier
 
