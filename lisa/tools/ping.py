@@ -13,8 +13,10 @@ INTERNET_PING_ADDRESS = "8.8.8.8"
 
 class Ping(Tool):
     # ping: SO_BINDTODEVICE: Operation not permitted
+    # ping: icmp open socket: Operation not permitted
+    # ping: socket: Operation not permitted
     _no_permission_pattern = re.compile(
-        r"ping: SO_BINDTODEVICE: Operation not permitted",
+        r"ping: .* Operation not permitted",
         re.M,
     )
 
