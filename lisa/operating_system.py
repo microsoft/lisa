@@ -1674,9 +1674,9 @@ class Suse(Linux):
             "zypper --non-interactive --gpg-auto-import-keys refresh", sudo=True
         ).stdout
         if self._no_repo_defined.search(output):
-            raise LisaException(
-                f"There are no enabled repositories defined in "
-                f"{self._node.os.name} {self._node.os.information.version}"
+            raise RepoNotExistException(
+                self._node.os,
+                "There are no enabled repositories defined in this image.",
             )
 
     def _install_packages(
