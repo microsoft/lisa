@@ -220,8 +220,8 @@ class Tool(InitializableMixin):
         # check dependencies
         if self.dependencies:
             self._log.info("installing dependencies")
-        for dependency in self.dependencies:
-            self.node.tools[dependency]
+            map(self.node.tools.get, self.dependencies)
+
         return self._install()
 
     def run_async(
@@ -560,7 +560,7 @@ class Tools:
 
     def get(
         self,
-        tool_type: Union[Type[T], CustomScriptBuilder, str],
+        tool_type: Union[Type[T], Type[Tool], CustomScriptBuilder, str],
         *args: Any,
         **kwargs: Any,
     ) -> T:

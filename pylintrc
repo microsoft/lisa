@@ -43,8 +43,6 @@ disable=
     missing-timeout,
     modified-iterating-list,
     no-member,
-    pointless-statement,
-    pointless-string-statement,
     redefined-argument-from-local,
     redefined-outer-name,
     super-init-not-called,

@@ -80,7 +80,7 @@ class StressNg(Tool):
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)
-        self.node.tools[Gcc]
+        self.node.tools.get(Gcc)  # Ensure gcc is installed
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("stress-ng")
         make.make_install(cwd=code_path)

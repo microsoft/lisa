@@ -691,10 +691,10 @@ class Sriov(TestSuite):
                 ):
                     matched_server_nic_info = server_nic_info
                     break
-            assert (
-                matched_server_nic_info
-            ), "not found the server nic has the same subnet of"
-            f" {client_nic_info.ip_addr}"
+            assert matched_server_nic_info, (
+                "not found the server nic has the same subnet of"
+                f" {client_nic_info.ip_addr}"
+            )
 
             # 3. Start iperf3 for 120 seconds with 128 threads on client node.
             client_iperf3.run_as_client(

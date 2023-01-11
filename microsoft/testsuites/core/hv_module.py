@@ -224,7 +224,7 @@ class HvModule(TestSuite):
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
-                node.tools[LisDriver]
+                node.tools.get(LisDriver)
             except Exception:
                 log.debug("Updating LIS failed. Moving on to attempt reload.")
 

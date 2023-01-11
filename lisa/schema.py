@@ -1,6 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+"""
+Schema is dealt with three components,
+1. dataclasses. It's a builtin class, uses to define schema of an instance. field()
+   function uses to describe a field.
+2. dataclasses_json. Serializer. config() function customizes this component.
+3. marshmallow. Validator. It's wrapped by dataclasses_json. config(mm_field=xxx)
+   function customizes this component.
+"""
+
 import copy
 from dataclasses import dataclass, field
 from enum import Enum
@@ -27,16 +36,6 @@ from lisa.util import (
     field_metadata,
     strip_strs,
 )
-
-"""
-Schema is dealt with three components,
-1. dataclasses. It's a builtin class, uses to define schema of an instance. field()
-   function uses to describe a field.
-2. dataclasses_json. Serializer. config() function customizes this component.
-3. marshmallow. Validator. It's wrapped by dataclasses_json. config(mm_field=xxx)
-   function customizes this component.
-"""
-
 
 T = TypeVar("T")
 

@@ -66,7 +66,7 @@ class Vdsotest(Tool):
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)
-        self.node.tools[Gcc]
+        self.node.tools.get(Gcc)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("vdsotest")
         self.node.execute("./autogen.sh", cwd=code_path).assert_exit_code()
