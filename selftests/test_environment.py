@@ -40,6 +40,7 @@ class CustomLocalNode(node.LocalNode):
         index: int,
         runbook: CustomLocalNodeSchema,
         logger_name: str,
+        is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> None:
@@ -47,6 +48,7 @@ class CustomLocalNode(node.LocalNode):
             index=index,
             runbook=runbook,
             logger_name=logger_name,
+            is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
         )
@@ -84,6 +86,7 @@ class CustomRemoteNode(node.RemoteNode):
         index: int,
         runbook: CustomRemoteNodeSchema,
         logger_name: str,
+        is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> None:
@@ -91,6 +94,7 @@ class CustomRemoteNode(node.RemoteNode):
             index=index,
             runbook=runbook,
             logger_name=logger_name,
+            is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
         )

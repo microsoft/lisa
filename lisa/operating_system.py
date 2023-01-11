@@ -381,28 +381,32 @@ class Posix(OperatingSystem, BaseClassMixin):
         self._node.execute("modinfo hv_netvsc").save_stdout_to_file(
             saved_path / "modinfo-hv_netvsc.txt"
         )
-        from lisa.tools import Chmod, Find
 
-        find_tool = self._node.tools[Find]
-        file_list = find_tool.find_files(
-            self._node.get_pure_path("/var/log/azure/"),
-            file_type="f",
-            sudo=True,
-            ignore_not_exist=True,
-        )
-        if len(file_list) > 0:
-            self._node.tools[Chmod].update_folder("/var/log/azure/", "a+rwX", sudo=True)
-        file_list.append("/etc/os-release")
-        file_list.append("/var/log/waagent.log")
-        for file in file_list:
-            try:
-                file_name = file.split("/")[-1]
-                self._node.shell.copy_back(
-                    self._node.get_pure_path(file),
-                    saved_path / f"{file_name}.txt",
+        if self._node.is_test_target:
+            from lisa.tools import Chmod, Find
+
+            find_tool = self._node.tools[Find]
+            file_list = find_tool.find_files(
+                self._node.get_pure_path("/var/log/azure/"),
+                file_type="f",
+                sudo=True,
+                ignore_not_exist=True,
+            )
+            if len(file_list) > 0:
+                self._node.tools[Chmod].update_folder(
+                    "/var/log/azure/", "a+rwX", sudo=True
                 )
-            except FileNotFoundError:
-                self._log.debug(f"File {file} doesn't exist.")
+            file_list.append("/etc/os-release")
+            file_list.append("/var/log/waagent.log")
+            for file in file_list:
+                try:
+                    file_name = file.split("/")[-1]
+                    self._node.shell.copy_back(
+                        self._node.get_pure_path(file),
+                        saved_path / f"{file_name}.txt",
+                    )
+                except FileNotFoundError:
+                    self._log.debug(f"File {file} doesn't exist.")
 
     def get_package_information(
         self, package_name: str, use_cached: bool = True
