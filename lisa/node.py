@@ -230,15 +230,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     ) -> Process:
         self.initialize()
 
-        if sudo and not self.support_sudo:
-            raise LisaException(
-                f"node doesn't support [command] or [sudo], cannot execute: {cmd}"
-            )
-
         return self._execute(
             cmd,
             shell=shell,
-            sudo=sudo,
+            sudo=sudo and self.support_sudo,
             nohup=nohup,
             no_error_log=no_error_log,
             no_info_log=no_info_log,
