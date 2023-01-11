@@ -102,7 +102,7 @@ class Kexec(Tool):
             tool_path, name_pattern="kexec-tools*", file_type="d"
         )
         code_path = tool_path.joinpath(kexec_source_folder[0])
-        self.node.tools[Gcc]
+        self.node.tools.get(Gcc)  # Ensure gcc is installed
         make = self.node.tools[Make]
         self.node.execute(
             "./configure",

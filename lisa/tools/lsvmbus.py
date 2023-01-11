@@ -130,7 +130,7 @@ class Lsvmbus(Tool):
         cmd_result = self.node.execute("which python", sudo=True)
         if 0 != cmd_result.exit_code:
             ln = self.node.tools[Ln]
-            self.node.tools[Python]
+            self.node.tools.get(Python)
             ln.create_link("/bin/python3", "/usr/bin/python")
 
     def _check_exists(self) -> bool:

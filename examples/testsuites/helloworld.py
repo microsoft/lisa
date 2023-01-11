@@ -64,8 +64,7 @@ class HelloWorld(TestSuite):
         priority=1,
     )
     def bye(self, node: Node) -> None:
-        # use it once like this way before use short cut
-        node.tools[Echo]
+        node.tools.get(Echo)  # Ensure echo is in cache
         assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
 
     def before_suite(self, log: Logger, **kwargs: Any) -> None:

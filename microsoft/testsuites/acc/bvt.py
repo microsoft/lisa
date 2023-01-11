@@ -148,10 +148,10 @@ class ACCBasicTest(TestSuite):
         # <cp -r /opt/openenclave/share/openenclave/samples ~/mysamples>
 
         samples_folder = node.get_working_path() / "mysamples"
-        copy_cmd = "cp -r /opt/openenclave/share/openenclave/samples " + str(
-            samples_folder
+        node.execute(
+            f"cp -r /opt/openenclave/share/openenclave/samples {samples_folder}",
+            shell=True,
         )
-        node.execute(copy_cmd, shell=True)
 
         # Run Hello World and Remote Attestation
         helloworld_dir = samples_folder / "helloworld"
@@ -159,7 +159,7 @@ class ACCBasicTest(TestSuite):
         source_command = ". /opt/openenclave/share/openenclave/openenclaverc"
         fail_msg = "HELLO WORLD TEST FAILED"
 
-        node.tools[Make]
+        node.tools.get(Make)  # Ensure make is installed
         result = node.execute(
             f"{source_command} && make build && make run",
             cwd=helloworld_dir,

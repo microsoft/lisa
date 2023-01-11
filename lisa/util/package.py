@@ -1,14 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import importlib
-import importlib.util
-import sys
-from pathlib import Path
-from typing import Iterable, Optional
-
-from lisa.util.logger import Logger, get_logger
-
 """
 Reasons to import packages in LISA:
 
@@ -23,6 +15,14 @@ Steps,
 2. Go through all files, and check if it exists in sys.modules. If it's not, import it.
 
 """
+
+import importlib
+import importlib.util
+import sys
+from pathlib import Path
+from typing import Iterable, Optional
+
+from lisa.util.logger import Logger, get_logger
 
 
 def _import_module(
