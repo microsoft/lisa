@@ -41,6 +41,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         runbook: schema.Node,
         index: int,
         logger_name: str,
+        is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> None:
@@ -48,6 +49,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.is_default = runbook.is_default
         self.capability = runbook.capability
         self.name = runbook.name
+        self.is_test_target = is_test_target
         self.index = index
 
         self._shell: Optional[Shell] = None
@@ -162,6 +164,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         index: int,
         runbook: schema.Node,
         logger_name: str = "node",
+        is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
     ) -> Node:
@@ -172,12 +175,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             index=index,
             runbook=runbook,
             logger_name=logger_name,
+            is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
         )
 
         node.log.debug(
             f"created, type: '{node.__class__.__name__}', default: {runbook.is_default}"
+            f", is_test_target: {is_test_target}"
         )
         return node
 
@@ -555,12 +560,14 @@ class LocalNode(Node):
         index: int,
         logger_name: str,
         base_part_path: Optional[Path],
+        is_test_target: bool = True,
         parent_logger: Optional[Logger] = None,
     ) -> None:
         super().__init__(
             index=index,
             runbook=runbook,
             logger_name=logger_name,
+            is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
         )
@@ -668,6 +675,7 @@ def local_node_connect(
         index=index,
         runbook=node_runbook,
         logger_name=name,
+        is_test_target=False,
         base_part_path=base_part_path,
         parent_logger=parent_logger,
     )
@@ -695,7 +703,11 @@ def quick_connect(
     setup node information and initialize connection.
     """
     node = Node.create(
-        index, runbook, logger_name=logger_name, parent_logger=parent_logger
+        index,
+        runbook,
+        is_test_target=False,
+        logger_name=logger_name,
+        parent_logger=parent_logger,
     )
     if isinstance(node, RemoteNode):
         node.set_connection_info_by_runbook()
