@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Type
@@ -20,8 +21,9 @@ DUMP_VARIABLES = "dump_variables"
 class DumpVariablesTransformerSchema(schema.Transformer):
     # variables to be dumped as yaml
     variables: List[str] = field(default_factory=list)
+    json_output: bool = field(default=False)
     file_path: str = field(
-        default="./lisa_dumped_variables.yml",
+        default="./lisa_dumped_variables",
     )
 
 
@@ -56,9 +58,22 @@ class DumpVariablesTransformer(Transformer):
             except KeyError:
                 self._log.info(f"Variable '{var}' is not found")
         # it will be used as log files
-        file_path = Path(runbook.file_path)
+        file_path = Path(self.__get_file_with_ext(runbook.file_path))
         if not file_path.is_absolute():
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         with open(file_path, "w") as dump_file:
-            yaml.safe_dump(required_data, dump_file)
+            if runbook.json_output:
+                json.dump(required_data, dump_file)
+            else:
+                yaml.safe_dump(required_data, dump_file)
         return {}
+
+    def __get_file_with_ext(self, file_path: str) -> str:
+        if file_path.lower().endswith((".yml", ".json")):
+            return file_path
+
+        runbook: DumpVariablesTransformerSchema = self.runbook
+        if runbook.json_output:
+            return file_path + ".json"
+        else:
+            return file_path + ".yml"
