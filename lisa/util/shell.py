@@ -137,6 +137,7 @@ def try_connect(
                 key_filename=connection_info.private_key_file,
                 banner_timeout=10,
                 sock=sock,
+                look_for_keys=False,
             )
 
             stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
