@@ -154,9 +154,10 @@ class VmResize(TestSuite):
                 else:
                     raise identifier
                 time.sleep(1)
+            finally:
+                if not hot_resize:
+                    start_stop.start()
         assert expected_vm_capability, "fail to find proper vm size"
-        if not hot_resize:
-            start_stop.start()
 
         test_result.information["final_vm_size"] = final_vm_size
         test_result.information["origin_vm_size"] = origin_vm_size
