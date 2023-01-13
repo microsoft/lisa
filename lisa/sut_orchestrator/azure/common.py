@@ -8,10 +8,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from time import sleep
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
+from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -47,6 +48,7 @@ from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 from PIL import Image, UnidentifiedImageError
+from retry import retry
 
 from lisa import schema
 from lisa.environment import Environment, load_environments
@@ -58,6 +60,7 @@ from lisa.util import (
     LisaTimeoutException,
     constants,
     field_metadata,
+    get_matched_str,
     strip_strs,
 )
 from lisa.util.logger import Logger
@@ -69,6 +72,10 @@ if TYPE_CHECKING:
 
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 
+PATTERN_NIC_NAME = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
+PATTERN_PUBLIC_IP_NAME = re.compile(
+    r"providers/Microsoft.Network/publicIPAddresses/(.*)", re.M
+)
 
 # when call sdk APIs, it's easy to have conflict on access auth files. Use lock
 # to prevent it happens.
@@ -88,6 +95,8 @@ class NodeContext:
     username: str = ""
     password: str = ""
     private_key_file: str = ""
+    public_ip_address: str = ""
+    private_ip_address: str = ""
 
 
 @dataclass_json()
@@ -1107,18 +1116,18 @@ def load_environment(
     if environment_runbook.nodes_raw is None:
         environment_runbook.nodes_raw = []
 
+    vms_map: Dict[str, VirtualMachine] = {}
     compute_client = get_compute_client(platform)
     vms = compute_client.virtual_machines.list(resource_group_name)
     for vm in vms:
         node_schema = schema.RemoteNode(name=vm.name)
         environment_runbook.nodes_raw.append(node_schema)
+        vms_map[vm.name] = vm
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])
     )
     environment = next(x for x in environments.values())
-
-    public_ips = platform.load_public_ips_from_resource_group(resource_group_name, log)
 
     platform_runbook: schema.Platform = platform.runbook
     for node in environment.nodes.list():
@@ -1131,9 +1140,15 @@ def load_environment(
         node_context.username = platform_runbook.admin_username
         node_context.password = platform_runbook.admin_password
         node_context.private_key_file = platform_runbook.admin_private_key_file
-
+        (
+            node_context.public_ip_address,
+            node_context.private_ip_address,
+        ) = get_primary_ip_addresses(
+            platform, resource_group_name, vms_map[node_context.vm_name]
+        )
         node.set_connection_info(
-            public_address=public_ips[node.name],
+            address=node_context.private_ip_address,
+            public_address=node_context.public_ip_address,
             username=node_context.username,
             password=node_context.password,
             private_key_file=node_context.private_key_file,
@@ -1156,6 +1171,31 @@ def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     vm = compute_client.virtual_machines.get(context.resource_group_name, node.name)
 
     return vm
+
+
+@retry(exceptions=LisaException, tries=150, delay=2)
+def get_primary_ip_addresses(
+    platform: "AzurePlatform", resource_group_name: str, vm: VirtualMachine
+) -> Tuple[str, str]:
+    network_client = get_network_client(platform)
+    for network_interface in vm.network_profile.network_interfaces:
+        nic_name = get_matched_str(network_interface.id, PATTERN_NIC_NAME)
+        nic = network_client.network_interfaces.get(resource_group_name, nic_name)
+        if nic.primary:
+            if not nic.ip_configurations[0].public_ip_address:
+                raise LisaException(f"no public address found in nic {nic.name}")
+            public_ip_name = get_matched_str(
+                nic.ip_configurations[0].public_ip_address.id, PATTERN_PUBLIC_IP_NAME
+            )
+            public_ip_address = network_client.public_ip_addresses.get(
+                resource_group_name,
+                public_ip_name,
+            )
+            return (
+                public_ip_address.ip_address,
+                nic.ip_configurations[0].private_ip_address,
+            )
+    raise LisaException(f"fail to find primary nic for vm {vm.name}")
 
 
 # find resource based on type name from resources section in arm template

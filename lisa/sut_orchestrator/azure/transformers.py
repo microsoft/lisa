@@ -30,6 +30,7 @@ from .common import (
     get_compute_client,
     get_environment_context,
     get_or_create_storage_container,
+    get_primary_ip_addresses,
     get_storage_account_name,
     get_vm,
     load_environment,
@@ -232,12 +233,10 @@ class VhdTransformer(Transformer):
         self, platform: AzurePlatform, virtual_machine: Any
     ) -> str:
         runbook: VhdTransformerSchema = self.runbook
-        public_ips = platform.load_public_ips_from_resource_group(
-            runbook.resource_group_name, self._log
+
+        public_ip_address, _ = get_primary_ip_addresses(
+            platform, runbook.resource_group_name, virtual_machine
         )
-
-        public_ip_address: str = public_ips[runbook.vm_name]
-
         assert (
             public_ip_address
         ), "cannot find public IP address, make sure the VM is in running status."
