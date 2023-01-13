@@ -31,7 +31,6 @@ from azure.mgmt.compute.models import (  # type: ignore
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
-from azure.mgmt.network.models import NetworkInterface  # type: ignore
 from azure.mgmt.resource import SubscriptionClient  # type: ignore
 from azure.mgmt.resource.resources.models import (  # type: ignore
     Deployment,
@@ -90,9 +89,9 @@ from .common import (
     get_compute_client,
     get_environment_context,
     get_marketplace_ordering_client,
-    get_network_client,
     get_node_context,
     get_or_create_storage_container,
+    get_primary_ip_addresses,
     get_resource_management_client,
     get_storage_account_name,
     get_storage_client,
@@ -133,8 +132,6 @@ RESOURCE_GROUP_LOCATION = "westus3"
 
 # names in arm template, they should be changed with template together.
 RESOURCE_ID_PORT_POSTFIX = "-ssh"
-RESOURCE_ID_NIC_PATTERN = re.compile(r"(.+)-nic-0")
-RESOURCE_ID_PUBLIC_IP_PATTERN = re.compile(r"(.+)-public-ip")
 
 # Ubuntu 18.04:
 # [    0.000000] Hyper-V Host Build:18362-10.0-3-0.3198
@@ -1380,138 +1377,53 @@ class AzurePlatform(Platform):
     # the VM may not be queried after deployed. use retry to mitigate it.
     @retry(exceptions=LisaException, tries=150, delay=2)
     def _load_vms(
-        self, environment: Environment, log: Logger
+        self, resource_group_name: str, log: Logger
     ) -> Dict[str, VirtualMachine]:
         compute_client = get_compute_client(self, api_version="2020-06-01")
-        environment_context = get_environment_context(environment=environment)
 
-        log.debug(
-            f"listing vm in resource group "
-            f"'{environment_context.resource_group_name}'"
-        )
+        log.debug(f"listing vm in resource group {resource_group_name}")
         vms_map: Dict[str, VirtualMachine] = {}
-        vms = compute_client.virtual_machines.list(
-            environment_context.resource_group_name
-        )
+        vms = compute_client.virtual_machines.list(resource_group_name)
         for vm in vms:
             vms_map[vm.name] = vm
             log.debug(f"  found vm {vm.name}")
         if not vms_map:
             raise LisaException(
-                f"deployment succeeded, but VM not found in 5 minutes "
-                f"from '{environment_context.resource_group_name}'"
+                "deployment succeeded, but VM not found in 5 minutes "
+                f"from '{resource_group_name}'"
             )
         return vms_map
 
-    # Use Exception, because there may be credential conflict error. Make it
-    # retriable.
-    @retry(exceptions=Exception, tries=150, delay=2)
-    def _load_nics(
-        self, environment: Environment, log: Logger
-    ) -> Dict[str, NetworkInterface]:
-        network_client = get_network_client(self)
-        environment_context = get_environment_context(environment=environment)
-
-        log.debug(
-            f"listing network interfaces in resource group "
-            f"'{environment_context.resource_group_name}'"
-        )
-        # load nics
-        nics_map: Dict[str, NetworkInterface] = {}
-        network_interfaces = network_client.network_interfaces.list(
-            environment_context.resource_group_name
-        )
-        for nic in network_interfaces:
-            # nic name is like lisa-test-20220316-182126-985-e0-n0-nic-2, get vm
-            # name part for later pick only find primary nic, which is ended by
-            # -nic-0
-            node_name_from_nic = RESOURCE_ID_NIC_PATTERN.findall(nic.name)
-            if node_name_from_nic:
-                name = node_name_from_nic[0]
-                nics_map[name] = nic
-                log.debug(f"  found nic '{nic.name}', and saved for next step.")
-            else:
-                log.debug(
-                    f"  found nic '{nic.name}', but dropped, "
-                    "because it's not primary nic."
-                )
-        if not nics_map:
-            raise LisaException(
-                f"deployment succeeded, but network interfaces not found in 5 minutes "
-                f"from '{environment_context.resource_group_name}'"
-            )
-        return nics_map
-
-    @retry(exceptions=LisaException, tries=150, delay=2)
-    def load_public_ips_from_resource_group(
-        self, resource_group_name: str, log: Logger
-    ) -> Dict[str, str]:
-        network_client = get_network_client(self)
-        log.debug(f"listing public ips in resource group '{resource_group_name}'")
-        # get public IP
-        public_ip_addresses = network_client.public_ip_addresses.list(
-            resource_group_name
-        )
-        public_ips_map: Dict[str, str] = {}
-        for ip_address in public_ip_addresses:
-            # nic name is like node-0-nic-2, get vm name part for later pick
-            # only find primary nic, which is ended by -nic-0
-            node_name_from_public_ip = RESOURCE_ID_PUBLIC_IP_PATTERN.findall(
-                ip_address.name
-            )
-            assert (
-                ip_address
-            ), f"public IP address cannot be empty, ip_address object: {ip_address}"
-            if node_name_from_public_ip:
-                name = node_name_from_public_ip[0]
-                public_ips_map[name] = ip_address.ip_address
-                log.debug(
-                    f"  found public IP '{ip_address.name}', and saved for next step."
-                )
-            else:
-                log.debug(
-                    f"  found public IP '{ip_address.name}', but dropped "
-                    "because it's not primary nic."
-                )
-        if not public_ips_map:
-            raise LisaException(
-                f"deployment succeeded, but public ips not found in 5 minutes "
-                f"from '{resource_group_name}'"
-            )
-        return public_ips_map
-
     def initialize_environment(self, environment: Environment, log: Logger) -> None:
-        node_context_map: Dict[str, Node] = {}
+        vms_map: Dict[str, VirtualMachine] = {}
+
+        environment_context = get_environment_context(environment=environment)
+        resource_group_name = environment_context.resource_group_name
+        vms_map = self._load_vms(resource_group_name, log)
+
+        vms_name_list = list(vms_map.keys())
+        if len(vms_name_list) < len(environment.nodes):
+            raise LisaException(
+                f"{len(vms_name_list)} vms count is less than "
+                f"requirement count {len(environment.nodes)}"
+            )
+
+        index = 0
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-            node_context_map[node_context.vm_name] = node
-
-        vms_map: Dict[str, VirtualMachine] = self._load_vms(environment, log)
-        nics_map: Dict[str, NetworkInterface] = self._load_nics(environment, log)
-        environment_context = get_environment_context(environment=environment)
-        public_ips_map: Dict[str, str] = self.load_public_ips_from_resource_group(
-            environment_context.resource_group_name, log
-        )
-
-        for vm_name, node in node_context_map.items():
-            node_context = get_node_context(node)
-            vm = vms_map.get(vm_name, None)
-            if not vm:
-                raise LisaException(
-                    f"cannot find vm: '{vm_name}', make sure deployment is correct."
-                )
-            nic = nics_map[vm_name]
-            public_ip = public_ips_map[vm_name]
-
-            address = nic.ip_configurations[0].private_ip_address
+            vm_name = vms_name_list[index]
+            node_context.vm_name = vm_name
             if not node.name:
                 node.name = vm_name
-
+            public_address, private_address = get_primary_ip_addresses(
+                self, resource_group_name, vms_map[vm_name]
+            )
+            index = index + 1
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
-                address=address,
+                address=private_address,
                 port=22,
-                public_address=public_ip,
+                public_address=public_address,
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
@@ -1686,15 +1598,6 @@ class AzurePlatform(Platform):
             level_capabilities.sort(key=lambda x: (x.capability.cost))
             sorted_capabilities.extend(level_capabilities)
         return sorted_capabilities
-
-    def load_public_ip(self, node: Node, log: Logger) -> str:
-        node_context = get_node_context(node)
-        vm_name = node_context.vm_name
-        resource_group_name = node_context.resource_group_name
-        public_ips_map: Dict[str, str] = self.load_public_ips_from_resource_group(
-            resource_group_name=resource_group_name, log=self._log
-        )
-        return public_ips_map[vm_name]
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _resolve_marketplace_image(

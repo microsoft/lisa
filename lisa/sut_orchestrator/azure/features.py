@@ -81,6 +81,7 @@ from .common import (
     get_network_client,
     get_node_context,
     get_or_create_file_share,
+    get_primary_ip_addresses,
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
@@ -120,7 +121,10 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         # the public ip address will change, so reload here
         self._node = cast(RemoteNode, self._node)
         platform: AzurePlatform = self._platform  # type: ignore
-        public_ip = platform.load_public_ip(self._node, self._log)
+
+        public_ip, _ = get_primary_ip_addresses(
+            platform, self._resource_group_name, get_vm(platform, self._node)
+        )
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         self._node.set_connection_info(**node_info)
