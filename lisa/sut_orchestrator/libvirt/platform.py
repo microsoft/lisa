@@ -200,10 +200,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.platform_runbook.capture_libvirt_debug_logs:
             self._disable_libvirt_debug_log()
 
-        dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
-        dmesg_path = self.host_node.local_log_path / "dmesg.txt"
-        with open(str(dmesg_path), "w") as f:
-            f.write(dmesg_output)
+        if self.host_node.is_remote:
+            dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
+            dmesg_path = self.host_node.local_log_path / "dmesg.txt"
+            with open(str(dmesg_path), "w") as f:
+                f.write(dmesg_output)
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
@@ -1098,44 +1099,52 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         firmware_configs = self._read_concat_json_str(firmware_configs_str)
 
         # Filter on architecture.
-        filtered_firmware_configs = filter(
-            lambda f: f["targets"][0]["architecture"] == arch, firmware_configs
+        filtered_firmware_configs = list(
+            filter(lambda f: f["targets"][0]["architecture"] == arch, firmware_configs)
         )
 
-        # Filter on machine type.
-        filtered_firmware_configs = filter(
-            lambda f: any(
-                fnmatch.fnmatch(full_machine_type, target_machine)
-                for target_machine in f["targets"][0]["machines"]
-            ),
-            filtered_firmware_configs,
+        filtered_firmware_configs = list(
+            filter(
+                lambda f: any(
+                    fnmatch.fnmatch(full_machine_type, target_machine)
+                    for target_machine in f["targets"][0]["machines"]
+                ),
+                filtered_firmware_configs,
+            )
         )
 
         # Exclude Intel TDX and AMD SEV-ES firmwares.
-        filtered_firmware_configs = filter(
-            lambda f: "intel-tdx" not in f["features"]
-            and "amd-sev-es" not in f["features"],
-            filtered_firmware_configs,
+        filtered_firmware_configs = list(
+            filter(
+                lambda f: "inteltdx" not in f["mapping"]["executable"]["filename"]
+                and "amdsev" not in f["mapping"]["executable"]["filename"],
+                filtered_firmware_configs,
+            )
         )
 
         # Filter on secure boot.
         if enable_secure_boot:
-            filtered_firmware_configs = filter(
-                lambda f: "secure-boot" in f["features"]
-                and "enrolled-keys" in f["features"],
-                filtered_firmware_configs,
+            filtered_firmware_configs = list(
+                filter(
+                    lambda f: "secure-boot" in f["features"]
+                    and "enrolled-keys" in f["features"],
+                    filtered_firmware_configs,
+                )
             )
         else:
-            filtered_firmware_configs = filter(
-                lambda f: "secure-boot" not in f["features"], filtered_firmware_configs
+            filtered_firmware_configs = list(
+                filter(
+                    lambda f: "secure-boot" not in f["features"],
+                    filtered_firmware_configs,
+                )
             )
 
         # Get first matching firmware.
-        firmware_config = next(filtered_firmware_configs, None)
+        firmware_config = next(iter(filtered_firmware_configs), None)
         if firmware_config is None:
             raise LisaException(
                 f"Could not find matching firmware for machine-type={machine_type} "
-                f"and secure-boot={enable_secure_boot}."
+                f"({full_machine_type}) and secure-boot={enable_secure_boot}."
             )
 
         return firmware_config
