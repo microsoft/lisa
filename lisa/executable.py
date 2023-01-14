@@ -220,7 +220,7 @@ class Tool(InitializableMixin):
         # check dependencies
         if self.dependencies:
             self._log.info("installing dependencies")
-            map(self.node.tools.get, self.dependencies)
+            list(map(self.node.tools.get, self.dependencies))
 
         return self._install()
 
