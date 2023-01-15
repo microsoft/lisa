@@ -198,6 +198,7 @@ class RepoInstaller(BaseInstaller):
         node: Node = self._node
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
         release = node.os.information.codename
+        repo_component = "restricted main multiverse universe"
 
         assert (
             release
@@ -205,12 +206,15 @@ class RepoInstaller(BaseInstaller):
 
         # add the repo
         if runbook.is_proposed:
-            version_name = f"{release}-proposed"
+            if ( "proposed2" in repo_url):
+                version_name = release
+                repo_component = "main"
+            else:
+                version_name = f"{release}-proposed"
         else:
             version_name = release
         repo_entry = (
-            f"deb {self.repo_url} {version_name} "
-            f"restricted main multiverse universe"
+            f"deb {self.repo_url} {version_name} {repo_component}"
         )
         ubuntu.add_repository(repo_entry)
         full_package_name = f"{runbook.source}/{version_name}"
