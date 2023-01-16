@@ -263,6 +263,8 @@ class PpaInstaller(RepoInstaller):
     def install(self) -> str:
         runbook: PpaInstallerSchema = self.runbook
         node: Node = self._node
+            
+        self._log.info(f"PpaInstaller: runbook.openpgp_key: {runbook.openpgp_key}")
 
         # the key is optional
         if runbook.openpgp_key:
