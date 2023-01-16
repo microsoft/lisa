@@ -923,7 +923,10 @@ class AzureImageStandard(TestSuite):
                 or "x" == user_passwd
                 or "" == user_passwd
             ):
-                raise LisaException(f"password of user {user_name} should be deleted.")
+                raise LisaException(
+                    f"Password of user {user_name} is detected in {shadow_file} file. "
+                    "It should be deleted."
+                )
         passwd_file = "/etc/passwd"
         passwd_file_outputs = cat.read_with_filter(
             passwd_file, current_user, True, True, True
@@ -947,7 +950,7 @@ class AzureImageStandard(TestSuite):
                 key_match = key_pattern.findall(key_content)
                 if not (key_match and key_match[0]):
                     assert_that(
-                        file_exists, f"{file_path} should not be present"
+                        file_exists, f"{file_path} is detected. It should be deleted."
                     ).is_false()
 
     @TestCaseMetadata(
