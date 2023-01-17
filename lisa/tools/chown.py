@@ -46,6 +46,7 @@ class Chown(Tool):
             parameters=" ".join(arguments),
             shell=True,
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Chown failed to change owner for {file}"
