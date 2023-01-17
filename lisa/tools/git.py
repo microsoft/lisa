@@ -3,7 +3,7 @@
 
 import pathlib
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -276,3 +276,62 @@ class Git(Tool):
 
     def _mark_safe(self, cwd: pathlib.PurePath) -> None:
         self.run(f"config --global --add safe.directory {cwd}", cwd=cwd, force_run=True)
+
+    def get_current_branch(self, cwd: pathlib.PurePath) -> str:
+        result = self.run(
+            "rev-parse --abbrev-ref HEAD",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch current branch.",
+        )
+        return filter_ansi_escape(result.stdout)
+
+    def get_repo_url(self, cwd: pathlib.PurePath, name: str = "origin") -> str:
+        result = self.run(
+            f"config --get remote.{name}.url",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch remote url.",
+        )
+        return filter_ansi_escape(result.stdout)
+
+    def get_latest_commit_details(self, cwd: pathlib.PurePath) -> Dict[str, str]:
+        result = dict()
+        latest_commit_id = self.run(
+            "--no-pager log -n 1 --pretty=format:%H",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit id.",
+        ).stdout
+
+        commit_message_name = self.run(
+            "--no-pager log -n 1 --pretty=format:%B",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch latest commit message.",
+        ).stdout
+
+        author_email = self.run(
+            "--no-pager log -n 1 --format='%ae'",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to fetch author email.",
+        ).stdout
+
+        result = {
+            "full_commit_id": filter_ansi_escape(latest_commit_id),
+            "commit_message_name": filter_ansi_escape(commit_message_name),
+            "contacts": filter_ansi_escape(author_email),
+        }
+
+        return result
