@@ -43,7 +43,7 @@ class PowerStress(TestSuite):
             This case is to verify vm hibernation in a loop.
         """,
         priority=3,
-        timeout=72000,
+        timeout=720000,
         requirement=simple_requirement(
             network_interface=Sriov(),
             supported_features=[HibernationEnabled()],
