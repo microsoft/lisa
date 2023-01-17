@@ -3,6 +3,7 @@
 from typing import Any
 
 from lisa.executable import Tool
+from lisa.operating_system import CoreOs
 from lisa.tools import Uname
 
 
@@ -45,6 +46,10 @@ class KernelConfig(Tool):
         ).exit_code == 0
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.config_path: str = ""
         uname_tool = self.node.tools[Uname]
         kernel_ver = uname_tool.get_linux_information().kernel_version_raw
-        self.config_path: str = f"/boot/config-{kernel_ver}"
+        if isinstance(self.node.os, CoreOs):
+            self.config_path = f"/usr/boot/config-{kernel_ver}"
+        else:
+            self.config_path = f"/boot/config-{kernel_ver}"
