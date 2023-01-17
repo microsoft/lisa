@@ -18,7 +18,8 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Synthetic
 from lisa.nic import Nics
-from lisa.tools import Dhclient, Ip, KernelConfig, Wget
+from lisa.operating_system import FreeBSD
+from lisa.tools import Dhclient, Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
 
 from .common import restore_extra_nics_per_node
@@ -188,5 +189,36 @@ class NetInterface(TestSuite):
                 node_nic_info.initialize()
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
-        if node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
+        if isinstance(node.os, FreeBSD):
+            # Use command "config -x /boot/kernel/kernel | grep hyperv" can also check
+            # if netvsc is build-in. The output "device hyperv" means the the hyperv
+            # drivers includes vmbus,kvp,netvsc,storvsc are built-in to the kernel.
+            # Here use command "kldstat | grep hv_netvsc" to check.
+            is_built_in_module = (
+                node.execute(
+                    "kldstat | grep hv_netvsc", sudo=True, shell=True
+                ).exit_code
+                != 0
+            )
+        else:
+            try:
+                is_built_in_module = node.tools[KernelConfig].is_built_in(
+                    "CONFIG_HYPERV_NET"
+                )
+            except LisaException as identifier:
+                # Some image's kernel config is inconsistent with the kernel version.
+                # E.g. fatpipe-inc fatpipe-wanopt 10 0.0.3, then it has the exception.
+                # If so, check if netvsc is built-in using below way.
+                node.log.debug(identifier)
+                uname = node.tools[Uname]
+                kernel = uname.get_linux_information().kernel_version_raw
+                is_built_in_module = (
+                    node.execute(
+                        f"grep hv_netvsc /lib/modules/{kernel}/modules.builtin",
+                        sudo=True,
+                        shell=True,
+                    ).exit_code
+                    == 0
+                )
+        if is_built_in_module:
             raise SkippedException("Skipping test since hv_netvsc module is built-in")
