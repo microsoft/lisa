@@ -80,6 +80,14 @@ libvirt = [
     "pycdlib ~= 1.12.0; platform_system != 'Windows'",
 ]
 
+mypy = [
+    "mypy == 0.942",
+]
+
+pylint = [
+    "pylint ~= 2.15.10"
+]
+
 test = [
 ]
 

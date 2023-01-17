@@ -100,8 +100,8 @@ def pylint(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["aws"],
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["libvirt"],
+        *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
-        "pylint",
     )
     session.run(
         "pylint",
@@ -124,9 +124,9 @@ def mypy(session: nox.Session) -> None:
     session.install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
-        "mypy == 0.942",
     )
 
     session.run("mypy", "-p", "lisa")
@@ -219,11 +219,11 @@ def dev(session: nox.Session) -> None:
         "-m",
         "pip",
         "install",
-        "mypy",
         "black",
         "isort",
-        "pylint",
         *OPTIONAL_DEPENDENCIES["flake8"],
+        *OPTIONAL_DEPENDENCIES["mypy"],
+        *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
         external=True,
