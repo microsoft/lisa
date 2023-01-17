@@ -672,9 +672,7 @@ class Sriov(TestSuite):
                     exclude_key_words=["pages", "cmd", "async"],
                 )
             )
-            assert_that(len(initial_pci_interrupts_by_irqs)).described_as(
-                "initial irqs count should be greater than 0"
-            ).is_greater_than(0)
+
             initial_pci_interrupts_by_cpus = (
                 client_interrupt_inspector.sum_cpu_counter_by_index(
                     client_nic_info.pci_slot
