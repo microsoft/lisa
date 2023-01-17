@@ -12,6 +12,7 @@ from lisa.util import UnsupportedDistroException
 class DpdkNffGo(Tool):
 
     NFF_GO_SRC_LINK = "https://github.com/intel-go/nff-go.git"
+    REF = "v0.9.2"
     REPO_DIR = "nff-go"
     GO_TAR = "go1.17.6.linux-amd64.tar.gz"
 
@@ -85,7 +86,8 @@ class DpdkNffGo(Tool):
 
         # get nff-go source and go binaries
         self.nff_go_path = git.clone(
-            "https://github.com/intel-go/nff-go.git",
+            self.NFF_GO_SRC_LINK,
+            ref=self.REF,
             cwd=node.working_path,
             dir_name=self.REPO_DIR,
         )
