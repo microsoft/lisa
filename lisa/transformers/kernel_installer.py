@@ -207,7 +207,7 @@ class RepoInstaller(BaseInstaller):
         # add the repo
         if runbook.is_proposed:
             self._log.info ( f"self.repo_url: {self.repo_url}" )
-            if ( "proposed2" in self.repo_url):
+            if ( "proposed2" in self.repo_url or "private-ppa" in self.repo_url):
                 version_name = release
                 repo_component = "main"
             else:
