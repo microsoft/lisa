@@ -95,7 +95,7 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 
 class SourceInstaller(BaseInstaller):
-    _source_information: Dict[str, Any] = {}
+    _code_path: PurePath
 
     @classmethod
     def type_name(cls) -> str:
@@ -108,6 +108,31 @@ class SourceInstaller(BaseInstaller):
     @property
     def _output_names(self) -> List[str]:
         return []
+
+    @property
+    def information(self) -> Dict[str, Any]:
+        git = self._node.tools[Git]
+        lscpu = self._node.tools[Lscpu]
+        gcc = self._node.tools[Gcc]
+        information = dict()
+        if self._code_path:
+            information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
+            information["tag"] = git.get_tag(cwd=self._code_path)
+            information["git_repository_url"] = git.get_repo_url(cwd=self._code_path)
+            information["git_repository_branch"] = git.get_current_branch(
+                cwd=self._code_path
+            )
+            information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
+            information["architecture"] = lscpu.get_architecture()
+            information["compiler"] = f"gcc {gcc.get_version()}"
+            information["build_start_time"] = datetime.now(timezone.utc).isoformat()
+            information.update(git.get_latest_commit_details(cwd=self._code_path))
+        else:
+            self._log.info(
+                f"Error retrieving source installer information."
+                f"Code path is {self._code_path}."
+            )
+        return information
 
     def validate(self) -> None:
         # nothing to validate before source installer started.
@@ -125,23 +150,25 @@ class SourceInstaller(BaseInstaller):
             runbook=runbook.location, node=node, parent_log=self._log
         )
 
-        code_path = source.get_source_code()
-        assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
-        self._log.info(f"kernel code path: {code_path}")
-
-        self._source_information.update(source.information)
+        self._code_path = source.get_source_code()
+        assert node.shell.exists(
+            self._code_path
+        ), f"cannot find code path: {self._code_path}"
+        self._log.info(f"kernel code path: {self._code_path}")
 
         # modify code
-        self._modify_code(node=node, code_path=code_path)
+        self._modify_code(node=node, code_path=self._code_path)
 
         kconfig_file = runbook.kernel_config_file
-        self._build_code(node=node, code_path=code_path, kconfig_file=kconfig_file)
+        self._build_code(
+            node=node, code_path=self._code_path, kconfig_file=kconfig_file
+        )
 
-        self._install_build(node=node, code_path=code_path)
+        self._install_build(node=node, code_path=self._code_path)
 
         result = node.execute(
             "make kernelrelease 2>/dev/null",
-            cwd=code_path,
+            cwd=self._code_path,
             shell=True,
         )
 
@@ -154,7 +181,7 @@ class SourceInstaller(BaseInstaller):
         # copy current config back to system folder.
         result = node.execute(
             f"cp .config /boot/config-{kernel_version}",
-            cwd=code_path,
+            cwd=self._code_path,
             sudo=True,
         )
         result.assert_exit_code()
@@ -337,10 +364,6 @@ class SourceInstaller(BaseInstaller):
                 f"Implement its build dependencies installation there."
             )
 
-    @property
-    def information(self) -> Dict[str, Any]:
-        return self._source_information
-
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def __init__(
@@ -357,11 +380,6 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
 
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
-
-    # Can be used to get arbitary information
-    @property
-    def information(self) -> Dict[str, Any]:
-        return dict()
 
 
 class RepoLocation(BaseLocation):
@@ -399,7 +417,6 @@ class RepoLocation(BaseLocation):
             auth_token=runbook.auth_token,
             timeout=1800,
         )
-        self.__code_path = code_path
 
         git.fetch(cwd=code_path)
 
@@ -411,27 +428,6 @@ class RepoLocation(BaseLocation):
         self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
 
         return code_path
-
-    @property
-    def information(self) -> Dict[str, Any]:
-        git = self._node.tools[Git]
-        lscpu = self._node.tools[Lscpu]
-        gcc = self._node.tools[Gcc]
-        information = dict()
-        if self.__code_path:
-            information["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
-            information["tag"] = git.get_tag(cwd=self.__code_path)
-            information["git_repository_url"] = git.get_repo_url(cwd=self.__code_path)
-            information["git_repository_branch"] = git.get_current_branch(
-                cwd=self.__code_path
-            )
-            information["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
-            information["architecture"] = lscpu.get_architecture()
-            information["compiler"] = f"gcc {gcc.get_version()}"
-            information["build_start_time"] = datetime.now(timezone.utc).isoformat()
-            information.update(git.get_latest_commit_details(cwd=self.__code_path))
-
-        return information
 
 
 class LocalLocation(BaseLocation):
