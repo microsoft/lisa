@@ -88,6 +88,7 @@ from .python import Pip, Python
 from .qemu import Qemu
 from .qemu_img import QemuImg
 from .reboot import Reboot
+from .remote_copy import RemoteCopy
 from .rm import Rm
 from .sar import Sar
 from .ssh import Ssh
@@ -198,6 +199,7 @@ __all__ = [
     "Qemu",
     "QemuImg",
     "Reboot",
+    "RemoteCopy",
     "Rpm",
     "Rm",
     "Sar",

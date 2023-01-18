@@ -21,12 +21,23 @@ class Cp(Tool):
         dest: PurePath,
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
+        recur: bool = False,
     ) -> None:
+        cmd = f"{src} {dest}"
+        if recur:
+            cmd = f"-r {cmd}"
         result = self.run(
-            f"{src} {dest}",
+            cmd,
             force_run=True,
-            expected_exit_code=0,
             sudo=sudo,
             cwd=cwd,
+            shell=True,
         )
+
+        # cp copies all the files except folders in the source
+        # directory to the destination directory when we do not
+        # specify -r when source is a directory. Though it throws
+        # an error which we can ignore.
+        if "omitting directory" in result.stdout and not recur:
+            return
         result.assert_exit_code()

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import PurePath
 from typing import List, Optional, Type
 
 from lisa.executable import Tool
@@ -26,7 +27,7 @@ class Ls(Tool):
 
     def list(self, path: str, sudo: bool = False) -> List[str]:
         cmd_result = self.run(
-            f"-d {path}/*",
+            f"-p -d {path}/*",
             force_run=True,
             sudo=sudo,
             shell=True,
@@ -49,6 +50,21 @@ class Ls(Tool):
             return cmd_result.stdout.split()
         else:
             return []
+
+    def is_file(self, path: PurePath, sudo: bool = False) -> bool:
+        # If `ls -al <path>` returns more than one line, it is a directory, else
+        # it is a file. This is because `ls -al <path>` returns info of the dir and
+        # parent dir.
+        cmd_result = self.run(
+            f"-al {path}",
+            force_run=True,
+            sudo=sudo,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to check if {path} is a file",
+        )
+
+        return len(cmd_result.stdout.splitlines()) == 1
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
