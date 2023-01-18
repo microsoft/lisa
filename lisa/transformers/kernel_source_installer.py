@@ -95,7 +95,7 @@ class SourceInstallerSchema(BaseInstallerSchema):
 
 
 class SourceInstaller(BaseInstaller):
-    _source_details: Dict[str, Any] = {}
+    _source_information: Dict[str, Any] = {}
 
     @classmethod
     def type_name(cls) -> str:
@@ -113,9 +113,6 @@ class SourceInstaller(BaseInstaller):
         # nothing to validate before source installer started.
         ...
 
-    # def _internal_run(self) -> Dict[str, Any]:
-    #     return {self.__source_details_name: self.source_details}
-
     def install(self) -> str:
         node = self._node
         runbook: SourceInstallerSchema = self.runbook
@@ -132,7 +129,7 @@ class SourceInstaller(BaseInstaller):
         assert node.shell.exists(code_path), f"cannot find code path: {code_path}"
         self._log.info(f"kernel code path: {code_path}")
 
-        self._source_details.update(source.get_details())
+        self._source_information.update(source.information)
 
         # modify code
         self._modify_code(node=node, code_path=code_path)
@@ -340,8 +337,9 @@ class SourceInstaller(BaseInstaller):
                 f"Implement its build dependencies installation there."
             )
 
-    def get_details(self) -> Dict[str, Any]:
-        return self._source_details
+    @property
+    def information(self) -> Dict[str, Any]:
+        return self._source_information
 
 
 class BaseLocation(subclasses.BaseClassWithRunbookMixin):
@@ -360,8 +358,9 @@ class BaseLocation(subclasses.BaseClassWithRunbookMixin):
     def get_source_code(self) -> PurePath:
         raise NotImplementedError()
 
-    # Can be used to get arbitary details
-    def get_details(self) -> Dict[str, Any]:
+    # Can be used to get arbitary information
+    @property
+    def information(self) -> Dict[str, Any]:
         return dict()
 
 
@@ -413,25 +412,26 @@ class RepoLocation(BaseLocation):
 
         return code_path
 
-    def get_details(self) -> Dict[str, Any]:
+    @property
+    def information(self) -> Dict[str, Any]:
         git = self._node.tools[Git]
         lscpu = self._node.tools[Lscpu]
         gcc = self._node.tools[Gcc]
-        details = dict()
+        information = dict()
         if self.__code_path:
-            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
-            details["tag"] = git.get_tag(cwd=self.__code_path)
-            details["git_repository_url"] = git.get_repo_url(cwd=self.__code_path)
-            details["git_repository_branch"] = git.get_current_branch(
+            information["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            information["tag"] = git.get_tag(cwd=self.__code_path)
+            information["git_repository_url"] = git.get_repo_url(cwd=self.__code_path)
+            information["git_repository_branch"] = git.get_current_branch(
                 cwd=self.__code_path
             )
-            details["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
-            details["architecture"] = lscpu.get_architecture()
-            details["compiler"] = f"gcc {gcc.get_version()}"
-            details["build_start_time"] = datetime.now(timezone.utc).isoformat()
-            details.update(git.get_latest_commit_details(cwd=self.__code_path))
+            information["commit_id"] = git.get_latest_commit_id(cwd=self.__code_path)
+            information["architecture"] = lscpu.get_architecture()
+            information["compiler"] = f"gcc {gcc.get_version()}"
+            information["build_start_time"] = datetime.now(timezone.utc).isoformat()
+            information.update(git.get_latest_commit_details(cwd=self.__code_path))
 
-        return details
+        return information
 
 
 class LocalLocation(BaseLocation):

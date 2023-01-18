@@ -87,19 +87,20 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
         self._node = node
         self._log = get_logger("kernel_installer", parent=parent_log)
 
+    @property
+    def information(self) -> Dict[str, Any]:
+        return dict()
+
     def validate(self) -> None:
         raise NotImplementedError()
 
     def install(self) -> str:
         raise NotImplementedError()
 
-    def get_details(self) -> Dict[str, Any]:
-        return dict()
-
 
 class KernelInstallerTransformer(Transformer):
-    __details_output_name = "details"
-    _details: Dict[str, Any] = dict()
+    __information_output_name = "information"
+    _information: Dict[str, Any] = dict()
 
     @classmethod
     def type_name(cls) -> str:
@@ -111,7 +112,7 @@ class KernelInstallerTransformer(Transformer):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.__details_output_name]
+        return [self.__information_output_name]
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: KernelInstallerTransformerSchema = self.runbook
@@ -131,7 +132,7 @@ class KernelInstallerTransformer(Transformer):
 
         installer.validate()
         installed_kernel_version = installer.install()
-        self._details = installer.get_details()
+        self._information = installer.information
         self._log.info(f"installed kernel version: {installed_kernel_version}")
 
         # for ubuntu cvm kernel, there is no menuentry added into grub file
@@ -170,7 +171,7 @@ class KernelInstallerTransformer(Transformer):
             f"kernel version after install: "
             f"{uname.get_linux_information(force_run=True)}"
         )
-        return {self.__details_output_name: self._details}
+        return {self.__information_output_name: self._information}
 
 
 class RepoInstaller(BaseInstaller):
