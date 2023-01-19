@@ -218,7 +218,6 @@ class RepoInstaller(BaseInstaller):
         )
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
-
         full_package_name = f"{runbook.source}/{version_name}"
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
