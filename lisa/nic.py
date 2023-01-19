@@ -11,9 +11,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-import lisa.util.constants as constants
 from lisa.tools import Echo, Ip, Lspci
-from lisa.util import InitializableMixin, LisaException, find_groups_in_lines
+from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
     from lisa import Node

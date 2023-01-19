@@ -24,8 +24,6 @@ disable=
     missing-module-docstring,
 
     # Imports
-    consider-using-from-import,
-    deprecated-module,
     import-outside-toplevel,
     unused-import,
     wrong-import-position,
