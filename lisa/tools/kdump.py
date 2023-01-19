@@ -427,14 +427,18 @@ class KdumpRedhat(KdumpBase):
                 f' --args="crashkernel={crashkernel}"'
             )
         else:
-            if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
+            arch = self.node.os.get_kernel_information().hardware_platform
+            if (
+                self.node.shell.exists(PurePosixPath("/sys/firmware/efi"))
+                and arch == "x86_64"
+            ):
                 # System with UEFI firmware
                 grub_file_path = self.node.execute(
                     "find /boot/efi/EFI/* -name grub.cfg", shell=True, sudo=True
                 )
                 return f"grub2-mkconfig -o {grub_file_path}"
             else:
-                # System with BIOS firmware
+                # System with BIOS firmware Or ARM64 CentOS 7
                 return "grub2-mkconfig -o /boot/grub2/grub.cfg"
 
     def config_resource_disk_dump_path(self, dump_path: str) -> None:
