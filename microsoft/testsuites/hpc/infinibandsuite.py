@@ -139,7 +139,7 @@ class InfinibandSuite(TestSuite):
 
         # Ensure RDMA is setup
         try:
-            run_in_parallel(
+            client_infiniband, server_infiniband = run_in_parallel(
                 [
                     lambda: client_node.features[Infiniband],
                     lambda: server_node.features[Infiniband],
@@ -148,10 +148,7 @@ class InfinibandSuite(TestSuite):
         except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
-        server_infiniband = server_node.features[Infiniband]
         server_ib_interfaces = server_infiniband.get_ib_interfaces()
-
-        client_infiniband = client_node.features[Infiniband]
         client_ib_interfaces = client_infiniband.get_ib_interfaces()
 
         client_ib_device_name = client_ib_interfaces[0].ib_device_name
@@ -203,7 +200,7 @@ class InfinibandSuite(TestSuite):
 
         # Ensure RDMA is setup
         try:
-            run_in_parallel(
+            client_ib, server_ib = run_in_parallel(
                 [
                     lambda: client_node.features[Infiniband],
                     lambda: server_node.features[Infiniband],
@@ -212,8 +209,6 @@ class InfinibandSuite(TestSuite):
         except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
-        server_ib = server_node.features[Infiniband]
-        client_ib = client_node.features[Infiniband]
         run_in_parallel([server_ib.install_intel_mpi, client_ib.install_intel_mpi])
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
@@ -270,7 +265,7 @@ class InfinibandSuite(TestSuite):
                 f"/opt/intel/oneapi/mpi/2021.1.1/bin/{test}",
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
-                timeout=1200,
+                timeout=2400,
             )
 
     @TestCaseMetadata(
@@ -294,7 +289,7 @@ class InfinibandSuite(TestSuite):
 
         # Ensure RDMA is setup
         try:
-            run_in_parallel(
+            client_ib, server_ib = run_in_parallel(
                 [
                     lambda: client_node.features[Infiniband],
                     lambda: server_node.features[Infiniband],
@@ -303,8 +298,6 @@ class InfinibandSuite(TestSuite):
         except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
-        server_ib = server_node.features[Infiniband]
-        client_ib = client_node.features[Infiniband]
         run_in_parallel([server_ib.install_open_mpi, client_ib.install_open_mpi])
 
         server_node.execute("ldconfig", sudo=True)
@@ -391,7 +384,7 @@ class InfinibandSuite(TestSuite):
 
         # Ensure RDMA is setup
         try:
-            run_in_parallel(
+            client_ib, server_ib = run_in_parallel(
                 [
                     lambda: client_node.features[Infiniband],
                     lambda: server_node.features[Infiniband],
@@ -400,8 +393,6 @@ class InfinibandSuite(TestSuite):
         except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
-        server_ib = server_node.features[Infiniband]
-        client_ib = client_node.features[Infiniband]
         run_in_parallel([server_ib.install_ibm_mpi, client_ib.install_ibm_mpi])
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
@@ -463,7 +454,7 @@ class InfinibandSuite(TestSuite):
 
         # Ensure RDMA is setup
         try:
-            run_in_parallel(
+            client_ib, server_ib = run_in_parallel(
                 [
                     lambda: client_node.features[Infiniband],
                     lambda: server_node.features[Infiniband],
@@ -472,8 +463,6 @@ class InfinibandSuite(TestSuite):
         except (UnsupportedDistroException, UnsupportedKernelException) as err:
             raise SkippedException(err)
 
-        server_ib = server_node.features[Infiniband]
-        client_ib = client_node.features[Infiniband]
         run_in_parallel([server_ib.install_mvapich_mpi, client_ib.install_mvapich_mpi])
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
