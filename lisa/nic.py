@@ -82,8 +82,8 @@ class Nics(InitializableMixin):
     """
     __ip_addr_show_regex = re.compile(
         (
-            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+"
-            r"link\/(?:ether|infiniband) (?P<mac>[0-9a-z:]+) .+\n?"
+            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband) "
+            r"(?P<mac>[0-9a-z:]+) .+\n(?:.+\n\s+altname \w+)?"
             r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
         )
     )
