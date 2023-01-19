@@ -100,6 +100,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self._next_available_port: int
         self._port_forwarding_lock: Lock
 
+        # Lock used for scp-ing disk image to Remote host VM
+        self._disk_img_copy_lock: Lock
+
         self._host_environment_information_hooks = {
             KEY_HOST_DISTRO: self._get_host_distro,
             KEY_HOST_KERNEL: self._get_host_kernel_version,
@@ -129,6 +132,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         # 49512 is the first available private port
         self._next_available_port = 49152
         self._port_forwarding_lock = Lock()
+
+        self._disk_img_copy_lock = Lock()
 
         self.platform_runbook = self.runbook.get_extended_runbook(
             self.__platform_runbook_type(), type_name=type(self).type_name()
@@ -429,8 +434,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         if self.host_node.is_remote:
             node_context.os_disk_source_file_path = node_runbook.disk_img
+            host = self.platform_runbook.hosts[0]
             node_context.os_disk_base_file_path = os.path.join(
-                self.vm_disks_dir, os.path.basename(node_runbook.disk_img)
+                host.lisa_working_dir, os.path.basename(node_runbook.disk_img)
             )
         else:
             node_context.os_disk_base_file_path = node_runbook.disk_img
@@ -541,21 +547,23 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         environment: Environment,
         log: Logger,
     ) -> None:
-        # Create required directories and copy the required files to the host
-        # node.
+        # Create required directories and copy the required files to the host node.
         if node_context.os_disk_source_file_path:
-            source_exists = self.host_node.tools[Ls].path_exists(
-                path=node_context.os_disk_base_file_path, sudo=True
-            )
-            if source_exists:
-                self.host_node.tools[Chmod].chmod(
-                    node_context.os_disk_base_file_path, "a+r", sudo=True
+            # use lock to avoid multiple environments scp disk img to same
+            # os_disk_base_file_path.
+            with self._disk_img_copy_lock:
+                source_exists = self.host_node.tools[Ls].path_exists(
+                    path=node_context.os_disk_base_file_path, sudo=True
                 )
-            else:
-                self.host_node.shell.copy(
-                    Path(node_context.os_disk_source_file_path),
-                    Path(node_context.os_disk_base_file_path),
-                )
+                if source_exists:
+                    self.host_node.tools[Chmod].chmod(
+                        node_context.os_disk_base_file_path, "a+r", sudo=True
+                    )
+                else:
+                    self.host_node.shell.copy(
+                        Path(node_context.os_disk_source_file_path),
+                        Path(node_context.os_disk_base_file_path),
+                    )
 
         # Create cloud-init ISO file.
         self._create_node_cloud_init_iso(environment, log, node)
