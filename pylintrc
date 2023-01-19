@@ -36,7 +36,6 @@ disable=
     expression-not-assigned,
     inconsistent-return-statements,
     keyword-arg-before-vararg,
-    missing-timeout,
     modified-iterating-list,
     no-member,
     redefined-argument-from-local,
