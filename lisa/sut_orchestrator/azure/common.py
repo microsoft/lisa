@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import subprocess
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta
@@ -830,6 +831,7 @@ def generate_sas_token(
     account_name: str,
     resource_group_name: str,
     expired_hours: int = 2,
+    write: bool = False,
 ) -> Any:
     shared_key_credential = get_storage_credential(
         credential=credential,
@@ -844,7 +846,7 @@ def generate_sas_token(
         account_name=shared_key_credential["account_name"],
         account_key=shared_key_credential["account_key"],
         resource_types=resource_types,
-        permission=AccountSasPermissions(read=True),  # type: ignore
+        permission=AccountSasPermissions(read=True, write=write),  # type: ignore
         expiry=datetime.utcnow() + timedelta(hours=expired_hours),
     )
     return sas_token
@@ -994,6 +996,26 @@ def wait_copy_blob(
         raise LisaException(f"wait copying VHD timeout: {vhd_path}")
 
     log.info("vhd copied")
+
+
+def copy_blob_using_azcopy(
+    azcopy_path: str,
+    src: str,
+    dst: str,
+    log: Logger,
+    timeout: int = 30 * 60,
+) -> None:
+    log.info(f"copy vhd by using azcopy: {src} to {dst}")
+    try:
+        subprocess.check_call(
+            [azcopy_path, "copy", src, dst, "--recursive=true"], timeout=timeout
+        )
+    except subprocess.CalledProcessError as exec:
+        log.debug(
+            f"azcopy command failed with error code {exec.returncode} "
+            f"and message {exec.output}"
+        )
+        raise LisaException("it's failed to copy blob using azcopy")
 
 
 def get_share_service_client(

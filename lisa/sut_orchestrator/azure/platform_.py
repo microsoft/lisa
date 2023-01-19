@@ -7,6 +7,7 @@ import logging
 import math
 import os
 import re
+import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -86,6 +87,7 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    copy_blob_using_azcopy,
     generate_sas_token,
     get_compute_client,
     get_environment_context,
@@ -282,6 +284,8 @@ class AzurePlatformSchema:
     deploy: bool = True
     # wait resource deleted or not
     wait_delete: bool = False
+    # the AzCopy path can be specified if use this tool to copy blob
+    azcopy_path: str = field(default="")
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -2005,9 +2009,27 @@ class AzurePlatform(Platform):
                         log.debug("found cached vhd, but the hash key mismatched.")
 
             if not vhd_exists:
-                blob_client.start_copy_from_url(
-                    original_vhd_path, metadata=None, incremental_copy=False
+                azcopy_path = self._azure_runbook.azcopy_path
+                log.debug(
+                    f"use azcopy to copy blob. azcopy_path:{self._azure_runbook.azcopy_path}"
                 )
+                if azcopy_path and os.path.exists(azcopy_path):
+                    log.debug(
+                        f"use azcopy to copy blob. azcopy_path:{self._azure_runbook.azcopy_path}"
+                    )
+                    sas_token = generate_sas_token(
+                        credential=self.credential,
+                        subscription_id=self.subscription_id,
+                        account_name=storage_name,
+                        resource_group_name=self._azure_runbook.shared_resource_group_name,
+                        write=True,
+                    )
+                    dst = full_vhd_path + "?" + sas_token
+                    copy_blob_using_azcopy(azcopy_path, original_vhd_path, dst, log)
+                else:
+                    blob_client.start_copy_from_url(
+                        original_vhd_path, metadata=None, incremental_copy=False
+                    )
 
             wait_copy_blob(blob_client, vhd_path, log)
 
