@@ -1,6 +1,7 @@
 version: '3.3'
 services:
    db:
+     platform: linux/amd64
      image: mysql:5.7
      volumes:
        - db_data:/var/lib/mysql
@@ -13,6 +14,7 @@ services:
    wordpress:
      depends_on:
        - db
+     platform: linux/amd64
      image: wordpress:latest
      container_name: wordpress_ex
      ports:
