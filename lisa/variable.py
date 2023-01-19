@@ -4,7 +4,6 @@
 import os
 import re
 from dataclasses import dataclass
-from distutils.util import strtobool
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
@@ -54,14 +53,13 @@ def _try_convert_type(original_value: Any, new_value: Any) -> Any:
     if original_type == new_type:
         return new_value
 
-    if new_type is not str:
-        target_type = new_type
-    else:
-        target_type = original_type
-
+    target_type = new_type if new_type is not str else original_type
     try:
         if target_type is bool:
-            new_value = bool(strtobool(new_value))
+            if new_value.lower() in ("y", "yes", "t", "true", "on", "1"):
+                new_value = True
+            elif new_value.lower() in ("n", "no", "f", "false", "off", "0"):
+                new_value = False
         else:
             new_value = target_type(new_value)
     except Exception:
