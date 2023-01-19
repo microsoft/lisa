@@ -39,8 +39,12 @@ class DockerCompose(Tool):
         hardware = uname_tool.get_linux_information().hardware_platform
         filename = "docker-compose"
         wget_tool.run(
-            "https://github.com/docker/compose/releases/download/1.23.2"
-            f"/docker-compose-Linux-{hardware} -O {filename}",
+            "https://github.com/docker/compose/releases/download/v2.0.1"
+            f"/docker-compose-linux-{hardware} -O {filename}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"fail to download docker-compose-linux-{hardware}"
+            ),
             sudo=True,
         )
         self.node.execute(f"sudo chmod +x {filename}")
