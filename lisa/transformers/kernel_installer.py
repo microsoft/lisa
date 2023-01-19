@@ -205,20 +205,25 @@ class RepoInstaller(BaseInstaller):
         node: Node = self._node
         ubuntu: Ubuntu = cast(Ubuntu, node.os)
         release = node.os.information.codename
+        repo_component = "restricted main multiverse universe"
 
         assert (
             release
         ), f"cannot find codename from the os version: {node.os.information}"
 
         # add the repo
+        # 'main' is the only repo component supported by 'private-ppa' and
+        # 'proposed2' repositories
         if runbook.is_proposed:
-            version_name = f"{release}-proposed"
+            if "proposed2" in self.repo_url or "private-ppa" in self.repo_url:
+                version_name = release
+                repo_component = "main"
+            else:
+                version_name = f"{release}-proposed"
         else:
             version_name = release
-        repo_entry = (
-            f"deb {self.repo_url} {version_name} "
-            f"restricted main multiverse universe"
-        )
+        repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
+        self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = f"{runbook.source}/{version_name}"
         self._log.info(f"installing kernel package: {full_package_name}")
