@@ -10,6 +10,7 @@ from retry import retry
 
 from lisa.base_tools import Cat, Sed, Service, Uname, Wget
 from lisa.feature import Feature
+from lisa.features import Disk
 from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make
 from lisa.tools.tar import Tar
@@ -55,6 +56,9 @@ class Infiniband(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
+        self.resource_disk_path = self._node.features[
+            Disk
+        ].get_resource_disk_mount_point()
         self.setup_rdma()
 
     def enabled(self) -> bool:
@@ -90,6 +94,7 @@ class Infiniband(Feature):
         Example IBDevice("mlx5_ib0", "ib0", "172.16.1.23")"""
         ib_devices = []
         device_info = self._get_ib_device_info()
+        self._node.nics.reload()
         for device in device_info:
             if device["link_layer"].strip() == "InfiniBand" and "node_guid" in device:
                 device_name = device["hca_id"].strip()
@@ -210,6 +215,9 @@ class Infiniband(Feature):
             "walinuxagent",
         ]
         redhat_required_packages = [
+            "gtk2",
+            "atk",
+            "cairo",
             "git",
             "zip",
             "python3",
@@ -324,14 +332,25 @@ class Infiniband(Feature):
 
         wget = node.tools[Wget]
         try:
-            wget.get(url=mlnx_ofed_download_url, file_path=".", filename=tarball_name)
+            wget.get(
+                url=mlnx_ofed_download_url,
+                file_path=self.resource_disk_path,
+                filename=tarball_name,
+                overwrite=False,
+                sudo=True,
+            )
         except LisaException as identifier:
             if "404: Not Found." in str(identifier):
                 raise UnsupportedDistroException(
                     node.os, f"{mlnx_ofed_download_url} doesn't exist."
                 )
         tar = node.tools[Tar]
-        tar.extract(file=tarball_name, dest_dir=".", gzip=True)
+        tar.extract(
+            file=f"{self.resource_disk_path}/{tarball_name}",
+            dest_dir=self.resource_disk_path,
+            gzip=True,
+            sudo=True,
+        )
 
         extra_params = ""
         if isinstance(node.os, Redhat):
@@ -355,7 +374,9 @@ class Infiniband(Feature):
             extra_params += " --skip-unsupported-devices-check"
 
         node.execute(
-            f"./{mofed_folder}/mlnxofedinstall --add-kernel-support {extra_params}",
+            f"{self.resource_disk_path}/{mofed_folder}/mlnxofedinstall "
+            f"--add-kernel-support {extra_params} "
+            f"--tmpdir {self.resource_disk_path}/tmp",
             expected_exit_code=0,
             expected_exit_code_failure_message="SetupRDMA: failed to install "
             "MOFED Drivers",
@@ -396,7 +417,10 @@ class Infiniband(Feature):
         script_path = wget.get(
             "https://partnerpipelineshare.blob.core.windows.net/mpi/"
             "l_mpi_oneapi_p_2021.1.1.76_offline.sh",
+            file_path=self.resource_disk_path,
             executable=True,
+            overwrite=False,
+            sudo=True,
         )
         node.execute(
             f"{script_path} -s -a -s --eula accept",
@@ -411,14 +435,18 @@ class Infiniband(Feature):
         wget = node.tools[Wget]
         tar_file_path = wget.get(
             "https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.5.tar.gz",
+            file_path=self.resource_disk_path,
             executable=True,
+            overwrite=False,
+            sudo=True,
         )
         tar = node.tools[Tar]
-        tar.extract(tar_file_path, ".", gzip=True)
-        openmpi_folder = node.get_pure_path("./openmpi-4.0.5")
+        tar.extract(tar_file_path, self.resource_disk_path, gzip=True, sudo=True)
+        openmpi_folder = node.get_pure_path(f"{self.resource_disk_path}/openmpi-4.0.5")
 
         node.execute(
             "./configure --enable-mpirun-prefix-by-default",
+            sudo=True,
             shell=True,
             cwd=openmpi_folder,
             expected_exit_code=0,
@@ -426,8 +454,8 @@ class Infiniband(Feature):
         )
 
         make = node.tools[Make]
-        make.make("", cwd=openmpi_folder)
-        make.make_install(cwd=openmpi_folder)
+        make.make("", cwd=openmpi_folder, sudo=True)
+        make.make_install(cwd=openmpi_folder, sudo=True)
 
     def install_ibm_mpi(self) -> None:
         node = self._node
@@ -436,7 +464,10 @@ class Infiniband(Feature):
         script_path = wget.get(
             "https://partnerpipelineshare.blob.core.windows.net/mpi/"
             "platform_mpi-09.01.04.03r-ce.bin",
+            file_path=self.resource_disk_path,
             executable=True,
+            overwrite=False,
+            sudo=True,
         )
         node.execute(
             f"{script_path} -i silent",
@@ -457,24 +488,32 @@ class Infiniband(Feature):
         # Install Open MPI
         wget = node.tools[Wget]
         tar_file_path = wget.get(
-            "https://partnerpipelineshare.blob.core.windows.net/"
-            "mpi/mvapich2-2.3.2.tar.gz"
+            "https://mvapich.cse.ohio-state.edu/download/mvapich/"
+            "mv2/mvapich2-2.3.7-1.tar.gz",
+            file_path=self.resource_disk_path,
+            overwrite=False,
+            sudo=True,
         )
         tar = node.tools[Tar]
-        tar.extract(tar_file_path, ".", gzip=True)
-        mvapichmpi_folder = node.get_pure_path("./mvapich2-2.3.2")
+        tar.extract(tar_file_path, self.resource_disk_path, gzip=True, sudo=True)
+        mvapichmpi_folder = node.get_pure_path(
+            f"{self.resource_disk_path}/mvapich2-2.3.7-1"
+        )
 
-        if isinstance(node.os, Ubuntu):
+        if isinstance(node.os, Ubuntu) or (
+            isinstance(node.os, Redhat) and node.os.information.version.major >= 9
+        ):
             params = "--disable-fortran --disable-mcast"
         else:
             params = ""
         node.execute(
             f"./configure {params}",
             shell=True,
+            sudo=True,
             cwd=mvapichmpi_folder,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to configure MVAPICH MPI",
         )
         make = node.tools[Make]
-        make.make("", cwd=mvapichmpi_folder)
-        make.make_install(cwd=mvapichmpi_folder)
+        make.make("", cwd=mvapichmpi_folder, sudo=True)
+        make.make_install(cwd=mvapichmpi_folder, sudo=True)
