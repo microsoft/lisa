@@ -38,7 +38,6 @@ disable=
     inconsistent-return-statements,
     invalid-overridden-method,
     keyword-arg-before-vararg,
-    missing-timeout,
     modified-iterating-list,
     no-member,
     redefined-argument-from-local,

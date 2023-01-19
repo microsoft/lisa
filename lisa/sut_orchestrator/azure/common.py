@@ -1134,7 +1134,9 @@ def save_console_log(
         )
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
-        screenshot_response = requests.get(diagnostic_data.console_screenshot_blob_uri)
+        screenshot_response = requests.get(
+            diagnostic_data.console_screenshot_blob_uri, timeout=60
+        )
         screenshot_raw_name.write_bytes(screenshot_response.content)
         try:
             with Image.open(screenshot_raw_name) as image:
@@ -1148,7 +1150,7 @@ def save_console_log(
             )
         screenshot_raw_name.unlink()
 
-    log_response = requests.get(diagnostic_data.serial_console_log_blob_uri)
+    log_response = requests.get(diagnostic_data.serial_console_log_blob_uri, timeout=60)
     if log_response.status_code == 404:
         log.debug(
             "The serial console is not generated. "
