@@ -273,7 +273,7 @@ class KdumpCrash(TestSuite):
         #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
         # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
         # We combine their configuration to set an empirical value
-        if (
+        """if (
             "G" in total_memory
             and float(total_memory.strip("G")) < 1
             or "M" in total_memory
@@ -285,9 +285,9 @@ class KdumpCrash(TestSuite):
             and float(total_memory.strip("G")) < 2
             or "M" in total_memory
             and float(total_memory.strip("M")) < 2048
-        ):
-            self.crash_kernel = "128M"
-        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
+        ):"""
+        self.crash_kernel = "256M"
+        if "T" in total_memory and float(total_memory.strip("T")) > 1:
             # System memory is more than 1T, need to change the dump path
             # and set crashkernel=2G
             kdump.config_resource_disk_dump_path(
