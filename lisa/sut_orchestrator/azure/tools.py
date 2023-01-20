@@ -345,7 +345,11 @@ class KvpClient(Tool):
         )
 
         gcc = self.node.tools[Gcc]
-        gcc.compile(filename=source_file, output_name=self.command)
+        # in C90, the status returned is undefined
+        # use c99 to make sure the return value is correct
+        gcc.compile(
+            filename=source_file, output_name=self.command, arguments="-std=c99"
+        )
 
 
 class AzCmdlet(Tool):
