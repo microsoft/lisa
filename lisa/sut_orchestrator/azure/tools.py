@@ -242,7 +242,7 @@ class LisDriver(Tool):
 
     def _install(self) -> bool:
         result = self.install_from_iso()
-        if result.stdout == "Unsupported kernel version":
+        if "Unsupported kernel version" in result.stdout:
             raise UnsupportedKernelException(self.node.os)
         result.assert_exit_code(
             0,
