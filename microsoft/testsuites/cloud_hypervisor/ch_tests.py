@@ -70,8 +70,19 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         ref = variables.get("cloudhypervisor_ref", "")
+        # below variable expects a comma separated list of full testnames
+        include_list, exclude_list = get_test_list(
+            variables, "ch_integration_tests_included", "ch_integration_tests_excluded"
+        )
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration", hypervisor, log_path, ref
+            result,
+            environment,
+            "integration",
+            hypervisor,
+            log_path,
+            ref,
+            include_list,
+            exclude_list,
         )
 
     @TestCaseMetadata(
@@ -98,8 +109,21 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         ref = variables.get("cloudhypervisor_ref", "")
+        # below variable expects a comma separated list of full testnames
+        include_list, exclude_list = get_test_list(
+            variables,
+            "ch_live_migration_tests_included",
+            "ch_live_migration_tests_excluded",
+        )
         node.tools[CloudHypervisorTests].run_tests(
-            result, environment, "integration-live-migration", hypervisor, log_path, ref
+            result,
+            environment,
+            "integration-live-migration",
+            hypervisor,
+            log_path,
+            ref,
+            include_list,
+            exclude_list,
         )
 
     @TestCaseMetadata(
@@ -138,3 +162,11 @@ class CloudHypervisorTestSuite(TestSuite):
         if mshv_exists:
             return "mshv"
         return "kvm"
+
+
+def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:
+    tests_raw = variables.get(var1, "")
+    test_list1 = tests_raw.split(",") if tests_raw else None
+    tests_raw = variables.get(var2, "")
+    test_list2 = tests_raw.split(",") if tests_raw else None
+    return test_list1, test_list2

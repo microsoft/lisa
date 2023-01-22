@@ -57,18 +57,26 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         ref: str = "",
+        only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
     ) -> None:
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
+        subtests = self._list_subtests(hypervisor, test_type)
+
+        if only is not None:
+            if not skip:
+                skip = []
+            # Add everything except 'only' to skip list
+            skip += list(subtests.difference(only))
         if skip is not None:
+            subtests.difference_update(skip)
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
             skip_args = ""
-
-        subtests = self._list_subtests(hypervisor, test_type)
+        self._log.debug(f"Final Subtests list to run: {subtests}")
 
         result = self.run(
             f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
