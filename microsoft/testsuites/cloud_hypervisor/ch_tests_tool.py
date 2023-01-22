@@ -209,6 +209,7 @@ class CloudHypervisorTests(Tool):
     def _list_subtests(self, hypervisor: str, test_type: str) -> Set[str]:
         result = self.run(
             f"tests --hypervisor {hypervisor} --{test_type} -- -- --list",
+            timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
             no_info_log=False,
