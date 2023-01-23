@@ -9,7 +9,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CoreOs, Redhat
+from lisa.operating_system import CBLMariner, CoreOs, Redhat
 from lisa.tools import Gcc, Modinfo, PowerShell, Uname
 from lisa.util import (
     LisaException,
@@ -344,6 +344,8 @@ class KvpClient(Tool):
             file_path=str(self.node.working_path),
         )
 
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages("kernel-headers glibc-devel binutils")
         gcc = self.node.tools[Gcc]
         # in C90, the status returned is undefined
         # use c99 to make sure the return value is correct
