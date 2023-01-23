@@ -667,7 +667,7 @@ class NetworkSettings(TestSuite):
     def _check_msg_level_change_supported(self, node: Node) -> None:
         msg_level_symbols: Union[str, List[str]]
         uname_tool = node.tools[Uname]
-        kernel_version = uname_tool.get_linux_information().kernel_version
+        kernel_version = uname_tool.get_linux_information().kernel_version_raw
 
         if not node.tools[KernelConfig].is_built_in("CONFIG_HYPERV_NET"):
             modinfo = node.tools[Modinfo]
