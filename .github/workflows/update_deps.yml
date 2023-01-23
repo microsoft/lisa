@@ -24,12 +24,13 @@ jobs:
 
     env:
       DEPS_UPDATED: false
-      GH_TOKEN: ${{ github.token }}
       PR_BRANCH: bumpdeps/${{ join(matrix.args, '_') }}_${{ github.run_id }}
       PR_MSG: "BumpDeps: ${{ matrix.name || matrix.args }}"
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          ssh-key: ${{ secrets.PR_DEPLOY_PRIVATE_KEY }}
 
       - name: Install latest Python
         uses: actions/setup-python@v4
@@ -53,6 +54,8 @@ jobs:
           git diff --quiet || echo "DEPS_UPDATED=true" >> $GITHUB_ENV
 
       - name: Create PR
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -x
           git commit -a -m "$PR_MSG"
