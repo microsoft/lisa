@@ -2,10 +2,9 @@
 # Licensed under the MIT license.
 import json
 import re
-from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, List, Optional, Set, Type
+from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
@@ -224,8 +223,7 @@ class CloudHypervisorTests(Tool):
         self, output: str, log_path: Path, subtests: Set[str]
     ) -> List[CloudHypervisorTestResult]:
         results: List[CloudHypervisorTestResult] = []
-        unfinished_tests = deepcopy(subtests)
-        started_tests: Set[str] = set()
+        subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
 
         # Cargo will output test status for each test separately in JSON format. Parse
         # the output line by line to obtain the list of all tests run along with their
@@ -260,22 +258,15 @@ class CloudHypervisorTests(Tool):
                 continue
 
             if result["event"] == "started":
-                started_tests.add(result["name"])
-                continue
-
-            if result["event"] == "ok":
+                status = TestStatus.RUNNING
+            elif result["event"] == "ok":
                 status = TestStatus.PASSED
             elif result["event"] == "failed":
                 status = TestStatus.FAILED
             elif result["event"] == "ignored":
                 status = TestStatus.SKIPPED
-            results.append(
-                CloudHypervisorTestResult(
-                    name=result["name"],
-                    status=status,
-                )
-            )
-            unfinished_tests.remove(result["name"])
+
+            subtest_status[result["name"]] = status
 
             # store stdout of failed subtests
             if status == TestStatus.FAILED:
@@ -286,13 +277,13 @@ class CloudHypervisorTests(Tool):
                 with open(testcase_log_file, "w") as f:
                     f.write(result["stdout"])
 
-        for subtest in unfinished_tests:
-            if subtest in started_tests:
-                message = "Subtest failed to finish - timed out"
-                status = TestStatus.FAILED
-            else:
-                message = "Subtest did not start"
-                status = TestStatus.QUEUED
+        messages = {
+            TestStatus.QUEUED: "Subtest did not start",
+            TestStatus.RUNNING: "Subtest failed to finish - timed out",
+        }
+        for subtest in subtests:
+            status = subtest_status[subtest]
+            message = messages.get(status, "")
             results.append(
                 CloudHypervisorTestResult(
                     name=subtest,
