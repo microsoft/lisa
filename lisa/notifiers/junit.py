@@ -138,6 +138,13 @@ class JUnit(Notifier):
         elif message.is_completed:
             self._sub_test_case_completed(message)
 
+    def _set_test_case_info(self, message: TestResultMessage) -> None:
+        testcase_info = _TestCaseInfo()
+        testcase_info.suite_full_name = message.suite_full_name
+        testcase_info.name = message.name
+        testcase_info.last_seen_timestamp = message.elapsed
+        self._testcases_info[message.id_] = testcase_info
+
     # Test run started message.
     def _test_run_started(self, message: TestRunMessage) -> None:
         self._testsuites.attrib["name"] = message.runbook_name
@@ -180,15 +187,16 @@ class JUnit(Notifier):
             self._write_results()
 
         # Initialize test-case info.
-        testcase_info = _TestCaseInfo()
-        testcase_info.suite_full_name = message.suite_full_name
-        testcase_info.name = message.name
-        testcase_info.last_seen_timestamp = message.elapsed
-
-        self._testcases_info[message.id_] = testcase_info
+        self._set_test_case_info(message)
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
+        # check if the message id is in the testcases_info dictionary
+        # if not, then it is a test case  was attached to a failed environment
+        # and we should add it to the results
+        if message.id_ not in self._testcases_info.keys():
+            self._set_test_case_info(message)
+
         testcase_info = self._testcases_info[message.id_]
 
         # Check if there is an already active sub-test case that wasn't closed out.
