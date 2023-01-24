@@ -15,6 +15,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
+from lisa.operating_system import CpuArchitecture
 from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
@@ -106,7 +107,7 @@ class CPU(TestSuite):
 
             There are 3 types of Hyper-v interrupts : Hypervisor callback
             interrupts, Hyper-V reenlightenment interrupts, and Hyper-V stimer0
-            interrupts.
+            interrupts, these types not shown up in arm64 arch.
 
             Hyper-V reenlightenment interrupts are 0 unless the VM is doing migration.
 
@@ -187,8 +188,9 @@ class CPU(TestSuite):
 
             found_hyperv_interrupt = True
 
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
         # Fail test execution if these hyper-v interrupts are not showing up
-        if not found_hyperv_interrupt:
+        if arch != CpuArchitecture.ARM64 and not found_hyperv_interrupt:
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
