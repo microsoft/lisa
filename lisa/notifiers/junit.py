@@ -138,6 +138,24 @@ class JUnit(Notifier):
         elif message.is_completed:
             self._sub_test_case_completed(message)
 
+    def _set_test_suite_info(self, message: TestResultMessage) -> None:
+        # Check if the test suite for this test case has been seen yet.
+        if message.suite_full_name not in self._testsuites_info:
+            # Add test suite.
+            testsuite_info = _TestSuiteInfo()
+
+            testsuite_info.xml = ET.SubElement(self._testsuites, "testsuite")
+            testsuite_info.xml.attrib["name"] = message.suite_full_name
+
+            # Timestamp must not contain timezone information.
+            timestamp = message.time.replace(tzinfo=None).isoformat(timespec="seconds")
+            testsuite_info.xml.attrib["timestamp"] = timestamp
+
+            self._testsuites_info[message.suite_full_name] = testsuite_info
+
+            # Write out current results to file.
+            self._write_results()
+
     def _set_test_case_info(self, message: TestResultMessage) -> None:
         testcase_info = _TestCaseInfo()
         testcase_info.suite_full_name = message.suite_full_name
@@ -169,28 +187,15 @@ class JUnit(Notifier):
 
     # Test case started message.
     def _test_case_running(self, message: TestResultMessage) -> None:
-        # Check if the test suite for this test case has been seen yet.
-        if message.suite_full_name not in self._testsuites_info:
-            # Add test suite.
-            testsuite_info = _TestSuiteInfo()
-
-            testsuite_info.xml = ET.SubElement(self._testsuites, "testsuite")
-            testsuite_info.xml.attrib["name"] = message.suite_full_name
-
-            # Timestamp must not contain timezone information.
-            timestamp = message.time.replace(tzinfo=None).isoformat(timespec="seconds")
-            testsuite_info.xml.attrib["timestamp"] = timestamp
-
-            self._testsuites_info[message.suite_full_name] = testsuite_info
-
-            # Write out current results to file.
-            self._write_results()
+        self._set_test_suite_info(message)
 
         # Initialize test-case info.
         self._set_test_case_info(message)
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
+        self._set_test_suite_info(message)
+
         # check if the message id is in the testcases_info dictionary
         # if not, then it is a test case  was attached to a failed environment
         # and we should add it to the results
