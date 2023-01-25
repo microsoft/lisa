@@ -405,6 +405,16 @@ class Infiniband(Feature):
             sudo=True,
         )
 
+        if isinstance(node.os, Ubuntu) and node.os.information.version > "18.4.0":
+            node.tools[Sed].substitute(
+                regexp='GRUB_CMDLINE_LINUX="\\(.*\\)"',
+                replacement='GRUB_CMDLINE_LINUX="\\1 net.ifnames=0 biosdevname=0"',
+                file="/etc/default/grub",
+                sudo=True,
+            )
+            node.execute("update-grub", sudo=True)
+            node.reboot()
+
         service = node.tools[Service]
         if isinstance(node.os, Ubuntu):
             service.restart_service("walinuxagent")
