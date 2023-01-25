@@ -30,7 +30,7 @@ dependencies = [
 dynamic = ["version"]
 license = {text = "MIT"}
 readme = "README.rst"
-requires-python = ">=3.8, <3.11"
+requires-python = ">=3.8"
 
 
 [project.optional-dependencies]
@@ -51,8 +51,8 @@ azure = [
     "azure-storage-file-share ~= 12.4.0",
     "cachetools ~= 5.2.0",
     "requests",
-    "Pillow ~= 9.0.0",
-    "PyGObject ~= 3.38.0; platform_system == 'Linux'",
+    "Pillow ~= 9.4.0",
+    "PyGObject ~= 3.42.0; platform_system == 'Linux'",
 ]
 
 black = [
