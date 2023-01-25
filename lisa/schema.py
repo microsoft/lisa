@@ -729,21 +729,21 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
     name: str = ""
     is_default: bool = field(default=False)
     node_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1),
+        default_factory=partial(search_space.IntRange, min=1),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     core_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=1),
+        default_factory=partial(search_space.IntRange, min=1),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     memory_mb: search_space.CountSpace = field(
-        default=search_space.IntRange(min=512),
+        default_factory=partial(search_space.IntRange, min=512),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     disk: Optional[DiskOptionSettings] = None
     network_interface: Optional[NetworkInterfaceOptionSettings] = None
     gpu_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=0),
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     # all features on requirement should be included.
