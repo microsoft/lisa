@@ -14,7 +14,7 @@ from lisa.util import LisaException, NotMeetRequirementException
 T = TypeVar("T")
 
 
-class RequirementMethod(str, Enum):
+class RequirementMethod(Enum):
     generate_min_capability: str = "generate_min_capability"
     intersect: str = "intersect"
 
@@ -66,18 +66,20 @@ class RequirementMixin:
         self._validate_result(capability)
         return self._intersect(capability)
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
-        raise NotImplementedError(method_name)
+    def _call_requirement_method(
+        self, method: RequirementMethod, capability: Any
+    ) -> Any:
+        raise NotImplementedError(method)
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self._call_requirement_method(
-            method_name=RequirementMethod.generate_min_capability,
+            method=RequirementMethod.generate_min_capability,
             capability=capability,
         )
 
     def _intersect(self, capability: Any) -> Any:
         return self._call_requirement_method(
-            method_name=RequirementMethod.intersect, capability=capability
+            method=RequirementMethod.intersect, capability=capability
         )
 
     def _validate_result(self, capability: Any) -> None:
@@ -619,14 +621,14 @@ def check(
 
 
 def _call_requirement_method(
-    method: str,
+    method: RequirementMethod,
     requirement: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
     capability: Union[T_SEARCH_SPACE, List[T_SEARCH_SPACE], None],
 ) -> Any:
     check_result = check(requirement, capability)
     if not check_result.result:
         raise NotMeetRequirementException(
-            f"cannot call {method}, capability doesn't support requirement"
+            f"cannot call {method.value}, capability doesn't support requirement"
         )
 
     result: Optional[T_SEARCH_SPACE] = None
@@ -641,7 +643,7 @@ def _call_requirement_method(
         for req_item in requirement:
             temp_result = req_item.check(capability)
             if temp_result.result:
-                temp_min = getattr(req_item, method)(capability)
+                temp_min = getattr(req_item, method.value)(capability)
                 if result is None:
                     result = temp_min
                 else:
@@ -649,7 +651,7 @@ def _call_requirement_method(
                     # It can be improved by implement __eq__, __lt__ functions.
                     result = min(result, temp_min)
     elif requirement is not None:
-        result = getattr(requirement, method)(capability)
+        result = getattr(requirement, method.value)(capability)
 
     return result
 

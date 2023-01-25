@@ -923,7 +923,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return result
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(
             capability, AzureDiskOptionSettings
         ), f"actual: {type(capability)}"
@@ -936,7 +938,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         ), "capability should have at least one disk controller type, but it's None"
         value = AzureDiskOptionSettings()
         super_value = schema.DiskOptionSettings._call_requirement_method(
-            self, method_name, capability
+            self, method, capability
         )
         set_filtered_fields(super_value, value, ["data_disk_count"])
 
@@ -954,7 +956,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        value.disk_type = getattr(search_space, f"{method_name}_setspace_by_priority")(
+        value.disk_type = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.disk_type, capability.disk_type, schema.disk_type_priority
         )
 
@@ -984,7 +986,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         # below values affect data disk only.
         if self.data_disk_count is not None or capability.data_disk_count is not None:
-            value.data_disk_count = getattr(search_space, f"{method_name}_countspace")(
+            value.data_disk_count = getattr(search_space, f"{method.value}_countspace")(
                 self.data_disk_count, capability.data_disk_count
             )
 
@@ -993,7 +995,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             or capability.max_data_disk_count is not None
         ):
             value.max_data_disk_count = getattr(
-                search_space, f"{method_name}_countspace"
+                search_space, f"{method.value}_countspace"
             )(self.max_data_disk_count, capability.max_data_disk_count)
 
         # The Ephemeral doesn't support data disk, but it needs a value. And it
@@ -1001,7 +1003,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         value.data_disk_iops = 0
         value.data_disk_size = 0
 
-        if method_name == RequirementMethod.generate_min_capability:
+        if method == RequirementMethod.generate_min_capability:
             assert isinstance(
                 value.disk_type, schema.DiskType
             ), f"actual: {type(value.disk_type)}"
@@ -1060,7 +1062,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     value.data_disk_size = self._get_disk_size_from_iops(
                         value.data_disk_iops, disk_type_iops
                     )
-        elif method_name == RequirementMethod.intersect:
+        elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
                 self.data_disk_iops, capability.data_disk_iops
             )
@@ -2104,14 +2106,16 @@ class VhdGenerationSettings(schema.FeatureSettings):
 
         return result
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(
             capability, VhdGenerationSettings
         ), f"actual: {type(capability)}"
 
         value = VhdGenerationSettings()
         if self.gen or capability.gen:
-            value.gen = getattr(search_space, f"{method_name}_setspace_by_priority")(
+            value.gen = getattr(search_space, f"{method.value}_setspace_by_priority")(
                 self.gen, capability.gen, [1, 2]
             )
         return value
@@ -2194,7 +2198,9 @@ class ArchitectureSettings(schema.FeatureSettings):
 
         return result
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
