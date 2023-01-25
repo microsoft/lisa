@@ -213,6 +213,7 @@ class Infiniband(Feature):
             "libc6-i386",
             "cloud-init",
             "walinuxagent",
+            "net-tools",
         ]
         redhat_required_packages = [
             "gtk2",
