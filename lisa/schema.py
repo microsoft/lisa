@@ -379,13 +379,15 @@ class FeatureSettings(
     def _get_key(self) -> str:
         return self.type
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
         # default FeatureSetting is a place holder, nothing to do.
         value = FeatureSettings.create(self.type)
 
         # try best to intersect the extended schemas
-        if method_name == search_space.RequirementMethod.intersect:
+        if method == search_space.RequirementMethod.intersect:
             if self.extended_schemas and capability and capability.extended_schemas:
                 value.extended_schemas = deep_update_dict(
                     self.extended_schemas,
@@ -533,20 +535,22 @@ class DiskOptionSettings(FeatureSettings):
             f"{self.data_disk_iops}/{self.data_disk_size}"
         )
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(capability, DiskOptionSettings), f"actual: {type(capability)}"
-        parent_value = super()._call_requirement_method(method_name, capability)
+        parent_value = super()._call_requirement_method(method, capability)
 
         # convert parent type to child type
         value = DiskOptionSettings()
         value.extended_schemas = parent_value.extended_schemas
 
         search_space_countspace_method = getattr(
-            search_space, f"{method_name}_countspace"
+            search_space, f"{method.value}_countspace"
         )
         if self.disk_type or capability.disk_type:
             value.disk_type = getattr(
-                search_space, f"{method_name}_setspace_by_priority"
+                search_space, f"{method.value}_setspace_by_priority"
             )(self.disk_type, capability.disk_type, disk_type_priority)
         if self.data_disk_count or capability.data_disk_count:
             value.data_disk_count = search_space_countspace_method(
@@ -670,28 +674,30 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
 
         return result
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
-        parent_value = super()._call_requirement_method(method_name, capability)
+        parent_value = super()._call_requirement_method(method, capability)
 
         # convert parent type to child type
         value = NetworkInterfaceOptionSettings()
         value.extended_schemas = parent_value.extended_schemas
 
-        value.max_nic_count = getattr(search_space, f"{method_name}_countspace")(
+        value.max_nic_count = getattr(search_space, f"{method.value}_countspace")(
             self.max_nic_count, capability.max_nic_count
         )
 
         if self.nic_count or capability.nic_count:
-            value.nic_count = getattr(search_space, f"{method_name}_countspace")(
+            value.nic_count = getattr(search_space, f"{method.value}_countspace")(
                 self.nic_count, capability.nic_count
             )
         else:
             raise LisaException("nic_count cannot be zero")
 
-        value.data_path = getattr(search_space, f"{method_name}_setspace_by_priority")(
+        value.data_path = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.data_path, capability.data_path, _network_data_path_priority
         )
         return value
@@ -926,7 +932,9 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         return any(feature for feature in self.features if feature.type == find_type)
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
         assert isinstance(capability, NodeSpace), f"actual: {type(capability)}"
 
         # copy to duplicate extended schema
@@ -938,32 +946,32 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                 # capability can have more node
                 value.node_count = capability.node_count
             else:
-                value.node_count = getattr(search_space, f"{method_name}_countspace")(
+                value.node_count = getattr(search_space, f"{method.value}_countspace")(
                     self.node_count, capability.node_count
                 )
         else:
             raise LisaException("node_count cannot be zero")
         if self.core_count or capability.core_count:
-            value.core_count = getattr(search_space, f"{method_name}_countspace")(
+            value.core_count = getattr(search_space, f"{method.value}_countspace")(
                 self.core_count, capability.core_count
             )
         else:
             raise LisaException("core_count cannot be zero")
         if self.memory_mb or capability.memory_mb:
-            value.memory_mb = getattr(search_space, f"{method_name}_countspace")(
+            value.memory_mb = getattr(search_space, f"{method.value}_countspace")(
                 self.memory_mb, capability.memory_mb
             )
         else:
             raise LisaException("memory_mb cannot be zero")
         if self.disk or capability.disk:
-            value.disk = getattr(search_space, method_name)(self.disk, capability.disk)
+            value.disk = getattr(search_space, method.value)(self.disk, capability.disk)
         if self.network_interface or capability.network_interface:
-            value.network_interface = getattr(search_space, method_name)(
+            value.network_interface = getattr(search_space, method.value)(
                 self.network_interface, capability.network_interface
             )
 
         if self.gpu_count or capability.gpu_count:
-            value.gpu_count = getattr(search_space, f"{method_name}_countspace")(
+            value.gpu_count = getattr(search_space, f"{method.value}_countspace")(
                 self.gpu_count, capability.gpu_count
             )
         else:
@@ -971,7 +979,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         if (
             capability.features
-            and method_name == search_space.RequirementMethod.generate_min_capability
+            and method == search_space.RequirementMethod.generate_min_capability
         ):
             # The requirement features are ignored, if cap doesn't have it.
             value.features = search_space.SetSpace[FeatureSettings](is_allow_set=True)
@@ -983,11 +991,11 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     self._find_feature_by_type(capability_feature.type, self.features)
                     or capability_feature
                 )
-                current_feature = getattr(requirement_feature, method_name)(
+                current_feature = getattr(requirement_feature, method.value)(
                     capability_feature
                 )
                 value.features.add(current_feature)
-        elif method_name == search_space.RequirementMethod.intersect and (
+        elif method == search_space.RequirementMethod.intersect and (
             capability.features or self.features
         ):
             # This is a hack to work with lisa_runner. The capability features
@@ -997,7 +1005,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
 
         if (
             capability.excluded_features
-            and method_name == search_space.RequirementMethod.generate_min_capability
+            and method == search_space.RequirementMethod.generate_min_capability
         ):
             # TODO: the min value for excluded feature is not clear. It may need
             # to be improved with real scenarios.
@@ -1014,11 +1022,11 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
                     )
                     or capability_feature
                 )
-                current_feature = getattr(requirement_feature, method_name)(
+                current_feature = getattr(requirement_feature, method.value)(
                     capability_feature
                 )
                 value.excluded_features.add(current_feature)
-        elif method_name == search_space.RequirementMethod.intersect and (
+        elif method == search_space.RequirementMethod.intersect and (
             capability.excluded_features or self.excluded_features
         ):
             # This is a hack to work with lisa_runner. The capability features
