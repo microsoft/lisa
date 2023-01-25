@@ -9,7 +9,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.node import Node
-from lisa.tools import Cp, Sed, Uname
+from lisa.tools import Cp, Sed, Tar, Uname
 from lisa.util import field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -22,6 +22,14 @@ class BinaryInstallerSchema(BaseInstallerSchema):
 
     # kernel binary local absolute path
     kernel_image_path: str = field(
+        default="",
+        metadata=field_metadata(
+            required=True,
+        ),
+    )
+
+    # kernel modules tar.gz files local absolute path
+    kernel_modules_path: str = field(
         default="",
         metadata=field_metadata(
             required=True,
@@ -59,6 +67,7 @@ class BinaryInstaller(BaseInstaller):
         runbook: BinaryInstallerSchema = self.runbook
         kernel_image_path: str = runbook.kernel_image_path
         initrd_image_path: str = runbook.initrd_image_path
+        kernel_modules_path: str = runbook.kernel_modules_path
         is_initrd: bool = False
 
         uname = node.tools[Uname]
@@ -75,6 +84,25 @@ class BinaryInstaller(BaseInstaller):
             PurePath(kernel_image_path),
             node.get_pure_path(f"/var/tmp/vmlinuz-{new_kernel}"),
         )
+        _copy_kernel_binary(
+            node,
+            node.get_pure_path(f"/var/tmp/vmlinuz-{new_kernel}"),
+            node.get_pure_path(f"/boot/efi/vmlinuz-{new_kernel}"),
+        )
+
+        err = f"Can not find kernel modules path: {kernel_modules_path}"
+        assert os.path.exists(kernel_modules_path), err
+        node.shell.copy(
+            PurePath(kernel_modules_path),
+            node.get_pure_path(f"/var/tmp/kernel_modules_{new_kernel}.tar.gz"),
+        )
+        tar = node.tools[Tar]
+        tar.extract(
+            file=f"/var/tmp/kernel_modules_{new_kernel}.tar.gz",
+            dest_dir="/lib/modules/",
+            gzip=True,
+            sudo=True,
+        )
 
         if initrd_image_path:
             err = f"Can not find initrd image path: {initrd_image_path}"
@@ -84,15 +112,11 @@ class BinaryInstaller(BaseInstaller):
                 PurePath(initrd_image_path),
                 node.get_pure_path(f"/var/tmp/initrd.img-{new_kernel}"),
             )
-
-        _copy_kernel_binary(
-            node,
-            is_initrd,
-            node.get_pure_path(f"/var/tmp/vmlinuz-{new_kernel}"),
-            node.get_pure_path(f"/boot/efi/vmlinuz-{new_kernel}"),
-            node.get_pure_path(f"/var/tmp/initrd.img-{new_kernel}"),
-            node.get_pure_path(f"/boot/efi/initrd.img-{new_kernel}"),
-        )
+            _copy_kernel_binary(
+                node,
+                node.get_pure_path(f"/var/tmp/initrd.img-{new_kernel}"),
+                node.get_pure_path(f"/boot/efi/initrd.img-{new_kernel}"),
+            )
 
         _update_linux_loader(
             node,
@@ -131,9 +155,12 @@ class Dom0Installer(SourceInstaller):
         # Here super.install() will create new initrd/kernel binary at /boot
         _copy_kernel_binary(
             node,
-            True,
             node.get_pure_path(f"/boot/vmlinuz-{new_kernel}"),
             node.get_pure_path(f"/boot/efi/vmlinuz-{new_kernel}"),
+        )
+
+        _copy_kernel_binary(
+            node,
             node.get_pure_path(f"/boot/initrd.img-{new_kernel}"),
             node.get_pure_path(f"/boot/efi/initrd.img-{new_kernel}"),
         )
@@ -150,24 +177,15 @@ class Dom0Installer(SourceInstaller):
 
 def _copy_kernel_binary(
     node: Node,
-    is_initrd: bool,
-    kernel_source: PurePath,
-    kernel_dest: PurePath,
-    initrd_source: PurePath,
-    initrd_dest: PurePath,
+    source: PurePath,
+    destination: PurePath,
 ) -> None:
     cp = node.tools[Cp]
     cp.copy(
-        src=kernel_source,
-        dest=kernel_dest,
+        src=source,
+        dest=destination,
         sudo=True,
     )
-    if is_initrd:
-        cp.copy(
-            src=initrd_source,
-            dest=initrd_dest,
-            sudo=True,
-        )
 
 
 def _update_linux_loader(
