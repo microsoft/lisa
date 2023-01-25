@@ -316,7 +316,6 @@ def initialize_node_resources(
             node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
     elif testpmd.is_mana:
         node.tools[Ip].down(test_nic.upper)
-        #node.execute(f"sudo apt install -y driverctl && sudo driverctl set-override {test_nic.pci_slot} mana", shell=True)
 
     return DpdkTestResources(node, testpmd)
 
