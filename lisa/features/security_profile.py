@@ -66,10 +66,12 @@ class SecurityProfileSettings(schema.FeatureSettings):
     def _get_key(self) -> str:
         return f"{self.type}/{self.security_profile}"
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: search_space.RequirementMethod, capability: Any
+    ) -> Any:
         value = SecurityProfileSettings()
         value.security_profile = getattr(
-            search_space, f"{method_name}_setspace_by_priority"
+            search_space, f"{method.value}_setspace_by_priority"
         )(
             self.security_profile,
             capability.security_profile,
