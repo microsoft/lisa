@@ -7,7 +7,7 @@ from typing import Any, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
-
+import time
 from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
@@ -25,6 +25,7 @@ from lisa.tools import (
     Timeout,
     Unzip,
     Wget,
+    Ip,
 )
 from lisa.util import (
     LisaException,
@@ -32,7 +33,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
 )
-from lisa.util.constants import SIGINT
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -227,7 +228,11 @@ class DpdkTestpmd(Tool):
                     f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
                 )
             if nic.bound_driver == "hv_netvsc":
-                vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
+                if self.is_mana:
+                    vdev_info += f'--vdev="{nic.pci_slot}" -a "{nic.pci_slot}" '
+                    return vdev_info
+                else:
+                    vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
             elif nic.bound_driver == "uio_hv_generic":
                 pass
             else:
@@ -328,6 +333,9 @@ class DpdkTestpmd(Tool):
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
             extra_args += f" --txq={txq} --rxq={rxq}  "
+        
+        if self.is_mana:
+            extra_args += '--txd=64 --rxd=64 '
 
         assert_that(use_core_count).described_as(
             "Selection asked for more cores than were available for numa "
@@ -336,10 +344,11 @@ class DpdkTestpmd(Tool):
 
         # use the selected amount of cores, adjusting for 0 index.
 
-        core_args = f"-l {numa_core_offset}-{numa_core_offset + use_core_count-1}"
-
+        core_args = f"-l 2,3 " #{numa_core_offset}-{numa_core_offset + use_core_count-1}"
+        if not self.is_mana:
+            core_args += '-n 4 '
         return (
-            f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
+            f"{self._testpmd_install_path} {core_args}  --proc-type=primary "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
             "-a --stats-period 2 --port-topology=chained"
         )
@@ -463,12 +472,20 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self.find_testpmd_binary(assert_on_fail=False)
+        self._determine_network_hardware()
+        self._load_drivers_for_dpdk()
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
         device_list = lspci.get_devices()
         self.is_connect_x3 = any(
             ["ConnectX-3" in dev.device_info for dev in device_list]
+        )
+        self.is_mana = any(
+            [
+                "Microsoft" in dev.vendor and "Ethernet" in dev.device_class
+                for dev in device_list
+            ]
         )
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
@@ -662,9 +679,11 @@ class DpdkTestpmd(Tool):
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
-            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+            network_drivers = ["mlx4_core", "mlx4_ib"]
+        elif self.is_mana:
+            network_drivers = ["mana_ib"]
         else:
-            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
+            network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
         if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
@@ -691,7 +710,7 @@ class DpdkTestpmd(Tool):
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
                 self.node.execute(
-                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
+                    f"dracut --add-drivers '{' '.join(network_drivers)} ib_uverbs' -f",
                     cwd=self.node.working_path,
                     expected_exit_code=0,
                     expected_exit_code_failure_message=(
@@ -701,16 +720,19 @@ class DpdkTestpmd(Tool):
                 )
         else:
             raise UnsupportedDistroException(self.node.os)
-        rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
+        if self.is_mana:
+            rdma_drivers = ["ib_uverbs"]
+        else:
+            rdma_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
 
-        # some versions of dpdk require these two, some don't.
-        # some systems have them, some don't. Load if they're there.
-        for module in ["ib_ipoib", "ib_umad"]:
-            if modprobe.module_exists(module):
-                rmda_drivers.append(module)
+            # some versions of dpdk require these two, some don't.
+            # some systems have them, some don't. Load if they're there.
+            for module in ["ib_ipoib", "ib_umad"]:
+                if modprobe.module_exists(module):
+                    rdma_drivers.append(module)
 
-        modprobe.load(rmda_drivers)
-        modprobe.load(mellanox_drivers)
+        modprobe.load(rdma_drivers)
+        modprobe.load(network_drivers)
 
     def _install_dependencies(self) -> None:
         node = self.node
