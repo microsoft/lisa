@@ -3,6 +3,7 @@
 
 import re
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, List, Type
 
 from dataclasses_json import dataclass_json
@@ -93,7 +94,7 @@ class Nvme(Feature):
 class NvmeSettings(FeatureSettings):
     type: str = "Nvme"
     disk_count: search_space.CountSpace = field(
-        default=search_space.IntRange(min=0),
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
 
