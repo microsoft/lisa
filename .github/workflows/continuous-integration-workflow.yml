@@ -7,6 +7,7 @@ on:
       - main
 jobs:
   Check:
+    timeout-minutes: 40
     continue-on-error: ${{ matrix.optional || false }}
     runs-on: ${{ matrix.os }}
     name: >-
@@ -18,9 +19,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-2019]
-        python-version: ['3.9', '3.10']
+        python-version: ['3.9', '3.10', '3.11', '3.12-dev']
         nox-session: [test, example]
+
+        exclude:
+          # Azure installion (Win, 3.12) currently hangs due to excessive pip backtracking
+          # Disable unit tests and retry in 2Q23
+          - python-version: '3.12-dev'
+            os: windows-2019
+            nox-session: test
+
         include:
+
+          - python-version: '3.12-dev'
+            optional: true
 
           - os: ubuntu-latest
             python-version: ''
