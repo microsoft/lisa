@@ -21,13 +21,13 @@ CpuType = Enum(
 class CPUInfo:
     def __init__(
         self,
-        cpu: str,
-        numa_node: str,
-        socket: str,
-        l1_data_cache: str,
-        l1_instruction_cache: str,
-        l2_cache: str,
-        l3_cache: str,
+        cpu: int,
+        numa_node: int,
+        socket: int,
+        l1_data_cache: int,
+        l1_instruction_cache: int,
+        l2_cache: int,
+        l3_cache: int,
     ) -> None:
         self.cpu = cpu
         self.numa_node = numa_node
@@ -82,6 +82,9 @@ class Lscpu(Tool):
         r"(?P<l1_data_cache>\d+):(?P<l1_instruction_cache>\d+):"
         r"(?P<l2_cache>\d+):(?P<l3_cache>\d+)$"
     )
+    # Model name:          Intel(R) Xeon(R) Platinum 8168 CPU @ 2.70GHz
+    # Model name:          AMD EPYC 7763 64-Core Processor
+    __cpu_model_name = re.compile(r"^Model name:\s+(?P<model_name>.*)\s*$", re.M)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._core_count: Optional[int] = None
@@ -221,6 +224,16 @@ class Lscpu(Tool):
                 f"Unknow cpu type. The output of lscpu is {result.stdout}"
             )
 
+    def get_cpu_model_name(self, force_run: bool = False) -> str:
+        result = self.run(force_run=force_run)
+        matched = self.__cpu_model_name.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"model name should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+
+        return str(matched[0])
+
     def get_cpu_info(self) -> List[CPUInfo]:
         # `lscpu --extended=cpu,node,socket,cache` command return the
         # cpu info in the format :
@@ -243,13 +256,15 @@ class Lscpu(Tool):
             ), f"lscpu NUMA node mapping is not in expected format: {item}"
             output.append(
                 CPUInfo(
-                    cpu=match_result.group("cpu"),
-                    numa_node=match_result.group("numa_node"),
-                    socket=match_result.group("socket"),
-                    l1_data_cache=match_result.group("l1_data_cache"),
-                    l1_instruction_cache=match_result.group("l1_instruction_cache"),
-                    l2_cache=match_result.group("l2_cache"),
-                    l3_cache=match_result.group("l3_cache"),
+                    cpu=int(match_result.group("cpu")),
+                    numa_node=int(match_result.group("numa_node")),
+                    socket=int(match_result.group("socket")),
+                    l1_data_cache=int(match_result.group("l1_data_cache")),
+                    l1_instruction_cache=int(
+                        match_result.group("l1_instruction_cache")
+                    ),
+                    l2_cache=int(match_result.group("l2_cache")),
+                    l3_cache=int(match_result.group("l3_cache")),
                 )
             )
         return output
