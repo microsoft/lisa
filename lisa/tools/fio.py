@@ -29,8 +29,8 @@ class FIOResult:
 FIOMODES = Enum(
     "FIOMODES",
     [
-        "randread",
-        "randwrite",
+        # "randread",
+        # "randwrite",
         "read",
         "write",
     ],
