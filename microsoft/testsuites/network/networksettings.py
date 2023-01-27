@@ -23,8 +23,9 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Uname
-from lisa.operating_system import Debian, Redhat, Suse
+from lisa.operating_system import Debian, Redhat, Suse, Ubuntu
 from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
+from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
 
 
@@ -174,6 +175,17 @@ class NetworkSettings(TestSuite):
         priority=1,
     )
     def validate_device_channels_change(self, node: Node, log: Logger) -> None:
+        kernel_ver = node.tools[Uname].get_linux_information().kernel_version
+        if (
+            isinstance(node.os, Ubuntu)
+            and node.os.information.release <= "16.04"
+            and kernel_ver.compare(parse_version("4.13.15")) <= 0
+        ):
+            raise SkippedException(
+                f"The distro {node.os.name} {node.os.information.version} is EOL "
+                f"and kernel version {kernel_ver} has known issue."
+            )
+
         ethtool = node.tools[Ethtool]
         try:
             devices_channels = ethtool.get_all_device_channels_info()
