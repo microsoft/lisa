@@ -224,13 +224,11 @@ class Lscpu(Tool):
                 f"Unknow cpu type. The output of lscpu is {result.stdout}"
             )
 
-    def get_cpu_model_name(self, force_run: bool = False) -> str:
+    def get_cpu_model_name(self, force_run: bool = False) -> Optional[str]:
         result = self.run(force_run=force_run)
         matched = self.__cpu_model_name.findall(result.stdout)
-        assert_that(
-            len(matched),
-            f"model name should have exact one line, but got {matched}",
-        ).is_equal_to(1)
+        if len(matched) == 0:
+            return None
 
         return str(matched[0])
 
