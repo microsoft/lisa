@@ -20,6 +20,10 @@ from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
 
 
+EPYC_ROME_NUMA_NODE_SIZE = 4
+EPYC_MILAN_NUMA_NODE_SIZE = 8
+
+
 @TestSuiteMetadata(
     area="core",
     category="functional",
@@ -67,7 +71,23 @@ class CPU(TestSuite):
                     "No support for NUMA setting. https://t.ly/x8k3"
                 )
 
-        cpu_info = node.tools[Lscpu].get_cpu_info()
+        lscpu = node.tools[Lscpu]
+        threads_per_core = lscpu.get_thread_per_core_count()
+        processor_name = lscpu.get_cpu_model_name()
+
+        if processor_name:
+            if "7452" in processor_name:
+                # This is AMD EPYC Rome processor series
+                effective_numa_node_size = EPYC_ROME_NUMA_NODE_SIZE * threads_per_core
+                self._verify_node_mapping(node, effective_numa_node_size)
+                return
+            elif "7763" in processor_name:
+                # This is AMD EPYC Milan processor series
+                effective_numa_node_size = EPYC_MILAN_NUMA_NODE_SIZE * threads_per_core
+                self._verify_node_mapping(node, effective_numa_node_size)
+                return
+
+        cpu_info = lscpu.get_cpu_info()
         for cpu in cpu_info:
             assert_that(
                 cpu.l3_cache,
@@ -202,3 +222,14 @@ class CPU(TestSuite):
             process = node.tools[TaskSet].run_on_specific_cpu(i)
             time.sleep(1)
             process.kill()
+
+    def _verify_node_mapping(self, node: Node, numa_node_size: int) -> None:
+        cpu_info = node.tools[Lscpu].get_cpu_info()
+        cpu_info.sort(key=lambda cpu: cpu.cpu)
+        for i, cpu in enumerate(cpu_info):
+            numa_node_id = i // numa_node_size
+            assert_that(
+                cpu.l3_cache,
+                "L3 cache of each core must be mapped to the NUMA node "
+                "associated with the core.",
+            ).is_equal_to(numa_node_id)
