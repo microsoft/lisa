@@ -34,7 +34,6 @@ disable=
     cyclic-import,
     eval-used,
     expression-not-assigned,
-    global-variable-not-assigned,
     inconsistent-return-statements,
     invalid-overridden-method,
     keyword-arg-before-vararg,

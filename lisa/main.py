@@ -31,8 +31,6 @@ _runtime_root = Path("runtime").absolute()
 
 
 def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
-    global _runtime_root
-
     # Layout the run time folder structure.
     if path:
         # if log path is relative path, join with root.
@@ -89,8 +87,6 @@ def initialize_runtime_folder(
     working_path: Optional[Path] = None,
     run_id: str = "",
 ) -> None:
-    global _runtime_root
-
     cache_path = _runtime_root.joinpath("cache")
     cache_path.mkdir(parents=True, exist_ok=True)
     constants.CACHE_PATH = cache_path
