@@ -162,7 +162,7 @@ def add_handler(
     formatter: Optional[logging.Formatter] = None,
 ) -> None:
     if is_unittest():
-        return None
+        return
 
     if logger is None:
         logger = _get_root_logger()
@@ -178,7 +178,7 @@ def remove_handler(
     log_handler: logging.Handler, logger: Optional[logging.Logger] = None
 ) -> None:
     if is_unittest():
-        return None
+        return
 
     if logger is None:
         logger = _get_root_logger()
