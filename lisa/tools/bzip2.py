@@ -9,6 +9,7 @@ class Bzip2(Tool):
     def command(self) -> str:
         return "bzip2"
 
+    @property
     def can_install(self) -> bool:
         return True
 

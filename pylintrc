@@ -35,7 +35,6 @@ disable=
     eval-used,
     expression-not-assigned,
     inconsistent-return-statements,
-    invalid-overridden-method,
     keyword-arg-before-vararg,
     missing-timeout,
     modified-iterating-list,
