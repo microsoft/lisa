@@ -1905,7 +1905,6 @@ class AzurePlatform(Platform):
         full_vhd_path = f"{container_client.url}/{vhd_path}"
 
         # lock here to prevent a vhd is copied in multi-thread
-        global _global_sas_vhd_copy_lock
         cached_key: Optional[bytearray] = None
         with _global_sas_vhd_copy_lock:
             blobs = container_client.list_blobs(name_starts_with=vhd_path)

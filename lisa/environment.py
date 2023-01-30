@@ -66,7 +66,6 @@ def _get_environment_id() -> int:
     """
     Return an unique id crossing threads, runners.
     """
-    global _global_environment_id_lock
     global _global_environment_id
 
     with _global_environment_id_lock:

@@ -1023,7 +1023,6 @@ def check_or_create_resource_group(
     log: Logger,
 ) -> None:
     with get_resource_management_client(credential, subscription_id) as rm_client:
-        global global_credential_access_lock
         with global_credential_access_lock:
             az_shared_rg_exists = rm_client.resource_groups.check_existence(
                 resource_group_name
