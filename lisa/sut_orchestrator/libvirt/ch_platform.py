@@ -73,10 +73,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         log: Logger,
     ) -> None:
         if node_context.firmware_source_path:
-            self.host_node.shell.copy(
-                Path(node_context.firmware_source_path),
-                Path(node_context.firmware_path),
-            )
+            with self._host_node_lock:
+                self.host_node.shell.copy(
+                    Path(node_context.firmware_source_path),
+                    Path(node_context.firmware_path),
+                )
 
         super()._create_node(
             node,

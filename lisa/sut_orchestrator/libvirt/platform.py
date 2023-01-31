@@ -89,6 +89,14 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         StartStop,
     ]
 
+    # Static variables to handle multiple task_runners
+    # Port var are used  for port forwarding in case of Remote Host
+    # 49512 is the first available private port
+    _next_available_port: int = 49152
+    _port_forwarding_lock: Lock = Lock()
+    # Lock used for scp-ing disk image to Remote host VM
+    _disk_img_copy_lock: Lock = Lock()
+
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
         self.libvirt_conn_str: str
@@ -97,19 +105,17 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self.host_node: Node
         self.vm_disks_dir: str
 
-        # used for port forwarding in case of Remote Host
-        self._next_available_port: int
-        self._port_forwarding_lock: Lock
-
-        # Lock used for scp-ing disk image to Remote host VM
-        self._disk_img_copy_lock: Lock
-
         self._host_environment_information_hooks = {
             KEY_HOST_DISTRO: self._get_host_distro,
             KEY_HOST_KERNEL: self._get_host_kernel_version,
             KEY_LIBVIRT_VERSION: self._get_libvirt_version,
             KEY_VMM_VERSION: self._get_vmm_version,
         }
+
+        # Lock to carryout certain host_node.<operation>
+        # When concurrency is set, multiple environments are created
+        # but certain host_node.<operations> need to be carried atomically
+        self._host_node_lock: Lock
 
     @classmethod
     def type_name(cls) -> str:
@@ -130,11 +136,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         libvirt_events_thread.init()
 
-        # 49512 is the first available private port
-        self._next_available_port = 49152
-        self._port_forwarding_lock = Lock()
-
-        self._disk_img_copy_lock = Lock()
+        self._host_node_lock = Lock()
 
         self.platform_runbook = self.runbook.get_extended_runbook(
             self.__platform_runbook_type(), type_name=type(self).type_name()
@@ -531,7 +533,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         environment: Environment,
         log: Logger,
     ) -> None:
-        self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
+        with self._host_node_lock:
+            self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
 
         for node in environment.nodes.list():
             node_context = get_node_context(node)
@@ -553,7 +556,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if node_context.os_disk_source_file_path:
             # use lock to avoid multiple environments scp disk img to same
             # os_disk_base_file_path.
-            with self._disk_img_copy_lock:
+            with BaseLibvirtPlatform._disk_img_copy_lock:
                 source_exists = self.host_node.tools[Ls].path_exists(
                     path=node_context.os_disk_base_file_path, sudo=True
                 )
@@ -562,10 +565,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                         node_context.os_disk_base_file_path, "a+r", sudo=True
                     )
                 else:
-                    self.host_node.shell.copy(
-                        Path(node_context.os_disk_source_file_path),
-                        Path(node_context.os_disk_base_file_path),
-                    )
+                    with self._host_node_lock:
+                        self.host_node.shell.copy(
+                            Path(node_context.os_disk_source_file_path),
+                            Path(node_context.os_disk_base_file_path),
+                        )
 
         # Create cloud-init ISO file.
         self._create_node_cloud_init_iso(environment, log, node)
@@ -592,7 +596,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Delete VM disks directory.
         try:
-            self.host_node.shell.remove(Path(self.vm_disks_dir), True)
+            with self._host_node_lock:
+                self.host_node.shell.remove(Path(self.vm_disks_dir), True)
         except Exception as ex:
             log.warning(f"Failed to delete VM files directory: {ex}")
 
@@ -670,22 +675,23 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
             node_port = 22
             if self.host_node.is_remote:
-                with self._port_forwarding_lock:
+                with BaseLibvirtPlatform._port_forwarding_lock:
                     port_not_found = True
                     while port_not_found:
-                        if self._next_available_port > 65535:
+                        if BaseLibvirtPlatform._next_available_port > 65535:
                             raise LisaException(
                                 "No available ports on the host to forward"
                             )
 
                         # check if the port is already in use
                         output = self.host_node.execute(
-                            f"nc -vz 127.0.0.1 {self._next_available_port}"
+                            "nc -vz 127.0.0.1 "
+                            f"{BaseLibvirtPlatform._next_available_port}"
                         )
                         if output.exit_code == 1:  # port not in use
-                            node_port = self._next_available_port
+                            node_port = BaseLibvirtPlatform._next_available_port
                             port_not_found = False
-                        self._next_available_port += 1
+                        BaseLibvirtPlatform._next_available_port += 1
 
                 self.host_node.tools[Iptables].start_forwarding(
                     node_port, local_address, 22
@@ -777,9 +783,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
             )
 
-            self.host_node.shell.copy(
-                Path(iso_path), Path(node_context.cloud_init_file_path)
-            )
+            with self._host_node_lock:
+                self.host_node.shell.copy(
+                    Path(iso_path), Path(node_context.cloud_init_file_path)
+                )
         finally:
             tmp_dir.cleanup()
 
@@ -1254,10 +1261,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         )
 
     def _capture_libvirt_logs(self) -> None:
-        libvirt_log_local_path = self.host_node.local_log_path / "libvirtd.log"
+        with self._host_node_lock:
+            libvirt_log_local_path = self.host_node.local_log_path / "libvirtd.log"
 
         if self.platform_runbook.capture_libvirt_debug_logs:
-            libvirt_log_temp_path = self.host_node.working_path / "libvirtd.log"
+            with self._host_node_lock:
+                libvirt_log_temp_path = self.host_node.working_path / "libvirtd.log"
 
             # Copy the log file to working_path, change ownership and then copy_back
             # to the local machine.
@@ -1266,9 +1275,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
             user = self.host_node.tools[Whoami].get_username()
             self.host_node.tools[Chown].change_owner(libvirt_log_temp_path, user)
-            self.host_node.shell.copy_back(
-                libvirt_log_temp_path, libvirt_log_local_path
-            )
+            with self._host_node_lock:
+                self.host_node.shell.copy_back(
+                    libvirt_log_temp_path, libvirt_log_local_path
+                )
         else:
             libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
                 "libvirtd", sudo=self.host_node.is_remote
