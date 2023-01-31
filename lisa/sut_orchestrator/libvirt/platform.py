@@ -34,6 +34,7 @@ from lisa.tools import (
     Iptables,
     Journalctl,
     Ls,
+    Mkdir,
     QemuImg,
     Sed,
     Service,
@@ -1231,6 +1232,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return information
 
     def _enable_libvirt_debug_log(self) -> None:
+        self.host_node.tools[Mkdir].create_directory(
+            str(self.LIBVIRT_DEBUG_LOG_PATH.parent),
+            sudo=True,
+        )
         sed = self.host_node.tools[Sed]
         sed.append(
             f'log_outputs="1:file:{self.LIBVIRT_DEBUG_LOG_PATH} 3:syslog:libvirtd" '
