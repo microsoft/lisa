@@ -13,27 +13,30 @@ from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
-    area="adhoc",
+    area="utility",
     category="functional",
     description="""
-    This test suite includes adhoc tests
+    This suite includes utility test cases and not validations.
     """,
 )
-class Adhoc(TestSuite):
+class Utilities(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will install the tools
-        passed as parameter 'install_tools'
+        passed as parameter 'case_tool_install'
         """,
         priority=5,
     )
-    def tool_install(
+    def execute_tools_install(
         self, log: Logger, node: RemoteNode, variables: Dict[str, Any]
     ) -> None:
-        tool_name_parameter = "install_tools"
+        tool_name_parameter = "case_tool_install"
         tool_names: List[str] = variables.get(tool_name_parameter, [])
         if not tool_names:
-            raise SkippedException(f"{tool_name_parameter} is empty")
+            raise SkippedException(
+                f"{tool_name_parameter} is empty."
+                f"This test case is not a validation. It is used to deploy tools."
+            )
         if type(tool_names) != list:
             raise LisaException(f"{tool_name_parameter} parameter should be List[str]")
         #  Create mapping from lowercase tool name to actual tool name
@@ -45,4 +48,7 @@ class Adhoc(TestSuite):
             if not tool_name:
                 raise LisaException(f"{input_tool_name} is not a valid tool")
             tool: Union[None, Tool] = getattr(tools, tool_name)
-            node.tools[tool]  # type: ignore # pylint: disable=W0104
+            if tool:
+                node.tools.get(tool)  # type: ignore
+            else:
+                raise LisaException(f"Error fetching tool {input_tool_name}")
