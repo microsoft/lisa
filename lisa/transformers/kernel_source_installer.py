@@ -125,7 +125,8 @@ class SourceInstaller(BaseInstaller):
             information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
             information["architecture"] = lscpu.get_architecture()
             information["compiler"] = f"gcc {gcc.get_version()}"
-            information["build_start_time"] = datetime.now(timezone.utc).isoformat()
+            information["checkout_start_time"] = self._checkout_start_time
+            information["build_start_time"] = self._build_start_time
             information.update(git.get_latest_commit_details(cwd=self._code_path))
         else:
             self._log.info(
@@ -149,7 +150,7 @@ class SourceInstaller(BaseInstaller):
         source = factory.create_by_runbook(
             runbook=runbook.location, node=node, parent_log=self._log
         )
-
+        self._checkout_start_time = datetime.now(timezone.utc).isoformat()
         self._code_path = source.get_source_code()
         assert node.shell.exists(
             self._code_path
@@ -160,6 +161,7 @@ class SourceInstaller(BaseInstaller):
         self._modify_code(node=node, code_path=self._code_path)
 
         kconfig_file = runbook.kernel_config_file
+        self._build_start_time = datetime.now(timezone.utc).isoformat()
         self._build_code(
             node=node, code_path=self._code_path, kconfig_file=kconfig_file
         )
