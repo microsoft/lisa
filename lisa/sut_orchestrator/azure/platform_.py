@@ -1862,14 +1862,14 @@ class AzurePlatform(Platform):
             log.debug("found the vhd is a sas url, it may need to be copied.")
 
         # get original vhd's hash key for comparing.
-        original_key: Optional[bytearray] = None
+        # original_key: Optional[bytearray] = None
         original_vhd_path = vhd_path
-        original_blob_client = BlobClient.from_blob_url(original_vhd_path)
-        properties = original_blob_client.get_blob_properties()
-        if properties.content_settings:
-            original_key = properties.content_settings.get(
-                "content_md5", None
-            )  # type: ignore
+        # original_blob_client = BlobClient.from_blob_url(original_vhd_path)
+        # properties = original_blob_client.get_blob_properties()
+        # if properties.content_settings:
+        #    original_key = properties.content_settings.get(
+        #        "content_md5", None
+        #    )  # type: ignore
 
         storage_name = get_storage_account_name(
             subscription_id=self.subscription_id, location=location, type_="t"
@@ -1902,7 +1902,7 @@ class AzurePlatform(Platform):
 
         # lock here to prevent a vhd is copied in multi-thread
         global _global_sas_vhd_copy_lock
-        cached_key: Optional[bytearray] = None
+        # cached_key: Optional[bytearray] = None
         with _global_sas_vhd_copy_lock:
             blobs = container_client.list_blobs(name_starts_with=vhd_path)
             blob_client = container_client.get_blob_client(vhd_path)
@@ -1910,19 +1910,21 @@ class AzurePlatform(Platform):
             for blob in blobs:
                 if blob:
                     # check if hash key matched with original key.
-                    if blob.content_settings:
-                        cached_key = blob.content_settings.get("content_md5", None)
+                    # if blob.content_settings:
+                    #    cached_key = blob.content_settings.get("content_md5", None)
                     if self._is_stuck_copying(blob_client, log):
                         # Delete the stuck vhd.
                         blob_client.delete_blob(delete_snapshots="include")
-                    elif original_key == cached_key:
-                        # If it exists, return the link, not to copy again.
+                    # elif original_key == cached_key:
+                    # If it exists, return the link, not to copy again.
+                    else:
                         log.debug("the sas url is copied already, use it directly.")
                         vhd_exists = True
-                    else:
-                        log.debug("found cached vhd, but the hash key mismatched.")
+                    # else:
+                    #    log.debug("found cached vhd, but the hash key mismatched.")
 
             if not vhd_exists:
+                log.debug(f"original_vhd_path: {original_vhd_path}")
                 blob_client.start_copy_from_url(
                     original_vhd_path, metadata=None, incremental_copy=False
                 )
