@@ -126,19 +126,21 @@ documentation = "https://mslisa.readthedocs.io"
 line-length = 88
 target-version = ['py38']
 
-
-[tool.coverage.report]
-skip_empty = true
-include = [
-    "lisa/*",
-    "examples/*",
-    "microsoft/testsuites/*",
+[tool.coverage.run]
+branch = true
+source = [
+    "lisa",
+    "examples",
+    "microsoft/testsuites",
 ]
 omit = [
-    "lisa/tests/*",
+    "lisa/tests",
 ]
-precision = 2
 
+[tool.coverage.report]
+include_namespace_packages = true
+precision = 2
+skip_empty = true
 
 [tool.flake8]
 max-line-length = 88
