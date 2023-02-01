@@ -14,7 +14,6 @@ from lisa.util import LisaException
 
 
 class Qemu(Tool):
-
     QEMU_INSTALL_LOCATIONS = ["qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"]
 
     @property

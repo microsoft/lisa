@@ -192,7 +192,6 @@ class CloudHypervisorInstallerTransformer(Transformer):
 
 
 class LibvirtPackageInstaller(LibvirtInstaller):
-
     _distro_package_mapping = {
         Ubuntu.__name__: ["libvirt-daemon-system"],
         CBLMariner.__name__: ["dnsmasq", "ebtables", "libvirt"],
@@ -231,7 +230,6 @@ class LibvirtPackageInstaller(LibvirtInstaller):
 
 
 class QemuPackageInstaller(QemuInstaller):
-
     _distro_package_mapping = {
         Ubuntu.__name__: ["qemu-kvm"],
         CBLMariner.__name__: ["qemu-kvm", "edk2-ovmf"],
@@ -261,7 +259,6 @@ class QemuPackageInstaller(QemuInstaller):
 
 
 class CloudHypervisorPackageInstaller(CloudHypervisorInstaller):
-
     _distro_package_mapping = {
         CBLMariner.__name__: ["cloud-hypervisor"],
     }
@@ -284,7 +281,6 @@ class CloudHypervisorPackageInstaller(CloudHypervisorInstaller):
 
 
 class LibvirtSourceInstaller(LibvirtInstaller):
-
     _distro_package_mapping = {
         Ubuntu.__name__: [
             "ninja-build",
@@ -378,7 +374,6 @@ class LibvirtSourceInstaller(LibvirtInstaller):
 
 
 class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
-
     _distro_package_mapping = {
         Ubuntu.__name__: ["gcc"],
         CBLMariner.__name__: ["gcc", "binutils", "glibc-devel"],
@@ -453,7 +448,6 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
 
 
 class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
-
     _distro_package_mapping = {
         Ubuntu.__name__: ["jq"],
         CBLMariner.__name__: ["jq"],

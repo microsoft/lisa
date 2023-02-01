@@ -182,7 +182,6 @@ def generate_send_receive_run_info(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
-
     snd_nic, rcv_nic = [get_random_nic_with_ip(x) for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
@@ -220,7 +219,6 @@ HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
 
 
 def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
-
     # hv_uio_generic driver uuid, a constant value used by vmbus.
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
     hv_uio_generic_uuid = "f8615163-df3e-46c5-913f-f2d2f965ed0e"
@@ -464,7 +462,6 @@ def verify_dpdk_send_receive(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
-
     # helpful to have the public ips labeled for debugging
     external_ips = []
     for node in environment.nodes.list():
@@ -524,7 +521,6 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
-
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)

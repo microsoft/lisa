@@ -646,7 +646,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         environment_context = get_environment_context(environment)
-        for (port, address) in environment_context.port_forwarding_list:
+        for port, address in environment_context.port_forwarding_list:
             self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).

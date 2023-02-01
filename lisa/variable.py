@@ -69,7 +69,6 @@ def _try_convert_type(original_value: Any, new_value: Any) -> Any:
 
 
 def replace_variables(data: Any, variables: Dict[str, VariableEntry]) -> Any:
-
     new_variables: Dict[str, VariableEntry] = {}
     for key, value in variables.items():
         new_variables[f"$({key})"] = value
@@ -319,7 +318,6 @@ def load_from_variable_entry(
     is_case_visible: bool = False,
     mask: str = "",
 ) -> Dict[str, VariableEntry]:
-
     assert isinstance(name, str), f"actual: {type(name)}"
     results: Dict[str, VariableEntry] = {}
     if type(raw_value) in [str, int, bool, float, list, dict, type(None)]:

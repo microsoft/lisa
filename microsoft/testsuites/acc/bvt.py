@@ -42,7 +42,6 @@ class ACCBasicTest(TestSuite):
         ),
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:
-
         if isinstance(node.os, Debian) & (node.os.information.version == "18.4.0"):
             os_version = "18.04"
         elif isinstance(node.os, Debian) & (node.os.information.version == "20.4.0"):

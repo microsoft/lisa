@@ -320,7 +320,6 @@ class LisaRunner(BaseRunner):
         test_results: List[TestResult],
         case_variables: Dict[str, VariableEntry],
     ) -> None:
-
         self._log.debug(
             f"start running cases on '{environment.name}', "
             f"case count: {len(test_results)}, "

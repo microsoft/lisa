@@ -68,14 +68,14 @@ def coverage(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["format", "all"])
 def black(session: nox.Session) -> None:
     """Run black"""
-    session.install("black")
+    session.install(*OPTIONAL_DEPENDENCIES["black"])
     session.run("black", ".")
 
 
 @nox.session(python=CURRENT_PYTHON, tags=["format", "all"])
 def isort(session: nox.Session) -> None:
     """Run isort"""
-    session.install("isort")
+    session.install(*OPTIONAL_DEPENDENCIES["isort"])
     session.run("isort", ".")
 
 
@@ -86,7 +86,9 @@ def isort(session: nox.Session) -> None:
 def flake8(session: nox.Session) -> None:
     """Run flake8"""
     session.install(
+        *OPTIONAL_DEPENDENCIES["black"],
         *OPTIONAL_DEPENDENCIES["flake8"],
+        *OPTIONAL_DEPENDENCIES["isort"],
     )
     session.run("flake8")
 
@@ -219,9 +221,9 @@ def dev(session: nox.Session) -> None:
         "-m",
         "pip",
         "install",
-        "black",
-        "isort",
+        *OPTIONAL_DEPENDENCIES["black"],
         *OPTIONAL_DEPENDENCIES["flake8"],
+        *OPTIONAL_DEPENDENCIES["isort"],
         *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],

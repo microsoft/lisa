@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 
 class NicInfo:
-
     # Class for info about an single upper/lower nic pair.
     # Devices using SRIOV on azure typically have an upper synthetic device
     # paired with a lower SRIOV Virtual Function (VF) device that
@@ -56,7 +55,6 @@ class NicInfo:
 
 
 class Nics(InitializableMixin):
-
     # Class for all of the nics on a node. Contains multiple NodeNic classes.
     # Init identifies upper/lower paired devices and the pci slot info for the lower.
 

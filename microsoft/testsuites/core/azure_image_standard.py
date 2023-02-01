@@ -53,7 +53,6 @@ from lisa.util import (
     """,
 )
 class AzureImageStandard(TestSuite):
-
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"

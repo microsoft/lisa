@@ -454,7 +454,6 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _get_version_info_from_named_regex_match(
         self, package_name: str, named_matches: Match[str]
     ) -> VersionInfo:
-
         essential_matches = ["major", "minor", "build"]
 
         # verify all essential keys are in our match dict
@@ -638,7 +637,6 @@ class DebianRepositoryInfo(RepositoryInfo):
 
 
 class Debian(Linux):
-
     # Get:5 http://azure.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages [1298 kB] # noqa: E501
     _debian_repository_info_pattern = re.compile(
         r"(?P<status>\S+):(?P<id>\d+)\s+(?P<uri>\S+)\s+(?P<name>\S+)"
@@ -739,7 +737,6 @@ class Debian(Linux):
         timeout = 60 * 10
         timer = create_timer()
         while timeout > timer.elapsed(False):
-
             # fix the dpkg, in case it's broken.
             dpkg_result = self._node.execute(
                 "dpkg --force-all --configure -a", sudo=True

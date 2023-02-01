@@ -74,7 +74,6 @@ def _import_root_package(package_name: str, path: Path) -> None:
 
 
 def import_package(path: Path, package_name: str, enable_log: bool = True) -> None:
-
     if not path.exists():
         raise FileNotFoundError(f"import module path: {path}")
 

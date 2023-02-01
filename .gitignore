@@ -31,3 +31,6 @@ docs/run_test/test_spec.rst
 # Packaging directories
 build
 dist
+
+# Local working file
+notes

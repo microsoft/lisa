@@ -517,7 +517,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
     @classmethod
     def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-
         template: Any = kwargs.get("template")
         environment = cast(Environment, kwargs.get("environment"))
         log = cast(Logger, kwargs.get("log"))

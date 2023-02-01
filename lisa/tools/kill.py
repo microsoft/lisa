@@ -21,7 +21,6 @@ class Kill(Tool):
     def by_name(
         self, process_name: str, signum: int = SIGKILL, ignore_not_exist: bool = False
     ) -> None:
-
         # attempt kill by name first
         kill_by_name = self.run(
             f"-s {signum} {process_name}", sudo=True, shell=True, force_run=True

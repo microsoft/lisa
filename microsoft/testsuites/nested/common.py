@@ -41,7 +41,6 @@ def qemu_connect_nested_vm(
     stop_existing_vm: bool = True,
     log: Optional[Logger] = None,
 ) -> RemoteNode:
-
     # verify that virtualization is enabled in hardware
     is_virtualization_enabled = host.tools[Lscpu].is_virtualization_enabled()
     if not is_virtualization_enabled:

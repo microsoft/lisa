@@ -78,7 +78,6 @@ class Modprobe(Tool):
         modules: Union[str, List[str]],
         dry_run: bool = False,
     ) -> bool:
-
         if isinstance(modules, list):
             modules_str = "-a " + " ".join(modules)
         else:
@@ -110,7 +109,6 @@ class Modprobe(Tool):
     ) -> None:
         for mod_name in mod_names:
             if self.is_module_loaded(mod_name, force_run=True):
-
                 # hv_netvsc reload requires resetting the network interface
                 if mod_name == "hv_netvsc":
                     # handle special case

@@ -67,7 +67,6 @@ class RemoteCopy(Tool):
         is_file: bool = False,
         recurse: bool = False,
     ) -> None:
-
         if is_file:
             destination_dir = dest
             dirs = []

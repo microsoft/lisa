@@ -690,7 +690,6 @@ def create_set_space(
     excluded_set: Optional[Iterable[T]],
     name: str = "",
 ) -> Optional[SetSpace[T]]:
-
     if included_set and excluded_set:
         raise LisaException(f"cannot set both included and excluded {name}")
     if included_set or excluded_set:

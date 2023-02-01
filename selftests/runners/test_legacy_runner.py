@@ -131,7 +131,6 @@ class ResultStateManagerTestCase(TestCase):
         completed_count: int,
         expected_statuses: List[TestStatus],
     ) -> None:
-
         state.set_states(
             self._create_information(all_count, TestStatus.QUEUED),
             self._create_information(running_count, TestStatus.RUNNING),

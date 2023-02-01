@@ -19,7 +19,6 @@ from .kernel_source_installer import SourceInstaller, SourceInstallerSchema
 @dataclass_json()
 @dataclass
 class BinaryInstallerSchema(BaseInstallerSchema):
-
     # kernel binary local absolute path
     kernel_image_path: str = field(
         default="",
@@ -194,7 +193,6 @@ def _update_linux_loader(
     current_kernel: str,
     new_kernel: str,
 ) -> None:
-
     ll_conf_file: str = "/boot/efi/linuxloader.conf"
     sed = node.tools[Sed]
 

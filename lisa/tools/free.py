@@ -13,7 +13,6 @@ from lisa.util import LisaException, find_group_in_lines
 
 
 class Free(Tool):
-
     # Mem:            9.0G        4.5G        412M         74M        4.1G        4.2G
     _mem_pattern = re.compile(
         r"^Mem: +(?P<total>\d+\.?\d*\w) +(?P<used>\d+\.?\d*\w) +(?P<free>\d+\.?\d*\w) +(?P<shared>\d+\.?\d*\w) +(?P<buff>\d+\.?\d*\w) +(?P<available>\d+\.?\d*\w)$"  # noqa: E501
@@ -54,7 +53,6 @@ class Free(Tool):
         return 1 + header_line.split().index(header_name)
 
     def _get_field_bytes_kib(self, field_name: str, header_name: str) -> int:
-
         # Example output:
         #         total used free
         # Swap:   0     0    0

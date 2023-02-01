@@ -251,7 +251,6 @@ class StoragePerformance(TestSuite):
             ]
         failed_test_cases = []
         for testcase in testcases:
-
             try:
                 start_iodepth = testcase.get("start_iodepth", 1)
                 max_iodepth = testcase.get("max_iodepth", 1)

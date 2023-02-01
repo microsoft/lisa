@@ -56,7 +56,6 @@ class OSUTestSuite(TestSuite):
         priority=1,
     )
     def run_osu_bench(self, node: Node, log: Logger, log_path: Path) -> None:
-
         _install_osu_mpi(node)
         path = _install_osu_bench(node)
 
@@ -100,7 +99,6 @@ class OSUTestSuite(TestSuite):
 
 
 def _install_osu_mpi(node: Node) -> None:
-
     assert isinstance(node.os, Posix)
     node.os.install_packages("libibverbs-dev gfortran bison")
     wget = node.tools[Wget]
@@ -127,7 +125,6 @@ def _install_osu_mpi(node: Node) -> None:
 
 
 def _install_osu_bench(node: Node) -> str:
-
     wget = node.tools[Wget]
     tar = node.tools[Tar]
 

@@ -32,7 +32,6 @@ class IBDevice:
 
 
 class Infiniband(Feature):
-
     # Example output of ibv_devinfo:
     # hca_id: mlx5_0
     #     transport:                      InfiniBand (0)
@@ -104,7 +103,7 @@ class Infiniband(Feature):
                 # guid = 0015:5dff:fe33:ff0c
                 # mpat = 33:ff:0c (This will match the ib device)
                 mpat = f"{guid[12:17]}:{guid[17:19]}"
-                for (nic_name, nic_info) in self._node.nics.nics.items():
+                for nic_name, nic_info in self._node.nics.nics.items():
                     result = self._node.execute(f"/sbin/ip addr show {nic_name}")
                     if mpat in result.stdout and "ib" in nic_name:
                         assert_that(nic_info.ip_addr).described_as(

@@ -248,7 +248,6 @@ class ResultStateManager:
                     break
 
     def _set_completed_results(self, completed_cases: List[Dict[str, str]]) -> None:
-
         new_completed_cases = completed_cases[:]
         not_matched_results = [
             x
@@ -389,7 +388,6 @@ class ResultStateManager:
 
 
 class LogParser(InitializableMixin):
-
     # Some logs have multiple lines, so use header to match them.
     # it DOES NOT match latest line to prevent partial logged.
     # 02/07/2021 10:04:34 : [INFO ] OX53-4 is still running

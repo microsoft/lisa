@@ -56,7 +56,6 @@ class Nested(TestSuite):
     def verify_nested_kvm_basic(
         self, node: RemoteNode, variables: Dict[str, Any]
     ) -> None:
-
         (
             nested_image_username,
             nested_image_password,

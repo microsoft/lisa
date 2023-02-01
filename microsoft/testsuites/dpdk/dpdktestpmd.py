@@ -360,7 +360,6 @@ class DpdkTestpmd(Tool):
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
-
         # kill testpmd early
         self.node.tools[Kill].by_name(self.command, ignore_not_exist=True)
         if self.check_testpmd_is_running():
@@ -588,7 +587,6 @@ class DpdkTestpmd(Tool):
                 dir_name=self._dpdk_repo_path_name,
             )
             if not self._dpdk_branch:
-
                 # dpdk stopped using a default branch
                 # if a branch is not specified, get latest version tag.
                 self._dpdk_branch = git_tool.get_tag(

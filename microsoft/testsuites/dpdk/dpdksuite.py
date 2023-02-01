@@ -54,7 +54,6 @@ DPDK_VF_REMOVAL_MAX_TEST_TIME = 60 * 10
     """,
 )
 class Dpdk(TestSuite):
-
     # regex for parsing ring ping output for the final line,
     # grabbing the max latency of 99.999% of data in nanoseconds.
     # ex: percentile 99.999 = 12302
@@ -195,7 +194,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_multiprocess(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         # multiprocess test requires dpdk source.
         self._force_dpdk_default_source(variables)
         kill = node.tools[Kill]
@@ -293,7 +291,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_sriov_rescind_failover_receiver(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         test_kits = init_nodes_concurrent(environment, log, variables, "failsafe")
 
         try:
@@ -332,7 +329,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_sriov_rescind_failover_send_only(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_nic_by_index()
@@ -392,7 +388,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_vpp(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
@@ -429,7 +424,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_ring_ping(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
         self._force_dpdk_default_source(variables)
@@ -584,7 +578,6 @@ class Dpdk(TestSuite):
     def verify_dpdk_send_receive_netvsc(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         try:
             verify_dpdk_send_receive(environment, log, variables, "netvsc")
         except UnsupportedPackageVersionException as err:
@@ -661,7 +654,6 @@ class Dpdk(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         for node in environment.nodes.list():
-
             # reset SRIOV to enabled if left disabled
             interface = node.features[NetworkInterface]
             if not interface.is_enabled_sriov():

@@ -54,7 +54,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test("failsafe", result, log, variables)
 
     @TestCaseMetadata(
@@ -77,7 +76,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test("failsafe", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
@@ -100,7 +98,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "failsafe", result, log, variables, use_max_nics=True, service_cores=4
         )
@@ -126,7 +123,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
@@ -149,7 +145,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "failsafe", result, log, variables, use_max_nics=True, use_queues=True
         )
@@ -174,7 +169,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "failsafe",
             result,
@@ -228,7 +222,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test("netvsc", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
@@ -252,7 +245,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "netvsc", result, log, variables, service_cores=4, use_max_nics=True
         )
@@ -277,7 +269,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test("netvsc", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
@@ -300,7 +291,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "netvsc", result, log, variables, use_queues=True, use_max_nics=True
         )
@@ -325,7 +315,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-
         self._run_dpdk_perf_test(
             "netvsc",
             result,
