@@ -77,11 +77,19 @@ class Nics(InitializableMixin):
             valid_lft forever preferred_lft forever
         inet6 fe80::215:5dff:fd33:ff7f/64 scope link
             valid_lft forever preferred_lft forever
+    5: ibP257s429327: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 2044 qdisc mq state UP group default qlen 256  # noqa: E501
+        link/infiniband 00:00:01:49:fe:80:00:00:00:00:00:00:00:15:5d:ff:fd:33:ff:17 brd  # noqa: E501
+        00:ff:ff:ff:ff:12:40:1b:80:0a:00:00:00:00:00:00:ff:ff:ff:ff
+        altname ibP257p0s0
+        inet 172.16.1.14/16 scope global ibP257s429327
+        valid_lft forever preferred_lft forever
+        inet6 fe80::215:5dff:fd33:ff17/64 scope link
+        valid_lft forever preferred_lft forever
     """
     __ip_addr_show_regex = re.compile(
         (
             r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband) "
-            r"(?P<mac>[0-9a-z:]+) .+\n(?:.+\n\s+altname \w+)?"
+            r"(?P<mac>[0-9a-z:]+) .+\n(?:(?:.+\n\s+|.*)altname \w+)?"
             r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
         )
     )
