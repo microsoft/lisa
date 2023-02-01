@@ -10,7 +10,6 @@ from lisa.util import UnsupportedDistroException
 
 
 class DpdkNffGo(Tool):
-
     NFF_GO_SRC_LINK = "https://github.com/intel-go/nff-go.git"
     REF = "v0.9.2"
     REPO_DIR = "nff-go"

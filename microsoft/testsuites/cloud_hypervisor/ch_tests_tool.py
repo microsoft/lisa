@@ -60,7 +60,6 @@ class CloudHypervisorTests(Tool):
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
     ) -> None:
-
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -128,7 +127,6 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         skip: Optional[List[str]] = None,
     ) -> None:
-
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -322,7 +320,6 @@ class CloudHypervisorTests(Tool):
         notifier.notify(subtest_msg)
 
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
-
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
@@ -346,7 +343,6 @@ class CloudHypervisorTests(Tool):
         return tests_list
 
     def _process_perf_metric_test_result(self, output: str) -> str:
-
         # Sample Output
         # "git_human_readable": "v27.0",
         # "git_revision": "2ba6a9bfcfd79629aecf77504fa554ab821d138e",

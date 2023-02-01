@@ -79,7 +79,6 @@ class HvModule(TestSuite):
         priority=2,
     )
     def verify_initrd_modules(self, environment: Environment) -> None:
-
         node = environment.nodes[0]
         # 1) Takes all of the necessary modules and removes
         #    those that are statically loaded into the kernel

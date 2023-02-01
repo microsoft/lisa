@@ -40,7 +40,6 @@ class Dns(TestSuite):
         priority=1,
     )
     def verify_dns_name_resolution_after_upgrade(self, node: Node) -> None:
-
         self._check_dns_name_resolution(node)
 
         try:

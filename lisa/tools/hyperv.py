@@ -246,7 +246,6 @@ class HyperV(Tool):
         host_ip: str = "0.0.0.0",
         guest_port: int = 22,
     ) -> None:
-
         # create new port forwarding
         self.node.tools[PowerShell].run_cmdlet(
             f"Add-NetNatStaticMapping -NatName {nat_name} "

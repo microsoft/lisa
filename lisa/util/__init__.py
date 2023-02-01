@@ -365,7 +365,6 @@ def get_datetime_path(current: Optional[datetime] = None) -> str:
 
 
 def get_public_key_data(private_key_file_path: str) -> str:
-
     # TODO: support ppk, if it's needed.
     private_key_path = Path(private_key_file_path)
     if not private_key_path.exists():

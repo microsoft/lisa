@@ -171,7 +171,6 @@ class SearchSpaceTestCase(unittest.TestCase):
         self.assertIn("doesn't support", str(cm.exception))
 
     def test_int_range_validation(self) -> None:
-
         with self.assertRaises(expected_exception=LisaException) as cm:
             IntRange(min=6, max=4)
         self.assertIn("shouldn't be greater than", str(cm.exception))
@@ -190,7 +189,6 @@ class SearchSpaceTestCase(unittest.TestCase):
         requirements: List[T],
         capabilities: List[T],
     ) -> None:
-
         for r_index, requirement in enumerate(requirements):
             for c_index, capability in enumerate(capabilities):
                 extra_msg = (

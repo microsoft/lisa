@@ -27,7 +27,6 @@ class NFSClient(Tool):
         mount_dir: str,
         options: str = "",
     ) -> None:
-
         # skip test if protocol is udp and CONFIG_NFS_DISABLE_UDP_SUPPORT is
         # set in kernel
         # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1964093

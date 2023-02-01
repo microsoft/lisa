@@ -1739,7 +1739,6 @@ class AzurePlatform(Platform):
         return plan
 
     def _generate_max_capability(self, vm_size: str, location: str) -> AzureCapability:
-
         # some vm size cannot be queried from API, so use default capability to
         # run with best guess on capability.
         node_space = schema.NodeSpace(
@@ -2312,7 +2311,6 @@ class AzurePlatform(Platform):
     def _analyze_environment_availability(
         self, location: str, capabilities: List[Union[schema.NodeSpace, bool]]
     ) -> None:
-
         # Check if sum of the same capabilities over the cap. If so, mark
         # the overflow cap as True.
         if all(isinstance(x, schema.NodeSpace) for x in capabilities):

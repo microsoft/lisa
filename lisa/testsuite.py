@@ -815,7 +815,6 @@ def _add_suite_metadata(metadata: TestSuiteMetadata) -> None:
 
 
 def _add_case_metadata(metadata: TestCaseMetadata) -> None:
-
     qualname = metadata.qualname
     if _all_cases.get(qualname) is None:
         _all_cases[qualname] = metadata

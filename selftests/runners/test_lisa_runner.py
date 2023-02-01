@@ -574,7 +574,6 @@ class RunnerTestCase(TestCase):
         expected_message: List[str],
         test_results: Union[List[TestResultMessage], List[TestResult]],
     ) -> None:
-
         test_names: List[str] = []
         env_names: List[str] = []
         for test_result in test_results:

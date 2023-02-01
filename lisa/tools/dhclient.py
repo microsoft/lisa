@@ -11,7 +11,6 @@ from lisa.util import UnsupportedDistroException, find_group_in_lines
 
 
 class Dhclient(Tool):
-
     # timeout 300;
     _debian_pattern = re.compile(r"^(?P<default>#?)timeout (?P<number>\d+);$")
     # ipv4.dhcp-timeout=300

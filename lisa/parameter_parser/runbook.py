@@ -26,7 +26,6 @@ class RunbookBuilder:
         path: Path,
         cmd_args: Optional[List[str]] = None,
     ) -> None:
-
         if cmd_args is None:
             cmd_args = []
 

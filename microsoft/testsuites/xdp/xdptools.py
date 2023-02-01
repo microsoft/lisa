@@ -18,7 +18,6 @@ from lisa.util import find_groups_in_lines
 
 
 def can_install(node: Node) -> bool:
-
     ethtool = node.tools[Ethtool]
     try:
         statistics = ethtool.get_device_statistics(node.nics.default_nic).counters

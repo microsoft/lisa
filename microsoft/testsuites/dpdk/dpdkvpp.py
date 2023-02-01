@@ -12,7 +12,6 @@ from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class DpdkVpp(Tool):
-
     VPP_SRC_LINK = "https://github.com/FDio/vpp.git"
     REPO_DIR = "vpp"
 

@@ -306,7 +306,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             # if the disk contains partition, check the partitions
             if len(disk.partitions) > 0:
                 for partition in disk.partitions:
-
                     # we only use root partition for OS disk
                     if disk.is_os_disk and partition.mountpoint != "/":
                         continue

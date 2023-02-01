@@ -59,7 +59,6 @@ class Aria(Tool):
         num_connections: Optional[int] = None,
         timeout: int = 600,
     ) -> str:
-
         if file_path:
             # create folder when it doesn't exist
             self.node.tools[Mkdir].create_directory(file_path, sudo=sudo)

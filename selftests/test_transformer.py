@@ -176,7 +176,6 @@ class TestTransformerCase(TestCase):
     def _generate_runbook_builder(
         self, transformers: List[schema.Transformer]
     ) -> RunbookBuilder:
-
         transformers_data: List[Any] = [
             x.to_dict() for x in transformers  # type:ignore
         ]

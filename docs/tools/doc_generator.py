@@ -97,7 +97,6 @@ def extract_metadata(nodes: Set[Any]) -> List[Dict[str, str]]:
 
         for deco in node.decorator_list:
             for param in deco.keywords:
-
                 if isinstance(param.value, ast.Call):  # requirement
                     for req in param.value.keywords:
                         val = req.arg

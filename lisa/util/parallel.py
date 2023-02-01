@@ -165,7 +165,6 @@ def run_in_parallel_async(
     callback: Callable[[T_RESULT], None],
     log: Optional[Logger] = None,
 ) -> TaskManager[T_RESULT]:
-
     """
     For concurrent complex tasks, returns the task manager after submitting
     """

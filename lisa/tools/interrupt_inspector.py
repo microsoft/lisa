@@ -111,10 +111,8 @@ class InterruptInspector(Tool):
         return interrupts_sum_by_irqs
 
     def sum_cpu_counter_by_index(self, pci_slot: str) -> Dict[int, int]:
-
         interrupts_by_cpu: Counter[int] = Counter()
         for interrupt in self.get_interrupt_data():
-
             # Ignore unrelated entries
             if pci_slot not in interrupt.metadata:
                 continue

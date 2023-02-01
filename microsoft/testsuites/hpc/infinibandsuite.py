@@ -44,7 +44,6 @@ class InfinibandSuite(TestSuite):
         ),
     )
     def verify_hpc_over_sriov(self, log: Logger, node: Node) -> None:
-
         try:
             infiniband = node.features[Infiniband]
         except (UnsupportedDistroException, UnsupportedKernelException) as err:

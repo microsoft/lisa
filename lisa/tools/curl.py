@@ -63,7 +63,6 @@ class Curl(Tool):
         shell: bool = False,
         cwd: Optional[PurePath] = None,
     ) -> VersionInfo:
-
         err_msg = "curl get_version failed"
         output = self.run(
             " --version",

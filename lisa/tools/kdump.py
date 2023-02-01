@@ -257,7 +257,6 @@ class KdumpBase(Tool):
         self,
         crashkernel: str,
     ) -> None:
-
         # For Redhat 8 and later version, the cfg_file should be None.
         cfg_file = self._get_crashkernel_cfg_file()
         cmdline = self._get_crashkernel_cfg_cmdline()

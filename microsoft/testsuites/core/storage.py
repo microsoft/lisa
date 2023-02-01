@@ -38,7 +38,6 @@ from lisa.util.perf_timer import create_timer
     """,
 )
 class Storage(TestSuite):
-
     DEFAULT_DISK_SIZE_IN_GB = 20
     TIME_OUT = 12000
 

@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        args: [docs, flake8, mypy, pylint]
+        args: [docs, black, flake8, isort, mypy, pylint]
 
         # Uncomment to enable base dependency checking
         # include:

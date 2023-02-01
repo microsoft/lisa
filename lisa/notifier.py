@@ -60,7 +60,6 @@ _system_notifiers = [constants.NOTIFIER_CONSOLE, constants.NOTIFIER_FILE]
 
 
 def initialize(runbooks: List[schema.Notifier]) -> None:
-
     factory = subclasses.Factory[Notifier](Notifier)
     log = _get_init_logger()
 
