@@ -7,6 +7,7 @@ import string
 import sys
 from datetime import datetime
 from pathlib import Path
+from time import sleep
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -29,6 +30,7 @@ from semver import VersionInfo
 
 from lisa import secret
 from lisa.util import constants
+from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from lisa.operating_system import OperatingSystem
@@ -657,3 +659,18 @@ def strip_strs(obj: Any, fields: List[str]) -> Any:
             value = value.strip() if isinstance(value, str) else value
             setattr(obj, field, value)
     return obj
+
+
+def check_till_timeout(
+    func: Callable[..., Any],
+    timeout_message: str,
+    timeout: int = 60,
+    interval: int = 1,
+) -> None:
+    timer = create_timer()
+    while timer.elapsed(False) < timeout:
+        if func():
+            break
+        sleep(interval)
+    if timer.elapsed() >= timeout:
+        raise LisaException(f"timeout: {timeout_message}")
