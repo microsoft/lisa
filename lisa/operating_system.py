@@ -618,6 +618,12 @@ class CoreOs(Linux):
         return re.compile("^coreos|Flatcar|flatcar$")
 
 
+class Alpine(Linux):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^Alpine")
+
+
 @dataclass
 # `apt-get update` repolist is of the form `<status>:<id> <uri> <name> <metadata>`
 # Example:
