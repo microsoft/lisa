@@ -4,7 +4,7 @@ import re
 from typing import Optional, Type
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian
+from lisa.operating_system import Alpine, Debian
 from lisa.util import UnsupportedDistroException
 from lisa.util.process import Process
 
@@ -48,7 +48,10 @@ class Ping(Tool):
     ) -> Process:
         if not target:
             target = INTERNET_PING_ADDRESS
-        args: str = f"{target} -c {count} -i {interval} -O"
+        args: str = f"{target} -c {count} -i {interval}"
+        # For Alpine, '-O' option is unrecognized, so remove '-O'
+        if not isinstance(self.node.os, Alpine):
+            args += " -O"
         if nic_name:
             args += f" -I {nic_name}"
         if package_size:
