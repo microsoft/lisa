@@ -58,6 +58,7 @@ from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
+    check_till_timeout,
     constants,
     field_metadata,
     get_matched_str,
@@ -1033,6 +1034,11 @@ def check_or_create_resource_group(
                 rm_client.resource_groups.create_or_update(
                     resource_group_name, {"location": location}
                 )
+            check_till_timeout(
+                lambda: rm_client.resource_groups.check_existence(resource_group_name)
+                is True,
+                timeout_message=f"wait for {resource_group_name} created",
+            )
 
 
 def wait_copy_blob(
@@ -1042,18 +1048,12 @@ def wait_copy_blob(
     timeout: int = 60 * 60,
 ) -> None:
     log.info(f"copying vhd: {vhd_path}")
-
-    timeout_timer = create_timer()
-    while timeout_timer.elapsed(False) < timeout:
-        props = blob_client.get_blob_properties()
-        if props.copy.status == "success":
-            break
-        # the copy is very slow, it may need several minutes. check it every
-        # 2 seconds.
-        sleep(2)
-    if timeout_timer.elapsed() >= timeout:
-        raise LisaException(f"wait copying VHD timeout: {vhd_path}")
-
+    check_till_timeout(
+        lambda: blob_client.get_blob_properties().copy.status == "success",
+        timeout_message=f"copying VHD: {vhd_path}",
+        timeout=timeout,
+        interval=2,
+    )
     log.info("vhd copied")
 
 
