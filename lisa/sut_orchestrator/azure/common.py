@@ -44,6 +44,7 @@ from azure.storage.blob import (
     ContainerClient,
     ResourceTypes,
     generate_account_sas,
+    generate_blob_sas,
 )
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
@@ -904,7 +905,7 @@ def generate_blob_sas_token(
         resource_group_name=resource_group_name,
     )
 
-    sas_token = generate_blob_sas_token(
+    sas_token = generate_blob_sas(
         account_name=shared_key_credential["account_name"],
         account_key=shared_key_credential["account_key"],
         container_name=container_name,
