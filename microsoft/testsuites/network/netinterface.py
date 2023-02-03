@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
+from pathlib import Path
 
 from assertpy import assert_that
 from randmac import RandMac  # type: ignore
@@ -16,7 +17,7 @@ from lisa import (
     schema,
     simple_requirement,
 )
-from lisa.features import NetworkInterface, Synthetic
+from lisa.features import NetworkInterface, SerialConsole, Synthetic
 from lisa.nic import Nics
 from lisa.operating_system import FreeBSD
 from lisa.tools import Dhclient, Ip, KernelConfig, Uname, Wget
@@ -50,15 +51,27 @@ class NetInterface(TestSuite):
         priority=1,
         requirement=simple_requirement(network_interface=Synthetic()),
     )
-    def validate_netvsc_reload(self, node: Node) -> None:
+    def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
         self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
         test_count = 0
-        while test_count < self.NETVSC_RELOAD_TEST_COUNT:
+        while test_count < self.NETVSC_RELOAD_TEST_COUNT - 1:
             test_count += 1
             # Unload and load hv_netvsc
-            network_interface_feature.reload_module()
+            try:
+                network_interface_feature.reload_module()
+            except Exception as identifier:
+                # Sometimes the ssh session is inactive. If no panic is detected,
+                # close the node to retry again
+                node.log.debug(f"This exception '{identifier}' is ignorable. Try again")
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage="after_reload_netvsc", force_run=True
+                )
+                node.close()
+        # Run the last time
+        network_interface_feature.reload_module()
 
     @TestCaseMetadata(
         description="""
