@@ -1910,7 +1910,9 @@ class AzurePlatform(Platform):
                 if blob:
                     # check if hash key matched with original key.
                     if blob.content_settings:
-                        cached_key = blob.content_settings.get("content_md5", None)
+                        cached_key = blob.content_settings.get(
+                            "content_md5", None
+                        )  # type: ignore
                     if self._is_stuck_copying(blob_client, log):
                         # Delete the stuck vhd.
                         blob_client.delete_blob(delete_snapshots="include")
