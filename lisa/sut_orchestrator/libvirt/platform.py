@@ -195,11 +195,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
 
-        self._capture_libvirt_logs()
-
     def _cleanup(self) -> None:
         if self.platform_runbook.capture_libvirt_debug_logs:
             self._disable_libvirt_debug_log()
+
+        self._capture_libvirt_logs()
 
         if self.host_node.is_remote:
             dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
