@@ -20,6 +20,8 @@ class Modprobe(Tool):
     # to leave the node without a network connection if things go wrong.
     def _reload_hv_netvsc(self) -> None:
         # These commands must be sent together, bundle them up as one line
+        # If the VM is disconnected after running below command, wait 60s is enough.
+        # Don't need to wait the default timeout 600s. So set timeout 60.
         self.node.execute(
             "modprobe -r hv_netvsc; modprobe hv_netvsc; "
             "ip link set eth0 down; ip link set eth0 up;"
@@ -27,6 +29,7 @@ class Modprobe(Tool):
             sudo=True,
             shell=True,
             nohup=True,
+            timeout=60,
         )
 
     def is_module_loaded(
