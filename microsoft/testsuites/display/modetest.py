@@ -36,17 +36,18 @@ class Modetest(Tool):
 
     def _install_dep_packages(self) -> None:
         if isinstance(self.node.os, Redhat):
+            arch = self.node.os.get_kernel_information().hardware_platform
             self.node.os.install_packages(
                 (
                     "git",
                     "make",
                     "autoconf",
                     "automake",
-                    "libpciaccess-devel.x86_64",
+                    f"libpciaccess-devel.{arch}",
                     "libtool",
-                    "http://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/xorg-x11-util-macros-1.19.3-4.el9.noarch.rpm",  # noqa: E501
-                    "http://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/ninja-build-1.10.2-6.el9.x86_64.rpm",  # noqa: E501
-                    "http://mirror.stream.centos.org/9-stream/CRB/x86_64/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
+                    f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/xorg-x11-util-macros-1.19.3-4.el9.noarch.rpm",  # noqa: E501
+                    f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/ninja-build-1.10.2-6.el9.{arch}.rpm",  # noqa: E501
+                    f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
                 )
             )
         else:

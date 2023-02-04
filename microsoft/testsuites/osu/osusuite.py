@@ -14,8 +14,9 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole
-from lisa.operating_system import Posix
+from lisa.operating_system import Debian, Posix, RPMDistro
 from lisa.tools import Chmod, Lscpu, Make, Tar, Wget
+from lisa.util import UnsupportedDistroException
 
 OSU_MPI_LOCATION = (
     "https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz"
@@ -100,7 +101,14 @@ class OSUTestSuite(TestSuite):
 
 def _install_osu_mpi(node: Node) -> None:
     assert isinstance(node.os, Posix)
-    node.os.install_packages("libibverbs-dev gfortran bison")
+    if isinstance(node.os, Debian):
+        node.os.install_packages(["libibverbs-dev", "gfortran", "bison"])
+    elif isinstance(node.os, RPMDistro):
+        node.os.install_packages(["rdma-core-devel", "gfortran", "bison"])
+    else:
+        raise UnsupportedDistroException(
+            node.os, "osu test suite not implemented on this OS"
+        )
     wget = node.tools[Wget]
     tar = node.tools[Tar]
 
