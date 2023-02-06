@@ -84,7 +84,8 @@ class Lscpu(Tool):
     )
     # Model name:          Intel(R) Xeon(R) Platinum 8168 CPU @ 2.70GHz
     # Model name:          AMD EPYC 7763 64-Core Processor
-    __cpu_model_name = re.compile(r"^Model name:\s+(?P<model_name>.*)\s*$", re.M)
+    #   Model name:          AMD EPYC 7763 64-Core Processor
+    __cpu_model_name = re.compile(r"^\s*Model name:\s+(?P<model_name>.*)\s*$", re.M)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._core_count: Optional[int] = None
