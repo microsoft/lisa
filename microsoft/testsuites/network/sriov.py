@@ -605,7 +605,7 @@ class Sriov(TestSuite):
         network_interface_feature = client_node.features[NetworkInterface]
         for _ in range(3):
             sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-            network_interface_feature.switch_sriov(enable=(not sriov_is_enabled))
+            network_interface_feature.switch_sriov(enable=not sriov_is_enabled)
         network_interface_feature.switch_sriov(enable=True)
 
         # check VF still paired with synthetic nic

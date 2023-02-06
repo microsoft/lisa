@@ -38,6 +38,7 @@ from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
     LisaException,
+    LisaTimeoutException,
     MissingPackagesException,
     ReleaseEndOfLifeException,
     RepoNotExistException,
@@ -593,7 +594,9 @@ class Posix(OperatingSystem, BaseClassMixin):
             time.sleep(1)
 
         if timeout < timer.elapsed():
-            raise Exception(f"timeout to wait previous {process_name} process stop.")
+            raise LisaTimeoutException(
+                f"timeout to wait previous {process_name} process stop."
+            )
 
     def __resolve_package_name(self, package: Union[str, Tool, Type[Tool]]) -> str:
         """
@@ -773,7 +776,7 @@ class Debian(Linux):
             time.sleep(1)
 
         if timeout < timer.elapsed():
-            raise Exception("timeout to wait previous dpkg process stop.")
+            raise LisaTimeoutException("timeout to wait previous dpkg process stop.")
 
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
