@@ -5,14 +5,18 @@ import random
 import re
 import string
 import sys
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from time import sleep
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
+    Generator,
+    Generic,
     Iterable,
     List,
     Optional,
@@ -350,6 +354,29 @@ class SwitchableMixin:
 
     def enable(self) -> None:
         self._switch(True)
+
+
+class MutexObject(Generic[T]):
+    """
+    This is a wrapper class which can be used to perform actions of any objects in
+    atomic manner. This is helpful in synchronization when a single object is shared
+    with multiple threads.
+    For example,
+        obj = MutexObject(someObject)
+        with obj.lock() as mutexobj:
+            mutexobj.method()
+
+    This is same as doing someObject.method() atomically.
+    """
+
+    def __init__(self, obj: T) -> None:
+        self.__object: T = obj
+        self.__lock: Lock = Lock()
+
+    @contextmanager
+    def lock(self) -> Generator[T, None, None]:
+        with self.__lock:
+            yield self.__object
 
 
 def get_date_str(current: Optional[datetime] = None) -> str:
