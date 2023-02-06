@@ -8,6 +8,7 @@ from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
 from lisa.tools import Aria, HyperV, Lscpu, Qemu, Wget
+from lisa.tools.lscpu import CpuType
 from lisa.tools.rm import Rm
 from lisa.util import SkippedException, fields_to_dict
 from lisa.util.logger import Logger
@@ -67,6 +68,21 @@ def qemu_connect_nested_vm(
         timeout=NESTED_VM_DOWNLOAD_TIMEOUT,
     )
 
+    if CpuType.AMD == host.tools[Lscpu].get_cpu_type():
+        qemu = host.tools[Qemu]
+        qemu.create_vm(
+            guest_port,
+            f"{image_folder_path}/{image_name}",
+            nic_model=nic_model,
+            taps=taps,
+            bridge=bridge,
+            disks=disks,
+            cores=cores,
+            stop_existing_vm=stop_existing_vm,
+            run_in_background=False,
+            timeout=60,
+        )
+        qemu.interface_count = 0
     # start nested vm
     host.tools[Qemu].create_vm(
         guest_port,

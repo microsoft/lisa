@@ -35,6 +35,8 @@ class Qemu(Tool):
         bridge: Optional[str] = None,
         disks: Optional[List[str]] = None,
         stop_existing_vm: bool = True,
+        run_in_background: bool = True,
+        timeout: int = 0,
     ) -> None:
         """
         start vm on the current node
@@ -55,12 +57,14 @@ class Qemu(Tool):
 
         # store name of tap interfaces added to the vm
         added_taps: List[str] = []
-
+        cmd = ""
+        if timeout > 0:
+            cmd = f"timeout {timeout}  {self.command} "
         # Run qemu with following parameters:
         # -m: memory size
         # -smp: SMP system with `n` CPUs
         # -hda : guest image path
-        cmd = f"-cpu host -smp {cores} -m {memory} -hda {guest_image_path} "
+        cmd += f" -cpu host -smp {cores} -m {memory} -hda {guest_image_path} "
 
         # Add qemu managed nic device
         # This will be used to communicate with ssh to the guest
@@ -95,21 +99,35 @@ class Qemu(Tool):
 
         # -enable-kvm: enable kvm
         # -display: enable or disable display
-        # -daemonize: run in background
-        cmd += "-enable-kvm -display none -daemonize "
+        cmd += " -enable-kvm -display none "
+        if run_in_background:
+            # -daemonize: run in background
+            cmd += " -daemonize"
 
         # kill any existing qemu process if stop_existing_vm is True
         if stop_existing_vm:
             self.delete_vm()
 
-        # start qemu
-        self.run(
-            cmd,
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"Unable to start VM {guest_image_path}",
-        )
+        if timeout > 0:
+            cmd_result = self.node.execute(
+                cmd,
+                sudo=True,
+                shell=True,
+            )
+            if "KVM: entry failed, hardware error" in cmd_result.stdout:
+                raise LisaException(f"fail to run {cmd}, error is {cmd_result.stdout}")
+            return
+        else:
+            # start qemu
+            self.run(
+                cmd,
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"Unable to start VM {guest_image_path}"
+                ),
+            )
 
         # if bridge is specified, attach the created taps to the bridge
         if bridge:
