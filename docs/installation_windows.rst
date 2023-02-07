@@ -82,11 +82,15 @@ Clone code
    cd lisa
 
 
-Directly install LISA (Option 1)
---------------------------------
+Development Environment
+-----------------------
 
-Direct installation requires pip 22.2.2 or higher. If the version of pip provided
-by your installation is older than this, a newer version should be installed.
+For making any code changes and running testcases in LISA, you will need to setup a development environment. Instructions for setting up the development environment are present here: :ref:`DevVirtEnv`.
+
+Runtime Environment
+-------------------
+
+This installation method is used to run LISA if no change in source code is desired, for example, when setting up automation with LISA in pipelines. Direct installation requires pip 22.2.2 or higher. If the version of pip provided by your installation is older than this, a newer version should be installed.
 
 .. code:: bash
 
@@ -100,15 +104,6 @@ To install system-wide, run from and Administrator console.
     python3 -m pip install --editable .[azure] --config-settings editable_mode=compat
 
 
-
-Install LISA in a virtual environment (Option 2)
-------------------------------------------------
-
-If you wish to keep LISA and it's dependencies separate, you can install it
-into a virtual environment. This `guide`_ can be used if you wish to do this manually.
-Or, to use a development virtual environment, follow the instructions in :ref:`DevVirtEnv`.
-
-.. _guide: https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html
 
 Verify installation
 -------------------
