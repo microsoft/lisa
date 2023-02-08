@@ -143,6 +143,7 @@ class Pktgen(Tool):
             raise UnsupportedKernelException(self.node.os)
 
         # ['4', '18', '0', '305', '40', '1', 'el8_4', 'x86_64']
+        # ['4', '18', '0', '240', 'el8', 'x86_64']
         parts = kernel_information.version_parts[:]
 
         # Full example:
@@ -151,8 +152,8 @@ class Pktgen(Tool):
         #   4.18.0-240.1.1.el8_3.centos.plus.x86_64.rpm",
         rpm_location = (
             f"https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
-            f"{'.'.join(parts[3:7])}.centos.plus/{parts[7]}/kernel-plus-modules-"
-            f"internal-4.18.0-{'.'.join(parts[3:7])}.centos.plus.{parts[7]}.rpm"
+            f"{'.'.join(parts[3:-1])}.centos.plus/{parts[-1]}/kernel-plus-modules-"
+            f"internal-4.18.0-{'.'.join(parts[3:-1])}.centos.plus.{parts[-1]}.rpm"
         )
         # Install pkggen from CentOS for redhat, because there is no free
         # download for Redhat.
