@@ -1460,32 +1460,22 @@ class Redhat(Fedora):
         return 0 == result.exit_code
 
     def _get_information(self) -> OsInformation:
-        # The higher version above 7.0 support os-version.
-        try:
-            information = super(Fedora, self)._get_information()
-
-            # remove Linux Server in vendor
-            information.vendor = get_matched_str(
-                information.vendor, self.__vendor_pattern
-            )
-        except Exception:
-            # Parse /etc/redhat-release to support 6.x and 8.x. Refer to
-            # examples of __legacy_redhat_information_pattern.
-            cmd_result = self._node.execute(
-                cmd="cat /etc/redhat-release", no_error_log=True, expected_exit_code=0
-            )
-            full_version = cmd_result.stdout
-            matches = self.__legacy_redhat_information_pattern.match(full_version)
-            assert matches, f"cannot match version information from: {full_version}"
-            assert matches.group("vendor")
-            information = OsInformation(
-                version=self._parse_version(matches.group("version")),
-                vendor=matches.group("vendor"),
-                release=matches.group("version"),
-                codename=matches.group("codename"),
-                full_version=full_version,
-            )
-
+        cmd_result = self._node.execute(
+            cmd="cat /etc/redhat-release", no_error_log=True, expected_exit_code=0
+        )
+        full_version = cmd_result.stdout
+        matches = self.__legacy_redhat_information_pattern.match(full_version)
+        assert matches, f"cannot match version information from: {full_version}"
+        assert matches.group("vendor")
+        information = OsInformation(
+            version=self._parse_version(matches.group("version")),
+            vendor=matches.group("vendor"),
+            release=matches.group("version"),
+            codename=matches.group("codename"),
+            full_version=full_version,
+        )
+        # remove Linux Server in vendor
+        information.vendor = get_matched_str(information.vendor, self.__vendor_pattern)
         return information
 
     def _update_packages(self, packages: Optional[List[str]] = None) -> None:
