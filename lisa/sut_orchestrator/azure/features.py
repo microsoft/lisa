@@ -44,15 +44,17 @@ from lisa.features.security_profile import SecurityProfileSettings, SecurityProf
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
-from lisa.tools import Dmesg, Lspci, Modprobe
+from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
     SkippedException,
+    check_till_timeout,
     constants,
     field_metadata,
     find_patterns_in_lines,
     generate_random_chars,
+    get_matched_str,
     set_filtered_fields,
 )
 
@@ -1080,6 +1082,11 @@ class Disk(AzureFeatureMixin, features.Disk):
     This Disk feature is mainly to associate Azure disk options settings.
     """
 
+    # /dev/disk/azure/scsi1/lun0
+    # /dev/disk/azure/scsi1/lun63
+    SCSI_PATTERN = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?$", re.M)
+    UN_SUPPORT_SETTLE = re.compile(r"trigger: unrecognized option '--settle'", re.M)
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1089,31 +1096,61 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
-        pattern = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?", re.M)
         # refer here to get data disks from folder /dev/disk/azure/scsi1
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
         # /dev/disk/azure/scsi1/lun0
-        cmd_result = self._node.execute(
-            "ls -d /dev/disk/azure/scsi1/*", shell=True, sudo=True
-        )
-        matched = find_patterns_in_lines(cmd_result.stdout, [pattern])
+        ls_tools = self._node.tools[Ls]
+        files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+
+        if len(files) == 0:
+            os = self._node.os
+            # there are known issues on ubuntu 16.04 and rhel 9.0
+            # try to workaround it
+            if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
+                isinstance(os, Redhat) and os.information.release >= "9.0"
+            ):
+                self._log.debug(
+                    "download udev rules to construct a set of symbolic links "
+                    "under the /dev/disk/azure path"
+                )
+                if ls_tools.is_file(
+                    self._node.get_pure_path("/dev/disk/azure"), sudo=True
+                ):
+                    self._node.tools[Rm].remove_file("/dev/disk/azure", sudo=True)
+                self._node.tools[Curl].fetch(
+                    arg="-o /etc/udev/rules.d/66-azure-storage.rules",
+                    execute_arg="",
+                    url="https://raw.githubusercontent.com/Azure/WALinuxAgent/master/config/66-azure-storage.rules",  # noqa: E501
+                    sudo=True,
+                    cwd=self._node.get_pure_path("/etc/udev/rules.d/"),
+                )
+                cmd_result = self._node.execute(
+                    "udevadm trigger --settle --subsystem-match=block", sudo=True
+                )
+                if get_matched_str(cmd_result.stdout, self.UN_SUPPORT_SETTLE):
+                    self._node.execute(
+                        "udevadm trigger --subsystem-match=block", sudo=True
+                    )
+                check_till_timeout(
+                    lambda: len(ls_tools.list("/dev/disk/azure/scsi1", sudo=True)) > 0,
+                    timeout_message="wait for dev rule take effect",
+                )
+                files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+
+        assert_that(len(files)).described_as(
+            "no data disks info found under /dev/disk/azure/scsi1"
+        ).is_greater_than(0)
+        matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
-        assert matched[0], (
-            "no data disks found under folder /dev/disk/azure/scsi1/,"
-            " please check data disks exist or not, also check udev"
-            " rule which is to construct a set of symbolic links exist or not"
-        )
-        matched_disk_array = set(matched[0])
-        disk_array: List[str] = [""] * len(matched_disk_array)
-        for disk in matched_disk_array:
+        assert matched, "not find data disks"
+        disk_array: List[str] = [""] * len(matched)
+        for disk in matched:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
             disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
-        # remove empty ones
-        disk_array = [disk for disk in disk_array if disk != ""]
         return disk_array
 
     def get_all_disks(self) -> List[str]:
