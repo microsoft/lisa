@@ -57,7 +57,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         assert isinstance(node_runbook, CloudHypervisorNodeSchema)
         node_context = get_node_context(node)
-        if self.host_node.is_remote:
+        if self._is_host_remote:
             node_context.firmware_source_path = node_runbook.firmware
             node_context.firmware_path = os.path.join(
                 self.vm_disks_dir, os.path.basename(node_runbook.firmware)
@@ -73,10 +73,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         log: Logger,
     ) -> None:
         if node_context.firmware_source_path:
-            self.host_node.shell.copy(
-                Path(node_context.firmware_source_path),
-                Path(node_context.firmware_path),
-            )
+            with self.host_node_object.lock() as host_node:
+                host_node.shell.copy(
+                    Path(node_context.firmware_source_path),
+                    Path(node_context.firmware_path),
+                )
 
         super()._create_node(
             node,
@@ -176,30 +177,30 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         self, environment: Environment, log: Logger, node: Node
     ) -> None:
         node_context = get_node_context(node)
-        if node_context.os_disk_base_file_fmt == DiskImageFormat.QCOW2:
-            self.host_node.tools[QemuImg].convert(
-                "qcow2",
-                node_context.os_disk_base_file_path,
-                "raw",
-                node_context.os_disk_file_path,
-            )
-        else:
-            self.host_node.execute(
-                f"cp {node_context.os_disk_base_file_path}"
-                f" {node_context.os_disk_file_path}",
-                expected_exit_code=0,
-                expected_exit_code_failure_message="Failed to copy os disk image",
-            )
+        with self.host_node_object.lock() as host_node:
+            if node_context.os_disk_base_file_fmt == DiskImageFormat.QCOW2:
+                host_node.tools[QemuImg].convert(
+                    "qcow2",
+                    node_context.os_disk_base_file_path,
+                    "raw",
+                    node_context.os_disk_file_path,
+                )
+            else:
+                host_node.execute(
+                    f"cp {node_context.os_disk_base_file_path}"
+                    f" {node_context.os_disk_file_path}",
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="Failed to copy os disk image",
+                )
 
-    def _get_vmm_version(self) -> str:
+    def _get_vmm_version(self, host_node: Node) -> str:
         result = "Unknown"
-        if self.host_node:
-            output = self.host_node.execute(
-                "cloud-hypervisor --version",
-                shell=True,
-            ).stdout
-            output = filter_ansi_escape(output)
-            match = re.search(CH_VERSION_PATTERN, output.strip())
-            if match:
-                result = match.group("ch_version")
+        output = host_node.execute(
+            "cloud-hypervisor --version",
+            shell=True,
+        ).stdout
+        output = filter_ansi_escape(output)
+        match = re.search(CH_VERSION_PATTERN, output.strip())
+        if match:
+            result = match.group("ch_version")
         return result

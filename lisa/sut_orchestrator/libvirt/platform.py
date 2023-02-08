@@ -41,7 +41,7 @@ from lisa.tools import (
     Uname,
     Whoami,
 )
-from lisa.util import LisaException, constants, get_public_key_data
+from lisa.util import LisaException, MutexObject, constants, get_public_key_data
 from lisa.util.logger import Logger, filter_ansi_escape, get_logger
 
 from . import libvirt_events_thread
@@ -102,9 +102,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self.libvirt_conn_str: str
         self.libvirt_conn: libvirt.virConnect
         self.platform_runbook: BaseLibvirtPlatformSchema
-        self.host_node: Node
         self.vm_disks_dir: str
+        self.host_node_object: MutexObject[Node]
 
+        self._is_host_remote: bool = False
         self._host_environment_information_hooks = {
             KEY_HOST_DISTRO: self._get_host_distro,
             KEY_HOST_KERNEL: self._get_host_kernel_version,
@@ -142,6 +143,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
 
         host = self.platform_runbook.hosts[0]
+        host_node: Node
         if host.is_remote():
             assert host.address
             if not host.username:
@@ -149,23 +151,25 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             if not host.private_key_file:
                 raise LisaException("Private key file must be provided for remote host")
 
-            self.host_node = RemoteNode(
+            host_node = RemoteNode(
                 runbook=schema.Node(name="libvirt-host"),
                 index=-1,
                 logger_name="libvirt-host",
                 parent_logger=get_logger("libvirt-platform"),
             )
 
-            self.host_node.set_connection_info(
+            host_node.set_connection_info(
                 address=host.address,
                 username=host.username,
                 private_key_file=host.private_key_file,
             )
         else:
-            self.host_node = local_node_connect(
+            host_node = local_node_connect(
                 name="libvirt-host",
                 parent_logger=get_logger("libvirt-platform"),
             )
+        self._is_host_remote = host_node.is_remote
+        self.host_node_object = MutexObject(host_node)
 
         if self.platform_runbook.capture_libvirt_debug_logs:
             self._enable_libvirt_debug_log()
@@ -187,7 +191,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
 
-        if self.host_node.is_remote:
+        if self._is_host_remote:
             self._stop_port_forwarding(environment, log)
 
     def _cleanup(self) -> None:
@@ -196,9 +200,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         self._capture_libvirt_logs()
 
-        if self.host_node.is_remote:
-            dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
-            dmesg_path = self.host_node.local_log_path / "dmesg.txt"
+        if self._is_host_remote:
+            with self.host_node_object.lock() as host_node:
+                dmesg_output = host_node.tools[Dmesg].get_output(force_run=True)
+                dmesg_path = host_node.local_log_path / "dmesg.txt"
             with open(str(dmesg_path), "w") as f:
                 f.write(dmesg_output)
 
@@ -429,7 +434,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
         )
 
-        if self.host_node.is_remote:
+        if self._is_host_remote:
             node_context.os_disk_source_file_path = node_runbook.disk_img
             host = self.platform_runbook.hosts[0]
             node_context.os_disk_base_file_path = os.path.join(
@@ -526,7 +531,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         environment: Environment,
         log: Logger,
     ) -> None:
-        self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
+        with self.host_node_object.lock() as host_node:
+            host_node.tools[Mkdir].create_directory(
+                self.vm_disks_dir,
+            )
 
         for node in environment.nodes.list():
             node_context = get_node_context(node)
@@ -549,18 +557,19 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             # use lock to avoid multiple environments scp disk img to same
             # os_disk_base_file_path.
             with BaseLibvirtPlatform._disk_img_copy_lock:
-                source_exists = self.host_node.tools[Ls].path_exists(
-                    path=node_context.os_disk_base_file_path, sudo=True
-                )
-                if source_exists:
-                    self.host_node.tools[Chmod].chmod(
-                        node_context.os_disk_base_file_path, "a+r", sudo=True
+                with self.host_node_object.lock() as host_node:
+                    source_exists = host_node.tools[Ls].path_exists(
+                        path=node_context.os_disk_base_file_path, sudo=True
                     )
-                else:
-                    self.host_node.shell.copy(
-                        Path(node_context.os_disk_source_file_path),
-                        Path(node_context.os_disk_base_file_path),
-                    )
+                    if source_exists:
+                        host_node.tools[Chmod].chmod(
+                            node_context.os_disk_base_file_path, "a+r", sudo=True
+                        )
+                    else:
+                        host_node.shell.copy(
+                            Path(node_context.os_disk_source_file_path),
+                            Path(node_context.os_disk_base_file_path),
+                        )
 
         # Create cloud-init ISO file.
         self._create_node_cloud_init_iso(environment, log, node)
@@ -587,7 +596,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Delete VM disks directory.
         try:
-            self.host_node.shell.remove(Path(self.vm_disks_dir), True)
+            with self.host_node_object.lock() as host_node:
+                host_node.shell.remove(Path(self.vm_disks_dir), True)
         except Exception as ex:
             log.warning(f"Failed to delete VM files directory: {ex}")
 
@@ -643,7 +653,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         environment_context = get_environment_context(environment)
         for port, address in environment_context.port_forwarding_list:
-            self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
+            with self.host_node_object.lock() as host_node:
+                host_node.tools[Iptables].stop_forwarding(port, address, 22)
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(self, environment: Environment, log: Logger) -> None:
@@ -652,9 +663,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         # Give all the VMs some time to boot and then acquire an IP address.
         timeout = time.time() + environment_context.network_boot_timeout
 
-        if self.host_node.is_remote:
-            remote_node = cast(RemoteNode, self.host_node)
-            conn_info = remote_node.connection_info
+        if self._is_host_remote:
+            with self.host_node_object.lock() as host_node:
+                remote_node = cast(RemoteNode, host_node)
+                conn_info = remote_node.connection_info
             address = conn_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
 
         for node in environment.nodes.list():
@@ -664,7 +676,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             local_address = self._get_node_ip_address(environment, log, node, timeout)
 
             node_port = 22
-            if self.host_node.is_remote:
+            if self._is_host_remote:
                 with BaseLibvirtPlatform._port_forwarding_lock:
                     port_not_found = True
                     while port_not_found:
@@ -673,19 +685,21 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                                 "No available ports on the host to forward"
                             )
 
-                        # check if the port is already in use
-                        output = self.host_node.execute(
-                            "nc -vz 127.0.0.1 "
-                            f"{BaseLibvirtPlatform._next_available_port}"
-                        )
+                        with self.host_node_object.lock() as host_node:
+                            # check if the port is already in use
+                            output = host_node.execute(
+                                "nc -vz 127.0.0.1 "
+                                f"{BaseLibvirtPlatform._next_available_port}"
+                            )
                         if output.exit_code == 1:  # port not in use
                             node_port = BaseLibvirtPlatform._next_available_port
                             port_not_found = False
                         BaseLibvirtPlatform._next_available_port += 1
 
-                self.host_node.tools[Iptables].start_forwarding(
-                    node_port, local_address, 22
-                )
+                with self.host_node_object.lock() as host_node:
+                    host_node.tools[Iptables].start_forwarding(
+                        node_port, local_address, 22
+                    )
 
                 environment_context.port_forwarding_list.append(
                     (node_port, local_address)
@@ -773,9 +787,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 [("/user-data", user_data_string), ("/meta-data", meta_data_string)],
             )
 
-            self.host_node.shell.copy(
-                Path(iso_path), Path(node_context.cloud_init_file_path)
-            )
+            with self.host_node_object.lock() as host_node:
+                host_node.shell.copy(
+                    Path(iso_path), Path(node_context.cloud_init_file_path)
+                )
         finally:
             tmp_dir.cleanup()
 
@@ -804,10 +819,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
     def _create_node_data_disks(self, node: Node) -> None:
         node_context = get_node_context(node)
-        qemu_img = self.host_node.tools[QemuImg]
-
-        for disk in node_context.data_disks:
-            qemu_img.create_new_qcow2(disk.file_path, disk.size_gib * 1024)
+        with self.host_node_object.lock() as host_node:
+            qemu_img = host_node.tools[QemuImg]
+            for disk in node_context.data_disks:
+                qemu_img.create_new_qcow2(disk.file_path, disk.size_gib * 1024)
 
     # Create the XML definition for the VM.
     def _create_node_domain_xml(
@@ -906,7 +921,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         video = ET.SubElement(devices, "video")
 
         video_model = ET.SubElement(video, "model")
-        if isinstance(self.host_node.os, CBLMariner):
+        with self.host_node_object.lock() as host_node:
+            os = host_node.os
+        if isinstance(os, CBLMariner):
             video_model.attrib["type"] = "vga"
         else:
             video_model.attrib["type"] = "qxl"
@@ -1085,14 +1102,15 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         full_machine_type = domain_caps.findall("./machine")[0].text
         arch = domain_caps.findall("./arch")[0].text
 
-        # Read the QEMU firmware config files.
-        # Note: "/usr/share/qemu/firmware" is a well known location for these files.
-        firmware_configs_str = self.host_node.execute(
-            "cat /usr/share/qemu/firmware/*.json",
-            shell=True,
-            expected_exit_code=0,
-            no_debug_log=True,
-        ).stdout
+        with self.host_node_object.lock() as host_node:
+            # Read the QEMU firmware config files.
+            # Note: "/usr/share/qemu/firmware" is a well known location for these files
+            firmware_configs_str = host_node.execute(
+                "cat /usr/share/qemu/firmware/*.json",
+                shell=True,
+                expected_exit_code=0,
+                no_debug_log=True,
+            ).stdout
         firmware_configs = self._read_concat_json_str(firmware_configs_str)
 
         # Filter on architecture.
@@ -1190,36 +1208,32 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         assert issubclass(node_runbook_type, BaseLibvirtNodeSchema)
         return node_runbook_type
 
-    def _get_host_distro(self) -> str:
-        result = self.host_node.os.information.full_version if self.host_node else ""
+    def _get_host_distro(self, host_node: Node) -> str:
+        result = host_node.os.information.full_version if host_node else ""
         return result
 
-    def _get_host_kernel_version(self) -> str:
-        result = ""
-        if self.host_node:
-            uname = self.host_node.tools[Uname]
-            result = uname.get_linux_information().kernel_version_raw
+    def _get_host_kernel_version(self, host_node: Node) -> str:
+        uname = host_node.tools[Uname]
+        result = uname.get_linux_information().kernel_version_raw
         return result
 
-    def _get_libvirt_version(self) -> str:
-        result = ""
-        if self.host_node:
-            result = self.host_node.execute("libvirtd --version", shell=True).stdout
-            result = filter_ansi_escape(result)
+    def _get_libvirt_version(self, host_node: Node) -> str:
+        result = host_node.execute("libvirtd --version", shell=True).stdout
+        result = filter_ansi_escape(result)
         return result
 
-    def _get_vmm_version(self) -> str:
+    def _get_vmm_version(self, host_node: Node) -> str:
         return "Unknown"
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
 
-        if self.host_node:
-            node: Node = self.host_node
+        with self.host_node_object.lock() as host_node:
+            node: Node = host_node
             for key, method in self._host_environment_information_hooks.items():
                 node.log.debug(f"detecting {key} ...")
                 try:
-                    value = method()
+                    value = method(node)
                     if value:
                         information[key] = value
                 except Exception as identifier:
@@ -1228,46 +1242,46 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return information
 
     def _enable_libvirt_debug_log(self) -> None:
-        self.host_node.tools[Mkdir].create_directory(
-            str(self.LIBVIRT_DEBUG_LOG_PATH.parent),
-            sudo=True,
-        )
-        sed = self.host_node.tools[Sed]
-        sed.append(
-            f'log_outputs="1:file:{self.LIBVIRT_DEBUG_LOG_PATH} 3:syslog:libvirtd" '
-            f"# {self.CONFIG_FILE_MARKER}",
-            str(self.LIBVIRTD_CONF_PATH),
-            sudo=True,
-        )
-
-        self.host_node.tools[Service].restart_service("libvirtd")
+        with self.host_node_object.lock() as host_node:
+            host_node.tools[Mkdir].create_directory(
+                str(self.LIBVIRT_DEBUG_LOG_PATH.parent),
+                sudo=True,
+            )
+            sed = host_node.tools[Sed]
+            sed.append(
+                f'log_outputs="1:file:{self.LIBVIRT_DEBUG_LOG_PATH} 3:syslog:libvirtd" '
+                f"# {self.CONFIG_FILE_MARKER}",
+                str(self.LIBVIRTD_CONF_PATH),
+                sudo=True,
+            )
+            host_node.tools[Service].restart_service("libvirtd")
 
     def _disable_libvirt_debug_log(self) -> None:
-        self.host_node.tools[Sed].delete_lines(
-            self.CONFIG_FILE_MARKER,
-            self.LIBVIRTD_CONF_PATH,
-            sudo=True,
-        )
+        with self.host_node_object.lock() as host_node:
+            host_node.tools[Sed].delete_lines(
+                self.CONFIG_FILE_MARKER,
+                self.LIBVIRTD_CONF_PATH,
+                sudo=True,
+            )
 
     def _capture_libvirt_logs(self) -> None:
-        libvirt_log_local_path = self.host_node.local_log_path / "libvirtd.log"
+        with self.host_node_object.lock() as host_node:
+            libvirt_log_local_path = host_node.local_log_path / "libvirtd.log"
 
-        if self.platform_runbook.capture_libvirt_debug_logs:
-            libvirt_log_temp_path = self.host_node.working_path / "libvirtd.log"
+            if self.platform_runbook.capture_libvirt_debug_logs:
+                libvirt_log_temp_path = host_node.working_path / "libvirtd.log"
 
-            # Copy the log file to working_path, change ownership and then copy_back
-            # to the local machine.
-            self.host_node.tools[Cp].copy(
-                self.LIBVIRT_DEBUG_LOG_PATH, libvirt_log_temp_path, sudo=True
-            )
-            user = self.host_node.tools[Whoami].get_username()
-            self.host_node.tools[Chown].change_owner(libvirt_log_temp_path, user)
-            self.host_node.shell.copy_back(
-                libvirt_log_temp_path, libvirt_log_local_path
-            )
-        else:
-            libvirt_log = self.host_node.tools[Journalctl].logs_for_unit(
-                "libvirtd", sudo=self.host_node.is_remote
-            )
-            with open(str(libvirt_log_local_path), "w") as f:
-                f.write(libvirt_log)
+                # Copy the log file to working_path, change ownership and then copy_back
+                # to the local machine.
+                host_node.tools[Cp].copy(
+                    self.LIBVIRT_DEBUG_LOG_PATH, libvirt_log_temp_path, sudo=True
+                )
+                user = host_node.tools[Whoami].get_username()
+                host_node.tools[Chown].change_owner(libvirt_log_temp_path, user)
+                host_node.shell.copy_back(libvirt_log_temp_path, libvirt_log_local_path)
+            else:
+                libvirt_log = host_node.tools[Journalctl].logs_for_unit(
+                    "libvirtd", sudo=self._is_host_remote
+                )
+                with open(str(libvirt_log_local_path), "w") as f:
+                    f.write(libvirt_log)

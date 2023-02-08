@@ -39,19 +39,19 @@ class QemuPlatform(BaseLibvirtPlatform):
         self, environment: Environment, log: Logger, node: Node
     ) -> None:
         node_context = get_node_context(node)
-        self.host_node.tools[QemuImg].create_diff_qcow2(
-            node_context.os_disk_file_path, node_context.os_disk_base_file_path
-        )
+        with self.host_node_object.lock() as host_node:
+            host_node.tools[QemuImg].create_diff_qcow2(
+                node_context.os_disk_file_path, node_context.os_disk_base_file_path
+            )
 
-    def _get_vmm_version(self) -> str:
+    def _get_vmm_version(self, host_node: Node) -> str:
         result = "Unknown"
-        if self.host_node:
-            output = self.host_node.execute(
-                "qemu-system-x86_64 --version",
-                shell=True,
-            ).stdout
-            output = filter_ansi_escape(output)
-            match = re.search(QEMU_VERSION_PATTERN, output.strip())
-            if match:
-                result = match.group("qemu_version")
+        output = host_node.execute(
+            "qemu-system-x86_64 --version",
+            shell=True,
+        ).stdout
+        output = filter_ansi_escape(output)
+        match = re.search(QEMU_VERSION_PATTERN, output.strip())
+        if match:
+            result = match.group("qemu_version")
         return result
