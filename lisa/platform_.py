@@ -12,7 +12,7 @@ from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature, Features
 from lisa.messages import MessageBase
-from lisa.node import RemoteNode
+from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import (
     InitializableMixin,
@@ -97,6 +97,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         return {}
 
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        return {}
+
     def _cleanup(self) -> None:
         """
         Called when the platform is being discarded.
@@ -121,6 +124,18 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         except Exception as identifier:
             self._log.exception(
                 "failed to get environment information on platform", exc_info=identifier
+            )
+
+        return information
+
+    @hookimpl
+    def get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        try:
+            information.update(self._get_node_information(node=node))
+        except Exception as identifier:
+            self._log.exception(
+                "failed to get node information on platform", exc_info=identifier
             )
 
         return information

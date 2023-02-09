@@ -12,7 +12,7 @@ from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Lsblk, Mkfs, Mount, Reboot
+from lisa.tools import Echo, Lsblk, Mkfs, Mount, Reboot, Uname
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -21,6 +21,9 @@ from lisa.util import (
     constants,
     fields_to_dict,
     get_datetime_path,
+    hookimpl,
+    hookspec,
+    plugin_manager,
     subclasses,
 )
 from lisa.util.constants import PATH_REMOTE_ROOT
@@ -51,8 +54,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.name = runbook.name
         self.is_test_target = is_test_target
         self.index = index
-
+        self.provision_time: float
         self._shell: Optional[Shell] = None
+        self._first_initialize: bool = False
 
         # will be initialized by platform
         self.features: Features
@@ -376,12 +380,23 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 saved_path=None, stage="after_case", force_run=True
             )
 
+    def get_information(self) -> Dict[str, str]:
+        final_information: Dict[str, str] = {}
+        informations: List[Dict[str, str]] = plugin_manager.hook.get_node_information(
+            node=self
+        )
+        informations.reverse()
+        for current_information in informations:
+            final_information.update(current_information)
+
+        return final_information
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
             self._log_handler = create_file_handler(
                 self.local_log_path / "node.log", self.log
             )
-
+            self._first_initialize = True
         self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
@@ -713,3 +728,36 @@ def quick_connect(
     node.initialize()
 
     return node
+
+
+class NodeHookSpec:
+    @hookspec
+    def get_node_information(self, node: Node) -> Dict[str, str]:
+        ...
+
+
+class NodeHookImpl:
+    @hookimpl
+    def get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+
+        if node:
+            try:
+                if node.is_connected and node.is_posix:
+                    linux_information = node.tools[Uname].get_linux_information()
+                    information_dict = fields_to_dict(
+                        linux_information, fields=["hardware_platform"]
+                    )
+                    information.update(information_dict)
+                    information["distro_version"] = node.os.information.full_version
+                    information["kernel_version"] = linux_information.kernel_version_raw
+            except Exception as identifier:
+                node.log.exception(
+                    "failed to get node information", exc_info=identifier
+                )
+
+        return information
+
+
+plugin_manager.add_hookspecs(NodeHookSpec)
+plugin_manager.register(NodeHookImpl())
