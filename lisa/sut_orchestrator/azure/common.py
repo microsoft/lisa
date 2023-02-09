@@ -87,6 +87,7 @@ global_credential_access_lock = Lock()
 class EnvironmentContext:
     resource_group_name: str = ""
     resource_group_is_specified: bool = False
+    provision_time: float = 0
 
 
 @dataclass
