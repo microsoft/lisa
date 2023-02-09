@@ -113,8 +113,8 @@ class AzureVmPurchasePlanSchema:
 @dataclass
 class AzureVmMarketplaceSchema:
     publisher: str = "Canonical"
-    offer: str = "UbuntuServer"
-    sku: str = "18.04-LTS"
+    offer: str = "0001-com-ubuntu-server-jammy"
+    sku: str = "22_04-lts"
     version: str = "Latest"
 
     def __hash__(self) -> int:
