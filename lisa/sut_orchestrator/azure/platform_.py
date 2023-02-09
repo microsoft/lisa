@@ -69,6 +69,7 @@ from lisa.util import (
 )
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
+from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 from .. import AZURE
@@ -487,8 +488,9 @@ class AzurePlatform(Platform):
 
                 if self._azure_runbook.deploy:
                     self._validate_template(deployment_parameters, log)
+                    time = create_timer()
                     self._deploy(location, deployment_parameters, log, environment)
-
+                    environment_context.provision_time = time.elapsed()
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
             except Exception as identifier:
@@ -613,15 +615,30 @@ class AzurePlatform(Platform):
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         information: Dict[str, Any] = {}
+        for key, method in self._environment_information_hooks.items():
+            node.log.debug(f"detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as identifier:
+                node.log.exception(f"error on get {key}.", exc_info=identifier)
 
-        node.log.debug("detecting lis version...")
-        modinfo = node.tools[Modinfo]
-        information["lis_version"] = modinfo.get_version("hv_vmbus")
+        if node.is_connected and node.is_posix:
+            node.log.debug("detecting lis version...")
+            modinfo = node.tools[Modinfo]
+            information["lis_version"] = modinfo.get_version("hv_vmbus")
 
-        node.log.debug("detecting vm generation...")
-        information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
-        node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+            node.log.debug("detecting vm generation...")
+            information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
+            node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
 
+        node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        if node_runbook:
+            information["location"] = node_runbook.location
+            information["vmsize"] = node_runbook.vm_size
+            information["image"] = node_runbook.get_image_name()
+        information["platform"] = self.type_name()
         return information
 
     def _get_kernel_version(self, node: Node) -> str:
@@ -747,33 +764,20 @@ class AzurePlatform(Platform):
             node: Optional[Node] = environment.default_node
         else:
             node = None
+
         if node:
-            node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-
-            for key, method in self._environment_information_hooks.items():
-                node.log.debug(f"detecting {key} ...")
-                try:
-                    value = method(node)
-                    if value:
-                        information[key] = value
-                except Exception as identifier:
-                    node.log.exception(f"error on get {key}.", exc_info=identifier)
-
             information.update(self._get_platform_information(environment))
-
-            if node.is_connected and node.is_posix:
-                information.update(self._get_node_information(node))
+            information.update(self._get_node_information(node))
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
             node_space = environment.capability.nodes[0]
             node_runbook = node_space.get_extended_runbook(
                 AzureNodeSchema, type_name=AZURE
             )
-
-        if node_runbook:
-            information["location"] = node_runbook.location
-            information["vmsize"] = node_runbook.vm_size
-            information["image"] = node_runbook.get_image_name()
+            if node_runbook:
+                information["location"] = node_runbook.location
+                information["vmsize"] = node_runbook.vm_size
+                information["image"] = node_runbook.get_image_name()
 
         return information
 
@@ -1448,6 +1452,7 @@ class AzurePlatform(Platform):
                 password=node_context.password,
                 private_key_file=node_context.private_key_file,
             )
+            node.provision_time = environment_context.provision_time
 
         # enable ssh for windows, if it's not Windows, or SSH reachable, it will
         # skip.
