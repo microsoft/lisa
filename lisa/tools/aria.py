@@ -7,6 +7,7 @@ from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.tar import Tar
+import random
 
 
 class Aria(Tool):
@@ -68,7 +69,7 @@ class Aria(Tool):
         # set download path
         download_path = f"{file_path}/{filename}"
 
-        # if num_connections is not specified, set to minimum of number of cores
+        # if num_connections is not specified, set to minimum cores
         # on the node, or 16 which is the max number of connections aria2 can
         # handle
         if not num_connections:
@@ -76,6 +77,11 @@ class Aria(Tool):
 
         # setup aria2c command and run
         command = f"-x {num_connections} --dir={file_path} --out={filename} "
+        # set retry-wait randomly to avoid everyone polling at roughly
+        # the same period, 3-9 second retry period
+        command += f"--retry-wait={ random.randrange(2,10) } --max-tries=10 "
+        # NOTE: max-file-not-found counts towards max-tries.
+        command += "--max-file-not-found=5 "
         if overwrite:
             command += "--allow-overwrite=true "
             force_run = True
