@@ -219,6 +219,7 @@ class AzureImageStandard(TestSuite):
             r"^(.*This warning is only shown for the first unit using IP firewalling.*)$",  # noqa: E501
             re.M,
         ),
+        re.compile(r"^(.*Internal error: Cannot find counter: swap.*)$", re.M),
     ]
 
     @TestCaseMetadata(
