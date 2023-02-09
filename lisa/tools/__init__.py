@@ -99,6 +99,7 @@ from .strace import Strace
 from .stress_ng import StressNg
 from .swap import Swap
 from .sysctl import Sysctl
+from .systemd_analyze import SystemdAnalyze
 from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
@@ -214,6 +215,7 @@ __all__ = [
     "StressNg",
     "Swap",
     "Sysctl",
+    "SystemdAnalyze",
     "Tar",
     "TaskSet",
     "Texinfo",
