@@ -232,6 +232,21 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     packet_size_kbytes: Decimal = Decimal(0)
 
 
+@dataclass
+class ProvisionBootTimeMessage(MessageBase):
+    type: str = "ProvisionBootTime"
+
+    # boot times collected from `last reboot` entries
+    boot_times: int = 0
+    provision_time: float = 0
+    kernel_boot_time: float = 0
+    initrd_boot_time: float = 0
+    userspace_boot_time: float = 0
+    firmware_boot_time: float = 0
+    loader_boot_time: float = 0
+    information: Dict[str, str] = field(default_factory=dict)
+
+
 def _is_completed_status(status: TestStatus) -> bool:
     return status in [
         TestStatus.FAILED,
