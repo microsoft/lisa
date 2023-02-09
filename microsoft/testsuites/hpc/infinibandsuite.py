@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from assertpy import assert_that
 
 from lisa import (
@@ -16,6 +15,7 @@ from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Modprobe, Ssh
 from lisa.util import (
+    LisaException,
     SkippedException,
     UnsupportedDistroException,
     UnsupportedKernelException,
@@ -31,6 +31,26 @@ from lisa.util.parallel import run_in_parallel
     """,
 )
 class InfinibandSuite(TestSuite):
+    @TestCaseMetadata(
+        description="""
+        This test case will
+        1. List all available network interfaces
+        2. Check if InfiniBand cards are present
+        3. Ensure the first InfiniBand card is named starting with "ib0"
+        """,
+        priority=2,
+        requirement=simple_requirement(supported_features=[Infiniband]),
+    )
+    def verify_ib_naming(self, log: Logger, node: Node) -> None:
+        ib_interfaces = node.features[Infiniband].get_ib_interfaces()
+        ib_first_device_name = ib_interfaces[0].ib_device_name
+
+        if not ib_first_device_name:
+            raise LisaException("This node has no IB devices available.")
+        if "ib0" not in ib_first_device_name:
+            raise LisaException("The first IB device on this node is not named ib0.")
+        log.info("IB device naming/ordering has been verified successfully!")
+
     @TestCaseMetadata(
         description="""
         This test case will
