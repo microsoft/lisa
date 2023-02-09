@@ -24,6 +24,7 @@ from assertpy import assert_that
 from retry import retry
 from semver import VersionInfo
 
+from lisa import notifier
 from lisa.base_tools import (
     AptAddRepository,
     Cat,
@@ -383,6 +384,17 @@ class Posix(OperatingSystem, BaseClassMixin):
         )
 
         if self._node.is_test_target:
+            if self._node._first_initialize:
+                from lisa.tools import SystemdAnalyze
+
+                try:
+                    systemd_analyze_tool = self._node.tools[SystemdAnalyze]
+                    boot_time = systemd_analyze_tool.get_boot_time()
+                    boot_time.information.update(self._node.get_information())
+                    notifier.notify(boot_time)
+                except Exception as identifier:
+                    self._node.log.debug(f"error on get boot time: {identifier}")
+
             from lisa.tools import Chmod, Find
 
             find_tool = self._node.tools[Find]
