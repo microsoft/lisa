@@ -158,10 +158,13 @@ class CloudHypervisorTestSuite(TestSuite):
             node.tools[Usermod].add_user_to_group("mshv", sudo=True)
 
     def _get_hypervisor_param(self, node: Node) -> str:
+        kvm_exists = node.tools[Ls].path_exists(path="/dev/kvm", sudo=True)
+        if kvm_exists:
+            return "kvm"
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         if mshv_exists:
             return "mshv"
-        return "kvm"
+        return ""
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:
