@@ -1490,10 +1490,8 @@ class Redhat(Fedora):
         except Exception:
             information = super(Fedora, self)._get_information()
 
-            # remove Linux Server in vendor
-            information.vendor = get_matched_str(
-                information.vendor, self.__vendor_pattern
-            )
+        # remove Linux Server in vendor
+        information.vendor = get_matched_str(information.vendor, self.__vendor_pattern)
 
         return information
 
