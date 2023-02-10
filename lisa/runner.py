@@ -184,7 +184,7 @@ class RootRunner(Action):
 
     def __init__(self, runbook_builder: RunbookBuilder) -> None:
         super().__init__()
-        self.exit_code: int = 0
+        self.exit_code: int = -1
 
         self._runbook_builder = runbook_builder
 
@@ -236,9 +236,8 @@ class RootRunner(Action):
                 self.exit_code = sum(
                     1 for x in results if x.status == TestStatus.FAILED
                 )
-        else:
-            # unknown error happened, see exception log for details.
-            self.exit_code = -1
+            else:
+                self.exit_code = 0
 
     async def stop(self) -> None:
         await super().stop()
