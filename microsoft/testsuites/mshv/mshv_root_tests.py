@@ -24,7 +24,7 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 @TestSuiteMetadata(
     area="mshv",
-    category="",
+    category="stress",
     description="""
     This test suite contains tests that are meant to be run on the
     Microsoft Hypervisor (MSHV) root partition.
