@@ -20,8 +20,8 @@ from lisa.util.process import Process
 
 
 @TestSuiteMetadata(
-    area="stress",
-    category="stress-ng",
+    area="stress-ng",
+    category="stress",
     description="""
     A suite for running the various classes of stressors provided
     by stress-ng.
