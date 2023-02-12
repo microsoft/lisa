@@ -8,7 +8,7 @@ from assertpy.assertpy import assert_that
 from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
-from lisa.operating_system import Fedora, Posix
+from lisa.operating_system import Fedora, Posix, Redhat
 from lisa.tools import Ip, Kill, Lsmod, Pgrep
 from lisa.util import LisaException
 
@@ -151,6 +151,10 @@ class Qemu(Tool):
 
         # install qemu
         self.node.os.install_packages("qemu-kvm")
+
+        if isinstance(self.node.os, Redhat):
+            # fix issue 'qemu-kvm: cannot initialize crypto: Unable to initialize gcrypt' # noqa E501
+            self.node.os.install_packages("libgcrypt")
 
         # verify that kvm is enabled
         self._is_kvm_successfully_enabled()
