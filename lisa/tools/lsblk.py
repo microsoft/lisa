@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from lisa.executable import Tool
+from lisa.operating_system import FreeBSD, Posix
 from lisa.util import LisaException, find_patterns_groups_in_lines
 
 
@@ -119,6 +120,21 @@ class Lsblk(Tool):
     @property
     def command(self) -> str:
         return "lsblk"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def _install(self) -> bool:
+        if isinstance(self.node.os, Posix):
+            self.node.os.install_packages("util-linux")
+        elif isinstance(self.node.os, FreeBSD):
+            self.node.os.install_packages("lsblk")
+        else:
+            raise LisaException(
+                f"tool {self.command} can't be installed in distro {self.node.os.name}."
+            )
+        return self._check_exists()
 
     def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
         disks: List[DiskInfo] = []
