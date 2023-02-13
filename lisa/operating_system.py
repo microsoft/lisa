@@ -1445,6 +1445,8 @@ class Redhat(Fedora):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
+        if self._no_repo_enabled.search(install_result.stdout):
+            raise RepoNotExistException(self._node.os)
         # RedHat will fail package installation is a single missing package is
         # detected, therefore we check the output to see if we were missing
         # a package. If so, fail. Otherwise we will warn in verify package result.
