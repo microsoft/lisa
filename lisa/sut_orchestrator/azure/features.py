@@ -526,16 +526,16 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         resources = template["resources"]
 
         # load a copy to avoid side effect.
-        gpu_template = json.loads(cls._gpu_extension_template)
+        # gpu_template = json.loads(cls._gpu_extension_template)
 
         node: Node = environment.nodes[0]
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        if re.match(cls._amd_supported_skus, runbook.vm_size):
-            # skip AMD, because no AMD GPU Linux extension.
-            ...
-        else:
-            gpu_template["properties"] = cls._gpu_extension_nvidia_properties
-            resources.append(gpu_template)
+        # if re.match(cls._amd_supported_skus, runbook.vm_size):
+        #     # skip AMD, because no AMD GPU Linux extension.
+        #     ...
+        # else:
+        #     gpu_template["properties"] = cls._gpu_extension_nvidia_properties
+        #     resources.append(gpu_template)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
