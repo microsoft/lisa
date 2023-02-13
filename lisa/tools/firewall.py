@@ -8,7 +8,7 @@ from lisa.executable import Tool
 class Firewall(Tool):
     @property
     def command(self) -> str:
-        return "ls -lt"
+        return "echo"
 
     @property
     def can_install(self) -> bool:
