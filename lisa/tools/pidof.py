@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, cast
 
 from lisa.executable import Tool
+from lisa.operating_system import FreeBSD, Posix
 
 
 class Pidof(Tool):
@@ -10,7 +11,10 @@ class Pidof(Tool):
 
     @property
     def can_install(self) -> bool:
-        return False
+        if isinstance(self.node.os, FreeBSD):
+            return True
+        else:
+            return False
 
     def get_pids(self, process_name: str, sudo: bool = False) -> List[str]:
         pids = []
@@ -19,3 +23,8 @@ class Pidof(Tool):
         if result.exit_code == 0:
             pids = [x.strip() for x in result.stdout.split(" ")]
         return pids
+
+    def install(self) -> bool:
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("pidof")
+        return self._check_exists()
