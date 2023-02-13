@@ -74,7 +74,12 @@ class Lscpu(Tool):
     __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __architecture_dict = {"x86_64": "x86_64", "aarch64": "aarch64", "amd64": "x86_64"}
+    __architecture_dict = {
+        "x86_64": "x86_64",
+        "aarch64": "aarch64",
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+    }
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
