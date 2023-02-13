@@ -67,7 +67,7 @@ class Gpu(Feature):
         "libelf-dev",
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
-        "python",
+        "python3",
         "libglvnd-dev",
         "ubuntu-desktop",
     ]
@@ -138,7 +138,10 @@ class Gpu(Feature):
             elif driver == ComputeSDK.CUDA:
                 if not version:
                     version = DEFAULT_CUDA_DRIVER_VERSION
-                    self._install_cuda_driver(version)
+                    try:
+                        self._install_cuda_driver(version)
+                    except Exception as e:
+                        raise LisaException(f"Failed to install CUDA Driver {str(e)}")
                     self.gpu_vendor.add("nvidia")
             else:
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
@@ -231,6 +234,7 @@ class Gpu(Feature):
                 release = "2004"
 
             # Public CUDA GPG key is needed to be installed for Ubuntu
+            self._node.execute("apt-get install cuda-keyring", shell=True, sudo=True)
             self._node.execute(
                 "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
                 f"cuda/repos/ubuntu{release}/x86_64/7fa2af80.pub",
@@ -273,8 +277,7 @@ class Gpu(Feature):
                 # dmesg
                 # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
                 # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                #  switch to use 495
-                self._node.os.install_packages("cuda-drivers-495")
+                self._node.os.install_packages("cuda-drivers-515")
         else:
             raise LisaException(
                 f"Distro {self._node.os.name}" "not supported to install CUDA driver."
