@@ -755,7 +755,21 @@ class AzureImageStandard(TestSuite):
                 raise SkippedException(
                     "CBLMariner 1.0 has a known 'wont fix' issue with this test"
                 )
-
+        if isinstance(node.os, CBLMariner) or (
+            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
+        ):
+            log_output = node.tools[Dmesg].get_output()
+        else:
+            if node.shell.exists(node.get_pure_path("/var/log/messages")):
+                log_file = "/var/log/messages"
+            elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
+                log_file = "/var/log/syslog"
+            else:
+                raise LisaException(
+                    "Neither /var/log/messages nor /var/log/syslog found"
+                )
+            cat = node.tools[Cat]
+            log_output = cat.read(log_file, force_run=True, sudo=True)
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[CpuArchitecture(arch)]
@@ -763,16 +777,6 @@ class AzureImageStandard(TestSuite):
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
         freebsd_pattern = re.compile(r"^(.*uart0: console \(115200,n,8,1\).*)$", re.M)
-        cat = node.tools[Cat]
-        if node.shell.exists(node.get_pure_path("/var/log/messages")):
-            messages_log_file = "/var/log/messages"
-        elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
-            messages_log_file = "/var/log/syslog"
-        else:
-            raise LisaException("Neither /var/log/messages nor /var/log/syslog found")
-
-        log_output = cat.read(messages_log_file, force_run=True, sudo=True)
-
         result = find_patterns_in_lines(
             log_output, [console_enabled_pattern, freebsd_pattern]
         )
@@ -781,7 +785,7 @@ class AzureImageStandard(TestSuite):
                 "Fail to find console enabled line "
                 f"'console [{current_console_device}] enabled' "
                 "or 'uart0: console (115200,n,8,1)' "
-                f"from {messages_log_file} output",
+                f"from {log_file} output",
             )
 
     @TestCaseMetadata(
