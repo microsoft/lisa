@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
+from lisa.tools import Cat, Sed
 
 
 class Firewall(Tool):
@@ -34,6 +36,11 @@ class Firewall(Tool):
         if 0 == cmd_result.exit_code:
             iptables = self.node.tools[Iptables]
             iptables.stop()
+            return
+        cmd_result = self.node.execute("command -v ipf", shell=True)
+        if 0 == cmd_result.exit_code:
+            ipf = self.node.tools[Ipf]
+            ipf.stop()
             return
 
 
@@ -149,3 +156,56 @@ class Firewalld(Tool):
     def stop(self) -> None:
         service = self.node.tools[Service]
         service.stop_service("firewalld")
+
+
+class Ipf(Tool):
+    _ipf_enable_pattern = re.compile(
+        r"(?P<param>ipfilter_enable=):*(?P<value>.*)$", re.MULTILINE
+    )
+
+    @property
+    def command(self) -> str:
+        return "ipf"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def stop(self) -> None:
+        cmd_result = self.node.tools[Cat].read(
+            file="/etc/rc.conf",
+            sudo=True,
+            force_run=True,
+        )
+        ipf_enable_found = re.search(self._ipf_enable_pattern, cmd_result)
+        if ipf_enable_found:
+            self.node.tools[Sed].substitute(
+                regexp="YES",
+                replacement="NO",
+                file="/etc/rc.conf",
+                match_lines="ipfilter_enable",
+                sudo=True,
+            )
+
+    def start(self) -> None:
+        cmd_result = self.node.tools[Cat].read(
+            file="/etc/rc.conf",
+            sudo=True,
+            force_run=True,
+        )
+        ipf_enable_found = re.search(self._ipf_enable_pattern, cmd_result)
+        if ipf_enable_found:
+            self.node.tools[Sed].substitute(
+                regexp="NO",
+                replacement="YES",
+                file="/etc/rc.conf",
+                match_lines="ipfilter_enable",
+                sudo=True,
+            )
+        else:
+            self.run(
+                'echo "ipf_enable="YES"" | sudo tee -a /etc/rc.conf >/dev/null',
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
