@@ -99,6 +99,10 @@ class Docker(Tool):
         # RHEL 8 and its derivatives don't support docker
         elif isinstance(self.node.os, Redhat):
             if self.node.os.information.version >= "8.0.0":
+                # disable SELinux to avoid issue
+                # error while loading shared libraries: libc.so.6:
+                # cannot change memory protections
+                self.node.execute("setenforce 0", sudo=True)
                 self.node.os.install_packages("podman")
                 self.node.execute(
                     "ln -s /run/podman/podman.sock /var/run/docker.sock",
