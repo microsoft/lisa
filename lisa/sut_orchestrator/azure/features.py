@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import string
+import sys
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -519,23 +520,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
     @classmethod
     def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-        template: Any = kwargs.get("template")
-        environment = cast(Environment, kwargs.get("environment"))
-        log = cast(Logger, kwargs.get("log"))
-        log.debug("updating arm template to support GPU extension.")
-        resources = template["resources"]
-
-        # load a copy to avoid side effect.
-        # gpu_template = json.loads(cls._gpu_extension_template)
-
-        node: Node = environment.nodes[0]
-        runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        # if re.match(cls._amd_supported_skus, runbook.vm_size):
-        #     # skip AMD, because no AMD GPU Linux extension.
-        #     ...
-        # else:
-        #     gpu_template["properties"] = cls._gpu_extension_nvidia_properties
-        #     resources.append(gpu_template)
+        ...
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
@@ -1879,6 +1864,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         settings: Optional[Dict[str, Any]] = None,
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
+        timeout: int = sys.maxsize,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
@@ -1908,7 +1894,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             vm_extension_name=name,
             extension_parameters=extension_parameters,
         )
-        result = wait_operation(operation)
+        result = wait_operation(operation, timeout)
 
         return result
 
