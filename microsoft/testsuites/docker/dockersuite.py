@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import os
+import re
 from pathlib import Path
 
 from assertpy import assert_that
@@ -9,7 +10,7 @@ from assertpy import assert_that
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Redhat
 from lisa.tools import Docker, DockerCompose
-from lisa.util import SkippedException
+from lisa.util import SkippedException, get_matched_str
 
 
 @TestSuiteMetadata(
@@ -22,6 +23,14 @@ from lisa.util import SkippedException
     """,
 )
 class DockerTestSuite(TestSuite):
+    # Error: OCI runtime error: crun: /usr/bin/crun:
+    # symbol lookup error: /usr/bin/crun: undefined symbol: criu_feature_check
+    ERROR_PATTERN = re.compile(
+        r"Error: OCI runtime error: crun:.*symbol lookup error.*"
+        r"undefined symbol: criu_feature_check",
+        re.M,
+    )
+
     @TestCaseMetadata(
         description="""
             This test case uses docker-compose to create and run a wordpress mysql app
@@ -214,8 +223,19 @@ class DockerTestSuite(TestSuite):
         node.log.debug(f"VerifyDockerEngine on {node.os.information.vendor.lower()}")
         result = node.execute(
             "docker run hello-world",
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Fail to run docker run hello-world",
             sudo=True,
         )
+        # temp solution, will revert change once newer package
+        # which can fix the issue release
+        # refer https://access.redhat.com/discussions/6988326
+        if result.exit_code != 0 and get_matched_str(result.stdout, self.ERROR_PATTERN):
+            if isinstance(node.os, Redhat) and node.os.information.version >= "9.0.0":
+                node.os.install_packages("crun-1.4.5-2*")
+                result = node.execute(
+                    "docker run hello-world",
+                    sudo=True,
+                )
+        assert_that(result.exit_code).described_as(
+            "Fail to run docker run hello-world"
+        ).is_equal_to(0)
         node.log.debug(f"VerifyDockerEngine: hello-world output - {result.stdout}")
