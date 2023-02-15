@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from http.client import HTTPException
 import re
+from http.client import HTTPException
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
+
 from lisa import (
     LisaException,
     Logger,
@@ -19,10 +20,13 @@ from lisa import (
     constants,
     simple_requirement,
 )
+from lisa.environment import Environment
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
+from lisa.operating_system import AlmaLinux, Debian, Oracle, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.testsuite import TestResult
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import get_matched_str
 
@@ -69,10 +73,11 @@ class GpuTestSuite(TestSuite):
         node: Node,
         log_path: Path,
         log: Logger,
+        environment: Environment,
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        _install_driver(node, log_path, log)
+        _install_driver(node, log_path, log, environment)
         _check_driver_installed(node)
 
     @TestCaseMetadata(
@@ -288,38 +293,42 @@ def _install_cudnn(node: Node) -> None:
 
 # We use platform to install the driver by default. If in future, it needs to
 # install independently, this logic can be reused.
-def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
+def _install_driver(
+    node: Node, log_path: Path, log: Logger, environment: Environment
+) -> None:
     gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
         return
 
-    # Try to install GPU using extension
-    extension = node.features[AzureExtension]
-    # try:
-    #     result = extension.create_or_update(
-    #         type_="NvidiaGpuDriverLinux",
-    #         publisher="Microsoft.HpcCompute",
-    #         type_handler_version="1.6",
-    #         auto_upgrade_minor_version=True,
-    #         settings={},
-    #     )
-    #     if result["provisioning_state"] == "Succeeded":
-    #         return
-    # except HttpResponseError as e:
-    #     log.info("Failed to install NVIDIA Driver using Azure Extension")
-    #       node.execute("apt-get update --fix-missing", sudo=True, shell=True)
-    #     if not "VMExtensionProvisioningError" in e.message:
-    #         raise e
-    gpu_feature.install_compute_sdk()
-    log.debug(
-        f"{gpu_feature.get_supported_driver()} sdk installed. "
-        "Will reboot to load driver."
-    )
+    if isinstance(node.os, Ubuntu):
+        sources_before = node.execute(
+            "ls -A1 /etc/apt/sources.list.d", sudo=True
+        ).stdout.split("\n")
 
-    reboot_tool = node.tools[Reboot]
-    reboot_tool.reboot_and_check_panic(log_path)
+    # Try to install GPU driver using extension
+    try:
+        __install_driver_using_platform_feature(node, environment)
+        return
+    except (HttpResponseError, LisaException) as e:
+        log.info("Failed to install NVIDIA Driver using Azure Extension")
+        if (
+            isinstance(e, HttpResponseError)
+            and "VMExtensionProvisioningError" not in e.message
+        ):
+            raise e
+        if isinstance(e, LisaException) and str(e) not in [
+            "Extension Provisioning Failed",
+            "NotSupported",
+        ]:
+            raise e
+        if isinstance(node.os, Ubuntu):
+            # Cleanup required because extension might add sources
+            sources_after = node.execute(
+                "ls -A1 /etc/apt/sources.list.d", sudo=True
+            ).stdout.split("\n")
+            __remove_sources_added_by_extension(node, sources_before, sources_after)
 
-    # _check_driver_installed(node)
+    __install_driver_using_sdk(node, log, log_path)
 
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
@@ -340,3 +349,49 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     assert_that(len(curr_gpu)).described_as(
         "GPU PCI device count should be same after stop-start"
     ).is_equal_to(len(init_gpu))
+
+
+def __remove_sources_added_by_extension(
+    node: Node, sources_before: List[str], sources_after: List[str]
+) -> None:
+    rm_sources = [source for source in sources_after if source not in sources_before]
+    for source in rm_sources:
+        node.execute(f"rm /etc/apt/sources.list.d/{source}", sudo=True)
+
+
+def __install_driver_using_platform_feature(
+    node: Node, environment: Environment
+) -> None:
+    if isinstance(environment.platform, AzurePlatform):
+        if isinstance(node.os, Redhat):
+            release = node.os.information.release
+            if release not in ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"]:
+                raise LisaException("NotSupported")
+        extension = node.features[AzureExtension]
+        extension_install_timeout_s = 25 * 60
+        result = extension.create_or_update(
+            type_="NvidiaGpuDriverLinux",
+            publisher="Microsoft.HpcCompute",
+            type_handler_version="1.6",
+            auto_upgrade_minor_version=True,
+            settings={},
+            timeout=extension_install_timeout_s,
+        )
+        if result["provisioning_state"] == "Succeeded":
+            return
+        else:
+            raise LisaException("Extension Provisioning Failed")
+    else:
+        raise NotImplementedError
+
+
+def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
+    gpu_feature = node.features[Gpu]
+    gpu_feature.install_compute_sdk()
+    log.debug(
+        f"{gpu_feature.get_supported_driver()} sdk installed. "
+        "Will reboot to load driver."
+    )
+
+    reboot_tool = node.tools[Reboot]
+    reboot_tool.reboot_and_check_panic(log_path)

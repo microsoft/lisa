@@ -43,7 +43,7 @@ class GpuSettings(schema.FeatureSettings):
 # https://download.microsoft.com/download/9/5/c/95c667ff-ab95-4c56-89e0-e13e9a76782d/NVIDIA-Linux-x86_64-460.32.03-grid-azure.run
 DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 
-DEFAULT_CUDA_DRIVER_VERSION = "10.1.105-1"
+DEFAULT_CUDA_DRIVER_VERSION = "10.1.243-1"
 
 
 class ComputeSDK(str, Enum):
@@ -227,6 +227,8 @@ class Gpu(Feature):
             self._node.os._install_package_from_url(
                 f"{cuda_repo}", package_name="cuda-drivers.rpm", signed=False
             )
+            self._node.os.install_packages("cuda-drivers", signed=False)
+
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
@@ -234,11 +236,14 @@ class Gpu(Feature):
                 release = "2004"
 
             # Public CUDA GPG key is needed to be installed for Ubuntu
-            self._node.execute("apt-get install cuda-keyring", shell=True, sudo=True)
+            self._node.tools[Wget].get(
+                "https://developer.download.nvidia.com/compute/cuda/repos/"
+                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
+            )
             self._node.execute(
-                "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
-                f"cuda/repos/ubuntu{release}/x86_64/7fa2af80.pub",
+                "dpkg -i cuda-keyring_1.0-1_all.deb",
                 sudo=True,
+                cwd=self._node.get_working_path(),
             )
             if "1804" == release:
                 cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
@@ -286,6 +291,7 @@ class Gpu(Feature):
     def _install_gpu_dep(self) -> None:
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
+            self._node.os.install_epel()
             self._node.os.install_packages(self._redhat_gpu_dependencies, signed=False)
         elif isinstance(self._node.os, Ubuntu):
             self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
