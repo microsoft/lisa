@@ -1234,7 +1234,9 @@ def load_environment(
 def get_vm(platform: "AzurePlatform", node: Node) -> Any:
     context = node.get_context(NodeContext)
     compute_client = get_compute_client(platform=platform)
-    vm = compute_client.virtual_machines.get(context.resource_group_name, node.name)
+    vm = compute_client.virtual_machines.get(
+        context.resource_group_name, context.vm_name
+    )
 
     return vm
 
