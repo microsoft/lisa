@@ -200,6 +200,7 @@ class AzureImageStandard(TestSuite):
             r"(.*temp-disk-dataloss-warning.*Deactivated successfully.*)$",
             re.M,
         ),
+        re.compile(r"(.*temp-disk-dataloss-warning.service: Succeeded.*)$", re.M),
         re.compile(
             r"(.*was skipped because all trigger condition checks failed.*)$", re.M
         ),
