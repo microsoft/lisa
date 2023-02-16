@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from http.client import HTTPException
 from pathlib import Path
 from typing import Any, List
 
@@ -23,10 +22,8 @@ from lisa import (
 from lisa.environment import Environment
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Redhat, Suse, Ubuntu
+from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.testsuite import TestResult
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import get_matched_str
 
@@ -307,7 +304,7 @@ def _install_driver(
 
     # Try to install GPU driver using extension
     try:
-        __install_driver_using_platform_feature(node, environment)
+        gpu_feature._install_driver_using_platform_feature()
         return
     except (HttpResponseError, LisaException) as e:
         log.info("Failed to install NVIDIA Driver using Azure Extension")
@@ -357,32 +354,6 @@ def __remove_sources_added_by_extension(
     rm_sources = [source for source in sources_after if source not in sources_before]
     for source in rm_sources:
         node.execute(f"rm /etc/apt/sources.list.d/{source}", sudo=True)
-
-
-def __install_driver_using_platform_feature(
-    node: Node, environment: Environment
-) -> None:
-    if isinstance(environment.platform, AzurePlatform):
-        if isinstance(node.os, Redhat):
-            release = node.os.information.release
-            if release not in ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"]:
-                raise LisaException("NotSupported")
-        extension = node.features[AzureExtension]
-        extension_install_timeout_s = 25 * 60
-        result = extension.create_or_update(
-            type_="NvidiaGpuDriverLinux",
-            publisher="Microsoft.HpcCompute",
-            type_handler_version="1.6",
-            auto_upgrade_minor_version=True,
-            settings={},
-            timeout=extension_install_timeout_s,
-        )
-        if result["provisioning_state"] == "Succeeded":
-            return
-        else:
-            raise LisaException("Extension Provisioning Failed")
-    else:
-        raise NotImplementedError
 
 
 def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:

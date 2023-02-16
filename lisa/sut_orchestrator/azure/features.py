@@ -37,7 +37,7 @@ from dataclasses_json import dataclass_json
 from marshmallow import validate
 from retry import retry
 
-from lisa import Environment, Logger, features, schema, search_space
+from lisa import Logger, features, schema, search_space
 from lisa.feature import Feature
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
@@ -518,9 +518,25 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         self._initialize_information(self._node)
         self._is_nvidia = True
 
-    @classmethod
-    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-        ...
+    def _install_driver_using_platform_feature(self) -> None:
+        if isinstance(self._node.os, Redhat):
+            release = self._node.os.information.release
+            if release not in ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"]:
+                raise LisaException("NotSupported")
+        extension = self._node.features[AzureExtension]
+        extension_install_timeout_s = 25 * 60
+        result = extension.create_or_update(
+            type_="NvidiaGpuDriverLinux",
+            publisher="Microsoft.HpcCompute",
+            type_handler_version="1.6",
+            auto_upgrade_minor_version=True,
+            settings={},
+            timeout=extension_install_timeout_s,
+        )
+        if result["provisioning_state"] == "Succeeded":
+            return
+        else:
+            raise LisaException("Extension Provisioning Failed")
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
