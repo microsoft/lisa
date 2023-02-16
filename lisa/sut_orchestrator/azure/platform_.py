@@ -280,6 +280,8 @@ class AzurePlatformSchema:
     deploy: bool = True
     # wait resource deleted or not
     wait_delete: bool = False
+    # the AzCopy path can be specified if use this tool to copy blob
+    azcopy_path: str = field(default="")
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -1893,15 +1895,11 @@ class AzurePlatform(Platform):
         return full_vhd_path
 
     def _copy_vhd_to_storage(
-        self,
-        storage_name: str,
-        src_full_vhd_path: str,
-        dst_vhd_name: str,
-        log: Logger
+        self, storage_name: str, src_vhd_sas_url: str, dst_vhd_name: str, log: Logger
     ) -> str:
         # get original vhd's hash key for comparing.
         original_key: Optional[bytearray] = None
-        original_blob_client = BlobClient.from_blob_url(src_full_vhd_path)
+        original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
         properties = original_blob_client.get_blob_properties()
         if properties.content_settings:
             original_key = properties.content_settings.get(
@@ -1915,6 +1913,7 @@ class AzurePlatform(Platform):
             container_name=SAS_COPIED_CONTAINER_NAME,
             resource_group_name=self._azure_runbook.shared_resource_group_name,
         )
+        full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
 
         # lock here to prevent a vhd is copied in multi-thread
         global _global_sas_vhd_copy_lock
@@ -1947,13 +1946,45 @@ class AzurePlatform(Platform):
                         vhd_exists = True
 
             if not vhd_exists:
-                blob_client.start_copy_from_url(
-                    src_full_vhd_path, metadata=None, incremental_copy=False
-                )
+                azcopy_path = self._azure_runbook.azcopy_path
+                if azcopy_path:
+                    log.info(f"AzCopy path: {azcopy_path}")
+                    if not os.path.exists(azcopy_path):
+                        raise LisaException(f"{azcopy_path} does not exist")
+
+                    sas_token = generate_sas_token(
+                        credential=self.credential,
+                        subscription_id=self.subscription_id,
+                        account_name=storage_name,
+                        resource_group_name=self._azure_runbook.shared_resource_group_name,  # noqa: E501
+                        writable=True,
+                    )
+                    dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
+                    log.info(f"copying vhd by azcopy {dst_vhd_name}")
+                    try:
+                        local().execute(
+                            f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "Azcopy failed to copy the blob"
+                            ),
+                            timeout=60 * 60,
+                        )
+                    except Exception as identifier:
+                        blob_client.delete_blob(delete_snapshots="include")
+                        raise LisaException(f"{identifier}")
+
+                    # Set metadata to mark the blob copied by AzCopy successfully
+                    metadata = {"AzCopyStatus": "Success"}
+                    blob_client.set_blob_metadata(metadata)
+                else:
+                    blob_client.start_copy_from_url(
+                        src_vhd_sas_url, metadata=None, incremental_copy=False
+                    )
 
             wait_copy_blob(blob_client, dst_vhd_name, log)
 
-        return f"{container_client.url}/{dst_vhd_name}"
+        return full_vhd_path
 
     def _is_stuck_copying(self, blob_client: BlobClient, log: Logger) -> bool:
         props = blob_client.get_blob_properties()
