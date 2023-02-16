@@ -1,15 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from lisa import RemoteNode, schema
 from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
-from lisa.tools import Aria, HyperV, Lscpu, Qemu, Wget
+from lisa.tools import Aria, Dmesg, HyperV, Lscpu, Qemu, Wget
 from lisa.tools.rm import Rm
-from lisa.util import SkippedException, fields_to_dict
+from lisa.util import LisaException, SkippedException, fields_to_dict, get_matched_str
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
 
@@ -22,6 +22,9 @@ NESTED_VM_TEST_FILE_CONTENT = "Message from L1 vm!!"
 NESTED_VM_TEST_PUBLIC_FILE_URL = "http://www.github.com"
 NESTED_VM_REQUIRED_DISK_SIZE_IN_GB = 6
 NESTED_VM_DOWNLOAD_TIMEOUT = 3600
+KVM_CRASH_CALL_STACK_PATTERN = re.compile(
+    r"KVM: accessing unsupported EVMCS field 2032", re.M
+)
 
 
 def qemu_connect_nested_vm(
@@ -78,6 +81,15 @@ def qemu_connect_nested_vm(
         cores=cores,
         stop_existing_vm=stop_existing_vm,
     )
+
+    # check known issues before connecting to L2 vm
+    # refer https://bugs.launchpad.net/ubuntu/+source/linux-azure/+bug/1950462
+    dmesg = host.tools[Dmesg].get_output(force_run=True)
+    if get_matched_str(dmesg, KVM_CRASH_CALL_STACK_PATTERN):
+        raise LisaException(
+            "KVM crash due to lack of patches mentioned in "
+            "https://patchwork.ozlabs.org/project/ubuntu-kernel/list/?series=273492"
+        )
 
     # setup connection to nested vm
     connection_info = schema.ConnectionInfo(
