@@ -893,6 +893,7 @@ def generate_sas_token(
     account_name: str,
     resource_group_name: str,
     expired_hours: int = 2,
+    writable: bool = False,
 ) -> Any:
     shared_key_credential = get_storage_credential(
         credential=credential,
@@ -907,7 +908,7 @@ def generate_sas_token(
         account_name=shared_key_credential["account_name"],
         account_key=shared_key_credential["account_key"],
         resource_types=resource_types,
-        permission=AccountSasPermissions(read=True),  # type: ignore
+        permission=AccountSasPermissions(read=True, write=writable),  # type: ignore
         expiry=datetime.utcnow() + timedelta(hours=expired_hours),
     )
     return sas_token
@@ -1048,12 +1049,23 @@ def wait_copy_blob(
     timeout: int = 60 * 60,
 ) -> None:
     log.info(f"copying vhd: {vhd_path}")
-    check_till_timeout(
-        lambda: blob_client.get_blob_properties().copy.status == "success",
-        timeout_message=f"copying VHD: {vhd_path}",
-        timeout=timeout,
-        interval=2,
-    )
+    if blob_client.get_blob_properties().copy.status:
+        check_till_timeout(
+            lambda: blob_client.get_blob_properties().copy.status == "success",
+            timeout_message=f"copying VHD: {vhd_path}",
+            timeout=timeout,
+            interval=2,
+        )
+    else:
+        # If the blob is copied by AzCopy, the copy.status is None.
+        # Confirm the copy operation is success by checking the metadata.
+        check_till_timeout(
+            lambda: blob_client.get_blob_properties().metadata.get("AzCopyStatus", None)
+            == "Success",
+            timeout_message=f"copying VHD: {vhd_path}",
+            timeout=timeout,
+            interval=2,
+        )
     log.info("vhd copied")
 
 
