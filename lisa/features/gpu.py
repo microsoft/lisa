@@ -25,7 +25,7 @@ FEATURE_NAME_GPU = "Gpu"
 @dataclass()
 class GpuSettings(schema.FeatureSettings):
     type: str = FEATURE_NAME_GPU
-    install_by_platform: bool = True
+    install_by_platform: bool = False
     is_enabled: bool = False
 
     def __hash__(self) -> int:
@@ -187,6 +187,9 @@ class Gpu(Feature):
 
     @classmethod
     def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError()
+
+    def _install_driver_using_platform_feature(self) -> None:
         raise NotImplementedError()
 
     # download and install NVIDIA grid driver
