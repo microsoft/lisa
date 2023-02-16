@@ -55,3 +55,15 @@ class QemuImg(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to convert disk image",
         )
+
+    def resize(
+        self,
+        src_file: str,
+        size_gib: int,
+    ) -> None:
+        self.run(
+            f"resize {src_file} {size_gib}G",
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to resize disk image",
+        )

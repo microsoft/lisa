@@ -447,6 +447,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             node_runbook.disk_img_format
         )
 
+        if node_runbook.disk_img_resize_gib:
+            node_context.os_disk_img_resize_gib = node_runbook.disk_img_resize_gib
+
         node_context.os_disk_file_path = os.path.join(
             self.vm_disks_dir, f"{node_context.vm_name}-os.qcow2"
         )

@@ -37,6 +37,7 @@ class NodeContext:
     os_disk_base_file_path: str = ""
     os_disk_base_file_fmt: DiskImageFormat = DiskImageFormat.QCOW2
     os_disk_file_path: str = ""
+    os_disk_img_resize_gib: Optional[int] = None
     console_log_file_path: str = ""
     extra_cloud_init_user_data: List[Dict[str, Any]] = field(default_factory=list)
     use_bios_firmware: bool = False
