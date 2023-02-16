@@ -64,6 +64,8 @@ class BaseLibvirtNodeSchema:
     disk_img: str = ""
     # Format of the disk image specified above.
     disk_img_format: str = ""
+    # Pass to resize the guest image os disk
+    disk_img_resize_gib: Optional[int] = None
     # Configuration options for cloud-init.
     cloud_init: Optional[CloudInitSchema] = None
     # Whether to use UEFI or BIOS firmware.
