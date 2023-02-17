@@ -60,6 +60,7 @@ from .lsblk import Lsblk
 from .lscpu import Lscpu
 from .lsinitrd import Lsinitrd
 from .lsmod import Lsmod
+from .lsof import Lsof
 from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
@@ -167,6 +168,7 @@ __all__ = [
     "Lscpu",
     "Lsinitrd",
     "Lsmod",
+    "Lsof",
     "Lspci",
     "Lsvmbus",
     "Make",
