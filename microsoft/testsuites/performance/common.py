@@ -377,8 +377,9 @@ def perf_iperf(
 
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
-    client_iperf3 = client.tools[Iperf3]
-    server_iperf3 = server.tools[Iperf3]
+    client_iperf3, server_iperf3 = run_in_parallel(
+        [lambda: client.tools[Iperf3], lambda: server.tools[Iperf3]]
+    )
     test_case_name = inspect.stack()[1][3]
     iperf3_messages_list: List[Any] = []
     if udp_mode:
