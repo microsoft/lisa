@@ -17,13 +17,14 @@ from lisa.messages import (
 )
 from lisa.operating_system import Posix
 from lisa.tools import Cat
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, check_till_timeout, constants
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
 from .git import Git
 from .ls import Ls
+from .lsof import Lsof
 from .make import Make
 
 if TYPE_CHECKING:
@@ -137,6 +138,11 @@ class Iperf3(Tool):
         process = self.node.execute_async(
             f"{self.command} {cmd}", shell=True, sudo=True
         )
+        if port:
+            check_till_timeout(
+                lambda: self.node.tools[Lsof].is_port_opened(port=port) is True,
+                timeout_message=f"wait for {port} open",
+            )
         return process
 
     def run_as_server(
