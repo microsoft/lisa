@@ -240,6 +240,9 @@ class Gpu(Feature):
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
             if release in ["2110", "2104"]:
                 release = "2004"
+            # 2210 NVIDIA Drivers are not available, use 2204
+            if release in ["2210"]:
+                release = "2204"
 
             # Public CUDA GPG key is needed to be installed for Ubuntu
             self._node.tools[Wget].get(
