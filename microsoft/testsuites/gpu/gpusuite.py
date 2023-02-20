@@ -19,7 +19,6 @@ from lisa import (
     constants,
     simple_requirement,
 )
-from lisa.environment import Environment
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
