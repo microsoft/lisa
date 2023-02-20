@@ -70,11 +70,10 @@ class GpuTestSuite(TestSuite):
         node: Node,
         log_path: Path,
         log: Logger,
-        environment: Environment,
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        _install_driver(node, log_path, log, environment)
+        _install_driver(node, log_path, log)
         _check_driver_installed(node)
 
     @TestCaseMetadata(
@@ -135,6 +134,7 @@ class GpuTestSuite(TestSuite):
         priority=2,
     )
     def verify_gpu_adapter_count(self, node: Node, log_path: Path, log: Logger) -> None:
+        _install_driver(node, log_path, log)
         gpu_feature = node.features[Gpu]
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
@@ -171,7 +171,13 @@ class GpuTestSuite(TestSuite):
             supported_features=[GpuEnabled()],
         ),
     )
-    def verify_gpu_rescind_validation(self, node: Node) -> None:
+    def verify_gpu_rescind_validation(
+        self,
+        node: Node,
+        log_path: Path,
+        log: Logger,
+    ) -> None:
+        _install_driver(node, log_path, log)
         _check_driver_installed(node)
 
         lspci = node.tools[Lspci]
@@ -203,7 +209,13 @@ class GpuTestSuite(TestSuite):
             supported_features=[GpuEnabled()],
         ),
     )
-    def verify_gpu_cuda_with_pytorch(self, node: Node) -> None:
+    def verify_gpu_cuda_with_pytorch(
+        self,
+        node: Node,
+        log_path: Path,
+        log: Logger,
+    ) -> None:
+        _install_driver(node, log_path, log)
         _check_driver_installed(node)
 
         _install_cudnn(node)
@@ -290,9 +302,7 @@ def _install_cudnn(node: Node) -> None:
 
 # We use platform to install the driver by default. If in future, it needs to
 # install independently, this logic can be reused.
-def _install_driver(
-    node: Node, log_path: Path, log: Logger, environment: Environment
-) -> None:
+def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
         return
