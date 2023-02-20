@@ -226,10 +226,13 @@ class Gpu(Feature):
                 "http://developer.download.nvidia.com/"
                 f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
             )
-            # download and install the cuda driver package from the repo
-            self._node.os._install_package_from_url(
-                f"{cuda_repo}", package_name="cuda-drivers.rpm", signed=False
-            )
+            try:
+                # download and install the cuda driver package from the repo
+                self._node.os._install_package_from_url(
+                    f"{cuda_repo}", package_name="cuda-drivers.rpm", signed=False
+                )
+            except Exception as e:
+                raise LisaException(f"Failed to install driver from source, {str(e)}")
             self._node.os.install_packages("cuda-drivers", signed=False)
 
         elif isinstance(self._node.os, Ubuntu):
