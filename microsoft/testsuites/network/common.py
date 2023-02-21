@@ -95,15 +95,7 @@ def sriov_basic_test(
     environment: Environment, vm_nics: Dict[str, Dict[str, NicInfo]]
 ) -> None:
     for node in environment.nodes.list():
-        # 1. Check module of sriov network device is loaded.
-        used_module = get_used_module(node)
-        if not node.tools[KernelConfig].is_built_in(modules_config_dict[used_module]):
-            lsmod = node.tools[Lsmod]
-            assert_that(lsmod.module_exists(used_module, force_run=True)).described_as(
-                "The module of sriov network device isn't loaded."
-            ).is_true()
-
-        # 2. Check VF counts listed from lspci is expected.
+        # 1. Check VF counts listed from lspci is expected.
         lspci = node.tools[Lspci]
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
@@ -113,6 +105,14 @@ def sriov_basic_test(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
         ).is_length(len([x for x in vm_nics[node.name].values() if x.lower != ""]))
+
+        # 2. Check module of sriov network device is loaded.
+        used_module = get_used_module(node)
+        if not node.tools[KernelConfig].is_built_in(modules_config_dict[used_module]):
+            lsmod = node.tools[Lsmod]
+            assert_that(lsmod.module_exists(used_module, force_run=True)).described_as(
+                "The module of sriov network device isn't loaded."
+            ).is_true()
 
 
 def sriov_vf_connection_test(
