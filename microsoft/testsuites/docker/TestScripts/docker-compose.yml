@@ -1,7 +1,7 @@
 version: '3.3'
 services:
    db:
-     image: mysql:5.7
+     image: mysql/mysql-server:8.0.23
      volumes:
        - db_data:/var/lib/mysql
      restart: always

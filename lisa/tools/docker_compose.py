@@ -39,7 +39,7 @@ class DockerCompose(Tool):
         hardware = uname_tool.get_linux_information().hardware_platform
         filename = "docker-compose"
         wget_tool.run(
-            "https://github.com/docker/compose/releases/download/1.23.2"
+            "https://github.com/docker/compose/releases/download/v2.14.2"
             f"/docker-compose-Linux-{hardware} -O {filename}",
             sudo=True,
         )
