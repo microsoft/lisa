@@ -53,7 +53,7 @@ __url_pattern = re.compile(
 
 
 # used to filter ansi escapes for better layout in log and other place
-__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|[=<>a-kzNM78])")
 
 # 10.0.22000.100
 # 18.04.5
