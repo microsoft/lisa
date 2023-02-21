@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, List
 
 from assertpy import assert_that
-from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     LisaException,
@@ -112,6 +111,36 @@ class GpuTestSuite(TestSuite):
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
         _gpu_provision_check(8, node, log)
+
+    @TestCaseMetadata(
+        description="""
+            This test case verifies if gpu drivers are installed using extension.
+
+            Steps:
+            1. Install the GPU Driver using Extension.
+            2. Reboot and check for kernel panic
+            3. Validate gpu drivers can be loaded successfully.
+
+        """,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+        ),
+        priority=2,
+    )
+    def verify_gpu_extension_installation(
+        self, node: Node, log_path: Path, log: Logger
+    ) -> None:
+        gpu_feature = node.features[Gpu]
+        try:
+            gpu_feature._install_driver_using_platform_feature()
+        except LisaException as e:
+            if "GPUExtensionNotSupported" in str(e):
+                raise SkippedException("GPU Extension Installation is not supported")
+            raise e
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
+        _check_driver_installed(node)
 
     @TestCaseMetadata(
         description="""
@@ -315,18 +344,8 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     try:
         gpu_feature._install_driver_using_platform_feature()
         return
-    except (HttpResponseError, LisaException) as e:
-        log.info("Failed to install NVIDIA Driver using Azure Extension")
-        if (
-            isinstance(e, HttpResponseError)
-            and "VMExtensionProvisioningError" not in e.message
-        ):
-            raise e
-        if isinstance(e, LisaException) and str(e) not in [
-            "Extension Provisioning Failed",
-            "NotSupported",
-        ]:
-            raise e
+    except Exception:
+        log.info("Failed to install NVIDIA Driver using Azure GPU Extension")
         if isinstance(node.os, Ubuntu):
             # Cleanup required because extension might add sources
             sources_after = node.execute(
