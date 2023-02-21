@@ -12,7 +12,7 @@ from .tar import Tar
 
 
 class Texinfo(Tool):
-    version = "6.7.91"
+    version = "7.0.1.90"
     source_link = f"http://alpha.gnu.org/gnu/texinfo/texinfo-{version}.tar.xz"
 
     @property
