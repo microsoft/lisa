@@ -52,7 +52,7 @@ class KdumpCrash(TestSuite):
     # So we set the timeout time 800s to make sure the dump file is completed.
     timeout_of_dump_crash = 800
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
-    crash_kernel = "512M"
+    is_auto = False
 
     @TestCaseMetadata(
         description="""
@@ -181,7 +181,7 @@ class KdumpCrash(TestSuite):
     def kdumpcrash_validate_auto_size(
         self, node: Node, log_path: Path, log: Logger
     ) -> None:
-        self.crash_kernel = "auto"
+        self.is_auto = True
         self._kdump_test(node, log_path, log)
 
     @TestCaseMetadata(
@@ -201,7 +201,7 @@ class KdumpCrash(TestSuite):
     def kdumpcrash_validate_large_memory_auto_size(
         self, node: Node, log_path: Path, log: Logger
     ) -> None:
-        self.crash_kernel = "auto"
+        self.is_auto = True
         self._kdump_test(node, log_path, log)
 
     # This method might stuck after triggering crash,
@@ -239,7 +239,7 @@ class KdumpCrash(TestSuite):
             and node.os.information.version >= "8.0.0-0"
             and node.os.information.version < "9.0.0-0"
         ):
-            if self.crash_kernel == "auto" and not node.tools[KernelConfig].is_built_in(
+            if self.is_auto and not node.tools[KernelConfig].is_built_in(
                 "CONFIG_KEXEC_AUTO_RESERVE"
             ):
                 raise SkippedException("crashkernel=auto doesn't work for the distro.")
@@ -247,13 +247,6 @@ class KdumpCrash(TestSuite):
     def _get_resource_disk_dump_path(self, node: Node) -> str:
         mount_point = node.features[Disk].get_resource_disk_mount_point()
         dump_path = mount_point + "/crash"
-        node.execute(
-            f"mkdir -p {dump_path}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
-            shell=True,
-            sudo=True,
-        )
         return dump_path
 
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
@@ -265,35 +258,16 @@ class KdumpCrash(TestSuite):
         kdump = node.tools[KdumpBase]
         free = node.tools[Free]
         total_memory = free.get_total_memory()
+        self.crash_kernel = kdump.calculate_crashkernel_size(total_memory)
+        if self.is_auto:
+            self.crash_kernel = "auto"
 
-        # Ubuntu, Redhat and Suse have different proposed crashkernel settings
-        # Please see below refrences:
-        # Ubuntu: https://ubuntu.com/server/docs/kernel-crash-dump
-        # Redhat: https://access.redhat.com/documentation/en-us/red_hat_enterprise_
-        #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
-        # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
-        # We combine their configuration to set an empirical value
-        if (
-            "G" in total_memory
-            and float(total_memory.strip("G")) < 1
-            or "M" in total_memory
-            and float(total_memory.strip("M")) < 1024
-        ):
-            self.crash_kernel = "64M"
-        elif (
-            "G" in total_memory
-            and float(total_memory.strip("G")) < 2
-            or "M" in total_memory
-            and float(total_memory.strip("M")) < 2048
-        ):
-            self.crash_kernel = "128M"
-        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
+        if "T" in total_memory and float(total_memory.strip("T")) > 1:
             # System memory is more than 1T, need to change the dump path
-            # and set crashkernel=2G
+            # and increase the timeout duration
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
-            self.crash_kernel = "2G"
             self.timeout_of_dump_crash = 1200
             if float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
