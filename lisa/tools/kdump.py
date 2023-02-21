@@ -223,6 +223,34 @@ class KdumpBase(Tool):
                     "The kernel config {config} is not set. Kdump is not supported."
                 )
 
+    def calculate_crashkernel_size(self, total_memory: str) -> str:
+        # Ubuntu, Redhat and Suse have different proposed crashkernel settings
+        # Please see below refrences:
+        # Ubuntu: https://ubuntu.com/server/docs/kernel-crash-dump
+        # Redhat: https://access.redhat.com/documentation/en-us/red_hat_enterprise_
+        #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
+        # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
+        # We combine their configuration to set an empirical value
+        if (
+            "G" in total_memory
+            and float(total_memory.strip("G")) < 1
+            or "M" in total_memory
+            and float(total_memory.strip("M")) < 1024
+        ):
+            crash_kernel = "64M"
+        elif (
+            "G" in total_memory
+            and float(total_memory.strip("G")) < 2
+            or "M" in total_memory
+            and float(total_memory.strip("M")) < 2048
+        ):
+            crash_kernel = "128M"
+        elif "T" in total_memory and float(total_memory.strip("T")) > 1:
+            self.crash_kernel = "2G"
+        else:
+            crash_kernel = "512M"
+        return crash_kernel
+
     def _get_crashkernel_cfg_file(self) -> str:
         """
         This method returns the path of cfg file where we configure crashkernel memory.
@@ -257,6 +285,10 @@ class KdumpBase(Tool):
         self,
         crashkernel: str,
     ) -> None:
+        if not crashkernel:
+            # If the crashkernel is empty, use the default setting.
+            # No need to config again
+            return
         # For Redhat 8 and later version, the cfg_file should be None.
         cfg_file = self._get_crashkernel_cfg_file()
         cmdline = self._get_crashkernel_cfg_cmdline()
@@ -383,8 +415,9 @@ class KdumpBase(Tool):
             )
 
     def check_crashkernel_loaded(self, crashkernel_memory: str) -> None:
-        # Check crashkernel parameter in cmdline
-        self._check_crashkernel_in_cmdline(crashkernel_memory)
+        if crashkernel_memory:
+            # Check crashkernel parameter in cmdline
+            self._check_crashkernel_in_cmdline(crashkernel_memory)
 
         # Check crash kernel loaded
         if not self.node.shell.exists(PurePosixPath(self.kexec_crash)):
@@ -446,6 +479,13 @@ class KdumpRedhat(KdumpBase):
         may not be enough to store the dump file, need to change the dump path
         """
         kdump_conf = "/etc/kdump.conf"
+        self.node.execute(
+            f"mkdir -p {dump_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
+            shell=True,
+            sudo=True,
+        )
         self.dump_path = dump_path
         # Change dump path in kdump conf
         sed = self.node.tools[Sed]
@@ -468,6 +508,14 @@ class KdumpDebian(KdumpBase):
         assert isinstance(self.node.os, Debian)
         self.node.os.install_packages("kdump-tools")
         return self._check_exists()
+
+    def calculate_crashkernel_size(self, total_memory: str) -> str:
+        if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
+            if "T" in total_memory and float(total_memory.strip("T")) > 1:
+                return "512M"
+
+        # Use the default crash kernel size
+        return ""
 
     def _get_crashkernel_cfg_file(self) -> str:
         return "/etc/default/grub.d/kdump-tools.cfg"
