@@ -15,6 +15,7 @@ from lisa.util.process import ExecutableResult, Process
 from .firewall import Firewall
 from .gcc import Gcc
 from .git import Git
+from .lsof import Lsof
 from .make import Make
 from .mixins import KillableMixin
 from .sysctl import Sysctl
@@ -136,6 +137,8 @@ class Lagscope(Tool, KillableMixin):
         process = self.run_async(cmd, sudo=True, shell=True, force_run=True)
         if not process.is_running():
             raise LisaException("lagscope server failed to start")
+        if not self.node.tools[Lsof].is_port_opened_per_process_name(self.command):
+            raise LisaException("no port opened for lagscope server")
         return process
 
     def run_as_client_async(
