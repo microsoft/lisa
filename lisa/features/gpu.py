@@ -223,7 +223,8 @@ class Gpu(Feature):
             release = os_information.release.split(".")[0]
             if release == "9":
                 self._node.os.add_repository(
-                    "http://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo"
+                    "http://developer.download.nvidia.com/compute/cuda/"
+                    "repos/rhel9/x86_64/cuda-rhel9.repo"
                 )
             else:
                 cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
@@ -311,7 +312,8 @@ class Gpu(Feature):
             if release == "7":
                 # vulkan-filesystem is required by CUDA in CentOS 7.x
                 self._node.os._install_package_from_url(
-                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
+                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
+                    "vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
                 )
 
         elif isinstance(self._node.os, Ubuntu):
