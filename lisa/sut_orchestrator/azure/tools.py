@@ -73,14 +73,14 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def get_configuration(self) -> Dict[str, str]:
+    def get_configuration(self, force_run: bool = False) -> Dict[str, str]:
         if isinstance(self.node.os, CoreOs):
             waagent_conf_file = "/usr/share/oem/waagent.conf"
         else:
             waagent_conf_file = "/etc/waagent.conf"
 
         config = {}
-        cfg = self.node.tools[Cat].run(waagent_conf_file).stdout
+        cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
         for line in cfg.splitlines():
             matched = self._key_value_regex.fullmatch(line)
             if matched:
@@ -109,7 +109,7 @@ class Waagent(Tool):
             )
 
     def is_rdma_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self.get_configuration(force_run=True)
         is_rdma_enabled = waagent_configuration["OS.EnableRDMA"]
         if is_rdma_enabled == "y":
             return True
