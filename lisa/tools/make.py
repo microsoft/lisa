@@ -8,6 +8,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
+from lisa.util.process import ExecutableResult
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -65,7 +66,7 @@ class Make(Tool):
         timeout: int = 600,
         thread_count: int = 0,
         update_envs: Optional[Dict[str, str]] = None,
-    ) -> None:
+    ) -> ExecutableResult:
         if thread_count == 0:
             if self._thread_count == 0:
                 lscpu = self.node.tools[Lscpu]
@@ -84,7 +85,7 @@ class Make(Tool):
             )
 
         # yes '' answers all questions with default value.
-        self.node.execute(
+        result = self.node.execute(
             f"yes '' | make -j{thread_count} {arguments}",
             cwd=cwd,
             timeout=timeout,
@@ -94,3 +95,4 @@ class Make(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to make",
         )
+        return result

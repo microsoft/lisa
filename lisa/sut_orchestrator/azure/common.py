@@ -39,6 +39,7 @@ from azure.mgmt.storage.models import (  # type: ignore
 )
 from azure.storage.blob import (
     AccountSasPermissions,
+    BlobSasPermissions,
     BlobServiceClient,
     ContainerClient,
     ResourceTypes,
@@ -885,6 +886,33 @@ def get_storage_credential(
         account_name=account_name, resource_group_name=resource_group_name
     ).keys[0]
     return {"account_name": account_name, "account_key": key.value}
+
+
+def generate_blob_sas_token(
+    credential: Any,
+    subscription_id: str,
+    account_name: str,
+    resource_group_name: str,
+    container_name: str,
+    file_name: str,
+    expired_hours: int = 2,
+) -> Any:
+    shared_key_credential = get_storage_credential(
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+    )
+
+    sas_token = generate_blob_sas_token(
+        account_name=shared_key_credential["account_name"],
+        account_key=shared_key_credential["account_key"],
+        container_name=container_name,
+        blob_name=file_name,
+        permission=BlobSasPermissions(read=True),  # type: ignore
+        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
+    )
+    return sas_token
 
 
 def generate_sas_token(
