@@ -307,6 +307,13 @@ class Gpu(Feature):
         if isinstance(self._node.os, Redhat):
             self._node.os.install_epel()
             self._node.os.install_packages(self._redhat_gpu_dependencies, signed=False)
+            release = self._node.os.information.release.split(".")[0]
+            if release == "7":
+                # vulkan-filesystem is required by CUDA in CentOS 7.x
+                self._node.os._install_package_from_url(
+                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
+                )
+
         elif isinstance(self._node.os, Ubuntu):
             self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
         else:
