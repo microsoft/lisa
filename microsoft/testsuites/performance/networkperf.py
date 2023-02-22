@@ -7,6 +7,9 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    node_requirement,
+    schema,
+    search_space,
     simple_requirement,
 )
 from lisa.environment import Environment
@@ -145,9 +148,12 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Synthetic(),
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Synthetic(),
+            )
         ),
     )
     def perf_tcp_ntttcp_synthetic(self, result: TestResult) -> None:
@@ -159,9 +165,12 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Sriov(),
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Sriov(),
+            )
         ),
     )
     def perf_tcp_ntttcp_sriov(self, result: TestResult) -> None:
