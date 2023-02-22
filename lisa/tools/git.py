@@ -341,7 +341,7 @@ class Git(Tool):
             "full_commit_id": filter_ansi_escape(latest_commit_id),
             "commit_message_name": filter_ansi_escape(commit_message_name),
             "contacts": filter_ansi_escape(author_email),
-            "describe": describe,
+            "describe": filter_ansi_escape(describe),
         }
 
         return result
