@@ -18,6 +18,13 @@ class Lsof(Tool):
         result = self.run(cmd, force_run=True, shell=True, sudo=True)
         return result.exit_code == 0
 
+    def is_port_opened_per_process_name(
+        self, process_name: str, protocol: str = "TCP"
+    ) -> bool:
+        cmd = f"-i{protocol} -P -n | grep -i {process_name}"
+        result = self.run(cmd, force_run=True, shell=True, sudo=True)
+        return result.exit_code == 0
+
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("lsof")
