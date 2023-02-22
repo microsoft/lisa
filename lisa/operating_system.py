@@ -1330,7 +1330,7 @@ class Fedora(RPMDistro):
         )
 
         # replace $releasever to 8 for 8.x
-        if major == 8:
+        if major == 8 or major == 9:
             sed = self._node.tools[Sed]
             sed.substitute("$releasever", "8", "/etc/yum.repos.d/epel*.repo", sudo=True)
 
