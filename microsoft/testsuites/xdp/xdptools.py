@@ -11,7 +11,7 @@ from lisa import (
     UnsupportedOperationException,
 )
 from lisa.executable import Tool
-from lisa.operating_system import CentOs, Debian, Fedora
+from lisa.operating_system import AlmaLinux, CentOs, Debian, Fedora
 from lisa.tools import Ethtool, Git, Make
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util import find_groups_in_lines
@@ -103,7 +103,8 @@ class XdpTool(Tool):
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
             package_list = [
-                "llvm libelf-dev libpcap-dev build-essential pkg-config m4 tshark"
+                "llvm libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
+                "netcat-openbsd tcpdump iputils-ping"
             ]
             if arch == "aarch64":
                 for package in [
@@ -129,7 +130,9 @@ class XdpTool(Tool):
                     f"{arch}/os/Packages/libpcap-devel-1.10.0-4.el9.{arch}.rpm"
                 )
             else:
-                if isinstance(self.node.os, CentOs):
+                if isinstance(self.node.os, CentOs) or isinstance(
+                    self.node.os, AlmaLinux
+                ):
                     self.node.os.install_packages("iproute-tc")
                 else:
                     self.node.os.install_packages("tc")
@@ -138,7 +141,7 @@ class XdpTool(Tool):
                     f"{arch}/os/Packages/libpcap-devel-1.9.1-5.el8.{arch}.rpm"
                 )
             self.node.os.install_packages(
-                "llvm-toolset elfutils-devel m4 wireshark perf make gcc"
+                "llvm-toolset elfutils-devel m4 wireshark perf make gcc nc tcpdump"
                 # pcaplib
             )
         else:
