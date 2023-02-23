@@ -1277,6 +1277,14 @@ class AzurePlatform(Platform):
         arm_parameters.disk_type = features.get_azure_disk_type(
             capability.disk.disk_type
         )
+        assert isinstance(
+            capability.disk.disk_controller_type, schema.DiskControllerType
+        )
+        assert (
+            arm_parameters.hyperv_generation == 2
+            or capability.disk.disk_controller_type == schema.DiskControllerType.SCSI
+        ), "Gen 1 images cannot be set to NVMe Disk Controller Type"
+        arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
 
         assert capability.network_interface
         assert isinstance(
@@ -1498,6 +1506,9 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
+        node_space.disk.disk_controller_type = search_space.SetSpace[
+            schema.DiskControllerType
+        ](is_allow_set=True, items=[])
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
         node_space.disk.data_disk_size = search_space.IntRange(min=0)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
@@ -1544,6 +1555,21 @@ class AzurePlatform(Platform):
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+
+        disk_controller_types = azure_raw_capabilities.get("DiskControllerTypes", None)
+        if disk_controller_types:
+            for allowed_type in disk_controller_types.split(","):
+                try:
+                    node_space.disk.disk_controller_type.add(
+                        schema.DiskControllerType(allowed_type)
+                    )
+                except ValueError:
+                    self._log.error(
+                        f"'{allowed_type}' is not a known Disk Controller Type "
+                        f"({[x for x in schema.DiskControllerType]})"
+                    )
+        else:
+            node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
 
         if azure_raw_capabilities.get("EphemeralOSDiskSupported", None) == "True":
             # Check if CachedDiskBytes is greater than 30GB
@@ -1773,6 +1799,11 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.disk_controller_type = search_space.SetSpace[
+            schema.DiskControllerType
+        ](is_allow_set=True, items=[])
+        node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
+        node_space.disk.disk_controller_type.add(schema.DiskControllerType.NVME)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath

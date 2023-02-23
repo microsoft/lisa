@@ -417,6 +417,17 @@ disk_type_priority: List[DiskType] = [
 ]
 
 
+class DiskControllerType(str, Enum):
+    SCSI = "SCSI"
+    NVME = "NVMe"
+
+
+disk_controller_type_priority: List[DiskControllerType] = [
+    DiskControllerType.SCSI,
+    DiskControllerType.NVME,
+]
+
+
 @dataclass_json()
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
@@ -471,6 +482,19 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
+    disk_controller_type: Optional[
+        Union[search_space.SetSpace[DiskControllerType], DiskControllerType]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[DiskControllerType.SCSI, DiskControllerType.NVME],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_set_space_by_type, base_type=DiskControllerType
+            )
+        ),
+    )
 
     def __eq__(self, o: object) -> bool:
         if not super().__eq__(o):
@@ -485,6 +509,7 @@ class DiskOptionSettings(FeatureSettings):
             and self.data_disk_iops == o.data_disk_iops
             and self.data_disk_size == o.data_disk_size
             and self.max_data_disk_count == o.max_data_disk_count
+            and self.disk_controller_type == o.disk_controller_type
         )
 
     def __repr__(self) -> str:
@@ -494,7 +519,8 @@ class DiskOptionSettings(FeatureSettings):
             f"caching: {self.data_disk_caching_type},"
             f"iops: {self.data_disk_iops},"
             f"size: {self.data_disk_size},"
-            f"max_data_disk_count: {self.max_data_disk_count}"
+            f"max_data_disk_count: {self.max_data_disk_count},"
+            f"disk_controller_type: {self.disk_controller_type}"
         )
 
     def __str__(self) -> str:
@@ -530,7 +556,8 @@ class DiskOptionSettings(FeatureSettings):
         return (
             f"{super()._get_key()}/{self.disk_type}/"
             f"{self.data_disk_count}/{self.data_disk_caching_type}/"
-            f"{self.data_disk_iops}/{self.data_disk_size}"
+            f"{self.data_disk_iops}/{self.data_disk_size}/"
+            f"{self.disk_controller_type}"
         )
 
     def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
@@ -567,6 +594,14 @@ class DiskOptionSettings(FeatureSettings):
         if self.max_data_disk_count or capability.max_data_disk_count:
             value.max_data_disk_count = search_space_countspace_method(
                 self.max_data_disk_count, capability.max_data_disk_count
+            )
+        if self.disk_controller_type or capability.disk_controller_type:
+            value.disk_controller_type = getattr(
+                search_space, f"{method_name}_setspace_by_priority"
+            )(
+                self.disk_controller_type,
+                capability.disk_controller_type,
+                disk_controller_type_priority,
             )
 
         return value

@@ -911,6 +911,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             ),
             "max_data_disk_count",
         )
+        result.merge(
+            search_space.check_setspace(
+                self.disk_controller_type, capability.disk_controller_type
+            ),
+            "disk_controller_type",
+        )
 
         return result
 
@@ -922,6 +928,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         assert (
             capability.disk_type
         ), "capability should have at least one disk type, but it's None"
+        assert (
+            capability.disk_controller_type
+        ), "capability should have at least one disk controller type, but it's None"
         value = AzureDiskOptionSettings()
         super_value = schema.DiskOptionSettings._call_requirement_method(
             self, method_name, capability
@@ -944,6 +953,30 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         value.disk_type = getattr(search_space, f"{method_name}_setspace_by_priority")(
             self.disk_type, capability.disk_type, schema.disk_type_priority
+        )
+
+        cap_disk_controller_type = capability.disk_controller_type
+        if isinstance(cap_disk_controller_type, search_space.SetSpace):
+            assert len(cap_disk_controller_type) > 0, (
+                "capability should have at least one "
+                "disk controller type, but it's empty"
+            )
+        elif isinstance(cap_disk_controller_type, schema.DiskControllerType):
+            cap_disk_controller_type = search_space.SetSpace[schema.DiskControllerType](
+                is_allow_set=True, items=[cap_disk_controller_type]
+            )
+        else:
+            raise LisaException(
+                "unknown disk controller type "
+                f"on capability, type: {cap_disk_controller_type}"
+            )
+
+        value.disk_controller_type = getattr(
+            search_space, f"{method_name}_setspace_by_priority"
+        )(
+            self.disk_controller_type,
+            capability.disk_controller_type,
+            schema.disk_controller_type_priority,
         )
 
         # below values affect data disk only.
