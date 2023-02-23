@@ -296,8 +296,13 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
 
     try:
         nvidia_smi = node.tools[NvidiaSmi]
-        gpu_count = nvidia_smi.get_gpu_count()
-        log.info(f"GPU count from nvidia-smi: {gpu_count}")
+
+        lspci_gpucount = gpu.get_gpu_count_with_lspci()
+        nvidiasmi_gpucount = nvidia_smi.get_gpu_count()
+        assert_that(lspci_gpucount).described_as(
+            f"GPU count from lspci {lspci_gpucount} not equal to"
+            f"count from nvidia-smi {nvidiasmi_gpucount}"
+        ).is_equal_to(nvidiasmi_gpucount)
     except Exception as identifier:
         raise LisaException(
             f"Cannot find nvidia-smi, make sure the driver installed correctly. "
