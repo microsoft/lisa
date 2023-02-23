@@ -406,6 +406,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
     disk_type: str = ""
+    disk_controller_type: str = ""
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
