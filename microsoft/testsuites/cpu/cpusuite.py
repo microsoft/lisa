@@ -36,7 +36,6 @@ from microsoft.testsuites.cpu.common import (
     CPUState,
     check_runnable,
     get_idle_cpus,
-    restore_interrupts_assignment,
     set_cpu_state_serial,
     set_interrupts_assigned_cpu,
     verify_cpu_hot_plug,
@@ -193,7 +192,7 @@ class CPUSuite(TestSuite):
         check_runnable(node)
 
         # set vmbus channels target cpu into 0 if kernel supports this feature.
-        file_path_list = set_interrupts_assigned_cpu(log, node)
+        set_interrupts_assigned_cpu(log, node)
 
         # when kernel doesn't support above feature, we have to rely on current vm's
         # cpu usage. then collect the cpu not in used exclude cpu0.
@@ -320,6 +319,3 @@ class CPUSuite(TestSuite):
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", origin_device_channel
                 )
-            # when kernel doesn't support set vmbus channels target cpu feature, the
-            # dict which stores original status is empty, nothing need to be restored.
-            restore_interrupts_assignment(file_path_list, node)
