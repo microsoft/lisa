@@ -72,7 +72,7 @@ class GpuTestSuite(TestSuite):
         **kwargs: Any,
     ) -> None:
         _install_driver(node, log_path, log)
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
     @TestCaseMetadata(
         description="""
@@ -140,7 +140,7 @@ class GpuTestSuite(TestSuite):
             raise e
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
     @TestCaseMetadata(
         description="""
@@ -179,7 +179,7 @@ class GpuTestSuite(TestSuite):
             "Expected device count didn't match Actual device count from lspci",
         ).is_equal_to(expected_count)
 
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
         vendor_cmd_device_count = gpu_feature.get_gpu_count_with_vendor_cmd()
         assert_that(
@@ -206,7 +206,7 @@ class GpuTestSuite(TestSuite):
         log: Logger,
     ) -> None:
         _install_driver(node, log_path, log)
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
         lspci = node.tools[Lspci]
         gpu = node.features[Gpu]
@@ -244,7 +244,7 @@ class GpuTestSuite(TestSuite):
         log: Logger,
     ) -> None:
         _install_driver(node, log_path, log)
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
         _install_cudnn(node)
 
@@ -281,7 +281,7 @@ class GpuTestSuite(TestSuite):
         ).is_equal_to(expected_count)
 
 
-def _check_driver_installed(node: Node) -> None:
+def _check_driver_installed(node: Node, log: Logger) -> None:
     gpu = node.features[Gpu]
 
     if not gpu.is_supported():
@@ -295,7 +295,9 @@ def _check_driver_installed(node: Node) -> None:
         )
 
     try:
-        _ = node.tools[NvidiaSmi]
+        nvidia_smi = node.tools[NvidiaSmi]
+        gpu_count = nvidia_smi.get_gpu_count()
+        log.info(f"GPU count from nvidia-smi: {gpu_count}")
     except Exception as identifier:
         raise LisaException(
             f"Cannot find nvidia-smi, make sure the driver installed correctly. "
