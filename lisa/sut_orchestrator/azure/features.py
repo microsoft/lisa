@@ -5,7 +5,6 @@ import copy
 import json
 import re
 import string
-import sys
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -1882,7 +1881,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         settings: Optional[Dict[str, Any]] = None,
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
-        timeout: int = sys.maxsize,
+        timeout: int = 60 * 25,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
