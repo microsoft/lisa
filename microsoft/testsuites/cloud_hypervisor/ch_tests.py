@@ -144,8 +144,14 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         ref = variables.get("cloudhypervisor_ref", "")
+        # below variable expects a comma separated list of full testnames
+        include_list, exclude_list = get_test_list(
+            variables,
+            "ch_perf_tests_included",
+            "ch_perf_tests_excluded",
+        )
         node.tools[CloudHypervisorTests].run_metrics_tests(
-            result, environment, hypervisor, log_path, ref
+            result, environment, hypervisor, log_path, ref, include_list, exclude_list
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
