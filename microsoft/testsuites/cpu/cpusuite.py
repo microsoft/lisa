@@ -20,7 +20,17 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.node import RemoteNode
-from lisa.tools import Ethtool, Fio, Iperf3, Kill, Lscpu, Lsvmbus, Modprobe
+from lisa.tools import (
+    Ethtool,
+    Fio,
+    Iperf3,
+    KernelConfig,
+    Kill,
+    Lscpu,
+    Lsvmbus,
+    Modprobe,
+    Reboot,
+)
 from lisa.util import SkippedException
 from microsoft.testsuites.cpu.common import (
     CPUState,
@@ -194,6 +204,7 @@ class CPUSuite(TestSuite):
         origin_device_channel = (
             node.tools[Ethtool].get_device_channels_info("eth0", True)
         ).current_channels
+        log.debug(f"origin current channels count: {origin_device_channel}")
 
         # set channel count into 1 to get idle cpus
         if len(idle_cpus) == 0:
@@ -221,9 +232,32 @@ class CPUSuite(TestSuite):
             # current max channel count need minus count of idle cpus
             max_channel_count = cpu_count - len(idle_cpus)
 
-            # change current channel
+            first_current_device_channel = (
+                node.tools[Ethtool].get_device_channels_info("eth0", True)
+            ).current_channels
+            log.debug(
+                f"current channels count: {first_current_device_channel} "
+                "after taking idle cpu to offline"
+            )
+
+            # if all cpus besides cpu 0 are changed into offline
+            # skip change the channel, since current channel is 1
             first_channel_count = random.randint(1, min(max_channel_count, 64))
-            node.tools[Ethtool].change_device_channels_info("eth0", first_channel_count)
+            if first_current_device_channel > 1:
+                while True:
+                    if first_channel_count != first_current_device_channel:
+                        break
+                    first_channel_count = random.randint(1, min(cpu_count, 64))
+                node.tools[Ethtool].change_device_channels_info(
+                    "eth0", first_channel_count
+                )
+                first_current_device_channel = (
+                    node.tools[Ethtool].get_device_channels_info("eth0", True)
+                ).current_channels
+                log.debug(
+                    f"current channels count: {first_current_device_channel} "
+                    f"after changing channel into {first_channel_count}"
+                )
 
             # verify that the added channels do not handle interrupts on offline cpu
             lsvmbus_channels = node.tools[Lsvmbus].get_device_channels(force_run=True)
@@ -231,7 +265,9 @@ class CPUSuite(TestSuite):
                 # verify synthetic network adapter channels align with expected value
                 if channel.class_id == "f8615163-df3e-46c5-913f-f2d2f965ed0e":
                     log.debug(f"Network synthetic channel: {channel}")
-                    assert_that(channel.channel_vp_map).is_length(first_channel_count)
+                    assert_that(channel.channel_vp_map).is_length(
+                        first_current_device_channel
+                    )
 
                 # verify that devices do not handle interrupts on offline cpu
                 for channel_vp in channel.channel_vp_map:
@@ -241,17 +277,28 @@ class CPUSuite(TestSuite):
             set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
 
             # reset max and current channel count into original ones
-            # by reloading hv_netvsc driver
-            node.tools[Modprobe].reload(["hv_netvsc"])
+            # by reloading hv_netvsc driver if hv_netvsc can be reload
+            # otherwise reboot vm
+            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
+                node.tools[Modprobe].reload(["hv_netvsc"])
+            else:
+                node.tools[Reboot].reboot()
 
             # change the combined channels count after all cpus online
             second_channel_count = random.randint(1, min(cpu_count, 64))
             while True:
-                if first_channel_count != second_channel_count:
+                if first_current_device_channel != second_channel_count:
                     break
                 second_channel_count = random.randint(1, min(cpu_count, 64))
             node.tools[Ethtool].change_device_channels_info(
                 "eth0", second_channel_count
+            )
+            second_current_device_channel = (
+                node.tools[Ethtool].get_device_channels_info("eth0", True)
+            ).current_channels
+            log.debug(
+                f"current channels count: {second_current_device_channel} "
+                f"after changing channel into {second_channel_count}"
             )
 
             # verify that the network adapter channels count changed
