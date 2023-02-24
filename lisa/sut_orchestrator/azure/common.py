@@ -1046,7 +1046,7 @@ def wait_copy_blob(
     blob_client: Any,
     vhd_path: str,
     log: Logger,
-    timeout: int = 60 * 60,
+    timeout: int = 3 * 60 * 60,
 ) -> None:
     log.info(f"copying vhd: {vhd_path}")
     if blob_client.get_blob_properties().copy.status:
