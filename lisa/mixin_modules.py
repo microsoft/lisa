@@ -48,6 +48,7 @@ if platform.system() == "Linux":
     except ModuleNotFoundError as e:
         print(f"libvirt package is not installed. [{e}]")
 
+import lisa.transformers.boot_parameters  # noqa: F401
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
