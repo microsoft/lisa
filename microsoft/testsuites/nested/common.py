@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from lisa import RemoteNode, schema
+from lisa.base_tools import Sed
 from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
@@ -107,6 +108,14 @@ def qemu_connect_nested_vm(
 
     # wait for nested vm ssh connection to be ready
     try_connect(connection_info)
+
+    # temp workaround when nested vm repos are not available
+    nested_vm.tools[Sed].substitute(
+        regexp="sg.archive",
+        replacement="archive",
+        file="/etc/apt/sources.list",
+        sudo=True,
+    )
 
     return nested_vm
 
