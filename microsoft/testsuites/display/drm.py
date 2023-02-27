@@ -13,9 +13,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
-from lisa.operating_system import Redhat
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Dmesg, Lsmod, Uname
+from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot
 from lisa.util import SkippedException
 from microsoft.testsuites.display.modetest import Modetest
 
@@ -41,10 +40,16 @@ class Drm(TestSuite):
         priority=2,
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
-        lsmod = node.tools[Lsmod]
-        assert_that(lsmod.module_exists("hyperv_drm")).described_as(
-            "hyperv_drm module is absent"
-        ).is_equal_to(True)
+        if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
+            raise SkippedException(
+                "DRM hyperv driver is built-in in current distro"
+                f" {node.os.name} {node.os.information.version}"
+            )
+        else:
+            lsmod = node.tools[Lsmod]
+            assert_that(lsmod.module_exists("hyperv_drm")).described_as(
+                "hyperv_drm module is absent"
+            ).is_equal_to(True)
 
     @TestCaseMetadata(
         description="""
@@ -61,7 +66,6 @@ class Drm(TestSuite):
     )
     def verify_dri_node(self, node: Node, log: Logger) -> None:
         cat = node.tools[Cat]
-
         dri_path = "/sys/kernel/debug/dri/0/name"
         dri_name = cat.read(dri_path, sudo=True, force_run=True)
         assert_that(dri_name).described_as(
@@ -103,12 +107,23 @@ class Drm(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        kernel_version = node.tools[Uname].get_linux_information().kernel_version
-        if (
-            isinstance(node.os, Redhat)
-            and node.os.information.version >= "9.0.0"
-            and kernel_version > "5.13.0"
-        ):
-            log.debug("Currently only RHEL9 enables drm driver.")
+        if node.tools[KernelConfig].is_enabled("CONFIG_DRM_HYPERV"):
+            log.debug(
+                f"Current os {node.os.name} {node.os.information.version} "
+                "supports DRM hyperv driver"
+            )
+            lsmod = node.tools[Lsmod]
+            # hyperv_fb takes priority over hyperv_drm, so blacklist it
+            if lsmod.module_exists("hyperv_fb"):
+                echo = node.tools[Echo]
+                echo.write_to_file(
+                    "blacklist hyperv_fb",
+                    node.get_pure_path("/etc/modprobe.d/blacklist-fb.conf"),
+                    sudo=True,
+                )
+                node.tools[Reboot].reboot()
         else:
-            raise SkippedException("DRM hyperv driver is supported from 5.14.x kernel.")
+            raise SkippedException(
+                "DRM hyperv driver is not enabled in current distro"
+                f" {node.os.name} {node.os.information.version}"
+            )
