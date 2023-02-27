@@ -125,15 +125,26 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         log_path: Path,
         ref: str = "",
+        only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
     ) -> None:
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        perf_metrics_tests = self._list_perf_metrics_tests(hypervisor=hypervisor)
+        subtests = self._list_perf_metrics_tests(hypervisor=hypervisor)
         failed_testcases = []
 
-        for testcase in perf_metrics_tests:
+        if only is not None:
+            if not skip:
+                skip = []
+            # Add everything except 'only' to skip list
+            skip += list(subtests.difference(only))
+        if skip is not None:
+            subtests.difference_update(skip)
+
+        self._log.debug(f"Final Subtests list to run: {subtests}")
+
+        for testcase in subtests:
             testcase_log_file = log_path.joinpath(f"{testcase}.log")
 
             status: TestStatus = TestStatus.QUEUED
@@ -319,7 +330,7 @@ class CloudHypervisorTests(Tool):
 
         notifier.notify(subtest_msg)
 
-    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
+    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
         tests_list = []
         result = self.run(
             f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
@@ -340,7 +351,7 @@ class CloudHypervisorTests(Tool):
         tests_list = pattern.findall(stdout)
 
         self._log.debug(f"Testcases found: {tests_list}")
-        return tests_list
+        return set(tests_list)
 
     def _process_perf_metric_test_result(self, output: str) -> str:
         # Sample Output
