@@ -246,7 +246,7 @@ class KdumpBase(Tool):
         ):
             crash_kernel = "128M"
         elif "T" in total_memory and float(total_memory.strip("T")) > 1:
-            self.crash_kernel = "2G"
+            crash_kernel = "2G"
         else:
             crash_kernel = "512M"
         return crash_kernel
