@@ -278,9 +278,9 @@ class Power(TestSuite):
         node = cast(RemoteNode, environment.nodes[0])
         is_distro_supported(node)
         stress_ng_tool = node.tools[StressNg]
-        stress_ng_tool.launch(16, "90%", 300)
+        stress_ng_tool.launch_vm_stressor(16, "90%", 300)
         verify_hibernation(environment, log, ignore_call_trace=True)
-        stress_ng_tool.launch(16, "90%", 300)
+        stress_ng_tool.launch_vm_stressor(16, "90%", 300)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
