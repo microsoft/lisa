@@ -8,7 +8,11 @@ from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix
 from lisa.tools import KernelConfig, Modprobe
-from lisa.util import UnsupportedKernelException, find_patterns_groups_in_lines
+from lisa.util import (
+    LisaException,
+    UnsupportedKernelException,
+    find_patterns_groups_in_lines,
+)
 
 
 @dataclass
@@ -147,25 +151,59 @@ class Pktgen(Tool):
         parts = kernel_information.version_parts[:]
 
         # Full example:
+        # https://repo.almalinux.org/almalinux/9.1/devel/x86_64/os/Packages/
+        # kernel-modules-internal-5.14.0-162.12.1.el9_1.x86_64.rpm
+        # Full example:
         # https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/
         #   240.1.1.el8_3.centos.plus/x86_64/kernel-plus-modules-internal-
         #   4.18.0-240.1.1.el8_3.centos.plus.x86_64.rpm",
-        rpm_location = (
-            f"https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
-            f"{'.'.join(parts[3:-1])}.centos.plus/{parts[-1]}/kernel-plus-modules-"
-            f"internal-4.18.0-{'.'.join(parts[3:-1])}.centos.plus.{parts[-1]}.rpm"
-        )
+        rpm_locations = [
+            (
+                "https://repo.almalinux.org/almalinux/"
+                f"{'.'.join(parts[-2].replace('el','').split('_'))}/devel/{parts[-1]}/"
+                "os/Packages/kernel-modules-internal-"
+                f"{'.'.join(parts[0:3])}-{'.'.join(parts[3:-1])}.{parts[-1]}.rpm"
+            ),
+            (
+                "https://repo.almalinux.org/vault/"
+                f"{'.'.join(parts[-2].replace('el','').split('_'))}/devel/{parts[-1]}/"
+                "os/Packages/kernel-modules-internal-"
+                f"{'.'.join(parts[0:3])}-{'.'.join(parts[3:-1])}.{parts[-1]}.rpm"
+            ),
+            (
+                "https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/"
+                f"{'.'.join(parts[3:-1])}.centos.plus/{parts[-1]}/"
+                "kernel-plus-modules-internal-4.18.0-"
+                f"{'.'.join(parts[3:-1])}.centos.plus.{parts[-1]}.rpm"
+            ),
+        ]
         # Install pkggen from CentOS for redhat, because there is no free
         # download for Redhat.
         package_file_name = "kernel-plus-modules-internal.rpm"
 
-        wget = self.node.tools[Wget]
-        modules_file = wget.get(
-            url=rpm_location,
-            file_path=str(self._tool_path),
-            filename=package_file_name,
-            overwrite=True,
-        )
+        is_download_success = False
+        for rpm_location in rpm_locations:
+            wget = self.node.tools[Wget]
+            try:
+                modules_file = wget.get(
+                    url=rpm_location,
+                    file_path=str(self._tool_path),
+                    filename=package_file_name,
+                    overwrite=True,
+                )
+                self.node.log.debug(f"download {rpm_location} successfully")
+                is_download_success = True
+                break
+            except LisaException as ex:
+                self.node.log.debug(f"fail to download {rpm_location}, exception {ex}")
+                if "cannot find file path" in str(ex):
+                    continue
+        if not is_download_success:
+            raise LisaException(
+                "fail to download kernel-plus-modules-internal.rpm from given locations"
+                ", please double check"
+            )
+
         # extract pktgen.ko.xz
         self.node.execute(
             f"rpm2cpio {modules_file} | "
