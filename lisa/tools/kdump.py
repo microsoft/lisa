@@ -231,22 +231,30 @@ class KdumpBase(Tool):
         #         linux/7/html/kernel_administration_guide/kernel_crash_dump_guide
         # SUSE: https://www.suse.com/support/kb/doc/?id=000016171
         # We combine their configuration to set an empirical value
+        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         if (
             "G" in total_memory
             and float(total_memory.strip("G")) < 1
             or "M" in total_memory
             and float(total_memory.strip("M")) < 1024
         ):
-            crash_kernel = "64M"
+            if arch == "x86_64":
+                crash_kernel = "64M"
+            else:
+                # For arm64 with page size == 4k, the memory "section size" is 128MB,
+                # that's the granularity of memory hotplug and also the minimal size of
+                # manageable memory if SPARSEMEM is selected. More memory is needed for
+                # kdump kernel
+                crash_kernel = "256M"
         elif (
             "G" in total_memory
             and float(total_memory.strip("G")) < 2
             or "M" in total_memory
             and float(total_memory.strip("M")) < 2048
         ):
-            crash_kernel = "128M"
+            crash_kernel = "256M"
         elif "T" in total_memory and float(total_memory.strip("T")) > 1:
-            crash_kernel = "2G"
+            crash_kernel = "1G"
         else:
             crash_kernel = "512M"
         return crash_kernel
@@ -510,11 +518,26 @@ class KdumpDebian(KdumpBase):
         return self._check_exists()
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
-        if self.node.shell.exists(PurePosixPath("/sys/firmware/efi")):
-            if "T" in total_memory and float(total_memory.strip("T")) > 1:
-                return "512M"
+        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
+        if (
+            self.node.shell.exists(PurePosixPath("/sys/firmware/efi"))
+            and arch == "x86_64"
+            and "T" in total_memory
+            and float(total_memory.strip("T")) > 1
+        ):
+            return "512M"
+
+        if arch == "aarch64" and (
+            "G" in total_memory
+            and float(total_memory.strip("G")) < 2
+            or "M" in total_memory
+            and float(total_memory.strip("M")) < 2048
+        ):
+            return "256M"
 
         # Use the default crash kernel size
+        # Currently, for x86 Ubuntu,Debian, the default setting is "512M-:192M",
+        # for arm64, "2G-4G:320M,4G-32G:512M,32G-64G:1024M,64G-128G:2048M,128G-:4096M"
         return ""
 
     def _get_crashkernel_cfg_file(self) -> str:
@@ -547,6 +570,10 @@ class KdumpCBLMariner(KdumpBase):
         assert isinstance(self.node.os, CBLMariner)
         self.node.os.install_packages("kexec-tools")
         return self._check_exists()
+
+    def calculate_crashkernel_size(self, total_memory: str) -> str:
+        # For x86 and arm64 Mariner, the default setting is 256M
+        return ""
 
     def _get_crashkernel_cfg_file(self) -> str:
         return "/boot/mariner.cfg"
