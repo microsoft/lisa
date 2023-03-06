@@ -101,9 +101,9 @@ class XdpDump(Tool):
     def start_async(self, nic_name: str = "", timeout: int = 5) -> Process:
         try:
             self._disable_lro(nic_name)
-            command = ""
+            command = "ulimit -l unlimited && "
             if timeout > 0:
-                command = f"timeout {timeout}"
+                command += f"timeout {timeout}"
             command = f"{command} {self.command} -i {nic_name}"
             xdpdump_process = self.node.execute_async(
                 command,
