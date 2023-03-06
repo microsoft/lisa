@@ -9,7 +9,8 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
-from lisa.tools import Ip, Kill, Lsmod, Pgrep
+from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
+from lisa.tools.lscpu import CpuType
 from lisa.util import LisaException
 
 
@@ -60,7 +61,15 @@ class Qemu(Tool):
         # -m: memory size
         # -smp: SMP system with `n` CPUs
         # -hda : guest image path
-        cmd = f"-cpu host -smp {cores} -m {memory} -hda {guest_image_path} "
+        cmd = "-cpu host"
+
+        # temp workaround for below issue
+        # https://canonical.force.com/ua/s/case/5004K00000TILuWQAX/qemu-fails-to-boot-up-vm-on-the-azure-amd-instance-with-ubuntu-1804 # noqa: E501
+        # The cause of the fairly to init is due to the `pcid` flag.
+        # This works fine on intel procs, but fails to pass through successfully on amd
+        if CpuType.AMD == self.node.tools[Lscpu].get_cpu_type():
+            cmd += ",pcid=no"
+        cmd += f" -smp {cores} -m {memory} -hda {guest_image_path} "
 
         # Add qemu managed nic device
         # This will be used to communicate with ssh to the guest
