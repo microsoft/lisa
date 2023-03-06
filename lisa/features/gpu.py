@@ -16,7 +16,7 @@ from lisa.operating_system import Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, SkippedException, constants
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -68,7 +68,7 @@ class Gpu(Feature):
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
         "python3",
-        "libglvnd-dev",
+        # "libglvnd-dev",
         "ubuntu-desktop",
     ]
 
@@ -297,10 +297,14 @@ class Gpu(Feature):
                 # dmesg
                 # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
                 # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                self._node.os.install_packages("cuda-drivers-515")
+                if release == "1604":
+                    self._node.os.install_packages("cuda-drivers-465")
+                else:
+                    self._node.os.install_packages("cuda-drivers-515")
         else:
-            raise LisaException(
-                f"Distro {self._node.os.name} not supported to install CUDA driver."
+            raise SkippedException(
+                f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
+                " not supported to install CUDA driver."
             )
 
     def _install_gpu_dep(self) -> None:
@@ -316,11 +320,15 @@ class Gpu(Feature):
                     "vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
                 )
 
-        elif isinstance(self._node.os, Ubuntu):
+        elif (
+            isinstance(self._node.os, Ubuntu)
+            and self._node.os.information.version >= "16.4.0"
+        ):
             self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
         else:
-            raise LisaException(
-                f"Distro {self._node.os.name} is not supported for GPU."
+            raise SkippedException(
+                f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
+                " is not supported for GPU driver installation."
             )
 
 

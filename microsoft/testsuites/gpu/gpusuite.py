@@ -23,7 +23,7 @@ from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
-from lisa.util import get_matched_str
+from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
     "https://partnerpipelineshare.blob.core.windows.net/"
@@ -134,10 +134,11 @@ class GpuTestSuite(TestSuite):
         gpu_feature = node.features[Gpu]
         try:
             gpu_feature._install_driver_using_platform_feature()
-        except LisaException as e:
-            if "GPUExtensionNotSupported" in str(e):
-                raise SkippedException("GPU Extension Installation is not supported")
-            raise e
+        except UnsupportedOperationException:
+            raise SkippedException(
+                "GPU Driver Installation using extension is not supported\n"
+                "https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux"  # noqa: E501
+            )
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
         _check_driver_installed(node, log)
