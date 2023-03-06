@@ -301,6 +301,12 @@ class CloudHypervisorTests(Tool):
         for subtest in subtests:
             status = subtest_status[subtest]
             message = messages.get(status, "")
+
+            if status == TestStatus.RUNNING:
+                # Sub-test started running but didn't finish within the stipulated time.
+                # It should be treated as a failure.
+                status = TestStatus.FAILED
+
             results.append(
                 CloudHypervisorTestResult(
                     name=subtest,

@@ -176,6 +176,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         self, environment: Environment, log: Logger, node: Node
     ) -> None:
         node_context = get_node_context(node)
+
         if node_context.os_disk_base_file_fmt == DiskImageFormat.QCOW2:
             self.host_node.tools[QemuImg].convert(
                 "qcow2",
@@ -189,6 +190,12 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 f" {node_context.os_disk_file_path}",
                 expected_exit_code=0,
                 expected_exit_code_failure_message="Failed to copy os disk image",
+            )
+
+        if node_context.os_disk_img_resize_gib:
+            self.host_node.tools[QemuImg].resize(
+                src_file=node_context.os_disk_file_path,
+                size_gib=node_context.os_disk_img_resize_gib,
             )
 
     def _get_vmm_version(self) -> str:

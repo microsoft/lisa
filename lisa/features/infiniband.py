@@ -469,6 +469,8 @@ class Infiniband(Feature):
 
     def install_ibm_mpi(self) -> None:
         node = self._node
+        if isinstance(node.os, Redhat):
+            node.os.install_packages("libstdc++.i686")
         # Install Open MPI
         wget = node.tools[Wget]
         script_path = wget.get(

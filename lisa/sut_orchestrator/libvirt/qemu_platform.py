@@ -42,6 +42,11 @@ class QemuPlatform(BaseLibvirtPlatform):
         self.host_node.tools[QemuImg].create_diff_qcow2(
             node_context.os_disk_file_path, node_context.os_disk_base_file_path
         )
+        if node_context.os_disk_img_resize_gib:
+            self.host_node.tools[QemuImg].resize(
+                src_file=node_context.os_disk_file_path,
+                size_gib=node_context.os_disk_img_resize_gib,
+            )
 
     def _get_vmm_version(self) -> str:
         result = "Unknown"

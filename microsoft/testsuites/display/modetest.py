@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from lisa.executable import Tool
-from lisa.operating_system import Redhat, Ubuntu
+from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
 from lisa.util import UnsupportedDistroException
 
@@ -30,7 +31,7 @@ class Modetest(Tool):
     def _install(self) -> bool:
         if isinstance(self.node.os, Ubuntu):
             self.node.os.install_packages("libdrm-tests")
-        if isinstance(self.node.os, Redhat):
+        if isinstance(self.node.os, Redhat) or isinstance(self.node.os, Suse):
             self._install_from_src()
         return self._check_exists()
 
@@ -39,7 +40,6 @@ class Modetest(Tool):
             arch = self.node.os.get_kernel_information().hardware_platform
             self.node.os.install_packages(
                 (
-                    "git",
                     "make",
                     "autoconf",
                     "automake",
@@ -48,6 +48,21 @@ class Modetest(Tool):
                     f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/xorg-x11-util-macros-1.19.3-4.el9.noarch.rpm",  # noqa: E501
                     f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/ninja-build-1.10.2-6.el9.{arch}.rpm",  # noqa: E501
                     f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
+                )
+            )
+        if isinstance(self.node.os, Suse):
+            arch = self.node.os.get_kernel_information().hardware_platform
+            os_version = self.node.os.information.release.split(".")
+            self.node.os.install_packages(
+                (
+                    Gcc,
+                    "make",
+                    "autoconf",
+                    "automake",
+                    "libtool",
+                    "meson",
+                    "libpciaccess-devel",
+                    f"https://rpmfind.net/linux/opensuse/distribution/leap/{os_version[0]}.{os_version[1]}/repo/oss/{arch}/util-macros-devel-1.19.1-1.22.{arch}.rpm",  # noqa: E501
                 )
             )
         else:
