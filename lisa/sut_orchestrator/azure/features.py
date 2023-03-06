@@ -50,6 +50,7 @@ from lisa.util import (
     NotMeetRequirementException,
     SkippedException,
     check_till_timeout,
+    UnsupportedOperationException,
     constants,
     field_metadata,
     find_patterns_in_lines,
@@ -525,7 +526,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         }
         release = self._node.os.information.release
         if release not in supported_versions.get(type(self._node.os), []):
-            raise LisaException("GPUExtensionNotSupported")
+            raise UnsupportedOperationException("GPU Extension not supported")
         extension = self._node.features[AzureExtension]
         result = extension.create_or_update(
             type_="NvidiaGpuDriverLinux",
