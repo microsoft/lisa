@@ -395,8 +395,20 @@ class Posix(OperatingSystem, BaseClassMixin):
                 except Exception as identifier:
                     self._node.log.debug(f"error on get boot time: {identifier}")
 
-            from lisa.tools import Chmod, Find
+            from lisa.tools import Chmod, Find, Sed
 
+            self._node.tools[Sed].delete_lines(
+                "Subsystem sftp*",
+                self._node.get_pure_path("/etc/ssh/sshd_config"),
+                sudo=True,
+            )
+            self._node.tools[Sed].append(
+                "Subsystem sftp /usr/libexec/sftp-server",
+                "/etc/ssh/sshd_config",
+                sudo=True,
+            )
+            self._node.tools[Service].restart_service("sshd")
+            self._node.close()
             find_tool = self._node.tools[Find]
             file_list = find_tool.find_files(
                 self._node.get_pure_path("/var/log/azure/"),
