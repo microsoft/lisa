@@ -49,8 +49,8 @@ from lisa.util import (
     LisaException,
     NotMeetRequirementException,
     SkippedException,
-    check_till_timeout,
     UnsupportedOperationException,
+    check_till_timeout,
     constants,
     field_metadata,
     find_patterns_in_lines,
@@ -471,7 +471,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         if isinstance(node.os, Redhat):
             supported = node.os.information.version >= "7.0.0"
         elif isinstance(node.os, Ubuntu):
-            supported = node.os.information.version >= "18.0.0"
+            supported = node.os.information.version >= "16.0.0"
         elif isinstance(node.os, Suse):
             supported = node.os.information.version >= "15.0.0"
 

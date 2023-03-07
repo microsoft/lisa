@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Set, Type, cast
+from typing import Any, List, Set, Type
 
 from dataclasses_json import dataclass_json
 
@@ -25,14 +25,13 @@ FEATURE_NAME_GPU = "Gpu"
 @dataclass()
 class GpuSettings(schema.FeatureSettings):
     type: str = FEATURE_NAME_GPU
-    install_by_platform: bool = False
     is_enabled: bool = False
 
     def __hash__(self) -> int:
         return hash(self._get_key())
 
     def _get_key(self) -> str:
-        return f"{self.type}/{self.install_by_platform}"
+        return f"{self.type}/{self.is_enabled}"
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self
@@ -68,7 +67,6 @@ class Gpu(Feature):
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
         "python3",
-        # "libglvnd-dev",
         "ubuntu-desktop",
     ]
 
@@ -83,19 +81,6 @@ class Gpu(Feature):
     @classmethod
     def can_disable(cls) -> bool:
         return True
-
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        """
-        The driver may be installed by platform, like Azure extensions. The
-        platform needs to implement _install_by_platform. And call this method
-        in platform.
-        """
-        settings = cast(GpuSettings, kwargs.get("settings"))
-
-        # default to install by platform, unless it's specified to skip.
-        if (settings.is_enabled) and settings.install_by_platform:
-            cls._install_by_platform(*args, **kwargs)
 
     @classmethod
     def remove_virtual_gpus(cls, devices: List[PciDevice]) -> List[PciDevice]:
@@ -185,10 +170,6 @@ class Gpu(Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.gpu_vendor: Set[str] = set()
 
-    @classmethod
-    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError()
-
     def _install_driver_using_platform_feature(self) -> None:
         raise NotImplementedError()
 
@@ -260,7 +241,8 @@ class Gpu(Feature):
                 sudo=True,
                 cwd=self._node.get_working_path(),
             )
-            if "1804" == release:
+
+            if release in ["1604"]:
                 cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
                 cuda_repo = (
                     "http://developer.download.nvidia.com/compute/"
