@@ -13,7 +13,7 @@ from lisa import (
     UnsupportedDistroException,
 )
 from lisa.features import SecureBootEnabled
-from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.util import find_patterns_in_lines
@@ -97,7 +97,7 @@ class TvmTest(TestSuite):
             )
 
     def _add_azure_core_repo(self, node: Node) -> None:
-        if isinstance(node.os, Redhat):
+        if isinstance(node.os, Redhat) or isinstance(node.os, CBLMariner):
             node.os.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
         elif isinstance(node.os, Debian):
             if not isinstance(node.os, Ubuntu):
