@@ -328,10 +328,20 @@ class Git(Tool):
             expected_exit_code_failure_message="Failed to fetch author email.",
         ).stdout
 
+        describe = self.run(
+            "describe",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to run git describe",
+        ).stdout
+
         result = {
             "full_commit_id": filter_ansi_escape(latest_commit_id),
             "commit_message_name": filter_ansi_escape(commit_message_name),
             "contacts": filter_ansi_escape(author_email),
+            "describe": filter_ansi_escape(describe),
         }
 
         return result

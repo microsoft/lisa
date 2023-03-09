@@ -99,7 +99,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
 
 
 class KernelInstallerTransformer(Transformer):
-    __information_output_name = "information"
+    _information_output_name = "information"
     _information: Dict[str, Any] = dict()
 
     @classmethod
@@ -112,7 +112,7 @@ class KernelInstallerTransformer(Transformer):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.__information_output_name]
+        return [self._information_output_name]
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: KernelInstallerTransformerSchema = self.runbook
@@ -171,7 +171,7 @@ class KernelInstallerTransformer(Transformer):
             f"kernel version after install: "
             f"{uname.get_linux_information(force_run=True)}"
         )
-        return {self.__information_output_name: self._information}
+        return {self._information_output_name: self._information}
 
 
 class RepoInstaller(BaseInstaller):

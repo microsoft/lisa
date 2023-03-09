@@ -53,7 +53,10 @@ __url_pattern = re.compile(
 
 
 # used to filter ansi escapes for better layout in log and other place
-__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+# Example:
+# Text: "\x1b[?1h\x1b=\rAdd linux-next specific files for 20230221\x1b[m\r\n\r\x1b[K\x1b[?1l\x1b>"  # noqa: E501
+# Escape Result: '\rAdd linux-next specific files for 20230221\r\n\r'
+__ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_=<>a-kzNM78]|\[[0-?]*[ -/]*[@-~])")
 
 # 10.0.22000.100
 # 18.04.5
