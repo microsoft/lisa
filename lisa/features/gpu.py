@@ -11,8 +11,9 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.base_tools import Wget
+from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
-from lisa.operating_system import Redhat, Ubuntu
+from lisa.operating_system import Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
@@ -68,6 +69,14 @@ class Gpu(Feature):
         "linux-cloud-tools-$(uname -r)",
         "python3",
         "ubuntu-desktop",
+    ]
+
+    _oracle_uek_dependencies = [
+        "kernel-uek-devel-$(uname -r)",
+        "mesa-libGL",
+        "mesa-libEGL",
+        "libglvnd-devel",
+        "dkms",
     ]
 
     @classmethod
@@ -290,10 +299,18 @@ class Gpu(Feature):
             )
 
     def _install_gpu_dep(self) -> None:
+        kernel_ver = self._node.tools[Uname].get_linux_information().kernel_version_raw
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
             self._node.os.install_epel()
-            self._node.os.install_packages(self._redhat_gpu_dependencies, signed=False)
+            if isinstance(self._node.os, Oracle) and "uek" in kernel_ver:
+                self._node.os.install_packages(
+                    self._oracle_uek_dependencies, signed=False
+                )
+            else:
+                self._node.os.install_packages(
+                    self._redhat_gpu_dependencies, signed=False
+                )
             release = self._node.os.information.release.split(".")[0]
             if release == "7":
                 # vulkan-filesystem is required by CUDA in CentOS 7.x
