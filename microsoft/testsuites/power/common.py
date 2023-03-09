@@ -41,7 +41,7 @@ def verify_hibernation(
     information = environment.get_information()
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
-    # node.os.install_packages("grub2*")
+    node.os.install_packages("grub2*")
     node.reboot()
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
