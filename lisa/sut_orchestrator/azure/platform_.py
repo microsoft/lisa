@@ -257,6 +257,7 @@ class AzurePlatformSchema:
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
+    use_private_ip: bool = field(default=False)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -305,6 +306,7 @@ class AzurePlatformSchema:
                 "virtual_network_resource_group",
                 "virtual_network_name",
                 "subnet_prefix",
+                "use_private_ip",
             ],
         )
 
@@ -1483,11 +1485,16 @@ class AzurePlatform(Platform):
             public_address, private_address = get_primary_ip_addresses(
                 self, resource_group_name, vm
             )
+            connection_public_ip = public_address
+            if self._azure_runbook.use_private_ip:
+                # setting public_address to empty causes set_connection_info
+                # to use address (the private ip)
+                connection_public_ip = ''
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
                 port=22,
-                public_address=public_address,
+                public_address=connection_public_ip,
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
