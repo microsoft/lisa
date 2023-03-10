@@ -231,7 +231,12 @@ class RootRunner(Action):
             results = [x for x in self._results_collector.results.values()]
             print_results(results, self._log.info)
 
-            if runbook.exit_with_failed_count:
+            if any(x.status == TestStatus.QUEUED for x in results):
+                # if there is any queued, it means there is some error in runner
+                raise LisaException(
+                    "Found queued test case, it's unexpected. See logs for details."
+                )
+            elif runbook.exit_with_failed_count:
                 # pass failed count to exit code
                 self.exit_code = sum(
                     1 for x in results if x.status == TestStatus.FAILED
