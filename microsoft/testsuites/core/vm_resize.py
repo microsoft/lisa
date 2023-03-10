@@ -157,7 +157,13 @@ class VmResize(TestSuite):
             finally:
                 if not hot_resize:
                     start_stop.start()
-        assert expected_vm_capability, "fail to find proper vm size"
+        if not expected_vm_capability:
+            msg = "fail to find proper vm size, reason: "
+            if resize_action == ResizeAction.IncreaseCoreCount:
+                msg += f"current vm size {origin_vm_size} is too big to be resized"
+            else:
+                msg += f"current vm size {origin_vm_size} is too small to be resized"
+            raise SkippedException(msg)
 
         test_result.information["final_vm_size"] = final_vm_size
         test_result.information["origin_vm_size"] = origin_vm_size
