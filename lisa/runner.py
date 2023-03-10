@@ -224,6 +224,7 @@ class RootRunner(Action):
                 "canceling runner due to exception", exc_info=identifier
             )
             cancel()
+            raise identifier
         finally:
             self._cleanup()
 
