@@ -258,6 +258,8 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
+    cloud_init_user_data_runcommands_script: str = field(default=None)
+
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
     # default False to raise errors to prevent unexpected behavior.
@@ -1101,12 +1103,12 @@ class AzurePlatform(Platform):
             "write_files": [],
             "runcmd": [],
         }
-        if os.path.exists(self.runbook.cloud_init_user_data_runcommands_script):
+        if os.path.exists(self._azure_runbook.cloud_init_user_data_runcommands_script):
             runcommands_script = ""
-            with open(self.runbook.cloud_init_user_data_runcommands_script) as stream:
+            with open(self._azure_runbook.cloud_init_user_data_runcommands_script) as stream:
                 runcommands_script = stream.read()
             if runcommands_script:
-                filename = os.path.basename(self.runbook.cloud_init_user_data_runcommands_script)
+                filename = os.path.basename(self._azure_runbook.cloud_init_user_data_runcommands_script)
                 user_data["write_files"].append({
                     "owner": f"{arm_parameters.admin_username}:{arm_parameters.admin_username}",
                     "path": f"/tmp/{filename}",
