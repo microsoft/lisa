@@ -70,6 +70,12 @@
                 "description": "tags of availability set"
             }
         },
+        "user_data_base64": {
+            "type": "string",
+            "metadata": {
+                "description": "base64 encoded cloud-init user_data to provider ARM"
+            }
+        },
         "vm_tags": {
             "type": "object",
             "metadata": {
@@ -330,6 +336,7 @@
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
                 "osProfile": "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), json('null'), lisa.getOsProfile( parameters('nodes')[copyIndex('vmCopy')]['short_name'], parameters('admin_username'), or(empty(parameters('admin_key_data')), not(parameters('nodes')[copyIndex('vmCopy')]['is_linux'])), parameters('admin_password'), and(not(empty(parameters('admin_key_data'))), parameters('nodes')[copyIndex('vmCopy')]['is_linux']), lisa.getLinuxConfiguration(concat('/home/', parameters('admin_username'), '/.ssh/authorized_keys'), parameters('admin_key_data')) ))]",
+                "userData": "[if(not(empty(parameters('user_data_base64'))), parameters('user_data_base64'), json('null'))]",
                 "storageProfile": {
                     "imageReference": "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), json('null'), if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vhd_path']))), lisa.getOsDiskVhd(parameters('nodes')[copyIndex('vmCopy')]['name']), if(not(empty(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery'])), lisa.getOsDiskSharedGallery(parameters('nodes')[copyIndex('vmCopy')]['shared_gallery']), lisa.getOsDiskMarketplace(parameters('nodes')[copyIndex('vmCopy')]))))]",
                     "osDisk": "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))),  lisa.getOsDisk(concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk')),  lisa.getOSImage(parameters('nodes')[copyIndex('vmCopy')]) )]",

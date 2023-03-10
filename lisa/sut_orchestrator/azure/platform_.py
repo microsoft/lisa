@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import copy
 import json
 import logging
@@ -8,6 +9,7 @@ import math
 import os
 import re
 import sys
+import yaml
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -246,6 +248,8 @@ class AzurePlatformSchema:
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
+
+    user_data_base64
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
@@ -1077,6 +1081,43 @@ class AzurePlatform(Platform):
         arm_parameters.shared_resource_group_name = (
             self._azure_runbook.shared_resource_group_name
         )
+
+        # In Azure, VM creation can be configured with cloud-init user-data.  Provide
+        # method for specifying a script that can be written to the VM filesystem and
+        # subsequently invoked.  The user-data can be passed to the ARM template as
+        # base64 encoded yaml.  If runbook.cloud_init_user_data_runcommands_script is
+        # set, create user-data base64 encrypted string to pass to ARM template.
+        user_data: Dict[str, Any] = {
+            "users": [
+                "default",
+                {
+                    "name": arm_parameters.admin_username,
+                    "groups": "sudo",
+                    "shell": "/bin/bash",
+                    "sudo": ['ALL=(ALL) NOPASSWD:ALL'],
+                    "ssh-authorized-keys":[
+                      arm_parameters.admin_key_data,
+                    ],
+                },
+            ],
+            "write_files": [],
+            "runcmd": [],
+        }
+        if os.path.exists(self.runbook.cloud_init_user_data_runcommands_script):
+            runcommands_script = ""
+            with open(self.runbook.cloud_init_user_data_runcommands_script) as stream:
+                runcommands_script = stream.read()
+            if runcommands_script:
+                filename = os.path.basename(self.runbook.cloud_init_user_data_runcommands_script)
+                user_data["write_files"].append({
+                    "owner": f"{arm_parameters.admin_username}:{arm_parameters.admin_username}",
+                    "path": f"/tmp/{filename}",
+                    "content": f"{runcommands_script.encode('utf8').decode('unicode_escape')}",
+                })
+                user_data["runcmd"].append(f"/tmp/{filename}")
+        if len(user_data["runcmd"]) != 0:
+            arm_parameters.user_data_base64 = base64.b64encode(yaml.dump(user_data).encode("utf8"))
+            
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
