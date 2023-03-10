@@ -249,8 +249,6 @@ class AzurePlatformSchema:
         ),
     )
 
-    user_data_base64
-
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
     # specify shared resource group location
