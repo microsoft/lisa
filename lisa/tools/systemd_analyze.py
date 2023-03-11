@@ -91,9 +91,9 @@ class SystemdAnalyze(Tool):
     def _convert_value_into_ms(self, value: str, unit: str) -> float:
         rate = 0
         if unit == "min":
-            rate = 60 * 60
+            rate = 60000
         elif unit == "s":
-            rate = 60
+            rate = 1000
         elif unit == "ms":
             rate = 1
         else:
