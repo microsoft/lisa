@@ -22,20 +22,6 @@ LISA has been tested to work with `Python 3.8 64-bit <https://www.python.org/>`_
 The latest version of Python 3 is recommended. If you find that LISA is not compatible
 with higher version Python, `please file an issue <https://github.com/microsoft/lisa/issues/new>`__.
 
-Install from Microsoft Store (recommended)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-It is recommended to install Python from the Microsoft Store. Packages are regularly
-published by the Python Software Foundation and will set up paths as needed.
-
-To install from the Microsoft Store, search for Python in the store interface or,
-if no other Python version is installed, running `python3` from the command line
-will bring up the latest version.
-More details can be found `here<https://docs.python.org/3/using/windows.html#windows-store>`.
-
-Install using full installer (alternative)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 The full installer allows greater customization and doesn't have the security restriction
 of the Microsoft Store packages, so may be preferred in some situations.
 
@@ -96,8 +82,7 @@ This installation method is used to run LISA if no change in source code is desi
 
    python3 -m pip install --upgrade pip
 
-The example below will install LISA directly for the invoking user.
-To install system-wide, run from and Administrator console.
+The example below will install LISA directly for the invoking user. No need to run as Administrator.
 
 .. code:: bash
 
