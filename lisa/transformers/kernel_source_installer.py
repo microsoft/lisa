@@ -149,7 +149,6 @@ class SourceInstaller(BaseInstaller):
         source = factory.create_by_runbook(
             runbook=runbook.location, node=node, parent_log=self._log
         )
-
         self._code_path = source.get_source_code()
         assert node.shell.exists(
             self._code_path

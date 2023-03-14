@@ -5,18 +5,19 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Set, Type, cast
+from typing import Any, List, Set, Type
 
 from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.base_tools import Wget
+from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
-from lisa.operating_system import Redhat, Ubuntu
+from lisa.operating_system import Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, SkippedException, constants
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -25,14 +26,13 @@ FEATURE_NAME_GPU = "Gpu"
 @dataclass()
 class GpuSettings(schema.FeatureSettings):
     type: str = FEATURE_NAME_GPU
-    install_by_platform: bool = True
     is_enabled: bool = False
 
     def __hash__(self) -> int:
         return hash(self._get_key())
 
     def _get_key(self) -> str:
-        return f"{self.type}/{self.install_by_platform}"
+        return f"{self.type}/{self.is_enabled}"
 
     def _generate_min_capability(self, capability: Any) -> Any:
         return self
@@ -43,7 +43,7 @@ class GpuSettings(schema.FeatureSettings):
 # https://download.microsoft.com/download/9/5/c/95c667ff-ab95-4c56-89e0-e13e9a76782d/NVIDIA-Linux-x86_64-460.32.03-grid-azure.run
 DEFAULT_GRID_DRIVER_URL = "https://go.microsoft.com/fwlink/?linkid=874272"
 
-DEFAULT_CUDA_DRIVER_VERSION = "10.1.105-1"
+DEFAULT_CUDA_DRIVER_VERSION = "10.1.243-1"
 
 
 class ComputeSDK(str, Enum):
@@ -67,9 +67,16 @@ class Gpu(Feature):
         "libelf-dev",
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
-        "python",
-        "libglvnd-dev",
+        "python3",
         "ubuntu-desktop",
+    ]
+
+    _oracle_uek_dependencies = [
+        "kernel-uek-devel-$(uname -r)",
+        "mesa-libGL",
+        "mesa-libEGL",
+        "libglvnd-devel",
+        "dkms",
     ]
 
     @classmethod
@@ -83,19 +90,6 @@ class Gpu(Feature):
     @classmethod
     def can_disable(cls) -> bool:
         return True
-
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        """
-        The driver may be installed by platform, like Azure extensions. The
-        platform needs to implement _install_by_platform. And call this method
-        in platform.
-        """
-        settings = cast(GpuSettings, kwargs.get("settings"))
-
-        # default to install by platform, unless it's specified to skip.
-        if (settings.is_enabled) and settings.install_by_platform:
-            cls._install_by_platform(*args, **kwargs)
 
     @classmethod
     def remove_virtual_gpus(cls, devices: List[PciDevice]) -> List[PciDevice]:
@@ -138,7 +132,10 @@ class Gpu(Feature):
             elif driver == ComputeSDK.CUDA:
                 if not version:
                     version = DEFAULT_CUDA_DRIVER_VERSION
-                    self._install_cuda_driver(version)
+                    try:
+                        self._install_cuda_driver(version)
+                    except Exception as e:
+                        raise LisaException(f"Failed to install CUDA Driver {str(e)}")
                     self.gpu_vendor.add("nvidia")
             else:
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
@@ -182,8 +179,7 @@ class Gpu(Feature):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.gpu_vendor: Set[str] = set()
 
-    @classmethod
-    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
+    def _install_driver_using_platform_feature(self) -> None:
         raise NotImplementedError()
 
     # download and install NVIDIA grid driver
@@ -215,28 +211,47 @@ class Gpu(Feature):
 
         if isinstance(self._node.os, Redhat):
             release = os_information.release.split(".")[0]
-            cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
-            cuda_repo = (
-                "http://developer.download.nvidia.com/"
-                f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
-            )
-            # download and install the cuda driver package from the repo
-            self._node.os._install_package_from_url(
-                f"{cuda_repo}", package_name="cuda-drivers.rpm", signed=False
-            )
+            if release == "9":
+                self._node.os.add_repository(
+                    "http://developer.download.nvidia.com/compute/cuda/"
+                    "repos/rhel9/x86_64/cuda-rhel9.repo"
+                )
+            else:
+                cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
+                cuda_repo = (
+                    "http://developer.download.nvidia.com/"
+                    f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
+                )
+                try:
+                    # download and install the cuda driver package from the repo
+                    self._node.os._install_package_from_url(cuda_repo)
+                except Exception as e:
+                    raise LisaException(
+                        f"Failed to install driver from source, {str(e)}"
+                    )
+            self._node.os.install_packages("cuda-drivers", signed=False)
+
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
             if release in ["2110", "2104"]:
                 release = "2004"
+            # 2210 NVIDIA Drivers are not available, use 2204
+            if release in ["2210"]:
+                release = "2204"
 
             # Public CUDA GPG key is needed to be installed for Ubuntu
-            self._node.execute(
-                "apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/"
-                f"cuda/repos/ubuntu{release}/x86_64/7fa2af80.pub",
-                sudo=True,
+            self._node.tools[Wget].get(
+                "https://developer.download.nvidia.com/compute/cuda/repos/"
+                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
             )
-            if "1804" == release:
+            self._node.execute(
+                "dpkg -i cuda-keyring_1.0-1_all.deb",
+                sudo=True,
+                cwd=self._node.get_working_path(),
+            )
+
+            if release in ["1604"]:
                 cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
                 cuda_repo = (
                     "http://developer.download.nvidia.com/compute/"
@@ -273,22 +288,46 @@ class Gpu(Feature):
                 # dmesg
                 # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
                 # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                #  switch to use 495
-                self._node.os.install_packages("cuda-drivers-495")
+                if release == "1604":
+                    self._node.os.install_packages("cuda-drivers-465")
+                else:
+                    self._node.os.install_packages("cuda-drivers-515")
         else:
-            raise LisaException(
-                f"Distro {self._node.os.name}" "not supported to install CUDA driver."
+            raise SkippedException(
+                f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
+                " not supported to install CUDA driver."
             )
 
     def _install_gpu_dep(self) -> None:
+        kernel_ver = self._node.tools[Uname].get_linux_information().kernel_version_raw
         # install dependency libraries for distros
         if isinstance(self._node.os, Redhat):
-            self._node.os.install_packages(self._redhat_gpu_dependencies, signed=False)
-        elif isinstance(self._node.os, Ubuntu):
+            self._node.os.install_epel()
+            if isinstance(self._node.os, Oracle) and "uek" in kernel_ver:
+                self._node.os.install_packages(
+                    self._oracle_uek_dependencies, signed=False
+                )
+            else:
+                self._node.os.install_packages(
+                    self._redhat_gpu_dependencies, signed=False
+                )
+            release = self._node.os.information.release.split(".")[0]
+            if release == "7":
+                # vulkan-filesystem is required by CUDA in CentOS 7.x
+                self._node.os._install_package_from_url(
+                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
+                    "vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
+                )
+
+        elif (
+            isinstance(self._node.os, Ubuntu)
+            and self._node.os.information.version >= "16.4.0"
+        ):
             self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
         else:
-            raise LisaException(
-                f"Distro {self._node.os.name} is not supported for GPU."
+            raise SkippedException(
+                f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
+                " is not supported for GPU driver installation."
             )
 
 

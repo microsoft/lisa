@@ -36,7 +36,7 @@ from dataclasses_json import dataclass_json
 from marshmallow import validate
 from retry import retry
 
-from lisa import Environment, Logger, features, schema, search_space
+from lisa import Logger, features, schema, search_space
 from lisa.feature import Feature
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
@@ -49,6 +49,7 @@ from lisa.util import (
     LisaException,
     NotMeetRequirementException,
     SkippedException,
+    UnsupportedOperationException,
     check_till_timeout,
     constants,
     field_metadata,
@@ -470,7 +471,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         if isinstance(node.os, Redhat):
             supported = node.os.information.version >= "7.0.0"
         elif isinstance(node.os, Ubuntu):
-            supported = node.os.information.version >= "18.0.0"
+            supported = node.os.information.version >= "16.0.0"
         elif isinstance(node.os, Suse):
             supported = node.os.information.version >= "15.0.0"
 
@@ -517,25 +518,27 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         self._initialize_information(self._node)
         self._is_nvidia = True
 
-    @classmethod
-    def _install_by_platform(cls, *args: Any, **kwargs: Any) -> None:
-        template: Any = kwargs.get("template")
-        environment = cast(Environment, kwargs.get("environment"))
-        log = cast(Logger, kwargs.get("log"))
-        log.debug("updating arm template to support GPU extension.")
-        resources = template["resources"]
-
-        # load a copy to avoid side effect.
-        gpu_template = json.loads(cls._gpu_extension_template)
-
-        node: Node = environment.nodes[0]
-        runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        if re.match(cls._amd_supported_skus, runbook.vm_size):
-            # skip AMD, because no AMD GPU Linux extension.
-            ...
+    def _install_driver_using_platform_feature(self) -> None:
+        supported_versions: Dict[Any, List[str]] = {
+            Redhat: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
+            Ubuntu: ["16.04", "18.04", "20.04"],
+            CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
+        }
+        release = self._node.os.information.release
+        if release not in supported_versions.get(type(self._node.os), []):
+            raise UnsupportedOperationException("GPU Extension not supported")
+        extension = self._node.features[AzureExtension]
+        result = extension.create_or_update(
+            type_="NvidiaGpuDriverLinux",
+            publisher="Microsoft.HpcCompute",
+            type_handler_version="1.6",
+            auto_upgrade_minor_version=True,
+            settings={},
+        )
+        if result["provisioning_state"] == "Succeeded":
+            return
         else:
-            gpu_template["properties"] = cls._gpu_extension_nvidia_properties
-            resources.append(gpu_template)
+            raise LisaException("GPU Extension Provisioning Failed")
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
@@ -1879,6 +1882,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         settings: Optional[Dict[str, Any]] = None,
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
+        timeout: int = 60 * 25,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
@@ -1908,7 +1912,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             vm_extension_name=name,
             extension_parameters=extension_parameters,
         )
-        result = wait_operation(operation)
+        result = wait_operation(operation, timeout)
 
         return result
 

@@ -3,6 +3,7 @@
 
 import re
 from pathlib import Path
+from typing import Any, List
 
 from assertpy import assert_that
 
@@ -19,9 +20,10 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse
+from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
+from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
-from lisa.util import get_matched_str
+from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
     "https://partnerpipelineshare.blob.core.windows.net/"
@@ -57,12 +59,20 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=TIMEOUT,
         requirement=simple_requirement(
-            supported_features=[GpuEnabled(), SerialConsole],
+            supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
         ),
         priority=1,
     )
-    def verify_load_gpu_driver(self, node: Node, log_path: Path, log: Logger) -> None:
-        _check_driver_installed(node)
+    def verify_load_gpu_driver(
+        self,
+        node: Node,
+        log_path: Path,
+        log: Logger,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        _install_driver(node, log_path, log)
+        _check_driver_installed(node, log)
 
     @TestCaseMetadata(
         description="""
@@ -104,6 +114,37 @@ class GpuTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            This test case verifies if gpu drivers are installed using extension.
+
+            Steps:
+            1. Install the GPU Driver using Extension.
+            2. Reboot and check for kernel panic
+            3. Validate gpu drivers can be loaded successfully.
+
+        """,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            supported_features=[GpuEnabled(), SerialConsole, AzureExtension],
+        ),
+        priority=2,
+    )
+    def verify_gpu_extension_installation(
+        self, node: Node, log_path: Path, log: Logger
+    ) -> None:
+        gpu_feature = node.features[Gpu]
+        try:
+            gpu_feature._install_driver_using_platform_feature()
+        except UnsupportedOperationException:
+            raise SkippedException(
+                "GPU Driver Installation using extension is not supported\n"
+                "https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux"  # noqa: E501
+            )
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
+        _check_driver_installed(node, log)
+
+    @TestCaseMetadata(
+        description="""
             This test case verifies the gpu adapter count.
 
             Steps:
@@ -122,6 +163,7 @@ class GpuTestSuite(TestSuite):
         priority=2,
     )
     def verify_gpu_adapter_count(self, node: Node, log_path: Path, log: Logger) -> None:
+        _install_driver(node, log_path, log)
         gpu_feature = node.features[Gpu]
         assert isinstance(node.capability.gpu_count, int)
         expected_count = node.capability.gpu_count
@@ -138,7 +180,7 @@ class GpuTestSuite(TestSuite):
             "Expected device count didn't match Actual device count from lspci",
         ).is_equal_to(expected_count)
 
-        _check_driver_installed(node)
+        _check_driver_installed(node, log)
 
         vendor_cmd_device_count = gpu_feature.get_gpu_count_with_vendor_cmd()
         assert_that(
@@ -158,8 +200,14 @@ class GpuTestSuite(TestSuite):
             supported_features=[GpuEnabled()],
         ),
     )
-    def verify_gpu_rescind_validation(self, node: Node) -> None:
-        _check_driver_installed(node)
+    def verify_gpu_rescind_validation(
+        self,
+        node: Node,
+        log_path: Path,
+        log: Logger,
+    ) -> None:
+        _install_driver(node, log_path, log)
+        _check_driver_installed(node, log)
 
         lspci = node.tools[Lspci]
         gpu = node.features[Gpu]
@@ -190,8 +238,14 @@ class GpuTestSuite(TestSuite):
             supported_features=[GpuEnabled()],
         ),
     )
-    def verify_gpu_cuda_with_pytorch(self, node: Node) -> None:
-        _check_driver_installed(node)
+    def verify_gpu_cuda_with_pytorch(
+        self,
+        node: Node,
+        log_path: Path,
+        log: Logger,
+    ) -> None:
+        _install_driver(node, log_path, log)
+        _check_driver_installed(node, log)
 
         _install_cudnn(node)
 
@@ -228,7 +282,7 @@ class GpuTestSuite(TestSuite):
         ).is_equal_to(expected_count)
 
 
-def _check_driver_installed(node: Node) -> None:
+def _check_driver_installed(node: Node, log: Logger) -> None:
     gpu = node.features[Gpu]
 
     if not gpu.is_supported():
@@ -242,7 +296,14 @@ def _check_driver_installed(node: Node) -> None:
         )
 
     try:
-        _ = node.tools[NvidiaSmi]
+        nvidia_smi = node.tools[NvidiaSmi]
+
+        lspci_gpucount = gpu.get_gpu_count_with_lspci()
+        nvidiasmi_gpucount = nvidia_smi.get_gpu_count()
+        assert_that(lspci_gpucount).described_as(
+            f"GPU count from lspci {lspci_gpucount} not equal to"
+            f"count from nvidia-smi {nvidiasmi_gpucount}"
+        ).is_equal_to(nvidiasmi_gpucount)
     except Exception as identifier:
         raise LisaException(
             f"Cannot find nvidia-smi, make sure the driver installed correctly. "
@@ -277,22 +338,30 @@ def _install_cudnn(node: Node) -> None:
 
 # We use platform to install the driver by default. If in future, it needs to
 # install independently, this logic can be reused.
-def _ensure_driver_installed(
-    node: Node, gpu_feature: Gpu, log_path: Path, log: Logger
-) -> None:
+def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
+    gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
         return
 
-    gpu_feature.install_compute_sdk()
-    log.debug(
-        f"{gpu_feature.get_supported_driver()} sdk installed. "
-        "Will reboot to load driver."
-    )
+    if isinstance(node.os, Ubuntu):
+        sources_before = node.execute(
+            "ls -A1 /etc/apt/sources.list.d", sudo=True
+        ).stdout.split("\n")
 
-    reboot_tool = node.tools[Reboot]
-    reboot_tool.reboot_and_check_panic(log_path)
+    # Try to install GPU driver using extension
+    try:
+        gpu_feature._install_driver_using_platform_feature()
+        return
+    except Exception:
+        log.info("Failed to install NVIDIA Driver using Azure GPU Extension")
+        if isinstance(node.os, Ubuntu):
+            # Cleanup required because extension might add sources
+            sources_after = node.execute(
+                "ls -A1 /etc/apt/sources.list.d", sudo=True
+            ).stdout.split("\n")
+            __remove_sources_added_by_extension(node, sources_before, sources_after)
 
-    _check_driver_installed(node)
+    __install_driver_using_sdk(node, log, log_path)
 
 
 def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
@@ -313,3 +382,23 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     assert_that(len(curr_gpu)).described_as(
         "GPU PCI device count should be same after stop-start"
     ).is_equal_to(len(init_gpu))
+
+
+def __remove_sources_added_by_extension(
+    node: Node, sources_before: List[str], sources_after: List[str]
+) -> None:
+    rm_sources = [source for source in sources_after if source not in sources_before]
+    for source in rm_sources:
+        node.execute(f"rm /etc/apt/sources.list.d/{source}", sudo=True)
+
+
+def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
+    gpu_feature = node.features[Gpu]
+    gpu_feature.install_compute_sdk()
+    log.debug(
+        f"{gpu_feature.get_supported_driver()} sdk installed. "
+        "Will reboot to load driver."
+    )
+
+    reboot_tool = node.tools[Reboot]
+    reboot_tool.reboot_and_check_panic(log_path)

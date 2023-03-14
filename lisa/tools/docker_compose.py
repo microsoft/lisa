@@ -1,15 +1,24 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import PurePath
 
 from lisa.base_tools import Mv, Service, Uname, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix, Redhat
-from lisa.util import LisaException
+from lisa.util import LisaException, get_matched_str
 
 
 class DockerCompose(Tool):
+    # Error response from daemon: crun: /usr/bin/crun: symbol lookup error:
+    #  /usr/bin/crun: undefined symbol: criu_feature_check: OCI runtime error
+    ERROR_PATTERN = re.compile(
+        r"Error response from daemon: crun:.*symbol lookup error.*"
+        r"undefined symbol: criu_feature_check",
+        re.M,
+    )
+
     @property
     def command(self) -> str:
         return "docker-compose"
@@ -25,13 +34,18 @@ class DockerCompose(Tool):
         service.restart_service("docker-compose")
 
     def up(self, path: PurePath) -> None:
-        self.run(
-            "up -d",
-            sudo=True,
-            cwd=path,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to launch docker-compose up -d",
-        )
+        result = self.run("up -d", sudo=True, cwd=path)
+        # temp solution, will revert change once newer package
+        # which can fix the issue release
+        # refer https://access.redhat.com/discussions/6988326
+        if result.exit_code != 0 and get_matched_str(result.stdout, self.ERROR_PATTERN):
+            if (
+                isinstance(self.node.os, Redhat)
+                and self.node.os.information.version >= "9.0.0"
+            ):
+                self.node.os.install_packages("crun-1.4.5-2*")
+                result = self.run("up -d", sudo=True, cwd=path, force_run=True)
+        result.assert_exit_code(message="fail to launch docker-compose up -d")
 
     def _install_from_source(self) -> None:
         wget_tool = self.node.tools[Wget]

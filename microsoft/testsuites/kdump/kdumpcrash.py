@@ -419,6 +419,7 @@ class KdumpCrash(TestSuite):
                             serial_console.get_console_log(
                                 saved_path=log_path, force_run=True
                             )
+                            node.execute("df -h")
                             raise LisaException(
                                 "The vmcore file is incomplete with file size"
                                 f" {round(incomplete_file_size/1024/1024, 2)}MB"

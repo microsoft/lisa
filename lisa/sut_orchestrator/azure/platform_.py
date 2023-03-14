@@ -96,6 +96,7 @@ from .common import (
     get_resource_management_client,
     get_storage_account_name,
     get_storage_client,
+    get_vm,
     global_credential_access_lock,
     save_console_log,
     wait_copy_blob,
@@ -1133,7 +1134,12 @@ class AzurePlatform(Platform):
             AzureNodeSchema, type_name=AZURE
         )
 
-        if not azure_node_runbook.name:
+        # if it is a new deployment
+        #  azure_node_runbook.name will be generated in below way
+        # if it is not a new deployment
+        #  if user gives the vm name, azure_node_runbook.name stores the given user name
+        #  if user doesn't give the vm name, it will be filled in initialize_environment
+        if self._azure_runbook.deploy and not azure_node_runbook.name:
             # the max length of vm name is 64 chars. Below logic takes last 45
             # chars in resource group name and keep the leading 5 chars.
             # name_prefix can contain any of customized (existing) or
@@ -1142,11 +1148,12 @@ class AzurePlatform(Platform):
             # to handle both cases
             node_name = f"{name_prefix}-n{index}"
             azure_node_runbook.name = truncate_keep_prefix(node_name, 50, node_name[:5])
-        # It's used as computer name only. Windows doesn't support name more
-        # than 15 chars
-        azure_node_runbook.short_name = truncate_keep_prefix(
-            azure_node_runbook.name, 15, azure_node_runbook.name[:5]
-        )
+        if azure_node_runbook.name:
+            # It's used as computer name only. Windows doesn't support name more
+            # than 15 chars
+            azure_node_runbook.short_name = truncate_keep_prefix(
+                azure_node_runbook.name, 15, azure_node_runbook.name[:5]
+            )
         if not azure_node_runbook.vm_size:
             raise LisaException("vm_size is not detected before deploy")
         if not azure_node_runbook.location:
@@ -1436,14 +1443,22 @@ class AzurePlatform(Platform):
         index = 0
         for node in environment.nodes.list():
             node_context = get_node_context(node)
-            vm_name = vms_name_list[index]
-            node_context.vm_name = vm_name
-            if not node.name:
-                node.name = vm_name
+            # when it is a new deployment or when vm name pass by user
+            # node_context.vm_name is not empty
+            if node_context.vm_name:
+                vm_name = node_context.vm_name
+                vm = get_vm(self, node)
+            else:
+                # when it is not a new deployment and vm name not passed by user
+                # read the vms info from the given resource group name
+                vm_name = vms_name_list[index]
+                index = index + 1
+                node_context.vm_name = vm_name
+                vm = vms_map[vm_name]
+            node.name = vm_name
             public_address, private_address = get_primary_ip_addresses(
-                self, resource_group_name, vms_map[vm_name]
+                self, resource_group_name, vm
             )
-            index = index + 1
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,

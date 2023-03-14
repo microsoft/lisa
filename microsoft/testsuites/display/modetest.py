@@ -50,7 +50,7 @@ class Modetest(Tool):
                     f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
                 )
             )
-        if isinstance(self.node.os, Suse):
+        elif isinstance(self.node.os, Suse):
             arch = self.node.os.get_kernel_information().hardware_platform
             os_version = self.node.os.information.release.split(".")
             self.node.os.install_packages(

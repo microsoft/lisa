@@ -250,49 +250,42 @@ class CloudHypervisorTests(Tool):
         # { "type": "test", "event": "ok", "name": "integration::test_vfio" }
         lines = output.split("\n")
         for line in lines:
-            matches = re.findall(r"{.*}", line)
-            if not matches:
-                continue
-            line = matches[0]
-            result = {}
             try:
-                result = json.loads(line)
+                json_results = [json.loads(line)]
             except json.decoder.JSONDecodeError:
-                continue
+                json_results = extract_jsons(line)
 
-            if type(result) is not dict:
-                continue
+            for result in json_results:
+                if type(result) is not dict:
+                    continue
+                if "type" not in result or result["type"] != "test":
+                    continue
+                if "event" not in result or result["event"] not in [
+                    "started",
+                    "ok",
+                    "failed",
+                    "ignored",
+                ]:
+                    continue
+                if result["event"] == "started":
+                    status = TestStatus.RUNNING
+                elif result["event"] == "ok":
+                    status = TestStatus.PASSED
+                elif result["event"] == "failed":
+                    status = TestStatus.FAILED
+                elif result["event"] == "ignored":
+                    status = TestStatus.SKIPPED
 
-            if "type" not in result or result["type"] != "test":
-                continue
+                subtest_status[result["name"]] = status
 
-            if "event" not in result or result["event"] not in [
-                "started",
-                "ok",
-                "failed",
-                "ignored",
-            ]:
-                continue
-
-            if result["event"] == "started":
-                status = TestStatus.RUNNING
-            elif result["event"] == "ok":
-                status = TestStatus.PASSED
-            elif result["event"] == "failed":
-                status = TestStatus.FAILED
-            elif result["event"] == "ignored":
-                status = TestStatus.SKIPPED
-
-            subtest_status[result["name"]] = status
-
-            # store stdout of failed subtests
-            if status == TestStatus.FAILED:
-                # test case names have ':'s in them (e.g. "integration::test_vfio").
-                #  ':'s are not allowed in file names in Windows.
-                testcase = result["name"].replace(":", "-")
-                testcase_log_file = log_path / f"{testcase}.log"
-                with open(testcase_log_file, "w") as f:
-                    f.write(result["stdout"])
+                # store stdout of failed subtests
+                if status == TestStatus.FAILED:
+                    # test case names have ':'s in them (e.g. "integration::test_vfio").
+                    #  ':'s are not allowed in file names in Windows.
+                    testcase = result["name"].replace(":", "-")
+                    testcase_log_file = log_path / f"{testcase}.log"
+                    with open(testcase_log_file, "w") as f:
+                        f.write(result["stdout"])
 
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
@@ -400,3 +393,24 @@ class CloudHypervisorTests(Tool):
             dmesg_path = log_path / "dmesg"
             with open(str(dmesg_path), "w") as f:
                 f.write(dmesg_str)
+
+
+def extract_jsons(input_string: str) -> List[Any]:
+    json_results: List[Any] = []
+    start_index = input_string.find("{")
+    search_index = start_index
+    while start_index != -1:
+        end_index = input_string.find("}", search_index) + 1
+        if end_index == 0:
+            start_index = input_string.find("{", start_index + 1)
+            search_index = start_index
+            continue
+        json_string = input_string[start_index:end_index]
+        try:
+            result = json.loads(json_string)
+            json_results.append(result)
+            start_index = input_string.find("{", end_index)
+            search_index = start_index
+        except json.decoder.JSONDecodeError:
+            search_index = end_index
+    return json_results
