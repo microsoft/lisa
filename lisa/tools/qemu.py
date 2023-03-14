@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import time
 from typing import Any, List, Optional
 
@@ -11,11 +12,13 @@ from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
 from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
 from lisa.tools.lscpu import CpuType
-from lisa.util import LisaException
+from lisa.util import LisaException, get_matched_str
 
 
 class Qemu(Tool):
     QEMU_INSTALL_LOCATIONS = ["qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"]
+    # qemu-kvm: unrecognized feature pcid
+    NO_PCID_PATTERN = re.compile(r".*unrecognized feature pcid", re.M)
 
     @property
     def command(self) -> str:
@@ -68,7 +71,14 @@ class Qemu(Tool):
         # The cause of the fairly to init is due to the `pcid` flag.
         # This works fine on intel procs, but fails to pass through successfully on amd
         if CpuType.AMD == self.node.tools[Lscpu].get_cpu_type():
-            cmd += ",pcid=no"
+            # for some qemu version, it doesn't support pcid flag
+            # e.g. QEMU emulator version 1.5.3 (qemu-kvm-1.5.3-175.el7_9.6)
+            # on centos 7.9
+            try_pcid_flag = self.node.execute(
+                f"{self._qemu_command} -cpu host,pcid=no", sudo=True
+            )
+            if not get_matched_str(try_pcid_flag.stdout, self.NO_PCID_PATTERN):
+                cmd += ",pcid=no"
         cmd += f" -smp {cores} -m {memory} -hda {guest_image_path} "
 
         # Add qemu managed nic device
