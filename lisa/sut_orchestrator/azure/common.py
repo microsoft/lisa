@@ -565,11 +565,11 @@ def create_update_private_endpoints(
     private_link_service_id: str,
     group_ids: List[str],
     log: Logger,
-    private_endpoint_name: str = "pe_test",
-    status: str = "Approved",
-    description: str = "Auto-Approved",
 ) -> Any:
     network = get_network_client(platform)
+    private_endpoint_name = "pe_test"
+    status = "Approved"
+    description = "Auto-Approved"
     private_endpoint = network.private_endpoints.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_endpoint_name=private_endpoint_name,
@@ -599,9 +599,9 @@ def delete_private_endpoints(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_endpoint_name: str = "pe_test",
 ) -> None:
     network = get_network_client(platform)
+    private_endpoint_name = "pe_test"
     try:
         network.private_endpoints.get(
             resource_group_name=resource_group_name,
@@ -632,10 +632,10 @@ def create_update_private_zones(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
-    private_zone_location: str = "global",
 ) -> Any:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    private_zone_location = "global"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -653,9 +653,9 @@ def delete_private_zones(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -690,11 +690,11 @@ def create_update_record_sets(
     resource_group_name: str,
     ipv4_address: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
-    relative_record_set_name: str = "privatelink",
-    record_type: str = "A",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    relative_record_set_name = "privatelink"
+    record_type = "A"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -712,11 +712,11 @@ def delete_record_sets(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
-    relative_record_set_name: str = "privatelink",
-    record_type: str = "A",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    relative_record_set_name = "privatelink"
+    record_type = "A"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -744,12 +744,12 @@ def create_update_virtual_network_links(
     resource_group_name: str,
     virtual_network_resource_id: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
-    virtual_network_link_name: str = "vnetlink",
-    registration_enabled: bool = False,
-    virtual_network_link_location: str = "global",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    virtual_network_link_name = "vnetlink"
+    registration_enabled = False
+    virtual_network_link_location = "global"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -770,10 +770,10 @@ def delete_virtual_network_links(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink",
-    virtual_network_link_name: str = "vnetlink",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    virtual_network_link_name = "vnetlink"
     private_zone_name = ".".join(
         [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -799,11 +799,11 @@ def create_update_private_dns_zone_groups(
     resource_group_name: str,
     private_dns_zone_id: str,
     log: Logger,
-    private_dns_zone_group_name: str = "default",
-    private_endpoint_name: str = "pe_test",
-    private_dns_zone_name: str = "privatelink",
 ) -> None:
     network_client = get_network_client(platform)
+    private_dns_zone_group_name = "default"
+    private_endpoint_name = "pe_test"
+    private_dns_zone_name = "privatelink"
     private_dns_zone_name = ".".join(
         [private_dns_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
     )
@@ -829,10 +829,10 @@ def delete_private_dns_zone_groups(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_dns_zone_group_name: str = "default",
-    private_endpoint_name: str = "pe_test",
 ) -> None:
     network_client = get_network_client(platform)
+    private_dns_zone_group_name = "default"
+    private_endpoint_name = "pe_test"
     try:
         network_client.private_dns_zone_groups.get(
             resource_group_name=resource_group_name,
