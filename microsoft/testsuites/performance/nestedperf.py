@@ -361,6 +361,7 @@ class KVMPerformance(TestSuite):  # noqa
                 client_l2,
                 server_nic_name=self._NIC_NAME,
                 client_nic_name=self._NIC_NAME,
+                lagscope_server_ip=self._SERVER_IP_ADDR,
                 test_case_name=inspect.stack()[1][3],
             )
         finally:

@@ -216,6 +216,7 @@ def perf_ntttcp(
     udp_mode: bool = False,
     connections: Optional[List[int]] = None,
     test_case_name: str = "",
+    lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
@@ -279,7 +280,11 @@ def perf_ntttcp(
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
-        server_lagscope.run_as_server_async(ip=server.internal_address)
+        server_lagscope.run_as_server_async(
+            ip=lagscope_server_ip
+            if lagscope_server_ip is not None
+            else server.internal_address
+        )
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
