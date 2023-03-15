@@ -56,7 +56,7 @@ class NetInterface(TestSuite):
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
         test_count = 0
-        while test_count < self.NETVSC_RELOAD_TEST_COUNT - 1:
+        while test_count < self.NETVSC_RELOAD_TEST_COUNT:
             test_count += 1
             # Unload and load hv_netvsc
             try:
@@ -70,8 +70,6 @@ class NetInterface(TestSuite):
                     saved_path=log_path, stage="after_reload_netvsc", force_run=True
                 )
                 node.close()
-        # Run the last time
-        network_interface_feature.reload_module()
 
     @TestCaseMetadata(
         description="""
