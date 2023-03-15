@@ -49,9 +49,6 @@ class Ping(Tool):
         if not target:
             target = INTERNET_PING_ADDRESS
         args: str = f"{target} -c {count} -i {interval}"
-        # For Alpine, '-O' option is unrecognized, so remove '-O'
-        if not isinstance(self.node.os, Alpine):
-            args += " -O"
         if nic_name:
             args += f" -I {nic_name}"
         if package_size:
