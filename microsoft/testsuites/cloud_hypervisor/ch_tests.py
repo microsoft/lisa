@@ -150,8 +150,16 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_perf_tests_included",
             "ch_perf_tests_excluded",
         )
+        subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
         node.tools[CloudHypervisorTests].run_metrics_tests(
-            result, environment, hypervisor, log_path, ref, include_list, exclude_list
+            result,
+            environment,
+            hypervisor,
+            log_path,
+            ref,
+            include_list,
+            exclude_list,
+            subtest_timeout,
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
