@@ -127,6 +127,7 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
+        subtest_timeout: Optional[int] = None,
     ) -> None:
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
@@ -150,10 +151,15 @@ class CloudHypervisorTests(Tool):
             status: TestStatus = TestStatus.QUEUED
             metrics: str = ""
             trace: str = ""
+            cmd_args: str = (
+                f"tests --hypervisor {hypervisor} --metrics -- --"
+                f" --test-filter {testcase}"
+            )
+            if subtest_timeout:
+                cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
             try:
                 result = self.run(
-                    f"tests --hypervisor {hypervisor} --metrics -- --"
-                    f" --test-filter {testcase}",
+                    cmd_args,
                     timeout=self.PERF_CMD_TIME_OUT,
                     force_run=True,
                     cwd=self.repo_root,
