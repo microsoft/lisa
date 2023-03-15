@@ -2083,6 +2083,9 @@ class Architecture(AzureFeatureMixin, Feature):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
+        if resource_sku.family in ["standardARMv3Family"]:
+            return None
         return ArchitectureSettings(
             arch=raw_capabilities.get("CpuArchitectureType", "x64")
         )
