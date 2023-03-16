@@ -152,6 +152,7 @@ class Xfstesting(TestSuite):
             ),
         ),
         timeout=TIME_OUT,
+        use_new_environment=True,
         priority=3,
     )
     def xfstesting_generic_standard_datadisk_validation(
@@ -186,6 +187,7 @@ class Xfstesting(TestSuite):
             ),
         ),
         timeout=TIME_OUT,
+        use_new_environment=True,
         priority=3,
     )
     def xfstesting_xfs_standard_datadisk_validation(
@@ -221,6 +223,7 @@ class Xfstesting(TestSuite):
             ),
         ),
         timeout=TIME_OUT,
+        use_new_environment=True,
         priority=3,
     )
     def xfstesting_ext4_standard_datadisk_validation(
@@ -257,6 +260,7 @@ class Xfstesting(TestSuite):
             ),
         ),
         timeout=TIME_OUT,
+        use_new_environment=True,
         priority=3,
     )
     def xfstesting_btrfs_standard_datadisk_validation(
@@ -288,6 +292,7 @@ class Xfstesting(TestSuite):
         """,
         timeout=TIME_OUT,
         priority=3,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_features=[Nvme],
         ),
@@ -318,6 +323,7 @@ class Xfstesting(TestSuite):
         """,
         timeout=TIME_OUT,
         priority=3,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_features=[Nvme],
         ),
@@ -349,6 +355,7 @@ class Xfstesting(TestSuite):
         """,
         timeout=TIME_OUT,
         priority=3,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_features=[Nvme],
         ),
@@ -381,6 +388,7 @@ class Xfstesting(TestSuite):
         """,
         timeout=TIME_OUT,
         priority=3,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_features=[Nvme],
         ),
@@ -417,6 +425,7 @@ class Xfstesting(TestSuite):
             supported_platform_type=[AZURE],
         ),
         timeout=TIME_OUT,
+        use_new_environment=True,
         priority=3,
     )
     def xfstesting_azure_file_share_validation(
