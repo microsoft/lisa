@@ -30,21 +30,18 @@ from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorT
     """,
 )
 class CloudHypervisorTestSuite(TestSuite):
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
-        node.tools[Modprobe].load("openvswitch")
-
-    def after_suite(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
-        node.tools[Modprobe].remove(["openvswitch"])
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not isinstance(node.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"Cloud Hypervisor tests are not implemented in LISA for {node.os.name}"
             )
+        node.tools[Modprobe].load("openvswitch")
         self._ensure_virtualization_enabled(node)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        node.tools[Modprobe].remove(["openvswitch"])
 
     @TestCaseMetadata(
         description="""
