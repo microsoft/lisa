@@ -103,11 +103,27 @@ Use existing deployment
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 In addition to deploying a new Azure server and running tests, you can
-skip the deployment phase and use existing resource group.
+skip the deployment phase and use existing resource group. This feature
+is only available for Azure platform.
 
 The advantage is that it can run all test cases of Azure. The shortage
 is that the VM name is fixed, and it should be node-0, so each resource
 group can put only one VM.
+
+To use existing deployment, follow the steps below:
+
+1. Start a run with the variable values set to following in the runbook:
+
+.. code:: bash
+
+   lisa -r <runbook> ..  -v deploy:true -v keep_environment:always -v resource_group_name:"<resource group name>"
+
+2. After the run is completed, the resource group will be kept. You can
+   use the same resource group name in the subsequent runs.
+
+.. code:: bash
+
+   lisa -r <runbook> .. -v deploy:false -v keep_environment:always -v resource_group_name:"<resource group name>
 
 Set other Azure parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
