@@ -416,9 +416,9 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
-    def test_skipped_on_suite_failure(self) -> None:
+    def test_skipped_on_case_failure(self) -> None:
         # First two tests were skipped because the setup is made to fail.
-        test_testsuite.fail_on_before_suite = True
+        test_testsuite.fail_on_before_case = True
         test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
         runner = generate_runner(env_runbook)
@@ -431,7 +431,7 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
 
-        before_suite_failed = "before_suite: failed"
+        before_case_failed = "before_case: failed"
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["customized_0", "customized_0", "customized_0"],
@@ -440,7 +440,7 @@ class RunnerTestCase(TestCase):
                 TestStatus.SKIPPED,
                 TestStatus.PASSED,
             ],
-            expected_message=[before_suite_failed, before_suite_failed, ""],
+            expected_message=[before_case_failed, before_case_failed, ""],
             test_results=test_results,
         )
 
