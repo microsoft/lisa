@@ -13,7 +13,12 @@ from lisa import (
 )
 from lisa.operating_system import Debian, Posix
 from lisa.tools import Ping
-from lisa.util import PassedException, ReleaseEndOfLifeException, RepoNotExistException
+from lisa.util import (
+    LisaException,
+    PassedException,
+    ReleaseEndOfLifeException,
+    RepoNotExistException,
+)
 
 
 @TestSuiteMetadata(
@@ -59,7 +64,15 @@ class Dns(TestSuite):
     @retry(tries=10, delay=0.5)
     def _check_dns_name_resolution(self, node: Node) -> None:
         ping = node.tools[Ping]
-        ping.ping(target="bing.com")
+        try:
+            ping.ping(target="bing.com")
+        except Exception as identifier:
+            if ping.no_sendmsg_permission_pattern.findall(str(identifier)):
+                # ping ICMP packet might be blocked by control plane ACL
+                # Use "nslookup bing.com" command to check
+                node.execute("nslookup bing.com", expected_exit_code=0, timeout=30)
+            else:
+                raise LisaException(identifier)
 
     def _upgrade_system(self, node: Node) -> None:
         if not isinstance(node.os, Posix):

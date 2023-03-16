@@ -20,6 +20,14 @@ class Ping(Tool):
         re.M,
     )
 
+    # ping: sendmsg: Operation not permitted
+    # The message indicates that the ICMP echo request packet has not been sent and is
+    # blocked by the Control Plane ACL. Run "iptables --list" to check.
+    no_sendmsg_permission_pattern = re.compile(
+        r"ping: sendmsg: Operation not permitted",
+        re.M,
+    )
+
     @property
     def command(self) -> str:
         return "ping"
