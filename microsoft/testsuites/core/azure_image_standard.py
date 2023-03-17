@@ -35,7 +35,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
-from lisa.tools import Cat, Dmesg, Ls, Lsblk, Lscpu, Pgrep, Ssh, Whoami
+from lisa.tools import Cat, Dmesg, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
     LisaException,
     PassedException,
@@ -901,7 +901,13 @@ class AzureImageStandard(TestSuite):
             r" \\\"root\\\".\';echo;sleep .*\"",
             re.M,
         )
-        current_user = node.tools[Whoami].get_username()
+        # For Bitnami images, the bitnami.service changes the uid of current user as
+        # 1000 which user 'bitnami' already has.
+        # From https://github.com/coreutils/coreutils/blob/master/src/whoami.c, whoami
+        # gets name from EUID which is 1000. Then the output is 'bitnami' rather than
+        # the current user. So modified to get the admin user from node connection_info
+        remote_node = cast(RemoteNode, node)
+        current_user = str(remote_node.connection_info.get("username"))
         cat = node.tools[Cat]
         if isinstance(node.os, FreeBSD):
             shadow_file = "/etc/master.passwd"
