@@ -1863,6 +1863,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 
 
 class AzureExtension(AzureFeatureMixin, Feature):
+    RESOURCE_NOT_FOUND = re.compile(r"ResourceNotFound", re.M)
+
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -1915,6 +1917,52 @@ class AzureExtension(AzureFeatureMixin, Feature):
         result = wait_operation(operation, timeout)
 
         return result
+
+    def delete(
+        self,
+        name: str = "",
+        timeout: int = 60 * 25,
+    ) -> None:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        self._log.debug(f"uninstall extension: {name}")
+
+        operation = compute_client.virtual_machine_extensions.begin_delete(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+        )
+        # no return for this operation
+        wait_operation(operation, timeout)
+
+    def list_all(self) -> Any:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        self._log.debug(f"list all extensions in rg: {self._resource_group_name}")
+
+        return_list = compute_client.virtual_machine_extensions.list(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+        )
+        return return_list.value
+
+    def check_exist(self, name: str) -> bool:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        try:
+            compute_client.virtual_machine_extensions.get(
+                resource_group_name=self._resource_group_name,
+                vm_name=self._vm_name,
+                vm_extension_name=name,
+            )
+            self._log.debug(f"the extension {name} has been installed")
+            return True
+        except Exception as ex:
+            if find_patterns_in_lines(str(ex), [self.RESOURCE_NOT_FOUND]):
+                self._log.debug(f"not found the extension {name}")
+                return False
+            else:
+                raise ex
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
