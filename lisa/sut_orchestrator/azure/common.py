@@ -494,6 +494,7 @@ class AzureArmParameter:
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
+    user_data_base64: str = ""
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1244,7 +1245,8 @@ def load_environment(
         )
         node.set_connection_info(
             address=node_context.private_ip_address,
-            public_address=node_context.public_ip_address,
+            # public_address=node_context.public_ip_address,
+            public_address="",
             username=node_context.username,
             password=node_context.password,
             private_key_file=node_context.private_key_file,

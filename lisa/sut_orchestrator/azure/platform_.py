@@ -258,7 +258,7 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
-    cloud_init_user_data_runcommands_script: str = field(default=None)
+    cloud_init_user_data_runcommands_script: str = field(default="None")
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -300,6 +300,7 @@ class AzurePlatformSchema:
                 "resource_group_name",
                 "locations",
                 "log_level",
+                "cloud_init_user_data_runcommands_script",
             ],
         )
 
@@ -471,6 +472,9 @@ class AzurePlatform(Platform):
             environment_context.resource_group_is_specified = True
 
         environment_context.resource_group_name = resource_group_name
+
+        log.info(f"bfjelds cloud_init_user_data_runcommands_script: {self.runbook}")
+
         if self._azure_runbook.dry_run:
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
@@ -1100,23 +1104,12 @@ class AzurePlatform(Platform):
                     ],
                 },
             ],
-            "write_files": [],
-            "runcmd": [],
         }
-        if os.path.exists(self._azure_runbook.cloud_init_user_data_runcommands_script):
-            runcommands_script = ""
-            with open(self._azure_runbook.cloud_init_user_data_runcommands_script) as stream:
-                runcommands_script = stream.read()
-            if runcommands_script:
-                filename = os.path.basename(self._azure_runbook.cloud_init_user_data_runcommands_script)
-                user_data["write_files"].append({
-                    "owner": f"{arm_parameters.admin_username}:{arm_parameters.admin_username}",
-                    "path": f"/tmp/{filename}",
-                    "content": f"{runcommands_script.encode('utf8').decode('unicode_escape')}",
-                })
-                user_data["runcmd"].append(f"/tmp/{filename}")
-        if len(user_data["runcmd"]) != 0:
-            arm_parameters.user_data_base64 = base64.b64encode(yaml.dump(user_data).encode("utf8"))
+        log.info(f"bfjelds user-data initally: userdata:{user_data} file:{self._azure_runbook.cloud_init_user_data_runcommands_script}")
+        user_data_as_text = yaml.dump(user_data, width=9999)
+        user_data_to_serialize = f"#cloud-config\n{user_data_as_text}"
+        arm_parameters.user_data_base64 = base64.b64encode(user_data_to_serialize.encode("utf8")).decode("ascii")
+        log.info(f"\n\n\nbfjelds arm_parameters.user_data_base64: {arm_parameters.user_data_base64}\n\n\n")
             
 
         # the arm template may be updated by the hooks, so make a copy to avoid
@@ -1512,7 +1505,8 @@ class AzurePlatform(Platform):
             node.set_connection_info(
                 address=private_address,
                 port=22,
-                public_address=public_address,
+                #public_address=public_address,
+                public_address="",
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
