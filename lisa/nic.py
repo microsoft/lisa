@@ -4,6 +4,7 @@
 
 import os
 import re
+import time
 from collections import OrderedDict
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -300,6 +301,7 @@ class Nics(InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._node.log.debug("loading nic information...")
+        time.sleep(30)
         self.nic_names = self._get_nic_names()
         self._get_node_nic_info()
         self._get_default_nic()
