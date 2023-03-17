@@ -29,7 +29,7 @@ class Modprobe(Tool):
             sudo=True,
             shell=True,
             nohup=True,
-            timeout=60,
+            timeout=120,
         )
 
     def is_module_loaded(
