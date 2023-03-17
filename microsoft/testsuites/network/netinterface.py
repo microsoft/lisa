@@ -56,22 +56,43 @@ class NetInterface(TestSuite):
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
         test_count = 0
-        while test_count < self.NETVSC_RELOAD_TEST_COUNT - 1:
+        while test_count < self.NETVSC_RELOAD_TEST_COUNT:
             test_count += 1
             # Unload and load hv_netvsc
             try:
                 network_interface_feature.reload_module()
             except Exception as identifier:
-                # Sometimes the ssh session is inactive. If no panic is detected,
-                # close the node to retry again
-                node.log.debug(f"This exception '{identifier}' is ignorable. Try again")
+                # It has two kinds of known exceptions. One is SSHException "SSH session
+                # not active". Another is "cannot connect to TCP port". The SSHException
+                # can be ignorable. If no panic is detected, close the node and retry.
+                # If it is the second exception, retrying is useless, so just raise an
+                # exception. Having the second exception is not clear if the image has
+                # an issue. The test result can be set as "Attempted". For now, we just
+                # found an image gigamon-inc gigamon-fm-5_16_00 vseries-1-node 1.7.3
+                # truly fails the case because of the second exception. It has a veth0
+                # created by openvswitch, which doesn't seem to be able to properly
+                # handle the removal/addition of the netvsc interface eth0. Restart
+                # openvswitch-switch service can recover the network.
                 serial_console = node.features[SerialConsole]
                 serial_console.check_panic(
                     saved_path=log_path, stage="after_reload_netvsc", force_run=True
                 )
-                node.close()
-        # Run the last time
-        network_interface_feature.reload_module()
+                if str(identifier) == "SSH session not active":
+                    node.log.debug(
+                        f"This exception '{identifier}' is ignorable. Try again"
+                    )
+                    node.close()
+                elif "cannot connect to TCP port" in str(identifier):
+                    raise LisaException(
+                        f"After reloading netvsc module {test_count - 1} times, "
+                        f"encounter exception '{identifier}'. It is not clear if"
+                        " the image has an issue. Please rerun this case."
+                    )
+                else:
+                    raise LisaException(
+                        f"After reloading netvsc module {test_count - 1} times, "
+                        f"encounter exception '{identifier}'."
+                    )
 
     @TestCaseMetadata(
         description="""
