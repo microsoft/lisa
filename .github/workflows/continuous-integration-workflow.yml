@@ -23,16 +23,13 @@ jobs:
         nox-session: [test, example]
 
         exclude:
-          # Azure installion (Win, 3.12) currently hangs due to excessive pip backtracking
+          # Azure installation (Win, 3.12) currently hangs due to excessive pip backtracking
           # Disable unit tests and retry in 2Q23
           - python-version: '3.12-dev'
             os: windows-2019
             nox-session: test
 
         include:
-
-          - python-version: '3.12-dev'
-            optional: true
 
           - os: ubuntu-latest
             python-version: ''
