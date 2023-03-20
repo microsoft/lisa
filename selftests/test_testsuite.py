@@ -28,8 +28,6 @@ from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook
 
 # for other UTs
-fail_on_before_suite = False
-fail_on_after_suite = False
 fail_on_before_case = False
 fail_on_after_case = False
 partial_pass = False
@@ -42,8 +40,6 @@ check_variable = False
 class MockTestSuite(TestSuite):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.fail_on_before_suite = fail_on_before_suite
-        self.fail_on_after_suite = fail_on_after_suite
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
@@ -55,8 +51,6 @@ class MockTestSuite(TestSuite):
 
     def set_fail_phase(
         self,
-        fail_on_before_suite: bool = False,
-        fail_on_after_suite: bool = False,
         fail_on_before_case: bool = False,
         fail_on_after_case: bool = False,
         partial_pass: bool = False,
@@ -64,22 +58,12 @@ class MockTestSuite(TestSuite):
         fail_case_count: int = 0,
         check_variable: bool = False,
     ) -> None:
-        self.fail_on_before_suite = fail_on_before_suite
-        self.fail_on_after_suite = fail_on_after_suite
         self.fail_on_before_case = fail_on_before_case
         self.fail_on_after_case = fail_on_after_case
         self.partial_pass = partial_pass
         self.skipped = skipped
         self.fail_case_count = fail_case_count
         self.check_variable = check_variable
-
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
-        if self.fail_on_before_suite:
-            raise LisaException("failed")
-
-    def after_suite(self, log: Logger, **kwargs: Any) -> None:
-        if self.fail_on_after_suite:
-            raise LisaException("failed")
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         if self.fail_on_before_case:
@@ -225,30 +209,6 @@ class TestSuiteTestCase(TestCase):
                 self.assertEqual(True, result.is_queued)
             else:
                 self.assertEqual(False, result.is_queued)
-
-    def test_skip_before_suite_failed(self) -> None:
-        test_suite = self.generate_suite_instance()
-        test_suite.set_fail_phase(fail_on_before_suite=True)
-        test_suite.start(
-            environment=self.default_env,
-            case_results=self.case_results,
-            case_variables={},
-        )
-        for result in self.case_results:
-            self.assertEqual(TestStatus.SKIPPED, result.status)
-            self.assertEqual("before_suite: failed", result.message)
-
-    def test_pass_after_suite_failed(self) -> None:
-        test_suite = self.generate_suite_instance()
-        test_suite.set_fail_phase(fail_on_after_suite=True)
-        test_suite.start(
-            environment=self.default_env,
-            case_results=self.case_results,
-            case_variables={},
-        )
-        for result in self.case_results:
-            self.assertEqual(TestStatus.PASSED, result.status)
-            self.assertEqual("", result.message)
 
     def test_variable_exists(self) -> None:
         test_suite = self.generate_suite_instance()

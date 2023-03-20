@@ -39,7 +39,7 @@ class MshvHostTestSuite(TestSuite):
     HYPERVISOR_FW_NAME = "hypervisor-fw"
     DISK_IMG_NAME = "vm_disk_img.raw"
 
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not node.tools[Ls].path_exists("/dev/mshv", sudo=True):
             raise SkippedException("This suite is for MSHV root partition only")

@@ -67,13 +67,6 @@ class HelloWorld(TestSuite):
         node.tools.get(Echo)  # Ensure echo is in cache
         assert_that(str(node.tools.echo("bye!"))).is_equal_to("bye!")
 
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
-        log.info("setup my test suite")
-        log.info(f"see my code at {__file__}")
-
-    def after_suite(self, log: Logger, **kwargs: Any) -> None:
-        log.info("clean up my test suite")
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         log.info("before test case")
 

@@ -34,6 +34,8 @@ class Waagent(Tool):
         "python2",
         # for RedHat 8.0
         "/usr/libexec/platform-python",
+        # for flatcar
+        "/usr/share/oem/python/bin/python3",
     ]
 
     @property

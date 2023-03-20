@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import copy
 import traceback
+import warnings
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from warnings import warn
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
@@ -539,10 +541,22 @@ class TestSuite:
         self.__log = get_logger("suite", metadata.name)
 
     def before_suite(self, log: Logger, **kwargs: Any) -> None:
-        ...
+        warnings.simplefilter("always", DeprecationWarning)
+        warn(
+            "before_suite is deprecated. please use before_case",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        warnings.simplefilter("ignore", DeprecationWarning)
 
     def after_suite(self, log: Logger, **kwargs: Any) -> None:
-        ...
+        warnings.simplefilter("always", DeprecationWarning)
+        warn(
+            "after_suite is deprecated. please use after_case",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        warnings.simplefilter("ignore", DeprecationWarning)
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         ...

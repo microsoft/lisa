@@ -26,7 +26,7 @@ from lisa import (
     """,
 )
 class WithScript(TestSuite):
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
         self._echo_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["echo.sh"]
         )

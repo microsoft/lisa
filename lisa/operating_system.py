@@ -379,9 +379,10 @@ class Posix(OperatingSystem, BaseClassMixin):
             "uptime -s || last reboot -F | head -1 | awk '{print $9,$6,$7,$8}'",
             shell=True,
         ).save_stdout_to_file(saved_path / "uptime.txt")
-        self._node.execute("modinfo hv_netvsc").save_stdout_to_file(
-            saved_path / "modinfo-hv_netvsc.txt"
-        )
+        self._node.execute(
+            "modinfo hv_netvsc",
+            no_error_log=True,
+        ).save_stdout_to_file(saved_path / "modinfo-hv_netvsc.txt")
 
         if self._node.is_test_target:
             if self._node._first_initialize:
