@@ -1859,9 +1859,11 @@ class AzurePlatform(Platform):
         the vhd_path is a sas url. If so, copy it to a location in current
         subscription, so it can be deployed.
         """
+        log.info(f"_get_deployable_vhd_path:, vhd_path: {vhd_path}")
         matches = SAS_URL_PATTERN.match(vhd_path)
         if not matches:
             vhd_details = self._get_vhd_details(vhd_path)
+            log.info(f"_get_vhd_details:, vhd_path: {vhd_path}")
             vhd_location = vhd_details["location"]
             if location == vhd_location:
                 return vhd_path
