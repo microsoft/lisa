@@ -21,6 +21,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
+from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
@@ -34,6 +35,7 @@ from lisa.tools import (
     Lscpu,
     Lspci,
 )
+from lisa.util import UnsupportedDistroException
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
@@ -66,6 +68,27 @@ class Sriov(TestSuite):
             node.features[NetworkInterface].switch_sriov(
                 enable=True, wait=True, reset_connections=True
             )
+
+    @TestCaseMetadata(
+        description="""
+        This case verifies all services state with Sriov enabled.
+
+        Steps,
+        1. Get overrall state from `systemctl status`, if no systemctl command,
+           skip the testing
+        2. The expected state should be `running`
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_services_state(self, environment: Environment) -> None:
+        try:
+            for node in environment.nodes.list():
+                assert_that(node.tools[Systemctl].state()).is_equal_to("running")
+        except UnsupportedDistroException as e:
+            raise SkippedException(e) from e
 
     @TestCaseMetadata(
         description="""
