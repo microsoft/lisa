@@ -19,7 +19,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk, IsolatedResource
+from lisa.features import Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
@@ -58,7 +58,6 @@ class StoragePerformance(TestSuite):
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
@@ -76,7 +75,6 @@ class StoragePerformance(TestSuite):
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
@@ -94,7 +92,6 @@ class StoragePerformance(TestSuite):
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=24),
             ),
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_premium_datadisks_io(self, node: Node, result: TestResult) -> None:
