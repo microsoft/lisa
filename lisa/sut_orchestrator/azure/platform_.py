@@ -2021,13 +2021,21 @@ class AzurePlatform(Platform):
         container_name = matched.group("container")
         blob_name = matched.group("blob")
         storage_client = get_storage_client(self.credential, self.subscription_id)
-        sc = [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+        # sometimes it will fail for below reason if list storage accounts like this way
+        # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+        # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
+        sc_list = storage_client.storage_accounts.list()
+        found_sc = None
+        for sc in sc_list:
+            if sc.name == sc_name:
+                found_sc = sc
+                break
         assert (
-            sc
+            found_sc
         ), f"storage account {sc_name} not found in subscription {self.subscription_id}"
-        rg = get_matched_str(sc[0].id, RESOURCE_GROUP_PATTERN)
+        rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
         return {
-            "location": sc[0].location,
+            "location": found_sc.location,
             "resource_group_name": rg,
             "account_name": sc_name,
             "container_name": container_name,
