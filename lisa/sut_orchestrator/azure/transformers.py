@@ -37,7 +37,7 @@ from .common import (
     wait_copy_blob,
     wait_operation,
 )
-from .platform_ import AzurePlatform
+from .platform_ import AzurePlatform, AzurePlatformSchema
 from .tools import Waagent
 
 DEFAULT_EXPORTED_VHD_CONTAINER_NAME = "lisa-vhd-exported"
@@ -122,7 +122,11 @@ class VhdTransformer(Transformer):
         runbook: VhdTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
 
-        environment = load_environment(platform, runbook.resource_group_name, self._log)
+        azure_runbook: AzurePlatformSchema = self.runbook.get_extended_runbook(
+            AzurePlatformSchema
+        )
+
+        environment = load_environment(platform, runbook.resource_group_name, azure_runbook.use_private_address_for_vm_connection, self._log)
 
         if runbook.vm_name:
             node = next(

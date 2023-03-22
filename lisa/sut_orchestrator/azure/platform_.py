@@ -78,6 +78,8 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
+    AZURE_NEW_VIRTUAL_NETWORK,
+    AZURE_NEW_SUBNET_PREFIX,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -259,9 +261,10 @@ class AzurePlatformSchema:
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
-    virtual_network_name: str = field(default="lisa-virtualNetwork")
-    subnet_prefix: str = field(default="lisa-subnet-")
+    virtual_network_name: str = field(default=AZURE_NEW_VIRTUAL_NETWORK)
+    subnet_prefix: str = field(default=AZURE_NEW_SUBNET_PREFIX)
     use_existing_virtual_network: bool = field(default=False)
+    use_private_address_for_vm_connection: bool = field(default=False)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -307,6 +310,7 @@ class AzurePlatformSchema:
                 "virtual_network_name",
                 "subnet_prefix",
                 "use_existing_virtual_network",
+                "use_private_address_for_vm_connection"
             ],
         )
 
@@ -1487,12 +1491,19 @@ class AzurePlatform(Platform):
             public_address, private_address = get_primary_ip_addresses(
                 self, resource_group_name, vm
             )
+
+            connection_public_ip = node_context.public_ip_address
+            if self._azure_runbook.use_private_address_for_vm_connection:
+                # setting public_address to empty causes set_connection_info
+                # to use address (the private ip)
+                connection_public_ip = ''
+
+            index = index + 1
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
                 port=22,
-                #public_address=public_address,
-                public_address="",
+                public_address=connection_public_ip,
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
