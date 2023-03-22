@@ -494,7 +494,11 @@ class AzureArmParameter:
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
-    user_data_base64: str = ""
+    
+    virtual_network_resource_group: str = ""
+    virtual_network_name: str = "lisa-virtualNetwork"
+    subnet_prefix: str = "lisa-subnet-"
+    use_existing_virtual_network: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)

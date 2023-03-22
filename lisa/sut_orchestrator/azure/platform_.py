@@ -258,7 +258,10 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
 
-    cloud_init_user_data_runcommands_script: str = field(default="None")
+    virtual_network_resource_group: str = field(default="")
+    virtual_network_name: str = field(default="lisa-virtualNetwork")
+    subnet_prefix: str = field(default="lisa-subnet-")
+    use_existing_virtual_network: bool = field(default=False)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -300,7 +303,10 @@ class AzurePlatformSchema:
                 "resource_group_name",
                 "locations",
                 "log_level",
-                "cloud_init_user_data_runcommands_script",
+                "virtual_network_resource_group",
+                "virtual_network_name",
+                "subnet_prefix",
+                "use_existing_virtual_network",
             ],
         )
 
@@ -472,8 +478,6 @@ class AzurePlatform(Platform):
             environment_context.resource_group_is_specified = True
 
         environment_context.resource_group_name = resource_group_name
-
-        log.info(f"bfjelds cloud_init_user_data_runcommands_script: {self.runbook}")
 
         if self._azure_runbook.dry_run:
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
@@ -976,6 +980,14 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
+        if self._azure_runbook.virtual_network_resource_group:
+            arm_parameters.virtual_network_resource_group = self._azure_runbook.virtual_network_resource_group
+        if self._azure_runbook.subnet_prefix:
+            arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
+        if self._azure_runbook.virtual_network_name:
+            arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+        arm_parameters.use_existing_virtual_network = self._azure_runbook.use_existing_virtual_network
+
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         if self.runbook.admin_private_key_file:
@@ -1085,32 +1097,6 @@ class AzurePlatform(Platform):
         arm_parameters.shared_resource_group_name = (
             self._azure_runbook.shared_resource_group_name
         )
-
-        # In Azure, VM creation can be configured with cloud-init user-data.  Provide
-        # method for specifying a script that can be written to the VM filesystem and
-        # subsequently invoked.  The user-data can be passed to the ARM template as
-        # base64 encoded yaml.  If runbook.cloud_init_user_data_runcommands_script is
-        # set, create user-data base64 encrypted string to pass to ARM template.
-        user_data: Dict[str, Any] = {
-            "users": [
-                "default",
-                {
-                    "name": arm_parameters.admin_username,
-                    "groups": "sudo",
-                    "shell": "/bin/bash",
-                    "sudo": ['ALL=(ALL) NOPASSWD:ALL'],
-                    "ssh-authorized-keys":[
-                      arm_parameters.admin_key_data,
-                    ],
-                },
-            ],
-        }
-        log.info(f"bfjelds user-data initally: userdata:{user_data} file:{self._azure_runbook.cloud_init_user_data_runcommands_script}")
-        user_data_as_text = yaml.dump(user_data, width=9999)
-        user_data_to_serialize = f"#cloud-config\n{user_data_as_text}"
-        arm_parameters.user_data_base64 = base64.b64encode(user_data_to_serialize.encode("utf8")).decode("ascii")
-        log.info(f"\n\n\nbfjelds arm_parameters.user_data_base64: {arm_parameters.user_data_base64}\n\n\n")
-            
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
