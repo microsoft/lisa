@@ -540,24 +540,6 @@ class TestSuite:
         self._should_stop = False
         self.__log = get_logger("suite", metadata.name)
 
-    def before_suite(self, log: Logger, **kwargs: Any) -> None:
-        warnings.simplefilter("always", DeprecationWarning)
-        warn(
-            "before_suite is deprecated. please use before_case",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        warnings.simplefilter("ignore", DeprecationWarning)
-
-    def after_suite(self, log: Logger, **kwargs: Any) -> None:
-        warnings.simplefilter("always", DeprecationWarning)
-        warn(
-            "after_suite is deprecated. please use after_case",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        warnings.simplefilter("ignore", DeprecationWarning)
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         ...
 
@@ -584,15 +566,20 @@ class TestSuite:
             "variables": copy.copy(case_variables),
         }
 
-        #  replace to case's logger temporarily
+        is_suite_continue = True
         suite_log = self.__log
-        (
-            is_suite_continue,
-            suite_error_message,
-            suite_error_stacktrace,
-        ) = self.__suite_method(
-            self.before_suite, test_kwargs=test_kwargs, log=suite_log
-        )
+        #  replace to case's logger temporarily
+        if hasattr(self, "before_suite"):
+            (
+                is_suite_continue,
+                suite_error_message,
+                suite_error_stacktrace,
+            ) = self.__suite_method(
+                self.before_suite,  # type: ignore
+                test_kwargs=test_kwargs,
+                log=suite_log,
+            )
+            self.__print_warning("before_suite", "before_case")
 
         for case_result in case_results:
             case_name = case_result.runtime_data.name
@@ -665,7 +652,13 @@ class TestSuite:
                 suite_log.info("received stop message, stop run")
                 break
 
-        self.__suite_method(self.after_suite, test_kwargs=test_kwargs, log=suite_log)
+        if hasattr(self, "after_suite"):
+            self.__suite_method(
+                self.after_suite,  # type: ignore
+                test_kwargs=test_kwargs,
+                log=suite_log,
+            )
+            self.__print_warning("after_suite", "after_case")
 
     def stop(self) -> None:
         self._should_stop = True
@@ -796,6 +789,20 @@ class TestSuite:
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
+
+    def __print_warning(
+        self, deprecated_method_name: str, replaced_method_name: str
+    ) -> None:
+        warnings.simplefilter("always", DeprecationWarning)
+        warn(
+            (
+                f"{deprecated_method_name} is deprecated. "
+                f"please use {replaced_method_name}"
+            ),
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        warnings.simplefilter("ignore", DeprecationWarning)
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
