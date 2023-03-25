@@ -167,6 +167,9 @@ class Pktgen(Tool):
         # https://koji.mbox.centos.org/pkgs/packages/kernel-plus/4.18.0/
         #   240.1.1.el8_3.centos.plus/x86_64/kernel-plus-modules-internal-
         #   4.18.0-240.1.1.el8_3.centos.plus.x86_64.rpm",
+        # Full example:
+        # https://fbi2.cdn.euro-linux.com/dist/eurolinux/server/8/aarch64/certify-BaseOS
+        #   /all/Packages/k/kernel-modules-internal-4.18.0-372.9.1.el8.aarch64.rpm
         rpm_locations = [
             (
                 "https://repo.almalinux.org/almalinux/"
@@ -185,6 +188,12 @@ class Pktgen(Tool):
                 f"{'.'.join(parts[3:-1])}.centos.plus/{parts[-1]}/"
                 "kernel-plus-modules-internal-4.18.0-"
                 f"{'.'.join(parts[3:-1])}.centos.plus.{parts[-1]}.rpm"
+            ),
+            (
+                "https://fbi2.cdn.euro-linux.com/dist/eurolinux/server/"
+                f"{parts[-2].replace('el','').split('_')[0]}/{parts[-1]}/certify-BaseOS"
+                "/all/Packages/k/kernel-modules-internal-"
+                f"{'.'.join(parts[0:3])}-{'.'.join(parts[3:-1])}.{parts[-1]}.rpm"
             ),
         ]
         # Install pkggen from CentOS for redhat, because there is no free
