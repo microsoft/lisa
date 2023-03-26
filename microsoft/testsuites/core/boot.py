@@ -57,6 +57,8 @@ class Boot(TestSuite):
         node.os.install_packages("kernel-debug")
         result = node.execute("grub2-set-default 0", sudo=True)
         result.assert_exit_code()
+        result = node.execute("grubby --set-default 0", sudo=True)
+        result.assert_exit_code()
 
         # 3. Reboot VM, check kernel version is debug type.
         reboot_tool = node.tools[Reboot]
