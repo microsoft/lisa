@@ -80,6 +80,7 @@ def set_hugepage(node: Node) -> None:
             "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
         ),
         sudo=True,
+        ignore_error=True,
     )
 
 
@@ -98,6 +99,7 @@ def remove_hugepage(node: Node) -> None:
             "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
         ),
         sudo=True,
+        ignore_error=True,
     )
 
     mount = node.tools[Mount]

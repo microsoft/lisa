@@ -27,6 +27,7 @@ class Echo(Tool):
         sudo: bool = False,
         timeout: int = 60,
         append: bool = False,
+        ignore_error: bool = True,
     ) -> None:
         # Run `echo <value> > <file>`
         operator = ">"
@@ -38,10 +39,12 @@ class Echo(Tool):
             shell=True,
             sudo=sudo,
             timeout=timeout,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"echo failed to write to {file}",
-        ).stdout
-        assert_that(result).does_not_contain("Permission denied")
+        )
+        if not ignore_error:
+            result.assert_exit_code(
+                message=f"echo failed to write to {file}",
+            )
+            assert_that(result.stdout).does_not_contain("Permission denied")
 
 
 class WindowsEcho(Echo):
