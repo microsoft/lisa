@@ -64,16 +64,23 @@ class Boot(TestSuite):
             node.os.install_packages(package)
         else:
             raise SkippedException(f"no {package} in distro {node.os.name}")
-        result = node.execute("grub2-set-default 0", sudo=True)
+
+        node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+        node.execute("grub2-mkconfig -o  /boot/efi/EFI/redhat/grub.cfg", sudo=True)
+        cmd_result = node.tools[Find].find_files(
+            node.get_pure_path("/boot"), "vmlinuz-*debug", sudo=True
+        )
+        index_result = node.execute(f"grubby --info {cmd_result[0]}", sudo=True)
+        matched = find_group_in_lines(index_result.stdout, self.__index_pattern)
+        index = matched["index"]
+
+        result = node.execute(f"grub2-set-default {index}", sudo=True)
         result.assert_exit_code()
         kernel_version = self._check_kernel_after_reboot(node, log, log_path)
         if "debug" in kernel_version:
             log.debug(f"kernel version {kernel_version} is debug type after reboot")
             return
 
-        cmd_result = node.tools[Find].find_files(
-            node.get_pure_path("/boot"), "vmlinuz-*debug", sudo=True
-        )
         result = node.execute(f"grubby --set-default {cmd_result[0]}", sudo=True)
         result.assert_exit_code()
         kernel_version = self._check_kernel_after_reboot(node, log, log_path)
@@ -81,9 +88,6 @@ class Boot(TestSuite):
             log.debug(f"kernel version {kernel_version} is debug type after reboot")
             return
 
-        index_result = node.execute(f"grubby --info {cmd_result[0]}", sudo=True)
-        matched = find_group_in_lines(index_result.stdout, self.__index_pattern)
-        index = matched["index"]
         sed = node.tools[Sed]
         sed.substitute(
             regexp="GRUB_DEFAULT=.*",
@@ -92,6 +96,7 @@ class Boot(TestSuite):
             sudo=True,
         )
         result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+        node.execute(f"grubby --info {cmd_result[0]}", sudo=True)
         result.assert_exit_code()
         kernel_version = self._check_kernel_after_reboot(node, log, log_path)
         if "debug" in kernel_version:
