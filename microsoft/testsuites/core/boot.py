@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from pathlib import Path
-
-from assertpy.assertpy import assert_that
 
 from lisa import (
     Logger,
@@ -15,8 +13,13 @@ from lisa import (
 )
 from lisa.features import SerialConsole
 from lisa.operating_system import CentOs, Redhat
-from lisa.tools import Reboot, Uname
-from lisa.util import SkippedException, TcpConnectionException
+from lisa.tools import Find, Reboot, Sed, Uname
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    TcpConnectionException,
+    find_group_in_lines,
+)
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -29,6 +32,8 @@ from lisa.util.shell import wait_tcp_port_ready
     """,
 )
 class Boot(TestSuite):
+    __index_pattern = re.compile(r"index=(?P<index>.*)", re.M)
+
     @TestCaseMetadata(
         description="""
         This test case will
@@ -54,13 +59,53 @@ class Boot(TestSuite):
             )
 
         # 2. Install kernel-debug package and set boot with this debug kernel.
-        node.os.install_packages("kernel-debug")
+        package = "kernel-debug"
+        if node.os.is_package_in_repo(package):
+            node.os.install_packages(package)
+        else:
+            raise SkippedException(f"no {package} in distro {node.os.name}")
         result = node.execute("grub2-set-default 0", sudo=True)
         result.assert_exit_code()
-        result = node.execute("grubby --set-default 0", sudo=True)
-        result.assert_exit_code()
+        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
+        if "debug" in kernel_version:
+            log.debug(f"kernel version {kernel_version} is debug type after reboot")
+            return
 
-        # 3. Reboot VM, check kernel version is debug type.
+        cmd_result = node.tools[Find].find_files(
+            node.get_pure_path("/boot"), "vmlinuz-*debug", sudo=True
+        )
+        result = node.execute(f"grubby --set-default {cmd_result[0]}", sudo=True)
+        result.assert_exit_code()
+        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
+        if "debug" in kernel_version:
+            log.debug(f"kernel version {kernel_version} is debug type after reboot")
+            return
+
+        index_result = node.execute(f"grubby --info {cmd_result[0]}", sudo=True)
+        matched = find_group_in_lines(index_result.stdout, self.__index_pattern)
+        index = matched["index"]
+        sed = node.tools[Sed]
+        sed.substitute(
+            regexp="GRUB_DEFAULT=.*",
+            replacement=f"GRUB_DEFAULT={index}",
+            file="/etc/default/grub",
+            sudo=True,
+        )
+        result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+        result.assert_exit_code()
+        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
+        if "debug" in kernel_version:
+            log.debug(f"kernel version {kernel_version} is debug type after reboot")
+            return
+
+        raise LisaException(
+            f"kernel version {kernel_version} is not debug type after reboot"
+        )
+
+    def _check_kernel_after_reboot(
+        self, node: RemoteNode, log: Logger, log_path: Path
+    ) -> str:
+        # Reboot VM, check kernel version is debug type.
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
 
@@ -72,9 +117,7 @@ class Boot(TestSuite):
             kernel_version = uname.get_linux_information(
                 force_run=True
             ).kernel_version_raw
-            assert_that(
-                kernel_version, "Kernel version is not debug type after reboot."
-            ).contains("debug")
+            return kernel_version
         else:
             raise TcpConnectionException(
                 node.public_address,
