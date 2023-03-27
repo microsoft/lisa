@@ -20,7 +20,7 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service, Timeout
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -582,6 +582,74 @@ class Dpdk(TestSuite):
             verify_dpdk_send_receive(environment, log, variables, "netvsc")
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+          Run the L3 forwarding test for DPDK
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=2,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_l3_forward(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        # multiprocess test requires dpdk source.
+        forwarder, sender = environment.nodes.list()
+        self._force_dpdk_default_source(variables)
+        pmd = "failsafe"
+        server_app_name = "dpdk-l3fwd"
+
+        # initialize DPDK with sample applications selected for build
+        test_kit = initialize_node_resources(
+            forwarder, log, variables, pmd, sample_apps=["l3fwd"]
+        )
+        test_port = 0xD007
+
+        # enable hugepages needed for dpdk EAL
+        init_hugepages(forwarder)
+
+        # get test basic info
+        forwarder_ip = forwarder.nics.get_nic_by_index().ip_addr
+        forwarder_device = forwarder.nics.get_nic_by_index().pci_slot
+        sender_ip = sender.nics.get_nic_by_index().ip_addr
+
+        # setup forwarding rules
+        sample_rules = f"R{sender_ip}/32 {test_port}"
+        rules_path = forwarder.get_pure_path("forwarding_rules")
+        forwarder.tools[Echo].write_to_file(sample_rules, rules_path, append=True)
+
+        # get binary path and start the forwarder
+        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
+        server_app_path = examples_path.joinpath(server_app_name)
+        fwd_cmd = (
+            f"{server_app_path} -a {forwarder_device} --"
+            f"-P --rule-ipv4={rules_path.as_posix()} "
+        )
+        forwarder.execute_async(
+            fwd_cmd,
+            sudo=True,
+            shell=True,
+        )
+
+        # start the listener and start sending data to the forwarder
+        listener = sender.execute_async(f"nc -l {sender_ip} {test_port}")
+        sender.tools[Timeout].run_with_timeout(
+            f"cat of=/dev/random | nc {forwarder_ip} {test_port}",
+            timeout=60,
+            kill_timeout=70,
+        )
+
+        # kill everything
+        forwarder.tools[Kill].by_name(
+            {server_app_name}, signum=SIGINT, ignore_not_exist=True
+        )
+        listener.kill()
 
     @TestCaseMetadata(
         description="""
