@@ -2,12 +2,13 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from pathlib import PurePosixPath
 from typing import Any, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
-import time
+
 from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
@@ -15,6 +16,7 @@ from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
+    Ip,
     Kill,
     Lscpu,
     Lspci,
@@ -25,7 +27,6 @@ from lisa.tools import (
     Timeout,
     Unzip,
     Wget,
-    Ip,
 )
 from lisa.util import (
     LisaException,
@@ -315,9 +316,9 @@ class DpdkTestpmd(Tool):
         numa_core_offset = cores_per_numa * nic_numa_node
 
         # calculate how many cores to use based on txq/rxq per nic and how many nics
-        use_core_count = self._calculate_core_count(
-            cores_per_numa, txq, rxq, use_max_nics, service_cores=service_cores
-        )
+        use_core_count = cores_available - 1  # self._calculate_core_count(
+        # cores_per_numa, txq, rxq, use_max_nics, service_cores=service_cores
+        # )
 
         nic_include_info = self.generate_testpmd_include(
             nic_to_include, vdev_id, use_max_nics
@@ -333,9 +334,9 @@ class DpdkTestpmd(Tool):
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
             extra_args += f" --txq={txq} --rxq={rxq}  "
-        
+
         if self.is_mana:
-            extra_args += '--txd=64 --rxd=64 '
+            extra_args += "--txd=256 --rxd=256 "
 
         assert_that(use_core_count).described_as(
             "Selection asked for more cores than were available for numa "
@@ -344,13 +345,15 @@ class DpdkTestpmd(Tool):
 
         # use the selected amount of cores, adjusting for 0 index.
 
-        core_args = f"-l 2,3 " #{numa_core_offset}-{numa_core_offset + use_core_count-1}"
+        core_args = (
+            f"-l 2,3 "  # {numa_core_offset}-{numa_core_offset + use_core_count-1}"
+        )
         if not self.is_mana:
-            core_args += '-n 4 '
+            core_args += f"-l 1-{(use_core_count)} "
         return (
-            f"{self._testpmd_install_path} {core_args}  --proc-type=primary "
+            f"{self._testpmd_install_path} {core_args} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2 --port-topology=chained"
+            "-a --stats-period 2 "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
