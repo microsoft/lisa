@@ -74,20 +74,6 @@ class Boot(TestSuite):
         matched = find_group_in_lines(index_result.stdout, self.__index_pattern)
         index = matched["index"]
 
-        result = node.execute(f"grub2-set-default {index}", sudo=True)
-        result.assert_exit_code()
-        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
-        if "debug" in kernel_version:
-            log.debug(f"kernel version {kernel_version} is debug type after reboot")
-            return
-
-        result = node.execute(f"grubby --set-default {cmd_result[0]}", sudo=True)
-        result.assert_exit_code()
-        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
-        if "debug" in kernel_version:
-            log.debug(f"kernel version {kernel_version} is debug type after reboot")
-            return
-
         sed = node.tools[Sed]
         sed.substitute(
             regexp="GRUB_DEFAULT=.*",
@@ -97,6 +83,20 @@ class Boot(TestSuite):
         )
         result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
         node.execute(f"grubby --info {cmd_result[0]}", sudo=True)
+        result.assert_exit_code()
+        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
+        if "debug" in kernel_version:
+            log.debug(f"kernel version {kernel_version} is debug type after reboot")
+            return
+
+        result = node.execute(f"grub2-set-default {index}", sudo=True)
+        result.assert_exit_code()
+        kernel_version = self._check_kernel_after_reboot(node, log, log_path)
+        if "debug" in kernel_version:
+            log.debug(f"kernel version {kernel_version} is debug type after reboot")
+            return
+
+        result = node.execute(f"grubby --set-default {cmd_result[0]}", sudo=True)
         result.assert_exit_code()
         kernel_version = self._check_kernel_after_reboot(node, log, log_path)
         if "debug" in kernel_version:
