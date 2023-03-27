@@ -355,6 +355,7 @@ def initialize_node_resources(
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
     for kit in test_kits:
+        # MANA nics only support > DPDK 22.11 so will always have the flag
         if not kit.testpmd.has_tx_ip_flag():
             raise UnsupportedPackageVersionException(
                 kit.node.os,
