@@ -1,6 +1,7 @@
 import itertools
 import time
 from collections import deque
+from decimal import Decimal
 from functools import partial
 from typing import Any, Dict, List, Tuple, Union
 
@@ -17,11 +18,12 @@ from lisa import (
     UnsupportedDistroException,
     UnsupportedKernelException,
     constants,
+    notifier,
 )
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Debian, Fedora, OperatingSystem, Suse, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -29,15 +31,21 @@ from lisa.tools import (
     Free,
     Ip,
     KernelConfig,
+    Kill,
     Lscpu,
     Lsmod,
     Lspci,
+    Make,
     Modprobe,
     Mount,
+    Ntttcp,
     Ping,
+    Tar,
     Timeout,
+    Wget,
 )
 from lisa.tools.mkfs import FileSystem
+from lisa.util.constants import SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
@@ -265,12 +273,32 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
-        # vmbus magic to enable uio_hv_generic
-        echo.write_to_file(
-            hv_uio_generic_uuid,
-            node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
-            sudo=True,
-        )
+    # vmbus magic to enable uio_hv_generic
+    echo.write_to_file(
+        hv_uio_generic_uuid,
+        node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
+        sudo=True,
+    )
+
+
+def do_pmd_driver_setup(
+    node: Node, test_nic: NicInfo, testpmd: DpdkTestpmd, pmd: str = "failsafe"
+) -> None:
+    if pmd == "netvsc":
+        # this code makes changes to interfaces that will cause later tests to fail.
+        # Therefore we mark the node dirty to prevent future testing on this environment
+        node.mark_dirty()
+        # setup system for netvsc pmd
+        # https://doc.dpdk.org/guides/nics/netvsc.html
+        enable_uio_hv_generic_for_nic(node, test_nic)
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # if mana is present, set VF interface down.
+    # FIXME: add mana dpdk docs link when it's available.
+    if testpmd.is_mana:
+        if test_nic.lower and node.tools[Ip].is_device_up(test_nic.lower):
+            node.tools[Ip].down(test_nic.lower)
 
 
 def initialize_node_resources(
@@ -280,6 +308,7 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
     enable_gibibyte_hugepages: bool = False,
+    extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -289,7 +318,6 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
@@ -340,28 +368,17 @@ def initialize_node_resources(
         f"bound to hv_netvsc. Found {test_nic.module_name}."
     ).is_equal_to("hv_netvsc")
 
-    # netvsc pmd requires uio_hv_generic to be loaded before use
-    if pmd == "netvsc":
-        # this code makes changes to interfaces that will cause later tests to fail.
-        # Therefore we mark the node dirty to prevent future testing on this environment
-        node.mark_dirty()
-        # setup system for netvsc pmd
-        # https://doc.dpdk.org/guides/nics/netvsc.html
-        enable_uio_hv_generic_for_nic(node, test_nic)
-        node.nics.unbind(test_nic)
-        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
-
-    # if mana is present, set VF interface down.
-    # FIXME: add mana dpdk docs link when it's available.
-    if testpmd.is_mana:
-        if test_nic.lower:
-            node.tools[Ip].down(test_nic.lower)
+    do_pmd_driver_setup(node, test_nic, testpmd, pmd=pmd)
+    if extra_nics:
+        for extra_nic in extra_nics:
+            do_pmd_driver_setup(node, extra_nic, testpmd, pmd=pmd)
 
     return DpdkTestResources(node, testpmd)
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
     for kit in test_kits:
+        # MANA nics only support > DPDK 22.11 so will always have the flag
         if not kit.testpmd.has_tx_ip_flag():
             raise UnsupportedPackageVersionException(
                 kit.node.os,
@@ -443,6 +460,7 @@ def init_nodes_concurrent(
     variables: Dict[str, Any],
     pmd: str,
     enable_gibibyte_hugepages: bool = False,
+    sample_apps: Union[List[str], None] = None,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -459,6 +477,7 @@ def init_nodes_concurrent(
                 variables,
                 pmd,
                 enable_gibibyte_hugepages=enable_gibibyte_hugepages,
+                sample_apps=sample_apps,
             )
             for node in environment.nodes.list()
         ],
@@ -591,3 +610,366 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
+
+
+# ipv4 network prefix helper. Assumes 24bit mask
+def ipv4_lpm(addr: str) -> str:
+    return ".".join(addr.split(".")[:3]) + ".0/24"
+
+
+# enable ip forwarding for secondary and tertiary nics in this test.
+# run in parallel to save a bit of time on this net io step.
+def __enable_ip_forwarding(node: Node) -> None:
+    fwd_nic_private_ip = node.nics.get_secondary_nic().ip_addr
+    node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
+        enable=True, private_ip_addr=fwd_nic_private_ip
+    )
+    rcv_nic_private_ip = node.nics.get_tertiary_nic().ip_addr
+    node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
+        enable=True, private_ip_addr=rcv_nic_private_ip
+    )
+
+
+# function to map ipv4 addresses to valid ipv6 addresses
+# NOTE: DPDK doesn't like shortened ipv6 addresses.
+def ipv4_to_ipv6_lpm(addr: str) -> str:
+    # format to 0 prefixed 2 char hex
+    parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
+    assert_that(parts).described_as(
+        "IP address conversion failed, length of split array was unexpected"
+    ).is_length(4)
+    return "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
+
+
+def get_dpdk_portmask(ports: List[int]) -> str:
+    # helper to take a list of DPDK port IDs and return
+    # the bit mask the EAL uses to enable them.
+    mask = 0
+    for i in ports:
+        mask |= 1 << i
+    return hex(mask)
+
+
+def verify_dpdk_l3_forward(
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str = "netvsc",
+    enable_gibibyte_hugepages: bool = False,
+    force_single_queue: bool = False,
+) -> None:
+    # This is currently the most complicated DPDK test. There is a lot that can
+    # go wrong, so we restrict the test to netvsc and only a few distros.
+    # Current usage is checking for regressions in the host, not validating all distros.
+    #
+    #  l3 forward is also _not_ intuitive, and Azure net routing doesn't help.
+    #  Azure primarily considers IP and not ethernet addresses.
+    #  It's weirdly normal to see ARP requests providing inaccurate MAC addresses.
+    #  Why? Beyond me at this time. -mm
+    #
+    # SUMMARY:
+    #  The test attempts to change this initial default LISA setup:
+    #   snd_VM      fwd_VM      rcv_VM
+    #   |s_nic1 <-> |f_nic1 <-> |r_nic1    10.0.0.0/24 (Subnet A)
+    #   |s_nic2 <-> |f_nic2 <-> |r_nic2    10.0.1.0/24 (Subnet B)
+    #   |s_nic3 <-> |f_nic3 <-> |r_nic3    10.0.2.0/24 (Subnet C)
+    # To this:
+    #    snd_VM      fwd_VM      rcv_VM
+    #    |s_nic1 <-> |f_nic1 <-> |r_nic1    10.0.0.0/24 (Subnet A)
+    #    |s_nic2 <-> |f_nic2     |          10.0.1.0/24 (Subnet B/C)
+    #                | ↕ DPDK as NVA forwarding (and filtering) traffic
+    #                |f_nic3 <-> |r_nic3   10.0.2.0/24 (Subnet B/C)
+    #
+    #  With the goal of guaranteeing that snv_VM cannot reach
+    #  rcv_VM on Subnet B/C without traffic being forwarded through
+    #  DPDK on  fwd_VM
+    #
+    # Our key objectives are:
+    # 1. intercepting traffic from  s_nic2 bound for r_nic3,
+    #      sending it to f_nic2 (az routing table)
+    #
+    # 2. forwarding from f_nic2 to f_nic3 to bridge subnet b/c (DPDK)
+    #
+    # 3. enjoy the thrill of victory, ship a cloud net applicance.
+
+    l3fwd_app_name = "dpdk-l3fwd"
+    # arbitrarily pick fwd/snd/recv nodes.
+    forwarder, sender, receiver = environment.nodes.list()
+    if (
+        not isinstance(forwarder.os, Ubuntu)
+        or forwarder.os.information.version < "22.4.0"
+    ):
+        raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+
+    # get core count, quick skip if size is too small.
+    available_cores = forwarder.tools[Lscpu].get_core_count()
+    if available_cores < 8:
+        raise SkippedException("l3 forward test needs >= 8 cores.")
+
+    # ping everything before start
+    _ping_all_nodes_in_environment(environment)
+
+    # we're about to fully ruin this environment, so mark dirty
+    for node in [forwarder, sender, receiver]:
+        node.mark_dirty()
+
+    test_result = environment.source_test_result
+    if not test_result:
+        log.warn(
+            "LISA environment does not have a pointer to the test result object."
+            "performance data reporting for this test will be broken!"
+        )
+
+    # enable ip forwarding on secondary and tertiary nics
+    run_in_parallel(
+        [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
+    )
+
+    # get some basic node info
+    # forwarder nics
+    f_nic2 = forwarder.nics.get_secondary_nic()
+    f_nic2_ip = f_nic2.ip_addr
+    f_nic3 = forwarder.nics.get_tertiary_nic()
+    f_nic3_ip = f_nic3.ip_addr
+
+    # sender nic
+    s_nic2 = sender.nics.get_secondary_nic()
+    s_nic2_ip = s_nic2.ip_addr
+
+    # receiver nic
+    r_nic3 = receiver.nics.get_tertiary_nic()
+    r_nic3_ip = r_nic3.ip_addr
+
+    # We use ntttcp for snd/rcv which will respect kernel routes!
+    # SO: remove the interfaces which would skip the forwarder
+    _s_nic3 = sender.nics.get_tertiary_nic()
+    _r_nic2 = receiver.nics.get_secondary_nic()
+
+    ip_tool = {sender: sender.tools[Ip], receiver: receiver.tools[Ip]}
+    ip_tool[sender].down(_s_nic3.name)
+    ip_tool[receiver].down(_r_nic2.name)
+
+    # remove any lingering routes through those devices
+    ip_tool[sender].remove_all_routes_for_device(_s_nic3.name)
+    ip_tool[receiver].remove_all_routes_for_device(_r_nic2.name)
+
+    # If they're not created yet, create kernel routing rules so traffic for
+    # subnet B/C gets routed through the FWDer for subnetc B and C
+    sender_prefix = ipv4_lpm(s_nic2_ip)
+    receiver_prefix = ipv4_lpm(r_nic3_ip)
+    if not ip_tool[sender].route_exists(prefix=receiver_prefix, dev=s_nic2.name):
+        ip_tool[sender].add_route_to(
+            dest=receiver_prefix, via=f_nic2.ip_addr, dev=s_nic2.name
+        )
+    if not ip_tool[receiver].route_exists(prefix=sender_prefix, dev=r_nic3.name):
+        ip_tool[receiver].add_route_to(
+            dest=sender_prefix, via=f_nic3.ip_addr, dev=r_nic3.name
+        )
+
+    ## AZ ROUTING TABLES
+    #  The kernel routes are not sufficient, since Azure also manages the VNETs for the VMS.
+    #  We must set up an azure route table and apply it to our VNETs to send traffic to the
+    #  DPDK forwarder.
+
+    # special constant, implies 'route all traffic'
+    AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
+    # create our forwarding rules, all traffic on sender and receiver nic
+    # subnets goes to the forwarder, our virtual appliance VM.
+    sender.features[NetworkInterface].create_route_table(  # type: ignore
+        nic_name=f_nic2.name,
+        route_name="fwd-rx",
+        subnet_mask=ipv4_lpm(s_nic2_ip),
+        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        next_hop_type="VirtualAppliance",
+        dest_hop=f_nic2_ip,
+    )
+    receiver.features[NetworkInterface].create_route_table(  # type: ignore
+        nic_name=f_nic3.name,
+        route_name="fwd-tx",
+        subnet_mask=ipv4_lpm(r_nic3_ip),
+        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        next_hop_type="VirtualAppliance",
+        dest_hop=f_nic3_ip,
+    )
+
+    # Do actual DPDK initialization, compile l3fwd and apply setup to
+    # the extra forwarding nic
+    fwd_kit = initialize_node_resources(
+        forwarder,
+        log,
+        variables,
+        pmd,
+        sample_apps=["l3fwd"],
+        extra_nics=[f_nic3],
+    )
+    # enable hugepages needed for dpdk EAL on forwarder
+    init_hugepages(forwarder, enable_gibibyte_hugepages=enable_gibibyte_hugepages)
+
+    # we're cheating here and not dynamically picking the port IDs
+    # Why? You can't do it by default and I haven't written the demo code. -mm
+    if fwd_kit.testpmd.is_mana:
+        dpdk_port_snd_side = 1
+        dpdk_port_rcv_side = 2
+    else:
+        dpdk_port_snd_side = 2
+        dpdk_port_rcv_side = 3
+    # create sender/receiver ntttcp instances
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+
+    ### setup forwarding rules
+
+    # Set up DPDK forwarding rules:
+    # see https://doc.dpdk.org/guides/sample_app_ug/l3_forward.html#parse-rules-from-file
+    # for additional context
+
+    sample_rules_v4 = []
+    sample_rules_v6 = []
+
+    # create our longest-prefix-match aka 'lpm' rules
+    sample_rules_v4 += [
+        f"R {ipv4_lpm(r_nic3_ip)} {dpdk_port_rcv_side}",
+        f"R {ipv4_lpm(s_nic2_ip)} {dpdk_port_snd_side}",
+    ]
+
+    # need to map ipv4 to ipv6 addresses, unused but the rules must be provided.
+    # a valid ipv6 address needs to be in the ipv6 rules, but ipv6 is not enabled in azure.
+    sample_rules_v6 += [
+        f"R {ipv4_to_ipv6_lpm(r_nic3_ip)} {dpdk_port_snd_side}",
+        f"R {ipv4_to_ipv6_lpm(s_nic2_ip)} {dpdk_port_rcv_side}",
+    ]
+
+    # write them out to the rules files on the forwarder
+    rules_paths = [forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]]
+    forwarder.tools[Echo].write_to_file(
+        "\n".join(sample_rules_v4), rules_paths[0], append=True
+    )
+    forwarder.tools[Echo].write_to_file(
+        "\n".join(sample_rules_v6), rules_paths[1], append=True
+    )
+
+    # get binary path and dpdk device include args
+    examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
+    server_app_path = examples_path.joinpath(l3fwd_app_name)
+    # generate the dpdk include arguments to add to our commandline
+    include_devices = [
+        fwd_kit.testpmd.generate_testpmd_include(
+            f_nic2, dpdk_port_snd_side, force_netvsc=True
+        ),
+        fwd_kit.testpmd.generate_testpmd_include(
+            f_nic3, dpdk_port_rcv_side, force_netvsc=True
+        ),
+    ]
+
+    ## Generating port,queue,core mappings for forwarder
+    # NOTE: For DPDK 'N queues' means N queues * N PORTS
+    # Each port P has N queues (really queue pairs for tx/rx)
+    # Queue N for Port A and Port B will be assigned to the same core.
+    # l3fwd rquires us to explicitly map these as a set of tuples.
+    # Create a set of tuples (PortID,QueueID,CoreID)
+    # These are minimally error checked, we can accidentally assign
+    #  cores and queues to unused ports etc.
+
+    # select queue amount based on size, allow force single queue
+    if force_single_queue:
+        queue_count = 1
+    elif available_cores > 32:
+        queue_count = 32
+    elif available_cores <= 32:
+        queue_count = 16
+    elif available_cores <= 16:
+        queue_count = 8
+    elif available_cores <= 8:
+        queue_count = 4
+    config_tups = []
+    included_cores = []
+    last_core = 1
+    # create the list of tuples for p,q,c
+    for q in range(queue_count):
+        config_tups.append((dpdk_port_snd_side, q, last_core))
+        config_tups.append((dpdk_port_rcv_side, q, last_core))
+        # add the core ID to our list of cores to include
+        included_cores.append(str(last_core))
+        last_core += 1
+
+    # pick promiscuous mode arg, note mana doesn't support promiscuous mode
+    if fwd_kit.testpmd.is_mana:
+        promiscuous = ""
+    else:
+        promiscuous = "-P"
+
+    # join all our options into strings for use in the commmand
+    joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+    joined_include = " ".join(include_devices)
+    # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
+    joined_core_list = ",".join(included_cores)
+    fwd_cmd = (
+        f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
+        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_snd_side,dpdk_port_rcv_side])} "
+        f' --lookup=lpm --config="{joined_configs}" '
+        "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
+    )
+    ## START THE TEST
+    # finally, start the forwarder
+    fwd_proc = forwarder.execute_async(
+        fwd_cmd,
+        sudo=True,
+        shell=True,
+    )
+    fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
+
+    # start ntttcp client and server
+    NTTTCP_THREADS_COUNT = 64
+    # start the receiver
+    receiver_proc = ntttcp[receiver].run_as_server_async(
+        r_nic3.name,
+        run_time_seconds=30,
+        buffer_size=1024,
+        server_ip=r_nic3_ip,
+    )
+    # start the sender
+    sender_result = ntttcp[sender].run_as_client(
+        nic_name=s_nic2.name,
+        server_ip=r_nic3_ip,
+        threads_count=NTTTCP_THREADS_COUNT,
+        run_time_seconds=10,
+    )
+
+    # collect, log, and process results
+    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
+    log.debug(f"result: {receiver_result.stdout}")
+    log.debug(f"result: {sender_result.stdout}")
+    # kill l3fwd on forwarder
+    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
+    forwarder.log.info(f"Forwarder: {forwarder.name}")
+    forwarder.log.info(f"l3fwd cmd: {fwd_cmd}")
+    ntttcp_results = {
+        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
+        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
+    }
+    # send result to notifier if we found a test result to report with
+    if test_result:
+        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
+            server_result=ntttcp_results[receiver],
+            client_result=ntttcp_results[sender],
+            latency=Decimal(0),
+            connections_num="64",
+            buffer_size=64,
+            test_case_name="verify_dpdk_l3_forward",
+            test_result=test_result,
+        )
+        notifier.notify(msg)
+
+    # check the throughput and fail if it was unexpectedly low.
+    # NOTE: only checking 0 and < 1 now. Once we have more data
+    # there should be more stringest checks for each NIC type.
+    throughput = ntttcp_results[receiver].throughput_in_gbps
+    assert_that(throughput).described_as(
+        "l3fwd test found 0Gbps througput. "
+        "Either the test or DPDK forwarding is broken."
+    ).is_greater_than(0)
+    assert_that(throughput).described_as(
+        f"l3fwd has very low throughput: {throughput}Gbps! "
+        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "and the DPDK port IDs were correct."
+    ).is_greater_than(1)

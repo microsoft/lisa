@@ -227,6 +227,9 @@ class Nics(InitializableMixin):
         # will assert if none is present.
         return self.get_nic_by_index(1)
 
+    def get_tertiary_nic(self) -> NicInfo:
+        return self.get_nic_by_index(2)
+
     def get_nic_by_index(self, index: int = -1) -> NicInfo:
         # get nic by index, default is -1 to give a non-primary nic
         # when there are more than one nic on the system

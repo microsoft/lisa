@@ -2,7 +2,9 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, Tuple
+from decimal import Decimal
+from functools import partial
+from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
 
@@ -15,21 +17,25 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
+    notifier,
     schema,
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
+from lisa.tools import Echo, Git, Ip, Kill, Lscpu, Lsmod, Make, Modprobe, Ntttcp
 from lisa.util.constants import SIGINT
+from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
+    _ping_all_nodes_in_environment,
     check_send_receive_compatibility,
+    do_pmd_driver_setup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -37,6 +43,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     initialize_node_resources,
     run_testpmd_concurrent,
     verify_dpdk_build,
+    verify_dpdk_l3_forward,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -79,7 +86,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -123,7 +129,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_failsafe(
@@ -212,7 +217,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -238,7 +242,6 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -335,7 +338,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -373,7 +375,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -430,8 +431,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_vpp(
@@ -443,6 +442,8 @@ class Dpdk(TestSuite):
                     node.os, "VPP test does not support Mariner installation."
                 )
             )
+        initialize_node_resources(node, log, variables, "failsafe")
+
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
@@ -476,7 +477,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -542,8 +542,8 @@ class Dpdk(TestSuite):
         description="""
             Tests a basic sender/receiver setup for default failsafe driver setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
-            order-of-magnitude.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -551,7 +551,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -577,7 +576,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -603,7 +601,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -654,7 +651,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_netvsc(
@@ -693,6 +689,48 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
+        description=(
+            """
+                Run the L3 forwarding test for DPDK
+        """
+        ),
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_l3_forward(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3_forward(environment, log, variables, pmd=pmd)
+
+    @TestCaseMetadata(
+        description="""
+          Run the L3 forwarding test for DPDK
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_l3_forward_gb_hugepages(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3_forward(
+            environment, log, variables, pmd=pmd, enable_gibibyte_hugepages=True
+        )
+
+    @TestCaseMetadata(
         description="""
             UIO basic functionality test.
             - Bind interface to uio_hv_generic
@@ -705,7 +743,6 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -760,19 +797,19 @@ class Dpdk(TestSuite):
         if not variables.get("dpdk_source", None):
             variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        environment: Environment = kwargs.pop("environment")
-        for node in environment.nodes.list():
-            # reset SRIOV to enabled if left disabled
-            interface = node.features[NetworkInterface]
-            if not interface.is_enabled_sriov():
-                log.debug("DPDK detected SRIOV was left disabled during cleanup.")
-                interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+    # def after_case(self, log: Logger, **kwargs: Any) -> None:
+    #     environment: Environment = kwargs.pop("environment")
+    #     for node in environment.nodes.list():
+    #         # reset SRIOV to enabled if left disabled
+    #         interface = node.features[NetworkInterface]
+    #         if not interface.is_enabled_sriov():
+    #             log.debug("DPDK detected SRIOV was left disabled during cleanup.")
+    #             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
 
-            # cleanup driver changes
-            modprobe = node.tools[Modprobe]
-            if modprobe.module_exists("uio_hv_generic"):
-                node.tools[Service].stop_service("vpp")
-                modprobe.remove(["uio_hv_generic"])
-                node.close()
-                modprobe.reload(["hv_netvsc"])
+    #         # cleanup driver changes
+    #         modprobe = node.tools[Modprobe]
+    #         if modprobe.module_exists("uio_hv_generic"):
+    #             node.tools[Service].stop_service("vpp")
+    #             modprobe.remove(["uio_hv_generic"])
+    #             node.close()
+    #             modprobe.reload(["hv_netvsc"])
