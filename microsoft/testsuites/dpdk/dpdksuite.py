@@ -2,7 +2,8 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, Tuple
+import time
+from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
 
@@ -20,7 +21,18 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service, Timeout
+from lisa.tools import (
+    Echo,
+    Git,
+    Ip,
+    Kill,
+    Lscpu,
+    Lsmod,
+    Make,
+    Modprobe,
+    Service,
+    Timeout,
+)
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -485,8 +497,8 @@ class Dpdk(TestSuite):
         description="""
             Tests a basic sender/receiver setup for default failsafe driver setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
-            order-of-magnitude.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -593,7 +605,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             min_count=2,
-            min_nic_count=3,
+            min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
@@ -611,47 +623,109 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(
             forwarder, log, variables, pmd, sample_apps=["l3fwd"]
         )
-        test_port = 0xD007
-
+        port = 0xD007
         # enable hugepages needed for dpdk EAL
-        init_hugepages(forwarder)
+        for node in environment.nodes.list():
+            init_hugepages(node)
 
         # get test basic info
-        forwarder_ip = forwarder.nics.get_nic_by_index().ip_addr
-        forwarder_device = forwarder.nics.get_nic_by_index().pci_slot
-        sender_ip = sender.nics.get_nic_by_index().ip_addr
+
+        forwarder_nic = forwarder.nics.get_nic_by_index(1)
+        forwarder_ip = forwarder_nic.ip_addr
+        forwarder_devices = forwarder_nic.pci_slot
+        sender_mac = sender.nics.get_nic_by_index().mac_addr
 
         # setup forwarding rules
-        sample_rules = f"R{sender_ip}/32 {test_port}"
-        rules_path = forwarder.get_pure_path("forwarding_rules")
-        forwarder.tools[Echo].write_to_file(sample_rules, rules_path, append=True)
+        sample_rules_v4 = f"R{forwarder_ip}/24 0"
+
+        def ipv4_to_ipv6_cidr(addr: str) -> str:
+
+            # format to 0 prefixed 2 char hex
+            parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
+            assert_that(parts).described_as(
+                "IP address conversion failed, length of split array was unexpected"
+            ).is_length(4)
+            return (
+                "0000:0000:0000:0000:0000:FFFF:"
+                f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}/124"
+            )
+
+        ipv6_mapped_ips = ipv4_to_ipv6_cidr(forwarder_ip)
+        sample_rules_v6 = f"R{ipv6_mapped_ips} 0"
+        rules_paths = [
+            forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
+        ]
+
+        # for line in sample_rules_v4:
+        forwarder.tools[Echo].write_to_file(
+            sample_rules_v4, rules_paths[0], append=True
+        )
+        forwarder.execute(f"cat {rules_paths[0].as_posix()}")
+        # for line in sample_rules_v6:
+        forwarder.tools[Echo].write_to_file(
+            sample_rules_v6, rules_paths[1], append=True
+        )
 
         # get binary path and start the forwarder
         examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
+
+        include_devices = f'-a "{forwarder_devices}"'
+
+        # cores_available = forwarder.tools[Lscpu].get_core_count() - 1
+        # FIXME: force using 4 cores
+        use_cores = range(1, 9)
+        core_list = ",".join(
+            map(str, use_cores)
+        )  # cores_available))  # use all cores except 0
+        # queues = range(0, 1)
+        # ports = [0] * (len(use_cores) // 2) + [1] * (len(use_cores) // 2)
+        # FIXME: use 8 queues
+        config_tups = [  # map some queues to cores idk
+            (0, 0, 1),
+            (0, 1, 2),
+            (0, 2, 3),
+            (0, 3, 4),
+        ]  # zip(ports, queues, use_cores)
+        configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+        # ipv6_rules = forwarder.get_working_path().joinpath(
+        #     "dpdk/examples/l3fwd/em_default_v6.cfg"
+        # )
         fwd_cmd = (
-            f"{server_app_path} -a {forwarder_device} --"
-            f"-P --rule-ipv4={rules_path.as_posix()} "
+            f"{server_app_path} {include_devices} -l {core_list}  -- "
+            f" -P -p 0x3  --lookup=lpm "
+            f'--config="{configs}" '
+            "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
+            f"--eth-dest=0,{sender_mac}"
+            # {ipv6_rules.as_posix()}"
         )
+
         forwarder.execute_async(
             fwd_cmd,
             sudo=True,
             shell=True,
         )
 
+        time.sleep(10)  # give it a few seconds to start
         # start the listener and start sending data to the forwarder
-        listener = sender.execute_async(f"nc -l {sender_ip} {test_port}")
+        content_file = sender.working_path.joinpath("content")
+        listener = sender.execute_async(
+            f"tcpdump -i eth1 > {content_file.as_posix()}", shell=True
+        )
+        # FIXME: switch to using testpmd for send/rcv
         sender.tools[Timeout].run_with_timeout(
-            f"cat of=/dev/random | nc {forwarder_ip} {test_port}",
+            f"echo ABCDEFG | nc {forwarder_ip} {port}",
             timeout=60,
             kill_timeout=70,
         )
 
         # kill everything
         forwarder.tools[Kill].by_name(
-            {server_app_name}, signum=SIGINT, ignore_not_exist=True
+            server_app_name, signum=SIGINT, ignore_not_exist=True
         )
         listener.kill()
+
+        sender.execute(f"cat {content_file.as_posix()}")
 
     @TestCaseMetadata(
         description="""

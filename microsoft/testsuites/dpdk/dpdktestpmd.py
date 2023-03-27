@@ -2,12 +2,13 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from pathlib import PurePosixPath
 from typing import Any, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
-import time
+
 from lisa.base_tools import Mv
 from lisa.executable import Tool
 from lisa.nic import NicInfo
@@ -15,6 +16,7 @@ from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
+    Ip,
     Kill,
     Lscpu,
     Lspci,
@@ -25,7 +27,6 @@ from lisa.tools import (
     Timeout,
     Unzip,
     Wget,
-    Ip,
 )
 from lisa.util import (
     LisaException,
@@ -309,15 +310,13 @@ class DpdkTestpmd(Tool):
         # calculate the available cores per numa node, infer the offset
         # required for core selection argument
         cores_available = self.node.tools[Lscpu].get_core_count()
-        numa_node_count = self.node.tools[Lscpu].get_numa_node_count()
-        nic_numa_node = self.node.nics._get_nic_numa_node(nic_to_include.lower)
-        cores_per_numa = cores_available // numa_node_count
-        numa_core_offset = cores_per_numa * nic_numa_node
 
-        # calculate how many cores to use based on txq/rxq per nic and how many nics
-        use_core_count = self._calculate_core_count(
-            cores_per_numa, txq, rxq, use_max_nics, service_cores=service_cores
-        )
+        # Just use whatever cores are available.
+
+        use_core_count = cores_available - 2  # self._calculate_core_count(
+        assert_that(use_core_count).described_as(
+            "DPDK tests need more than 4 cores, recommended more than 8 cores"
+        ).is_greater_than(2)
 
         nic_include_info = self.generate_testpmd_include(
             nic_to_include, vdev_id, use_max_nics
@@ -333,24 +332,19 @@ class DpdkTestpmd(Tool):
                 "RX queue value must be greater than 0 if rxq is used"
             ).is_greater_than(0)
             extra_args += f" --txq={txq} --rxq={rxq}  "
-        
-        if self.is_mana:
-            extra_args += '--txd=64 --rxd=64 '
 
-        assert_that(use_core_count).described_as(
-            "Selection asked for more cores than were available for numa "
-            f"{nic_numa_node}. Requested {use_core_count}"
-        ).is_less_than_or_equal_to(cores_per_numa)
+        if self.is_mana:
+            extra_args += "--txd=256 --rxd=256 "
 
         # use the selected amount of cores, adjusting for 0 index.
 
-        core_args = f"-l 2,3 " #{numa_core_offset}-{numa_core_offset + use_core_count-1}"
+        core_args = f"-l 1-{use_core_count} "
         if not self.is_mana:
-            core_args += '-n 4 '
+            core_args += f"-l 1-{(use_core_count)} "
         return (
-            f"{self._testpmd_install_path} {core_args}  --proc-type=primary "
+            f"{self._testpmd_install_path} {core_args} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2 --port-topology=chained"
+            "-a --stats-period 2 "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
