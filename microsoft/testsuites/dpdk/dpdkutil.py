@@ -355,6 +355,7 @@ def initialize_node_resources(
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
     for kit in test_kits:
+        # MANA nics only support > DPDK 22.11 so will always have the flag
         if not kit.testpmd.has_tx_ip_flag():
             raise UnsupportedPackageVersionException(
                 kit.node.os,
@@ -431,7 +432,11 @@ def start_testpmd_concurrent(
 
 
 def init_nodes_concurrent(
-    environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str,
+    sample_apps: Union[List[str], None] = None,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -441,7 +446,7 @@ def init_nodes_concurrent(
     # Use threading module to parallelize the IO-bound node init.
     test_kits = run_in_parallel(
         [
-            partial(initialize_node_resources, node, log, variables, pmd)
+            partial(initialize_node_resources, node, log, variables, pmd, sample_apps)
             for node in environment.nodes.list()
         ],
         log,
