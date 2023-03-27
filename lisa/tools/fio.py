@@ -213,6 +213,7 @@ class Fio(Tool):
             temp["numjob"] = int(fio_result.qdepth / fio_result.iodepth)
             mode_iops_latency[fio_result.qdepth] = temp
 
+        env_info = test_result.environment.get_information()
         for result in mode_iops_latency.values():
             result_copy = result.copy()
             result_copy["tool"] = constants.DISK_PERFORMANCE_TOOL_FIO
@@ -224,6 +225,7 @@ class Fio(Tool):
                 test_result,
                 test_name,
                 result_copy,
+                env_info,
             )
             fio_message.append(fio_result_message)
         return fio_message

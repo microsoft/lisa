@@ -277,6 +277,7 @@ def create_perf_message(
     test_result: "TestResult",
     test_case_name: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
+    env_info: Dict[str, str] = {},
 ) -> T:
     environment = test_result.environment
     assert environment, "fail to get environment from testresult"
@@ -287,7 +288,10 @@ def create_perf_message(
     ):
         data_path = node.capability.network_interface.data_path.value
     message = message_type()
-    dict_to_fields(environment.get_information(), message)
+    if env_info:
+        dict_to_fields(env_info, message)
+    else:
+        dict_to_fields(environment.get_information(), message)
     message.test_case_name = test_case_name
     message.data_path = data_path
     message.test_result_id = test_result.id_
