@@ -25,6 +25,7 @@ from lisa.tools import (
     Dmesg,
     Echo,
     Free,
+    Ip,
     KernelConfig,
     Lscpu,
     Lsmod,
@@ -286,7 +287,6 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
     )
-
     # init and enable hugepages (required by dpdk)
     init_hugepages(node)
 
@@ -314,13 +314,16 @@ def initialize_node_resources(
         if test_nic.lower:
             node.nics.unbind(test_nic)
             node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+    elif testpmd.is_mana:
+        node.tools[Ip].down(test_nic.upper)
 
     return DpdkTestResources(node, testpmd)
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
     for kit in test_kits:
-        if not kit.testpmd.has_tx_ip_flag():
+        # MANA nics only support > DPDK 22.11 so will always have the flag
+        if not kit.testpmd.is_mana and not kit.testpmd.has_tx_ip_flag():
             raise UnsupportedPackageVersionException(
                 kit.node.os,
                 "dpdk",
