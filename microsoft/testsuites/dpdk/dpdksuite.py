@@ -38,6 +38,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     initialize_node_resources,
     run_testpmd_concurrent,
     verify_dpdk_build,
+    verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -335,8 +336,8 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
             unsupported_features=[Gpu, Infiniband],
+            min_count=2,
             supported_features=[IsolatedResource],
         ),
     )
@@ -432,7 +433,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_vpp(
@@ -444,6 +444,8 @@ class Dpdk(TestSuite):
                     node.os, "VPP test does not support Mariner installation."
                 )
             )
+        initialize_node_resources(node, log, variables, "failsafe")
+
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
@@ -543,16 +545,16 @@ class Dpdk(TestSuite):
         description="""
             Tests a basic sender/receiver setup for default failsafe driver setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
-            order-of-magnitude.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
         """,
         priority=2,
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
             unsupported_features=[Gpu, Infiniband],
+            min_count=2,
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -577,8 +579,8 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
             unsupported_features=[Gpu, Infiniband],
+            min_count=2,
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -603,8 +605,8 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
             unsupported_features=[Gpu, Infiniband],
+            min_count=2,
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -654,8 +656,8 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
             unsupported_features=[Gpu, Infiniband],
+            min_count=2,
         ),
     )
     def verify_dpdk_send_receive_netvsc(
@@ -692,6 +694,49 @@ class Dpdk(TestSuite):
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description=(
+            """
+                Run the L3 forwarding test for DPDK
+        """
+        ),
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+        ),
+    )
+    def verify_dpdk_l3fwd_ntttcp_tcp(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
+
+    @TestCaseMetadata(
+        description="""
+          Run the L3 forwarding test for DPDK
+        """,
+        priority=4,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self._force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3fwd_ntttcp_tcp(
+            environment, log, variables, pmd=pmd, enable_gibibyte_hugepages=True
+        )
 
     @TestCaseMetadata(
         description="""

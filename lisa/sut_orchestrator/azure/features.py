@@ -112,6 +112,8 @@ from .common import (
 )
 from .tools import Waagent
 
+HTTP_TOO_MANY_REQUESTS = 429
+
 
 class AzureFeatureMixin:
     def _initialize_information(self, node: Node) -> None:
@@ -993,7 +995,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         virtual_network_name: str,
         subnet_name: str,
         subnet_mask: str,
-        route_table: Any,
+        route_table: RouteTable,
     ) -> bool:
         platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(platform)
@@ -1125,6 +1127,18 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         for x in interface.ip_configurations
                         if x.primary
                     ][0],
+                )
+            )
+        return interfaces_info_list
+
+    def get_all_nics_ip_info(self) -> List[IpInfo]:
+        interfaces_info_list: List[IpInfo] = []
+        for interface in self._get_all_nics():
+            interfaces_info_list.append(
+                IpInfo(
+                    interface.name,
+                    ":".join(interface.mac_address.lower().split("-")),
+                    [x.private_ip_address for x in interface.ip_configurations][0],
                 )
             )
         return interfaces_info_list

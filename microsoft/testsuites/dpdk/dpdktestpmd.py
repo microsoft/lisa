@@ -99,7 +99,6 @@ class DpdkTestpmd(Tool):
         "python3-pyelftools",
         "libelf-dev",
         "pkg-config",
-        "linux-modules-extra-azure",
     ]
 
     # these are the same at the moment but might need tweaking later
@@ -187,7 +186,9 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
+    def generate_testpmd_include(
+        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+    ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
         # MANA and mlnx both don't require these arguments if all VFs are in use.
@@ -210,7 +211,7 @@ class DpdkTestpmd(Tool):
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
             # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic":
+            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
@@ -229,7 +230,6 @@ class DpdkTestpmd(Tool):
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-
         if node_nic.module_name == "hv_netvsc":
             # primary/upper/master nic is bound to hv_netvsc
             # when using net_failsafe implicitly or explicitly.
@@ -881,6 +881,9 @@ class DpdkTestpmd(Tool):
                 self._ubuntu_packages_2004,
                 extra_args=self._debian_backports_args,
             )
+            # MANA tests use linux-modules-extra-azure, install if it's available.
+            if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
+                ubuntu.install_packages("linux-modules-extra-azure")
         rdma_core_packages = self.get_rdma_core_package_name()
         if rdma_core_packages:
             ubuntu.install_packages(rdma_core_packages.split())
