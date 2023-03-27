@@ -1,8 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Type
 
 from lisa.executable import ExecutableResult, Tool
+from lisa.util import (
+    UnsupportedDistroException,
+    filter_ansi_escape,
+    find_group_in_lines,
+)
 
 
 class Service(Tool):
@@ -92,6 +98,9 @@ class ServiceInternal(Tool):
 
 
 class Systemctl(Tool):
+    __STATE_PATTERN = re.compile(r"^(\s+)State:(\s+)(?P<state>.*)", re.M)
+    __NOT_FOUND = re.compile(r"not found", re.M)
+
     @property
     def command(self) -> str:
         return "systemctl"
@@ -115,6 +124,22 @@ class Systemctl(Tool):
 
     def hibernate(self) -> None:
         self.run_async("hibernate", sudo=True, force_run=True)
+
+    def state(self) -> str:
+        cmd_result = self.run(
+            "status --no-page",
+            shell=True,
+            sudo=True,
+            force_run=True,
+        )
+        if cmd_result.exit_code != 0 and self.__NOT_FOUND.findall(cmd_result.stdout):
+            raise UnsupportedDistroException(
+                os=self.node.os, message=f"command not find {self.command}"
+            )
+        group = find_group_in_lines(
+            filter_ansi_escape(cmd_result.stdout), self.__STATE_PATTERN
+        )
+        return group["state"]
 
     def _check_exists(self) -> bool:
         return True
