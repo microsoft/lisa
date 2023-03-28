@@ -362,15 +362,15 @@ class XdpPerformance(TestSuite):
 
         # install pktgen on sender, and xdpdump on receiver.
         try:
-            tools: List[Any] = run_in_parallel(
-                [partial(sender.tools.get, Pktgen), partial(get_xdpdump, receiver)]
-            )
+            tools: List[Any] = []
+            tools.append(get_xdpdump(receiver))
+            tools.append(sender.tools[Pktgen])
         except UnsupportedKernelException as identifier:
             raise SkippedException(identifier)
 
         # type annotations
-        pktgen: Pktgen = tools[0]
-        xdpdump: XdpDump = tools[1]
+        xdpdump: XdpDump = tools[0]
+        pktgen: Pktgen = tools[1]
 
         sender_nic = sender.nics.get_nic_by_index(1)
         receiver_nic = receiver.nics.get_nic_by_index(1)
