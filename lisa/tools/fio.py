@@ -202,6 +202,7 @@ class Fio(Tool):
     ) -> List[DiskPerformanceMessage]:
         fio_message: List[DiskPerformanceMessage] = []
         mode_iops_latency: Dict[int, Dict[str, Any]] = {}
+        env_info = None
         for fio_result in fio_results_list:
             temp: Dict[str, Any] = {}
             if fio_result.qdepth in mode_iops_latency.keys():
@@ -213,7 +214,8 @@ class Fio(Tool):
             temp["numjob"] = int(fio_result.qdepth / fio_result.iodepth)
             mode_iops_latency[fio_result.qdepth] = temp
 
-        env_info = test_result.environment.get_information()
+        if test_result.environment:
+            env_info = test_result.environment.get_information()
         for result in mode_iops_latency.values():
             result_copy = result.copy()
             result_copy["tool"] = constants.DISK_PERFORMANCE_TOOL_FIO

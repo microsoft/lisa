@@ -277,7 +277,7 @@ def create_perf_message(
     test_result: "TestResult",
     test_case_name: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
-    env_info: Dict[str, str] = {},
+    env_info: Optional[Dict[str, str]] = None,
 ) -> T:
     environment = test_result.environment
     assert environment, "fail to get environment from testresult"
