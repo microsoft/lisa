@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import base64
 import copy
 import json
 import logging
@@ -9,7 +8,6 @@ import math
 import os
 import re
 import sys
-import yaml
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -264,7 +262,6 @@ class AzurePlatformSchema:
     virtual_network_name: str = field(default=AZURE_NEW_VIRTUAL_NETWORK)
     subnet_prefix: str = field(default=AZURE_NEW_SUBNET_PREFIX)
     use_existing_virtual_network: bool = field(default=False)
-    use_private_address_for_vm_connection: bool = field(default=False)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -310,7 +307,6 @@ class AzurePlatformSchema:
                 "virtual_network_name",
                 "subnet_prefix",
                 "use_existing_virtual_network",
-                "use_private_address_for_vm_connection"
             ],
         )
 
@@ -1491,19 +1487,11 @@ class AzurePlatform(Platform):
             public_address, private_address = get_primary_ip_addresses(
                 self, resource_group_name, vm
             )
-
-            connection_public_ip = node_context.public_ip_address
-            if self._azure_runbook.use_private_address_for_vm_connection:
-                # setting public_address to empty causes set_connection_info
-                # to use address (the private ip)
-                connection_public_ip = ''
-
-            index = index + 1
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
                 port=22,
-                public_address=connection_public_ip,
+                public_address=public_address,
                 public_port=22,
                 username=node_context.username,
                 password=node_context.password,
