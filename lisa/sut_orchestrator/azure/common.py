@@ -74,8 +74,8 @@ if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
-AZURE_NEW_VIRTUAL_NETWORK = "lisa-virtualNetwork"
-AZURE_NEW_SUBNET_PREFIX = "lisa-subnet-"
+AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
+AZURE_SUBNET_PREFIX = "lisa-subnet-"
 
 
 PATTERN_NIC_NAME = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
@@ -498,9 +498,9 @@ class AzureArmParameter:
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
     
-    virtual_network_resource_group: str = ""
-    virtual_network_name: str = AZURE_NEW_VIRTUAL_NETWORK
-    subnet_prefix: str = AZURE_NEW_SUBNET_PREFIX
+    virtual_network_resource_group: str = AZURE_SHARED_RG_NAME
+    virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
+    subnet_prefix: str = AZURE_SUBNET_PREFIX
     use_existing_virtual_network: bool = False
 
 
