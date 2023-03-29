@@ -39,7 +39,7 @@ GUID_REGEXP = re.compile(r"^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$|^$")
 NORMALIZE_PATTERN = re.compile(r"[^A-Za-z0-9]")
 
 # default values
-DEFAULT_USER_NAME = "lisatest"
+DEFAULT_USER_NAME = "lisa"
 
 # feature names
 FEATURE_DISK = "Disk"
