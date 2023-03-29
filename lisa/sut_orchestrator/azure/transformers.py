@@ -125,7 +125,12 @@ class VhdTransformer(Transformer):
             AzurePlatformSchema
         )
 
-        environment = load_environment(platform, runbook.resource_group_name, azure_runbook.use_public_ip, self._log)
+        environment = load_environment(
+            platform,
+            runbook.resource_group_name,
+            azure_runbook.use_public_ip,
+            self._log,
+        )
 
         if runbook.vm_name:
             node = next(

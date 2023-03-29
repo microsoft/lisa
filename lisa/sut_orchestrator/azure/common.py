@@ -1209,7 +1209,10 @@ def save_console_log(
 
 
 def load_environment(
-    platform: "AzurePlatform", resource_group_name: str, use_public_ip: bool, log: Logger
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    use_public_ip: bool,
+    log: Logger,
 ) -> Environment:
     """
     reverse load environment from a resource group.
