@@ -1156,6 +1156,7 @@ class RemoteNode(Node):
             field_function=fields.Int, validate=validate.Range(min=1, max=65535)
         ),
     )
+    use_public_address: bool = field(default=True)
     public_address: str = ""
     public_port: int = field(
         default=22,

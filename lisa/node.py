@@ -482,6 +482,7 @@ class RemoteNode(Node):
         fields = [
             constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS,
             constants.ENVIRONMENTS_NODES_REMOTE_PORT,
+            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS,
             constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS,
             constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_PORT,
         ]
@@ -507,6 +508,7 @@ class RemoteNode(Node):
         self,
         address: str = "",
         port: Optional[int] = 22,
+        use_public_address: bool = True,
         public_address: str = "",
         public_port: Optional[int] = 22,
         username: str = "root",
@@ -533,8 +535,8 @@ class RemoteNode(Node):
         assert port
 
         self._connection_info: schema.ConnectionInfo = schema.ConnectionInfo(
-            public_address,
-            public_port,
+            public_address if use_public_address else address,
+            public_port if use_public_address else port,
             username,
             password,
             private_key_file,
