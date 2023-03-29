@@ -76,8 +76,8 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
-    AZURE_VIRTUAL_NETWORK_NAME,
     AZURE_SUBNET_PREFIX,
+    AZURE_VIRTUAL_NETWORK_NAME,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -978,7 +978,9 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
-        arm_parameters.virtual_network_resource_group = self._azure_runbook.virtual_network_resource_group
+        arm_parameters.virtual_network_resource_group = (
+            self._azure_runbook.virtual_network_resource_group
+        )
         arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
         arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
 
