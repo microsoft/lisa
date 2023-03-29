@@ -72,28 +72,24 @@
         },
         "use_existing_virtual_network": {
             "type": "bool",
-            "defaultValue": false,
             "metadata": {
                 "description": "flag to use an existing vnet"
             }
         },
         "virtual_network_resource_group": {
             "type": "string",
-            "defaultValue": "[resourceGroup().name]",
             "metadata": {
                 "description": "the name of vnet resource group"
             }
         },
         "virtual_network_name": {
             "type": "string",
-            "defaultValue": "lisa-virtualNetwork",
             "metadata": {
                 "description": "the name of vnet"
             }
         },
         "subnet_prefix": {
             "type": "string",
-            "defaultValue": "lisa-subnet-",
             "metadata": {
                 "description": "the prefix of the subnets"
             }
