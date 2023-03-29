@@ -70,12 +70,6 @@
                 "description": "tags of availability set"
             }
         },
-        "use_existing_virtual_network": {
-            "type": "bool",
-            "metadata": {
-                "description": "flag to use an existing vnet"
-            }
-        },
         "virtual_network_resource_group": {
             "type": "string",
             "metadata": {
@@ -117,7 +111,7 @@
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', parameters('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
         "availability_set_name": "lisa-availabilitySet",
-        "existing_subnet_ref": "[if(parameters('use_existing_virtual_network'), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
+        "existing_subnet_ref": "[if(not(empty('virtual_network_resource_group')), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
     },
     "resources": [
         {
@@ -146,7 +140,7 @@
             }
         },
         {
-            "condition": "[not(parameters('use_existing_virtual_network'))]",
+            "condition": "[empty('virtual_network_resource_group')]",
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[parameters('virtual_network_name')]",

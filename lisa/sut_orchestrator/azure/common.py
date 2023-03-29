@@ -498,10 +498,9 @@ class AzureArmParameter:
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
     
-    virtual_network_resource_group: str = AZURE_SHARED_RG_NAME
+    virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
     subnet_prefix: str = AZURE_SUBNET_PREFIX
-    use_existing_virtual_network: bool = False
 
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
