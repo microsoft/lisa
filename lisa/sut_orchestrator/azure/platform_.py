@@ -1485,9 +1485,7 @@ class AzurePlatform(Platform):
             public_address, private_address = get_primary_ip_addresses(
                 self, resource_group_name, vm
             )
-            node_context.use_public_ip_address = (
-                self._azure_runbook.use_public_ip
-            )
+            node_context.use_public_ip_address = self._azure_runbook.use_public_ip
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
