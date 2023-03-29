@@ -6,6 +6,7 @@ from typing import List, Pattern
 
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
 from lisa.nic import NicInfo
+from lisa.operating_system import Redhat
 from lisa.tools import Echo, Ethtool, Mount
 from lisa.tools.mkfs import FileSystem
 from microsoft.testsuites.xdp.xdpdump import XdpDump
@@ -23,6 +24,7 @@ _tx_forwarded_patterns = [
     re.compile(r"^rx_xdp_tx_xmit$"),
 ]
 _huge_page_disks = {"/mnt/huge": "", "/mnt/huge1g": "pagesize=1G"}
+_huge_page_disks_rhel_arm64 = {"/mnt/huge": "", "/mnt/huge512m": "pagesize=512M"}
 
 
 def get_xdpdump(node: Node) -> XdpDump:
@@ -62,7 +64,15 @@ def get_dropped_count(
 
 def set_hugepage(node: Node) -> None:
     mount = node.tools[Mount]
-    for point, options in _huge_page_disks.items():
+
+    if (
+        isinstance(node.os, Redhat)
+        and node.os.get_kernel_information().hardware_platform == "aarch64"
+    ):
+        huge_page_disks = _huge_page_disks_rhel_arm64.items()
+    else:
+        huge_page_disks = _huge_page_disks.items()
+    for point, options in huge_page_disks:
         mount.mount(
             name="nodev", point=point, fs_type=FileSystem.hugetlbfs, options=options
         )
@@ -80,10 +90,26 @@ def set_hugepage(node: Node) -> None:
             "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
         ),
         sudo=True,
+        ignore_error=True,
+    )
+    echo.write_to_file(
+        "1",
+        node.get_pure_path(
+            "/sys/devices/system/node/node0/hugepages/hugepages-16777216kB/nr_hugepages"
+        ),
+        sudo=True,
+        ignore_error=True,
     )
 
 
 def remove_hugepage(node: Node) -> None:
+    if (
+        isinstance(node.os, Redhat)
+        and node.os.get_kernel_information().hardware_platform == "aarch64"
+    ):
+        huge_page_disks = _huge_page_disks_rhel_arm64
+    else:
+        huge_page_disks = _huge_page_disks
     echo = node.tools[Echo]
     echo.write_to_file(
         "0",
@@ -98,10 +124,19 @@ def remove_hugepage(node: Node) -> None:
             "/sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
         ),
         sudo=True,
+        ignore_error=True,
+    )
+    echo.write_to_file(
+        "0",
+        node.get_pure_path(
+            "/sys/devices/system/node/node0/hugepages/hugepages-16777216kB/nr_hugepages"
+        ),
+        sudo=True,
+        ignore_error=True,
     )
 
     mount = node.tools[Mount]
-    for point in _huge_page_disks:
+    for point in huge_page_disks:
         mount.umount(disk_name="nodev", point=point, fs_type="hugetlbfs", erase=False)
         pure_path = node.get_pure_path(point)
         node.execute(f"rm -rf {pure_path}", sudo=True)
