@@ -233,6 +233,20 @@ class NetworkUDPPerformanceMessage(PerfMessage):
 
 
 @dataclass
+class IPCLatency(PerfMessage):
+    average_time_sec: Decimal = Decimal(0)
+    min_time_sec: Decimal = Decimal(0)
+    max_time_sec: Decimal = Decimal(0)
+
+
+@dataclass
+class DescriptorPollThroughput(PerfMessage):
+    average_ops: Decimal = Decimal(0)
+    min_ops: Decimal = Decimal(0)
+    max_ops: Decimal = Decimal(0)
+
+
+@dataclass
 class ProvisionBootTimeMessage(MessageBase):
     type: str = "ProvisionBootTime"
 

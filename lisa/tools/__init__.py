@@ -81,6 +81,7 @@ from .ntttcp import Ntttcp
 from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .parted import Parted
+from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
 from .pidof import Pidof
 from .ping import Ping
@@ -192,6 +193,7 @@ __all__ = [
     "NvidiaSmi",
     "Nvmecli",
     "Parted",
+    "Perf",
     "Pidof",
     "Pgrep",
     "Ping",
