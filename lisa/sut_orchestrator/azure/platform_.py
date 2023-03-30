@@ -1357,6 +1357,17 @@ class AzurePlatform(Platform):
             assert identifier.error, f"HttpResponseError: {identifier}"
 
             error_message = "\n".join(self._parse_detail_errors(identifier.error))
+            if "At least one resource deployment operation failed" in error_message:
+                deployment_name = deployment_parameters["deployment_name"]
+                operations = self._rm_client.deployment_operations.list(
+                    resource_group_name, deployment_name
+                )
+                for operation in operations:
+                    if operation.properties.provisioning_state == "Failed":
+                        error_message += (
+                            "\n" + "Failed operation message: "
+                            f"{operation.properties.status_message}"
+                        )
             if (
                 self._azure_runbook.ignore_provisioning_error
                 and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
