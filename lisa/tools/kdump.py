@@ -518,27 +518,30 @@ class KdumpDebian(KdumpBase):
         return self._check_exists()
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
+        # If the function returns empty string, it means using the default crash kernel
+        # size. Currently, for x86 Ubuntu,Debian, the default setting is "512M-:192M",
+        # for arm64, "2G-4G:320M,4G-32G:512M,32G-64G:1024M,64G-128G:2048M,128G-:4096M"
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         if (
-            self.node.shell.exists(PurePosixPath("/sys/firmware/efi"))
-            and arch == "x86_64"
-            and "T" in total_memory
-            and float(total_memory.strip("T")) > 1
-        ):
-            return "512M"
-
-        if arch == "aarch64" and (
             "G" in total_memory
             and float(total_memory.strip("G")) < 2
             or "M" in total_memory
             and float(total_memory.strip("M")) < 2048
         ):
-            return "256M"
-
-        # Use the default crash kernel size
-        # Currently, for x86 Ubuntu,Debian, the default setting is "512M-:192M",
-        # for arm64, "2G-4G:320M,4G-32G:512M,32G-64G:1024M,64G-128G:2048M,128G-:4096M"
-        return ""
+            if arch == "x86_64":
+                return "192M"
+            else:
+                # For arm64 with page size == 4k, the memory "section size" is 128MB,
+                # that's the granularity of memory hotplug and also the minimal size of
+                # manageable memory if SPARSEMEM is selected. More memory is needed for
+                # kdump kernel
+                return "256M"
+        else:
+            if arch == "x86_64":
+                return "512M"
+            else:
+                # Use the default crash kernel size
+                return ""
 
     def _get_crashkernel_cfg_file(self) -> str:
         return "/etc/default/grub.d/kdump-tools.cfg"
