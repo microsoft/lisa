@@ -136,6 +136,9 @@ deployment.
    platform:
    - type: azure
       ...
+      virtual_network_resource_group: $(vnet_resource_group)
+      virtual_network_name: $(vnet_name)
+      subnet_prefix: $(subnet_name)
       requirement:
          ...
          azure:
@@ -144,6 +147,23 @@ deployment.
             vm_size: "<vm size>"
             maximize_capability: "<true or false>"
 
+* **virtual_network_resource_group**. Specify if an existing virtual network
+  should be used. If `virtual_network_resource_group` is not provided, a virtual
+  network will be created in the default resource group. If
+  `virtual_network_resource_group` is provided, an existing virtual network will
+  be used.
+* **virtual_network_name**. Specify the desired virtual network name.  If 
+  `virtual_network_resource_group` is not provided, a virtual network will be
+  created and the resulting virtual network name will be
+  `<virtual_network_name>`.  If `virtual_network_resource_group` is provided,
+  an existing virtual network, with the name equal to `virtual_network_name`,
+  will be used.
+* **subnet_prefix**. Specify the desired subnet prefix.  If 
+  `virtual_network_resource_group` is not provided, a virtual network and
+  subnet will be created and the resulting subnets will look like 
+  `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If 
+  `virtual_network_resource_group` is provided, an existing virtual network and
+  subnet, with the name equal to `subnet_prefix`, will be used.
 * **location**. Specify which locations is used to deploy VMs. It can be one or
   multiple locations. For example, westus3 or westus3,eastus. If multiple
   locations are specified, it means each environment deploys VMs in one of
