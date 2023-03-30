@@ -18,6 +18,9 @@ Error description
 
 smoke_test
 ^^^^^^^
+- **cannot connect to TCP port: [xx.xx.xx.xx:22], error code: 10061, no panic found in serial log during bootup**
+If you receive this error message, that means there is no kernel panic when the VM boot up. But it might have some network connectivity issue. Please double check the network related configurations. 
+
 
 verify_no_pre_exist_users
 ^^^^^^^
