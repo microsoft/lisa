@@ -128,7 +128,7 @@ class VhdTransformer(Transformer):
         environment = load_environment(
             platform,
             runbook.resource_group_name,
-            azure_runbook.use_public_ip,
+            azure_runbook.use_public_address,
             self._log,
         )
 
