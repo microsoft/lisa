@@ -350,10 +350,10 @@ class CloudHypervisorTests(Tool):
 
         # Ex. String for below regex
         # "boot_time_ms" (test_timeout=2s,test_iterations=10)
-        regex = '\\"(.*)\\" \\('
+        regex = '\\"(.*)\\"(.*)test_timeout(.*), test_iterations(.*)\\)'
 
         pattern = re.compile(regex)
-        tests_list = pattern.findall(stdout)
+        tests_list = [match[0] for match in pattern.findall(stdout)]
 
         self._log.debug(f"Testcases found: {tests_list}")
         return set(tests_list)
