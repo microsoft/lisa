@@ -252,6 +252,18 @@ Run_Ntttcp()
 	Kill_Process "${server}" ntttcp
 	Kill_Process "${client}" ntttcp
 
+	# Reduce MTU to 1400 firewalld
+	Run_SSHCommand "${client}" "ifconfig eth0 mtu 1400 up"
+	Run_SSHCommand "${server}" "ifconfig eth0 mtu 1400 up"
+	Run_SSHCommand "${client}" "ifconfig eth1 mtu 1400 up"
+	Run_SSHCommand "${server}" "ifconfig eth1 mtu 1400 up"
+
+	# Disable firewalld
+	Run_SSHCommand "${client}" "ethtool -N eth0 rx-flow-hash udp4 sd"
+	Run_SSHCommand "${server}" "ethtool -N eth0 rx-flow-hash udp4 sd"
+	Run_SSHCommand "${client}" "ethtool -N eth1 rx-flow-hash udp4 sd"
+	Run_SSHCommand "${server}" "ethtool -N eth1 rx-flow-hash udp4 sd"
+
 	# Disable firewalld
 	Run_SSHCommand "${client}" "service firewalld stop"
 	Run_SSHCommand "${server}" "service firewalld stop"
