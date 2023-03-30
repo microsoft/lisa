@@ -206,7 +206,7 @@ class KdumpCrash(TestSuite):
 
     # This method might stuck after triggering crash,
     # so use timeout to recycle it faster.
-    @func_set_timeout(5)  # type: ignore
+    @func_set_timeout(10)  # type: ignore
     def _try_connect(self, remote_node: RemoteNode) -> Any:
         return try_connect(remote_node._connection_info)
 
