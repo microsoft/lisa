@@ -350,6 +350,10 @@ class CloudHypervisorTests(Tool):
 
         # Ex. String for below regex
         # "boot_time_ms" (test_timeout=2s,test_iterations=10)
+        # "virtio_net_throughput_single_queue_rx_gbps" (test_timeout = 10s, test_iterations = 5, num_queues = 2, queue_size = 256, rx = true, bandwidth = true) # noqa: E501
+        # "block_multi_queue_random_write_IOPS" (test_timeout = 10s, test_iterations = 5, num_queues = 2, queue_size = 128, fio_ops = randwrite, bandwidth = false) # noqa: E501
+        # "block_multi_queue_random_read_IOPS" (test_timeout = 10s, test_iterations = 5, num_queues = 2, queue_size = 128, fio_ops = randread, bandwidth = false) # noqa: E501
+
         regex = '\\"(.*)\\"(.*)test_timeout(.*), test_iterations(.*)\\)'
 
         pattern = re.compile(regex)
