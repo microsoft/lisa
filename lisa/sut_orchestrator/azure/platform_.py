@@ -1336,57 +1336,68 @@ class AzurePlatform(Platform):
         log.info(f"resource group '{resource_group_name}' deployment is in progress...")
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
-        try:
-            deployment_operation = deployments.begin_create_or_update(
-                **deployment_parameters
-            )
-            while True:
-                try:
-                    wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
-                    )
-                except LisaTimeoutException:
-                    self._save_console_log(resource_group_name, environment, log)
+        retries = 0
+        retry = True
+        while retry:
+            try:
+                deployment_operation = deployments.begin_create_or_update(
+                    **deployment_parameters
+                )
+                while True:
+                    try:
+                        wait_operation(
+                            deployment_operation,
+                            time_out=300,
+                            failure_identity="deploy",
+                        )
+                    except LisaTimeoutException:
+                        self._save_console_log(resource_group_name, environment, log)
+                        continue
+                    break
+                retry = False
+            except HttpResponseError as identifier:
+                # Some errors happens underlying, so there is no detail errors from API.
+                # For example,
+                # azure.core.exceptions.HttpResponseError:
+                #    Operation returned an invalid status 'OK'
+                retries += 1
+                if retries < 2:
                     continue
-                break
-        except HttpResponseError as identifier:
-            # Some errors happens underlying, so there is no detail errors from API.
-            # For example,
-            # azure.core.exceptions.HttpResponseError:
-            #    Operation returned an invalid status 'OK'
-            assert identifier.error, f"HttpResponseError: {identifier}"
 
-            error_message = "\n".join(self._parse_detail_errors(identifier.error))
-            if (
-                self._azure_runbook.ignore_provisioning_error
-                and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
-            ):
-                # Provisioning timeout causes by waagent is not ready.
-                # In smoke test, it still can verify some information.
-                # Eat information here, to run test case any way.
-                #
-                # It may cause other cases fail on assumptions. In this case, we can
-                # define a flag in config, to mark this exception is ignorable or not.
-                log.error(
-                    f"provisioning time out, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
-                error_message, AZURE_INTERNAL_ERROR_PATTERN
-            ):
-                # Similar situation with OSProvisioningTimedOut
-                # Some OSProvisioningInternalError caused by it doesn't support
-                # SSH key authentication
-                # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
-                # After passthrough this exception,
-                # actually the 22 port of this VM is open.
-                log.error(
-                    f"provisioning failed for an internal error, try to run case. "
-                    f"Exception: {error_message}"
-                )
-            else:
-                plugin_manager.hook.azure_deploy_failed(error_message=error_message)
-                raise LisaException(error_message)
+                assert identifier.error, f"HttpResponseError: {identifier}"
+
+                error_message = "\n".join(self._parse_detail_errors(identifier.error))
+                if (
+                    self._azure_runbook.ignore_provisioning_error
+                    and "OSProvisioningTimedOut: OS Provisioning for VM"
+                    in error_message
+                ):
+                    # Provisioning timeout causes by waagent is not ready.
+                    # In smoke test, it still can verify some information.
+                    # Eat information here, to run test case any way.
+                    #
+                    # It may cause other cases fail on assumptions. In this case, we can
+                    # define a flag in config, to mark this exception is ignorable or not.
+                    log.error(
+                        f"provisioning time out, try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                elif self._azure_runbook.ignore_provisioning_error and get_matched_str(
+                    error_message, AZURE_INTERNAL_ERROR_PATTERN
+                ):
+                    # Similar situation with OSProvisioningTimedOut
+                    # Some OSProvisioningInternalError caused by it doesn't support
+                    # SSH key authentication
+                    # e.g. hpe hpestoreoncevsa hpestoreoncevsa-3187 3.18.7
+                    # After passthrough this exception,
+                    # actually the 22 port of this VM is open.
+                    log.error(
+                        f"provisioning failed for an internal error, try to run case. "
+                        f"Exception: {error_message}"
+                    )
+                else:
+                    plugin_manager.hook.azure_deploy_failed(error_message=error_message)
+                    raise LisaException(error_message)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
