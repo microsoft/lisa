@@ -310,15 +310,13 @@ class DpdkTestpmd(Tool):
         # calculate the available cores per numa node, infer the offset
         # required for core selection argument
         cores_available = self.node.tools[Lscpu].get_core_count()
-        numa_node_count = self.node.tools[Lscpu].get_numa_node_count()
-        nic_numa_node = self.node.nics._get_nic_numa_node(nic_to_include.lower)
-        cores_per_numa = cores_available // numa_node_count
-        numa_core_offset = cores_per_numa * nic_numa_node
 
-        # calculate how many cores to use based on txq/rxq per nic and how many nics
-        use_core_count = cores_available - 1  # self._calculate_core_count(
-        # cores_per_numa, txq, rxq, use_max_nics, service_cores=service_cores
-        # )
+        # Just use whatever cores are available.
+
+        use_core_count = cores_available - 2  # self._calculate_core_count(
+        assert_that(use_core_count).described_as(
+            "DPDK tests need more than 4 cores, recommended more than 8 cores"
+        ).is_greater_than(2)
 
         nic_include_info = self.generate_testpmd_include(
             nic_to_include, vdev_id, use_max_nics
@@ -338,16 +336,9 @@ class DpdkTestpmd(Tool):
         if self.is_mana:
             extra_args += "--txd=256 --rxd=256 "
 
-        assert_that(use_core_count).described_as(
-            "Selection asked for more cores than were available for numa "
-            f"{nic_numa_node}. Requested {use_core_count}"
-        ).is_less_than_or_equal_to(cores_per_numa)
-
         # use the selected amount of cores, adjusting for 0 index.
 
-        core_args = (
-            f"-l 2,3 "  # {numa_core_offset}-{numa_core_offset + use_core_count-1}"
-        )
+        core_args = f"-l 1-{use_core_count} "
         if not self.is_mana:
             core_args += f"-l 1-{(use_core_count)} "
         return (
