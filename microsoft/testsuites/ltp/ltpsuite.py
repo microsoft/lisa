@@ -57,7 +57,7 @@ class LtpTestsuite(TestSuite):
         # parse variables
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
-        ltp_tests_git_tag = variables.get("ltp_tests_git_tag")
+        ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
 
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
