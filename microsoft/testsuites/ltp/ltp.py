@@ -49,7 +49,7 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    LTP_TESTS_GIT_TAG = "20230127"
+    LTP_TESTS_GIT_TAG = "20200930"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
     LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
@@ -68,6 +68,11 @@ class Ltp(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        git_tag = kwargs.get("git_tag")
+        if git_tag:
+            self.LTP_TESTS_GIT_TAG = git_tag
 
     def run_test(
         self,
