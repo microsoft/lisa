@@ -3,6 +3,7 @@
 from typing import Any, List, Union
 
 from lisa.executable import Tool
+from lisa.tools import Lsmod
 
 
 class Modprobe(Tool):
@@ -80,7 +81,14 @@ class Modprobe(Tool):
         self,
         modules: Union[str, List[str]],
         dry_run: bool = False,
+        skip_loaded: bool = False,
     ) -> bool:
+        if skip_loaded:
+            minimized = self.node.tools[Lsmod].get_unloaded_modules(modules)
+            if not minimized:
+                self.node.log.debug(f"Modules {modules} were already loaded")
+                return True
+            modules = minimized
         if isinstance(modules, list):
             modules_str = "-a " + " ".join(modules)
         else:
@@ -88,6 +96,7 @@ class Modprobe(Tool):
         command = f"{modules_str}"
         if dry_run:
             command = f"--dry-run {command}"
+
         result = self.run(
             command,
             force_run=True,
