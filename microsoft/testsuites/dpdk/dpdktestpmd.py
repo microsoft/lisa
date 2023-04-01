@@ -309,14 +309,6 @@ class DpdkTestpmd(Tool):
 
         # calculate the available cores per numa node, infer the offset
         # required for core selection argument
-        cores_available = self.node.tools[Lscpu].get_core_count()
-
-        # Just use whatever cores are available.
-
-        use_core_count = cores_available - 2  # self._calculate_core_count(
-        assert_that(use_core_count).described_as(
-            "DPDK tests need more than 4 cores, recommended more than 8 cores"
-        ).is_greater_than(2)
 
         nic_include_info = self.generate_testpmd_include(
             nic_to_include, vdev_id, use_max_nics
@@ -336,11 +328,37 @@ class DpdkTestpmd(Tool):
         if self.is_mana:
             extra_args += "--txd=256 --rxd=256 "
 
-        # use the selected amount of cores, adjusting for 0 index.
+        cores_available = self.node.tools[Lscpu].get_core_count()
+        # Just use whatever cores are available.
+        assert_that(cores_available).described_as(
+            "DPDK tests need more than 4 cores, recommended more than 8 cores"
+        ).is_greater_than(4)
 
-        core_args = f"-l 1-{use_core_count} "
-        if not self.is_mana:
-            core_args += f"-l 1-{(use_core_count)} "
+        def force_odd(cores: int, down: bool = True) -> int:
+            if cores % 2 == 0:
+                if down:
+                    cores -= 1
+                else:
+                    cores += 1
+            return cores
+
+        rounded_cores = force_odd(cores_available - 1)
+        rounded_queues = force_odd(txq + rxq + 1, down=False)
+
+        use_cores = min(
+            rounded_cores, rounded_queues
+        )  # use enough cores for (queues + service core) or max available
+        core_list = ",".join(map(str, range(1, use_cores)))
+        if (len(core_list) % 2) != 0:
+            self.node.log.debug(
+                (
+                    "NOTE: odd amount of cores in core list. "
+                    "May cause weird behavior or warnings"
+                )
+            )
+
+        core_args = f"-l {core_list} "
+
         return (
             f"{self._testpmd_install_path} {core_args} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
@@ -463,6 +481,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        self._force_rebuild = kwargs.pop("force_rebuild", False)
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self.find_testpmd_binary(assert_on_fail=False)
@@ -558,7 +577,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_repo_path_name = "dpdk"
         self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
 
-        if self.find_testpmd_binary(
+        if (not self._force_rebuild) and self.find_testpmd_binary(
             assert_on_fail=False, check_path="/usr/local/bin"
         ):  # tools are already installed
             return True
@@ -596,6 +615,7 @@ class DpdkTestpmd(Tool):
                 self._dpdk_source,
                 cwd=node.working_path,
                 dir_name=self._dpdk_repo_path_name,
+                fail_on_exists=False,
             )
             if not self._dpdk_branch:
                 # dpdk stopped using a default branch
@@ -675,7 +695,7 @@ class DpdkTestpmd(Tool):
         if self.is_connect_x3:
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
-            network_drivers = ["mana_ib"]
+            network_drivers = ["mana", "mana_ib"]
         else:
             network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
@@ -725,8 +745,8 @@ class DpdkTestpmd(Tool):
                 if modprobe.module_exists(module):
                     rdma_drivers.append(module)
 
-        modprobe.load(rdma_drivers)
-        modprobe.load(network_drivers)
+        modprobe.load(rdma_drivers, skip_loaded=True)
+        modprobe.load(network_drivers, skip_loaded=True)
 
     def _install_dependencies(self) -> None:
         node = self.node
