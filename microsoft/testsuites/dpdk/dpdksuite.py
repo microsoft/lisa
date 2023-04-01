@@ -620,10 +620,19 @@ class Dpdk(TestSuite):
         server_app_name = "dpdk-l3fwd"
 
         # initialize DPDK with sample applications selected for build
-        test_kit = initialize_node_resources(
-            forwarder, log, variables, pmd, sample_apps=["l3fwd"]
+        # test_kit = initialize_node_resources(
+        #     forwarder, log, variables, pmd, sample_apps=["l3fwd"]
+        # )
+        # test_kit = initialize_node_resources(
+        #     sender, log, variables, pmd, sample_apps=["l3fwd"]
+        # )
+        test_kits = init_nodes_concurrent(
+            environment, log, variables, pmd, sample_apps=["l3fwd"]
         )
-        port = 0xD007
+        forwader_kit, sender_kit = test_kits
+        forwarder = forwader_kit.node
+        sender = sender_kit.node
+
         # enable hugepages needed for dpdk EAL
         for node in environment.nodes.list():
             init_hugepages(node)
@@ -633,7 +642,9 @@ class Dpdk(TestSuite):
         forwarder_nic = forwarder.nics.get_nic_by_index(1)
         forwarder_ip = forwarder_nic.ip_addr
         forwarder_devices = forwarder_nic.pci_slot
-        sender_mac = sender.nics.get_nic_by_index().mac_addr
+
+        sender_nic = sender.nics.get_nic_by_index()
+        sender_mac = sender_nic.mac_addr
 
         # setup forwarding rules
         sample_rules_v4 = f"R{forwarder_ip}/24 0"
@@ -643,7 +654,10 @@ class Dpdk(TestSuite):
             # format to 0 prefixed 2 char hex
             parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
             assert_that(parts).described_as(
-                "IP address conversion failed, length of split array was unexpected"
+                (
+                    "IP address conversion failed,"
+                    " length of split array was unexpected"
+                )
             ).is_length(4)
             return (
                 "0000:0000:0000:0000:0000:FFFF:"
@@ -667,7 +681,7 @@ class Dpdk(TestSuite):
         )
 
         # get binary path and start the forwarder
-        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
+        examples_path = forwader_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
 
         include_devices = f'-a "{forwarder_devices}"'
@@ -709,22 +723,36 @@ class Dpdk(TestSuite):
         time.sleep(10)  # give it a few seconds to start
         # start the listener and start sending data to the forwarder
         content_file = sender.working_path.joinpath("content")
-        listener = sender.execute_async(
-            f"tcpdump -i eth1 > {content_file.as_posix()}", shell=True
-        )
+        sender_ip = sender_nic.ip_addr
+        # listener = sender.execute_async(
+        #     f"tcpdump -i eth1 > {content_file.as_posix()}", shell=True
+        # )
         # FIXME: switch to using testpmd for send/rcv
-        sender.tools[Timeout].run_with_timeout(
-            f"echo ABCDEFG | nc {forwarder_ip} {port}",
-            timeout=60,
-            kill_timeout=70,
+        cmd = sender_kit.testpmd.generate_testpmd_command(
+            sender_nic,
+            0,
+            "txonly",
+            "failsafe",
+            extra_args=f"--tx-ip={sender_ip},{forwarder_ip}",
         )
+
+        sender_stdout = sender_kit.testpmd.run_for_n_seconds(cmd, 30)
+
+        # sender.tools[Timeout].run_with_timeout(
+        #     f"echo ABCDEFG | nc {forwarder_ip} {port}",
+        #     timeout=60,
+        #     kill_timeout=70,
+        # )
 
         # kill everything
         forwarder.tools[Kill].by_name(
             server_app_name, signum=SIGINT, ignore_not_exist=True
         )
-        listener.kill()
+        # listener.kill()
 
+        log.debug(f"SENDER:\n{sender_stdout}")
+        sender_kit.testpmd.get_max_rx_pps()
+        sender_kit.testpmd.get_max_tx_pps()
         sender.execute(f"cat {content_file.as_posix()}")
 
     @TestCaseMetadata(
