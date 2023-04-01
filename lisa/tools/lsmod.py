@@ -2,7 +2,9 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any
+from typing import Any, List, Union
+
+from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.util import find_patterns_in_lines
@@ -27,6 +29,22 @@ class Lsmod(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lsmod"
+
+    def get_unloaded_modules(self, modules: Union[str, List[str]]) -> List[str]:
+        if isinstance(modules, str):
+            modules_list = modules.split(" ")
+        else:
+            modules_list = modules
+        assert_that(modules_list).described_as(
+            "Empty modules list passed to get_unloaded_modules in Lsmod tool"
+        ).is_not_empty()
+
+        result = self.run(sudo=True, force_run=True, expected_exit_code=0)
+        minimized_list = []
+        for module in modules_list:
+            if module not in result.stdout:
+                minimized_list.append(module)
+        return minimized_list
 
     def module_exists(
         self,
