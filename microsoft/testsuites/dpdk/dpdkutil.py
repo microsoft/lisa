@@ -1,7 +1,7 @@
 import time
 from collections import deque
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -95,40 +95,33 @@ def init_hugepages(node: Node) -> None:
     _enable_hugepages(node)
 
 
-def _enable_hugepages(node: Node) -> None:
+def _enable_hugepages(node: Node, queues: int = 2) -> None:
     echo = node.tools[Echo]
 
     meminfo = node.tools[Free]
-    nics_count = len(node.nics.get_upper_nics())
-
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
-    request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
-    request_pages_1gb = (nics_count - 1) * numa_nodes
-    memfree_2mb = meminfo.get_free_memory_mb()
-    memfree_1mb = meminfo.get_free_memory_gb()
+    if not numa_nodes:
+        numa_nodes = 1
+    goal_amount_gb = 2 + (2 * queues) * numa_nodes
+    memfree_1mb = meminfo.get_free_memory_mb() - 1024
+    if goal_amount_gb > memfree_1mb // 1024:
+        # request 2 GiB, this should be fine for smaller skus that support dpdk
+        goal_amount_gb = 2
+        # if there is more available, ask for more
+        while goal_amount_gb + 2 < memfree_1mb // 1024:
+            goal_amount_gb += 2
 
-    # request 2iGB memory per nic, 1 of 2MiB pages and 1 GiB page
-    # check there is enough memory on the device first.
-    # default to enough for one nic if not enough is available
-    # this should be fine for tests on smaller SKUs
+    request_pages_1gb = goal_amount_gb // numa_nodes // 2
 
-    if memfree_2mb < request_pages_2mb:
-        node.log.debug(
-            "WARNING: Not enough 2MB pages available for DPDK! "
-            f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
-        request_pages_2mb = 1024
+    if request_pages_1gb:
+        # if 1GB pages are usable, requesting them requires us to ask for less 2MB pages
+        request_pages_2mb = (goal_amount_gb // numa_nodes // 2) * 512
+    else:
+        # otherwise we'll fill the entire request with 2MB pages
+        request_pages_2mb = (memfree_1mb // numa_nodes) * 512
 
-    if memfree_1mb < (request_pages_1gb * 2):  # account for 2MB pages by doubling ask
-        node.log.debug(
-            "WARNING: Not enough 1GB pages available for DPDK! "
-            f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
-        request_pages_1gb = 1
-
-    for i in range(numa_nodes):
+    # it's possible 1GB pages gets rounded to 0, in that case just use 2MB pages
+    for i in range(0, numa_nodes):
         echo.write_to_file(
             f"{request_pages_2mb}",
             node.get_pure_path(
@@ -137,15 +130,15 @@ def _enable_hugepages(node: Node) -> None:
             ),
             sudo=True,
         )
-
-        echo.write_to_file(
-            f"{request_pages_1gb}",
-            node.get_pure_path(
-                f"/sys/devices/system/node/node{i}/hugepages/"
-                "hugepages-1048576kB/nr_hugepages"
-            ),
-            sudo=True,
-        )
+        if request_pages_1gb:
+            echo.write_to_file(
+                f"{request_pages_1gb}",
+                node.get_pure_path(
+                    f"/sys/devices/system/node/node{i}/hugepages/"
+                    "hugepages-1048576kB/nr_hugepages"
+                ),
+                sudo=True,
+            )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -247,6 +240,7 @@ def initialize_node_resources(
     variables: Dict[str, Any],
     pmd: str,
     sample_apps: Union[List[str], None] = None,
+    force_rebuild: bool = False,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -286,6 +280,7 @@ def initialize_node_resources(
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
+        force_rebuild=force_rebuild,
     )
     # init and enable hugepages (required by dpdk)
     init_hugepages(node)
@@ -328,7 +323,7 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
                 kit.node.os,
                 "dpdk",
                 kit.testpmd.get_dpdk_version(),
-                "-tx-ip flag for ip forwarding",
+                "--tx-ip flag for ip forwarding",
             )
 
 
@@ -399,12 +394,25 @@ def start_testpmd_concurrent(
 
 
 def init_nodes_concurrent(
-    environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str,
+    sample_apps: Optional[List[str]] = None,
 ) -> List[DpdkTestResources]:
     # Use threading module to parallelize the IO-bound node init.
+
     test_kits = run_in_parallel(
         [
-            partial(initialize_node_resources, node, log, variables, pmd)
+            partial(
+                initialize_node_resources,
+                node,
+                log,
+                variables,
+                pmd,
+                sample_apps,
+                force_rebuild=bool(sample_apps),
+            )
             for node in environment.nodes.list()
         ],
         log,
