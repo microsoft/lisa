@@ -11,6 +11,7 @@ from assertpy import assert_that
 from lisa import Environment, notifier
 from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.node import Node
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -69,7 +70,8 @@ class Ltp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
+        super().__init__(node, args, kwargs)
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
 

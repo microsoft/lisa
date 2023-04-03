@@ -593,7 +593,7 @@ class Tools:
                 cast_tool_type = cast(Type[Tool], tool_type)
                 tool = cast_tool_type.create(self._node, *args, **kwargs)
 
-            tool.initialize(*args, **kwargs)
+            tool.initialize()
 
             if not tool.exists:
                 tool_log.debug(f"'{tool.name}' not installed")
