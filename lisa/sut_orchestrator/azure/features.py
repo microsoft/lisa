@@ -977,7 +977,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             )
 
         value.disk_controller_type = getattr(
-            search_space, f"{method_name}_setspace_by_priority"
+            search_space, f"{method.value}_setspace_by_priority"
         )(
             self.disk_controller_type,
             capability.disk_controller_type,
@@ -1572,9 +1572,11 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
             f"{self.encrypt_disk}/{self.disk_encryption_set_id}"
         )
 
-    def _call_requirement_method(self, method_name: str, capability: Any) -> Any:
+    def _call_requirement_method(
+        self, method: RequirementMethod, capability: Any
+    ) -> Any:
         super_value: SecurityProfileSettings = super()._call_requirement_method(
-            method_name, capability
+            method, capability
         )
         value = SecurityProfileSettings()
         value.security_profile = super_value.security_profile
