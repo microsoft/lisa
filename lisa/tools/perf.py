@@ -5,9 +5,9 @@ import re
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import CBLMariner, CentOs, Posix, Redhat
 from lisa.tools import Uname
-from lisa.util import find_patterns_in_lines
+from lisa.util import SkippedException, find_patterns_in_lines
 
 
 class Perf(Tool):
@@ -29,13 +29,20 @@ class Perf(Tool):
             kernel_ver = (
                 self.node.tools[Uname].get_linux_information().kernel_version_raw
             )
-            self.node.os.install_packages(
-                [
-                    "linux-tools-common",
-                    "linux-tools-generic",
-                    f"linux-tools-{kernel_ver}",
-                ]
-            )
+            if (
+                isinstance(self.node.os, Redhat)
+                or isinstance(self.node.os, CentOs)
+                or isinstance(self.node.os, CBLMariner)
+            ):
+                self.node.os.install_packages("perf")
+            else:
+                self.node.os.install_packages(
+                    [
+                        "linux-tools-common",
+                        "linux-tools-generic",
+                        f"linux-tools-{kernel_ver}",
+                    ]
+                )
         return self._check_exists()
 
     def perf_messaging(self) -> List[float]:
@@ -44,20 +51,14 @@ class Perf(Tool):
         # Run it 20 times to get stable result
         results = []
         for _ in range(20):
-            result = self.run(
-                "bench sched messaging -l 10000",
-                force_run=True,
-                expected_exit_code=0,
-            )
+            result = self._run_perf("bench sched messaging -l 10000")
 
             # Example output:
             # Running 'sched/messaging' benchmark:
             # 20 sender and receiver processes per group
             # 10 groups == 400 processes run
             # Total time: 71.514 [sec]
-            matched = find_patterns_in_lines(
-                result.stdout, [self.PERF_MESSAGING_RESULT]
-            )
+            matched = find_patterns_in_lines(result, [self.PERF_MESSAGING_RESULT])
             results.append(float(matched[0][0]))
 
         return results
@@ -68,12 +69,7 @@ class Perf(Tool):
         # Run it 20 times to get stable result
         results = []
         for _ in range(20):
-            result = self.run(
-                "bench epoll wait",
-                force_run=True,
-                sudo=True,
-                expected_exit_code=0,
-            )
+            result = self._run_perf("bench epoll wait", sudo=True)
 
             # Example output:
             # Running epoll/wait benchmark...
@@ -82,7 +78,18 @@ class Perf(Tool):
             # [thread  0] fdmap: 0x55cf02189eb0 ... 0x55cf02189fac [ 544357 ops/sec ]
             # Averaged 544357 operations/sec (+- 0.00%), total secs = 8
             # ...
-            matched = find_patterns_in_lines(result.stdout, [self.PERF_EPOLL_RESULT])
+            matched = find_patterns_in_lines(result, [self.PERF_EPOLL_RESULT])
             results.append(float(matched[0][0]))
 
         return results
+
+    def _run_perf(self, command: str, sudo: bool = False) -> str:
+        result = self.run(command, force_run=True, sudo=sudo)
+        if result.exit_code != 0:
+            # check if epoll is not supported by the perf tool version
+            if "Unknown collection" in result.stdout:
+                raise SkippedException(
+                    f"perf {command} is not supported on this distro"
+                )
+            result.assert_exit_code(message=result.stdout)
+        return result.stdout
