@@ -11,6 +11,7 @@ from assertpy import assert_that
 from lisa import Environment, notifier
 from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.node import Node
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -49,7 +50,7 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    LTP_TESTS_GIT_TAG = "20200930"
+    DEFAULT_LTP_TESTS_GIT_TAG = "20200930"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
     LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
@@ -68,6 +69,11 @@ class Ltp(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
+        super().__init__(node, args, kwargs)
+        git_tag = kwargs.get("git_tag", "")
+        self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
 
     def run_test(
         self,
@@ -344,7 +350,7 @@ class Ltp(Tool):
         )
 
         # checkout tag
-        git.checkout(ref=f"tags/{self.LTP_TESTS_GIT_TAG}", cwd=ltp_path)
+        git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
 
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
@@ -375,7 +381,7 @@ class Ltp(Tool):
         for result in matched[1]:
             parsed_result.append(
                 LtpResult(
-                    version=self.LTP_TESTS_GIT_TAG,
+                    version=self._git_tag,
                     name=result[0].strip(),
                     status=self._parse_status_to_test_status(result[1].strip()),
                     exit_value=int(result[2].strip()),
