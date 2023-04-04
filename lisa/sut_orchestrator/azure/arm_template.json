@@ -111,7 +111,7 @@
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', parameters('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
         "availability_set_name": "lisa-availabilitySet",
-        "existing_subnet_ref": "[if(not(empty('virtual_network_resource_group')), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
+        "existing_subnet_ref": "[if(not(empty(parameters('virtual_network_resource_group'))), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
     },
     "resources": [
         {
@@ -140,7 +140,7 @@
             }
         },
         {
-            "condition": "[empty('virtual_network_resource_group')]",
+            "condition": "[empty(parameters('virtual_network_resource_group'))]",
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[parameters('virtual_network_name')]",
