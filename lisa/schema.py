@@ -601,7 +601,7 @@ class DiskOptionSettings(FeatureSettings):
             )
         if self.disk_controller_type or capability.disk_controller_type:
             value.disk_controller_type = getattr(
-                search_space, f"{method_name}_setspace_by_priority"
+                search_space, f"{method.value}_setspace_by_priority"
             )(
                 self.disk_controller_type,
                 capability.disk_controller_type,
