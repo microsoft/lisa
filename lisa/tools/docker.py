@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, CentOs, Debian, Redhat
+from lisa.operating_system import SLES, CBLMariner, CentOs, Debian, Redhat
 from lisa.util import LisaException, RepoNotExistException
 
 
@@ -135,6 +135,8 @@ class Docker(Tool):
                 )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
+        elif isinstance(self.node.os, SLES):
+            self.node.os.install_packages(["docker"])
         else:
             raise LisaException(f"{self.node.os.information.vendor} not supported")
         self.start()
