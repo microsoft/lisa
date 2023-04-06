@@ -7,6 +7,7 @@ from lisa import features
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.platform_ import Platform
+from lisa.schema import DiskOptionSettings, NetworkInterfaceOptionSettings
 from lisa.util.logger import Logger
 
 from . import READY
@@ -38,6 +39,17 @@ class ReadyPlatform(Platform):
                 "ready platform cannot process environment with requirement",
             )
         is_success: bool = False
+
+        # Workaround the capability exception. If the disk or network
+        # requirement is defined in a test case, the later check will fail. So
+        # here is the place to set disk or network a default value, if it's
+        # None.
+        for node in environment.nodes.list():
+            if node.capability.disk is None:
+                node.capability.disk = DiskOptionSettings()
+            if node.capability.network_interface is None:
+                node.capability.network_interface = NetworkInterfaceOptionSettings()
+
         if len(environment.nodes):
             # if it has nodes, it's a good environment to run test cases
             is_success = True
