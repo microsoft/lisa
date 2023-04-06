@@ -102,6 +102,7 @@ class NodeContext:
     username: str = ""
     password: str = ""
     private_key_file: str = ""
+    use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
 
@@ -1208,7 +1209,10 @@ def save_console_log(
 
 
 def load_environment(
-    platform: "AzurePlatform", resource_group_name: str, log: Logger
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    use_public_address: bool,
+    log: Logger,
 ) -> Environment:
     """
     reverse load environment from a resource group.
@@ -1250,8 +1254,10 @@ def load_environment(
         ) = get_primary_ip_addresses(
             platform, resource_group_name, vms_map[node_context.vm_name]
         )
+        node_context.use_public_address = use_public_address
         node.set_connection_info(
             address=node_context.private_ip_address,
+            use_public_address=node_context.use_public_address,
             public_address=node_context.public_ip_address,
             username=node_context.username,
             password=node_context.password,

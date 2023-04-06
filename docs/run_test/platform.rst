@@ -139,6 +139,7 @@ deployment.
       virtual_network_resource_group: $(vnet_resource_group)
       virtual_network_name: $(vnet_name)
       subnet_prefix: $(subnet_name)
+      use_public_address: "<true or false>"
       requirement:
          ...
          azure:
@@ -164,6 +165,10 @@ deployment.
   `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If 
   `virtual_network_resource_group` is provided, an existing virtual network and
   subnet, with the name equal to `subnet_prefix`, will be used.
+* **use_public_address**. True means to connect to the Azure VMs with their 
+  public IP addresses.  False means to connect with the private IP addresses.
+  If not provided, the connections will default to using the public IP
+  addresses.
 * **location**. Specify which locations is used to deploy VMs. It can be one or
   multiple locations. For example, westus3 or westus3,eastus. If multiple
   locations are specified, it means each environment deploys VMs in one of
