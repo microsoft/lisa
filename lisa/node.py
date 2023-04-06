@@ -543,8 +543,8 @@ class RemoteNode(Node):
         )
         self._shell = SshShell(self._connection_info)
 
-        self.public_address = public_address
-        self.public_port = public_port
+        self.public_address = public_address if use_public_address else address
+        self.public_port = public_port if use_public_address else port
         self.internal_address = address
         self.internal_port = port
 
