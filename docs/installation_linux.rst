@@ -4,7 +4,7 @@ Install LISA on Linux
 Minimum System Requirements
 ---------------------------
 
-1. Your favorite Linux distribution supporting Python 3.8 - 3.10
+1. Your favorite Linux distribution supporting Python 3.8 or above
 2. Dual core processor
 3. 4 GB system memory
 
@@ -15,8 +15,8 @@ The following commands assume Ubuntu is being used.
 Install Python on Linux
 -----------------------
 
-LISA has been tested to work with `Python 3.8 - 3.10 64-bit <https://www.python.org/>`__.
-Python 3.10 is recommended. Support for 3.11+ is under development.
+LISA has been tested to work with `Python >=3.8 64-bit <https://www.python.org/>`__.
+Python 3.11 is recommended.
 If you find that LISA is not compatible with a supported version,
 `please file an issue <https://github.com/microsoft/lisa/issues/new>`__.
 
@@ -29,14 +29,12 @@ To check which version of Python is used on your system, run the following:
 If you need to install a different Python package, there are likely packaged versions for
 your distro.
 
-Here is an example to install Python 3.10 on Ubuntu 20.04
+Here is an example to install Python 3.11 on Ubuntu 22.04
 
 .. code:: bash
 
    sudo apt update
-   sudo apt install software-properties-common -y
-   sudo add-apt-repository ppa:deadsnakes/ppa -y
-   sudo apt install python3.10 python3.10-dev -y
+   sudo apt install python3.11 python3.11-dev -y
 
 
 Install system dependencies

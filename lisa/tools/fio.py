@@ -173,7 +173,10 @@ class Fio(Tool):
         # match raw output to get iops and latency
         matched_results = self._result_pattern.match(output)
         assert matched_results, "not found matched iops and latency from fio results."
-        iops = matched_results.group("iops")
+        # 'K' in IOPS can be lower or upper case. forcing to lower for simplicity
+        # read: IOPS=947k, BW=3701MiB/s (3880MB/s)(434GiB/120001msec)
+        # read : io=803081MB, bw=6692.3MB/s, iops=1713.3K, runt=120001msec
+        iops = matched_results.group("iops").lower()
         if iops.endswith("k"):
             iops_value = Decimal(iops[:-1]) * 1000
         else:

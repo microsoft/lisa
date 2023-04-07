@@ -74,6 +74,9 @@ if TYPE_CHECKING:
     from .platform_ import AzurePlatform
 
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
+AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
+AZURE_SUBNET_PREFIX = "lisa-subnet-"
+
 
 PATTERN_NIC_NAME = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
@@ -99,6 +102,7 @@ class NodeContext:
     username: str = ""
     password: str = ""
     private_key_file: str = ""
+    use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
 
@@ -406,6 +410,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
     disk_type: str = ""
+    disk_controller_type: str = ""
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
@@ -493,6 +498,10 @@ class AzureArmParameter:
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
+
+    virtual_network_resource_group: str = ""
+    virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
+    subnet_prefix: str = AZURE_SUBNET_PREFIX
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1200,7 +1209,10 @@ def save_console_log(
 
 
 def load_environment(
-    platform: "AzurePlatform", resource_group_name: str, log: Logger
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    use_public_address: bool,
+    log: Logger,
 ) -> Environment:
     """
     reverse load environment from a resource group.
@@ -1225,6 +1237,7 @@ def load_environment(
     environment = next(x for x in environments.values())
 
     platform_runbook: schema.Platform = platform.runbook
+
     for node in environment.nodes.list():
         assert isinstance(node, RemoteNode)
 
@@ -1241,8 +1254,10 @@ def load_environment(
         ) = get_primary_ip_addresses(
             platform, resource_group_name, vms_map[node_context.vm_name]
         )
+        node_context.use_public_address = use_public_address
         node.set_connection_info(
             address=node_context.private_ip_address,
+            use_public_address=node_context.use_public_address,
             public_address=node_context.public_ip_address,
             username=node_context.username,
             password=node_context.password,

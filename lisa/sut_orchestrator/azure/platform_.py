@@ -76,6 +76,8 @@ from .. import AZURE
 from . import features
 from .common import (
     AZURE_SHARED_RG_NAME,
+    AZURE_SUBNET_PREFIX,
+    AZURE_VIRTUAL_NETWORK_NAME,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -255,6 +257,11 @@ class AzurePlatformSchema:
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
+    use_public_address: bool = field(default=True)
+
+    virtual_network_resource_group: str = field(default="")
+    virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
+    subnet_prefix: str = field(default=AZURE_SUBNET_PREFIX)
 
     # Provisioning error causes by waagent is not ready or other reasons. In
     # smoke test, it can verify some points also. Other tests should use the
@@ -296,6 +303,10 @@ class AzurePlatformSchema:
                 "resource_group_name",
                 "locations",
                 "log_level",
+                "virtual_network_resource_group",
+                "virtual_network_name",
+                "subnet_prefix",
+                "use_public_address",
             ],
         )
 
@@ -467,6 +478,7 @@ class AzurePlatform(Platform):
             environment_context.resource_group_is_specified = True
 
         environment_context.resource_group_name = resource_group_name
+
         if self._azure_runbook.dry_run:
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
@@ -968,6 +980,12 @@ class AzurePlatform(Platform):
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
 
+        arm_parameters.virtual_network_resource_group = (
+            self._azure_runbook.virtual_network_resource_group
+        )
+        arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
+        arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
         if self.runbook.admin_private_key_file:
@@ -1277,6 +1295,14 @@ class AzurePlatform(Platform):
         arm_parameters.disk_type = features.get_azure_disk_type(
             capability.disk.disk_type
         )
+        assert isinstance(
+            capability.disk.disk_controller_type, schema.DiskControllerType
+        )
+        assert (
+            arm_parameters.hyperv_generation == 2
+            or capability.disk.disk_controller_type == schema.DiskControllerType.SCSI
+        ), "Gen 1 images cannot be set to NVMe Disk Controller Type"
+        arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
 
         assert capability.network_interface
         assert isinstance(
@@ -1459,10 +1485,12 @@ class AzurePlatform(Platform):
             public_address, private_address = get_primary_ip_addresses(
                 self, resource_group_name, vm
             )
+            node_context.use_public_address = self._azure_runbook.use_public_address
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
                 port=22,
+                use_public_address=node_context.use_public_address,
                 public_address=public_address,
                 public_port=22,
                 username=node_context.username,
@@ -1498,6 +1526,9 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
+        node_space.disk.disk_controller_type = search_space.SetSpace[
+            schema.DiskControllerType
+        ](is_allow_set=True, items=[])
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
         node_space.disk.data_disk_size = search_space.IntRange(min=0)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
@@ -1544,6 +1575,21 @@ class AzurePlatform(Platform):
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+
+        disk_controller_types = azure_raw_capabilities.get("DiskControllerTypes", None)
+        if disk_controller_types:
+            for allowed_type in disk_controller_types.split(","):
+                try:
+                    node_space.disk.disk_controller_type.add(
+                        schema.DiskControllerType(allowed_type)
+                    )
+                except ValueError:
+                    self._log.error(
+                        f"'{allowed_type}' is not a known Disk Controller Type "
+                        f"({[x for x in schema.DiskControllerType]})"
+                    )
+        else:
+            node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
 
         if azure_raw_capabilities.get("EphemeralOSDiskSupported", None) == "True":
             # Check if CachedDiskBytes is greater than 30GB
@@ -1773,6 +1819,11 @@ class AzurePlatform(Platform):
         node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
         node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.disk_controller_type = search_space.SetSpace[
+            schema.DiskControllerType
+        ](is_allow_set=True, items=[])
+        node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
+        node_space.disk.disk_controller_type.add(schema.DiskControllerType.NVME)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath

@@ -79,7 +79,7 @@ class KdumpCrash(TestSuite):
         6. Check if vmcore is generated under the dump path we configure after system
             boot up.
         """,
-        priority=1,
+        priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=1, memory_mb=search_space.IntRange(min=2048)
@@ -97,7 +97,7 @@ class KdumpCrash(TestSuite):
         trigger kdump on the second cpu(cpu1), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=1,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=2, max=8),
@@ -113,7 +113,7 @@ class KdumpCrash(TestSuite):
         trigger kdump on the random cpu.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=1,
     )
     def kdumpcrash_validate_on_random_cpu(
         self, node: Node, log_path: Path, log: Logger
@@ -129,7 +129,7 @@ class KdumpCrash(TestSuite):
         trigger kdump on the 33th cpu(cpu32), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=1,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192))
         ),
@@ -161,7 +161,7 @@ class KdumpCrash(TestSuite):
         and trigger kdump on the 416th cpu(cpu415), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=4,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=416))
         ),
@@ -176,7 +176,7 @@ class KdumpCrash(TestSuite):
         This test case verifies if the kdump is effect when crashkernel is set auto.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=3,
     )
     def kdumpcrash_validate_auto_size(
         self, node: Node, log_path: Path, log: Logger
@@ -193,7 +193,7 @@ class KdumpCrash(TestSuite):
 
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=2,
+        priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(memory_mb=search_space.IntRange(min=2097152)),
         ),

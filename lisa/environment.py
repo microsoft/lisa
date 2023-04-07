@@ -79,8 +79,9 @@ def _get_environment_id() -> int:
 class EnvironmentMessage(MessageBase):
     type: str = "Environment"
     name: str = ""
-    runbook: schema.Environment = schema.Environment()
+    runbook: schema.Environment = field(default_factory=schema.Environment)
     status: EnvironmentStatus = EnvironmentStatus.New
+    log_folder: Path = Path()
 
 
 @dataclass_json()
@@ -220,7 +221,10 @@ class Environment(ContextMixin, InitializableMixin):
                 self._reset()
             self._status = value
             environment_message = EnvironmentMessage(
-                name=self.name, status=self._status, runbook=self.runbook
+                name=self.name,
+                status=self._status,
+                runbook=self.runbook,
+                log_folder=self.environment_part_path,
             )
             notifier.notify(environment_message)
 
