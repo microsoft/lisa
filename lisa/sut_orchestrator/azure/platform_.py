@@ -564,11 +564,12 @@ class AzurePlatform(Platform):
 
     def _save_console_log(
         self, resource_group_name: str, environment: Environment, log: Logger
-    ) -> None:
+    ) -> Dict[str, str]:
         compute_client = get_compute_client(self)
         vms = compute_client.virtual_machines.list(resource_group_name)
         saved_path = environment.log_path / f"{get_datetime_path()}_serial_log"
         saved_path.mkdir(parents=True, exist_ok=True)
+        vms_serial_console_dict: Dict[str, str] = {}
         for vm in vms:
             log_response_content = save_console_log(
                 resource_group_name,
@@ -580,6 +581,10 @@ class AzurePlatform(Platform):
             )
             log_file_name = saved_path / f"{vm.name}_serial_console.log"
             log_file_name.write_bytes(log_response_content)
+            vms_serial_console_dict[vm.name] = log_response_content.decode(
+                "utf-8", errors="ignore"
+            )
+        return vms_serial_console_dict
 
     def _delete_boot_diagnostic_container(
         self, resource_group_name: str, log: Logger
@@ -1412,7 +1417,25 @@ class AzurePlatform(Platform):
                 )
             else:
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
-                raise LisaException(error_message)
+                vms_serial_console_dict = self._save_console_log(
+                    resource_group_name, environment, log
+                )
+                error_msg: str = f"raw error from API: {error_message}, "
+                for vm_name, serial_console_log in vms_serial_console_dict.items():
+                    raw_log = serial_console_log.lower()
+                    if "call trace:" in raw_log:
+                        error_msg += (
+                            f"vm {vm_name} serial console log has call trace, "
+                            "probably kernel panic happened "
+                        )
+                    elif "the specified blob does not exist" in raw_log:
+                        error_msg += (
+                            f"vm {vm_name} serial log is empty, "
+                            "probably vm is not created at all "
+                        )
+                    else:
+                        error_msg += "no call trace found in serial console log"
+                raise LisaException(error_msg)
 
     def _parse_detail_errors(self, error: Any) -> List[str]:
         # original message may be a summary, get lowest level details.
