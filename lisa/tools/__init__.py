@@ -105,6 +105,7 @@ from .systemd_analyze import SystemdAnalyze
 from .tar import Tar
 from .taskset import TaskSet
 from .tcpdump import TcpDump
+from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
@@ -222,6 +223,7 @@ __all__ = [
     "SystemdAnalyze",
     "Tar",
     "TaskSet",
+    "Tee",
     "Texinfo",
     "TcpDump",
     "Timedatectl",
