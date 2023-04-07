@@ -284,6 +284,10 @@ class Lscpu(Tool):
             return True
         return False
 
+    def get_numa_for_core(self, core_number: int) -> int:
+        cpuinfo = self.get_cpu_info()
+        return cpuinfo[core_number].numa_node
+
 
 class WindowsLscpu(Lscpu):
     @property

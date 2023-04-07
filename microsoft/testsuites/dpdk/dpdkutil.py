@@ -95,57 +95,116 @@ def init_hugepages(node: Node) -> None:
     _enable_hugepages(node)
 
 
-def _enable_hugepages(node: Node) -> None:
+def _enable_hugepages(node: Node, use_cores: int = 4, nic_count: int = 1) -> None:
     echo = node.tools[Echo]
-
     meminfo = node.tools[Free]
-    nics_count = len(node.nics.get_upper_nics())
+    lscpu = node.tools[Lscpu]
+    numa_nodes = lscpu.get_numa_node_count()
+    cores_available = lscpu.get_core_count()
+    assert_that(cores_available - 1).described_as(
+        "Test requested more cores than are available on the system"
+    ).is_greater_than(use_cores)
 
-    numa_nodes = node.tools[Lscpu].get_numa_node_count()
-    request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
-    request_pages_1gb = (nics_count - 1) * numa_nodes
-    memfree_2mb = meminfo.get_free_memory_mb()
-    memfree_1mb = meminfo.get_free_memory_gb()
+    max_numa_needed_for_test = lscpu.get_numa_for_core(use_cores)
 
-    # request 2iGB memory per nic, 1 of 2MiB pages and 1 GiB page
-    # check there is enough memory on the device first.
-    # default to enough for one nic if not enough is available
-    # this should be fine for tests on smaller SKUs
+    # for optimal performance the goal is assigning memory and cores
+    # to queue pairs such that the cores servicing a nic are not
+    # crossing numa boundaries.
+    #
+    # example architecture:
+    #   {numa0}        {numa1}
+    #   [cores 0-3]    [cores 4-7]
+    #
+    #   [nic0] (assuming can be assigned to either numa)
+    #
+    #  optimal dpdk setup:
+    # [nic]
+    # |------------[txq]-----[rxq]
+    # [txq]--[rxq]  |_[core2] |__[core3]
+    #  |_[core0] |_[core1]
+    #  {numa 0                         }
+    #
+    # suboptimal:
+    #  [nic] (assigned to numa 0)
+    #  |------------[txq]-----[rxq]
+    #  [txq]--[rxq]  |_[core5] |__[core6]
+    #  |_[core3] |_[core4]
+    #  {numa0  }   {numa1               }
+    #
+    # dpdk will still run as long as hugepages are available on all
+    # numa nodes which will be used.
+    #
+    # goal: attempt to assign enough memory for each core on each numa
 
-    if memfree_2mb < request_pages_2mb:
-        node.log.debug(
-            "WARNING: Not enough 2MB pages available for DPDK! "
-            f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-            "Test may fail if it cannot allocate memory."
+    # get total free memory
+    mem_free_mb = meminfo.get_free_memory_mb()
+    # would be nice to have 1GiB per core we will use in the test
+    goal_mb = 1024 * use_cores
+    # if we're memory constrained, reduce the amount we'll ask for.
+    # leave 1GB free for everyone else :P
+    assert_that(mem_free_mb).described_as(
+        (
+            f"DPDK needs more than {1*nic_count}GiB free memory"
+            f" for this configuration: {nic_count} nics "
         )
-        request_pages_2mb = 1024
+    ).is_greater_than(1024 * nic_count)
+    goal_mb = min(goal_mb, mem_free_mb - 1024)
 
-    if memfree_1mb < (request_pages_1gb * 2):  # account for 2MB pages by doubling ask
-        node.log.debug(
-            "WARNING: Not enough 1GB pages available for DPDK! "
-            f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
-        request_pages_1gb = 1
+    # split available memory between the number of numa nodes we'll use
+    goal_mb_per_core = goal_mb // use_cores
+    goal_mb_per_numa = [0] * max_numa_needed_for_test
+    goal_gb_per_numa = [0] * max_numa_needed_for_test
+    for i in range(0, use_cores):
+        core_index = i + 1
+        numa_for_core = lscpu.get_numa_for_core(core_index)
+        goal_mb_per_numa[numa_for_core] += goal_mb_per_core
 
-    for i in range(numa_nodes):
+    for numa in range(max_numa_needed_for_test):
+        mb_per_numa = goal_mb_per_numa[numa]
+
+        # check we will have a reasonable amount of 2MB pages to run
+        # if we cannot allocate enough,
+        # skip running this test on this platform
+        if (mb_per_numa // 2) < 256:
+            raise SkippedException(
+                (
+                    "There is not enough memory on this VM to "
+                    "run this DPDK test configuration: "
+                    f"nics: {nic_count} "
+                    f"numas: {numa_nodes} "
+                    f"free_memory: {mem_free_mb}MB"
+                )
+            )
+        # check if we have enough memory to use some 1GB pages
+        # don't use 1GB pages if there isn't any leftover for 2MB pages
+        if mb_per_numa % 1024 != 0:
+            goal_gb_per_numa[numa] = goal_mb_per_numa[numa] // 1024
+            goal_mb_per_numa[numa] -= goal_gb_per_numa[numa] * 1024
+
+    # perform the actual allocations for the numa nodes we'll use.
+    # potentially allocating a bunch of memory to 1 numa node
+    # potenatially allocating a bit of memory across a few nodes
+    #
+    # DPDK will handle assigning memory to queues and assigning cores
+    # to queues so long as we have set up the memory properly.
+    for i in range(max_numa_needed_for_test):
         echo.write_to_file(
-            f"{request_pages_2mb}",
+            f"{goal_mb_per_numa[i]}",
             node.get_pure_path(
                 f"/sys/devices/system/node/node{i}/hugepages/"
                 "hugepages-2048kB/nr_hugepages"
             ),
             sudo=True,
         )
-
-        echo.write_to_file(
-            f"{request_pages_1gb}",
-            node.get_pure_path(
-                f"/sys/devices/system/node/node{i}/hugepages/"
-                "hugepages-1048576kB/nr_hugepages"
-            ),
-            sudo=True,
-        )
+        if goal_gb_per_numa[i]:
+            echo.write_to_file(
+                f"{goal_gb_per_numa[i]}",
+                node.get_pure_path(
+                    f"/sys/devices/system/node/node{i}/hugepages/"
+                    "hugepages-1048576kB/nr_hugepages"
+                ),
+                sudo=True,
+            )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -159,20 +218,6 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
-def get_random_nic_with_ip(test_kit: DpdkTestResources) -> NicInfo:
-    nics = [
-        test_kit.node.nics.get_nic(nic)
-        for nic in test_kit.node.nics.get_upper_nics()
-        if nic != test_kit.node.nics.get_nic_by_index(0).upper
-        and test_kit.node.nics.get_nic(nic).ip_addr
-    ]
-    if not nics:
-        raise LisaException(
-            f"Node has no secondary nics with ip addresses! {test_kit.node.name}"
-        )
-    return random.choice(nics)
-
-
 def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
@@ -182,7 +227,7 @@ def generate_send_receive_run_info(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
-    snd_nic, rcv_nic = [get_random_nic_with_ip(x) for x in [sender, receiver]]
+    snd_nic, rcv_nic = [x.node.nics.get_nic_by_index(1) for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -309,7 +354,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_nic_by_index(1)
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -435,7 +480,7 @@ def verify_dpdk_build(
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_nic_by_index(1)
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         test_nic,
