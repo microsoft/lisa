@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Echo, Ip, Lspci
+from lisa.tools import Echo, Ip, Lspci, Tee
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -166,7 +166,7 @@ class Nics(InitializableMixin):
 
     # update the current nic driver in the NicInfo instance
     # grabs the driver short name and the driver sysfs path
-    def get_nic_driver(self, nic_name: str) -> str:
+    def get_nic_driver(self, nic_name: str, store_driver: bool = True) -> str:
         # get the current driver for the nic from the node
         # sysfs provides a link to the driver entry at device/driver
         nic = self.get_nic(nic_name)
@@ -182,7 +182,8 @@ class Nics(InitializableMixin):
         assert_that(driver_name).described_as(
             f"sysfs entry contained no filename for device driver: {found_link}"
         ).is_not_equal_to("")
-        nic.bound_driver = driver_name
+        if store_driver:
+            nic.bound_driver = driver_name
         return driver_name
 
     def get_nic(self, nic_name: str) -> NicInfo:
@@ -224,22 +225,19 @@ class Nics(InitializableMixin):
 
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path
-        echo = self._node.tools[Echo]
+        tee = self._node.tools[Tee]
         # if sysfs path is not set, fetch the current driver
         if not nic.driver_sysfs_path:
             self.get_nic_driver(nic.upper)
+        self._node.tools[Ip].down(nic.upper)
         unbind_path = nic.driver_sysfs_path.joinpath("unbind")
-        echo.write_to_file(
-            nic.dev_uuid,
-            unbind_path,
-            sudo=True,
-        )
+        tee.write_to_file(nic.dev_uuid, unbind_path, sudo=True)
 
     def bind(self, nic: NicInfo, driver_module_path: str) -> None:
-        echo = self._node.tools[Echo]
+        tee = self._node.tools[Tee]
         nic.driver_sysfs_path = PurePosixPath(driver_module_path)
         bind_path = nic.driver_sysfs_path.joinpath("bind")
-        echo.write_to_file(
+        tee.write_to_file(
             nic.dev_uuid,
             self._node.get_pure_path(f"{str(bind_path)}"),
             sudo=True,
