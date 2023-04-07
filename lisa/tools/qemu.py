@@ -12,7 +12,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
 from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
 from lisa.tools.lscpu import CpuType
-from lisa.util import LisaException, get_matched_str
+from lisa.util import LisaException, SkippedException, get_matched_str
 
 
 class Qemu(Tool):
@@ -122,13 +122,26 @@ class Qemu(Tool):
             self.delete_vm()
 
         # start qemu
-        self.run(
+        result = self.run(
             cmd,
             sudo=True,
             shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"Unable to start VM {guest_image_path}",
         )
+
+        if result.exit_code != 0:
+            if "ret == cpu->kvm_msr_buf->nmsrs" in result.stdout:
+                # Known issue with qemu on AMD
+                # https://bugs.launchpad.net/qemu/+bug/1661386
+                raise LisaException(
+                    "Unable to start VM. "
+                    "Found `ret == cpu->kvm_msr_buf->nmsrs` in stdout. "
+                    "Known issue with qemu on AMD on older kernels"
+                )
+            elif "Cannot allocate memory" in result.stdout:
+                raise SkippedException(
+                    f"Not enough memory to start VM: {result.stdout}"
+                )
+            result.assert_exit_code(message=f"Unable to start VM {guest_image_path}")
 
         # if bridge is specified, attach the created taps to the bridge
         if bridge:
