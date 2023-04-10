@@ -640,6 +640,13 @@ class TestSuite:
                 log=case_log,
             )
 
+            if environment.platform:
+                environment.platform._save_console_log(
+                    environment=environment,
+                    log=self.__log,
+                    dir_name=f"{case_unique_name}",
+                )
+
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )

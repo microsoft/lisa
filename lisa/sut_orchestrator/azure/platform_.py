@@ -85,6 +85,7 @@ from .common import (
     AzureVmPurchasePlanSchema,
     DataDiskCreateOption,
     DataDiskSchema,
+    EnvironmentContext,
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
@@ -563,11 +564,19 @@ class AzurePlatform(Platform):
                 log.debug("not wait deleting")
 
     def _save_console_log(
-        self, resource_group_name: str, environment: Environment, log: Logger
+        self,
+        environment: Environment,
+        log: Logger,
+        dir_name: str = "",
     ) -> None:
         compute_client = get_compute_client(self)
+        resource_group_name = environment.get_context(
+            EnvironmentContext
+        ).resource_group_name
         vms = compute_client.virtual_machines.list(resource_group_name)
-        saved_path = environment.log_path / f"{get_datetime_path()}_serial_log"
+        saved_path = (
+            environment.log_path / f"{get_datetime_path()}_{dir_name}_serial_log"
+        )
         saved_path.mkdir(parents=True, exist_ok=True)
         for vm in vms:
             log_response_content = save_console_log(
@@ -1372,7 +1381,7 @@ class AzurePlatform(Platform):
                         deployment_operation, time_out=300, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
-                    self._save_console_log(resource_group_name, environment, log)
+                    self._save_console_log(environment, log)
                     continue
                 break
         except HttpResponseError as identifier:

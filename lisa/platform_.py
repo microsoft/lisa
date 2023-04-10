@@ -107,6 +107,14 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         """
         pass
 
+    def _save_console_log(
+        self,
+        environment: Environment,
+        log: Logger,
+        dir_name: str,
+    ) -> None:
+        ...
+
     @hookimpl
     def get_environment_information(self, environment: Environment) -> Dict[str, str]:
         assert environment.platform
