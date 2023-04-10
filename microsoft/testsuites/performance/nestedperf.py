@@ -619,7 +619,9 @@ class KVMPerformance(TestSuite):  # noqa
         # wait till nested vm is up
         try_connect(
             schema.ConnectionInfo(
-                address=node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                address=node.connection_info[
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                ],
                 port=guest_port,
                 username=guest_username,
                 password=guest_password,
