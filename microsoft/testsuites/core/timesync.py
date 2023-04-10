@@ -211,8 +211,8 @@ class TimeSync(TestSuite):
                 node.reboot()
                 remote_node = cast(RemoteNode, node)
                 is_ready, _ = wait_tcp_port_ready(
-                    remote_node.public_address,
-                    remote_node.public_port,
+                    remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                    remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                     log=log,
                     timeout=300,
                 )

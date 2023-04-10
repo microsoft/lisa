@@ -166,8 +166,8 @@ class WindowsReboot(Reboot):
             try:
                 # check that vm has accessible ssh port
                 connected, _ = wait_tcp_port_ready(
-                    address=remote_node.public_address,
-                    port=remote_node.public_port,
+                    address=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                    port=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                     log=self._log,
                     timeout=20,
                 )
@@ -175,7 +175,7 @@ class WindowsReboot(Reboot):
                 if not connected:
                     raise LisaException(
                         f"failed to connect to {remote_node.name} on port"
-                        f" {remote_node.public_port} after reboot"
+                        f" {remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]} after reboot"
                     )
 
                 self.node.close()

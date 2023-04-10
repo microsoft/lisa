@@ -49,8 +49,8 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     timer = create_timer()
     while timeout > timer.elapsed(False):
         is_ready, _ = wait_tcp_port_ready(
-            node.public_address,
-            node.public_port,
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
             log=log,
             timeout=10,
         )

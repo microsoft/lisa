@@ -221,7 +221,7 @@ class Provisioning(TestSuite):
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.public_address, node.public_port, log=log, timeout=self.TIME_OUT
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS], node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT], log=log, timeout=self.TIME_OUT
         )
         if not is_ready:
             serial_console = node.features[SerialConsole]
@@ -229,8 +229,8 @@ class Provisioning(TestSuite):
                 saved_path=log_path, stage="bootup", force_run=True
             )
             raise TcpConnectionException(
-                node.public_address,
-                node.public_port,
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                 tcp_error_code,
                 "no panic found in serial log during bootup",
             )
@@ -248,8 +248,8 @@ class Provisioning(TestSuite):
                     start_stop.stop(wait=wait)
                     start_stop.start(wait=wait)
                 is_ready, tcp_error_code = wait_tcp_port_ready(
-                    node.public_address,
-                    node.public_port,
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                     log=log,
                     timeout=self.PLATFORM_TIME_OUT,
                 )
@@ -259,8 +259,8 @@ class Provisioning(TestSuite):
                         saved_path=log_path, stage="reboot", force_run=True
                     )
                     raise TcpConnectionException(
-                        node.public_address,
-                        node.public_port,
+                        node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                        node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                         tcp_error_code,
                         "no panic found in serial log during reboot",
                     )

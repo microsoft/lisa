@@ -63,7 +63,7 @@ class Boot(TestSuite):
         reboot_tool.reboot_and_check_panic(log_path)
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.public_address, node.public_port, log=log
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS], node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT], log=log
         )
         if is_ready:
             uname = node.tools[Uname]
@@ -75,8 +75,8 @@ class Boot(TestSuite):
             ).contains("debug")
         else:
             raise TcpConnectionException(
-                node.public_address,
-                node.public_port,
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
                 tcp_error_code,
                 "no panic found in serial log",
             )
