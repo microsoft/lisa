@@ -92,6 +92,7 @@ class TestResultMessage(TestResultMessageBase):
 class SubTestMessage(TestResultMessageBase):
     hardware_platform: str = ""
     type: str = "SubTestResult"
+    parent_test: str = ""
 
 
 class NetworkProtocol(str, Enum):
@@ -314,6 +315,10 @@ def create_test_result_message(
     message.status = test_status
     message.message = test_message
     message.elapsed = test_result.get_elapsed()
+    if message_type == SubTestMessage:
+        if not other_fields:
+            other_fields = {}
+        other_fields.update({"parent_test": test_result.runtime_data.name})
     if other_fields:
         dict_to_fields(other_fields, message)
     return message
