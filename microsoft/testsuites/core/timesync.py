@@ -22,6 +22,7 @@ from lisa.operating_system import CpuArchitecture, Redhat
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
+from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
 
 

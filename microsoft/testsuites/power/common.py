@@ -9,7 +9,7 @@ from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
-from lisa.util import LisaException, SkippedException
+from lisa.util import LisaException, SkippedException, constants
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 

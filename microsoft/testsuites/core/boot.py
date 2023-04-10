@@ -16,7 +16,7 @@ from lisa import (
 from lisa.features import SerialConsole
 from lisa.operating_system import CentOs, Redhat
 from lisa.tools import Reboot, Uname
-from lisa.util import SkippedException, TcpConnectionException
+from lisa.util import SkippedException, TcpConnectionException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
 

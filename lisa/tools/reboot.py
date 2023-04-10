@@ -16,6 +16,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     TcpConnectionException,
+    constants,
 )
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
@@ -177,9 +178,12 @@ class WindowsReboot(Reboot):
                 )
 
                 if not connected:
+                    node_ssh_port = remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ]
                     raise LisaException(
                         f"failed to connect to {remote_node.name} on port"
-                        f" {remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]} after reboot"
+                        f" {node_ssh_port} after reboot"
                     )
 
                 self.node.close()

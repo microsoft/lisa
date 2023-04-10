@@ -26,6 +26,7 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
+from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
 
 
