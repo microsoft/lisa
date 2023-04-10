@@ -32,6 +32,7 @@ from lisa.tools import (
     StartConfiguration,
     Sysctl,
 )
+from lisa.util import constants
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
 from microsoft.testsuites.nested.common import (

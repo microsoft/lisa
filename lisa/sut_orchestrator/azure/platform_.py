@@ -2167,9 +2167,12 @@ class AzurePlatform(Platform):
 
         remote_node = cast(RemoteNode, node)
 
+        node_ssh_port = remote_node.connection_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_PORT
+        ]
         log = node.log
         log.debug(
-            f"checking if SSH port {remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT]} is reachable "
+            f"checking if SSH port {node_ssh_port} is reachable "
             f"on {remote_node.name}..."
         )
 
