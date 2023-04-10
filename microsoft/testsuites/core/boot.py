@@ -63,7 +63,9 @@ class Boot(TestSuite):
         reboot_tool.reboot_and_check_panic(log_path)
 
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS], node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT], log=log
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+            log=log,
         )
         if is_ready:
             uname = node.tools[Uname]

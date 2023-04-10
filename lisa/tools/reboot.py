@@ -166,8 +166,12 @@ class WindowsReboot(Reboot):
             try:
                 # check that vm has accessible ssh port
                 connected, _ = wait_tcp_port_ready(
-                    address=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-                    port=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                    address=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                    ],
+                    port=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ],
                     log=self._log,
                     timeout=20,
                 )

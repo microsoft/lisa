@@ -2127,7 +2127,9 @@ class AzurePlatform(Platform):
         )
 
         connected, _ = wait_tcp_port_ready(
-            address=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+            address=remote_node.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+            ],
             port=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
             log=log,
             timeout=3,

@@ -326,7 +326,10 @@ class Sriov(TestSuite):
             network_interface_feature = node.features[NetworkInterface]
             network_interface_feature.attach_nics(extra_nic_count=7)
             is_ready, tcp_error_code = wait_tcp_port_ready(
-                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS], node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT], log=log, timeout=self.TIME_OUT
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                log=log,
+                timeout=self.TIME_OUT,
             )
             if is_ready:
                 vm_nics = initialize_nic_info(environment)
