@@ -176,6 +176,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.platform: Optional[Platform] = None
         self.log = get_logger("env", self.name)
         self.source_test_result: Optional[TestResult] = None
+        self._information_cache: Optional[Dict[str, str]] = None
 
         self._default_node: Optional[Node] = None
         self._is_dirty: bool = False
@@ -334,8 +335,11 @@ class Environment(ContextMixin, InitializableMixin):
 
         return node
 
-    def get_information(self) -> Dict[str, str]:
-        final_information: Dict[str, str] = {}
+    def get_information(self, force_run: bool = True) -> Dict[str, str]:
+        if self._information_cache and not force_run:
+            self.log.info("Returning cached Environment Information")
+            return self._information_cache
+        self._information_cache = {}
         informations: List[
             Dict[str, str]
         ] = plugin_manager.hook.get_environment_information(environment=self)
@@ -343,9 +347,8 @@ class Environment(ContextMixin, InitializableMixin):
         # try basic earlier, and they are allowed to be overwritten
         informations.reverse()
         for current_information in informations:
-            final_information.update(current_information)
-
-        return final_information
+            self._information_cache.update(current_information)
+        return self._information_cache
 
     def mark_dirty(self) -> None:
         self.log.debug("mark environment to dirty")
@@ -366,7 +369,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.runbook.reload_requirements()
 
         self.is_new = True
-
+        self._information_cache = None
         if not self.runbook.nodes_requirement and not self.runbook.nodes:
             raise LisaException("not found any node or requirement in environment")
 
