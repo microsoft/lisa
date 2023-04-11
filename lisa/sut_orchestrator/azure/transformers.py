@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Type, cast
 
 from azure.mgmt.compute.models import GrantAccessData  # type: ignore
 from dataclasses_json import dataclass_json
+from marshmallow import validate
 from retry import retry
 
 from lisa import schema
@@ -26,12 +27,19 @@ from lisa.util import (
 
 from .common import (
     AZURE_SHARED_RG_NAME,
+    check_blob_exist,
+    check_or_create_gallery,
+    check_or_create_gallery_image,
+    check_or_create_gallery_image_version,
+    check_or_create_resource_group,
     check_or_create_storage_account,
     get_compute_client,
+    get_deployable_vhd_path,
     get_environment_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
     get_storage_account_name,
+    get_vhd_details,
     get_vm,
     load_environment,
     wait_copy_blob,
@@ -351,3 +359,201 @@ def _load_platform(
 
     platform.initialize()
     return platform
+
+
+@dataclass_json
+@dataclass
+class SigTransformerSchema(schema.Transformer):
+    # raw vhd URL, it can be the blob under the same subscription of SIG
+    # or SASURL
+    vhd: str = field(default="", metadata=field_metadata(required=True))
+    # if not specify gallery_resource_group_name, use shared resource group name
+    gallery_resource_group_name: str = field(default=AZURE_SHARED_RG_NAME)
+    # if not specified, will use the first location of gallery image
+    gallery_resource_group_location: str = field(default="")
+    # gallery name, it can be reused if this gallery exists
+    gallery_name: str = field(default="lisa_default_gallery")
+    # if not specified, will use the first location of gallery image
+    gallery_location: str = field(default="")
+    gallery_description: str = field(default="SIG created from lisa transformers.")
+    # gallery image location list
+    # gallery_image_location:
+    #   - westus3
+    #   - westus2
+    gallery_image_location: List[str] = field(
+        default_factory=list, metadata=field_metadata(required=True)
+    )
+    # gallery image name, it can be reused if this gallery exists
+    gallery_image_name: str = field(default="", metadata=field_metadata(required=True))
+    # os type, can be Linux or Windows
+    gallery_image_ostype: str = field(
+        default="Linux",
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    "Windows",
+                    "Linux",
+                ]
+            ),
+        ),
+    )
+    # image security type, can be empty, TrustedLaunch
+    gallery_image_securitytype: str = ""
+    gallery_image_osstate: str = field(
+        default="Generalized",
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    "Specialized",
+                    "Generalized",
+                ]
+            ),
+        ),
+    )
+    gallery_image_architecture: str = field(
+        default="x64",
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    "x64",
+                    "Arm64",
+                ]
+            ),
+        ),
+    )
+    # image full name
+    # format is publisher offer sku version
+    gallery_image_fullname: str = field(
+        default="", metadata=field_metadata(required=True)
+    )
+    gallery_image_hyperv_generation: int = field(
+        default=1,
+        metadata=field_metadata(
+            validate=validate.OneOf([1, 2]),
+        ),
+    )
+    regional_replica_count: int = 1
+    storage_account_type: str = field(
+        default="Standard_LRS",
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    "Premium_LRS",
+                    "Standard_ZRS",
+                    "Standard_LRS",
+                ]
+            ),
+        ),
+    )
+    host_caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            ),
+        ),
+    )
+
+
+class SharedGalleryImageTransformer(Transformer):
+    """
+    convert an azure VHD to SIG
+    """
+
+    __sig_name = "url"
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "azure_sig"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return SigTransformerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return [self.__sig_name]
+
+    def _internal_run(self) -> Dict[str, Any]:
+        runbook: SigTransformerSchema = self.runbook
+        platform = _load_platform(self._runbook_builder, self.type_name())
+        image_location = runbook.gallery_image_location[0]
+        if not runbook.gallery_resource_group_location:
+            runbook.gallery_resource_group_location = image_location
+        if not runbook.gallery_location:
+            runbook.gallery_location = image_location
+        vhd_path = get_deployable_vhd_path(
+            platform, runbook.vhd, image_location, self._log
+        )
+        vhd_details = get_vhd_details(platform, vhd_path)
+        if not check_blob_exist(
+            platform,
+            vhd_details["account_name"],
+            vhd_details["container_name"],
+            vhd_details["resource_group_name"],
+            vhd_details["blob_name"],
+        ):
+            raise LisaException(f"{vhd_path} doesn't exist.")
+
+        (
+            gallery_image_publisher,
+            gallery_image_offer,
+            gallery_image_sku,
+            gallery_image_version,
+        ) = tuple(runbook.gallery_image_fullname.split())
+        # create resource group if specified resource group doesn't exist
+        check_or_create_resource_group(
+            platform.credential,
+            platform.subscription_id,
+            runbook.gallery_resource_group_name,
+            runbook.gallery_location,
+            self._log,
+        )
+        gallery = check_or_create_gallery(
+            platform,
+            runbook.gallery_resource_group_name,
+            runbook.gallery_name,
+            runbook.gallery_location,
+            runbook.gallery_description,
+        )
+
+        check_or_create_gallery_image(
+            platform,
+            runbook.gallery_resource_group_name,
+            runbook.gallery_name,
+            runbook.gallery_image_name,
+            image_location,
+            gallery_image_publisher,
+            gallery_image_offer,
+            gallery_image_sku,
+            runbook.gallery_image_ostype,
+            runbook.gallery_image_osstate,
+            runbook.gallery_image_hyperv_generation,
+            runbook.gallery_image_architecture,
+            runbook.gallery_image_securitytype,
+        )
+
+        check_or_create_gallery_image_version(
+            platform,
+            runbook.gallery_resource_group_name,
+            runbook.gallery_name,
+            runbook.gallery_image_name,
+            gallery_image_version,
+            image_location,
+            runbook.regional_replica_count,
+            runbook.storage_account_type,
+            runbook.host_caching_type,
+            vhd_path,
+            vhd_details["resource_group_name"],
+            vhd_details["account_name"],
+            runbook.gallery_image_location,
+        )
+
+        return {
+            self.__sig_name: f"{gallery.name}/{runbook.gallery_image_name}"
+            f"/{gallery_image_version}"
+        }

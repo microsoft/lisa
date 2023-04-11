@@ -1572,6 +1572,177 @@ def is_stuck_copying(blob_client: BlobClient, log: Logger) -> bool:
     return False
 
 
+def check_or_create_gallery(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_location: str = "",
+    gallery_description: str = "",
+) -> Any:
+    try:
+        # get gallery
+        compute_client = get_compute_client(platform)
+        gallery = compute_client.galleries.get(
+            resource_group_name=gallery_resource_group_name,
+            gallery_name=gallery_name,
+        )
+    except Exception as ex:
+        # create the gallery if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            gallery_post_body = {
+                "location": gallery_location,
+                "description": gallery_description,
+            }
+            operation = compute_client.galleries.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_post_body,
+            )
+            gallery = wait_operation(operation)
+        else:
+            raise LisaException(ex)
+    return gallery
+
+
+def check_or_create_gallery_image(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_image_name: str,
+    gallery_image_location: str,
+    gallery_image_publisher: str,
+    gallery_image_offer: str,
+    gallery_image_sku: str,
+    gallery_image_ostype: str,
+    gallery_image_osstate: str,
+    gallery_image_hyperv_generation: int,
+    gallery_image_architecture: str,
+    gallery_image_securitytype: str,
+) -> None:
+    try:
+        compute_client = get_compute_client(platform)
+        compute_client.gallery_images.get(
+            gallery_resource_group_name,
+            gallery_name,
+            gallery_image_name,
+        )
+    except Exception as ex:
+        # create the gallery image if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            image_post_body: Dict[str, Any] = {}
+            image_post_body = {
+                "location": gallery_image_location,
+                "os_type": gallery_image_ostype,
+                "os_state": gallery_image_osstate,
+                "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
+                "architecture": gallery_image_architecture,
+                "identifier": {
+                    "publisher": gallery_image_publisher,
+                    "offer": gallery_image_offer,
+                    "sku": gallery_image_sku,
+                },
+            }
+            if gallery_image_securitytype:
+                image_post_body["features"] = [
+                    {
+                        "name": "SecurityType",
+                        "value": gallery_image_securitytype,
+                    }
+                ]
+            operation = compute_client.gallery_images.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_image_name,
+                image_post_body,
+            )
+            wait_operation(operation)
+        else:
+            raise LisaException(ex)
+
+
+def check_or_create_gallery_image_version(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_image_name: str,
+    gallery_image_version: str,
+    gallery_image_location: str,
+    regional_replica_count: int,
+    storage_account_type: str,
+    host_caching_type: str,
+    vhd_path: str,
+    vhd_resource_group_name: str,
+    vhd_storage_account_name: str,
+    gallery_image_target_regions: List[str],
+) -> None:
+    try:
+        compute_client = get_compute_client(platform)
+        compute_client.gallery_image_versions.get(
+            gallery_resource_group_name,
+            gallery_name,
+            gallery_image_name,
+            gallery_image_version,
+        )
+    except Exception as ex:
+        # create the gallery if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            target_regions: List[Dict[str, str]] = []
+            for target_region in gallery_image_target_regions:
+                target_regions.append(
+                    {
+                        "name": target_region,
+                        "regional_replica_count": str(regional_replica_count),
+                        "storage_account_type": storage_account_type,
+                    }
+                )
+            image_version_post_body = {
+                "location": gallery_image_location,
+                "publishing_profile": {"target_regions": target_regions},
+                "storageProfile": {
+                    "osDiskImage": {
+                        "hostCaching": host_caching_type,
+                        "source": {
+                            "uri": vhd_path,
+                            "id": (
+                                f"/subscriptions/{platform.subscription_id}/"
+                                f"resourceGroups/{vhd_resource_group_name}"
+                                "/providers/Microsoft.Storage/storageAccounts/"
+                                f"{vhd_storage_account_name}"
+                            ),
+                        },
+                    },
+                },
+            }
+            operation = compute_client.gallery_image_versions.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_image_name,
+                gallery_image_version,
+                image_version_post_body,
+            )
+            wait_operation(operation)
+        else:
+            raise LisaException(ex)
+
+
+def check_blob_exist(
+    platform: "AzurePlatform",
+    account_name: str,
+    container_name: str,
+    resource_group_name: str,
+    blob_name: str,
+) -> bool:
+    container_client = get_or_create_storage_container(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        account_name=account_name,
+        container_name=container_name,
+        resource_group_name=resource_group_name,
+    )
+    blob_client = container_client.get_blob_client(blob_name)
+    return blob_client.exists()
+
+
 class DataDisk:
     # refer https://docs.microsoft.com/en-us/azure/virtual-machines/disks-types
     IOPS_SIZE_DICT: Dict[schema.DiskType, Dict[int, int]] = {
