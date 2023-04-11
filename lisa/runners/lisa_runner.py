@@ -769,6 +769,23 @@ class LisaRunner(BaseRunner):
                             test_result.set_status(TestStatus.SKIPPED, str(identifier))
                             break
 
+                        if (
+                            node_requirement.features
+                            and hasattr(self, "platform")
+                            and self.platform.runbook.ignored_capability
+                        ):
+                            node_requirement.features.items = [
+                                x
+                                for x in node_requirement.features
+                                if str(x).lower()
+                                not in list(
+                                    map(
+                                        str.lower,
+                                        self.platform.runbook.ignored_capability,
+                                    )
+                                )
+                            ]
+
                         assert isinstance(platform_requirement.extended_schemas, dict)
                         assert isinstance(node_requirement.extended_schemas, dict)
                         node_requirement.extended_schemas = deep_update_dict(
