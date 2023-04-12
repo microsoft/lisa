@@ -11,7 +11,11 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
+from lisa.messages import (
+    NetworkPPSPerformanceMessage,
+    TransportProtocol,
+    create_perf_message,
+)
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import constants
@@ -385,6 +389,7 @@ class DpdkPerformance(TestSuite):
         for result_fields in [sender_fields, receiver_fields]:
             result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
             result_fields["test_type"] = "performance"
+            result_fields["protocol_type"] = TransportProtocol.Udp
 
         # send side fields
         sender = send_kit.testpmd
