@@ -138,7 +138,7 @@ class Dpdk(TestSuite):
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_nic_by_index().pci_slot)
+            ovs.setup_ovs(node.nics.get_nic_by_index(1).pci_slot)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -331,7 +331,7 @@ class Dpdk(TestSuite):
     ) -> None:
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_nic_by_index()
+        test_nic = node.nics.get_nic_by_index(1)
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic, 0, "txonly", "failsafe"
         )
@@ -392,7 +392,7 @@ class Dpdk(TestSuite):
         vpp.install()
 
         net = node.nics
-        nic = net.get_nic_by_index()
+        nic = net.get_nic_by_index(1)
 
         # set devices to down and restart vpp service
         ip = node.tools[Ip]
@@ -545,9 +545,9 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            min_count=2,
+            min_count=4,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -605,7 +605,7 @@ class Dpdk(TestSuite):
     ) -> None:
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
-        nic = node.nics.get_nic_by_index()
+        nic = node.nics.get_nic_by_index(1)
         node.nics.get_nic_driver(nic.upper)
         if nic.bound_driver == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)

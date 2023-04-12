@@ -105,7 +105,7 @@ def _enable_hugepages(node: Node, use_cores: int = 4, nic_count: int = 1) -> Non
         "Test requested more cores than are available on the system"
     ).is_greater_than(use_cores)
 
-    max_numa_needed_for_test = lscpu.get_numa_for_core(use_cores)
+    max_numa_needed_for_test = lscpu.get_numa_for_core(use_cores) + 1
 
     # for optimal performance the goal is assigning memory and cores
     # to queue pairs such that the cores servicing a nic are not
@@ -154,8 +154,7 @@ def _enable_hugepages(node: Node, use_cores: int = 4, nic_count: int = 1) -> Non
     goal_mb_per_core = goal_mb // use_cores
     goal_mb_per_numa = [0] * max_numa_needed_for_test
     goal_gb_per_numa = [0] * max_numa_needed_for_test
-    for i in range(0, use_cores):
-        core_index = i + 1
+    for core_index in range(1, use_cores + 1):
         numa_for_core = lscpu.get_numa_for_core(core_index)
         goal_mb_per_numa[numa_for_core] += goal_mb_per_core
 
