@@ -62,137 +62,13 @@ class DpdkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: failsafe mode, multiple service cores
+        DPDK Performance: netvsc mode, minimal core count
         """,
         priority=3,
         requirement=simple_requirement(
             min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
-            min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_failsafe_pmd_multi_core(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test("failsafe", result, log, variables, service_cores=4)
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: failsafe mode, multiple service cores, max nics
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_core_count=8,
-            min_count=2,
-            network_interface=Sriov(),
-            min_nic_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_failsafe_pmd_multi_core_max_nic(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test(
-            "failsafe", result, log, variables, use_max_nics=True, service_cores=4
-        )
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: failsafe mode, muliple tx/rx queues
-
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_core_count=8,
-            min_count=2,
-            network_interface=Sriov(),
-            min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_failsafe_pmd_multi_queue(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: failsafe mode, mutiple tx/rx queues, max nics
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_core_count=8,
-            min_count=2,
-            network_interface=Sriov(),
-            min_nic_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_failsafe_pmd_multi_queue_max_nics(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test(
-            "failsafe", result, log, variables, use_max_nics=True, use_queues=True
-        )
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: failsafe mode, many service cores, many queues, max nics
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_count=2,
-            min_core_count=8,
-            network_interface=Sriov(),
-            min_nic_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_failsafe_pmd_multi_queue_multi_core_max_nics(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test(
-            "failsafe",
-            result,
-            log,
-            variables,
-            service_cores=4,
-            use_max_nics=True,
-            use_queues=True,
-        )
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: direct use of VF, minimal core count, default queues
-
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Sriov(),
-            min_core_count=8,
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
@@ -208,49 +84,31 @@ class DpdkPerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        DPDK Performance: direct use of VF, multiple service cores
+        DPDK Performance: failsafe mode, muliple tx/rx queues
+
         """,
         priority=3,
         requirement=simple_requirement(
+            min_core_count=16,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
-            min_core_count=8,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_multi_core(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test("netvsc", result, log, variables, service_cores=4)
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: direct use of VF, multiple service cores, max nics
-        Run on a big VM
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Sriov(),
-            min_nic_count=8,
-            min_core_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_netvsc_pmd_multi_core_max_nics(
+    def perf_dpdk_failsafe_pmd_multi_queue(
         self,
         result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
         self._run_dpdk_perf_test(
-            "netvsc", result, log, variables, service_cores=4, use_max_nics=True
+            "failsafe",
+            result,
+            log,
+            variables,
+            use_queues=True,
         )
 
     @TestCaseMetadata(
@@ -262,7 +120,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
-            min_core_count=8,
+            min_core_count=16,
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
@@ -273,59 +131,11 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test("netvsc", result, log, variables, use_queues=True)
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: direct use of VF, multiple tx/rx queues, max nics
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Sriov(),
-            min_nic_count=8,
-            min_core_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_netvsc_pmd_multi_queue_max_nics(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
-        self._run_dpdk_perf_test(
-            "netvsc", result, log, variables, use_queues=True, use_max_nics=True
-        )
-
-    @TestCaseMetadata(
-        description="""
-        DPDK Performance: direct use of VF, many service cores, many queues, max nics
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            min_count=2,
-            network_interface=Sriov(),
-            min_core_count=8,
-            min_nic_count=8,
-            unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
-        ),
-    )
-    def perf_dpdk_netvsc_pmd_multi_queue_multi_core_max_nics(
-        self,
-        result: TestResult,
-        log: Logger,
-        variables: Dict[str, Any],
-    ) -> None:
         self._run_dpdk_perf_test(
             "netvsc",
             result,
             log,
             variables,
-            service_cores=4,
-            use_max_nics=True,
             use_queues=True,
         )
 
@@ -368,7 +178,7 @@ class DpdkPerformance(TestSuite):
 
         # gather the performance data into message format
         result_messages = self._create_pps_performance_results(
-            send_kit, receive_kit, test_result, f"perf_dpdk_{pmd}"
+            send_kit, receive_kit, test_result
         )
 
         # pass result messages to notifier
@@ -380,11 +190,10 @@ class DpdkPerformance(TestSuite):
         send_kit: DpdkTestResources,
         receive_kit: DpdkTestResources,
         test_result: TestResult,
-        test_case_name: str,
     ) -> Tuple[NetworkPPSPerformanceMessage, NetworkPPSPerformanceMessage]:
         sender_fields: Dict[str, Any] = {}
         receiver_fields: Dict[str, Any] = {}
-
+        test_case_name = test_result.runtime_data.metadata.name
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
             result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
