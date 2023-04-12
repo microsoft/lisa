@@ -348,7 +348,7 @@ class DpdkTestpmd(Tool):
         use_cores = min(
             rounded_cores, rounded_queues
         )  # use enough cores for (queues + service core) or max available
-        core_list = ",".join(map(str, range(1, use_cores)))
+
         if (len(core_list) % 2) != 0:
             self.node.log.debug(
                 (
@@ -357,12 +357,16 @@ class DpdkTestpmd(Tool):
                 )
             )
 
-        core_args = f"-l {core_list} "
-
+        # core range argument
+        core_list = f"1-{use_cores}"
+        assert_that(use_cores).described_as(
+            ("DPDK tests need to leave at least one core as a service core. ")
+        ).is_greater_than(2)
         return (
-            f"{self._testpmd_install_path} {core_args} "
+            f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2 --nb-cores=4"
+            "-a --stats-period 2 "
+            f"--nb-cores={use_cores-1}"  # leaving one core for stats printing
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
