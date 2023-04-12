@@ -3,6 +3,7 @@
 
 import logging
 import os
+import re
 import shutil
 import socket
 import sys
@@ -25,6 +26,13 @@ from .logger import Logger, get_logger
 from .perf_timer import create_timer
 
 _get_jump_box_logger = partial(get_logger, name="jump_box")
+
+# (Failed to parse line 'b'/etc/profile.d/vglrun.sh: line 3: lspci: command not found'' as integer)  # noqa: E501
+# (Failed to parse line 'b"touch: cannot touch '/tmp/version-updated': Permission denied"' as integer)  # noqa: E501
+# (Failed to parse line 'b'/etc/profile.d/clover.sh: line 10: /opt/clover/bin/prepare-hostname.sh: Permission denied'' as integer)  # noqa: E501
+_spawn_initialization_error_pattern = re.compile(
+    r"(Failed to parse line \'b[\'\"](?P<linux_profile_error>.*?)[\'\"]\' as integer)"
+)
 
 
 def wait_tcp_port_ready(
@@ -192,6 +200,7 @@ class SshShell(InitializableMixin):
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
+        self.spawn_initialization_error_string = ""
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
@@ -290,25 +299,55 @@ class SshShell(InitializableMixin):
     ) -> spur.ssh.SshProcess:
         self.initialize()
         assert self._inner_shell
+        have_tried_minimal_type = False
 
-        try:
-            process: spur.ssh.SshProcess = _spawn_ssh_process(
-                self._inner_shell,
-                command=command,
-                update_env=update_env,
-                store_pid=store_pid,
-                cwd=cwd,
-                stdout=stdout,
-                stderr=stderr,
-                encoding=encoding,
-                use_pty=use_pty,
-                allow_error=allow_error,
-            )
-        except FunctionTimedOut:
-            raise LisaException(
-                f"The remote node is timeout on execute {command}. "
-                f"It may be caused by paramiko/spur not support the shell of node."
-            )
+        while True:
+            try:
+                if self._inner_shell._spur._shell_type == spur.ssh.ShellTypes.minimal:
+                    # minimal shell type doesn't support store_pid
+                    store_pid = False
+                process: spur.ssh.SshProcess = _spawn_ssh_process(
+                    self._inner_shell,
+                    command=command,
+                    update_env=update_env,
+                    store_pid=store_pid,
+                    cwd=cwd,
+                    stdout=stdout,
+                    stderr=stderr,
+                    encoding=encoding,
+                    use_pty=use_pty,
+                    allow_error=allow_error,
+                )
+                break
+            except FunctionTimedOut:
+                raise LisaException(
+                    f"The remote node is timeout on execute {command}. "
+                    f"It may be caused by paramiko/spur not support the shell of node."
+                )
+            except spur.errors.CommandInitializationError as identifier:
+                # Some publishers images, such as azhpc-desktop, javlinltd and
+                # vfunctiontechnologiesltd, there might have permission errors when
+                # scripts under /etc/profile.d directory are executed at startup of
+                # the bash shell for a non-root user. Then calling spawn to run any
+                # Linux commands might raise CommandInitializationError.
+                # The error messages are like: "Error while initializing command. The
+                # most likely cause is an unsupported shell. Try using a minimal shell
+                # type when calling 'spawn' or 'run'. (Failed to parse line 'b'
+                # /etc/profile.d/clover.sh:line 10:/opt/clover/bin/prepare-hostname.sh:
+                # Permission denied'' as integer)"
+                # Except CommandInitializationError then use minimal shell type.
+                if not have_tried_minimal_type:
+                    self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
+                    have_tried_minimal_type = True
+                    matched = _spawn_initialization_error_pattern.search(
+                        str(identifier)
+                    )
+                    if matched:
+                        self.spawn_initialization_error_string = matched.group(
+                            "linux_profile_error"
+                        )
+                else:
+                    raise identifier
         return process
 
     def mkdir(

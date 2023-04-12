@@ -4,6 +4,7 @@
 import io
 import logging
 import pathlib
+import re
 import shlex
 import signal
 import subprocess
@@ -19,7 +20,7 @@ from spur.errors import NoSuchCommandError  # type: ignore
 from lisa.util import LisaException, filter_ansi_escape
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.perf_timer import create_timer
-from lisa.util.shell import Shell
+from lisa.util.shell import Shell, SshShell
 
 
 @dataclass
@@ -280,6 +281,14 @@ class Process:
         if self._is_posix and self._sudo:
             self._result.stdout = self._filter_sudo_result(self._result.stdout)
 
+        if (
+            isinstance(self._shell, SshShell)
+            and self._shell._inner_shell
+            and self._shell._inner_shell._spur._shell_type
+            == spur.ssh.ShellTypes.minimal
+        ):
+            self._result.stdout = self._filter_profile_error(self._result.stdout)
+
         return self._result
 
     def kill(self) -> None:
@@ -360,6 +369,31 @@ class Process:
             lines = raw_input.splitlines(keepends=True)
             raw_input = "".join(lines[1:])
             self._log.debug(f'found error message in sudo: "{lines[0]}"')
+        return raw_input
+
+    def _filter_profile_error(self, raw_input: str) -> str:
+        # If there is CommandInitializationError when calling spawn, the stdout has that
+        # error line before the output of every command. E.g. the stdout of command
+        # "uname -vrmo" is like: '/etc/profile.d/clover.sh: line 10: /opt/clover/bin/
+        # prepare-hostname.sh: Permission denied\r\n0\r\n3.10.0-1160.88.1.el7.x86_64
+        # #1 SMP Tue Mar 7 15:41:52 UTC 2023 x86_64 GNU/Linux'
+        # Other example:
+        # '/etc/profile.d/vglrun.sh: line 3: lspci: command not found\r\nDescription:\t
+        # CentOS Linux release 7.9.2009 (Core)'
+        # So remove the error line
+        if (
+            isinstance(self._shell, SshShell)
+            and self._shell.spawn_initialization_error_string
+        ):
+            raw_input = re.sub(
+                re.compile(rf"{self._shell.spawn_initialization_error_string}\r\n"),
+                "",
+                raw_input,
+            )
+            self._log.debug(
+                "filter the profile error string: "
+                f"{self._shell.spawn_initialization_error_string}"
+            )
         return raw_input
 
 
