@@ -2236,3 +2236,16 @@ class Architecture(AzureFeatureMixin, Feature):
 
     def enabled(self) -> bool:
         return True
+
+
+class IaaS(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        deployment_types = raw_capabilities.get("VMDeploymentTypes", None)
+        if deployment_types and "IaaS" in deployment_types:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None
