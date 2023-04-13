@@ -338,6 +338,7 @@ class AzurePlatform(Platform):
             features.NetworkInterface,
             features.Resize,
             features.StartStop,
+            features.IaaS,
             features.Infiniband,
             features.Hibernation,
             features.SecurityProfile,
@@ -2084,7 +2085,18 @@ class AzurePlatform(Platform):
                 continue
 
             if vm_size in caps:
-                candidate_caps.append(caps[vm_size])
+                cap_features = caps[vm_size].capability.features
+                # Azure platform offers SaaS, PaaS, IaaS.
+                # VMs can only been created with the VM Skus which have IaaS capability.
+                # Below exception will be thrown out
+                # if the VM Sku doesn't provide IaaS capability.
+                # BadRequest: Requested operation cannot be performed because VM size
+                # XXX does not support IaaS deployments.
+                if not cap_features or (
+                    cap_features
+                    and [x for x in cap_features if features.IaaS.name() == x.type]
+                ):
+                    candidate_caps.append(caps[vm_size])
 
         return candidate_caps
 
