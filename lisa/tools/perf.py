@@ -5,7 +5,7 @@ import re
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, CentOs, Posix, Redhat
+from lisa.operating_system import CBLMariner, CentOs, Debian, Posix, Redhat, Suse
 from lisa.tools import Uname
 from lisa.util import SkippedException, find_patterns_in_lines
 
@@ -14,10 +14,11 @@ class Perf(Tool):
     # Total time: 71.514 [sec]
     PERF_MESSAGING_RESULT = re.compile(r"Total time: (?P<time>\d+\.\d+) \[sec\]", re.M)
     PERF_EPOLL_RESULT = re.compile(r"Averaged (?P<time>\d+) operations/sec", re.M)
+    _command = "perf"
 
     @property
     def command(self) -> str:
-        return "perf"
+        return self._command
 
     @property
     def can_install(self) -> bool:
@@ -25,6 +26,7 @@ class Perf(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
+
         if not self._check_exists():
             kernel_ver = (
                 self.node.tools[Uname].get_linux_information().kernel_version_raw
@@ -33,8 +35,15 @@ class Perf(Tool):
                 isinstance(self.node.os, Redhat)
                 or isinstance(self.node.os, CentOs)
                 or isinstance(self.node.os, CBLMariner)
+                or isinstance(self.node.os, Suse)
             ):
                 self.node.os.install_packages("perf")
+            elif isinstance(
+                self.node.os, Debian
+            ) and self.node.os.information.codename in ["buster", "bullseye"]:
+                # Similar issue: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=983314 # noqa: E501
+                self.node.os.install_packages("linux-perf-5.10")
+                self._command = "perf_5.10"
             else:
                 self.node.os.install_packages(
                     [
@@ -44,6 +53,19 @@ class Perf(Tool):
                     ]
                 )
         return self._check_exists()
+
+    def _check_exists(self) -> bool:
+        if not super()._check_exists():
+            return False
+
+        # Run perf to check if it exists
+        # This handles cases when perf exists, but cannot be run
+        # due to version mismatch on Debian backports
+        result = self.run()
+        if "not found" in result.stdout:
+            return False
+
+        return True
 
     def perf_messaging(self) -> List[float]:
         # Link to the source code:
