@@ -364,6 +364,23 @@ def _load_platform(
 @dataclass_json
 @dataclass
 class SigTransformerSchema(schema.Transformer):
+    """
+    transformer:
+        - type: azure_sig
+            vhd: "https://sc.blob.core.windows.net/vhds/pageblob.vhd"
+            gallery_resource_group_name: rg_name
+            gallery_name: galleryname
+            gallery_image_location:
+              - westus3
+              - westus2
+            gallery_image_hyperv_generation: 2
+            gallery_image_name: image_name
+            gallery_image_architecture: Arm64
+            gallery_image_fullname: Microsoft Linux arm64 0.0.1
+            rename:
+              azure_sig_url: shared_gallery
+    """
+
     # raw vhd URL, it can be the blob under the same subscription of SIG
     # or SASURL
     vhd: str = field(default="", metadata=field_metadata(required=True))
