@@ -49,13 +49,6 @@ def qemu_connect_nested_vm(
     if not is_virtualization_enabled:
         raise SkippedException("Virtualization is not enabled in hardware")
 
-    # verify os compatibility
-    if not (isinstance(host.os, Debian) or isinstance(host.os, Suse)):
-        raise SkippedException(
-            f"{host.os} is not supported. Currently the test could be "
-            "run on Debian, Fedora and Suse distros."
-        )
-
     image_folder_path = host.find_partition_with_freespace(image_size)
 
     host.tools[Aria].get(
