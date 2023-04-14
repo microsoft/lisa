@@ -186,6 +186,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # features may need platform, so create it in platform
         for node in environment.nodes.list():
             node.features = Features(node, self)
+            node.capture_azure_information = self.runbook.capture_azure_information
+            node.capture_boot_time = self.runbook.capture_azure_information
         log.info(f"deployed in {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
