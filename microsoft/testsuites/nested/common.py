@@ -50,11 +50,7 @@ def qemu_connect_nested_vm(
         raise SkippedException("Virtualization is not enabled in hardware")
 
     # verify os compatibility
-    if not (
-        isinstance(host.os, Debian)
-        or isinstance(host.os, Fedora)
-        or isinstance(host.os, Suse)
-    ):
+    if not (isinstance(host.os, Debian) or isinstance(host.os, Suse)):
         raise SkippedException(
             f"{host.os} is not supported. Currently the test could be "
             "run on Debian, Fedora and Suse distros."
