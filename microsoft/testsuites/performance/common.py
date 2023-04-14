@@ -312,7 +312,7 @@ def perf_ntttcp(
             client_lagscope_process = client_lagscope.run_as_client_async(
                 server_ip=server.internal_address,
                 ping_count=0,
-                run_time_seconds=10,
+                run_time_seconds=120,
                 print_histogram=False,
                 print_percentile=False,
                 histogram_1st_interval_start_value=0,
@@ -323,6 +323,7 @@ def perf_ntttcp(
             client_ntttcp_result = client_ntttcp.run_as_client(
                 client_nic_name,
                 server.internal_address,
+                run_time_seconds=120,
                 buffer_size=buffer_size,
                 threads_count=num_threads_n,
                 ports_count=num_threads_p,
