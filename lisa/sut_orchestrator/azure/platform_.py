@@ -65,6 +65,7 @@ from lisa.util import (
     generate_strong_password,
     get_datetime_path,
     get_matched_str,
+    get_or_generate_key_pairs,
     get_public_key_data,
     is_unittest,
     plugin_manager,
@@ -571,6 +572,16 @@ class AzurePlatform(Platform):
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             try:
+                if (
+                    not self._azure_runbook.deploy
+                    and not self.runbook.admin_private_key_file
+                    and not self.runbook.admin_password
+                ):
+                    raise LisaException(
+                        "admin_private_key_file or admin_password must be "
+                        "specified when use existing environment."
+                    )
+
                 location, deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment, log
                 )
@@ -1113,6 +1124,10 @@ class AzurePlatform(Platform):
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
+        # if no key or password specified, generate the key pair
+        if not self.runbook.admin_private_key_file and not self.runbook.admin_password:
+            self.runbook.admin_private_key_file = get_or_generate_key_pairs(self._log)
+
         if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
                 self.runbook.admin_private_key_file

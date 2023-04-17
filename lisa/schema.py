@@ -1314,12 +1314,6 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)
 
-        if self.type not in [constants.PLATFORM_READY, constants.PLATFORM_BAREMETAL]:
-            if not self.admin_password and not self.admin_private_key_file:
-                raise LisaException(
-                    "one of admin_password and admin_private_key_file must be set"
-                )
-
         if isinstance(self.keep_environment, bool):
             if self.keep_environment:
                 self.keep_environment = constants.ENVIRONMENT_KEEP_ALWAYS
