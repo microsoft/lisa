@@ -7,7 +7,6 @@ import string
 import sys
 from datetime import datetime
 from pathlib import Path
-from threading import Lock
 from time import sleep
 from typing import (
     TYPE_CHECKING,
@@ -18,13 +17,11 @@ from typing import (
     List,
     Optional,
     Pattern,
-    Tuple,
     Type,
     TypeVar,
     cast,
 )
 
-import paramiko
 import pluggy
 from assertpy import assert_that
 from dataclasses_json import config
@@ -39,7 +36,6 @@ if TYPE_CHECKING:
     from lisa.operating_system import OperatingSystem
 
 T = TypeVar("T")
-global_ssh_key_access_lock = Lock()
 
 # regex to validate url
 # source -
@@ -373,26 +369,7 @@ def get_datetime_path(current: Optional[datetime] = None) -> str:
     return f"{date}-{time}"
 
 
-def get_or_generate_key_pairs(key_length: int = 2048) -> Tuple[str, str]:
-    # azure platform key accepts only RSA key, so use RSA key.
-    # the key lentgh range is 2048-4096, 2048 is the minimum.
-    # for some older distro, it only supports 2048.
-    # so here use default 2048.
-    key = paramiko.RSAKey.generate(key_length)
-    public_key: str = ""
-    private_key: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa")
-    if Path(private_key).exists():
-        with open(private_key, "r") as f:
-            key = paramiko.RSAKey.from_private_key(f)
-    else:
-        with global_ssh_key_access_lock:
-            with open(private_key, "w") as f:
-                key.write_private_key(f)
-    public_key = f"ssh-rsa {key.get_base64()}"
-    return public_key, f.name
-
-
-def get_public_key_data(private_key_file_path: str = "") -> str:
+def get_public_key_data(private_key_file_path: str) -> str:
     # TODO: support ppk, if it's needed.
     private_key_path = Path(private_key_file_path)
     if not private_key_path.exists():
