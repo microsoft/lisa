@@ -19,13 +19,13 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import Disk, Nvme
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.testsuite import TestResult, node_requirement
-from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
+from lisa.tools import Echo, FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -56,12 +56,12 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_count=search_space.IntRange(min=36),
             ),
         ),
     )
     def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result)
+        self._perf_premium_datadisks_nvme(node, result)
 
     @TestCaseMetadata(
         description="""
@@ -73,12 +73,12 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_count=search_space.IntRange(min=36),
             ),
         ),
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result, block_size=1024)
+        self._perf_premium_datadisks_nvme(node, result, block_size=1024)
 
     @TestCaseMetadata(
         description="""
@@ -465,6 +465,55 @@ class StoragePerformance(TestSuite):
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=disk_type,
+            numjob=core_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+        )
+
+    def _perf_premium_datadisks_nvme(
+        self,
+        node: Node,
+        test_result: TestResult,
+        disk_setup_type: DiskSetupType = DiskSetupType.raw,
+        disk_type: DiskType = DiskType.nvme,
+        block_size: int = 4,
+        max_iodepth: int = 256,
+    ) -> None:
+        nvme = node.features[Nvme]
+        nvme_namespaces = nvme.get_namespaces()
+        disk_count = len(nvme_namespaces)
+        assert_that(disk_count).described_as(
+            "At least 1 data disk for fio testing."
+        ).is_greater_than(0)
+        filename = ":".join(nvme_namespaces)
+        echo = node.tools[Echo]
+        # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
+        # if they are not on the same NUMA node of completion CPU.
+        # This setting will give a better and more stable IOPS.
+        for nvme_namespace in nvme_namespaces:
+            # /dev/nvme0n1 => nvme0n1
+            disk_name = nvme_namespace.split("/")[-1]
+            echo.write_to_file(
+                "0",
+                node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
+                sudo=True,
+            )
+        cpu = node.tools[Lscpu]
+        core_count = cpu.get_core_count()
+        start_iodepth = 1
+        max_iodepth = 256
         perf_disk(
             node,
             start_iodepth,
