@@ -10,7 +10,7 @@ from enum import Enum
 from functools import partial
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, cast
 
 from dataclasses_json import dataclass_json
 from marshmallow import validate
@@ -335,8 +335,8 @@ class Environment(ContextMixin, InitializableMixin):
 
         return node
 
-    def get_information(self, force_run: bool = True) -> Dict[str, str]:
-        if self._information_cache and not force_run:
+    def get_information(self, force_run: bool = True) -> Union[Dict[str, str], None]:
+        if self._information_cache is None and not force_run:
             self.log.info("Returning cached Environment Information")
             return self._information_cache
         self._information_cache = {}
