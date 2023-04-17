@@ -58,6 +58,7 @@ from lisa.util import (
     generate_random_chars,
     get_datetime_path,
     get_matched_str,
+    get_or_generate_key_pairs,
     get_public_key_data,
     is_unittest,
     plugin_manager,
@@ -960,8 +961,13 @@ class AzurePlatform(Platform):
             arm_parameters.admin_key_data = get_public_key_data(
                 self.runbook.admin_private_key_file
             )
-        else:
+        elif self.runbook.admin_password:
             arm_parameters.admin_password = self.runbook.admin_password
+        else:
+            (
+                arm_parameters.admin_key_data,
+                self.runbook.admin_private_key_file,
+            ) = get_or_generate_key_pairs()
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
@@ -1938,7 +1944,10 @@ class AzurePlatform(Platform):
 
         log.debug("SSH port is not open, enabling ssh on Windows ...")
         # The SSH port is not opened, try to enable it.
-        public_key_data = get_public_key_data(self.runbook.admin_private_key_file)
+        (
+            public_key_data,
+            self.runbook.admin_private_key_file,
+        ) = get_or_generate_key_pairs()
         with open(Path(__file__).parent / "Enable-SSH.ps1", "r") as f:
             script = f.read()
 
