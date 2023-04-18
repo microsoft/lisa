@@ -154,17 +154,8 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
 
 
 def get_random_nic_with_ip(test_kit: DpdkTestResources) -> NicInfo:
-    nics = [
-        test_kit.node.nics.get_nic(nic)
-        for nic in test_kit.node.nics.get_upper_nics()
-        if nic != test_kit.node.nics.get_nic_by_index(0).upper
-        and test_kit.node.nics.get_nic(nic).ip_addr
-    ]
-    if not nics:
-        raise LisaException(
-            f"Node has no secondary nics with ip addresses! {test_kit.node.name}"
-        )
-    return random.choice(nics)
+
+    return test_kit.node.nics.get_nic_by_index(1)
 
 
 def generate_send_receive_run_info(
@@ -304,7 +295,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_nic_by_index(1)
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -446,7 +437,7 @@ def verify_dpdk_build(
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_nic_by_index(1)
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         test_nic,
