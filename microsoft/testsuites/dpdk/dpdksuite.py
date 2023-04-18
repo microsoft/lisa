@@ -150,7 +150,7 @@ class Dpdk(TestSuite):
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_nic_by_index().pci_slot)
+            ovs.setup_ovs(node.nics.get_nic_by_index(1).pci_slot)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -343,7 +343,7 @@ class Dpdk(TestSuite):
     ) -> None:
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_nic_by_index()
+        test_nic = node.nics.get_nic_by_index(1)
         testpmd_cmd = testpmd.generate_testpmd_command(
             test_nic, 0, "txonly", "failsafe"
         )
@@ -406,7 +406,7 @@ class Dpdk(TestSuite):
         vpp.install()
 
         net = node.nics
-        nic = net.get_nic_by_index()
+        nic = net.get_nic_by_index(1)
 
         # set devices to down and restart vpp service
         ip = node.tools[Ip]
@@ -643,7 +643,7 @@ class Dpdk(TestSuite):
         forwarder_ip = forwarder_nic.ip_addr
         forwarder_devices = forwarder_nic.pci_slot
 
-        sender_nic = sender.nics.get_nic_by_index()
+        sender_nic = sender.nics.get_nic_by_index(1)
         sender_mac = sender_nic.mac_addr
 
         # setup forwarding rules
