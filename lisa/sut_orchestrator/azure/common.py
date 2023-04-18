@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import re
 import sys
 from dataclasses import InitVar, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from time import sleep
@@ -39,6 +41,7 @@ from azure.mgmt.storage.models import (  # type: ignore
 )
 from azure.storage.blob import (
     AccountSasPermissions,
+    BlobClient,
     BlobSasPermissions,
     BlobServiceClient,
     ContainerClient,
@@ -55,7 +58,7 @@ from retry import retry
 from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
-from lisa.node import Node, RemoteNode
+from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
 from lisa.util import (
     LisaException,
@@ -78,10 +81,38 @@ AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
 AZURE_SUBNET_PREFIX = "lisa-subnet-"
 
 
-PATTERN_NIC_NAME = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
+NIC_NAME_PATTERN = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
     r"providers/Microsoft.Network/publicIPAddresses/(.*)", re.M
 )
+# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/galleries/xxxx
+# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Storage/storageAccounts/xxxx
+RESOURCE_GROUP_PATTERN = re.compile(r"resourceGroups/(.*)/providers", re.M)
+# https://sc.blob.core.windows.net/container/xxxx/xxxx/xxxx.vhd
+STORAGE_CONTAINER_BLOB_PATTERN = re.compile(
+    r"https://(?P<sc>.*)"
+    r"(?:\.blob\.core\.windows\.net|blob\.storage\.azure\.net)"
+    r"/(?P<container>[^/]+)/?/(?P<blob>.*)",
+    re.M,
+)
+
+# https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
+# st=2022-01-19T06%3A25%3A16Z&se=2022-01-19T06%3A25%3A00Z&sr=b&
+# sp=r&sig=DdBu3FTHQr1%2BzIY%2FdS054IlsDQ1RdfjfL3FgRgexgeo%3D
+# https://abcdefg.blob.storage.azure.net/1b33rftmpdhs/abcdefg?
+# sv=2018-03-28&sr=b&si=11111111-feff-4312-bba2-3ca6eabf9b24&
+# sig=xdZaRwJBwu3P2pYbQ3uEmymlovFwHrtQNVWDHyK48sg%3D
+SAS_URL_PATTERN = re.compile(
+    r"^https://.*?(?:\.blob\.core\.windows\.net|"
+    r"blob\.storage\.azure\.net)/.*?\?sv=[^&]+?(?:&st=[^&]+)?"
+    r"(?:&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?)|.*?&sig=.*?$"
+)
+SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
+
+# The timeout hours of the blob with copy pending status
+# If the blob is still copy pending status after the timeout hours, it can be deleted
+BLOB_COPY_PENDING_TIMEOUT_HOURS = 6
+_global_sas_vhd_copy_lock = Lock()
 
 # when call sdk APIs, it's easy to have conflict on access auth files. Use lock
 # to prevent it happens.
@@ -1080,6 +1111,102 @@ def check_or_create_resource_group(
             )
 
 
+def copy_vhd_to_storage(
+    platform: "AzurePlatform",
+    storage_name: str,
+    src_vhd_sas_url: str,
+    dst_vhd_name: str,
+    log: Logger,
+) -> str:
+    # get original vhd's hash key for comparing.
+    original_key: Optional[bytearray] = None
+    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
+    properties = original_blob_client.get_blob_properties()
+    if properties.content_settings:
+        original_key = properties.content_settings.get(
+            "content_md5", None
+        )  # type: ignore
+
+    container_client = get_or_create_storage_container(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        account_name=storage_name,
+        container_name=SAS_COPIED_CONTAINER_NAME,
+        resource_group_name=platform._azure_runbook.shared_resource_group_name,
+    )
+    full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
+
+    # lock here to prevent a vhd is copied in multi-thread
+    cached_key: Optional[bytearray] = None
+    with _global_sas_vhd_copy_lock:
+        blobs = container_client.list_blobs(name_starts_with=dst_vhd_name)
+        blob_client = container_client.get_blob_client(dst_vhd_name)
+        vhd_exists = False
+        for blob in blobs:
+            if blob:
+                # check if hash key matched with original key.
+                if blob.content_settings:
+                    cached_key = blob.content_settings.get(
+                        "content_md5", None
+                    )  # type: ignore
+                if is_stuck_copying(blob_client, log):
+                    # Delete the stuck vhd.
+                    blob_client.delete_blob(delete_snapshots="include")
+                elif original_key and cached_key:
+                    if original_key == cached_key:
+                        log.debug("the sas url is copied already, use it directly.")
+                        vhd_exists = True
+                    else:
+                        log.debug("found cached vhd, but the hash key mismatched.")
+                else:
+                    log.debug(
+                        "No md5 content either in original blob or current blob. "
+                        "Then no need to check the hash key"
+                    )
+                    vhd_exists = True
+
+        if not vhd_exists:
+            azcopy_path = platform._azure_runbook.azcopy_path
+            if azcopy_path:
+                log.info(f"AzCopy path: {azcopy_path}")
+                if not os.path.exists(azcopy_path):
+                    raise LisaException(f"{azcopy_path} does not exist")
+
+                sas_token = generate_sas_token(
+                    credential=platform.credential,
+                    subscription_id=platform.subscription_id,
+                    account_name=storage_name,
+                    resource_group_name=platform._azure_runbook.shared_resource_group_name,  # noqa: E501
+                    writable=True,
+                )
+                dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
+                log.info(f"copying vhd by azcopy {dst_vhd_name}")
+                try:
+                    local().execute(
+                        f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "Azcopy failed to copy the blob"
+                        ),
+                        timeout=60 * 60,
+                    )
+                except Exception as identifier:
+                    blob_client.delete_blob(delete_snapshots="include")
+                    raise LisaException(f"{identifier}")
+
+                # Set metadata to mark the blob copied by AzCopy successfully
+                metadata = {"AzCopyStatus": "Success"}
+                blob_client.set_blob_metadata(metadata)
+            else:
+                blob_client.start_copy_from_url(
+                    src_vhd_sas_url, metadata=None, incremental_copy=False
+                )
+
+        wait_copy_blob(blob_client, dst_vhd_name, log)
+
+    return full_vhd_path
+
+
 def wait_copy_blob(
     blob_client: Any,
     vhd_path: str,
@@ -1291,7 +1418,7 @@ def get_primary_ip_addresses(
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
     for network_interface in vm.network_profile.network_interfaces:
-        nic_name = get_matched_str(network_interface.id, PATTERN_NIC_NAME)
+        nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
         nic = network_client.network_interfaces.get(resource_group_name, nic_name)
         if nic.primary:
             if not nic.ip_configurations[0].public_ip_address:
@@ -1313,6 +1440,307 @@ def get_primary_ip_addresses(
 # find resource based on type name from resources section in arm template
 def find_by_name(resources: Any, type_name: str) -> Any:
     return next(x for x in resources if x["type"] == type_name)
+
+
+def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
+    matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
+    assert matched, f"fail to get matched info from {vhd_path}"
+    sc_name = matched.group("sc")
+    container_name = matched.group("container")
+    blob_name = matched.group("blob")
+    storage_client = get_storage_client(platform.credential, platform.subscription_id)
+    # sometimes it will fail for below reason if list storage accounts like this way
+    # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+    # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
+    sc_list = storage_client.storage_accounts.list()
+    found_sc = None
+    for sc in sc_list:
+        if sc.name == sc_name:
+            found_sc = sc
+            break
+    assert (
+        found_sc
+    ), f"storage account {sc_name} not found in subscription {platform.subscription_id}"
+    rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
+    return {
+        "location": found_sc.location,
+        "resource_group_name": rg,
+        "account_name": sc_name,
+        "container_name": container_name,
+        "blob_name": blob_name,
+    }
+
+
+def _generate_sas_token_for_vhd(
+    platform: "AzurePlatform", result_dict: Dict[str, str]
+) -> Any:
+    sc_name = result_dict["account_name"]
+    container_name = result_dict["container_name"]
+    rg = result_dict["resource_group_name"]
+    blob_name = result_dict["blob_name"]
+
+    source_container_client = get_or_create_storage_container(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        account_name=sc_name,
+        container_name=container_name,
+        resource_group_name=rg,
+    )
+    source_blob = source_container_client.get_blob_client(blob_name)
+    sas_token = generate_sas_token(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        account_name=sc_name,
+        resource_group_name=rg,
+    )
+    source_url = source_blob.url + "?" + sas_token
+    return source_url
+
+
+@lru_cache(maxsize=10)  # noqa: B019
+def get_deployable_vhd_path(
+    platform: "AzurePlatform", vhd_path: str, location: str, log: Logger
+) -> str:
+    """
+    The sas url is not able to create a vm directly, so this method check if
+    the vhd_path is a sas url. If so, copy it to a location in current
+    subscription, so it can be deployed.
+    """
+    matches = SAS_URL_PATTERN.match(vhd_path)
+    if not matches:
+        vhd_details = get_vhd_details(platform, vhd_path)
+        vhd_location = vhd_details["location"]
+        if location == vhd_location:
+            return vhd_path
+        else:
+            vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
+            matches = SAS_URL_PATTERN.match(vhd_path)
+            assert matches, f"fail to generate sas url for {vhd_path}"
+            log.debug(
+                f"the vhd location {location} is not same with running case "
+                f"location {vhd_location}, generate a sas url for source vhd, "
+                f"it needs to be copied into location {location}."
+            )
+    else:
+        log.debug("found the vhd is a sas url, it may need to be copied.")
+
+    original_vhd_path = vhd_path
+
+    storage_name = get_storage_account_name(
+        subscription_id=platform.subscription_id, location=location, type_="t"
+    )
+
+    check_or_create_storage_account(
+        platform.credential,
+        platform.subscription_id,
+        storage_name,
+        platform._azure_runbook.shared_resource_group_name,
+        location,
+        log,
+    )
+
+    normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("-", vhd_path)
+    year = matches["year"] if matches["year"] else "9999"
+    month = matches["month"] if matches["month"] else "01"
+    day = matches["day"] if matches["day"] else "01"
+    # use the expire date to generate the path. It's easy to identify when
+    # the cache can be removed.
+    vhd_path = f"{year}{month}{day}/{normalized_vhd_name}.vhd"
+    full_vhd_path = copy_vhd_to_storage(
+        platform, storage_name, original_vhd_path, vhd_path, log
+    )
+    return full_vhd_path
+
+
+def is_stuck_copying(blob_client: BlobClient, log: Logger) -> bool:
+    props = blob_client.get_blob_properties()
+    copy_status = props.copy.status
+    if copy_status == "pending":
+        if props.creation_time:
+            delta_hours = (datetime.now(timezone.utc) - props.creation_time).seconds / (
+                60 * 60
+            )
+        else:
+            delta_hours = 0
+
+        if delta_hours > BLOB_COPY_PENDING_TIMEOUT_HOURS:
+            log.debug(
+                "the blob is pending more than "
+                f"{BLOB_COPY_PENDING_TIMEOUT_HOURS} hours."
+            )
+            return True
+    return False
+
+
+def check_or_create_gallery(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_location: str = "",
+    gallery_description: str = "",
+) -> Any:
+    try:
+        # get gallery
+        compute_client = get_compute_client(platform)
+        gallery = compute_client.galleries.get(
+            resource_group_name=gallery_resource_group_name,
+            gallery_name=gallery_name,
+        )
+    except Exception as ex:
+        # create the gallery if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            gallery_post_body = {
+                "location": gallery_location,
+                "description": gallery_description,
+            }
+            operation = compute_client.galleries.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_post_body,
+            )
+            gallery = wait_operation(operation)
+        else:
+            raise LisaException(ex)
+    return gallery
+
+
+def check_or_create_gallery_image(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_image_name: str,
+    gallery_image_location: str,
+    gallery_image_publisher: str,
+    gallery_image_offer: str,
+    gallery_image_sku: str,
+    gallery_image_ostype: str,
+    gallery_image_osstate: str,
+    gallery_image_hyperv_generation: int,
+    gallery_image_architecture: str,
+    gallery_image_securitytype: str,
+) -> None:
+    try:
+        compute_client = get_compute_client(platform)
+        compute_client.gallery_images.get(
+            gallery_resource_group_name,
+            gallery_name,
+            gallery_image_name,
+        )
+    except Exception as ex:
+        # create the gallery image if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            image_post_body: Dict[str, Any] = {}
+            image_post_body = {
+                "location": gallery_image_location,
+                "os_type": gallery_image_ostype,
+                "os_state": gallery_image_osstate,
+                "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
+                "architecture": gallery_image_architecture,
+                "identifier": {
+                    "publisher": gallery_image_publisher,
+                    "offer": gallery_image_offer,
+                    "sku": gallery_image_sku,
+                },
+            }
+            if gallery_image_securitytype:
+                image_post_body["features"] = [
+                    {
+                        "name": "SecurityType",
+                        "value": gallery_image_securitytype,
+                    }
+                ]
+            operation = compute_client.gallery_images.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_image_name,
+                image_post_body,
+            )
+            wait_operation(operation)
+        else:
+            raise LisaException(ex)
+
+
+def check_or_create_gallery_image_version(
+    platform: "AzurePlatform",
+    gallery_resource_group_name: str,
+    gallery_name: str,
+    gallery_image_name: str,
+    gallery_image_version: str,
+    gallery_image_location: str,
+    regional_replica_count: int,
+    storage_account_type: str,
+    host_caching_type: str,
+    vhd_path: str,
+    vhd_resource_group_name: str,
+    vhd_storage_account_name: str,
+    gallery_image_target_regions: List[str],
+) -> None:
+    try:
+        compute_client = get_compute_client(platform)
+        compute_client.gallery_image_versions.get(
+            gallery_resource_group_name,
+            gallery_name,
+            gallery_image_name,
+            gallery_image_version,
+        )
+    except Exception as ex:
+        # create the gallery if specified gallery name doesn't exist
+        if "ResourceNotFound" in str(ex):
+            target_regions: List[Dict[str, str]] = []
+            for target_region in gallery_image_target_regions:
+                target_regions.append(
+                    {
+                        "name": target_region,
+                        "regional_replica_count": str(regional_replica_count),
+                        "storage_account_type": storage_account_type,
+                    }
+                )
+            image_version_post_body = {
+                "location": gallery_image_location,
+                "publishing_profile": {"target_regions": target_regions},
+                "storageProfile": {
+                    "osDiskImage": {
+                        "hostCaching": host_caching_type,
+                        "source": {
+                            "uri": vhd_path,
+                            "id": (
+                                f"/subscriptions/{platform.subscription_id}/"
+                                f"resourceGroups/{vhd_resource_group_name}"
+                                "/providers/Microsoft.Storage/storageAccounts/"
+                                f"{vhd_storage_account_name}"
+                            ),
+                        },
+                    },
+                },
+            }
+            operation = compute_client.gallery_image_versions.begin_create_or_update(
+                gallery_resource_group_name,
+                gallery_name,
+                gallery_image_name,
+                gallery_image_version,
+                image_version_post_body,
+            )
+            wait_operation(operation)
+        else:
+            raise LisaException(ex)
+
+
+def check_blob_exist(
+    platform: "AzurePlatform",
+    account_name: str,
+    container_name: str,
+    resource_group_name: str,
+    blob_name: str,
+) -> bool:
+    container_client = get_or_create_storage_container(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        account_name=account_name,
+        container_name=container_name,
+        resource_group_name=resource_group_name,
+    )
+    blob_client = container_client.get_blob_client(blob_name)
+    return blob_client.exists()
 
 
 class DataDisk:

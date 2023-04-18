@@ -10,11 +10,10 @@ import re
 import sys
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
-from threading import Lock
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
@@ -37,7 +36,6 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
-from azure.storage.blob import BlobClient
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
@@ -88,8 +86,8 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
-    generate_sas_token,
     get_compute_client,
+    get_deployable_vhd_path,
     get_environment_context,
     get_marketplace_ordering_client,
     get_node_context,
@@ -97,11 +95,10 @@ from .common import (
     get_primary_ip_addresses,
     get_resource_management_client,
     get_storage_account_name,
-    get_storage_client,
+    get_vhd_details,
     get_vm,
     global_credential_access_lock,
     save_console_log,
-    wait_copy_blob,
     wait_operation,
 )
 from .tools import Uname, VmGeneration, Waagent
@@ -166,35 +163,6 @@ KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 ATTRIBUTE_FEATURES = "features"
-
-# https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
-# st=2022-01-19T06%3A25%3A16Z&se=2022-01-19T06%3A25%3A00Z&sr=b&
-# sp=r&sig=DdBu3FTHQr1%2BzIY%2FdS054IlsDQ1RdfjfL3FgRgexgeo%3D
-# https://abcdefg.blob.storage.azure.net/1b33rftmpdhs/abcdefg?
-# sv=2018-03-28&sr=b&si=11111111-feff-4312-bba2-3ca6eabf9b24&
-# sig=xdZaRwJBwu3P2pYbQ3uEmymlovFwHrtQNVWDHyK48sg%3D
-SAS_URL_PATTERN = re.compile(
-    r"^https://.*?(?:\.blob\.core\.windows\.net|"
-    r"blob\.storage\.azure\.net)/.*?\?sv=[^&]+?(?:&st=[^&]+)?"
-    r"(?:&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?)|.*?&sig=.*?$"
-)
-SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
-
-# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/galleries/xxxx
-# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Storage/storageAccounts/xxxx
-RESOURCE_GROUP_PATTERN = re.compile(r"resourceGroups/(.*)/providers", re.M)
-# https://sc.blob.core.windows.net/container/xxxx/xxxx/xxxx.vhd
-STORAGE_CONTAINER_BLOB_PATTERN = re.compile(
-    r"https://(?P<sc>.*)"
-    r"(?:\.blob\.core\.windows\.net|blob\.storage\.azure\.net)"
-    r"/(?P<container>[^/]+)/?/(?P<blob>.*)",
-    re.M,
-)
-
-# The timeout hours of the blob with copy pending status
-# If the blob is still copy pending status after the timeout hours, it can be deleted
-BLOB_COPY_PENDING_TIMEOUT_HOURS = 6
-_global_sas_vhd_copy_lock = Lock()
 
 
 @dataclass_json()
@@ -1184,12 +1152,12 @@ class AzurePlatform(Platform):
         if azure_node_runbook.vhd and azure_node_runbook.vhd.vhd_path:
             # vhd is higher priority
             vhd = azure_node_runbook.vhd
-            vhd.vhd_path = self._get_deployable_vhd_path(
-                vhd.vhd_path, azure_node_runbook.location, log
+            vhd.vhd_path = get_deployable_vhd_path(
+                self, vhd.vhd_path, azure_node_runbook.location, log
             )
             if vhd.vmgs_path:
-                vhd.vmgs_path = self._get_deployable_vhd_path(
-                    vhd.vmgs_path, azure_node_runbook.location, log
+                vhd.vmgs_path = get_deployable_vhd_path(
+                    self, vhd.vmgs_path, azure_node_runbook.location, log
                 )
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
@@ -1248,12 +1216,12 @@ class AzurePlatform(Platform):
         if arm_parameters.vhd and arm_parameters.vhd.vhd_path:
             # vhd is higher priority
             vhd = arm_parameters.vhd
-            vhd.vhd_path = self._get_deployable_vhd_path(
-                vhd.vhd_path, arm_parameters.location, log
+            vhd.vhd_path = get_deployable_vhd_path(
+                self, vhd.vhd_path, arm_parameters.location, log
             )
             if vhd.vmgs_path:
-                vhd.vmgs_path = self._get_deployable_vhd_path(
-                    vhd.vmgs_path, arm_parameters.location, log
+                vhd.vmgs_path = get_deployable_vhd_path(
+                    self, vhd.vmgs_path, arm_parameters.location, log
                 )
             arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
@@ -1626,6 +1594,51 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        # for below vm sizes, there are 2 nics
+        # but the accelerated networking can only be applied to a single NIC
+        # there is no API to expose this information
+        # so hardcode its max nic count to 1
+        if (
+            schema.NetworkDataPath.Sriov in node_space.network_interface.data_path
+            and resource_sku.name
+            in [
+                "Standard_D2as_v5",
+                "Standard_D2a_v4",
+                "Standard_D2as_v4",
+                "Standard_DS1_v2",
+                "Standard_D1_v2",
+                "Standard_D2als_v5",
+                "Standard_D2ads_v5",
+                "Standard_DC2ads_v5",
+                "Standard_DC2as_v5",
+                "Standard_D2_v3",
+                "Standard_D2_v4",
+                "Standard_D2s_v3",
+                "Standard_D2s_v4",
+                "Standard_D2ds_v4",
+                "Standard_D2d_v4",
+                "Standard_D2ds_v5",
+                "Standard_E2s_v3",
+                "Standard_E2s_v4",
+                "Standard_E2as_v5",
+                "Standard_E2d_v4",
+                "Standard_E2ads_v5",
+                "Standard_E2as_v4",
+                "Standard_E2_v3",
+                "Standard_E2a_v4",
+                "Standard_E2_v5",
+                "Standard_E2ds_v4",
+                "Standard_EC2as_v5",
+                "Standard_E2_v4",
+                "Standard_EC2ads_v5",
+                "Standard_F1",
+                "Standard_F1s",
+                "Standard_F2s_v2",
+            ]
+        ):
+            node_space.network_interface.max_nic_count = 1
+            node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
+
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)
@@ -1878,221 +1891,6 @@ class AzurePlatform(Platform):
 
         return min_cap
 
-    def _generate_sas_token(self, result_dict: Dict[str, str]) -> Any:
-        sc_name = result_dict["account_name"]
-        container_name = result_dict["container_name"]
-        rg = result_dict["resource_group_name"]
-        blob_name = result_dict["blob_name"]
-
-        source_container_client = get_or_create_storage_container(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=sc_name,
-            container_name=container_name,
-            resource_group_name=rg,
-        )
-        source_blob = source_container_client.get_blob_client(blob_name)
-        sas_token = generate_sas_token(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=sc_name,
-            resource_group_name=rg,
-        )
-        source_url = source_blob.url + "?" + sas_token
-        return source_url
-
-    @lru_cache(maxsize=10)  # noqa: B019
-    def _get_deployable_vhd_path(
-        self, vhd_path: str, location: str, log: Logger
-    ) -> str:
-        """
-        The sas url is not able to create a vm directly, so this method check if
-        the vhd_path is a sas url. If so, copy it to a location in current
-        subscription, so it can be deployed.
-        """
-        matches = SAS_URL_PATTERN.match(vhd_path)
-        if not matches:
-            vhd_details = self._get_vhd_details(vhd_path)
-            vhd_location = vhd_details["location"]
-            if location == vhd_location:
-                return vhd_path
-            else:
-                vhd_path = self._generate_sas_token(vhd_details)
-                matches = SAS_URL_PATTERN.match(vhd_path)
-                assert matches, f"fail to generate sas url for {vhd_path}"
-                log.debug(
-                    f"the vhd location {location} is not same with running case "
-                    f"location {vhd_location}, generate a sas url for source vhd, "
-                    f"it needs to be copied into location {location}."
-                )
-        else:
-            log.debug("found the vhd is a sas url, it may need to be copied.")
-
-        original_vhd_path = vhd_path
-
-        storage_name = get_storage_account_name(
-            subscription_id=self.subscription_id, location=location, type_="t"
-        )
-
-        check_or_create_storage_account(
-            self.credential,
-            self.subscription_id,
-            storage_name,
-            self._azure_runbook.shared_resource_group_name,
-            location,
-            log,
-        )
-
-        normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("-", vhd_path)
-        year = matches["year"] if matches["year"] else "9999"
-        month = matches["month"] if matches["month"] else "01"
-        day = matches["day"] if matches["day"] else "01"
-        # use the expire date to generate the path. It's easy to identify when
-        # the cache can be removed.
-        vhd_path = f"{year}{month}{day}/{normalized_vhd_name}.vhd"
-        full_vhd_path = self._copy_vhd_to_storage(
-            storage_name, original_vhd_path, vhd_path, log
-        )
-        return full_vhd_path
-
-    def _copy_vhd_to_storage(
-        self, storage_name: str, src_vhd_sas_url: str, dst_vhd_name: str, log: Logger
-    ) -> str:
-        # get original vhd's hash key for comparing.
-        original_key: Optional[bytearray] = None
-        original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
-        properties = original_blob_client.get_blob_properties()
-        if properties.content_settings:
-            original_key = properties.content_settings.get(
-                "content_md5", None
-            )  # type: ignore
-
-        container_client = get_or_create_storage_container(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=storage_name,
-            container_name=SAS_COPIED_CONTAINER_NAME,
-            resource_group_name=self._azure_runbook.shared_resource_group_name,
-        )
-        full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
-
-        # lock here to prevent a vhd is copied in multi-thread
-        cached_key: Optional[bytearray] = None
-        with _global_sas_vhd_copy_lock:
-            blobs = container_client.list_blobs(name_starts_with=dst_vhd_name)
-            blob_client = container_client.get_blob_client(dst_vhd_name)
-            vhd_exists = False
-            for blob in blobs:
-                if blob:
-                    # check if hash key matched with original key.
-                    if blob.content_settings:
-                        cached_key = blob.content_settings.get(
-                            "content_md5", None
-                        )  # type: ignore
-                    if self._is_stuck_copying(blob_client, log):
-                        # Delete the stuck vhd.
-                        blob_client.delete_blob(delete_snapshots="include")
-                    elif original_key and cached_key:
-                        if original_key == cached_key:
-                            log.debug("the sas url is copied already, use it directly.")
-                            vhd_exists = True
-                        else:
-                            log.debug("found cached vhd, but the hash key mismatched.")
-                    else:
-                        log.debug(
-                            "No md5 content either in original blob or current blob. "
-                            "Then no need to check the hash key"
-                        )
-                        vhd_exists = True
-
-            if not vhd_exists:
-                azcopy_path = self._azure_runbook.azcopy_path
-                if azcopy_path:
-                    log.info(f"AzCopy path: {azcopy_path}")
-                    if not os.path.exists(azcopy_path):
-                        raise LisaException(f"{azcopy_path} does not exist")
-
-                    sas_token = generate_sas_token(
-                        credential=self.credential,
-                        subscription_id=self.subscription_id,
-                        account_name=storage_name,
-                        resource_group_name=self._azure_runbook.shared_resource_group_name,  # noqa: E501
-                        writable=True,
-                    )
-                    dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
-                    log.info(f"copying vhd by azcopy {dst_vhd_name}")
-                    try:
-                        local().execute(
-                            f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
-                            expected_exit_code=0,
-                            expected_exit_code_failure_message=(
-                                "Azcopy failed to copy the blob"
-                            ),
-                            timeout=60 * 60,
-                        )
-                    except Exception as identifier:
-                        blob_client.delete_blob(delete_snapshots="include")
-                        raise LisaException(f"{identifier}")
-
-                    # Set metadata to mark the blob copied by AzCopy successfully
-                    metadata = {"AzCopyStatus": "Success"}
-                    blob_client.set_blob_metadata(metadata)
-                else:
-                    blob_client.start_copy_from_url(
-                        src_vhd_sas_url, metadata=None, incremental_copy=False
-                    )
-
-            wait_copy_blob(blob_client, dst_vhd_name, log)
-
-        return full_vhd_path
-
-    def _is_stuck_copying(self, blob_client: BlobClient, log: Logger) -> bool:
-        props = blob_client.get_blob_properties()
-        copy_status = props.copy.status
-        if copy_status == "pending":
-            if props.creation_time:
-                delta_hours = (
-                    datetime.now(timezone.utc) - props.creation_time
-                ).seconds / (60 * 60)
-            else:
-                delta_hours = 0
-
-            if delta_hours > BLOB_COPY_PENDING_TIMEOUT_HOURS:
-                log.debug(
-                    "the blob is pending more than "
-                    f"{BLOB_COPY_PENDING_TIMEOUT_HOURS} hours."
-                )
-                return True
-        return False
-
-    def _get_vhd_details(self, vhd_path: str) -> Any:
-        matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
-        assert matched, f"fail to get matched info from {vhd_path}"
-        sc_name = matched.group("sc")
-        container_name = matched.group("container")
-        blob_name = matched.group("blob")
-        storage_client = get_storage_client(self.credential, self.subscription_id)
-        # sometimes it will fail for below reason if list storage accounts like this way
-        # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-        # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
-        sc_list = storage_client.storage_accounts.list()
-        found_sc = None
-        for sc in sc_list:
-            if sc.name == sc_name:
-                found_sc = sc
-                break
-        assert (
-            found_sc
-        ), f"storage account {sc_name} not found in subscription {self.subscription_id}"
-        rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
-        return {
-            "location": found_sc.location,
-            "resource_group_name": rg,
-            "account_name": sc_name,
-            "container_name": container_name,
-            "blob_name": blob_name,
-        }
-
     def _generate_data_disks(
         self,
         node: Node,
@@ -2207,7 +2005,7 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
-        result_dict = self._get_vhd_details(blob_url)
+        result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
             subscription_id=self.subscription_id,
