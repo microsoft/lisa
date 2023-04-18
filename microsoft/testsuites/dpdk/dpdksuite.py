@@ -643,7 +643,7 @@ class Dpdk(TestSuite):
         forwarder_ip = forwarder_nic.ip_addr
         forwarder_devices = forwarder_nic.pci_slot
 
-        sender_nic = sender.nics.get_nic_by_index()
+        sender_nic = sender.nics.get_nic_by_index(1)
         sender_mac = sender_nic.mac_addr
 
         # setup forwarding rules

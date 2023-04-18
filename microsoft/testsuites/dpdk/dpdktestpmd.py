@@ -230,7 +230,7 @@ class DpdkTestpmd(Tool):
                 )
             if nic.bound_driver == "hv_netvsc":
                 if self.is_mana:
-                    vdev_info += f'--vdev="{nic.pci_slot}" -a "{nic.pci_slot}" '
+                    vdev_info += f'--vdev="net_vdev_netvsc,mac={nic.mac_addr}" -a "{nic.pci_slot}" '
                     return vdev_info
                 else:
                     vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
@@ -362,7 +362,7 @@ class DpdkTestpmd(Tool):
         return (
             f"{self._testpmd_install_path} {core_args} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2 "
+            "-a --stats-period 2 --nb-cores=4"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
