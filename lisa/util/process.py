@@ -17,10 +17,15 @@ import spur  # type: ignore
 from assertpy.assertpy import AssertionBuilder, assert_that, fail
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util import LisaException, filter_ansi_escape
+from lisa.util import LisaException, RequireUserPasswordException, filter_ansi_escape
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell, SshShell
+
+# [sudo] password for lisatest: \r\nsudo: timed out reading password
+REQUIRE_INPUT_PASSWORD_PATTERN = re.compile(
+    r"\[sudo\] password for.+\r\nsudo: timed out reading password"
+)
 
 
 @dataclass
@@ -288,6 +293,7 @@ class Process:
             == spur.ssh.ShellTypes.minimal
         ):
             self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._check_if_need_input_password(self._result.stdout)
 
         return self._result
 
@@ -395,6 +401,15 @@ class Process:
                 f"{self._shell.spawn_initialization_error_string}"
             )
         return raw_input
+
+    def _check_if_need_input_password(self, raw_input: str) -> None:
+        # Check if the stdout contains "[sudo] password for .*: " and
+        # "sudo: timed out reading password" strings. If so, raise exception
+        if re.search(REQUIRE_INPUT_PASSWORD_PATTERN, raw_input):
+            raise RequireUserPasswordException(
+                "Running commands with sudo requires user's password,"
+                " which is not support in Lisa now"
+            )
 
 
 def _create_exports(update_envs: Dict[str, str]) -> str:
