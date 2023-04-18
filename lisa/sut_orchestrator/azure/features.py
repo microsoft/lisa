@@ -1387,6 +1387,15 @@ class Resize(AzureFeatureMixin, features.Resize):
         # Get list of vm sizes available in the current location
         location_info = platform.get_location_info(node_runbook.location, self._log)
         capabilities = [value for _, value in location_info.capabilities.items()]
+        filter_capabilities = []
+        # Filter out the vm sizes that are not available for IaaS deployment
+        for capability in capabilities:
+            if any(
+                cap
+                for cap in capability.resource_sku["capabilities"]
+                if cap["name"] == "VMDeploymentTypes" and "IaaS" in cap["value"]
+            ):
+                filter_capabilities.append(capability)
         sorted_sizes = platform.get_sorted_vm_sizes(capabilities, self._log)
 
         current_vm_size = next(
