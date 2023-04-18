@@ -287,6 +287,13 @@ class KernelPanicException(LisaException):
         return f"{self.stage} found panic in {self.source}: {self.panics}"
 
 
+class RequireUserPasswordException(LisaException):
+    """
+    This exception is used to indicate the exception that running commands
+    require an input of user password
+    """
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
