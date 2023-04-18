@@ -1594,6 +1594,51 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        # for below vm sizes, there are 2 nics
+        # but the accelerated networking can only be applied to a single NIC
+        # there is no API to expose this information
+        # so hardcode its max nic count to 1
+        if (
+            schema.NetworkDataPath.Sriov in node_space.network_interface.data_path
+            and resource_sku.name
+            in [
+                "Standard_D2as_v5",
+                "Standard_D2a_v4",
+                "Standard_D2as_v4",
+                "Standard_DS1_v2",
+                "Standard_D1_v2",
+                "Standard_D2als_v5",
+                "Standard_D2ads_v5",
+                "Standard_DC2ads_v5",
+                "Standard_DC2as_v5",
+                "Standard_D2_v3",
+                "Standard_D2_v4",
+                "Standard_D2s_v3",
+                "Standard_D2s_v4",
+                "Standard_D2ds_v4",
+                "Standard_D2d_v4",
+                "Standard_D2ds_v5",
+                "Standard_E2s_v3",
+                "Standard_E2s_v4",
+                "Standard_E2as_v5",
+                "Standard_E2d_v4",
+                "Standard_E2ads_v5",
+                "Standard_E2as_v4",
+                "Standard_E2_v3",
+                "Standard_E2a_v4",
+                "Standard_E2_v5",
+                "Standard_E2ds_v4",
+                "Standard_EC2as_v5",
+                "Standard_E2_v4",
+                "Standard_EC2ads_v5",
+                "Standard_F1",
+                "Standard_F1s",
+                "Standard_F2s_v2",
+            ]
+        ):
+            node_space.network_interface.max_nic_count = 1
+            node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
+
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)
