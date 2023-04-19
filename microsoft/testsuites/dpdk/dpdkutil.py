@@ -427,10 +427,7 @@ def init_nodes_concurrent(
 
 
 def verify_dpdk_build(
-    node: Node,
-    log: Logger,
-    variables: Dict[str, Any],
-    pmd: str,
+    node: Node, log: Logger, variables: Dict[str, Any], pmd: str, queues: int = 1
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(node, log, variables, pmd)
@@ -440,10 +437,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_nic_by_index(1)
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic,
-        0,
-        "txonly",
-        pmd,
+        test_nic, 0, "txonly", pmd, rxq=queues, txq=queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()

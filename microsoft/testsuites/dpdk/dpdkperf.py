@@ -42,7 +42,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=16,
             min_count=1,
             network_interface=Sriov(),
             min_nic_count=2,
@@ -57,7 +57,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "failsafe")
+        sender_kit = verify_dpdk_build(node, log, variables, "failsafe", queues=4)
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -87,7 +87,7 @@ class DpdkPerformance(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=16,
             min_count=1,
             network_interface=Sriov(),
             min_nic_count=2,
@@ -102,7 +102,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "netvsc")
+        sender_kit = verify_dpdk_build(node, log, variables, "netvsc", queues=4)
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
