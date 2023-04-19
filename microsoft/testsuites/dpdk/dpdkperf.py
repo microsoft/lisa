@@ -4,6 +4,7 @@ from assertpy import assert_that
 
 from lisa import (
     Logger,
+    Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -19,6 +20,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
     UnsupportedPackageVersionException,
+    verify_dpdk_build,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -41,11 +43,101 @@ class DpdkPerformance(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_core_count=8,
+            min_count=1,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            unsupported_features=[Gpu, Infiniband],
+            # supported_features=[IsolatedResource],
+        ),
+    )
+    def perf_dpdk_send_only_failsafe_pmd(
+        self,
+        node: Node,
+        result: TestResult,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        sender_kit = verify_dpdk_build(node, log, variables, "failsafe")
+        sender_fields: Dict[str, Any] = {}
+        test_case_name = result.runtime_data.metadata.name
+        # shared results fields
+
+        sender_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+        sender_fields["test_type"] = "performance"
+
+        # send side fields
+        sender = sender_kit.testpmd
+        sender_fields["role"] = "sender"
+        sender_fields["tx_pps_maximum"] = sender.get_max_tx_pps()
+        sender_fields["tx_pps_average"] = sender.get_mean_tx_pps()
+        sender_fields["tx_pps_minimum"] = sender.get_min_tx_pps()
+
+        send_results = create_perf_message(
+            NetworkPPSPerformanceMessage,
+            node,
+            result,
+            test_case_name,
+            sender_fields,
+        )
+        notifier.notify(send_results)
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, minimal core count
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_count=1,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            unsupported_features=[Gpu, Infiniband],
+            # supported_features=[IsolatedResource],
+        ),
+    )
+    def perf_dpdk_send_only_netvsc_pmd(
+        self,
+        node: Node,
+        result: TestResult,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        sender_kit = verify_dpdk_build(node, log, variables, "netvsc")
+        sender_fields: Dict[str, Any] = {}
+        test_case_name = result.runtime_data.metadata.name
+        # shared results fields
+
+        sender_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+        sender_fields["test_type"] = "performance"
+
+        # send side fields
+        sender = sender_kit.testpmd
+        sender_fields["role"] = "sender"
+        sender_fields["tx_pps_maximum"] = sender.get_max_tx_pps()
+        sender_fields["tx_pps_average"] = sender.get_mean_tx_pps()
+        sender_fields["tx_pps_minimum"] = sender.get_min_tx_pps()
+
+        send_results = create_perf_message(
+            NetworkPPSPerformanceMessage,
+            node,
+            result,
+            test_case_name,
+            sender_fields,
+        )
+        notifier.notify(send_results)
+
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: failsafe mode, minimal core count
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_failsafe_pmd_minimal(
@@ -67,7 +159,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_netvsc_pmd_minimal(
@@ -90,7 +182,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_failsafe_pmd_multi_queue(
@@ -118,7 +210,7 @@ class DpdkPerformance(TestSuite):
             min_nic_count=2,
             min_core_count=16,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_netvsc_pmd_multi_queue(

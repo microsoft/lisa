@@ -431,7 +431,7 @@ def verify_dpdk_build(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-) -> None:
+) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(node, log, variables, pmd)
     testpmd = test_kit.testpmd
@@ -454,6 +454,7 @@ def verify_dpdk_build(
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
+    return DpdkTestResources(node, testpmd)
 
 
 def verify_dpdk_send_receive(
