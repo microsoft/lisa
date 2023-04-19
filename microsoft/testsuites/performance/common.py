@@ -32,6 +32,7 @@ from lisa.tools import (
     Ssh,
 )
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
+from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
 
 
@@ -363,6 +364,15 @@ def perf_ntttcp(
 
             perf_ntttcp_message_list.append(ntttcp_message)
     finally:
+        error_msg = ""
+        throw_error = False
+        for node in [client, server]:
+            if not node.is_connected:
+                error_msg += f" VM {node.name} can't be connected, "
+                throw_error = True
+        if throw_error:
+            error_msg += "probably due to VM stuck on reboot stage."
+            raise LisaException(error_msg)
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
         for lagscope in [client_lagscope, server_lagscope]:
