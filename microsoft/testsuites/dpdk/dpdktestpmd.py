@@ -4,6 +4,7 @@
 import re
 import time
 from pathlib import PurePosixPath
+from time import sleep
 from typing import Any, List, Pattern, Tuple, Type, Union
 
 from assertpy import assert_that, fail
@@ -220,7 +221,11 @@ class DpdkTestpmd(Tool):
         vdev_info = ""
         self.node.log.info(f"Running test with {len(include_nics)} nics.")
         for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
+            if (
+                self.is_mana
+                or self._dpdk_version_info
+                and self._dpdk_version_info >= "18.11.0"
+            ):
                 vdev_name = "net_vdev_netvsc"
                 vdev_flags = f"iface={nic.upper},force=1"
             else:
@@ -228,14 +233,14 @@ class DpdkTestpmd(Tool):
                 vdev_flags = (
                     f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
                 )
+
             if nic.bound_driver == "hv_netvsc":
                 if self.is_mana:
-                    vdev_info += f'--vdev="net_vdev_netvsc,mac={nic.mac_addr}" -a "{nic.pci_slot}" '
-                    return vdev_info
-                else:
-                    vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
+                    vdev_flags = f"mac={nic.mac_addr}"
+                vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
             elif nic.bound_driver == "uio_hv_generic":
-                pass
+                if self.is_mana:
+                    return f'-a "{nic.pci_slot}"'  # f'--vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
             else:
                 fail(
                     (
@@ -326,7 +331,7 @@ class DpdkTestpmd(Tool):
             extra_args += f" --txq={txq} --rxq={rxq}  "
 
         if self.is_mana:
-            extra_args += "--txd=256 --rxd=256 "
+            extra_args += "--txd=128 --rxd=128 "
 
         cores_available = self.node.tools[Lscpu].get_core_count()
         # Just use whatever cores are available.
@@ -349,7 +354,7 @@ class DpdkTestpmd(Tool):
             rounded_cores, rounded_queues
         )  # use enough cores for (queues + service core) or max available
 
-        if (len(core_list) % 2) != 0:
+        if (use_cores % 2) != 0:
             self.node.log.debug(
                 (
                     "NOTE: odd amount of cores in core list. "
@@ -358,23 +363,32 @@ class DpdkTestpmd(Tool):
             )
 
         # core range argument
-        core_list = f"1-{use_cores}"
+        core_list = f"-l 1-{use_cores+1}"
+        if extra_args:
+            extra_args = extra_args.strip()
+        else:
+            extra_args = ""
         assert_that(use_cores).described_as(
             ("DPDK tests need to leave at least one core as a service core. ")
         ).is_greater_than(2)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
+            "--log-level eal,debug --log-level mana,debug "
+            f"{nic_include_info} -- --forward-mode={mode} "
             "-a --stats-period 2 "
-            f"--nb-cores={use_cores-1}"  # leaving one core for stats printing
+            f"--nb-cores={txq+rxq+1} {extra_args}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
+        delay_start = 0
+        if "rxonly" in cmd:
+            timeout *= 2
+        if "txonly" in cmd:
+            delay_start = 10
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, delay_start=delay_start
         )
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
