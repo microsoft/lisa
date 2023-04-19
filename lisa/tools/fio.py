@@ -219,11 +219,7 @@ class Fio(Tool):
             if other_fields:
                 result_copy.update(other_fields)
             fio_result_message = create_perf_message(
-                DiskPerformanceMessage,
-                self.node,
-                test_result,
-                test_name,
-                result_copy,
+                DiskPerformanceMessage, self.node, test_result, test_name, result_copy
             )
             fio_message.append(fio_result_message)
         return fio_message
