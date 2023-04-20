@@ -2179,21 +2179,36 @@ class AzurePlatform(Platform):
         error: str = ""
         if node_runbook.vm_size:
             # find the vm_size
-            allowed_vm_sizes = self._get_normalized_vm_sizes(
+            allowed_vm_sizes_raw = self._get_normalized_vm_sizes(
                 name=node_runbook.vm_size, location=location, log=log
             )
 
             # Some preview vm size may not be queried from the list.
             # Force to add.
-            if not allowed_vm_sizes:
+            if not allowed_vm_sizes_raw:
                 log.debug(
                     f"no vm size matched '{node_runbook.vm_size}' on location "
                     f"'{location}', using the raw string as vm size name."
                 )
-                allowed_vm_sizes = [node_runbook.vm_size]
+                allowed_vm_sizes_raw = [node_runbook.vm_size]
         else:
             location_info = self.get_location_info(location, log)
-            allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
+            allowed_vm_sizes_raw = [
+                key for key, _ in location_info.capabilities.items()
+            ]
+
+        allowed_vm_sizes = allowed_vm_sizes_raw
+        if node_runbook.excluded_vm_sizes:
+            patterns = re.compile("|".join(node_runbook.excluded_vm_sizes))
+            allowed_vm_sizes = [
+                x for x in allowed_vm_sizes_raw if not patterns.search(x)
+            ]
+            if not allowed_vm_sizes:
+                error = (
+                    f"no vm size found in '{location}', "
+                    f"after excluding '{node_runbook.excluded_vm_sizes}'"
+                )
+                return [], error
 
         # build the capability of vm sizes. The information is useful to
         # check quota.
