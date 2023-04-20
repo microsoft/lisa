@@ -448,12 +448,14 @@ class StoragePerformance(TestSuite):
     def _perf_premium_datadisks(
         self,
         node: Node,
+        log: Logger,
         test_result: TestResult,
         disk_setup_type: DiskSetupType = DiskSetupType.raw,
         disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
         max_iodepth: int = 256,
     ) -> None:
+        log.debug(f"Executing the FIO testcase : {node.capability.disk.disk_controller_type}")
         if node.capability.disk.disk_controller_type == schema.DiskControllerType.NVME :
             nvme = node.features[Nvme]
             nvme_namespaces = nvme.get_namespaces()
