@@ -399,6 +399,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 self.local_log_path / "node.log", self.log
             )
             self._first_initialize = True
+        import traceback
+
+        self.log.info(f"Stack trace: {traceback.format_stack()}")
         self.log.info(f"initializing node '{self.name}' {self}")
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
