@@ -195,6 +195,7 @@ class AzureNodeSchema:
     # It decides the real computer name. It cannot be too long.
     short_name: str = ""
     vm_size: str = ""
+    eligible_vm_sizes: Optional[List[str]] = None
     # Specifies the minimum OS disk size. The size of the disk that gets provisioned
     # may be larger than this depending on other requirements set by VHD, marketplace
     # image etc but it will never be smaller.
