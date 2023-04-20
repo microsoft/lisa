@@ -448,8 +448,8 @@ class StoragePerformance(TestSuite):
     def _perf_premium_datadisks(
         self,
         node: Node,
-        log: Logger,
         test_result: TestResult,
+        log: Logger,
         disk_setup_type: DiskSetupType = DiskSetupType.raw,
         disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
