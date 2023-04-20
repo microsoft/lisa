@@ -26,6 +26,15 @@ variable:
   - name: admin_password
     value: ""
     is_secret: true
+  - name: nested_image_username
+    value: ""
+    is_case_visible: true
+  - name: nested_image_password
+    value: ""
+    is_case_visible: true
+  - name: nested_image_url
+    value: ""
+    is_case_visible: true
 concurrency: $(concurrency)
 notifier:
   - type: html
