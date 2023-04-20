@@ -61,7 +61,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks_nvme(node, result)
+        self._perf_premium_datadisks(node, result)
 
     @TestCaseMetadata(
         description="""
@@ -78,7 +78,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks_nvme(node, result, block_size=1024)
+        self._perf_premium_datadisks(node, result, block_size=1024)
 
     @TestCaseMetadata(
         description="""
@@ -454,17 +454,39 @@ class StoragePerformance(TestSuite):
         block_size: int = 4,
         max_iodepth: int = 256,
     ) -> None:
-        disk = node.features[Disk]
-        data_disks = disk.get_raw_data_disks()
-        disk_count = len(data_disks)
-        assert_that(disk_count).described_as(
-            "At least 1 data disk for fio testing."
-        ).is_greater_than(0)
-        partition_disks = reset_partitions(node, data_disks)
-        filename = ":".join(partition_disks)
+        if node.capability.disk.disk_controller_type == schema.DiskControllerType.NVME :
+            nvme = node.features[Nvme]
+            nvme_namespaces = nvme.get_namespaces()
+            disk_count = len(nvme_namespaces)
+            assert_that(disk_count).described_as(
+                "At least 1 data disk for fio testing."
+            ).is_greater_than(0)
+            filename = ":".join(nvme_namespaces)
+            echo = node.tools[Echo]
+            # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
+            # if they are not on the same NUMA node of completion CPU.
+            # This setting will give a better and more stable IOPS.
+            for nvme_namespace in nvme_namespaces:
+                # /dev/nvme0n1 => nvme0n1
+                disk_name = nvme_namespace.split("/")[-1]
+                echo.write_to_file(
+                    "0",
+                    node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
+                    sudo=True,
+                )
+        else:
+            disk = node.features[Disk]
+            data_disks = disk.get_raw_data_disks()
+            disk_count = len(data_disks)
+            assert_that(disk_count).described_as(
+                "At least 1 data disk for fio testing."
+            ).is_greater_than(0)
+            partition_disks = reset_partitions(node, data_disks)
+            filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
+
         perf_disk(
             node,
             start_iodepth,
