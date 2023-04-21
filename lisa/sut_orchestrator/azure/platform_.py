@@ -628,6 +628,10 @@ class AzurePlatform(Platform):
     def _get_kernel_version(self, node: Node) -> str:
         result: str = ""
 
+        if node.is_connected and node.is_posix:
+            linux_information = node.tools[Uname].get_linux_information()
+            result = linux_information.kernel_version_raw
+
         if not result and hasattr(node, ATTRIBUTE_FEATURES):
             # try to get kernel version in Azure. use it, when uname doesn't work
             node.log.debug("detecting kernel version from serial log...")
