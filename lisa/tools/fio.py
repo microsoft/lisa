@@ -61,15 +61,14 @@ class Fio(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
+        install_from_src = False
         try:
             posix_os.install_packages("fio")
         except Exception as e:
+            install_from_src = True
             self._log.debug(f"failed to install fio from package: {e}")
-        if not self._check_exists() and isinstance(self.node.os, Redhat):
-            posix_os.install_packages(
-                "https://rpmfind.net/linux/dag/redhat/el7/en/x86_64/dag/RPMS/"
-                "fio-2.1.10-1.el7.rf.x86_64.rpm"
-            )
+        if not self._check_exists() and install_from_src:
+            self._install_from_src()
         return self._check_exists()
 
     def launch(
@@ -329,6 +328,20 @@ class Fio(Tool):
 
     def _install_from_src(self) -> bool:
         self._install_dep_packages()
+        if (
+            isinstance(self.node.os, Redhat)
+            and self.node.os.information.version < "8.0.0"
+        ):
+            posix_os: Posix = cast(Posix, self.node.os)
+            posix_os.install_packages(
+                packages="devtoolset-7-gcc*", extra_args=["--skip-broken"]
+            )
+            self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
+            self.node.execute(
+                "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                sudo=True,
+                shell=True,
+            )
         tool_path = self.get_tool_path()
         self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]
