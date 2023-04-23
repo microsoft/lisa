@@ -65,7 +65,11 @@ class Fio(Tool):
             posix_os.install_packages("fio")
         except Exception as e:
             self._log.debug(f"failed to install fio from package: {e}")
-            self._install_from_src()
+        if not self._check_exists() and isinstance(self.node.os, Redhat):
+            posix_os.install_packages(
+                "https://rpmfind.net/linux/dag/redhat/el7/en/x86_64/dag/RPMS/"
+                "fio-2.1.10-1.el7.rf.x86_64.rpm"
+            )
         return self._check_exists()
 
     def launch(
