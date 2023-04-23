@@ -61,13 +61,11 @@ class Fio(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        install_from_src = False
         try:
             posix_os.install_packages("fio")
         except Exception as e:
-            install_from_src = True
             self._log.debug(f"failed to install fio from package: {e}")
-        if not self._check_exists() and install_from_src:
+        if not self._check_exists():
             self._install_from_src()
         return self._check_exists()
 
