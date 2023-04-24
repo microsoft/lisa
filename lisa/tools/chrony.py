@@ -1,13 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from pathlib import PurePath
 from typing import cast
 
 from retry import retry
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import Cat, CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.tools.ls import Ls
 from lisa.util import LisaException
 
 from .echo import Echo
@@ -81,3 +83,18 @@ class Chrony(Tool):
         if self.__service_not_ready in cmd_result.stdout:
             raise LisaException("chrony sourcestats is not ready, retry.")
         cmd_result.assert_exit_code()
+
+    def set_makestep(self, step: str) -> None:
+        content = ""
+        if self.node.tools[Ls].path_exists("/etc/chrony.conf", sudo=True):
+            cat = self.node.tools[Cat]
+            content = cat.read("/etc/chrony.conf", sudo=True, force_run=True)
+            content = content.replace("makestep", "# makestep")
+
+        # update makestep value
+        content += f"\nmakestep {step}\n"
+
+        # write back to /etc/chrony.conf
+        self.node.tools[Echo].write_to_file(
+            content, PurePath("/etc/chrony.conf"), sudo=True
+        )
