@@ -28,7 +28,7 @@ from lisa.tools import (
     Swap,
     Sysctl,
 )
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, constants, find_patterns_in_lines
 
 
 @dataclass
@@ -145,8 +145,9 @@ class Ltp(Tool):
         self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
 
         # write output to log path
+        local_ltp_output_path = PurePath(log_path) / "ltp-output.log"
         self.node.shell.copy_back(
-            PurePosixPath(self.LTP_OUTPUT_PATH), PurePath(log_path) / "ltp-output.log"
+            PurePosixPath(self.LTP_OUTPUT_PATH), local_ltp_output_path
         )
 
         # write results to log path
@@ -180,6 +181,9 @@ class Ltp(Tool):
                 result.status,
                 other_fields=info,
             )
+            subtest_message.log_file = local_ltp_output_path.relative_to(
+                constants.RUN_LOCAL_LOG_PATH
+            ).as_posix()
 
             # notify subtest result
             notifier.notify(subtest_message)

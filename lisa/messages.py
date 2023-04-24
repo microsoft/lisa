@@ -93,6 +93,7 @@ class SubTestMessage(TestResultMessageBase):
     hardware_platform: str = ""
     type: str = "SubTestResult"
     parent_test: str = ""
+    log_file: str = ""
 
 
 class NetworkProtocol(str, Enum):
