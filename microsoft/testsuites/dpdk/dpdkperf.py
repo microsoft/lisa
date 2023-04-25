@@ -57,7 +57,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "failsafe", queues=4)
+        sender_kit = verify_dpdk_build(node, log, variables, "failsafe", queues=8)
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -102,7 +102,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "netvsc", queues=4)
+        sender_kit = verify_dpdk_build(node, log, variables, "netvsc", queues=8)
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -270,8 +270,8 @@ class DpdkPerformance(TestSuite):
         )
 
         # pass result messages to notifier
-        for message in result_messages:
-            notifier.notify(message)
+        send, _ = result_messages
+        notifier.notify(send)
 
     def _create_pps_performance_results(
         self,
@@ -295,11 +295,11 @@ class DpdkPerformance(TestSuite):
         sender_fields["tx_pps_minimum"] = sender.get_min_tx_pps()
 
         # receive side fields
-        receiver = receive_kit.testpmd
-        receiver_fields["role"] = "receiver/forwarder"
-        receiver_fields["rx_pps_maximum"] = receiver.get_max_rx_pps()
-        receiver_fields["rx_pps_average"] = receiver.get_mean_rx_pps()
-        receiver_fields["rx_pps_minimum"] = receiver.get_min_rx_pps()
+        # receiver = receive_kit.testpmd
+        # receiver_fields["role"] = "receiver/forwarder"
+        # receiver_fields["rx_pps_maximum"] = receiver.get_max_rx_pps()
+        # receiver_fields["rx_pps_average"] = receiver.get_mean_rx_pps()
+        # receiver_fields["rx_pps_minimum"] = receiver.get_min_rx_pps()
 
         send_results = create_perf_message(
             NetworkPPSPerformanceMessage,
