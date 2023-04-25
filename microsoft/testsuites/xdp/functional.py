@@ -1,12 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from typing import Any, List, cast
 
 from assertpy import assert_that
 
 from lisa import (
     Environment,
+    LisaException,
     Logger,
     Node,
     RemoteNode,
@@ -20,6 +21,7 @@ from lisa import (
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
+from lisa.util import get_matched_str
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
@@ -34,6 +36,11 @@ from microsoft.testsuites.xdp.xdptools import XdpTool
     """,
 )
 class XdpFunctional(TestSuite):
+    # sample output:
+    # 2458.952901 IP 20.83.220.172:unloading xdp program...
+    # unloading xdp program...
+    _UNLOAD_XDP_STR_PATTERN = re.compile("unloading xdp program...")
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         for node in environment.nodes.list():
@@ -493,6 +500,8 @@ class XdpFunctional(TestSuite):
         # xdpdump checks last line to see if it runs successfully.
         last_line = output.splitlines(keepends=False)[-1]
 
-        assert_that(last_line).described_as(
-            "failed on matching xdpdump result."
-        ).is_equal_to("unloading xdp program...")
+        if not get_matched_str(last_line, self._UNLOAD_XDP_STR_PATTERN):
+            raise LisaException(
+                "failed on matching xdpdump result, "
+                "expected: unloading xdp program..."
+            )

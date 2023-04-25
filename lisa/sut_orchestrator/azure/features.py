@@ -1387,6 +1387,15 @@ class Resize(AzureFeatureMixin, features.Resize):
         # Get list of vm sizes available in the current location
         location_info = platform.get_location_info(node_runbook.location, self._log)
         capabilities = [value for _, value in location_info.capabilities.items()]
+        filter_capabilities = []
+        # Filter out the vm sizes that are not available for IaaS deployment
+        for capability in capabilities:
+            if any(
+                cap
+                for cap in capability.resource_sku["capabilities"]
+                if cap["name"] == "VMDeploymentTypes" and "IaaS" in cap["value"]
+            ):
+                filter_capabilities.append(capability)
         sorted_sizes = platform.get_sorted_vm_sizes(capabilities, self._log)
 
         current_vm_size = next(
@@ -1860,6 +1869,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         check_or_create_storage_account(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=self.storage_account_name,
             resource_group_name=resource_group_name,
             location=location,
@@ -1871,6 +1881,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         get_or_create_file_share(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=self.storage_account_name,
             file_share_name=self.file_share_name,
             resource_group_name=resource_group_name,
@@ -1935,6 +1946,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         delete_file_share(
             platform.credential,
             platform.subscription_id,
+            platform.cloud,
             self.storage_account_name,
             self.file_share_name,
             resource_group_name,
@@ -1943,6 +1955,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         delete_storage_account(
             platform.credential,
             platform.subscription_id,
+            platform.cloud,
             self.storage_account_name,
             resource_group_name,
             self._log,
@@ -2236,3 +2249,16 @@ class Architecture(AzureFeatureMixin, Feature):
 
     def enabled(self) -> bool:
         return True
+
+
+class IaaS(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        deployment_types = raw_capabilities.get("VMDeploymentTypes", None)
+        if deployment_types and "IaaS" in deployment_types:
+            return schema.FeatureSettings.create(cls.name())
+
+        return None

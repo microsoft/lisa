@@ -52,6 +52,7 @@ from azure.storage.blob import (
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
+from msrestazure.azure_cloud import Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
 from retry import retry
 
@@ -551,6 +552,8 @@ def get_compute_client(
         credential=platform.credential,
         subscription_id=subscription_id,
         api_version=api_version,
+        base_url=platform.cloud.endpoints.resource_manager,
+        credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
 
 
@@ -562,11 +565,11 @@ def create_update_private_endpoints(
     private_link_service_id: str,
     group_ids: List[str],
     log: Logger,
-    private_endpoint_name: str = "pe_test",
-    status: str = "Approved",
-    description: str = "Auto-Approved",
 ) -> Any:
     network = get_network_client(platform)
+    private_endpoint_name = "pe_test"
+    status = "Approved"
+    description = "Auto-Approved"
     private_endpoint = network.private_endpoints.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_endpoint_name=private_endpoint_name,
@@ -596,9 +599,9 @@ def delete_private_endpoints(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_endpoint_name: str = "pe_test",
 ) -> None:
     network = get_network_client(platform)
+    private_endpoint_name = "pe_test"
     try:
         network.private_endpoints.get(
             resource_group_name=resource_group_name,
@@ -620,6 +623,8 @@ def get_private_dns_management_client(
     return PrivateDnsManagementClient(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        base_url=platform.cloud.endpoints.resource_manager,
+        credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
 
 
@@ -627,10 +632,13 @@ def create_update_private_zones(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
-    private_zone_location: str = "global",
 ) -> Any:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    private_zone_location = "global"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     private_zones = private_dns_client.private_zones.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_zone_name=private_zone_name,
@@ -645,9 +653,12 @@ def delete_private_zones(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     try:
         private_dns_client.private_zones.get(
             resource_group_name=resource_group_name,
@@ -679,11 +690,14 @@ def create_update_record_sets(
     resource_group_name: str,
     ipv4_address: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
-    relative_record_set_name: str = "privatelink",
-    record_type: str = "A",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    relative_record_set_name = "privatelink"
+    record_type = "A"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     private_dns_client.record_sets.create_or_update(
         resource_group_name=resource_group_name,
         private_zone_name=private_zone_name,
@@ -698,11 +712,14 @@ def delete_record_sets(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
-    relative_record_set_name: str = "privatelink",
-    record_type: str = "A",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    relative_record_set_name = "privatelink"
+    record_type = "A"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     try:
         private_dns_client.record_sets.get(
             resource_group_name=resource_group_name,
@@ -727,12 +744,15 @@ def create_update_virtual_network_links(
     resource_group_name: str,
     virtual_network_resource_id: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
-    virtual_network_link_name: str = "vnetlink",
-    registration_enabled: bool = False,
-    virtual_network_link_location: str = "global",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    virtual_network_link_name = "vnetlink"
+    registration_enabled = False
+    virtual_network_link_location = "global"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     private_dns_client.virtual_network_links.begin_create_or_update(
         resource_group_name=resource_group_name,
         private_zone_name=private_zone_name,
@@ -750,10 +770,13 @@ def delete_virtual_network_links(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_zone_name: str = "privatelink.file.core.windows.net",
-    virtual_network_link_name: str = "vnetlink",
 ) -> None:
     private_dns_client = get_private_dns_management_client(platform)
+    private_zone_name = "privatelink"
+    virtual_network_link_name = "vnetlink"
+    private_zone_name = ".".join(
+        [private_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     try:
         private_dns_client.virtual_network_links.get(
             resource_group_name=resource_group_name,
@@ -776,11 +799,14 @@ def create_update_private_dns_zone_groups(
     resource_group_name: str,
     private_dns_zone_id: str,
     log: Logger,
-    private_dns_zone_group_name: str = "default",
-    private_endpoint_name: str = "pe_test",
-    private_dns_zone_name: str = "privatelink.file.core.windows.net",
 ) -> None:
     network_client = get_network_client(platform)
+    private_dns_zone_group_name = "default"
+    private_endpoint_name = "pe_test"
+    private_dns_zone_name = "privatelink"
+    private_dns_zone_name = ".".join(
+        [private_dns_zone_name, "file", platform.cloud.suffixes.storage_endpoint]
+    )
     # network_client.private_dns_zone_groups.delete()
     network_client.private_dns_zone_groups.begin_create_or_update(
         resource_group_name=resource_group_name,
@@ -803,10 +829,10 @@ def delete_private_dns_zone_groups(
     platform: "AzurePlatform",
     resource_group_name: str,
     log: Logger,
-    private_dns_zone_group_name: str = "default",
-    private_endpoint_name: str = "pe_test",
 ) -> None:
     network_client = get_network_client(platform)
+    private_dns_zone_group_name = "default"
+    private_endpoint_name = "pe_test"
     try:
         network_client.private_dns_zone_groups.get(
             resource_group_name=resource_group_name,
@@ -843,23 +869,30 @@ def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
     return NetworkManagementClient(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        base_url=platform.cloud.endpoints.resource_manager,
+        credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
 
 
 def get_storage_client(
-    credential: Any, subscription_id: str
+    credential: Any, subscription_id: str, cloud: Cloud
 ) -> StorageManagementClient:
     return StorageManagementClient(
         credential=credential,
         subscription_id=subscription_id,
+        base_url=cloud.endpoints.resource_manager,
+        credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
 
 def get_resource_management_client(
-    credential: Any, subscription_id: str
+    credential: Any, subscription_id: str, cloud: Cloud
 ) -> ResourceManagementClient:
     return ResourceManagementClient(
-        credential=credential, subscription_id=subscription_id
+        credential=credential,
+        subscription_id=subscription_id,
+        base_url=cloud.endpoints.resource_manager,
+        credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
 
@@ -877,6 +910,8 @@ def get_marketplace_ordering_client(
     return MarketplaceOrderingAgreements(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        base_url=platform.cloud.endpoints.resource_manager,
+        credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
 
 
@@ -916,13 +951,17 @@ def wait_operation(
 
 
 def get_storage_credential(
-    credential: Any, subscription_id: str, account_name: str, resource_group_name: str
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    account_name: str,
+    resource_group_name: str,
 ) -> Any:
     """
     return a shared key credential. This credential doesn't need extra
      permissions to access blobs.
     """
-    storage_client = get_storage_client(credential, subscription_id)
+    storage_client = get_storage_client(credential, subscription_id, cloud)
     key = storage_client.storage_accounts.list_keys(
         account_name=account_name, resource_group_name=resource_group_name
     ).keys[0]
@@ -932,6 +971,7 @@ def get_storage_credential(
 def generate_blob_sas_token(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
     container_name: str,
@@ -941,6 +981,7 @@ def generate_blob_sas_token(
     shared_key_credential = get_storage_credential(
         credential=credential,
         subscription_id=subscription_id,
+        cloud=cloud,
         account_name=account_name,
         resource_group_name=resource_group_name,
     )
@@ -959,6 +1000,7 @@ def generate_blob_sas_token(
 def generate_sas_token(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
     expired_hours: int = 2,
@@ -966,6 +1008,7 @@ def generate_sas_token(
 ) -> Any:
     shared_key_credential = get_storage_credential(
         credential=credential,
+        cloud=cloud,
         subscription_id=subscription_id,
         account_name=account_name,
         resource_group_name=resource_group_name,
@@ -986,6 +1029,7 @@ def generate_sas_token(
 def get_blob_service_client(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
 ) -> BlobServiceClient:
@@ -995,11 +1039,13 @@ def get_blob_service_client(
     shared_key_credential = get_storage_credential(
         credential=credential,
         subscription_id=subscription_id,
+        cloud=cloud,
         account_name=account_name,
         resource_group_name=resource_group_name,
     )
     blob_service_client = BlobServiceClient(
-        f"https://{account_name}.blob.core.windows.net", shared_key_credential
+        f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
+        shared_key_credential,
     )
     return blob_service_client
 
@@ -1007,6 +1053,7 @@ def get_blob_service_client(
 def get_or_create_storage_container(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     container_name: str,
     resource_group_name: str,
@@ -1015,7 +1062,11 @@ def get_or_create_storage_container(
     Create a Azure Storage container if it does not exist.
     """
     blob_service_client = get_blob_service_client(
-        credential, subscription_id, account_name, resource_group_name
+        credential,
+        subscription_id,
+        cloud,
+        account_name,
+        resource_group_name,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
@@ -1026,6 +1077,7 @@ def get_or_create_storage_container(
 def check_or_create_storage_account(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
     location: str,
@@ -1039,7 +1091,7 @@ def check_or_create_storage_account(
     # is too big, Azure may not able to delete deployment script on time. so there
     # will be error like below
     # Creating the deployment 'name' would exceed the quota of '800'.
-    storage_client = get_storage_client(credential, subscription_id)
+    storage_client = get_storage_client(credential, subscription_id, cloud)
     try:
         storage_client.storage_accounts.get_properties(
             account_name=account_name,
@@ -1065,11 +1117,12 @@ def check_or_create_storage_account(
 def delete_storage_account(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
     log: Logger,
 ) -> None:
-    storage_client = get_storage_client(credential, subscription_id)
+    storage_client = get_storage_client(credential, subscription_id, cloud)
     try:
         storage_client.storage_accounts.get_properties(
             account_name=account_name,
@@ -1088,11 +1141,14 @@ def delete_storage_account(
 def check_or_create_resource_group(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     resource_group_name: str,
     location: str,
     log: Logger,
 ) -> None:
-    with get_resource_management_client(credential, subscription_id) as rm_client:
+    with get_resource_management_client(
+        credential, subscription_id, cloud
+    ) as rm_client:
         with global_credential_access_lock:
             az_shared_rg_exists = rm_client.resource_groups.check_existence(
                 resource_group_name
@@ -1130,6 +1186,7 @@ def copy_vhd_to_storage(
     container_client = get_or_create_storage_container(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        cloud=platform.cloud,
         account_name=storage_name,
         container_name=SAS_COPIED_CONTAINER_NAME,
         resource_group_name=platform._azure_runbook.shared_resource_group_name,
@@ -1175,6 +1232,7 @@ def copy_vhd_to_storage(
                 sas_token = generate_sas_token(
                     credential=platform.credential,
                     subscription_id=platform.subscription_id,
+                    cloud=platform.cloud,
                     account_name=storage_name,
                     resource_group_name=platform._azure_runbook.shared_resource_group_name,  # noqa: E501
                     writable=True,
@@ -1237,17 +1295,19 @@ def wait_copy_blob(
 def get_share_service_client(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     resource_group_name: str,
 ) -> ShareServiceClient:
     shared_key_credential = get_storage_credential(
         credential=credential,
         subscription_id=subscription_id,
+        cloud=cloud,
         account_name=account_name,
         resource_group_name=resource_group_name,
     )
     share_service_client = ShareServiceClient(
-        f"https://{account_name}.file.core.windows.net",
+        f"https://{account_name}.file.{cloud.suffixes.storage_endpoint}",
         shared_key_credential,
     )
     return share_service_client
@@ -1256,6 +1316,7 @@ def get_share_service_client(
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     file_share_name: str,
     resource_group_name: str,
@@ -1266,7 +1327,11 @@ def get_or_create_file_share(
     Create a Azure Storage file share if it does not exist.
     """
     share_service_client = get_share_service_client(
-        credential, subscription_id, account_name, resource_group_name
+        credential,
+        subscription_id,
+        cloud,
+        account_name,
+        resource_group_name,
     )
     all_shares = list(share_service_client.list_shares())
     if file_share_name not in (x.name for x in all_shares):
@@ -1278,6 +1343,7 @@ def get_or_create_file_share(
 def delete_file_share(
     credential: Any,
     subscription_id: str,
+    cloud: Cloud,
     account_name: str,
     file_share_name: str,
     resource_group_name: str,
@@ -1287,7 +1353,11 @@ def delete_file_share(
     Delete Azure Storage file share
     """
     share_service_client = get_share_service_client(
-        credential, subscription_id, account_name, resource_group_name
+        credential,
+        subscription_id,
+        cloud,
+        account_name,
+        resource_group_name,
     )
     log.debug(f"deleting file share {file_share_name}")
     share_service_client.delete_share(file_share_name)
@@ -1448,7 +1518,9 @@ def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
     sc_name = matched.group("sc")
     container_name = matched.group("container")
     blob_name = matched.group("blob")
-    storage_client = get_storage_client(platform.credential, platform.subscription_id)
+    storage_client = get_storage_client(
+        platform.credential, platform.subscription_id, platform.cloud
+    )
     # sometimes it will fail for below reason if list storage accounts like this way
     # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
     # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
@@ -1482,6 +1554,7 @@ def _generate_sas_token_for_vhd(
     source_container_client = get_or_create_storage_container(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        cloud=platform.cloud,
         account_name=sc_name,
         container_name=container_name,
         resource_group_name=rg,
@@ -1490,6 +1563,7 @@ def _generate_sas_token_for_vhd(
     sas_token = generate_sas_token(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        cloud=platform.cloud,
         account_name=sc_name,
         resource_group_name=rg,
     )
@@ -1533,6 +1607,7 @@ def get_deployable_vhd_path(
     check_or_create_storage_account(
         platform.credential,
         platform.subscription_id,
+        platform.cloud,
         storage_name,
         platform._azure_runbook.shared_resource_group_name,
         location,
@@ -1735,6 +1810,7 @@ def check_blob_exist(
     container_client = get_or_create_storage_container(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
+        cloud=platform.cloud,
         account_name=account_name,
         container_name=container_name,
         resource_group_name=resource_group_name,
