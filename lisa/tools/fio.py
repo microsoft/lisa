@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_perf_message
 from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, RepoNotExistException, constants
 from lisa.util.process import Process
 
 from .git import Git
@@ -63,8 +63,12 @@ class Fio(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         try:
             posix_os.install_packages("fio")
+        except RepoNotExistException as e:
+            raise e
         except Exception as e:
             self._log.debug(f"failed to install fio from package: {e}")
+
+        if not self._check_exists():
             self._install_from_src()
         return self._check_exists()
 
