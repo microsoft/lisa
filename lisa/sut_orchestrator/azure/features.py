@@ -1869,6 +1869,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         check_or_create_storage_account(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=self.storage_account_name,
             resource_group_name=resource_group_name,
             location=location,
@@ -1880,6 +1881,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         get_or_create_file_share(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=self.storage_account_name,
             file_share_name=self.file_share_name,
             resource_group_name=resource_group_name,
@@ -1944,6 +1946,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         delete_file_share(
             platform.credential,
             platform.subscription_id,
+            platform.cloud,
             self.storage_account_name,
             self.file_share_name,
             resource_group_name,
@@ -1952,6 +1955,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         delete_storage_account(
             platform.credential,
             platform.subscription_id,
+            platform.cloud,
             self.storage_account_name,
             resource_group_name,
             self._log,

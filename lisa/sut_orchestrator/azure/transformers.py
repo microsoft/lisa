@@ -201,6 +201,7 @@ class VhdTransformer(Transformer):
         check_or_create_storage_account(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             resource_group_name=runbook.shared_resource_group_name,
             location=location,
@@ -209,6 +210,7 @@ class VhdTransformer(Transformer):
         container_client = get_or_create_storage_container(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             container_name=runbook.container_name,
             resource_group_name=runbook.shared_resource_group_name,
@@ -526,6 +528,7 @@ class SharedGalleryImageTransformer(Transformer):
         check_or_create_resource_group(
             platform.credential,
             platform.subscription_id,
+            platform.cloud,
             runbook.gallery_resource_group_name,
             runbook.gallery_location,
             self._log,

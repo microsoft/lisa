@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from functools import lru_cache, partial
@@ -39,6 +39,13 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
+from msrestazure.azure_cloud import (  # type: ignore
+    AZURE_CHINA_CLOUD,
+    AZURE_GERMAN_CLOUD,
+    AZURE_PUBLIC_CLOUD,
+    AZURE_US_GOV_CLOUD,
+    Cloud,
+)
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -164,6 +171,13 @@ KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 ATTRIBUTE_FEATURES = "features"
 
+CLOUD: Dict[str, Dict[str, Any]] = {
+    "azurecloud": AZURE_PUBLIC_CLOUD,
+    "azurechinacloud": AZURE_CHINA_CLOUD,
+    "azuregermancloud": AZURE_GERMAN_CLOUD,
+    "azureusgovernment": AZURE_US_GOV_CLOUD,
+}
+
 
 @dataclass_json()
 @dataclass
@@ -196,6 +210,38 @@ class AzureLocation:
 
 @dataclass_json()
 @dataclass
+class CloudEndpointsSchema:
+    management: str = ""
+    resource_manager: str = ""
+    sql_management: str = ""
+    batch_resource_id: str = ""
+    gallery: str = ""
+    active_directory: str = ""
+    active_directory_resource_id: str = ""
+    active_directory_graph_resource_id: str = ""
+    microsoft_graph_resource_id: str = ""
+
+
+@dataclass_json()
+@dataclass
+class CloudSuffixesSchema:
+    storage_endpoint: str = ""
+    keyvault_dns: str = ""
+    sql_server_hostname: str = ""
+    azure_datalake_store_file_system_endpoint: str = ""
+    azure_datalake_analytics_catalog_and_job_endpoint: str = ""
+
+
+@dataclass_json()
+@dataclass
+class CloudSchema:
+    name: str
+    endpoints: CloudEndpointsSchema
+    suffixes: CloudSuffixesSchema
+
+
+@dataclass_json()
+@dataclass
 class AzurePlatformSchema:
     service_principal_tenant_id: str = field(
         default="",
@@ -216,6 +262,10 @@ class AzurePlatformSchema:
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
+    cloud_raw: Optional[Union[Dict[str, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="cloud")
+    )
+    _cloud: InitVar[Cloud] = None
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
@@ -295,6 +345,64 @@ class AzurePlatformSchema:
         if not self.locations:
             self.locations = LOCATIONS
 
+    @property
+    def cloud(self) -> Cloud:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_cloud"):
+            self._cloud: Cloud = None
+        cloud: Cloud = self._cloud
+        if not cloud:
+            # if pass str into cloud, it should be one of below values, case insensitive
+            #  azurecloud
+            #  azurechinacloud
+            #  azuregermancloud
+            #  azureusgovernment
+            # example
+            #   cloud: AzureCloud
+            if isinstance(self.cloud_raw, str):
+                cloud = CLOUD.get(self.cloud_raw.lower(), None)
+                assert cloud, (
+                    f"cannot find cloud type {self.cloud_raw},"
+                    f" current support list is {list(CLOUD.keys())}"
+                )
+            # if pass dict to construct a cloud instance, the full example is
+            #   cloud:
+            #     name: AzureCloud
+            #     endpoints:
+            #       management: https://management.core.windows.net/
+            #       resource_manager: https://management.azure.com/
+            #       sql_management: https://management.core.windows.net:8443/
+            #       batch_resource_id: https://batch.core.windows.net/
+            #       gallery: https://gallery.azure.com/
+            #       active_directory: https://login.microsoftonline.com
+            #       active_directory_resource_id: https://management.core.windows.net/
+            #       active_directory_graph_resource_id: https://graph.windows.net/
+            #       microsoft_graph_resource_id: https://graph.microsoft.com/
+            #     suffixes:
+            #       storage_endpoint: core.windows.net
+            #       keyvault_dns: .vault.azure.net
+            #       sql_server_hostname: .database.windows.net
+            #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
+            #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
+            elif isinstance(self.cloud_raw, dict):
+                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+                cloud = Cloud(
+                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
+                )
+            else:
+                # by default use azure public cloud
+                cloud = AZURE_PUBLIC_CLOUD
+            self._cloud = cloud
+        return cloud
+
+    @cloud.setter
+    def cloud(self, value: Optional[CloudSchema]) -> None:
+        self._cloud = value
+        if value is None:
+            self.cloud_raw = None
+        else:
+            self.cloud_raw = value.to_dict()  # type: ignore
+
 
 class AzurePlatform(Platform):
     _diagnostic_storage_container_pattern = re.compile(
@@ -311,6 +419,7 @@ class AzurePlatform(Platform):
 
         # for type detection
         self.credential: DefaultAzureCredential
+        self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
         # cannot be a class level variable.
@@ -463,6 +572,7 @@ class AzurePlatform(Platform):
                     check_or_create_resource_group(
                         self.credential,
                         subscription_id=self.subscription_id,
+                        cloud=self.cloud,
                         resource_group_name=resource_group_name,
                         location=location,
                         log=log,
@@ -581,6 +691,7 @@ class AzurePlatform(Platform):
                 container_client = get_or_create_storage_container(
                     credential=self.credential,
                     subscription_id=self.subscription_id,
+                    cloud=self.cloud,
                     account_name=storage_name,
                     container_name=container_name,
                     resource_group_name=self._azure_runbook.shared_resource_group_name,
@@ -778,18 +889,21 @@ class AzurePlatform(Platform):
         self._azure_runbook = azure_runbook
 
         self.subscription_id = azure_runbook.subscription_id
+        self.cloud = azure_runbook.cloud
+
         self._initialize_credential()
 
         check_or_create_resource_group(
             self.credential,
             self.subscription_id,
+            self.cloud,
             azure_runbook.shared_resource_group_name,
             azure_runbook.shared_resource_group_location,
             self._log,
         )
 
         self._rm_client = get_resource_management_client(
-            self.credential, self.subscription_id
+            self.credential, self.subscription_id, self.cloud
         )
 
     def _initialize_credential(self) -> None:
@@ -814,9 +928,16 @@ class AzurePlatform(Platform):
                 ] = azure_runbook.service_principal_client_id
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-            credential = DefaultAzureCredential()
 
-            with SubscriptionClient(credential) as self._sub_client:
+            credential = DefaultAzureCredential(
+                authority=self.cloud.endpoints.active_directory,
+            )
+
+            with SubscriptionClient(
+                credential,
+                base_url=self.cloud.endpoints.resource_manager,
+                credential_scopes=[self.cloud.endpoints.resource_manager + "/.default"],
+            ) as self._sub_client:
                 # suppress warning message by search for different credential types
                 azure_identity_logger = logging.getLogger("azure.identity")
                 azure_identity_logger.setLevel(logging.ERROR)
@@ -1329,6 +1450,7 @@ class AzurePlatform(Platform):
         check_or_create_storage_account(
             self.credential,
             self.subscription_id,
+            self.cloud,
             storage_account_name,
             self._azure_runbook.shared_resource_group_name,
             location,
@@ -2030,6 +2152,7 @@ class AzurePlatform(Platform):
         container_client = get_or_create_storage_container(
             credential=self.credential,
             subscription_id=self.subscription_id,
+            cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
             resource_group_name=result_dict["resource_group_name"],
