@@ -80,6 +80,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
         self.capture_azure_information: bool = False
+        self.is_password_authentication_type: Optional[bool] = None
 
     @property
     def shell(self) -> Shell:
@@ -105,6 +106,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             result = process.wait_result(10)
             if result.exit_code == 0:
                 self._support_sudo = True
+                self.check_sudo_password_required()
             else:
                 self._support_sudo = False
                 self.log.debug("node doesn't support sudo, may cause failure later.")
@@ -113,6 +115,52 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self._support_sudo = True
 
         return self._support_sudo
+
+    def check_sudo_password_required(self) -> None:
+        self.initialize()
+
+        # check if password is required when running command with sudo
+        if self.is_remote and self.is_posix:
+            process = self._execute("echo OK", shell=True, sudo=True, no_info_log=True)
+            result = process.wait_result(10)
+            if result.exit_code != 0 and "[sudo] password for" in result.stderr:
+                self.log.debug("Running command with sudo needs a password")
+                if not self.is_password_authentication_type:
+                    self.log.debug(
+                        "The authentication type is not password."
+                        " Try to reset password..."
+                    )
+                    ssh_shell = cast(SshShell, self.shell)
+                    username = ssh_shell._connection_info.username
+                    password = ssh_shell._connection_info.password
+                    if password:
+                        from lisa.features import ResetPassword
+
+                        if self.features.is_supported(ResetPassword):
+                            reset_password = self.features[ResetPassword]
+                            try:
+                                reset_password.reset_password(username, password)
+                            except Exception as identifier:
+                                self.log.debug(
+                                    f"error on resetting password: {identifier}"
+                                )
+                                return
+                    else:
+                        self.log.debug(
+                            "'Reset password' cannot be performed without password."
+                            " Please add a password in your runbook."
+                        )
+                        return
+
+                ssh_shell.set_sudo_password_required(True)
+                # Check again
+                process = self._execute(
+                    "echo OK", shell=True, sudo=True, no_info_log=True
+                )
+                result = process.wait_result(10)
+                if result.exit_code != 0:
+                    ssh_shell.set_sudo_password_required(False)
+                    self.log.debug("Running sudo command with password has error")
 
     @property
     def is_connected(self) -> bool:

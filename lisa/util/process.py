@@ -425,8 +425,8 @@ class Process:
         # "sudo: timed out reading password" strings. If so, raise exception
         if re.search(REQUIRE_INPUT_PASSWORD_PATTERN, raw_input):
             raise RequireUserPasswordException(
-                "Running commands with sudo requires user's password,"
-                " which is not support in Lisa now"
+                "Running commands with sudo requires user's password."
+                " Please add password in your runbook"
             )
 
 
