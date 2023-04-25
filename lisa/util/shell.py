@@ -249,11 +249,16 @@ class SshShell(InitializableMixin):
             port=self._connection_info.port,
         )
 
+        if self._connection_info.private_key_file:
+            password = None
+        else:
+            password = self._connection_info.password
+
         spur_kwargs = {
             "hostname": self._connection_info.address,
             "port": self._connection_info.port,
             "username": self._connection_info.username,
-            "password": self._connection_info.password,
+            "password": password,
             "private_key_file": self._connection_info.private_key_file,
             "missing_host_key": spur.ssh.MissingHostKey.accept,
             # There are too many servers in cloud, and they may reuse the same
