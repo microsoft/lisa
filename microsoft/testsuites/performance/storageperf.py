@@ -60,8 +60,10 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
-        self._perf_premium_datadisks(node, result)
+    def perf_premium_datadisks_4k(self, node: Node, result: TestResult,
+        log: Logger
+        ) -> None:
+        self._perf_premium_datadisks(node, result,log)
 
     @TestCaseMetadata(
         description="""
@@ -455,8 +457,8 @@ class StoragePerformance(TestSuite):
         block_size: int = 4,
         max_iodepth: int = 256,
     ) -> None:
-        log.debug(f"Executing the FIO testcase : {node.capability.disk.disk_controller_type}")
-        if node.capability.disk.disk_controller_type == schema.DiskControllerType.NVME :
+        disk = node.features[Disk]
+        if disk.is_asap_enabled :
             nvme = node.features[Nvme]
             nvme_namespaces = nvme.get_namespaces()
             disk_count = len(nvme_namespaces)
@@ -477,7 +479,6 @@ class StoragePerformance(TestSuite):
                     sudo=True,
                 )
         else:
-            disk = node.features[Disk]
             data_disks = disk.get_raw_data_disks()
             disk_count = len(data_disks)
             assert_that(disk_count).described_as(
@@ -489,55 +490,6 @@ class StoragePerformance(TestSuite):
         core_count = cpu.get_core_count()
         start_iodepth = 1
 
-        perf_disk(
-            node,
-            start_iodepth,
-            max_iodepth,
-            filename,
-            test_name=inspect.stack()[1][3],
-            core_count=core_count,
-            disk_count=disk_count,
-            disk_setup_type=disk_setup_type,
-            disk_type=disk_type,
-            numjob=core_count,
-            block_size=block_size,
-            size_mb=8192,
-            overwrite=True,
-            test_result=test_result,
-        )
-
-    def _perf_premium_datadisks_nvme(
-        self,
-        node: Node,
-        test_result: TestResult,
-        disk_setup_type: DiskSetupType = DiskSetupType.raw,
-        disk_type: DiskType = DiskType.nvme,
-        block_size: int = 4,
-        max_iodepth: int = 256,
-    ) -> None:
-        nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
-        disk_count = len(nvme_namespaces)
-        assert_that(disk_count).described_as(
-            "At least 1 data disk for fio testing."
-        ).is_greater_than(0)
-        filename = ":".join(nvme_namespaces)
-        echo = node.tools[Echo]
-        # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
-        # if they are not on the same NUMA node of completion CPU.
-        # This setting will give a better and more stable IOPS.
-        for nvme_namespace in nvme_namespaces:
-            # /dev/nvme0n1 => nvme0n1
-            disk_name = nvme_namespace.split("/")[-1]
-            echo.write_to_file(
-                "0",
-                node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
-                sudo=True,
-            )
-        cpu = node.tools[Lscpu]
-        core_count = cpu.get_core_count()
-        start_iodepth = 1
-        max_iodepth = 256
         perf_disk(
             node,
             start_iodepth,
