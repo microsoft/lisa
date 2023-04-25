@@ -230,6 +230,16 @@ class Process:
         timer = create_timer()
         is_timeout = False
 
+        if (
+            isinstance(self._shell, SshShell)
+            and self._sudo
+            and self._shell._is_sudo_password_required
+            and self.is_running()
+        ):
+            assert self._process
+            self._log.debug("input password when running sudo...")
+            self._process.stdin_write(f"{self._shell._connection_info.password}\n")
+
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
 
@@ -248,6 +258,10 @@ class Process:
                     output=self._log_buffer.getvalue(),
                     stderr_output="",
                 )
+                if not process_result.stderr_output:
+                    # When the process is timedout, self._stdout_writer._buffer might
+                    # have some information can tell the timeout reason
+                    process_result.stderr_output = self._stdout_writer._buffer
             else:
                 process_result = self._process.wait_for_result()
             if not self._is_posix and self._shell.is_remote:
@@ -375,6 +389,10 @@ class Process:
             lines = raw_input.splitlines(keepends=True)
             raw_input = "".join(lines[1:])
             self._log.debug(f'found error message in sudo: "{lines[0]}"')
+        if raw_input.startswith("[sudo] password for"):
+            lines = raw_input.splitlines(keepends=True)
+            raw_input = "".join(lines[1:])
+            self._log.debug(f'found sudo need password message in sudo: "{lines[0]}"')
         return raw_input
 
     def _filter_profile_error(self, raw_input: str) -> str:
