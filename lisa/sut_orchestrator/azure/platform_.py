@@ -271,6 +271,11 @@ class AzurePlatformSchema:
     resource_group_name: str = field(default="")
     # specify shared resource group location
     shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
+    # specify the locations which used to retrieve marketplace image information
+    # example: westus, westus2
+    marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
+        default=None
+    )
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
