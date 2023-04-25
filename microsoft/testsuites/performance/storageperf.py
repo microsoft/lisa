@@ -19,13 +19,22 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import Disk, Nvme
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import SLES, Debian, Redhat
 from lisa.testsuite import TestResult, node_requirement
-from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
+from lisa.tools import (
+    Echo,
+    FileSystem,
+    Lscpu,
+    Mkfs,
+    Mount,
+    NFSClient,
+    NFSServer,
+    Sysctl,
+)
 from lisa.util import SkippedException
 from microsoft.testsuites.performance.common import (
     perf_disk,
@@ -455,13 +464,34 @@ class StoragePerformance(TestSuite):
         max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
-        data_disks = disk.get_raw_data_disks()
-        disk_count = len(data_disks)
-        assert_that(disk_count).described_as(
-            "At least 1 data disk for fio testing."
-        ).is_greater_than(0)
-        partition_disks = reset_partitions(node, data_disks)
-        filename = ":".join(partition_disks)
+        if disk.is_asap_enabled :
+            nvme = node.features[Nvme]
+            nvme_namespaces = nvme.get_namespaces()
+            disk_count = len(nvme_namespaces)
+            assert_that(disk_count).described_as(
+                "At least 1 data disk for fio testing."
+            ).is_greater_than(0)
+            filename = ":".join(nvme_namespaces)
+            echo = node.tools[Echo]
+            # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
+            # if they are not on the same NUMA node of completion CPU.
+            # This setting will give a better and more stable IOPS.
+            for nvme_namespace in nvme_namespaces:
+                # /dev/nvme0n1 => nvme0n1
+                disk_name = nvme_namespace.split("/")[-1]
+                echo.write_to_file(
+                    "0",
+                    node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
+                    sudo=True,
+                )
+        else:
+            data_disks = disk.get_raw_data_disks()
+            disk_count = len(data_disks)
+            assert_that(disk_count).described_as(
+                "At least 1 data disk for fio testing."
+            ).is_greater_than(0)
+            partition_disks = reset_partitions(node, data_disks)
+            filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1

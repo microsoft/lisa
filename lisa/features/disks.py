@@ -64,6 +64,17 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
+    # Check if OS disk is of NVMe type to confirm ASAP enablement.
+    # Incase of ASAP VMs, disk controller is NVMe.
+    # Even non NVMe disks are treated as NVMe.
+    @property
+    def is_asap_enabled(self) -> bool:
+        os_disk = self.get_partition_with_mount_point("/")
+        if os_disk.disk == 'nvme' :
+            return True
+        else:
+            return False
+
 
 DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
 DiskPremiumSSDLRS = partial(
