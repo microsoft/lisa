@@ -573,7 +573,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_location,
         )
 
-        return {
-            self.__sig_name: f"{gallery.name}/{runbook.gallery_image_name}"
-            f"/{gallery_image_version}"
-        }
+        sig_url = f"{gallery.name}/{runbook.gallery_image_name}/{gallery_image_version}"
+
+        self._log.info(f"SIG Url: {sig_url}")
+        return {self.__sig_name: sig_url}
