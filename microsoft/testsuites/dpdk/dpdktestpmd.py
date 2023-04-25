@@ -230,7 +230,7 @@ class DpdkTestpmd(Tool):
                 )
             if nic.bound_driver == "hv_netvsc":
                 if self.is_mana:
-                    vdev_info += f'--vdev="net_vdev_netvsc,mac={nic.mac_addr}" -a "{nic.pci_slot}" '
+                    vdev_info += f' -a "{nic.pci_slot}" '
                     return vdev_info
                 else:
                     vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
@@ -326,7 +326,7 @@ class DpdkTestpmd(Tool):
             extra_args += f" --txq={txq} --rxq={rxq}  "
 
         if self.is_mana:
-            extra_args += "--txd=256 --rxd=256 "
+            extra_args += "--txd=128 --rxd=128 "
 
         cores_available = self.node.tools[Lscpu].get_core_count()
         # Just use whatever cores are available.
@@ -358,7 +358,7 @@ class DpdkTestpmd(Tool):
             )
 
         # core range argument
-        core_list = f"-l 1-{use_cores}"
+        core_list = f"-l 1-{use_cores+1}"
         assert_that(use_cores).described_as(
             ("DPDK tests need to leave at least one core as a service core. ")
         ).is_greater_than(2)
@@ -366,7 +366,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
             "-a --stats-period 2 "
-            f"--nb-cores={txq}"
+            f"--nb-cores={txq+rxq+1}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
