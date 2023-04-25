@@ -17,6 +17,7 @@ from .nested_virtualization import NestedVirtualization
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nfs import Nfs
 from .nvme import Nvme, NvmeSettings
+from .reset_password import ResetPassword
 from .resize import Resize, ResizeAction
 from .security_profile import (
     SecureBootEnabled,
@@ -48,6 +49,7 @@ __all__ = [
     "NvmeSettings",
     "SerialConsole",
     "NetworkInterface",
+    "ResetPassword",
     "Resize",
     "ResizeAction",
     "SecureBootEnabled",
