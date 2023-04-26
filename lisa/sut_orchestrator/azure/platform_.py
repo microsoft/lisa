@@ -1162,6 +1162,12 @@ class AzurePlatform(Platform):
                 node_context.password = self.runbook.admin_password
             node_context.private_key_file = self.runbook.admin_private_key_file
 
+            if arm_parameters.admin_key_data:
+                # private key has high priority to authentication type
+                node.is_password_authentication_type = False
+            else:
+                node.is_password_authentication_type = True
+
             # collect all features to handle special deployment logic. If one
             # node has this, it needs to run.
             if node.capability.features:

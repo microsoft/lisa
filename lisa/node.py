@@ -80,6 +80,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
         self.capture_azure_information: bool = False
+        self.is_password_authentication_type: Optional[bool] = None
 
     @property
     def shell(self) -> Shell:
@@ -289,6 +290,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug(f"capturing system information to {saved_path}.")
         self.os.capture_system_information(saved_path)
 
+    def check_and_add_user_access(self) -> None:
+        # This is only implemented in the remote node
+        return
+
     def find_partition_with_freespace(
         self, size_in_gb: int, use_os_drive: bool = True
     ) -> str:
@@ -403,6 +408,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
         self.capture_system_information("started")
+        self.check_and_add_user_access()
 
     def _execute(
         self,
@@ -569,6 +575,27 @@ class RemoteNode(Node):
         result = echo.run(working_path, shell=True)
 
         return self.get_pure_path(result.stdout)
+
+    def check_and_add_user_access(self) -> None:
+        # If admin_password is defined in runbook, but the authentication type is
+        # public key, then use VM access extension to reset password.
+        password = self.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PASSWORD]
+        if password and not self.is_password_authentication_type:
+            self.log.debug(
+                "password is defined, but the authentication type is not password."
+                " Try to use VM access extension to reset password..."
+            )
+            username = self.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_USERNAME
+            ]
+            from lisa.features import ResetPassword
+
+            if self.features.is_supported(ResetPassword):
+                reset_password = self.features[ResetPassword]
+                try:
+                    reset_password.reset_password(username, password)
+                except Exception as identifier:
+                    self.log.debug(f"error on resetting password: {identifier}")
 
 
 class LocalNode(Node):
