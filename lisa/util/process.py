@@ -22,11 +22,6 @@ from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell, SshShell
 
-# [sudo] password for lisatest: \r\nsudo: timed out reading password
-REQUIRE_INPUT_PASSWORD_PATTERN = re.compile(
-    r"\[sudo\] password for.+\r\nsudo: timed out reading password"
-)
-
 
 @dataclass
 class ExecutableResult:
@@ -221,6 +216,21 @@ class Process:
 
         return split_command
 
+    def check_and_input_password(self, output: str) -> None:
+        if (
+            self._sudo
+            and isinstance(self._shell, SshShell)
+            and "[sudo] password for" in output
+        ):
+            if not self._shell._connection_info.password:
+                raise RequireUserPasswordException(
+                    "Running commands with sudo requires user's password,"
+                    " but no password is defined"
+                )
+            self._shell.set_sudo_required_password(True)
+            assert self._process
+            self._process.stdin_write(f"{self._shell._connection_info.password}\n")
+
     def wait_result(
         self,
         timeout: float = 600,
@@ -230,8 +240,21 @@ class Process:
         timer = create_timer()
         is_timeout = False
 
+        if (
+            self._sudo
+            and isinstance(self._shell, SshShell)
+            and self._shell._is_sudo_required_password
+            and self.is_running()
+        ):
+            # Add a 0.5s delay to make sure the channel is ready to receive
+            time.sleep(0.5)
+            assert self._process
+            self._process.stdin_write(f"{self._shell._connection_info.password}\n")
+
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
+            if timer.elapsed(False) > 10:
+                self.check_and_input_password(self._stdout_writer._buffer)
 
         if timeout < timer.elapsed():
             if self._process is not None:
@@ -293,7 +316,15 @@ class Process:
             == spur.ssh.ShellTypes.minimal
         ):
             self._result.stdout = self._filter_profile_error(self._result.stdout)
-        self._check_if_need_input_password(self._result.stdout)
+
+        if (
+            self._sudo
+            and isinstance(self._shell, SshShell)
+            and self._shell._is_sudo_required_password
+        ):
+            self._result.stdout = self._filter_sudo_required_password_info(
+                self._result.stdout
+            )
 
         return self._result
 
@@ -402,14 +433,29 @@ class Process:
             )
         return raw_input
 
-    def _check_if_need_input_password(self, raw_input: str) -> None:
-        # Check if the stdout contains "[sudo] password for .*: " and
-        # "sudo: timed out reading password" strings. If so, raise exception
-        if re.search(REQUIRE_INPUT_PASSWORD_PATTERN, raw_input):
-            raise RequireUserPasswordException(
-                "Running commands with sudo requires user's password,"
-                " which is not support in Lisa now"
-            )
+    def _filter_sudo_required_password_info(self, raw_input: str) -> str:
+        # If system needs input of password when running commands with sudo, the output
+        # might have below lines:
+        # We trust you have received the usual lecture from the local System
+        # Administrator. It usually boils down to these three things:
+        #
+        #     #1) Respect the privacy of others.
+        #     #2) Think before you type.
+        #     #3) With great power comes great responsibility.
+        #
+        # [sudo] password for l****t:
+        # After inputting the right password, the output might have the following line
+        # when running commands with sudo next time.
+        # [sudo] password for l****t:
+        # Remove these lines
+        if raw_input.startswith("We trust you have received the usual lecture"):
+            lines = raw_input.splitlines(keepends=True)
+            raw_input = "".join(lines[7:])
+        if raw_input.startswith("[sudo] password for"):
+            lines = raw_input.splitlines(keepends=True)
+            raw_input = "".join(lines[1:])
+        self._log.debug("filter the sudo required passwrod string")
+        return raw_input
 
 
 def _create_exports(update_envs: Dict[str, str]) -> str:
