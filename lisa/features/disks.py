@@ -66,7 +66,7 @@ class Disk(Feature):
 
     # Check root partition's disk type to know the disk controller type
     @property
-    def disk_controller_type(self) -> bool:
+    def disk_controller_type(self) -> str:
         os_disk = self.get_partition_with_mount_point("/")
         return os_disk.disk
 
