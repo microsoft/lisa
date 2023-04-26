@@ -20,6 +20,8 @@ class Nvme(Feature):
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
     _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]$)", re.MULTILINE)
     # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n1
+    # ...
+    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n64
     _namespace_pattern = re.compile(
         r".*(?P<namespace>/dev/nvme[0-9]n[0-9]+$)", re.MULTILINE
     )

@@ -464,7 +464,7 @@ class StoragePerformance(TestSuite):
         max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
-        if disk.is_asap_enabled :
+        if disk.disk_controller_type == 'nvme':
             nvme = node.features[Nvme]
             nvme_namespaces = nvme.get_namespaces()
             disk_count = len(nvme_namespaces)
