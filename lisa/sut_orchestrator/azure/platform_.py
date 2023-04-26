@@ -1146,10 +1146,11 @@ class AzurePlatform(Platform):
             node_context.vm_name = azure_node_runbook.name
             # ssh related information will be filled back once vm is created. If
             # it's Windows, fill in the password always. If it's Linux, the
-            # private key has higher priority.
+            # private key has higher priority to connect a VM. The password is also
+            # filled in the node context if it is defined in runbook
             node_context.username = arm_parameters.admin_username
             if azure_node_runbook.is_linux:
-                node_context.password = arm_parameters.admin_password
+                node_context.password = self.runbook.admin_password
             else:
                 is_windows = True
                 if not self.runbook.admin_password:
