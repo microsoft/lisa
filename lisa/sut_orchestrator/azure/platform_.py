@@ -450,6 +450,7 @@ class AzurePlatform(Platform):
             features.NestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
+            features.ResetPassword,
             features.Resize,
             features.StartStop,
             features.IaaS,
