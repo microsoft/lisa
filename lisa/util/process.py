@@ -271,6 +271,10 @@ class Process:
                     output=self._log_buffer.getvalue(),
                     stderr_output="",
                 )
+                if not process_result.stderr_output:
+                    # When the process is timedout, self._stdout_writer._buffer might
+                    # have some information can tell the timeout reason
+                    process_result.stderr_output = self._stdout_writer._buffer
             else:
                 process_result = self._process.wait_for_result()
             if not self._is_posix and self._shell.is_remote:
