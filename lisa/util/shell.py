@@ -200,6 +200,7 @@ class SshShell(InitializableMixin):
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
+        self._is_sudo_required_password: Optional[bool] = None
         self.spawn_initialization_error_string = ""
 
         paramiko_logger = logging.getLogger("paramiko")
@@ -289,6 +290,9 @@ class SshShell(InitializableMixin):
         if self._inner_shell:
             is_inner_shell_ready = True
         return is_inner_shell_ready
+
+    def set_sudo_required_password(self, value: Optional[bool]) -> None:
+        self._is_sudo_required_password = value
 
     def spawn(
         self,
