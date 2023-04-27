@@ -63,10 +63,10 @@ class ScriptTransformer(Transformer):
 
             evaluator = simpleeval.SimpleEval(
                 # Update ex: DEFAULT_OPERATORS | {ast.BitXor, operator.xor}
-                operators=simpleeval.DEFAULT_OPERATORS | {},
+                operators=simpleeval.DEFAULT_OPERATORS.copy().update({}),
                 # Update ex: DEFAULT_FUNCTIONS | {'floor': math.floor}
-                functions=simpleeval.DEFAULT_FUNCTIONS | {},
-                names=simpleeval.DEFAULT_NAMES | variables,
+                functions=simpleeval.DEFAULT_FUNCTIONS.copy().update({}),
+                names=simpleeval.DEFAULT_NAMES.copy().update(variables),
             )
 
             try:
