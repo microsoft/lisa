@@ -242,6 +242,9 @@ class Process:
         if self._result is None:
             assert self._process
             if is_timeout:
+                # LogWriter only flushes if "\n" is written, so we need to flush
+                # manually.
+                self._stdout_writer.flush()
                 process_result = spur.results.result(
                     return_code=1,
                     allow_error=True,
