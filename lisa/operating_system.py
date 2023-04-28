@@ -1429,6 +1429,24 @@ class Redhat(Fedora):
         #  repo to resolve the issue.
         # Details please refer https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/redhat/redhat-rhui#azure-rhui-infrastructure # noqa: E501
         if "Red Hat" == information.vendor:
+            # there are some images contain multiple rhui packages, like below:
+            # rhui-azure-rhel8-2.2-198.noarch
+            # rhui-azure-rhel8-eus-2.2-198.noarch
+            # we need to remove the non-eus version, otherwise, yum update will fail
+            # for below reason:
+            #   Error: Transaction test error:
+            #   file /etc/cron.daily/rhui-update-client conflicts between attempted
+            #   installs of rhui-azure-rhel8-eus-2.2-485.noarch and
+            #   rhui-azure-rhel8-2.2-485.noarch
+            rhui_pacakges = self._node.execute(
+                "rpm -qa | grep -i rhui-azure",
+                shell=True,
+                sudo=True,
+            ).stdout
+            if "eus" in rhui_pacakges and len(rhui_pacakges.splitlines()) > 1:
+                for rhui_package in rhui_pacakges.splitlines():
+                    if "eus" not in rhui_package:
+                        self._node.execute(f"yum remove -y {rhui_package}", sudo=True)
             self._node.execute(
                 "yum update -y --disablerepo='*' --enablerepo='*microsoft*' ",
                 sudo=True,
