@@ -41,4 +41,4 @@ class Tee(Tool):
         if sudo:
             cmd = f"sudo {cmd}"
         cmd = f"{cmd} {str(file)}"
-        self.node.execute(f"echo '{value}' | {cmd}", *args, **kwargs)
+        self.node.execute(f"echo '{value}' | {cmd}", shell=True)

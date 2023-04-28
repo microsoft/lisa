@@ -12,7 +12,12 @@ class Timeout(Tool):
         return False
 
     def run_with_timeout(
-        self, command: str, timeout: int, signal: int = SIGTERM, kill_timeout: int = 0
+        self,
+        command: str,
+        timeout: int,
+        signal: int = SIGTERM,
+        kill_timeout: int = 0,
+        delay_start: int = 0,
     ) -> ExecutableResult:
         # timeout [OPTION] DURATION COMMAND [ARG]...
         params = f"-s {signal} --preserve-status {timeout} {command}"
@@ -21,7 +26,8 @@ class Timeout(Tool):
         command_timeout = timeout
         if kill_timeout:
             command_timeout = kill_timeout + 10
-
+        if delay_start:
+            self.node.execute(f"sleep {delay_start}")
         return self.run(
             parameters=params,
             force_run=True,
