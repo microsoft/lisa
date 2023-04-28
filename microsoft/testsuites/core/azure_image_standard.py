@@ -726,7 +726,7 @@ class AzureImageStandard(TestSuite):
                 )
                 assert_that(
                     is_repository_present,
-                    f"{id} repository should be present",
+                    f"{id_} repository should be present",
                 ).is_true()
         else:
             raise LisaException(f"Unsupported distro type : {type(node.os)}")
