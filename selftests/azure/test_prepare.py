@@ -17,10 +17,10 @@ from lisa.util.logger import get_logger
 
 class AzurePrepareTestCase(TestCase):
     @classmethod
-    def setUpClass(cls) -> None:
+    def setUpClass(cls):
         constants.CACHE_PATH = Path(__file__).parent
 
-    def setUp(self) -> None:
+    def setUp(self):
         self._log = get_logger("test", "azure")
 
         platform_runbook = schema.Platform()
@@ -33,7 +33,7 @@ class AzurePrepareTestCase(TestCase):
         for location in locations:
             self._platform.get_location_info(location, self._log)
 
-    def test_load_capability(self) -> None:
+    def test_load_capability(self):
         # capability can be loaded correct
         # expected test data is from json file
         assert self._platform._locations_data_cache
@@ -77,7 +77,7 @@ class AzurePrepareTestCase(TestCase):
         )
         self.assertEqual(4, node.gpu_count)
 
-    def test_not_eligible_dropped(self) -> None:
+    def test_not_eligible_dropped(self):
         # if a vm size doesn't exists, it should be dropped.
         # if a location is not eligible, it should be dropped.
         self.verify_exists_vm_size("westus3", "Standard_D8a_v3", True)
@@ -89,7 +89,7 @@ class AzurePrepareTestCase(TestCase):
         self.verify_eligible_vm_size("westus3", "notreal", False)
         self.assertTrue(notreal_key in self._platform._locations_data_cache)
 
-    def test_predefined_2nd_location(self) -> None:
+    def test_predefined_2nd_location(self):
         # location predefined in eastus, so all prepared skip westus3
         env = self.load_environment(node_req_count=2)
         self.verify_prepared_nodes(
@@ -110,7 +110,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefined_only_size(self) -> None:
+    def test_predefined_only_size(self):
         # predefined an eastus vm size, so all are to eastus
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 1, location="", vm_size="Standard_B1ls")
@@ -122,7 +122,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefined_with_3_nic(self) -> None:
+    def test_predefined_with_3_nic(self):
         # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
@@ -141,7 +141,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefined_inconsistent_location_failed(self) -> None:
+    def test_predefined_inconsistent_location_failed(self):
         # two locations westus3, and eastus predefined, so failed.
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 0, location="eastus")
@@ -154,7 +154,7 @@ class AzurePrepareTestCase(TestCase):
         )
         self.assertEqual(message, str(cm.exception)[0 : len(message)])
 
-    def test_no_predefined_location_use_default_locations(self) -> None:
+    def test_no_predefined_location_use_default_locations(self):
         # no predefined location found, use default location list
         env = self.load_environment(node_req_count=1)
         self.verify_prepared_nodes(
@@ -165,7 +165,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_use_predefined_vm_size(self) -> None:
+    def test_use_predefined_vm_size(self):
         # there is predefined vm size, and out of default scope, but use it
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="Standard_NV48s_v3")
@@ -178,7 +178,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefined_not_found_vm_size(self) -> None:
+    def test_predefined_not_found_vm_size(self):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="not_exist")
@@ -193,7 +193,7 @@ class AzurePrepareTestCase(TestCase):
             self.assertIsInstance(cm.exception, NotMeetRequirementException)
             self.assertIn("No capability found for Environment", str(cm.exception))
 
-    def test_predefined_not_found_vm_size_max_enabled(self) -> None:
+    def test_predefined_not_found_vm_size_max_enabled(self):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(
@@ -208,7 +208,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_predefined_wont_be_override(self) -> None:
+    def test_predefined_wont_be_override(self):
         # predefined node won't be overridden in loop
         env = self.load_environment(node_req_count=3)
         self.set_node_runbook(env, 1, location="", vm_size="Standard_A8_v2")
@@ -221,7 +221,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_partial_match(self) -> None:
+    def test_partial_match(self):
         # the "A2" should match Standard_A2_v2, instead of Standard_A2m_v2. The
         # test data has two Standard_A2m_v2, so the test case can guarantee the
         # problem won't be hidden by different behavior.
@@ -236,7 +236,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_normal_req_in_same_location(self) -> None:
+    def test_normal_req_in_same_location(self):
         # normal requirement will be in same location of predefined
         env = self.load_environment(node_req_count=2)
         self.set_node_runbook(env, 1, location="eastus", vm_size="")
@@ -248,7 +248,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_count_normal_cost(self) -> None:
+    def test_count_normal_cost(self):
         # predefined vm size also count the cost
         env = self.load_environment(node_req_count=2)
         self.verify_prepared_nodes(
@@ -259,7 +259,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_normal_may_fit_2nd_location(self) -> None:
+    def test_normal_may_fit_2nd_location(self):
         # normal req may fit into 2nd location, as 1st location not meet requirement
         env = self.load_environment(node_req_count=1)
         assert env.runbook._original_nodes_requirement
@@ -274,7 +274,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_normal_may_fit_2nd_batch_vm(self) -> None:
+    def test_normal_may_fit_2nd_batch_vm(self):
         # fit 2nd batch of candidates
         env = self.load_environment(node_req_count=1)
         assert env.runbook._original_nodes_requirement
@@ -289,7 +289,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_normal_with_3_nic(self) -> None:
+    def test_normal_with_3_nic(self):
         # 3 nic cannot be met by Standard_DS2_v2, as it support at most 2 nics
         # the code path of predefined and normal is different, so test it twice
         env = self.load_environment(node_req_count=1)
@@ -307,7 +307,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_multiple_locations(self) -> None:
+    def test_multiple_locations(self):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(
@@ -321,7 +321,7 @@ class AzurePrepareTestCase(TestCase):
             environment=env,
         )
 
-    def test_multiple_vm_sizes(self) -> None:
+    def test_multiple_vm_sizes(self):
         # vm size is not found
         env = self.load_environment(node_req_count=1)
         self.set_node_runbook(env, 0, location="", vm_size="A8_v2,NV48s_v3")
@@ -389,7 +389,7 @@ class AzurePrepareTestCase(TestCase):
         location: str = "",
         vm_size: str = "",
         max_capability: bool = False,
-    ) -> None:
+    ):
         assert environment.runbook._original_nodes_requirement
         node_runbook = environment.runbook._original_nodes_requirement[
             index
@@ -405,7 +405,7 @@ class AzurePrepareTestCase(TestCase):
         expected_vm_sizes: List[str],
         expected_cost: int,
         environment: Environment,
-    ) -> None:
+    ):
         actual_result = self._platform._prepare_environment(environment, self._log)
         self.assertEqual(expected_result, actual_result)
 
