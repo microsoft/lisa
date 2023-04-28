@@ -18,6 +18,7 @@ from lisa.util import (
     ContextMixin,
     InitializableMixin,
     LisaException,
+    RequireUserPasswordException,
     constants,
     fields_to_dict,
     get_datetime_path,
@@ -105,6 +106,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             result = process.wait_result(10)
             if result.exit_code == 0:
                 self._support_sudo = True
+                self.check_sudo_password_required()
             else:
                 self._support_sudo = False
                 self.log.debug("node doesn't support sudo, may cause failure later.")
@@ -113,6 +115,49 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self._support_sudo = True
 
         return self._support_sudo
+
+    def check_sudo_password_required(self) -> None:
+        # check if password is required when running command with sudo
+        if self.is_remote and self.is_posix:
+            process = self._execute(
+                "echo LISA_TEST_FOR_PASSWORD", shell=True, sudo=True, no_info_log=True
+            )
+            result = process.wait_result(10)
+            if result.exit_code != 0 and "[sudo] password for" in result.stdout:
+                self.log.debug(
+                    "Running commands with sudo in this node needs input of password."
+                )
+                ssh_shell = cast(SshShell, self.shell)
+                ssh_shell.is_sudo_required_password = True
+                if not ssh_shell.connection_info.password:
+                    raise RequireUserPasswordException(
+                        "Running commands with sudo requires user's password,"
+                        " but no password is provided."
+                    )
+                # ssh_shell.is_sudo_required_password is true, so running sudo command
+                # will input password in process.wait_result. Check running sudo again
+                # and get password prompts. For most images, after inputting a password
+                # successfully, the prompt is changed when running sudo command again.
+                # So check twice to get two kinds of prompt
+                password_prompts = []
+                for i in range(1, 3):
+                    process = self._execute(
+                        "echo LISA_TEST_FOR_PASSWORD",
+                        shell=True,
+                        sudo=True,
+                        no_info_log=True,
+                    )
+                    result = process.wait_result(10)
+                    if result.exit_code != 0:
+                        raise RequireUserPasswordException(
+                            "The password might be invalid for running sudo command"
+                        )
+                    password_prompt = result.stdout.replace(
+                        "LISA_TEST_FOR_PASSWORD", ""
+                    )
+                    password_prompts.append(password_prompt)
+                    self.log.debug(f"password prompt {i}: {password_prompt}")
+                ssh_shell.password_prompts = password_prompts
 
     @property
     def is_connected(self) -> bool:
