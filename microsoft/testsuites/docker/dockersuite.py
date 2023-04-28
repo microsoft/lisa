@@ -8,7 +8,7 @@ from pathlib import Path
 from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Redhat
+from lisa.operating_system import CentOs, Redhat
 from lisa.tools import Docker, DockerCompose
 from lisa.util import SkippedException, get_matched_str
 
@@ -25,10 +25,13 @@ from lisa.util import SkippedException, get_matched_str
 class DockerTestSuite(TestSuite):
     # Error: OCI runtime error: crun: /usr/bin/crun:
     # symbol lookup error: /usr/bin/crun: undefined symbol: criu_feature_check
-    ERROR_PATTERN = re.compile(
+    RHEL_ERROR_PATTERN = re.compile(
         r"Error: OCI runtime error: crun:.*symbol lookup error.*"
         r"undefined symbol: criu_feature_check",
         re.M,
+    )
+    CENTOS_ERROR_PATTERN = re.compile(
+        r"OCI runtime create failed: unable to retrieve OCI runtime error", re.M
     )
 
     @TestCaseMetadata(
@@ -228,9 +231,25 @@ class DockerTestSuite(TestSuite):
         # temp solution, will revert change once newer package
         # which can fix the issue release
         # refer https://access.redhat.com/discussions/6988326
-        if result.exit_code != 0 and get_matched_str(result.stdout, self.ERROR_PATTERN):
+        if result.exit_code != 0 and get_matched_str(
+            result.stdout, self.RHEL_ERROR_PATTERN
+        ):
             if isinstance(node.os, Redhat) and node.os.information.version >= "9.0.0":
                 node.os.install_packages("crun-1.4.5-2*")
+                result = node.execute(
+                    "docker run hello-world",
+                    sudo=True,
+                )
+
+        if result.exit_code != 0 and get_matched_str(
+            result.stdout, self.CENTOS_ERROR_PATTERN
+        ):
+            if isinstance(node.os, CentOs) and node.os.information.version >= "8.0.0":
+                node.execute("rpm -e libseccomp --nodeps", sudo=True)
+                node.os.install_packages(
+                    "http://rpmfind.net/linux/centos/8-stream/"
+                    "BaseOS/x86_64/os/Packages/libseccomp-2.5.1-1.el8.x86_64.rpm"
+                )
                 result = node.execute(
                     "docker run hello-world",
                     sudo=True,
