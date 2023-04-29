@@ -188,6 +188,14 @@ class Nics(InitializableMixin):
     def get_nic(self, nic_name: str) -> NicInfo:
         return self.nics[nic_name]
 
+    def get_primary_nic(self) -> NicInfo:
+        return self.get_nic_by_index(0)
+
+    def get_secondary_nic(self) -> NicInfo:
+        # get a nic which isn't servicing the SSH connection with lisa.
+        # will assert if none is present.
+        return self.get_nic_by_index(1)
+
     def get_nic_by_index(self, index: int = -1) -> NicInfo:
         # get nic by index, default is -1 to give a non-primary nic
         # when there are more than one nic on the system

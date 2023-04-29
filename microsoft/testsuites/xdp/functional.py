@@ -154,7 +154,7 @@ class XdpFunctional(TestSuite):
     ) -> None:
         # expect no response from the ping source side.
         captured_node = environment.nodes[0]
-        default_nic = captured_node.nics.get_nic_by_index(0)
+        default_nic = captured_node.nics.get_primary_nic()
         original_count = get_dropped_count(
             node=captured_node,
             nic=default_nic,
@@ -183,7 +183,7 @@ class XdpFunctional(TestSuite):
 
         # expect no packet from the ping target side
         captured_node = environment.nodes[1]
-        default_nic = captured_node.nics.get_nic_by_index(0)
+        default_nic = captured_node.nics.get_primary_nic()
         original_count = get_dropped_count(
             node=captured_node,
             nic=default_nic,
@@ -341,7 +341,7 @@ class XdpFunctional(TestSuite):
 
         nic_name = node.nics.default_nic
         nic_feature = node.features[NetworkInterface]
-        default_nic = node.nics.get_nic_by_index(0)
+        default_nic = node.nics.get_primary_nic()
 
         try:
             # validate xdp works with VF
@@ -371,7 +371,7 @@ class XdpFunctional(TestSuite):
             # disable VF
             nic_feature.switch_sriov(False)
 
-            default_nic = node.nics.get_nic_by_index(0)
+            default_nic = node.nics.get_primary_nic()
             # validate xdp works with synthetic
             original_count = get_dropped_count(
                 node=node,
@@ -399,7 +399,7 @@ class XdpFunctional(TestSuite):
             # enable VF and validate xdp works with VF again
             nic_feature.switch_sriov(True)
 
-            default_nic = node.nics.get_nic_by_index(0)
+            default_nic = node.nics.get_primary_nic()
             original_count = get_dropped_count(
                 node=node,
                 nic=default_nic,
