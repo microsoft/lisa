@@ -2104,6 +2104,9 @@ class AzurePlatform(Platform):
                     version=marketplace.version,
                 )
             except HttpResponseError as e:
+                # Code: ImageVersionDeprecated
+                if "ImageVersionDeprecated" in str(e):
+                    raise e
                 self._log.error(f"Could not find image info:\n {e}")
         return image_info
 
