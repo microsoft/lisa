@@ -274,8 +274,8 @@ class DpdkPerformance(TestSuite):
         )
 
         # pass result messages to notifier
-        send, _ = result_messages
-        notifier.notify(send)
+        for msg in result_messages:
+            notifier.notify(msg)
 
     def _create_pps_performance_results(
         self,
