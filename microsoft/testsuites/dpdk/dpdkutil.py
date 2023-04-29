@@ -158,9 +158,6 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
-
-
-
 def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
@@ -170,7 +167,7 @@ def generate_send_receive_run_info(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
-    snd_nic, rcv_nic = [x.node.nics.get_nic_by_index(1) for x in [sender, receiver]]
+    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -297,7 +294,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_nic_by_index(1)
+    test_nic = node.nics.get_secondary_nic()
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -423,7 +420,7 @@ def verify_dpdk_build(
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
-    test_nic = node.nics.get_nic_by_index(1)
+    test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         test_nic,

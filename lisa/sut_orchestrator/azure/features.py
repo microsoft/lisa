@@ -787,7 +787,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         if reset_connections:
             self._node.close()
         self._node.nics.reload()
-        default_nic = self._node.nics.get_nic_by_index(0)
+        default_nic = self._node.nics.get_primary_nic()
 
         if enabled and not default_nic.lower:
             raise LisaException("SRIOV is enabled, but VF is not found.")
