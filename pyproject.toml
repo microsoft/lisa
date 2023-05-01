@@ -52,7 +52,7 @@ azure = [
     "msrestazure ~= 0.6.4",
     "cachetools ~= 5.2.0",
     "requests",
-    "Pillow ~= 9.4.0",
+    "Pillow ~= 9.5.0",
     "PyGObject ~= 3.42.0; platform_system == 'Linux'",
 ]
 
