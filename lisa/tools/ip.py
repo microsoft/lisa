@@ -81,10 +81,29 @@ class Ip(Tool):
                 f"ip addr add {ip} dev {nic_name}"
             )
 
-    def restart_device(self, nic_name: str, run_dhclient: bool = False) -> None:
-        cmd = f"ip link set dev {nic_name} down;ip link set dev {nic_name} up;"
+    def restart_device(
+        self,
+        nic_name: str,
+        run_dhclient: bool = False,
+        default_route: str = "",
+    ) -> None:
+        cmd = f"ip link set dev {nic_name} down;ip link set dev {nic_name} up "
         if run_dhclient:
-            cmd += f"dhclient -r {nic_name};dhclient {nic_name}"
+            # if no ip address
+            # firstly kill dhclient if it is running
+            # then run dhclient to get ip address
+            cmd += (
+                f' && (ip addr show {nic_name} | grep "inet ") || '
+                "(pidof dhclient && kill $(pidof dhclient) && "
+                f"dhclient -r {nic_name}; dhclient {nic_name})"
+            )
+        if default_route:
+            # need add wait 1 second, for some distro, e.g.
+            # redhat rhel 7-lvm 7.8.2021051701
+            # the ip route will be back after nic down and up for a while
+            cmd += " && sleep 1 "
+            # if no default route, add it back
+            cmd += f" && ip route show | grep default || ip route add {default_route}"
         self.node.execute(
             cmd,
             shell=True,
