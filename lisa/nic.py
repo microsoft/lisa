@@ -446,4 +446,4 @@ class Nics(InitializableMixin):
             )
         ).is_true()
         self.default_nic: str = default_interface_name
-        self.default_nic_route = str(dev_match)
+        self.default_nic_route = dev_match.group()
