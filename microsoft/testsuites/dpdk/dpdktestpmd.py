@@ -339,31 +339,14 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 cores, recommended more than 8 cores"
         ).is_greater_than(4)
 
-        def force_odd(cores: int, down: bool = True) -> int:
-            if cores % 2 == 0:
-                if down:
-                    cores -= 1
-                else:
-                    cores += 1
-            return cores
-
-        rounded_cores = force_odd(cores_available - 1)
-        rounded_queues = force_odd(txq + rxq + 1, down=False)
+        rounded_queues = txq + rxq + 1
 
         use_cores = min(
-            rounded_cores, rounded_queues
+            cores_available - 2, rounded_queues
         )  # use enough cores for (queues + service core) or max available
-
-        if (use_cores % 2) != 0:
-            self.node.log.debug(
-                (
-                    "NOTE: odd amount of cores in core list. "
-                    "May cause weird behavior or warnings"
-                )
-            )
-
+        forwarding_cores = min(use_cores, txq + rxq)
         # core range argument
-        core_list = f"-l 1-{use_cores+1}"
+        core_list = f"-l 1-{use_cores}"
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -373,10 +356,11 @@ class DpdkTestpmd(Tool):
         ).is_greater_than(2)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            "--log-level eal,debug --log-level mana,debug "
+            # "--log-level eal,debug --log-level mana,debug "
             f"{nic_include_info} -- --forward-mode={mode} "
             "-a --stats-period 2 "
-            f"--nb-cores={txq+rxq+1} {extra_args}"
+            f"--nb-cores={forwarding_cores} {extra_args} "
+            "--record-burst-stats --record-core-cycles"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

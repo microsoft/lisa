@@ -158,6 +158,13 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
+<<<<<<< HEAD
+=======
+def get_random_nic_with_ip(test_kit: DpdkTestResources) -> NicInfo:
+    return test_kit.node.nics.get_nic_by_index(1)
+
+
+>>>>>>> d9b86f86 (rename perf tests to follow convention, remove debug args to dpdk to reduce spew, cleanup nb_cores and use_cores args)
 def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
@@ -546,13 +553,15 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     check_send_receive_compatibility(test_kits)
 
     sender, receiver = test_kits
-
+    queues = 4
+    if sender.testpmd.is_mana:
+        queues = 8
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
         sender=sender,
         receiver=receiver,
-        txq=8,
-        rxq=8,
+        txq=queues,
+        rxq=queues,
         use_max_nics=use_max_nics,
         use_service_cores=use_service_cores,
     )
