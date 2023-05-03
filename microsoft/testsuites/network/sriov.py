@@ -8,6 +8,7 @@ from assertpy import assert_that
 from lisa import (
     Environment,
     Logger,
+    Node,
     RemoteNode,
     SkippedException,
     TcpConnectionException,
@@ -35,7 +36,7 @@ from lisa.tools import (
     Lscpu,
     Lspci,
 )
-from lisa.util import UnsupportedDistroException
+from lisa.util import UnsupportedDistroException, check_till_timeout
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
@@ -83,10 +84,12 @@ class Sriov(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_services_state(self, environment: Environment) -> None:
+    def verify_services_state(self, node: Node) -> None:
         try:
-            for node in environment.nodes.list():
-                assert_that(node.tools[Systemctl].state()).is_equal_to("running")
+            check_till_timeout(
+                lambda: node.tools[Systemctl].state() == "running",
+                timeout_message="wait for systemctl status to be running",
+            )
         except UnsupportedDistroException as e:
             raise SkippedException(e) from e
 
