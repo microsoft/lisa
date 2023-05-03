@@ -60,9 +60,7 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, result: TestResult,
-        log: Logger
-        ) -> None:
+    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result,log)
 
     @TestCaseMetadata(
@@ -451,7 +449,6 @@ class StoragePerformance(TestSuite):
         self,
         node: Node,
         test_result: TestResult,
-        log: Logger,
         disk_setup_type: DiskSetupType = DiskSetupType.raw,
         disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
