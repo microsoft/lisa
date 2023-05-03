@@ -144,7 +144,7 @@ class DpdkPerformance(TestSuite):
             # supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_failsafe_pmd_minimal(
+    def perf_dpdk_minimal_failsafe_pmd(
         self,
         result: TestResult,
         log: Logger,
@@ -166,7 +166,7 @@ class DpdkPerformance(TestSuite):
             # supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_minimal(
+    def perf_dpdk_minimal_netvsc_pmd(
         self,
         result: TestResult,
         log: Logger,
@@ -189,7 +189,7 @@ class DpdkPerformance(TestSuite):
             # supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_failsafe_pmd_multi_queue(
+    def perf_dpdk_multi_queue_failsafe_pmd(
         self,
         result: TestResult,
         log: Logger,
@@ -217,7 +217,7 @@ class DpdkPerformance(TestSuite):
             # supported_features=[IsolatedResource],
         ),
     )
-    def perf_dpdk_netvsc_pmd_multi_queue(
+    def perf_dpdk_multi_queue_netvsc_pmd(
         self,
         result: TestResult,
         log: Logger,
