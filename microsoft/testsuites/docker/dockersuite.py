@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CentOs, Redhat
 from lisa.tools import Docker, DockerCompose
-from lisa.util import SkippedException, get_matched_str
+from lisa.util import SkippedException, UnsupportedDistroException, get_matched_str
 
 
 @TestSuiteMetadata(
@@ -216,7 +216,10 @@ class DockerTestSuite(TestSuite):
         self, node: Node, docker_image_name: str, docker_container_name: str
     ) -> Docker:
         self._skip_if_not_supported(node)
-        docker_tool = node.tools[Docker]
+        try:
+            docker_tool = node.tools[Docker]
+        except UnsupportedDistroException as identifier:
+            raise SkippedException(identifier)
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
         docker_tool.remove_container(docker_container_name)
