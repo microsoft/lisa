@@ -359,7 +359,8 @@ class DpdkTestpmd(Tool):
             # "--log-level eal,debug --log-level mana,debug "
             f"{nic_include_info} -- --forward-mode={mode} "
             "-a --stats-period 2 "
-            f"--nb-cores={forwarding_cores} {extra_args}"
+            f"--nb-cores={forwarding_cores} {extra_args} "
+            "--record-burst-stats --record-core-cycles"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
