@@ -361,7 +361,9 @@ class LisaRunner(BaseRunner):
             except KernelPanicException as identifier:
                 # not throw exception here, since it will cancel all tasks
                 # just print log here and set test result status as failed
-                test_result.set_status(TestStatus.FAILED, str(identifier))
+                # the environment may found panic after test case completed
+                # it needs to update for message only
+                test_result.set_status(TestStatus.FAILED, str(identifier), send=True)
                 self._log.debug(
                     "found kernel panic from the node(s) of "
                     f"'{environment.name}': {identifier}"
