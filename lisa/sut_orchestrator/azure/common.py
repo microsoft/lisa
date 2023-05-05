@@ -118,6 +118,10 @@ _global_sas_vhd_copy_lock = Lock()
 # when call sdk APIs, it's easy to have conflict on access auth files. Use lock
 # to prevent it happens.
 global_credential_access_lock = Lock()
+# if user uses lisa for the first time in parallel, there will be a possiblilty
+# to create the same stroage account at the same time.
+# add a lock to prevent it happens.
+_global_storage_account_check_create_lock = Lock()
 
 
 @dataclass
@@ -1092,26 +1096,27 @@ def check_or_create_storage_account(
     # will be error like below
     # Creating the deployment 'name' would exceed the quota of '800'.
     storage_client = get_storage_client(credential, subscription_id, cloud)
-    try:
-        storage_client.storage_accounts.get_properties(
-            account_name=account_name,
-            resource_group_name=resource_group_name,
-        )
-        log.debug(f"found storage account: {account_name}")
-    except Exception:
-        log.debug(f"creating storage account: {account_name}")
-        parameters = StorageAccountCreateParameters(
-            sku=Sku(name=sku),
-            kind=kind,
-            location=location,
-            enable_https_traffic_only=enable_https_traffic_only,
-        )
-        operation = storage_client.storage_accounts.begin_create(
-            resource_group_name=resource_group_name,
-            account_name=account_name,
-            parameters=parameters,
-        )
-        wait_operation(operation)
+    with _global_storage_account_check_create_lock:
+        try:
+            storage_client.storage_accounts.get_properties(
+                account_name=account_name,
+                resource_group_name=resource_group_name,
+            )
+            log.debug(f"found storage account: {account_name}")
+        except Exception:
+            log.debug(f"creating storage account: {account_name}")
+            parameters = StorageAccountCreateParameters(
+                sku=Sku(name=sku),
+                kind=kind,
+                location=location,
+                enable_https_traffic_only=enable_https_traffic_only,
+            )
+            operation = storage_client.storage_accounts.begin_create(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                parameters=parameters,
+            )
+            wait_operation(operation)
 
 
 def delete_storage_account(
