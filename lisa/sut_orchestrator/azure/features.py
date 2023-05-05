@@ -125,11 +125,12 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         self._node = cast(RemoteNode, self._node)
         platform: AzurePlatform = self._platform  # type: ignore
 
-        public_ip, _ = get_primary_ip_addresses(
+        public_ip, private_ip = get_primary_ip_addresses(
             platform, self._resource_group_name, get_vm(platform, self._node)
         )
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
