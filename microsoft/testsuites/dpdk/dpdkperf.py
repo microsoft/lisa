@@ -231,6 +231,36 @@ class DpdkPerformance(TestSuite):
             use_queues=True,
         )
 
+    @TestCaseMetadata(
+        description="""
+        DPDK Performance: direct use of VF, multiple tx/rx queues
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+            min_nic_count=2,
+            min_core_count=16,
+            unsupported_features=[Gpu, Infiniband],
+            # supported_features=[IsolatedResource],
+        ),
+    )
+    def perf_dpdk_multi_queue_netvsc_pmd_swapped(
+        self,
+        result: TestResult,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        self._run_dpdk_perf_test(
+            "netvsc",
+            result,
+            log,
+            variables,
+            use_queues=True,
+            swap=True
+        )
+
+
     def _run_dpdk_perf_test(
         self,
         pmd: str,
@@ -240,6 +270,7 @@ class DpdkPerformance(TestSuite):
         use_max_nics: bool = False,
         use_queues: bool = False,
         service_cores: int = 1,
+        swap: bool = False
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -255,6 +286,7 @@ class DpdkPerformance(TestSuite):
                     pmd,
                     use_max_nics=use_max_nics,
                     use_service_cores=service_cores,
+                    swap=swap
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(

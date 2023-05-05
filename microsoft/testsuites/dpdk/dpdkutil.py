@@ -537,16 +537,18 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: str,
     use_max_nics: bool = False,
     use_service_cores: int = 1,
+    swap: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
-
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
 
     check_send_receive_compatibility(test_kits)
-
-    sender, receiver = test_kits
+    if swap:
+        sender, receiver = test_kits
+    else:
+        receiver, sender = test_kits
     queues = 4
     if sender.testpmd.is_mana:
         queues = 8
@@ -564,18 +566,18 @@ def verify_dpdk_send_receive_multi_txrx_queue(
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
-    # log.debug(f"\nRECEIVER:\n{results[receiver]}")
+    log.debug(f"\nRECEIVER:\n{results[receiver]}")
 
-    # rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
+    rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
     snd_tx_pps = sender.testpmd.get_mean_tx_pps()
-    # log.info(f"receiver rx-pps: {rcv_rx_pps}")
-    # log.info(f"sender tx-pps: {snd_tx_pps}")
+    log.info(f"receiver rx-pps: {rcv_rx_pps}")
+    log.info(f"sender tx-pps: {snd_tx_pps}")
 
     # differences in NIC type throughput can lead to different snd/rcv counts
     # check that throughput it greater than 1m pps as a baseline
-    # assert_that(rcv_rx_pps).described_as(
-    #    "Throughput for RECEIVE was below the correct order-of-magnitude"
-    # ).is_greater_than(2**20)
+    assert_that(rcv_rx_pps).described_as(
+       "Throughput for RECEIVE was below the correct order-of-magnitude"
+    ).is_greater_than(2**20)
     assert_that(snd_tx_pps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
     ).is_greater_than(2**20)
