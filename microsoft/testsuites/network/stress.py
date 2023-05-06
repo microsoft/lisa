@@ -271,11 +271,11 @@ class Stress(TestSuite):
     ) -> None:
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment, vm_nics)
-        for _ in range(10):
+        for _ in range(100):
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.restart()
-            sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment, vm_nics)
 
     @TestCaseMetadata(
         description="""
