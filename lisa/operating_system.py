@@ -637,7 +637,7 @@ class CoreOs(Linux):
 class Alpine(Linux):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Alpine")
+        return re.compile("^Alpine|alpine|alpaquita")
 
 
 @dataclass
