@@ -10,7 +10,7 @@ from lisa.util import LisaException, get_matched_str
 
 FileSystem = Enum(
     "mkfs",
-    ["xfs", "ext2", "ext3", "ext4", "btrfs", "hugetlbfs", "nfs"],
+    ["xfs", "ext2", "ext3", "ext4", "btrfs", "hugetlbfs", "nfs", "tracefs"],
 )
 
 
