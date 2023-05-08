@@ -1,4 +1,4 @@
-from lisa.executable import ExecutableResult, Tool
+from lisa.executable import ExecutableResult, Process, Tool
 from lisa.util.constants import SIGTERM
 
 
@@ -12,20 +12,36 @@ class Timeout(Tool):
         return False
 
     def run_with_timeout(
-        self, command: str, timeout: int, signal: int = SIGTERM, kill_timeout: int = 0
+        self,
+        command: str,
+        timeout: int,
+        signal: int = SIGTERM,
+        kill_timeout: int = 0,
     ) -> ExecutableResult:
+        # timeout [OPTION] DURATION COMMAND [ARG]...
+
+        return self.start_with_timeout(
+            command=command,
+            timeout=timeout,
+            signal=signal,
+            kill_timeout=kill_timeout,
+        ).wait_result()
+
+    def start_with_timeout(
+        self,
+        command: str,
+        timeout: int,
+        signal: int = SIGTERM,
+        kill_timeout: int = 0,
+        delay_start: int = 0,
+    ) -> Process:
         # timeout [OPTION] DURATION COMMAND [ARG]...
         params = f"-s {signal} --preserve-status {timeout} {command}"
         if kill_timeout:
             params = f"--kill-after {kill_timeout} " + params
-        command_timeout = timeout
-        if kill_timeout:
-            command_timeout = kill_timeout + 10
-
-        return self.run(
+        return self.run_async(
             parameters=params,
             force_run=True,
             shell=True,
             sudo=True,
-            timeout=command_timeout,
         )
