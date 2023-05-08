@@ -237,7 +237,6 @@ class DpdkPerformance(TestSuite):
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_max_nics: bool = False,
         use_queues: bool = False,
         service_cores: int = 1,
     ) -> None:
@@ -253,7 +252,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_max_nics=use_max_nics,
                     use_service_cores=service_cores,
                 )
             else:
@@ -262,7 +260,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_max_nics=use_max_nics,
                     use_service_cores=service_cores,
                 )
         except UnsupportedPackageVersionException as err:

@@ -37,6 +37,7 @@ from lisa.tools import (
     Ping,
 )
 from lisa.tools.mkfs import FileSystem
+from lisa.util.constants import SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
@@ -163,9 +164,7 @@ def generate_send_receive_run_info(
     pmd: str,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    txq: int = 0,
-    rxq: int = 0,
-    use_max_nics: bool = False,
+    multiple_queues: bool = False,
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [get_random_nic_with_ip(x) for x in [sender, receiver]]
@@ -176,20 +175,16 @@ def generate_send_receive_run_info(
         "txonly",
         pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        txq=txq,
-        rxq=rxq,
+        multiple_queues=multiple_queues,
         service_cores=use_service_cores,
-        use_max_nics=use_max_nics,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         rcv_nic,
         0,
         "rxonly",
         pmd,
-        txq=txq,
-        rxq=rxq,
+        multiple_queues=multiple_queues,
         service_cores=use_service_cores,
-        use_max_nics=use_max_nics,
     )
 
     kit_cmd_pairs = {
@@ -457,7 +452,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_nic_by_index(1)
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", pmd, rxq=queues, txq=queues
+        test_nic, 0, "txonly", pmd, multiple_queues=True
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -476,8 +471,8 @@ def verify_dpdk_send_receive(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    use_max_nics: bool = False,
     use_service_cores: int = 1,
+    multiple_queues: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -493,7 +488,7 @@ def verify_dpdk_send_receive(
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
-
+    kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
 
     check_send_receive_compatibility(test_kits)
@@ -504,11 +499,25 @@ def verify_dpdk_send_receive(
         pmd,
         sender=sender,
         receiver=receiver,
-        use_max_nics=use_max_nics,
         use_service_cores=use_service_cores,
+        multiple_queues=multiple_queues,
     )
+    receive_timeout = kill_timeout + 10
 
-    results = run_testpmd_concurrent(kit_cmd_pairs, test_duration, log)
+    # start both processes, wait for results
+    receive_result = receiver.testpmd.start_for_n_seconds(
+        kit_cmd_pairs[receiver], receive_timeout
+    )
+    receive_result.wait_output("start packet forwarding")
+    sender_result = sender.testpmd.start_for_n_seconds(
+        kit_cmd_pairs[sender], test_duration
+    )
+    # process results
+    results = dict()
+    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
+    results[receiver] = receiver.testpmd.process_testpmd_output(
+        receive_result.wait_result()
+    )
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -535,49 +544,10 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
-
-    test_kits = init_nodes_concurrent(environment, log, variables, pmd)
-
-    check_send_receive_compatibility(test_kits)
-
-    sender, receiver = test_kits
-    queues = 4
-    if sender.testpmd.is_mana:
-        queues = 8
-    kit_cmd_pairs = generate_send_receive_run_info(
-        pmd,
-        sender=sender,
-        receiver=receiver,
-        txq=queues,
-        rxq=queues,
-        use_max_nics=use_max_nics,
-        use_service_cores=use_service_cores,
+    return verify_dpdk_send_receive(
+        environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
-
-    results = run_testpmd_concurrent(kit_cmd_pairs, test_duration, log)
-
-    # helpful to have the outputs labeled
-    log.debug(f"\nSENDER:\n{results[sender]}")
-    # log.debug(f"\nRECEIVER:\n{results[receiver]}")
-
-    # rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
-    snd_tx_pps = sender.testpmd.get_mean_tx_pps()
-    # log.info(f"receiver rx-pps: {rcv_rx_pps}")
-    # log.info(f"sender tx-pps: {snd_tx_pps}")
-
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    # check that throughput it greater than 1m pps as a baseline
-    # assert_that(rcv_rx_pps).described_as(
-    #    "Throughput for RECEIVE was below the correct order-of-magnitude"
-    # ).is_greater_than(2**20)
-    assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2**20)
-
-    return sender, receiver

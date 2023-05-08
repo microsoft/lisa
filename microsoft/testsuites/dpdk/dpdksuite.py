@@ -394,12 +394,12 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
+            # supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_vpp(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-
         initialize_node_resources(node, log, variables, "failsafe")
 
         vpp = node.tools[DpdkVpp]
@@ -650,7 +650,6 @@ class Dpdk(TestSuite):
         sample_rules_v4 = f"R{forwarder_ip}/24 0"
 
         def ipv4_to_ipv6_cidr(addr: str) -> str:
-
             # format to 0 prefixed 2 char hex
             parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
             assert_that(parts).described_as(
