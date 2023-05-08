@@ -346,9 +346,14 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
+        # add delays such that receiver will always start first and end last
+        delay_start = 0
+        if "rxonly" in cmd:
+            timeout *= 2
+        if "txonly" in cmd:
+            delay_start = 5
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, delay_start=delay_start
         )
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
