@@ -869,7 +869,7 @@ def get_virtual_networks(
     return virtual_network_dict
 
 
-def get_network_client(platform: "AzurePlatform") -> ComputeManagementClient:
+def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
     return NetworkManagementClient(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
