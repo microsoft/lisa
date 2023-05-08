@@ -93,6 +93,7 @@ from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .rm import Rm
 from .sar import Sar
+from .sleep import Sleep
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -208,6 +209,7 @@ __all__ = [
     "Rpm",
     "Rm",
     "Sar",
+    "Sleep",
     "Sed",
     "Service",
     "ServiceInternal",
