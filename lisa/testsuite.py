@@ -19,7 +19,9 @@ from retry.api import retry_call
 from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
+from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
+from lisa.node import Nodes
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     BadEnvironmentStateException,
@@ -640,6 +642,9 @@ class TestSuite:
                 log=case_log,
             )
 
+            if case_result.status == TestStatus.FAILED:
+                self.__write_serial_log_to_file(environment.nodes, case_log_path)
+
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
@@ -662,6 +667,14 @@ class TestSuite:
 
     def stop(self) -> None:
         self._should_stop = True
+
+    def __write_serial_log_to_file(self, nodes: Nodes, log_path: Path) -> None:
+        for node in nodes.list():
+            if hasattr(node, "features") and node.features.is_supported(SerialConsole):
+                serial_console = node.features[SerialConsole]
+                log_dir = log_path / Path(f"serial_console_{node.name}")
+                log_dir.mkdir(parents=True)
+                serial_console.get_console_log(log_dir, force_run=True)
 
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:
