@@ -9,7 +9,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, CoreOs, Redhat
+from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat
 from lisa.tools import Gcc, Modinfo, PowerShell, Uname
 from lisa.util import (
     LisaException,
@@ -78,6 +78,8 @@ class Waagent(Tool):
     def get_configuration(self, force_run: bool = False) -> Dict[str, str]:
         if isinstance(self.node.os, CoreOs):
             waagent_conf_file = "/usr/share/oem/waagent.conf"
+        elif isinstance(self.node.os, BSD):
+            waagent_conf_file = "/usr/local/etc/waagent.conf"
         else:
             waagent_conf_file = "/etc/waagent.conf"
 
