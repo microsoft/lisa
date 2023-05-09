@@ -17,6 +17,7 @@ from lisa import (
 )
 from lisa.features import Disk
 from lisa.operating_system import (
+    BSD,
     SLES,
     CBLMariner,
     CoreOs,
@@ -260,7 +261,9 @@ class AzureImageStandard(TestSuite):
         2. For Redhat based distros, verify that numa is disabled for versions < 6.6.0
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY], unsupported_os=[BSD]
+        ),
     )
     def verify_grub(self, node: Node) -> None:
         # check grub configuration file
@@ -991,10 +994,13 @@ class AzureImageStandard(TestSuite):
         # function returns successfully if disk matching mount point is present
         node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
 
-        # verify lost+found folder exists
-        fold_path = f"{resource_disk_mount_point}/lost+found"
-        folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
-        assert_that(folder_exists, f"{fold_path} should be present").is_true()
+        # Verify lost+found folder exists
+        # Skip this step for BSD as it does not have lost+found folder
+        # since it uses UFS file system
+        if not isinstance(node.os, BSD):
+            fold_path = f"{resource_disk_mount_point}/lost+found"
+            folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
+            assert_that(folder_exists, f"{fold_path} should be present").is_true()
 
         # verify DATALOSS_WARNING_README.txt file exists
         file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"

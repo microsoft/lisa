@@ -9,7 +9,7 @@ from assertpy.assertpy import assert_that
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import BSD, Posix
 from lisa.tools import Fdisk
 from lisa.tools.mkfs import FileSystem, Mkfs
 from lisa.util import LisaException
@@ -58,6 +58,11 @@ class Mount(Tool):
     # /dev/sda1 on /mnt/a type ext4 (rw,relatime,discard)
     _partition_info_regex = re.compile(
         r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s+.*"
+    )
+
+    # /dev/da1p1 on /mnt/resource (ufs, local, soft-updates)
+    _partition_info_regex_bsd = re.compile(
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+(\((?P<type>.*),.*,.*\))"
     )
 
     @property
@@ -116,7 +121,10 @@ class Mount(Tool):
         output: str = self.run(force_run=True).stdout
         partition_info: List[PartitionInfo] = []
         for line in output.splitlines():
-            matched = self._partition_info_regex.fullmatch(line)
+            if isinstance(self.node.os, BSD):
+                matched = self._partition_info_regex_bsd.fullmatch(line)
+            else:
+                matched = self._partition_info_regex.fullmatch(line)
             if matched:
                 partition_name = matched.group("name")
                 partition_info.append(
