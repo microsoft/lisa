@@ -516,7 +516,7 @@ def verify_dpdk_send_receive(
 
     rcv_rx_pps = receiver.testpmd.get_mean_rx_pps()
     snd_tx_pps = sender.testpmd.get_mean_tx_pps()
-    # log.info(f"receiver rx-pps: {rcv_rx_pps}")
+    log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
     # differences in NIC type throughput can lead to different snd/rcv counts
