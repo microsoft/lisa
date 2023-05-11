@@ -173,16 +173,20 @@ class TestResult:
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
     ) -> None:
+        send_result = False
         if message:
             if isinstance(message, str):
                 message = [message]
             if self.message:
                 message.insert(0, self.message)
             self.message = "\n".join(message)
+            send_result = True
         if self.status != new_status:
             self.status = new_status
             if new_status == TestStatus.RUNNING:
                 self._timer = create_timer()
+            send_result = True
+        if send_result:
             self._send_result_message(self.stacktrace)
 
     def check_environment(
