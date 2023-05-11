@@ -1852,7 +1852,7 @@ class AzurePlatform(Platform):
                         skus=marketplace.sku,
                     )
                     if 0 == len(versioned_images):
-                        self._log.error(
+                        self._log.debug(
                             f"cannot find any version of image {marketplace.publisher} "
                             f"{marketplace.offer} {marketplace.sku} in {location}"
                         )
@@ -1860,7 +1860,7 @@ class AzurePlatform(Platform):
                         # any one should be the same to get purchase plan
                         new_marketplace.version = versioned_images[-1].name
                 except ResourceNotFoundError as e:
-                    self._log.error(
+                    self._log.debug(
                         f"Cannot find any version of image {marketplace.publisher} "
                         f"{marketplace.offer} {marketplace.sku} in {location}:\n {e}"
                     )
@@ -2107,7 +2107,7 @@ class AzurePlatform(Platform):
                 # Code: ImageVersionDeprecated
                 if "ImageVersionDeprecated" in str(e):
                     raise e
-                self._log.error(f"Could not find image info:\n {e}")
+                self._log.debug(f"Could not find image info:\n {e}")
         return image_info
 
     def _get_location_key(self, location: str) -> str:
