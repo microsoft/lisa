@@ -21,7 +21,6 @@ from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
-from lisa.node import Nodes
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     BadEnvironmentStateException,
