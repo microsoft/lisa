@@ -1,3 +1,4 @@
+import itertools
 import time
 from collections import deque
 from functools import partial
@@ -31,6 +32,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Mount,
+    Ping,
 )
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
@@ -156,6 +158,27 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+
+
+def _ping_all_nodes_in_environment(environment: Environment) -> None:
+    # a quick connectivity check before the test.
+    # this can help establish routes on some platforms before handing
+    # all control of the VF over to Testpmd
+    nodes = environment.nodes.list()
+    node_permutations = itertools.permutations(nodes, 2)
+    for node_pair in node_permutations:
+        node_a, node_b = node_pair  # get nodes and nics
+        nic_a, nic_b = [x.nics.get_nic_by_index(1) for x in node_pair]
+        ip_a, ip_b = [x.ip_addr for x in [nic_a, nic_b]]  # get ips
+        ping_a = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.upper)
+        ping_b = node_b.tools[Ping].ping(target=ip_a, nic_name=nic_b.upper)
+        assert_that(ping_a and ping_b).described_as(
+            (
+                "VM ping test failed.\n"
+                f"{node_a.name} {ip_a} -> {node_b.name} {ip_b} : {ping_a}\n"
+                f"{node_b.name} {ip_b} -> {node_a.name} {ip_a} : {ping_b}\n"
+            )
+        ).is_true()
 
 
 def generate_send_receive_run_info(
@@ -398,6 +421,11 @@ def start_testpmd_concurrent(
 def init_nodes_concurrent(
     environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
 ) -> List[DpdkTestResources]:
+    # quick check when initializing, have each node ping the other nodes.
+    # When binding DPDK directly to the VF this helps ensure l2/l3 routes
+    # are established before handing all control over to testpmd.
+    _ping_all_nodes_in_environment(environment)
+
     # Use threading module to parallelize the IO-bound node init.
     test_kits = run_in_parallel(
         [
