@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import os
 import re
 from pathlib import Path
 from typing import Any, List
@@ -22,7 +23,19 @@ from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Lspci, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
+from lisa.tools import (
+    Chmod,
+    Df,
+    Lspci,
+    Mkdir,
+    NvidiaSmi,
+    Pip,
+    Python,
+    Reboot,
+    Service,
+    Tar,
+    Wget,
+)
 from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
@@ -247,21 +260,43 @@ class GpuTestSuite(TestSuite):
         _install_driver(node, log_path, log)
         _check_driver_installed(node, log)
 
-        _install_cudnn(node)
+        # Step 1, pytorch and CUDA needs 4GB space to download and install
+        torch_required_space = 5
 
-        gpu = node.features[Gpu]
+        work_path = str(node.working_path)
+        lisa_path_space = node.tools[Df].get_filesystem_available_space(work_path)
+        if lisa_path_space < torch_required_space:
+            work_path = node.find_partition_with_freespace(torch_required_space)
+
+        # Step 2, Install cudnn and pyTorch
+        _install_cudnn(node, log, work_path)
 
         pip = node.tools[Pip]
         if not pip.exists_package("torch"):
-            pip.install_packages("torch")
+            if lisa_path_space < torch_required_space:
+                # pip install to target work_path
+                pip.install_packages("torch", work_path)
+            else:
+                # using default parameter for pip install
+                pip.install_packages("torch")
 
+        # Step 3, verification
+        gpu = node.features[Gpu]
         gpu_script = "import torch;print(f'gpu count: {torch.cuda.device_count()}')"
         python = node.tools[Python]
         expected_count = gpu.get_gpu_count_with_lspci()
 
+        if lisa_path_space < torch_required_space:
+            python_path = os.environ.get("PYTHONPATH", "")
+            python_path += f":{work_path}/python_packages"
+            python_envs = {"PYTHONPATH": python_path}
+        else:
+            python_envs = {}
+
         script_result = python.run(
             f'-c "{gpu_script}"',
             force_run=True,
+            update_envs=python_envs,
         )
         gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)
         script_result.assert_exit_code(
@@ -311,25 +346,30 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
         )
 
 
-def _install_cudnn(node: Node) -> None:
+def _install_cudnn(node: Node, log: Logger, install_path: str) -> None:
     wget = node.tools[Wget]
-    tar = node.tools[Tar]
 
     path = wget.get_tool_path(use_global=True)
-    extracted_path = tar.get_tool_path(use_global=True)
     if node.shell.exists(path / _cudnn_file_name):
         return
 
+    work_path = install_path + "/cudnn"
+    node.tools[Mkdir].create_directory(work_path, sudo=True)
+    node.tools[Chmod].chmod(work_path, "777", sudo=True)
+
+    log.debug(f"CUDNN Extracted path is: {work_path}  ")
     download_path = wget.get(
-        url=_cudnn_location, filename=str(_cudnn_file_name), file_path=str(path)
+        url=_cudnn_location, filename=str(_cudnn_file_name), file_path=work_path
     )
-    tar.extract(download_path, dest_dir=str(extracted_path))
+
+    node.tools[Tar].extract(download_path, work_path)
+
     if isinstance(node.os, Debian):
         target_path = "/usr/lib/x86_64-linux-gnu/"
     else:
         target_path = "/usr/lib64/"
     node.execute(
-        f"cp -p {extracted_path}/cuda/lib64/libcudnn* {target_path}",
+        f"cp -p {work_path}/cuda/lib64/libcudnn* {target_path}",
         shell=True,
         sudo=True,
     )
