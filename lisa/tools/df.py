@@ -10,10 +10,11 @@ from lisa.util import find_patterns_groups_in_lines
 
 
 class Df(Tool):
-    # devtmpfs         4071644       0   4071644   0% /dev
+    # Filesystem                1K-blocks  Used Available Use% Mounted on
+    # /dev/mapper/rootvg-homelv   1038336 40472    997864   4% /home
     _DF_ENTRY_REGEX = re.compile(
-        r"(?P<name>\S+)\s+(?P<blocks>\d+)\s+(?P<used>\d+)\s+"
-        r"(?P<total>\d+)\s+(?P<percentage_use>\d+)%\s+(?P<mountpoint>\S+)"
+        r"(?P<name>\S+)\s+(?P<total>\d+)\s+(?P<used>\d+)\s+"
+        r"(?P<available>\d+)\s+(?P<percentage_use>\d+)%\s+(?P<mountpoint>\S+)"
     )
 
     @property
@@ -37,7 +38,7 @@ class Df(Tool):
                 PartitionInfo(
                     name=df_entry["name"],
                     mountpoint=df_entry["mountpoint"],
-                    available_blocks=int(df_entry["blocks"]),
+                    available_blocks=int(df_entry["available"]),
                     used_blocks=int(df_entry["used"]),
                     total_blocks=int(df_entry["total"]),
                     percentage_blocks_used=int(df_entry["percentage_use"]),
@@ -54,3 +55,22 @@ class Df(Tool):
             if partition.mountpoint == mountpoint:
                 return partition
         return None
+
+    def get_filesystem_available_space(
+        self, path: str = ".", force_run: bool = False
+    ) -> float:
+        # return the input 'path' available space in GB by running df
+        # If 'path' doesn't exist, return 0
+        # The df cmd output is in the following format:
+        # <Filesystem> <1K-blocks> <Used> <Available> <Use%> <Mounted on>
+        # Note : <Available> are in 1-k blocks, not in bytes
+        available_space = 0.0
+        out = self.run(parameters=path, sudo=True, force_run=force_run).stdout
+
+        df_entries = find_patterns_groups_in_lines(out, [self._DF_ENTRY_REGEX])[0]
+        if len(df_entries) == 0:  # path not exist
+            self._log.debug(f"Path: {path} not exist! return 0 available space.")
+            return 0.0
+
+        available_space = (float)(df_entries[0]["available"]) / 1024**2
+        return available_space
