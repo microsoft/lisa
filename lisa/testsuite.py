@@ -643,7 +643,7 @@ class TestSuite:
             )
 
             if case_result.status == TestStatus.FAILED:
-                self.__write_serial_log_to_file(environment.nodes, case_log_path)
+                self.__save_serial_log(environment, case_log_path)
 
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
@@ -668,7 +668,8 @@ class TestSuite:
     def stop(self) -> None:
         self._should_stop = True
 
-    def __write_serial_log_to_file(self, nodes: Nodes, log_path: Path) -> None:
+    def __save_serial_log(self, environment: Environment, log_path: Path) -> None:
+        nodes = environment.nodes
         for node in nodes.list():
             if hasattr(node, "features") and node.features.is_supported(SerialConsole):
                 serial_console = node.features[SerialConsole]
