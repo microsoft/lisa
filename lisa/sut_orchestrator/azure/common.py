@@ -447,6 +447,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     enable_sriov: bool = False
     disk_type: str = ""
     disk_controller_type: str = ""
+    security_profile: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":

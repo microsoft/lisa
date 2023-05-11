@@ -37,10 +37,14 @@ from marshmallow import validate
 from retry import retry
 
 from lisa import Logger, features, schema, search_space
+from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
-from lisa.features.security_profile import SecurityProfileType
+from lisa.features.security_profile import (
+    FEATURE_NAME_SECURITY_PROFILE,
+    SecurityProfileType,
+)
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -1620,17 +1624,12 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
 
 
 class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
-    _both_enabled_properties = """
-        {
-            "securityProfile": {
-                "uefiSettings": {
-                    "secureBootEnabled": "true",
-                    "vTpmEnabled": "true"
-                },
-                "securityType": "%s"
-            }
-        }
-        """
+    # Convert Security Profile Setting to Arm Parameter Value
+    _security_profile_mapping = {
+        SecurityProfileType.Standard: "",
+        SecurityProfileType.SecureBoot: "TrustedLaunch",
+        SecurityProfileType.CVM: "ConfidentialVM",
+    }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -1679,68 +1678,40 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        settings = cast(SecurityProfileSettings, kwargs.get("settings"))
-        if SecurityProfileType.Standard != settings.security_profile:
-            parameters: Any = kwargs.get("arm_parameters")
-            if 1 == parameters.nodes[0].hyperv_generation:
-                raise SkippedException(
-                    f"{settings.security_profile} can only be set on gen2 image/vhd."
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+
+        assert len(environment.nodes._list) == len(arm_parameters.nodes)
+        for node, node_parameters in zip(environment.nodes._list, arm_parameters.nodes):
+            assert node.capability.features
+            security_profile = [
+                feature_setting
+                for feature_setting in node.capability.features.items
+                if feature_setting.type == FEATURE_NAME_SECURITY_PROFILE
+            ]
+            if security_profile:
+                settings = security_profile[0]
+                assert isinstance(settings, SecurityProfileSettings)
+                assert isinstance(settings.security_profile, SecurityProfileType)
+                node_parameters.security_profile[
+                    "security_type"
+                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["encryption_type"] = (
+                    "DiskWithVMGuestState"
+                    if settings.encrypt_disk
+                    else "VMGuestStateOnly"
                 )
-            cls._enable_secure_boot(*args, **kwargs)
+                node_parameters.security_profile[
+                    "disk_encryption_set_id"
+                ] = settings.disk_encryption_set_id
 
-    @classmethod
-    def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
-        settings: Any = kwargs.get("settings")
-        template: Any = kwargs.get("template")
-        log = cast(Logger, kwargs.get("log"))
-        resources = template["resources"]
-        virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
-        if SecurityProfileType.Standard == settings.security_profile:
-            log.debug("Security profile set to none. Arm template will not be updated.")
-            return
-        elif SecurityProfileType.SecureBoot == settings.security_profile:
-            log.debug("Security Profile set to secure boot. Updating arm template.")
-            security_type = "TrustedLaunch"
-        elif SecurityProfileType.CVM == settings.security_profile:
-            log.debug("Security Profile set to CVM. Updating arm template.")
-            security_type = "ConfidentialVM"
-
-            security_encryption_type = (
-                "DiskWithVMGuestState" if settings.encrypt_disk else "VMGuestStateOnly"
-            )
-
-            if settings.disk_encryption_set_id:
-                disk_encryption_set = (
-                    ',"diskEncryptionSet":{"id":"'
-                    f"{settings.disk_encryption_set_id}"
-                    '"}'
-                )
-            else:
-                disk_encryption_set = ""
-
-            template["functions"][0]["members"]["getOSImage"]["output"]["value"][
-                "managedDisk"
-            ] = (
-                "[if(not(equals(parameters('node')['disk_type'], 'Ephemeral')), "
-                'json(concat(\'{"storageAccountType": "\','
-                "parameters('node')['disk_type'],"
-                '\'","securityProfile":{"securityEncryptionType": "'
-                f'{security_encryption_type}"'
-                f"{disk_encryption_set}"
-                "}}')), json('null'))]"
-            )
-        else:
-            raise LisaException(
-                "Security profile: not all requirements could be met. "
-                "Please check VM SKU capabilities, test requirements, "
-                "and runbook requirements."
-            )
-
-        virtual_machines["properties"].update(
-            json.loads(
-                cls._both_enabled_properties % security_type,
-            )
-        )
+                if node_parameters.security_profile["security_type"] == "":
+                    node_parameters.security_profile.clear()
+                elif 1 == node_parameters.hyperv_generation:
+                    raise SkippedException(
+                        f"{settings.security_profile} "
+                        "can only be set on gen2 image/vhd."
+                    )
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):

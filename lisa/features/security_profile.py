@@ -111,10 +111,6 @@ class SecurityProfile(Feature):
     def can_disable(cls) -> bool:
         return True
 
-    @classmethod
-    def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError()
-
     def enabled(self) -> bool:
         return True
 
