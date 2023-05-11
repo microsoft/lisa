@@ -120,6 +120,7 @@ class Lspci(Tool):
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
+                sudo=True,
             )
             for pci_raw in result.stdout.splitlines():
                 pci_device = PciDevice(pci_raw)
