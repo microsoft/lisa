@@ -66,7 +66,9 @@ class Make(Tool):
         timeout: int = 600,
         thread_count: int = 0,
         update_envs: Optional[Dict[str, str]] = None,
+        ignore_error: bool = False,
     ) -> ExecutableResult:
+        expected_exit_code: Optional[int] = 0
         if thread_count == 0:
             if self._thread_count == 0:
                 lscpu = self.node.tools[Lscpu]
@@ -84,6 +86,8 @@ class Make(Tool):
                 update_envs=update_envs,
             )
 
+        if ignore_error:
+            expected_exit_code = None
         # yes '' answers all questions with default value.
         result = self.node.execute(
             f"yes '' | make -j{thread_count} {arguments}",
@@ -92,7 +96,7 @@ class Make(Tool):
             sudo=sudo,
             shell=True,
             update_envs=update_envs,
-            expected_exit_code=0,
+            expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message="Failed to make",
         )
         return result
