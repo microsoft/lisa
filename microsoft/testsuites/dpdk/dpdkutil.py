@@ -25,6 +25,7 @@ from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
+    Firewall,
     Free,
     KernelConfig,
     Lscpu,
@@ -165,6 +166,15 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
     # this can help establish routes on some platforms before handing
     # all control of the VF over to Testpmd
     nodes = environment.nodes.list()
+    for node in nodes:
+        try:
+            firewall = node.tools[Firewall]
+            firewall.stop()
+        except Exception as ex:
+            node.log.debug(
+                f"firewall is not enabled on OS {node.os.name} with exception {ex}"
+            )
+
     node_permutations = itertools.permutations(nodes, 2)
     for node_pair in node_permutations:
         node_a, node_b = node_pair  # get nodes and nics
