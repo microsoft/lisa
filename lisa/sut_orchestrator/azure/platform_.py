@@ -1374,15 +1374,11 @@ class AzurePlatform(Platform):
                 arm_parameters.location, arm_parameters.marketplace
             )
             if image_info:
-                additional_properties = image_info.os_disk_image.additional_properties
-                osdisk_size_in_gb = additional_properties.get("sizeInGb", 0)
-                if not osdisk_size_in_gb:
-                    osdisk_size_in_gb = round(
-                        additional_properties.get("sizeInBytes", 0) / 1024 / 1024 / 1024
-                    )
-
                 arm_parameters.osdisk_size_in_gb = max(
-                    arm_parameters.osdisk_size_in_gb, osdisk_size_in_gb
+                    arm_parameters.osdisk_size_in_gb,
+                    _get_disk_size_in_gb(
+                        image_info.os_disk_image.additional_properties
+                    ),
                 )
                 if not arm_parameters.purchase_plan and image_info.plan:
                     # expand values for lru cache
@@ -2064,7 +2060,9 @@ class AzurePlatform(Platform):
                     data_disks.append(
                         DataDiskSchema(
                             node.capability.disk.data_disk_caching_type,
-                            default_data_disk.additional_properties["sizeInGb"],
+                            _get_disk_size_in_gb(
+                                default_data_disk.additional_properties
+                            ),
                             azure_node_runbook.disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                         )
@@ -2618,3 +2616,13 @@ def _get_gallery_image_generation(shared_image: GalleryImage) -> int:
         shared_image.hyper_v_generation
     ), f"no hyper_v_generation property for image {shared_image.name}"
     return int(shared_image.hyper_v_generation.strip("V"))
+
+
+def _get_disk_size_in_gb(additional_properties: Dict[str, int]) -> int:
+    osdisk_size_in_gb = additional_properties.get("sizeInGb", 0)
+    if not osdisk_size_in_gb:
+        osdisk_size_in_gb = round(
+            additional_properties.get("sizeInBytes", 0) / 1024 / 1024 / 1024
+        )
+
+    return osdisk_size_in_gb
