@@ -226,10 +226,13 @@ class Nics(InitializableMixin):
     def unbind(self, nic: NicInfo) -> None:
         # unbind nic from current driver and return the old sysfs path
         tee = self._node.tools[Tee]
+        ip = self._node.tools[Ip]
         # if sysfs path is not set, fetch the current driver
         if not nic.driver_sysfs_path:
             self.get_nic_driver(nic.upper)
-        self._node.tools[Ip].down(nic.upper)
+        # if the device is active, set to down before unbind
+        if ip.nic_exists(nic.upper):
+            ip.down(nic.upper)
         unbind_path = nic.driver_sysfs_path.joinpath("unbind")
         tee.write_to_file(nic.dev_uuid, unbind_path, sudo=True)
 
