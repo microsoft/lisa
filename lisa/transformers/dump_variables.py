@@ -51,6 +51,7 @@ class DumpVariablesTransformer(Transformer):
         for var in runbook.variables:
             try:
                 var_data = variables_data[var]
+                self._log.info(var_data)
                 required_data[var] = {
                     "value": var_data.data,
                     "is_case_visible": var_data.is_case_visible,
@@ -62,6 +63,7 @@ class DumpVariablesTransformer(Transformer):
         if not file_path.is_absolute():
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         with open(file_path, "w") as dump_file:
+            self._log.info(required_data)
             if runbook.json_output:
                 json.dump(required_data, dump_file)
             else:
