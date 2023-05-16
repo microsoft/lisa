@@ -2486,6 +2486,18 @@ class AzurePlatform(Platform):
             "eastus2euap",
         ]
 
+        if self._azure_runbook.marketplace_image_information_location:
+            if isinstance(
+                self._azure_runbook.marketplace_image_information_location, str
+            ):
+                _marketplace_image_locations = [
+                    self._azure_runbook.marketplace_image_information_location
+                ]
+            else:
+                _marketplace_image_locations = (
+                    self._azure_runbook.marketplace_image_information_location
+                )
+
         if not node_space:
             return
 
