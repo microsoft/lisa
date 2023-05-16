@@ -416,6 +416,7 @@ class Dpdk(TestSuite):
         priority=4,
         requirement=simple_requirement(
             min_core_count=8,
+            min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
