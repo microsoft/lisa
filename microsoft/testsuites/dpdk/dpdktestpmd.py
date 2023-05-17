@@ -20,6 +20,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Pidof,
+    Rm,
     Service,
     Tar,
     Timeout,
@@ -122,6 +123,7 @@ class DpdkTestpmd(Tool):
         "librdmacm1",
         "rdma-core-devel",
         "libmnl-devel meson",
+        "gcc",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
     _ninja_url = (
@@ -838,19 +840,21 @@ class DpdkTestpmd(Tool):
                 "Failed to update Meson to latest version with pip3"
             ),
         )
-        if node.shell.exists(node.get_pure_path("/usr/bin/meson")):
-            node.tools[Mv].move(
-                "/usr/bin/meson", "/usr/bin/meson.bak", overwrite=True, sudo=True
+        # after upgrade meson
+        # if meson is in /usr/local/bin, link it
+        # if meson is in /usr/bin, do nothing, upgrade will overwrite it
+        if node.shell.exists(node.get_pure_path("/usr/local/bin/meson")):
+            node.tools[Rm].remove_file("/usr/bin/meson", sudo=True)
+            node.execute(
+                "ln -fs /usr/local/bin/meson /usr/bin/meson",
+                cwd=cwd,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to link new meson version as the default "
+                    "version in /usr/bin"
+                ),
             )
-        node.execute(
-            "ln -s /usr/local/bin/meson /usr/bin/meson",
-            cwd=cwd,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to link new meson version as the " "default version in /usr/bin"
-            ),
-        )
         # NOTE: finding latest ninja is a pain,
         # so just fetch latest from github here
         wget_tool = self.node.tools[Wget]
