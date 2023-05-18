@@ -257,6 +257,15 @@ class TestResult:
         if self.environment:
             self.information.update(self.environment.get_information())
             self.information["environment"] = self.environment.name
+            # if no nodes and case skipped, it means no environment deployed.
+            if (
+                result_message.status == TestResult.status.SKIPPED
+                and len(self.environment.nodes) == 0
+            ):
+                vm_size = self.information.get("vmsize", None)
+                # if vmsize passed from runbook, we override it.
+                if vm_size and len(vm_size.split(",")) > 1:
+                    self.information["vmsize"] = "NotAssigned"
         result_message.information.update(self.information)
         result_message.message = self.message[0:2048] if self.message else ""
         result_message.name = self.runtime_data.metadata.name
