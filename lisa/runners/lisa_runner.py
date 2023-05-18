@@ -596,6 +596,8 @@ class LisaRunner(BaseRunner):
                     ):
                         runnable_results.append(result)
                 except SkippedException as identifier:
+                    if not result.environment:
+                        result.environment = environment
                     # when check the environment, the test result may be marked
                     # as skipped, due to the test result is assumed not to match
                     # any environment.
@@ -768,6 +770,23 @@ class LisaRunner(BaseRunner):
                         except NotMeetRequirementException as identifier:
                             test_result.set_status(TestStatus.SKIPPED, str(identifier))
                             break
+
+                        if (
+                            node_requirement.features
+                            and hasattr(self, "platform")
+                            and self.platform.runbook.ignored_capability
+                        ):
+                            node_requirement.features.items = [
+                                x
+                                for x in node_requirement.features
+                                if str(x).lower()
+                                not in list(
+                                    map(
+                                        str.lower,
+                                        self.platform.runbook.ignored_capability,
+                                    )
+                                )
+                            ]
 
                         assert isinstance(platform_requirement.extended_schemas, dict)
                         assert isinstance(node_requirement.extended_schemas, dict)

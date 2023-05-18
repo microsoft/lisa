@@ -429,11 +429,6 @@ class XdpPerformance(TestSuite):
         forwarder = environment.nodes[1]
         receiver = environment.nodes[2]
 
-        # install pktgen on sender
-        try:
-            pktgen = sender.tools[Pktgen]
-        except UnsupportedKernelException as identifier:
-            raise SkippedException(identifier)
         # install xdp dump on forwarder and receiver
         forwarder_xdpdump, receiver_xdpdump = run_in_parallel(
             [
@@ -442,6 +437,12 @@ class XdpPerformance(TestSuite):
             ],
             log=log,
         )
+        # install pktgen on sender
+        try:
+            pktgen = sender.tools[Pktgen]
+        except UnsupportedKernelException as identifier:
+            raise SkippedException(identifier)
+
         sender_nic = sender.nics.get_nic_by_index(1)
         forwarder_nic = forwarder.nics.get_nic_by_index(1)
         receiver_nic = receiver.nics.get_nic_by_index(1)

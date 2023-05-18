@@ -1250,6 +1250,14 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     # platform can specify a default environment requirement
     requirement: Optional[Dict[str, Any]] = None
 
+    # platform can specify which feature(s) can be ignored
+    ignored_capability: Optional[List[str]] = None
+
+    # capture azure log or not
+    capture_azure_information: bool = False
+    # capture boot time infor or not
+    capture_boot_time: bool = False
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
         add_secret(self.admin_password)

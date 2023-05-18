@@ -120,6 +120,7 @@ class Lspci(Tool):
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
+                sudo=True,
             )
             for pci_raw in result.stdout.splitlines():
                 pci_device = PciDevice(pci_raw)
@@ -130,8 +131,7 @@ class Lspci(Tool):
     def disable_devices_by_type(self, device_type: str) -> int:
         devices = self.get_devices_by_type(device_type, force_run=True)
         if 0 == len(devices):
-            self._log.debug("No matched devices found.")
-            return len(devices)
+            raise LisaException(f"No matched device type {device_type} found.")
         for device in devices:
             self.disable_device(device=device)
         return len(devices)

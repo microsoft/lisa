@@ -94,7 +94,7 @@ the shared image gallery.
          ...
          azure:
             ...
-            shared_gallery: "<subscription_id>/<image_gallery>/<image_definition>/<image_version>"
+            shared_gallery: "<subscription_id>/<resource_group>/<image_gallery>/<image_definition>/<image_version>"
 
 The remaining steps are same as outlined in
 :doc:`Getting started with Azure <quick_run>`.

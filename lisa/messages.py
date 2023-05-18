@@ -92,6 +92,7 @@ class TestResultMessage(TestResultMessageBase):
 class SubTestMessage(TestResultMessageBase):
     hardware_platform: str = ""
     type: str = "SubTestResult"
+    parent_test: str = ""
 
 
 class NetworkProtocol(str, Enum):
@@ -286,7 +287,7 @@ def create_perf_message(
     ):
         data_path = node.capability.network_interface.data_path.value
     message = message_type()
-    dict_to_fields(environment.get_information(), message)
+    dict_to_fields(environment.get_information(force_run=False), message)
     message.test_case_name = test_case_name
     message.data_path = data_path
     message.test_result_id = test_result.id_
@@ -314,6 +315,10 @@ def create_test_result_message(
     message.status = test_status
     message.message = test_message
     message.elapsed = test_result.get_elapsed()
+    if message_type == SubTestMessage:
+        if not other_fields:
+            other_fields = {}
+        other_fields.update({"parent_test": test_result.runtime_data.name})
     if other_fields:
         dict_to_fields(other_fields, message)
     return message

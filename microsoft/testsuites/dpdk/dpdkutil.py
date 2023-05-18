@@ -1,4 +1,4 @@
-import random
+import itertools
 import time
 from collections import deque
 from functools import partial
@@ -25,6 +25,7 @@ from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
+    Firewall,
     Free,
     KernelConfig,
     Lscpu,
@@ -32,6 +33,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Mount,
+    Ping,
 )
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
@@ -159,18 +161,34 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
-def get_random_nic_with_ip(test_kit: DpdkTestResources) -> NicInfo:
-    nics = [
-        test_kit.node.nics.get_nic(nic)
-        for nic in test_kit.node.nics.get_upper_nics()
-        if nic != test_kit.node.nics.get_nic_by_index(0).upper
-        and test_kit.node.nics.get_nic(nic).ip_addr
-    ]
-    if not nics:
-        raise LisaException(
-            f"Node has no secondary nics with ip addresses! {test_kit.node.name}"
-        )
-    return random.choice(nics)
+def _ping_all_nodes_in_environment(environment: Environment) -> None:
+    # a quick connectivity check before the test.
+    # this can help establish routes on some platforms before handing
+    # all control of the VF over to Testpmd
+    nodes = environment.nodes.list()
+    for node in nodes:
+        try:
+            firewall = node.tools[Firewall]
+            firewall.stop()
+        except Exception as ex:
+            node.log.debug(
+                f"firewall is not enabled on OS {node.os.name} with exception {ex}"
+            )
+
+    node_permutations = itertools.permutations(nodes, 2)
+    for node_pair in node_permutations:
+        node_a, node_b = node_pair  # get nodes and nics
+        nic_a, nic_b = [x.nics.get_nic_by_index(1) for x in node_pair]
+        ip_a, ip_b = [x.ip_addr for x in [nic_a, nic_b]]  # get ips
+        ping_a = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.upper)
+        ping_b = node_b.tools[Ping].ping(target=ip_a, nic_name=nic_b.upper)
+        assert_that(ping_a and ping_b).described_as(
+            (
+                "VM ping test failed.\n"
+                f"{node_a.name} {ip_a} -> {node_b.name} {ip_b} : {ping_a}\n"
+                f"{node_b.name} {ip_b} -> {node_a.name} {ip_a} : {ping_b}\n"
+            )
+        ).is_true()
 
 
 def generate_send_receive_run_info(
@@ -182,7 +200,7 @@ def generate_send_receive_run_info(
     use_max_nics: bool = False,
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
-    snd_nic, rcv_nic = [get_random_nic_with_ip(x) for x in [sender, receiver]]
+    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -309,7 +327,7 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_secondary_nic()
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -413,6 +431,11 @@ def start_testpmd_concurrent(
 def init_nodes_concurrent(
     environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
 ) -> List[DpdkTestResources]:
+    # quick check when initializing, have each node ping the other nodes.
+    # When binding DPDK directly to the VF this helps ensure l2/l3 routes
+    # are established before handing all control over to testpmd.
+    _ping_all_nodes_in_environment(environment)
+
     # Use threading module to parallelize the IO-bound node init.
     test_kits = run_in_parallel(
         [
@@ -435,7 +458,7 @@ def verify_dpdk_build(
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
-    test_nic = node.nics.get_nic_by_index()
+    test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         test_nic,

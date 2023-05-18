@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from typing import Dict, Union
+
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata, notifier
 from lisa.messages import DescriptorPollThroughput, IPCLatency, create_perf_message
 from lisa.testsuite import TestResult
@@ -30,10 +32,11 @@ class PerfToolSuite(TestSuite):
     ) -> None:
         perf_tool = node.tools[Perf]
         perf_results = perf_tool.perf_messaging()
-        other_fields = {}
+        other_fields: Dict[str, Union[float, str]] = {}
         other_fields["average_time_sec"] = sum(perf_results) / len(perf_results)
         other_fields["min_time_sec"] = min(perf_results)
         other_fields["max_time_sec"] = max(perf_results)
+        other_fields["tool"] = "perf"
         message = create_perf_message(
             IPCLatency,
             node,
@@ -59,10 +62,11 @@ class PerfToolSuite(TestSuite):
     ) -> None:
         perf_tool = node.tools[Perf]
         perf_results = perf_tool.perf_epoll()
-        other_fields = {}
+        other_fields: Dict[str, Union[float, str]] = {}
         other_fields["average_ops"] = sum(perf_results) / len(perf_results)
         other_fields["min_ops"] = min(perf_results)
         other_fields["max_ops"] = max(perf_results)
+        other_fields["tool"] = "perf"
         message = create_perf_message(
             DescriptorPollThroughput,
             node,

@@ -19,6 +19,7 @@ from retry.api import retry_call
 from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
+from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
@@ -172,16 +173,20 @@ class TestResult:
     def set_status(
         self, new_status: TestStatus, message: Union[str, List[str]]
     ) -> None:
+        send_result = False
         if message:
             if isinstance(message, str):
                 message = [message]
             if self.message:
                 message.insert(0, self.message)
             self.message = "\n".join(message)
+            send_result = True
         if self.status != new_status:
             self.status = new_status
             if new_status == TestStatus.RUNNING:
                 self._timer = create_timer()
+            send_result = True
+        if send_result:
             self._send_result_message(self.stacktrace)
 
     def check_environment(
@@ -640,6 +645,9 @@ class TestSuite:
                 log=case_log,
             )
 
+            if case_result.status == TestStatus.FAILED:
+                self.__save_serial_log(environment, case_log_path)
+
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
@@ -662,6 +670,15 @@ class TestSuite:
 
     def stop(self) -> None:
         self._should_stop = True
+
+    def __save_serial_log(self, environment: Environment, log_path: Path) -> None:
+        nodes = environment.nodes
+        for node in nodes.list():
+            if hasattr(node, "features") and node.features.is_supported(SerialConsole):
+                serial_console = node.features[SerialConsole]
+                log_dir = log_path / Path(f"serial_console_{node.name}")
+                log_dir.mkdir(parents=True)
+                serial_console.get_console_log(log_dir, force_run=True)
 
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:

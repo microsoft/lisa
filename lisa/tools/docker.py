@@ -2,8 +2,8 @@
 # Licensed under the MIT license.
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import SLES, CBLMariner, CentOs, Debian, Redhat
-from lisa.util import LisaException, RepoNotExistException
+from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Redhat
+from lisa.util import LisaException, RepoNotExistException, UnsupportedDistroException
 
 
 class Docker(Tool):
@@ -137,6 +137,13 @@ class Docker(Tool):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
         elif isinstance(self.node.os, SLES):
             self.node.os.install_packages(["docker"])
+        elif isinstance(self.node.os, BSD):
+            UnsupportedDistroException(
+                self.node.os,
+                "Docker is not supported to run natively on BSD. "
+                "Please check the supported distros here: "
+                "https://docs.docker.com/engine/install",
+            )
         else:
             raise LisaException(f"{self.node.os.information.vendor} not supported")
         self.start()

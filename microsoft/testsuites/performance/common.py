@@ -4,8 +4,10 @@ import inspect
 import pathlib
 from typing import Any, Dict, List, Optional, Union, cast
 
-from lisa import Node, RemoteNode, notifier, run_in_parallel
-from lisa.environment import Environment
+from assertpy import assert_that
+from retry import retry
+
+from lisa import Environment, Node, RemoteNode, notifier, run_in_parallel
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -14,6 +16,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
+from lisa.nic import Nics
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -32,6 +35,7 @@ from lisa.tools import (
     Ssh,
 )
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
+from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
 
 
@@ -209,7 +213,7 @@ def perf_tcp_pps(
     notifier.notify(pps_message)
 
 
-def perf_ntttcp(
+def perf_ntttcp(  # noqa: C901
     test_result: TestResult,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
@@ -259,12 +263,24 @@ def perf_ntttcp(
             set_task_max = True
         else:
             set_task_max = False
+        # collect sriov nic counts before reboot
+        if not udp_mode and set_task_max:
+            need_reboot = True
+        else:
+            need_reboot = False
+        if need_reboot:
+            client_sriov_count = len(client.nics.get_lower_nics())
+            server_sriov_count = len(server.nics.get_lower_nics())
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
+            if need_reboot:
+                # check sriov count not change after reboot
+                check_sriov_count(client, client_sriov_count)
+                check_sriov_count(server, server_sriov_count)
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
             )
@@ -363,6 +379,15 @@ def perf_ntttcp(
 
             perf_ntttcp_message_list.append(ntttcp_message)
     finally:
+        error_msg = ""
+        throw_error = False
+        for node in [client, server]:
+            if not node.is_connected:
+                error_msg += f" VM {node.name} can't be connected, "
+                throw_error = True
+        if throw_error:
+            error_msg += "probably due to VM stuck on reboot stage."
+            raise LisaException(error_msg)
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
         for lagscope in [client_lagscope, server_lagscope]:
@@ -472,3 +497,14 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
     total = sum(x for x in values) - min(values) - max(values)
     # calculate average
     return total / (len(values) - 2)
+
+
+@retry(exceptions=AssertionError, tries=30, delay=2)
+def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
+    node_nic_info = Nics(node)
+    node_nic_info.initialize()
+
+    assert_that(len(node_nic_info.get_lower_nics())).described_as(
+        f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+        f"actual sriov nic count is {sriov_count}"
+    ).is_equal_to(sriov_count)

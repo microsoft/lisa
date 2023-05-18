@@ -1,3 +1,5 @@
+import time
+from copy import deepcopy
 from pathlib import PurePosixPath
 from time import sleep
 from typing import List, Optional, Union, cast
@@ -18,6 +20,7 @@ from lisa import (
 )
 from lisa.operating_system import CpuArchitecture, Redhat
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
+from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
@@ -382,3 +385,47 @@ class TimeSync(TestSuite):
         result = cat.run("/proc/cmdline", force_run=True)
         if "initcall_blacklist=arm_pmu_acpi_init" not in result.stdout:
             raise LisaException("PMU is not disabled in kernel cmdline")
+
+    @TestCaseMetadata(
+        description="""
+        This test is to verify that timedrift is automatically corrected by chrony
+        after a time jump.
+
+        Steps:
+        1. Set makestep to 1.0 -1 to allow Chrony to make large adjustments.
+        Ref: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#chrony # noqa: E501
+        2. Manually change the system clock to a time in the past.
+        3. Verify that Chrony has corrected the time drift.
+        """,
+        priority=1,
+    )
+    def verify_timedrift_corrected(self, node: Node, log: Logger) -> None:
+        # Initialize chrony
+        chrony = node.tools[Chrony]
+        chrony.set_makestep("1.0 -1")
+        chrony.restart()
+
+        for iteration in range(3):
+            is_drift_corrected = False
+
+            # Get current time
+            date = node.tools[Date]
+            node_time = date.current()
+            modified_time = deepcopy(node_time)
+            modified_time = modified_time.replace(year=node_time.year - 2)
+            date.set(modified_time)
+
+            # Poll every second and check if the time drift is corrected
+            # for 5 minutes
+            for poll_iter in range(120):
+                time.sleep(1)
+                current_time = date.current()
+                if current_time > node_time:
+                    is_drift_corrected = True
+                    break
+                if poll_iter % 10 == 0:
+                    log.debug(
+                        f"Iteration {iteration}: Time drift is not corrected by "
+                        "chrony yet. Retrying..."
+                    )
+            assert_that(is_drift_corrected, "Time drift is not corrected by chrony.")

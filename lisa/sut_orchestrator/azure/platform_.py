@@ -9,16 +9,15 @@ import os
 import re
 import sys
 from copy import deepcopy
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import InitVar, dataclass, field
+from datetime import datetime
 from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
-from threading import Lock
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (  # type: ignore
     GalleryImage,
@@ -37,10 +36,16 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
     DeploymentMode,
     DeploymentProperties,
 )
-from azure.storage.blob import BlobClient
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
+from msrestazure.azure_cloud import (  # type: ignore
+    AZURE_CHINA_CLOUD,
+    AZURE_GERMAN_CLOUD,
+    AZURE_PUBLIC_CLOUD,
+    AZURE_US_GOV_CLOUD,
+    Cloud,
+)
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -88,8 +93,8 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
-    generate_sas_token,
     get_compute_client,
+    get_deployable_vhd_path,
     get_environment_context,
     get_marketplace_ordering_client,
     get_node_context,
@@ -97,11 +102,10 @@ from .common import (
     get_primary_ip_addresses,
     get_resource_management_client,
     get_storage_account_name,
-    get_storage_client,
+    get_vhd_details,
     get_vm,
     global_credential_access_lock,
     save_console_log,
-    wait_copy_blob,
     wait_operation,
 )
 from .tools import Uname, VmGeneration, Waagent
@@ -167,34 +171,12 @@ KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 ATTRIBUTE_FEATURES = "features"
 
-# https://abcdefg.blob.core.windows.net/abcdefg?sv=2020-08-04&
-# st=2022-01-19T06%3A25%3A16Z&se=2022-01-19T06%3A25%3A00Z&sr=b&
-# sp=r&sig=DdBu3FTHQr1%2BzIY%2FdS054IlsDQ1RdfjfL3FgRgexgeo%3D
-# https://abcdefg.blob.storage.azure.net/1b33rftmpdhs/abcdefg?
-# sv=2018-03-28&sr=b&si=11111111-feff-4312-bba2-3ca6eabf9b24&
-# sig=xdZaRwJBwu3P2pYbQ3uEmymlovFwHrtQNVWDHyK48sg%3D
-SAS_URL_PATTERN = re.compile(
-    r"^https://.*?(?:\.blob\.core\.windows\.net|"
-    r"blob\.storage\.azure\.net)/.*?\?sv=[^&]+?(?:&st=[^&]+)?"
-    r"(?:&se=(?P<year>[\d]{4})-(?P<month>[\d]{2})-(?P<day>[\d]{2}).*?)|.*?&sig=.*?$"
-)
-SAS_COPIED_CONTAINER_NAME = "lisa-sas-copied"
-
-# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/galleries/xxxx
-# /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Storage/storageAccounts/xxxx
-RESOURCE_GROUP_PATTERN = re.compile(r"resourceGroups/(.*)/providers", re.M)
-# https://sc.blob.core.windows.net/container/xxxx/xxxx/xxxx.vhd
-STORAGE_CONTAINER_BLOB_PATTERN = re.compile(
-    r"https://(?P<sc>.*)"
-    r"(?:\.blob\.core\.windows\.net|blob\.storage\.azure\.net)"
-    r"/(?P<container>[^/]+)/?/(?P<blob>.*)",
-    re.M,
-)
-
-# The timeout hours of the blob with copy pending status
-# If the blob is still copy pending status after the timeout hours, it can be deleted
-BLOB_COPY_PENDING_TIMEOUT_HOURS = 6
-_global_sas_vhd_copy_lock = Lock()
+CLOUD: Dict[str, Dict[str, Any]] = {
+    "azurecloud": AZURE_PUBLIC_CLOUD,
+    "azurechinacloud": AZURE_CHINA_CLOUD,
+    "azuregermancloud": AZURE_GERMAN_CLOUD,
+    "azureusgovernment": AZURE_US_GOV_CLOUD,
+}
 
 
 @dataclass_json()
@@ -228,6 +210,38 @@ class AzureLocation:
 
 @dataclass_json()
 @dataclass
+class CloudEndpointsSchema:
+    management: str = ""
+    resource_manager: str = ""
+    sql_management: str = ""
+    batch_resource_id: str = ""
+    gallery: str = ""
+    active_directory: str = ""
+    active_directory_resource_id: str = ""
+    active_directory_graph_resource_id: str = ""
+    microsoft_graph_resource_id: str = ""
+
+
+@dataclass_json()
+@dataclass
+class CloudSuffixesSchema:
+    storage_endpoint: str = ""
+    keyvault_dns: str = ""
+    sql_server_hostname: str = ""
+    azure_datalake_store_file_system_endpoint: str = ""
+    azure_datalake_analytics_catalog_and_job_endpoint: str = ""
+
+
+@dataclass_json()
+@dataclass
+class CloudSchema:
+    name: str
+    endpoints: CloudEndpointsSchema
+    suffixes: CloudSuffixesSchema
+
+
+@dataclass_json()
+@dataclass
 class AzurePlatformSchema:
     service_principal_tenant_id: str = field(
         default="",
@@ -248,11 +262,20 @@ class AzurePlatformSchema:
             validate=validate.Regexp(constants.GUID_REGEXP),
         ),
     )
+    cloud_raw: Optional[Union[Dict[str, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="cloud")
+    )
+    _cloud: InitVar[Cloud] = None
 
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
     resource_group_name: str = field(default="")
     # specify shared resource group location
     shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
+    # specify the locations which used to retrieve marketplace image information
+    # example: westus, westus2
+    marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
+        default=None
+    )
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
@@ -327,6 +350,64 @@ class AzurePlatformSchema:
         if not self.locations:
             self.locations = LOCATIONS
 
+    @property
+    def cloud(self) -> Cloud:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_cloud"):
+            self._cloud: Cloud = None
+        cloud: Cloud = self._cloud
+        if not cloud:
+            # if pass str into cloud, it should be one of below values, case insensitive
+            #  azurecloud
+            #  azurechinacloud
+            #  azuregermancloud
+            #  azureusgovernment
+            # example
+            #   cloud: AzureCloud
+            if isinstance(self.cloud_raw, str):
+                cloud = CLOUD.get(self.cloud_raw.lower(), None)
+                assert cloud, (
+                    f"cannot find cloud type {self.cloud_raw},"
+                    f" current support list is {list(CLOUD.keys())}"
+                )
+            # if pass dict to construct a cloud instance, the full example is
+            #   cloud:
+            #     name: AzureCloud
+            #     endpoints:
+            #       management: https://management.core.windows.net/
+            #       resource_manager: https://management.azure.com/
+            #       sql_management: https://management.core.windows.net:8443/
+            #       batch_resource_id: https://batch.core.windows.net/
+            #       gallery: https://gallery.azure.com/
+            #       active_directory: https://login.microsoftonline.com
+            #       active_directory_resource_id: https://management.core.windows.net/
+            #       active_directory_graph_resource_id: https://graph.windows.net/
+            #       microsoft_graph_resource_id: https://graph.microsoft.com/
+            #     suffixes:
+            #       storage_endpoint: core.windows.net
+            #       keyvault_dns: .vault.azure.net
+            #       sql_server_hostname: .database.windows.net
+            #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
+            #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
+            elif isinstance(self.cloud_raw, dict):
+                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+                cloud = Cloud(
+                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
+                )
+            else:
+                # by default use azure public cloud
+                cloud = AZURE_PUBLIC_CLOUD
+            self._cloud = cloud
+        return cloud
+
+    @cloud.setter
+    def cloud(self, value: Optional[CloudSchema]) -> None:
+        self._cloud = value
+        if value is None:
+            self.cloud_raw = None
+        else:
+            self.cloud_raw = value.to_dict()  # type: ignore
+
 
 class AzurePlatform(Platform):
     _diagnostic_storage_container_pattern = re.compile(
@@ -343,6 +424,7 @@ class AzurePlatform(Platform):
 
         # for type detection
         self.credential: DefaultAzureCredential
+        self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
         # cannot be a class level variable.
@@ -370,6 +452,7 @@ class AzurePlatform(Platform):
             features.NetworkInterface,
             features.Resize,
             features.StartStop,
+            features.IaaS,
             features.Infiniband,
             features.Hibernation,
             features.SecurityProfile,
@@ -494,6 +577,7 @@ class AzurePlatform(Platform):
                     check_or_create_resource_group(
                         self.credential,
                         subscription_id=self.subscription_id,
+                        cloud=self.cloud,
                         resource_group_name=resource_group_name,
                         location=location,
                         log=log,
@@ -612,6 +696,7 @@ class AzurePlatform(Platform):
                 container_client = get_or_create_storage_container(
                     credential=self.credential,
                     subscription_id=self.subscription_id,
+                    cloud=self.cloud,
                     account_name=storage_name,
                     container_name=container_name,
                     resource_group_name=self._azure_runbook.shared_resource_group_name,
@@ -658,6 +743,10 @@ class AzurePlatform(Platform):
 
     def _get_kernel_version(self, node: Node) -> str:
         result: str = ""
+
+        if node.is_connected and node.is_posix:
+            linux_information = node.tools[Uname].get_linux_information()
+            result = linux_information.kernel_version_raw
 
         if not result and hasattr(node, ATTRIBUTE_FEATURES):
             # try to get kernel version in Azure. use it, when uname doesn't work
@@ -805,18 +894,21 @@ class AzurePlatform(Platform):
         self._azure_runbook = azure_runbook
 
         self.subscription_id = azure_runbook.subscription_id
+        self.cloud = azure_runbook.cloud
+
         self._initialize_credential()
 
         check_or_create_resource_group(
             self.credential,
             self.subscription_id,
+            self.cloud,
             azure_runbook.shared_resource_group_name,
             azure_runbook.shared_resource_group_location,
             self._log,
         )
 
         self._rm_client = get_resource_management_client(
-            self.credential, self.subscription_id
+            self.credential, self.subscription_id, self.cloud
         )
 
     def _initialize_credential(self) -> None:
@@ -841,9 +933,16 @@ class AzurePlatform(Platform):
                 ] = azure_runbook.service_principal_client_id
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-            credential = DefaultAzureCredential()
 
-            with SubscriptionClient(credential) as self._sub_client:
+            credential = DefaultAzureCredential(
+                authority=self.cloud.endpoints.active_directory,
+            )
+
+            with SubscriptionClient(
+                credential,
+                base_url=self.cloud.endpoints.resource_manager,
+                credential_scopes=[self.cloud.endpoints.resource_manager + "/.default"],
+            ) as self._sub_client:
                 # suppress warning message by search for different credential types
                 azure_identity_logger = logging.getLogger("azure.identity")
                 azure_identity_logger.setLevel(logging.ERROR)
@@ -1184,12 +1283,12 @@ class AzurePlatform(Platform):
         if azure_node_runbook.vhd and azure_node_runbook.vhd.vhd_path:
             # vhd is higher priority
             vhd = azure_node_runbook.vhd
-            vhd.vhd_path = self._get_deployable_vhd_path(
-                vhd.vhd_path, azure_node_runbook.location, log
+            vhd.vhd_path = get_deployable_vhd_path(
+                self, vhd.vhd_path, azure_node_runbook.location, log
             )
             if vhd.vmgs_path:
-                vhd.vmgs_path = self._get_deployable_vhd_path(
-                    vhd.vmgs_path, azure_node_runbook.location, log
+                vhd.vmgs_path = get_deployable_vhd_path(
+                    self, vhd.vmgs_path, azure_node_runbook.location, log
                 )
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
@@ -1215,14 +1314,16 @@ class AzurePlatform(Platform):
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
-            azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
+            if image_info:
+                azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
 
             # retrieve the os type for arm template.
-            if azure_node_runbook.is_linux is None:
-                if image_info.os_disk_image.operating_system == "Windows":
-                    azure_node_runbook.is_linux = False
-                else:
-                    azure_node_runbook.is_linux = True
+            if (
+                azure_node_runbook.is_linux is None
+                and image_info
+                and image_info.os_disk_image.operating_system == "Windows"
+            ):
+                azure_node_runbook.is_linux = False
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
                 self._get_detailed_sig(azure_node_runbook.shared_gallery)
@@ -1248,12 +1349,12 @@ class AzurePlatform(Platform):
         if arm_parameters.vhd and arm_parameters.vhd.vhd_path:
             # vhd is higher priority
             vhd = arm_parameters.vhd
-            vhd.vhd_path = self._get_deployable_vhd_path(
-                vhd.vhd_path, arm_parameters.location, log
+            vhd.vhd_path = get_deployable_vhd_path(
+                self, vhd.vhd_path, arm_parameters.location, log
             )
             if vhd.vmgs_path:
-                vhd.vmgs_path = self._get_deployable_vhd_path(
-                    vhd.vmgs_path, arm_parameters.location, log
+                vhd.vmgs_path = get_deployable_vhd_path(
+                    self, vhd.vmgs_path, arm_parameters.location, log
                 )
             arm_parameters.vhd = vhd
             arm_parameters.osdisk_size_in_gb = max(
@@ -1272,22 +1373,25 @@ class AzurePlatform(Platform):
             image_info = self._get_image_info(
                 arm_parameters.location, arm_parameters.marketplace
             )
-            arm_parameters.osdisk_size_in_gb = max(
-                arm_parameters.osdisk_size_in_gb,
-                image_info.os_disk_image.additional_properties.get("sizeInGb", 0),
-            )
-            if not arm_parameters.purchase_plan and image_info.plan:
-                # expand values for lru cache
-                plan_name = image_info.plan.name
-                plan_product = image_info.plan.product
-                plan_publisher = image_info.plan.publisher
-                # accept the default purchase plan automatically.
-                arm_parameters.purchase_plan = self._process_marketplace_image_plan(
-                    marketplace=arm_parameters.marketplace,
-                    plan_name=plan_name,
-                    plan_product=plan_product,
-                    plan_publisher=plan_publisher,
+            if image_info:
+                arm_parameters.osdisk_size_in_gb = max(
+                    arm_parameters.osdisk_size_in_gb,
+                    _get_disk_size_in_gb(
+                        image_info.os_disk_image.additional_properties
+                    ),
                 )
+                if not arm_parameters.purchase_plan and image_info.plan:
+                    # expand values for lru cache
+                    plan_name = image_info.plan.name
+                    plan_product = image_info.plan.product
+                    plan_publisher = image_info.plan.publisher
+                    # accept the default purchase plan automatically.
+                    arm_parameters.purchase_plan = self._process_marketplace_image_plan(
+                        marketplace=arm_parameters.marketplace,
+                        plan_name=plan_name,
+                        plan_product=plan_product,
+                        plan_publisher=plan_publisher,
+                    )
 
         # Set disk type
         assert capability.disk, "node space must have disk defined."
@@ -1353,6 +1457,7 @@ class AzurePlatform(Platform):
         check_or_create_storage_account(
             self.credential,
             self.subscription_id,
+            self.cloud,
             storage_account_name,
             self._azure_runbook.shared_resource_group_name,
             location,
@@ -1626,6 +1731,51 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        # for below vm sizes, there are 2 nics
+        # but the accelerated networking can only be applied to a single NIC
+        # there is no API to expose this information
+        # so hardcode its max nic count to 1
+        if (
+            schema.NetworkDataPath.Sriov in node_space.network_interface.data_path
+            and resource_sku.name
+            in [
+                "Standard_D2as_v5",
+                "Standard_D2a_v4",
+                "Standard_D2as_v4",
+                "Standard_DS1_v2",
+                "Standard_D1_v2",
+                "Standard_D2als_v5",
+                "Standard_D2ads_v5",
+                "Standard_DC2ads_v5",
+                "Standard_DC2as_v5",
+                "Standard_D2_v3",
+                "Standard_D2_v4",
+                "Standard_D2s_v3",
+                "Standard_D2s_v4",
+                "Standard_D2ds_v4",
+                "Standard_D2d_v4",
+                "Standard_D2ds_v5",
+                "Standard_E2s_v3",
+                "Standard_E2s_v4",
+                "Standard_E2as_v5",
+                "Standard_E2d_v4",
+                "Standard_E2ads_v5",
+                "Standard_E2as_v4",
+                "Standard_E2_v3",
+                "Standard_E2a_v4",
+                "Standard_E2_v5",
+                "Standard_E2ds_v4",
+                "Standard_EC2as_v5",
+                "Standard_E2_v4",
+                "Standard_EC2ads_v5",
+                "Standard_F1",
+                "Standard_F1s",
+                "Standard_F2s_v2",
+            ]
+        ):
+            node_space.network_interface.max_nic_count = 1
+            node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
+
         # some vm size do not have resource disk present
         # https://docs.microsoft.com/en-us/azure/virtual-machines/azure-vms-no-temp-disk
         resource_disk_size = azure_raw_capabilities.get("MaxResourceVolumeMB", None)
@@ -1690,19 +1840,27 @@ class AzurePlatform(Platform):
         if marketplace.version.lower() == "latest":
             compute_client = get_compute_client(self)
             with global_credential_access_lock:
-                versioned_images = compute_client.virtual_machine_images.list(
-                    location=location,
-                    publisher_name=marketplace.publisher,
-                    offer=marketplace.offer,
-                    skus=marketplace.sku,
-                )
-            if 0 == len(versioned_images):
-                raise LisaException(
-                    f"cannot find any version of image {marketplace.publisher} "
-                    f"{marketplace.offer} {marketplace.sku} in {location}"
-                )
-            # any one should be the same to get purchase plan
-            new_marketplace.version = versioned_images[-1].name
+                try:
+                    versioned_images = compute_client.virtual_machine_images.list(
+                        location=location,
+                        publisher_name=marketplace.publisher,
+                        offer=marketplace.offer,
+                        skus=marketplace.sku,
+                    )
+                    if 0 == len(versioned_images):
+                        self._log.debug(
+                            f"cannot find any version of image {marketplace.publisher} "
+                            f"{marketplace.offer} {marketplace.sku} in {location}"
+                        )
+                    else:
+                        # any one should be the same to get purchase plan
+                        new_marketplace.version = versioned_images[-1].name
+                except ResourceNotFoundError as e:
+                    self._log.debug(
+                        f"Cannot find any version of image {marketplace.publisher} "
+                        f"{marketplace.offer} {marketplace.sku} in {location}:\n {e}"
+                    )
+
         return new_marketplace
 
     @lru_cache(maxsize=10)  # noqa: B019
@@ -1878,221 +2036,6 @@ class AzurePlatform(Platform):
 
         return min_cap
 
-    def _generate_sas_token(self, result_dict: Dict[str, str]) -> Any:
-        sc_name = result_dict["account_name"]
-        container_name = result_dict["container_name"]
-        rg = result_dict["resource_group_name"]
-        blob_name = result_dict["blob_name"]
-
-        source_container_client = get_or_create_storage_container(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=sc_name,
-            container_name=container_name,
-            resource_group_name=rg,
-        )
-        source_blob = source_container_client.get_blob_client(blob_name)
-        sas_token = generate_sas_token(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=sc_name,
-            resource_group_name=rg,
-        )
-        source_url = source_blob.url + "?" + sas_token
-        return source_url
-
-    @lru_cache(maxsize=10)  # noqa: B019
-    def _get_deployable_vhd_path(
-        self, vhd_path: str, location: str, log: Logger
-    ) -> str:
-        """
-        The sas url is not able to create a vm directly, so this method check if
-        the vhd_path is a sas url. If so, copy it to a location in current
-        subscription, so it can be deployed.
-        """
-        matches = SAS_URL_PATTERN.match(vhd_path)
-        if not matches:
-            vhd_details = self._get_vhd_details(vhd_path)
-            vhd_location = vhd_details["location"]
-            if location == vhd_location:
-                return vhd_path
-            else:
-                vhd_path = self._generate_sas_token(vhd_details)
-                matches = SAS_URL_PATTERN.match(vhd_path)
-                assert matches, f"fail to generate sas url for {vhd_path}"
-                log.debug(
-                    f"the vhd location {location} is not same with running case "
-                    f"location {vhd_location}, generate a sas url for source vhd, "
-                    f"it needs to be copied into location {location}."
-                )
-        else:
-            log.debug("found the vhd is a sas url, it may need to be copied.")
-
-        original_vhd_path = vhd_path
-
-        storage_name = get_storage_account_name(
-            subscription_id=self.subscription_id, location=location, type_="t"
-        )
-
-        check_or_create_storage_account(
-            self.credential,
-            self.subscription_id,
-            storage_name,
-            self._azure_runbook.shared_resource_group_name,
-            location,
-            log,
-        )
-
-        normalized_vhd_name = constants.NORMALIZE_PATTERN.sub("-", vhd_path)
-        year = matches["year"] if matches["year"] else "9999"
-        month = matches["month"] if matches["month"] else "01"
-        day = matches["day"] if matches["day"] else "01"
-        # use the expire date to generate the path. It's easy to identify when
-        # the cache can be removed.
-        vhd_path = f"{year}{month}{day}/{normalized_vhd_name}.vhd"
-        full_vhd_path = self._copy_vhd_to_storage(
-            storage_name, original_vhd_path, vhd_path, log
-        )
-        return full_vhd_path
-
-    def _copy_vhd_to_storage(
-        self, storage_name: str, src_vhd_sas_url: str, dst_vhd_name: str, log: Logger
-    ) -> str:
-        # get original vhd's hash key for comparing.
-        original_key: Optional[bytearray] = None
-        original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
-        properties = original_blob_client.get_blob_properties()
-        if properties.content_settings:
-            original_key = properties.content_settings.get(
-                "content_md5", None
-            )  # type: ignore
-
-        container_client = get_or_create_storage_container(
-            credential=self.credential,
-            subscription_id=self.subscription_id,
-            account_name=storage_name,
-            container_name=SAS_COPIED_CONTAINER_NAME,
-            resource_group_name=self._azure_runbook.shared_resource_group_name,
-        )
-        full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
-
-        # lock here to prevent a vhd is copied in multi-thread
-        cached_key: Optional[bytearray] = None
-        with _global_sas_vhd_copy_lock:
-            blobs = container_client.list_blobs(name_starts_with=dst_vhd_name)
-            blob_client = container_client.get_blob_client(dst_vhd_name)
-            vhd_exists = False
-            for blob in blobs:
-                if blob:
-                    # check if hash key matched with original key.
-                    if blob.content_settings:
-                        cached_key = blob.content_settings.get(
-                            "content_md5", None
-                        )  # type: ignore
-                    if self._is_stuck_copying(blob_client, log):
-                        # Delete the stuck vhd.
-                        blob_client.delete_blob(delete_snapshots="include")
-                    elif original_key and cached_key:
-                        if original_key == cached_key:
-                            log.debug("the sas url is copied already, use it directly.")
-                            vhd_exists = True
-                        else:
-                            log.debug("found cached vhd, but the hash key mismatched.")
-                    else:
-                        log.debug(
-                            "No md5 content either in original blob or current blob. "
-                            "Then no need to check the hash key"
-                        )
-                        vhd_exists = True
-
-            if not vhd_exists:
-                azcopy_path = self._azure_runbook.azcopy_path
-                if azcopy_path:
-                    log.info(f"AzCopy path: {azcopy_path}")
-                    if not os.path.exists(azcopy_path):
-                        raise LisaException(f"{azcopy_path} does not exist")
-
-                    sas_token = generate_sas_token(
-                        credential=self.credential,
-                        subscription_id=self.subscription_id,
-                        account_name=storage_name,
-                        resource_group_name=self._azure_runbook.shared_resource_group_name,  # noqa: E501
-                        writable=True,
-                    )
-                    dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
-                    log.info(f"copying vhd by azcopy {dst_vhd_name}")
-                    try:
-                        local().execute(
-                            f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
-                            expected_exit_code=0,
-                            expected_exit_code_failure_message=(
-                                "Azcopy failed to copy the blob"
-                            ),
-                            timeout=60 * 60,
-                        )
-                    except Exception as identifier:
-                        blob_client.delete_blob(delete_snapshots="include")
-                        raise LisaException(f"{identifier}")
-
-                    # Set metadata to mark the blob copied by AzCopy successfully
-                    metadata = {"AzCopyStatus": "Success"}
-                    blob_client.set_blob_metadata(metadata)
-                else:
-                    blob_client.start_copy_from_url(
-                        src_vhd_sas_url, metadata=None, incremental_copy=False
-                    )
-
-            wait_copy_blob(blob_client, dst_vhd_name, log)
-
-        return full_vhd_path
-
-    def _is_stuck_copying(self, blob_client: BlobClient, log: Logger) -> bool:
-        props = blob_client.get_blob_properties()
-        copy_status = props.copy.status
-        if copy_status == "pending":
-            if props.creation_time:
-                delta_hours = (
-                    datetime.now(timezone.utc) - props.creation_time
-                ).seconds / (60 * 60)
-            else:
-                delta_hours = 0
-
-            if delta_hours > BLOB_COPY_PENDING_TIMEOUT_HOURS:
-                log.debug(
-                    "the blob is pending more than "
-                    f"{BLOB_COPY_PENDING_TIMEOUT_HOURS} hours."
-                )
-                return True
-        return False
-
-    def _get_vhd_details(self, vhd_path: str) -> Any:
-        matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
-        assert matched, f"fail to get matched info from {vhd_path}"
-        sc_name = matched.group("sc")
-        container_name = matched.group("container")
-        blob_name = matched.group("blob")
-        storage_client = get_storage_client(self.credential, self.subscription_id)
-        # sometimes it will fail for below reason if list storage accounts like this way
-        # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-        # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
-        sc_list = storage_client.storage_accounts.list()
-        found_sc = None
-        for sc in sc_list:
-            if sc.name == sc_name:
-                found_sc = sc
-                break
-        assert (
-            found_sc
-        ), f"storage account {sc_name} not found in subscription {self.subscription_id}"
-        rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
-        return {
-            "location": found_sc.location,
-            "resource_group_name": rg,
-            "account_name": sc_name,
-            "container_name": container_name,
-            "blob_name": blob_name,
-        }
-
     def _generate_data_disks(
         self,
         node: Node,
@@ -2112,15 +2055,18 @@ class AzurePlatform(Platform):
             # deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
             #  does not have required value(s) for image specified in
             #  storage profile.
-            for default_data_disk in marketplace.data_disk_images:
-                data_disks.append(
-                    DataDiskSchema(
-                        node.capability.disk.data_disk_caching_type,
-                        default_data_disk.additional_properties["sizeInGb"],
-                        azure_node_runbook.disk_type,
-                        DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+            if marketplace:
+                for default_data_disk in marketplace.data_disk_images:
+                    data_disks.append(
+                        DataDiskSchema(
+                            node.capability.disk.data_disk_caching_type,
+                            _get_disk_size_in_gb(
+                                default_data_disk.additional_properties
+                            ),
+                            azure_node_runbook.disk_type,
+                            DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
+                        )
                     )
-                )
         assert isinstance(
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
@@ -2139,20 +2085,27 @@ class AzurePlatform(Platform):
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
-    ) -> VirtualMachineImage:
+    ) -> Optional[VirtualMachineImage]:
         # resolve "latest" to specified version
         marketplace = self._resolve_marketplace_image(location, marketplace)
 
         compute_client = get_compute_client(self)
         assert isinstance(marketplace, AzureVmMarketplaceSchema)
+        image_info = None
         with global_credential_access_lock:
-            image_info = compute_client.virtual_machine_images.get(
-                location=location,
-                publisher_name=marketplace.publisher,
-                offer=marketplace.offer,
-                skus=marketplace.sku,
-                version=marketplace.version,
-            )
+            try:
+                image_info = compute_client.virtual_machine_images.get(
+                    location=location,
+                    publisher_name=marketplace.publisher,
+                    offer=marketplace.offer,
+                    skus=marketplace.sku,
+                    version=marketplace.version,
+                )
+            except HttpResponseError as e:
+                # Code: ImageVersionDeprecated
+                if "ImageVersionDeprecated" in str(e):
+                    raise e
+                self._log.debug(f"Could not find image info:\n {e}")
         return image_info
 
     def _get_location_key(self, location: str) -> str:
@@ -2212,10 +2165,11 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
-        result_dict = self._get_vhd_details(blob_url)
+        result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
             subscription_id=self.subscription_id,
+            cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
             resource_group_name=result_dict["resource_group_name"],
@@ -2291,7 +2245,18 @@ class AzurePlatform(Platform):
                 continue
 
             if vm_size in caps:
-                candidate_caps.append(caps[vm_size])
+                cap_features = caps[vm_size].capability.features
+                # Azure platform offers SaaS, PaaS, IaaS.
+                # VMs can only been created with the VM Skus which have IaaS capability.
+                # Below exception will be thrown out
+                # if the VM Sku doesn't provide IaaS capability.
+                # BadRequest: Requested operation cannot be performed because VM size
+                # XXX does not support IaaS deployments.
+                if not cap_features or (
+                    cap_features
+                    and [x for x in cap_features if features.IaaS.name() == x.type]
+                ):
+                    candidate_caps.append(caps[vm_size])
 
         return candidate_caps
 
@@ -2526,6 +2491,18 @@ class AzurePlatform(Platform):
             "eastus2euap",
         ]
 
+        if self._azure_runbook.marketplace_image_information_location:
+            if isinstance(
+                self._azure_runbook.marketplace_image_information_location, str
+            ):
+                _marketplace_image_locations = [
+                    self._azure_runbook.marketplace_image_information_location
+                ]
+            else:
+                _marketplace_image_locations = (
+                    self._azure_runbook.marketplace_image_information_location
+                )
+
         if not node_space:
             return
 
@@ -2542,22 +2519,17 @@ class AzurePlatform(Platform):
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
 
         if azure_runbook.marketplace:
-            for index, location in enumerate(_marketplace_image_locations):
-                try:
-                    image_info = self._get_image_info(
-                        location, azure_runbook.marketplace
-                    )
+            for location in _marketplace_image_locations:
+                image_info = self._get_image_info(location, azure_runbook.marketplace)
+                if image_info:
                     break
-                except Exception as identifier:
-                    # raise exception, if last location failed.
-                    if index == len(_marketplace_image_locations) - 1:
-                        raise identifier
 
-            generation = _get_vhd_generation(image_info)
-            node_space.features.add(features.VhdGenerationSettings(gen=generation))
-            node_space.features.add(
-                features.ArchitectureSettings(arch=image_info.architecture)
-            )
+            if image_info:
+                generation = _get_vhd_generation(image_info)
+                node_space.features.add(features.VhdGenerationSettings(gen=generation))
+                node_space.features.add(
+                    features.ArchitectureSettings(arch=image_info.architecture)
+                )
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_runbook.shared_gallery
@@ -2661,3 +2633,13 @@ def _get_gallery_image_generation(shared_image: GalleryImage) -> int:
         shared_image.hyper_v_generation
     ), f"no hyper_v_generation property for image {shared_image.name}"
     return int(shared_image.hyper_v_generation.strip("V"))
+
+
+def _get_disk_size_in_gb(additional_properties: Dict[str, int]) -> int:
+    osdisk_size_in_gb = additional_properties.get("sizeInGb", 0)
+    if not osdisk_size_in_gb:
+        osdisk_size_in_gb = round(
+            additional_properties.get("sizeInBytes", 0) / 1024 / 1024 / 1024
+        )
+
+    return osdisk_size_in_gb

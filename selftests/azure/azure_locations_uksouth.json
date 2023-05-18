@@ -55,7 +55,11 @@
                 "gpu_count": 0,
                 "features": {
                     "is_allow_set": true,
-                    "items": []
+                    "items": [
+                        {
+                            "type": "IaaS"
+                        }
+                    ]
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -223,7 +227,11 @@
                 "gpu_count": 0,
                 "features": {
                     "is_allow_set": true,
-                    "items": []
+                    "items": [
+                        {
+                            "type": "IaaS"
+                        }
+                    ]
                 },
                 "excluded_features": {
                     "is_allow_set": false
@@ -402,6 +410,9 @@
                     "items": [
                         {
                             "type": "StartStop"
+                        },
+                        {
+                            "type": "IaaS"
                         }
                     ]
                 },

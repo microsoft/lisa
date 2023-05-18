@@ -49,9 +49,10 @@ azure = [
     "azure-mgmt-storage ~= 20.0.0",
     "azure-storage-blob ~= 12.11.0",
     "azure-storage-file-share ~= 12.4.0",
+    "msrestazure ~= 0.6.4",
     "cachetools ~= 5.2.0",
     "requests",
-    "Pillow ~= 9.4.0",
+    "Pillow ~= 9.5.0",
     "PyGObject ~= 3.42.0; platform_system == 'Linux'",
 ]
 
@@ -85,7 +86,7 @@ legacy = [
 ]
 
 libvirt = [
-    "libvirt-python ~= 8.9.0; platform_system != 'Windows'",
+    "libvirt-python ~= 9.3.0; platform_system != 'Windows'",
     "pycdlib ~= 1.12.0; platform_system != 'Windows'",
 ]
 

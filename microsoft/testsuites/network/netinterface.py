@@ -20,7 +20,7 @@ from lisa import (
 from lisa.features import NetworkInterface, SerialConsole, Synthetic
 from lisa.nic import Nics
 from lisa.operating_system import FreeBSD
-from lisa.tools import Dhclient, Ip, KernelConfig, Uname, Wget
+from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
 
 from .common import restore_extra_nics_per_node
@@ -135,14 +135,9 @@ class NetInterface(TestSuite):
         ip = node.tools[Ip]
         while test_count < self.NET_INTERFACE_RELOAD_TEST_COUNT:
             test_count += 1
-            ip.restart_device(default_nic, run_dhclient=True)
-            if not node_nic_info.default_nic:
-                # Add default route if missing after running ip link down/up
-                node.execute(f"ip route add {default_route}", shell=True, sudo=True)
-            if not node_nic_info.nics[default_nic].ip_addr:
-                node.execute("kill $(pidof dhclient)", shell=True, sudo=True)
-                dhclient = node.tools[Dhclient]
-                dhclient.renew()
+            ip.restart_device(
+                default_nic, run_dhclient=True, default_route=default_route
+            )
 
             timer = perf_timer.Timer()
             while timer.elapsed(stop=False) < self.DHCLIENT_TIMEOUT:

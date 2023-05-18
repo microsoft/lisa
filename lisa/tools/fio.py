@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_perf_message
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
-from lisa.util import LisaException, constants
+from lisa.operating_system import CBLMariner, CentOs, Debian, Posix, Redhat, Suse
+from lisa.util import LisaException, RepoNotExistException, constants
 from lisa.util.process import Process
 
 from .git import Git
@@ -63,8 +63,12 @@ class Fio(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         try:
             posix_os.install_packages("fio")
+        except RepoNotExistException as e:
+            raise e
         except Exception as e:
             self._log.debug(f"failed to install fio from package: {e}")
+
+        if not self._check_exists():
             self._install_from_src()
         return self._check_exists()
 
@@ -219,11 +223,7 @@ class Fio(Tool):
             if other_fields:
                 result_copy.update(other_fields)
             fio_result_message = create_perf_message(
-                DiskPerformanceMessage,
-                self.node,
-                test_result,
-                test_name,
-                result_copy,
+                DiskPerformanceMessage, self.node, test_result, test_name, result_copy
             )
             fio_message.append(fio_result_message)
         return fio_message
@@ -329,6 +329,22 @@ class Fio(Tool):
 
     def _install_from_src(self) -> bool:
         self._install_dep_packages()
+        if (
+            isinstance(self.node.os, Redhat)
+            and self.node.os.information.version < "8.0.0"
+        ):
+            posix_os: Posix = cast(Posix, self.node.os)
+            if isinstance(self.node.os, CentOs):
+                posix_os.install_packages("centos-release-scl")
+            posix_os.install_packages(
+                packages="devtoolset-8-gcc*", extra_args=["--skip-broken"]
+            )
+            self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
+            self.node.execute(
+                "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc",
+                sudo=True,
+                shell=True,
+            )
         tool_path = self.get_tool_path()
         self.node.shell.mkdir(tool_path, exist_ok=True)
         git = self.node.tools[Git]

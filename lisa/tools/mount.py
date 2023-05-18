@@ -3,16 +3,16 @@
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import List, Optional, cast
+from typing import Dict, List, Optional, cast
 
 from assertpy.assertpy import assert_that
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import BSD, Posix
 from lisa.tools import Fdisk
 from lisa.tools.mkfs import FileSystem, Mkfs
-from lisa.util import LisaException
+from lisa.util import LisaException, find_groups_in_lines
 
 
 @dataclass
@@ -58,6 +58,14 @@ class Mount(Tool):
     # /dev/sda1 on /mnt/a type ext4 (rw,relatime,discard)
     _partition_info_regex = re.compile(
         r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s+.*"
+    )
+    _mount_info_regex = re.compile(
+        r"\s*(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s\(+.*"
+    )
+
+    # /dev/da1p1 on /mnt/resource (ufs, local, soft-updates)
+    _partition_info_regex_bsd = re.compile(
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+(\((?P<type>.*),.*,.*\))"
     )
 
     @property
@@ -116,7 +124,10 @@ class Mount(Tool):
         output: str = self.run(force_run=True).stdout
         partition_info: List[PartitionInfo] = []
         for line in output.splitlines():
-            matched = self._partition_info_regex.fullmatch(line)
+            if isinstance(self.node.os, BSD):
+                matched = self._partition_info_regex_bsd.fullmatch(line)
+            else:
+                matched = self._partition_info_regex.fullmatch(line)
             if matched:
                 partition_name = matched.group("name")
                 partition_info.append(
@@ -149,6 +160,15 @@ class Mount(Tool):
         self._log.debug(f"disk: {partition}, mount_point: {partition.mount_point}")
 
         return partition.mount_point
+
+    def check_mount_point_exist(self, mount_point: str) -> bool:
+        output: str = self.run(force_run=True).stdout
+        mount_points: List[Dict[str, str]] = []
+        mount_points = find_groups_in_lines(
+            output, self._mount_info_regex, single_line=False
+        )
+        self._log.debug(f"Found mount points: {mount_points}")
+        return any([x for x in mount_points if mount_point == x["mount_point"]])
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)

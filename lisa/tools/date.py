@@ -23,3 +23,12 @@ class Date(Tool):
             0, f"'Date' return non-zero exit code: {command_result.stderr}"
         )
         return parser().parse(command_result.stdout)
+
+    def set(self, new_date: datetime) -> None:
+        self.run(
+            f"--set='{new_date.isoformat()}'",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to set date time.",
+        )
