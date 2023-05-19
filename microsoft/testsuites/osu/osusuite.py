@@ -102,7 +102,9 @@ class OSUTestSuite(TestSuite):
 def _install_osu_mpi(node: Node) -> None:
     assert isinstance(node.os, Posix)
     if isinstance(node.os, Debian):
-        node.os.install_packages(["libibverbs-dev", "gfortran", "bison"])
+        node.os.install_packages(
+            ["libibverbs-dev", "gfortran", "bison", "g++", "make", "libtool"]
+        )
     elif isinstance(node.os, RPMDistro):
         node.os.install_packages(["rdma-core-devel", "gfortran", "bison"])
     else:
