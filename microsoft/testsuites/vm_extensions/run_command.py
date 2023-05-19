@@ -14,6 +14,7 @@ from lisa import (
 )
 
 from lisa.sut_orchestrator.azure.common import (
+    AZURE_SHARED_RG_NAME,
     get_storage_account_name,
     get_or_create_storage_container,
     generate_blob_sas_token,
@@ -158,17 +159,12 @@ class RunCommand(TestSuite):
 
         subscription_id = platform.subscription_id
         information = environment.get_information()
-        rg_name = information["resource_group_name"]
         container_name = "rcv2lisa"
         storage_account_name = get_storage_account_name(
             subscription_id=subscription_id, location=information["location"]
         )
-        blob_name = f"{uuid.uuid4()}.sh"
-
-        log.log(logging.INFO, subscription_id)
-        log.log(logging.INFO, storage_account_name)
-        log.log(logging.INFO, rg_name)
-        log.log(logging.INFO, platform.credential)
+        blob_name = "rcv2lisa.sh"
+        test_file = "/tmp/rcv2lisasas.txt"
 
         container_client = get_or_create_storage_container(
             credential=platform.credential,
@@ -176,21 +172,54 @@ class RunCommand(TestSuite):
             cloud=platform.cloud,
             account_name=storage_account_name,
             container_name=container_name,
-            resource_group_name=rg_name,
+            resource_group_name=AZURE_SHARED_RG_NAME,
         )
 
         blob = container_client.get_blob_client(blob_name)
+        if not blob.exists():
+            # Upload blob to container if doesn't exist
+            container_client.upload_blob(
+                name=blob_name, data=f"touch {test_file}", overwrite=True
+            )
+
         sas_token = generate_blob_sas_token(
             credential=platform.credential,
             subscription_id=subscription_id,
             cloud=platform.cloud,
             account_name=storage_account_name,
-            resource_group_name=rg_name,
+            resource_group_name=AZURE_SHARED_RG_NAME,
             container_name=container_name,
             file_name=blob_name,
             expired_hours=1,
         )
 
-        source_url = blob.url + "?" + sas_token
-        log.log(logging.INFO, source_url)
-        pass
+        script_uri = blob.url + "?" + sas_token
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "scriptUri": script_uri,
+            },
+        }
+
+        extension = node.features[AzureExtension]
+        result = extension.create_or_update(
+            name="RunCommand",
+            publisher="Microsoft.CPlat.Core",
+            type_="RunCommandHandlerLinux",
+            type_handler_version="1.3",
+            auto_upgrade_minor_version=True,
+            settings=settings,
+        )
+
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
+
+        message = f"File {test_file} was not created on the test machine"
+        # Verify that file was created on the test machine
+        node.execute(
+            f"ls '{test_file}'",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=message,
+        )
