@@ -114,7 +114,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=32),
@@ -163,7 +162,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_nff_go(
@@ -189,7 +187,6 @@ class Dpdk(TestSuite):
             min_nic_count=3,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_multiprocess(
@@ -287,7 +284,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_sriov_rescind_failover_receiver(
@@ -326,7 +322,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_sriov_rescind_failover_send_only(
@@ -386,7 +381,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_vpp(
@@ -423,7 +417,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_ring_ping(
@@ -499,7 +492,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -526,7 +518,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -553,7 +544,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -578,7 +568,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_netvsc(
@@ -604,7 +593,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_uio_binding(
