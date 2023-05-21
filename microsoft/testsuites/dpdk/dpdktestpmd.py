@@ -82,6 +82,8 @@ class DpdkTestpmd(Tool):
         "libnuma-dev",
         "dpkg-dev",
         "pkg-config",
+        "python3.8-dev",
+        "python3.8-distutils",
         "python3-pip",
         "python3-pyelftools",
         "python-pyelftools",
@@ -124,10 +126,7 @@ class DpdkTestpmd(Tool):
         "libmnl-devel meson",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
-    _ninja_url = (
-        "https://github.com/ninja-build/ninja/releases/"
-        "download/v1.10.2/ninja-linux.zip"
-    )
+    _ninja_url = "https://github.com/ninja-build/ninja/"
 
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
@@ -828,6 +827,7 @@ class DpdkTestpmd(Tool):
 
     def _install_ninja_and_meson(self) -> None:
         node = self.node
+        node.execute("ln -fs /usr/bin/python3.8 /usr/bin/python3", sudo=True)
         cwd = node.working_path
         node.execute(
             "pip3 install --upgrade meson",
@@ -853,18 +853,20 @@ class DpdkTestpmd(Tool):
         )
         # NOTE: finding latest ninja is a pain,
         # so just fetch latest from github here
-        wget_tool = self.node.tools[Wget]
-        wget_tool.get(
+        git_tool = self.node.tools[Git]
+        git_tool.clone(
             self._ninja_url,
-            file_path=cwd.as_posix(),
-            filename="ninja-linux.zip",
+            cwd=node.working_path,
         )
-        node.tools[Unzip].extract(
-            file=str(cwd.joinpath("ninja-linux.zip")),
-            dest_dir=str(cwd),
-            sudo=True,
+        node.execute(
+            "./configure.py --bootstrap",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to run ./configure.py --bootstrap"
+            ),
         )
-        node.tools[Mv].move(f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
+
+        node.tools[Mv].move(f"ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
