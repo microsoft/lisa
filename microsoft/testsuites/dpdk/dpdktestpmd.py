@@ -860,13 +860,19 @@ class DpdkTestpmd(Tool):
         )
         node.execute(
             "./configure.py --bootstrap",
+            cwd=f"{node.working_path}/ninja",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Failed to run ./configure.py --bootstrap"
             ),
         )
 
-        node.tools[Mv].move(f"ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
+        node.tools[Mv].move(
+            f"{node.working_path}/ninja/ninja",
+            "/usr/bin/ninja",
+            overwrite=True,
+            sudo=True,
+        )
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
