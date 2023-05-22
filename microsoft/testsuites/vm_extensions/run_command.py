@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import uuid
-import logging
 
 from lisa import (
     Logger,
@@ -33,12 +32,12 @@ from lisa.environment import Environment
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
 
-    It has 3 test cases to verify if RC runs successfully when:
+    It has 5 test cases to verify if RC runs successfully when:
         1. Used with a pre-existing available script hardcoded in CRP
         2. Provided a custom linux shell script
         3. Provided a public storage blob uri that points to the script
-        4. Provided a storage sas uri that points to script
-        5. Provided managed identity credentials that can access storage blob
+        4. Provided a storage uri pointing to script without a sas token (should fail)
+        5. Provided a storage sas uri that points to script
     """,
 )
 class RunCommand(TestSuite):
@@ -140,6 +139,77 @@ class RunCommand(TestSuite):
             f"ls '{test_file}'",
             shell=True,
             expected_exit_code=0,
+            expected_exit_code_failure_message=message,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Run Command v2 VM extension with a private storage uri pointing
+        to the script in blob storage. No sas token provided, should fail.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_private_uri_script_run_failed(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        platform = environment.platform
+        assert isinstance(platform, AzurePlatform)
+
+        subscription_id = platform.subscription_id
+        information = environment.get_information()
+        container_name = "rcv2lisa"
+        storage_account_name = get_storage_account_name(
+            subscription_id=subscription_id, location=information["location"]
+        )
+        blob_name = "rcv2lisa.sh"
+        test_file = "/tmp/rcv2lisasas.txt"
+
+        container_client = get_or_create_storage_container(
+            credential=platform.credential,
+            subscription_id=subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            container_name=container_name,
+            resource_group_name=AZURE_SHARED_RG_NAME,
+        )
+
+        blob = container_client.get_blob_client(blob_name)
+        if not blob.exists():
+            # Upload blob to container if doesn't exist
+            container_client.upload_blob(
+                name=blob_name, data=f"touch {test_file}", overwrite=True
+            )
+
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "scriptUri": blob.url,
+            },
+        }
+
+        extension = node.features[AzureExtension]
+        result = extension.create_or_update(
+            name="RunCommand",
+            publisher="Microsoft.CPlat.Core",
+            type_="RunCommandHandlerLinux",
+            type_handler_version="1.3",
+            auto_upgrade_minor_version=True,
+            settings=settings,
+        )
+
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
+
+        message = (
+            f"File {test_file} downloaded on test machine though it should not have."
+        )
+        # Verify that file was NOT created on the test machine
+        node.execute(
+            f"ls '{test_file}'",
+            shell=True,
+            expected_exit_code=2,
             expected_exit_code_failure_message=message,
         )
 
