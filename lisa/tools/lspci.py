@@ -122,7 +122,9 @@ class Lspci(Tool):
                 expected_exit_code=0,
                 sudo=True,
             )
-            for pci_raw in result.stdout.splitlines():
+            for pci_raw in [
+                line for line in result.stdout.splitlines() if line.strip()
+            ]:
                 pci_device = PciDevice(pci_raw)
                 self._pci_devices.append(pci_device)
 
