@@ -23,7 +23,6 @@ from lisa.tools import (
     Service,
     Tar,
     Timeout,
-    Unzip,
     Wget,
 )
 from lisa.util import (
@@ -82,8 +81,8 @@ class DpdkTestpmd(Tool):
         "libnuma-dev",
         "dpkg-dev",
         "pkg-config",
-        "python3.8-dev",
-        "python3.8-distutils",
+        # "python3.8-dev",
+        # "python3.8-distutils",
         "python3-pip",
         "python3-pyelftools",
         "python-pyelftools",
@@ -827,7 +826,7 @@ class DpdkTestpmd(Tool):
 
     def _install_ninja_and_meson(self) -> None:
         node = self.node
-        node.execute("ln -fs /usr/bin/python3.8 /usr/bin/python3", sudo=True)
+        # node.execute("ln -fs /usr/bin/python3.8 /usr/bin/python3", sudo=True)
         cwd = node.working_path
         node.execute(
             "pip3 install --upgrade meson",
