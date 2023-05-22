@@ -24,7 +24,6 @@ from lisa.tools import (
     Service,
     Tar,
     Timeout,
-    Unzip,
     Wget,
 )
 from lisa.util import (
@@ -115,6 +114,7 @@ class DpdkTestpmd(Tool):
         "python3-pip",
         "kernel-modules-extra",
         "kernel-headers",
+        "gcc-c++",
     ]
     _suse_packages = [
         "psmisc",
@@ -126,10 +126,7 @@ class DpdkTestpmd(Tool):
         "gcc",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
-    _ninja_url = (
-        "https://github.com/ninja-build/ninja/releases/"
-        "download/v1.10.2/ninja-linux.zip"
-    )
+    _ninja_url = "https://github.com/ninja-build/ninja/"
 
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
@@ -855,20 +852,29 @@ class DpdkTestpmd(Tool):
                     "version in /usr/bin"
                 ),
             )
+
         # NOTE: finding latest ninja is a pain,
         # so just fetch latest from github here
-        wget_tool = self.node.tools[Wget]
-        wget_tool.get(
+        git_tool = self.node.tools[Git]
+        git_tool.clone(
             self._ninja_url,
-            file_path=cwd.as_posix(),
-            filename="ninja-linux.zip",
+            cwd=node.working_path,
         )
-        node.tools[Unzip].extract(
-            file=str(cwd.joinpath("ninja-linux.zip")),
-            dest_dir=str(cwd),
+        node.execute(
+            "./configure.py --bootstrap",
+            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to run ./configure.py --bootstrap"
+            ),
+        )
+        node.tools[Mv].move(
+            f"{node.working_path}/ninja/ninja",
+            "/usr/bin/ninja",
+            overwrite=True,
             sudo=True,
         )
-        node.tools[Mv].move(f"{cwd}/ninja", "/usr/bin/ninja", overwrite=True, sudo=True)
+
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
