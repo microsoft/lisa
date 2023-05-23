@@ -15,7 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Redhat
+from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
@@ -77,6 +77,9 @@ class HvModule(TestSuite):
         3. Use lsinitrd tool to check whether a necessary module is missing
         """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[BSD],
+        ),
     )
     def verify_initrd_modules(self, environment: Environment) -> None:
         node = environment.nodes[0]
@@ -170,6 +173,10 @@ class HvModule(TestSuite):
         node = environment.nodes[0]
         hv_modules = self._get_not_built_in_modules(node)
         distro_version = node.os.information.version
+        if len(hv_modules) == 0:
+            raise SkippedException(
+                "Hyper-V drivers are statically built into the kernel"
+            )
 
         # Some versions of RHEL and CentOS have the LIS package installed
         #   which includes extra drivers
@@ -259,15 +266,22 @@ class HvModule(TestSuite):
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
         """
-        hv_modules_configuration = {
-            "hv_storvsc": "CONFIG_HYPERV_STORAGE",
-            "hv_netvsc": "CONFIG_HYPERV_NET",
-            "hv_vmbus": "CONFIG_HYPERV",
-            "hv_utils": "CONFIG_HYPERV_UTILS",
-            "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
-            "hv_balloon": "CONFIG_HYPERV_BALLOON",
-            "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
-        }
+        if isinstance(node.os, BSD):
+            hv_modules_configuration = {
+                "hv_storvsc": "vmbus/storvsc",
+                "hv_netvsc": "vmbus/hn",
+                "hyperv_keyboard": "vmbus/hv_kbd",
+            }
+        else:
+            hv_modules_configuration = {
+                "hv_storvsc": "CONFIG_HYPERV_STORAGE",
+                "hv_netvsc": "CONFIG_HYPERV_NET",
+                "hv_vmbus": "CONFIG_HYPERV",
+                "hv_utils": "CONFIG_HYPERV_UTILS",
+                "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
+                "hv_balloon": "CONFIG_HYPERV_BALLOON",
+                "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
+            }
         modules = []
         for module in hv_modules_configuration:
             if not node.tools[KernelConfig].is_built_in(
