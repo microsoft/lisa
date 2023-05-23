@@ -582,6 +582,7 @@ class TestSuite:
 
         is_suite_continue = True
         suite_log = self.__log
+        suite_error_stacktrace = None
         #  replace to case's logger temporarily
         if hasattr(self, "before_suite"):
             (
