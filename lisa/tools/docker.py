@@ -138,7 +138,7 @@ class Docker(Tool):
         elif isinstance(self.node.os, SLES):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):
-            UnsupportedDistroException(
+            raise UnsupportedDistroException(
                 self.node.os,
                 "Docker is not supported to run natively on BSD. "
                 "Please check the supported distros here: "
