@@ -123,7 +123,7 @@ class DpdkTestpmd(Tool):
         "librdmacm1",
         "rdma-core-devel",
         "libmnl-devel meson",
-        "gcc",
+        "gcc-c++",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
     _ninja_url = "https://github.com/ninja-build/ninja/"
