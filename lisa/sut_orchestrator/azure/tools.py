@@ -11,6 +11,7 @@ from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat
 from lisa.tools import Gcc, Modinfo, PowerShell, Uname
+from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
     UnsupportedDistroException,
@@ -287,6 +288,10 @@ class KvpClient(Tool):
     def command(self) -> str:
         return str(self.node.working_path / self._command_name)
 
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return KvpClientFreeBSD
+
     @property
     def can_install(self) -> bool:
         return True
@@ -412,3 +417,54 @@ class Azsecd(Tool):
     def install(self) -> bool:
         self.node.os.install_packages("azure-security")  # type: ignore
         return self._check_exists()
+
+
+class KvpClientFreeBSD(KvpClient):
+    _KVP_POOL_LOCATION = "/var/db/hyperv/pool"
+
+    # .kvp_pool_{pool_id}
+    _KVP_POOL_REGEX = re.compile(r"\.kvp_pool_(\d+)")
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def get_pool_count(self) -> int:
+        # Check the number of files with the pattern `.kvp_pool_{pool_id}`
+        output = (
+            self.node.tools[Ls]
+            .run(
+                f"{self._KVP_POOL_LOCATION}/.kvp_pool_*",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="No KVP pool found",
+            )
+            .stdout
+        )
+        return len(self._KVP_POOL_REGEX.findall(output))
+
+    def get_pool_records(self, pool_id: int, force_run: bool = False) -> Dict[str, str]:
+        # Read the content of the file with the pattern `.kvp_pool_{pool_id}`
+        # The file is seprated by delimiter `?`
+        content = self.node.tools[Cat].read(
+            f"{self._KVP_POOL_LOCATION}/.kvp_pool_{pool_id}",
+            sudo=True,
+        )
+
+        # Split by delimiter `?`
+        # Every even index is the key, and the odd index is the value
+        records: Dict[str, str] = {}
+        content_split = content.split("\x00")
+        content_split = [item for item in content_split if item != ""]
+        for i in range(0, len(content_split), 2):
+            records[content_split[i]] = content_split[i + 1]
+
+        return records
