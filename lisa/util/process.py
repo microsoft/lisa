@@ -372,7 +372,9 @@ class Process:
         # this warning message may break commands, so remove it from the first line
         # of standard output.
         if raw_input.startswith("sudo: unable to resolve host"):
-            lines = raw_input.splitlines(keepends=True)
+            lines = [
+                line for line in raw_input.splitlines(keepends=True) if line.strip()
+            ]
             raw_input = "".join(lines[1:])
             self._log.debug(f'found error message in sudo: "{lines[0]}"')
         return raw_input
