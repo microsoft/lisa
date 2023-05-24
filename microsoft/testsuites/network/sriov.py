@@ -674,7 +674,7 @@ class Sriov(TestSuite):
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
-                core_count=search_space.IntRange(min=8, max=16),
+                core_count=search_space.IntRange(min=8, max=416),
                 network_interface=features.Sriov(),
             )
         ),
