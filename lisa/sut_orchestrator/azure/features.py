@@ -1134,6 +1134,16 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
+        if (
+            self._node.capability.disk
+            and self._node.capability.disk.disk_controller_type
+            == schema.DiskControllerType.NVME
+        ):
+            nvme = self._node.features[Nvme]
+            # Skip OS disk which is '[0]' in namespaces list
+            disk_array = nvme.get_namespaces()[1:]
+            return disk_array
+        # disk_controller_type == SCSI
         # refer here to get data disks from folder /dev/disk/azure/scsi1
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
         # /dev/disk/azure/scsi1/lun0
@@ -1148,8 +1158,8 @@ class Disk(AzureFeatureMixin, features.Disk):
                 isinstance(os, Redhat) and os.information.release >= "9.0"
             ):
                 self._log.debug(
-                    "download udev rules to construct a set of symbolic links "
-                    "under the /dev/disk/azure path"
+                    "download udev rules to construct a set of "
+                    "symbolic links under the /dev/disk/azure path"
                 )
                 if ls_tools.is_file(
                     self._node.get_pure_path("/dev/disk/azure"), sudo=True
@@ -1181,7 +1191,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
         assert matched, "not find data disks"
-        disk_array: List[str] = [""] * len(matched)
+        disk_array = [""] * len(matched)
         for disk in matched:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
