@@ -461,6 +461,13 @@ class DpdkTestpmd(Tool):
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
+        if not self.use_package_manager_install():
+            self._dpdk_repo_path_name = "dpdk"
+            work_path = self.node.get_working_path_with_required_space(5)
+            self.current_work_path = self.node.get_pure_path(work_path)
+            self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
+                self._dpdk_repo_path_name
+            )
         self.find_testpmd_binary(assert_on_fail=False)
 
     def _determine_network_hardware(self) -> None:
@@ -543,8 +550,6 @@ class DpdkTestpmd(Tool):
 
         # otherwise install from source tarball or git
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
-        self._dpdk_repo_path_name = "dpdk"
-        self.dpdk_path = self.node.working_path.joinpath(self._dpdk_repo_path_name)
 
         if self.find_testpmd_binary(
             assert_on_fail=False, check_path="/usr/local/bin"
@@ -564,15 +569,14 @@ class DpdkTestpmd(Tool):
                         "User-defined variable dpdk_branch will be ignored."
                     )
                 )
-            working_path = str(node.working_path)
             wget_tool.get(
                 self._dpdk_source,
-                working_path,
+                str(self.current_work_path),
             )
             dpdk_filename = self._dpdk_source.split("/")[-1]
             # extract tar into dpdk/ folder and discard old root folder name
             tar_tool.extract(
-                str(node.working_path.joinpath(dpdk_filename)),
+                str(self.current_work_path.joinpath(dpdk_filename)),
                 str(self.dpdk_path),
                 strip_components=1,
             )
@@ -582,7 +586,7 @@ class DpdkTestpmd(Tool):
         else:
             git_tool.clone(
                 self._dpdk_source,
-                cwd=node.working_path,
+                cwd=self.current_work_path,
                 dir_name=self._dpdk_repo_path_name,
             )
             if not self._dpdk_branch:
@@ -691,7 +695,6 @@ class DpdkTestpmd(Tool):
             if not self.is_connect_x3:
                 self.node.execute(
                     f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
-                    cwd=self.node.working_path,
                     expected_exit_code=0,
                     expected_exit_code_failure_message=(
                         "Issue loading mlx and ib_uverb drivers into ramdisk."
@@ -827,10 +830,9 @@ class DpdkTestpmd(Tool):
 
     def _install_ninja_and_meson(self) -> None:
         node = self.node
-        cwd = node.working_path
+
         node.execute(
             "pip3 install --upgrade meson",
-            cwd=cwd,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -844,7 +846,6 @@ class DpdkTestpmd(Tool):
             node.tools[Rm].remove_file("/usr/bin/meson", sudo=True)
             node.execute(
                 "ln -fs /usr/local/bin/meson /usr/bin/meson",
-                cwd=cwd,
                 sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
@@ -878,7 +879,6 @@ class DpdkTestpmd(Tool):
         node.execute(
             "pip3 install --upgrade pyelftools",
             sudo=True,
-            cwd=cwd,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Could not upgrade pyelftools with pip3."

@@ -12,7 +12,7 @@ from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics
 from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Lsblk, Mkfs, Mount, Reboot, Uname
+from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -352,6 +352,15 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         raise LisaException(
             f"No partition with Required disk space of {size_in_gb}GB found"
         )
+
+    def get_working_path_with_required_space(self, required_size_in_gb: int) -> str:
+        work_path = str(self.working_path)
+        df = self.tools[Df]
+        lisa_path_space = df.get_filesystem_available_space(work_path)
+        if lisa_path_space < required_size_in_gb:
+            work_path = self.find_partition_with_freespace(required_size_in_gb)
+            self.tools[Chmod].chmod(work_path, "777", sudo=True)
+        return work_path
 
     def get_working_path(self) -> PurePath:
         """
