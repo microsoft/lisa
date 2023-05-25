@@ -9,7 +9,16 @@ from assertpy import assert_that
 from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Dmesg, Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
+from lisa.tools import (
+    Dmesg,
+    Fio,
+    HibernationSetup,
+    Iperf3,
+    KernelConfig,
+    Kill,
+    Lscpu,
+    Mount,
+)
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
@@ -41,6 +50,23 @@ def verify_hibernation(
     information = environment.get_information()
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
+    home_partition = [
+        partition
+        for partition in node.tools[Mount].get_partition_info()
+        if partition.mount_point == "/"
+    ]
+    if len(home_partition) >= 1:
+        device_name = home_partition[0].name
+        device_type = home_partition[0].type
+        cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
+        if cmd_result.exit_code == 0:
+            node.execute(f"lvextend -l 100%FREE {device_name}", sudo=True, shell=True)
+            if device_type == "xfs":
+                node.execute(f"xfs_growfs {device_name}", sudo=True)
+            elif device_type == "ext4":
+                node.execute(f"resize2fs {device_name}", sudo=True)
+            else:
+                raise LisaException(f"Unknown partition type: {device_type}")
     # node.os.install_packages("grub2*")
     # node.reboot()
     node_nic = node.nics
