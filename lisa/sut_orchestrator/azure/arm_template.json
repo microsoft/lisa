@@ -600,7 +600,7 @@
                             },
                             "caching": "ReadOnly",
                             "createOption": "FromImage",
-                            "diskSizeGB": 180
+                            "diskSizeGB": 200
                         }
                     }
                 },
