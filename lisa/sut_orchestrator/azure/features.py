@@ -1134,61 +1134,65 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
-        # refer here to get data disks from folder /dev/disk/azure/scsi1
-        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
-        # /dev/disk/azure/scsi1/lun0
-        ls_tools = self._node.tools[Ls]
-        files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+        if self._node.capability.disk.disk_controller_type == schema.DiskControllerType.NVME :
+            nvme = self._node.features[Nvme]
+            disk_array = nvme.get_namespaces()[1:]
+        else:
+            # refer here to get data disks from folder /dev/disk/azure/scsi1
+            # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
+            # /dev/disk/azure/scsi1/lun0
+            ls_tools = self._node.tools[Ls]
+            files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
-        if len(files) == 0:
-            os = self._node.os
-            # there are known issues on ubuntu 16.04 and rhel 9.0
-            # try to workaround it
-            if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
-                isinstance(os, Redhat) and os.information.release >= "9.0"
-            ):
-                self._log.debug(
-                    "download udev rules to construct a set of symbolic links "
-                    "under the /dev/disk/azure path"
-                )
-                if ls_tools.is_file(
-                    self._node.get_pure_path("/dev/disk/azure"), sudo=True
+            if len(files) == 0:
+                os = self._node.os
+                # there are known issues on ubuntu 16.04 and rhel 9.0
+                # try to workaround it
+                if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
+                    isinstance(os, Redhat) and os.information.release >= "9.0"
                 ):
-                    self._node.tools[Rm].remove_file("/dev/disk/azure", sudo=True)
-                self._node.tools[Curl].fetch(
-                    arg="-o /etc/udev/rules.d/66-azure-storage.rules",
-                    execute_arg="",
-                    url="https://raw.githubusercontent.com/Azure/WALinuxAgent/master/config/66-azure-storage.rules",  # noqa: E501
-                    sudo=True,
-                    cwd=self._node.get_pure_path("/etc/udev/rules.d/"),
-                )
-                cmd_result = self._node.execute(
-                    "udevadm trigger --settle --subsystem-match=block", sudo=True
-                )
-                if get_matched_str(cmd_result.stdout, self.UN_SUPPORT_SETTLE):
-                    self._node.execute(
-                        "udevadm trigger --subsystem-match=block", sudo=True
+                    self._log.debug(
+                        "download udev rules to construct a set of symbolic links "
+                        "under the /dev/disk/azure path"
                     )
-                check_till_timeout(
-                    lambda: len(ls_tools.list("/dev/disk/azure/scsi1", sudo=True)) > 0,
-                    timeout_message="wait for dev rule take effect",
-                )
-                files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+                    if ls_tools.is_file(
+                        self._node.get_pure_path("/dev/disk/azure"), sudo=True
+                    ):
+                        self._node.tools[Rm].remove_file("/dev/disk/azure", sudo=True)
+                    self._node.tools[Curl].fetch(
+                        arg="-o /etc/udev/rules.d/66-azure-storage.rules",
+                        execute_arg="",
+                        url="https://raw.githubusercontent.com/Azure/WALinuxAgent/master/config/66-azure-storage.rules",  # noqa: E501
+                        sudo=True,
+                        cwd=self._node.get_pure_path("/etc/udev/rules.d/"),
+                    )
+                    cmd_result = self._node.execute(
+                        "udevadm trigger --settle --subsystem-match=block", sudo=True
+                    )
+                    if get_matched_str(cmd_result.stdout, self.UN_SUPPORT_SETTLE):
+                        self._node.execute(
+                            "udevadm trigger --subsystem-match=block", sudo=True
+                        )
+                    check_till_timeout(
+                        lambda: len(ls_tools.list("/dev/disk/azure/scsi1", sudo=True)) > 0,
+                        timeout_message="wait for dev rule take effect",
+                    )
+                    files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
-        assert_that(len(files)).described_as(
-            "no data disks info found under /dev/disk/azure/scsi1"
-        ).is_greater_than(0)
-        matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
-        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
-        assert matched, "not find data disks"
-        disk_array: List[str] = [""] * len(matched)
-        for disk in matched:
-            # readlink -f /dev/disk/azure/scsi1/lun0
-            # /dev/sdc
-            cmd_result = self._node.execute(
-                f"readlink -f {disk}", shell=True, sudo=True
-            )
-            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
+            assert_that(len(files)).described_as(
+                "no data disks info found under /dev/disk/azure/scsi1"
+            ).is_greater_than(0)
+            matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
+            # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
+            assert matched, "not find data disks"
+            disk_array: List[str] = [""] * len(matched)
+            for disk in matched:
+                # readlink -f /dev/disk/azure/scsi1/lun0
+                # /dev/sdc
+                cmd_result = self._node.execute(
+                    f"readlink -f {disk}", shell=True, sudo=True
+                )
+                disk_array[int(disk.split("/")[-1].replace("lun", ""))] = cmd_result.stdout
         return disk_array
 
     def get_all_disks(self) -> List[str]:

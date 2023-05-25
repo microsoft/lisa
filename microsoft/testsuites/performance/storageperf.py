@@ -56,7 +56,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=36),
+                data_disk_count=search_space.IntRange(min=6),
             ),
         ),
     )
@@ -73,7 +73,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=36),
+                data_disk_count=search_space.IntRange(min=6),
             ),
         ),
     )
@@ -455,38 +455,38 @@ class StoragePerformance(TestSuite):
         max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
-        if disk.is_asap_enabled :
-            nvme = node.features[Nvme]
-            nvme_namespaces = nvme.get_namespaces()
-            disk_count = len(nvme_namespaces)
-            assert_that(disk_count).described_as(
-                "At least 1 data disk for fio testing."
-            ).is_greater_than(0)
-            filename = ":".join(nvme_namespaces)
-            echo = node.tools[Echo]
-            # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
-            # if they are not on the same NUMA node of completion CPU.
-            # This setting will give a better and more stable IOPS.
-            for nvme_namespace in nvme_namespaces:
-                # /dev/nvme0n1 => nvme0n1
-                disk_name = nvme_namespace.split("/")[-1]
-                echo.write_to_file(
-                    "0",
-                    node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
-                    sudo=True,
-                )
-        else:
-            data_disks = disk.get_raw_data_disks()
-            disk_count = len(data_disks)
-            assert_that(disk_count).described_as(
-                "At least 1 data disk for fio testing."
-            ).is_greater_than(0)
-            partition_disks = reset_partitions(node, data_disks)
-            filename = ":".join(partition_disks)
+        #if disk.is_asap_enabled :
+        #    nvme = node.features[Nvme]
+        #    nvme_namespaces = nvme.get_namespaces()
+        #    disk_count = len(nvme_namespaces)
+        #    assert_that(disk_count).described_as(
+        #        "At least 1 data disk for fio testing."
+        #    ).is_greater_than(0)
+        #    filename = ":".join(nvme_namespaces)
+        #    echo = node.tools[Echo]
+        #    # This will have kernel avoid sending IPI to finish I/O on the issuing CPUs
+        #    # if they are not on the same NUMA node of completion CPU.
+        #    # This setting will give a better and more stable IOPS.
+        #    for nvme_namespace in nvme_namespaces:
+        #        # /dev/nvme0n1 => nvme0n1
+        #        disk_name = nvme_namespace.split("/")[-1]
+        #        echo.write_to_file(
+        #            "0",
+        #            node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
+        #            sudo=True,
+        #        )
+        #else:
+        data_disks = disk.get_raw_data_disks()
+        disk_count = len(data_disks)
+        assert_that(disk_count).described_as(
+            "At least 1 data disk for fio testing."
+        ).is_greater_than(0)
+        partition_disks = reset_partitions(node, data_disks)
+        filename = ":".join(partition_disks)
+
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-
         perf_disk(
             node,
             start_iodepth,
