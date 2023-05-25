@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from decimal import Decimal
 from time import sleep
 from typing import cast
@@ -50,12 +51,22 @@ def verify_hibernation(
     information = environment.get_information()
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
+
     home_partition = [
         partition
         for partition in node.tools[Mount].get_partition_info()
         if partition.mount_point == "/"
     ]
     if len(home_partition) >= 1:
+        pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
+        matched = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)", re.M).match(
+            pv_result.splitlines()[0]
+        )
+        assert matched
+        disk = matched.group("disk")
+        number = matched.group("number")
+        node.execute(f"growpart {disk} {number}", sudo=True)
+        node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
         device_name = home_partition[0].name
         device_type = home_partition[0].type
         cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
