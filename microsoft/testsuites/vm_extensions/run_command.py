@@ -3,6 +3,7 @@
 
 import uuid
 from typing import Dict
+
 from assertpy import assert_that
 
 from lisa import (
@@ -19,8 +20,8 @@ from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
     generate_blob_sas_token,
-    get_storage_account_name,
     get_or_create_storage_container,
+    get_storage_account_name,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -29,7 +30,7 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 def create_and_verify_extension_run(
     node: Node,
     settings: Dict[str, Dict[str, str]],
-    execute_command: str | None,
+    execute_command: str = "",
     exit_code: int = 0,
     message: str = "",
 ) -> None:
@@ -47,7 +48,7 @@ def create_and_verify_extension_run(
         "Expected the extension to succeed"
     ).is_equal_to("Succeeded")
 
-    if execute_command:
+    if len(execute_command) > 0:
         node.execute(
             execute_command,
             shell=True,
@@ -80,7 +81,7 @@ class RunCommand(TestSuite):
     )
     def verify_existing_script_run(self, log: Logger, node: Node) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
-        create_and_verify_extension_run(node, settings, None)
+        create_and_verify_extension_run(node, settings)
 
     @TestCaseMetadata(
         description="""
