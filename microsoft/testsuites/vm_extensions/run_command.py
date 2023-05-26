@@ -3,6 +3,10 @@
 
 import uuid
 
+from typing import Dict
+
+from assertpy import assert_that
+
 from lisa import (
     Logger,
     Node,
@@ -11,9 +15,6 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-
-from typing import Dict, Union, Optional
-
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     get_storage_account_name,
@@ -22,9 +23,6 @@ from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
 )
 from lisa.sut_orchestrator import AZURE
-
-from assertpy import assert_that
-
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.environment import Environment
