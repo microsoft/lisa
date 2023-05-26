@@ -108,15 +108,50 @@ class RunCommand(TestSuite):
         script in blob storage.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
-    def verify_public_uri_script_run(self, log: Logger, node: Node) -> None:
-        script_uri = "https://rcv2lisa.blob.core.windows.net/publiccontainer/test.sh"
+    def verify_public_uri_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        platform = environment.platform
+        assert isinstance(platform, AzurePlatform)
+
+        subscription_id = platform.subscription_id
+        container_name = "rcv2lisa-public"
+        node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_context.location
+        storage_account_name = get_storage_account_name(
+            subscription_id=subscription_id, location=location
+        )
+        blob_name = "rcv2lisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        container_client = get_or_create_storage_container(
+            credential=platform.credential,
+            subscription_id=subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            container_name=container_name,
+            resource_group_name=AZURE_SHARED_RG_NAME,
+        )
+
+        blob = container_client.get_blob_client(blob_name)
+        if not blob.exists():
+            container_client.set_container_access_policy(
+                signed_identifiers={}, public_access="container"
+            )
+            # Upload blob to container if doesn't exist
+            container_client.upload_blob(
+                name=blob_name, data=f"touch {test_file}", overwrite=True
+            )
+
         test_file = "/tmp/lisatest.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
-                "scriptUri": script_uri,
+                "scriptUri": blob.url,
             },
         }
         message = f"File {test_file} was not created on the test machine"
