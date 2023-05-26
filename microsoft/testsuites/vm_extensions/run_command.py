@@ -2,9 +2,7 @@
 # Licensed under the MIT license.
 
 import uuid
-
 from typing import Dict
-
 from assertpy import assert_that
 
 from lisa import (
@@ -20,9 +18,9 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
+    generate_blob_sas_token,
     get_storage_account_name,
     get_or_create_storage_container,
-    generate_blob_sas_token,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -142,7 +140,7 @@ class RunCommand(TestSuite):
             )
             # Upload blob to container if doesn't exist
             container_client.upload_blob(
-                name=blob_name, data=f"touch {test_file}", overwrite=True  # type: ignore
+                name=blob_name, data=f"touch {test_file}"  # type: ignore
             )
 
         test_file = "/tmp/lisatest.txt"
@@ -195,7 +193,7 @@ class RunCommand(TestSuite):
         if not blob.exists():
             # Upload blob to container if doesn't exist
             container_client.upload_blob(
-                name=blob_name, data=f"touch {test_file}", overwrite=True  # type: ignore
+                name=blob_name, data=f"touch {test_file}"  # type: ignore
             )
 
         settings = {
@@ -249,7 +247,8 @@ class RunCommand(TestSuite):
         if not blob.exists():
             # Upload blob to container if doesn't exist
             container_client.upload_blob(
-                name=blob_name, data=f"touch {test_file}", overwrite=True
+                name=blob_name,
+                data=f"touch {test_file}",  # type: ignore
             )
 
         sas_token = generate_blob_sas_token(
