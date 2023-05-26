@@ -12,18 +12,52 @@ from lisa import (
     simple_requirement,
 )
 
+from typing import Dict, Union, Optional
+
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     get_storage_account_name,
     get_or_create_storage_container,
     generate_blob_sas_token,
+    AzureNodeSchema,
 )
+from lisa.sut_orchestrator import AZURE
 
 from assertpy import assert_that
 
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.environment import Environment
+
+
+def create_and_verify_extension_run(
+    node: Node,
+    settings: Dict[str, Dict[str, str]],
+    execute_command: str | None,
+    exit_code: int = 0,
+    message: str = "",
+) -> None:
+    extension = node.features[AzureExtension]
+    result = extension.create_or_update(
+        name="RunCommand",
+        publisher="Microsoft.CPlat.Core",
+        type_="RunCommandHandlerLinux",
+        type_handler_version="1.3",
+        auto_upgrade_minor_version=True,
+        settings=settings,
+    )
+
+    assert_that(result["provisioning_state"]).described_as(
+        "Expected the extension to succeed"
+    ).is_equal_to("Succeeded")
+
+    if execute_command:
+        node.execute(
+            execute_command,
+            shell=True,
+            expected_exit_code=exit_code,
+            expected_exit_code_failure_message=message,
+        )
 
 
 @TestSuiteMetadata(
@@ -45,31 +79,18 @@ class RunCommand(TestSuite):
         description="""
         Runs the Run Command v2 VM extension with a pre-existing ifconfig script.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_existing_script_run(self, log: Logger, node: Node) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
-
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="RunCommand",
-            publisher="Microsoft.CPlat.Core",
-            type_="RunCommandHandlerLinux",
-            type_handler_version="1.3",
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
+        create_and_verify_extension_run(node, settings, None)
 
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a custom shell script.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_custom_script_run(self, log: Logger, node: Node) -> None:
@@ -77,36 +98,16 @@ class RunCommand(TestSuite):
         settings = {
             "source": {"CommandId": "RunShellScript", "script": f"touch {test_file}"}
         }
-
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="RunCommand",
-            publisher="Microsoft.CPlat.Core",
-            type_="RunCommandHandlerLinux",
-            type_handler_version="1.3",
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
         message = f"File {test_file} was not created on the test machine"
-        # Verify that file was created on the test machine
-        node.execute(
-            f"ls '{test_file}'",
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=message,
-        )
+
+        create_and_verify_extension_run(node, settings, f"ls '{test_file}'", 0, message)
 
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a public uri pointing to the
         script in blob storage.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_public_uri_script_run(self, log: Logger, node: Node) -> None:
@@ -118,37 +119,19 @@ class RunCommand(TestSuite):
                 "scriptUri": script_uri,
             },
         }
-
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="RunCommand",
-            publisher="Microsoft.CPlat.Core",
-            type_="RunCommandHandlerLinux",
-            type_handler_version="1.3",
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
         message = f"File {test_file} was not created on the test machine"
-        # Verify that file was created on the test machine
-        node.execute(
-            f"ls '{test_file}'",
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=message,
-        )
+
+        create_and_verify_extension_run(node, settings, f"ls '{test_file}'", 0, message)
 
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a private storage uri pointing
         to the script in blob storage. No sas token provided, should fail.
         """,
-        priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_private_uri_script_run_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -157,10 +140,11 @@ class RunCommand(TestSuite):
         assert isinstance(platform, AzurePlatform)
 
         subscription_id = platform.subscription_id
-        information = environment.get_information()
         container_name = "rcv2lisa"
+        node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_context.location
         storage_account_name = get_storage_account_name(
-            subscription_id=subscription_id, location=information["location"]
+            subscription_id=subscription_id, location=location
         )
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/rcv2lisasas.txt"
@@ -187,38 +171,18 @@ class RunCommand(TestSuite):
                 "scriptUri": blob.url,
             },
         }
-
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="RunCommand",
-            publisher="Microsoft.CPlat.Core",
-            type_="RunCommandHandlerLinux",
-            type_handler_version="1.3",
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
         message = (
             f"File {test_file} downloaded on test machine though it should not have."
         )
-        # Verify that file was NOT created on the test machine
-        node.execute(
-            f"ls '{test_file}'",
-            shell=True,
-            expected_exit_code=2,
-            expected_exit_code_failure_message=message,
-        )
+
+        create_and_verify_extension_run(node, settings, f"ls '{test_file}'", 2, message)
 
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a storage sas uri pointing
         to the script in blob storage.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_sas_uri_script_run(
@@ -228,10 +192,11 @@ class RunCommand(TestSuite):
         assert isinstance(platform, AzurePlatform)
 
         subscription_id = platform.subscription_id
-        information = environment.get_information()
         container_name = "rcv2lisa"
+        node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_context.location
         storage_account_name = get_storage_account_name(
-            subscription_id=subscription_id, location=information["location"]
+            subscription_id=subscription_id, location=location
         )
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/rcv2lisasas.txt"
@@ -270,26 +235,6 @@ class RunCommand(TestSuite):
                 "scriptUri": script_uri,
             },
         }
-
-        extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="RunCommand",
-            publisher="Microsoft.CPlat.Core",
-            type_="RunCommandHandlerLinux",
-            type_handler_version="1.3",
-            auto_upgrade_minor_version=True,
-            settings=settings,
-        )
-
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
         message = f"File {test_file} was not created on the test machine"
-        # Verify that file was created on the test machine
-        node.execute(
-            f"ls '{test_file}'",
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=message,
-        )
+
+        create_and_verify_extension_run(node, settings, f"ls '{test_file}'", 0, message)
