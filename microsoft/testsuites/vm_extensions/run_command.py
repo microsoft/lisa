@@ -183,7 +183,9 @@ class RunCommand(TestSuite):
         to the script in blob storage.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_sas_uri_script_run(
         self, log: Logger, node: Node, environment: Environment
