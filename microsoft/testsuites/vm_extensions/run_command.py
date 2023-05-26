@@ -15,17 +15,17 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.environment import Environment
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
+    AzureNodeSchema,
     get_storage_account_name,
     get_or_create_storage_container,
     generate_blob_sas_token,
-    AzureNodeSchema,
 )
-from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.environment import Environment
 
 
 def create_and_verify_extension_run(
@@ -142,7 +142,7 @@ class RunCommand(TestSuite):
             )
             # Upload blob to container if doesn't exist
             container_client.upload_blob(
-                name=blob_name, data=f"touch {test_file}", overwrite=True
+                name=blob_name, data=f"touch {test_file}", overwrite=True  # type: ignore
             )
 
         test_file = "/tmp/lisatest.txt"
@@ -195,7 +195,7 @@ class RunCommand(TestSuite):
         if not blob.exists():
             # Upload blob to container if doesn't exist
             container_client.upload_blob(
-                name=blob_name, data=f"touch {test_file}", overwrite=True
+                name=blob_name, data=f"touch {test_file}", overwrite=True  # type: ignore
             )
 
         settings = {
