@@ -107,7 +107,7 @@ class DpdkTestpmd(Tool):
 
     _fedora_packages = [
         "psmisc",
-        "numactl-devel.x86_64",
+        "numactl-devel",
         "librdmacm-devel",
         "pkgconfig",
         "elfutils-libelf-devel",
