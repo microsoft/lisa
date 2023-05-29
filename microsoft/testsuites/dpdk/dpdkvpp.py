@@ -7,13 +7,14 @@ from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import Gcc, Git, Make, Modprobe, Service
+from lisa.tools import Cat, Echo, Gcc, Git, Make, Modprobe
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
 class DpdkVpp(Tool):
     VPP_SRC_LINK = "https://github.com/FDio/vpp.git"
     REPO_DIR = "vpp"
+    START_UP_FILE = "/etc/vpp/startup.conf"
 
     @property
     def command(self) -> str:
@@ -55,9 +56,20 @@ class DpdkVpp(Tool):
         # this will force the reload if it's already started
         # or start it if it hasn't started yet.
         modprobe.load("uio_hv_generic")
-        node.tools[Service].restart_service("vpp")
-
+        self.run_async(f"-c {self.START_UP_FILE}", force_run=True, sudo=True)
         time.sleep(3)  # give it a moment to start up
+
+    def get_start_up_file_content(self, force_run: bool = False) -> str:
+        cat = self.node.tools[Cat]
+        start_up_conf = ""
+        start_up_conf = cat.read(self.START_UP_FILE, sudo=True, force_run=force_run)
+        return start_up_conf
+
+    def set_start_up_file(self, setting: str) -> None:
+        setting = f"dpdk {{{setting}}}"
+        self.node.tools[Echo].write_to_file(
+            setting, self.node.get_pure_path(self.START_UP_FILE), append=True, sudo=True
+        )
 
     def run_test(self) -> None:
         node = self.node
