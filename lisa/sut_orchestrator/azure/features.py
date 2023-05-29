@@ -504,11 +504,14 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
         node_space = kwargs.get("node_space")
+        resource_sku: Any = kwargs.get("resource_sku")
 
         assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
 
         value = raw_capabilities.get("GPUs", None)
-        if value:
+        # refer https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu
+        # NVv4 VMs currently support only Windows guest operating system.
+        if value and resource_sku.family not in ["standardNVSv4Family"]:
             node_space.gpu_count = int(value)
             return schema.FeatureSettings.create(cls.name())
 
