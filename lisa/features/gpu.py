@@ -212,25 +212,14 @@ class Gpu(Feature):
 
         if isinstance(self._node.os, Redhat):
             release = os_information.release.split(".")[0]
-            if release == "9":
-                self._node.os.add_repository(
-                    "http://developer.download.nvidia.com/compute/cuda/"
-                    "repos/rhel9/x86_64/cuda-rhel9.repo"
-                )
-            else:
-                cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
-                cuda_repo = (
-                    "http://developer.download.nvidia.com/"
-                    f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
-                )
-                try:
-                    # download and install the cuda driver package from the repo
-                    self._node.os._install_package_from_url(cuda_repo)
-                except Exception as e:
-                    raise LisaException(
-                        f"Failed to install driver from source, {str(e)}"
-                    )
-            self._node.os.install_packages("cuda-drivers", signed=False)
+            self._node.os.add_repository(
+                "http://developer.download.nvidia.com/compute/cuda/"
+                f"repos/rhel{release}/x86_64/cuda-rhel{release}.repo"
+            )
+            install_packages = ["cuda-drivers"]
+            if release == "7":
+                install_packages.append("nvidia-driver-latest-dkms")
+            self._node.os.install_packages(install_packages, signed=False)
 
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)
