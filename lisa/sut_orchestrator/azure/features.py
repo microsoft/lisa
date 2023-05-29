@@ -435,7 +435,13 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
-    _grid_supported_skus = re.compile(r"^Standard_[^_]+(_v3)?$", re.I)
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501
+    # grid vm sizes NV, NVv3, NCasT4v3, NVadsA10 v5
+    _grid_supported_skus = re.compile(
+        r"^(Standard_NV[\d]+(s_v3)?$|Standard_NC[\d]+as_T4_v3|"
+        r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
+        re.I,
+    )
     _amd_supported_skus = re.compile(r"^Standard_[^_]+_v4$", re.I)
     _gpu_extension_template = """
         {
