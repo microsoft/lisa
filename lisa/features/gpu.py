@@ -194,7 +194,8 @@ class Gpu(Feature):
             executable=True,
         )
         result = self._node.execute(
-            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check"
+            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check",
+            sudo=True,
         )
         result.assert_exit_code(
             0,
