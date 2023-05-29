@@ -20,8 +20,9 @@ class Nvme(Feature):
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
     _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]$)", re.MULTILINE)
     # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n1
+    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n64
     _namespace_pattern = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]+$)", re.MULTILINE
     )
     # '/dev/nvme0n1          351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
     _namespace_cli_pattern = re.compile(
