@@ -19,6 +19,7 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Mount,
+    Sed,
 )
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
@@ -51,33 +52,51 @@ def verify_hibernation(
     information = environment.get_information()
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
-
-    home_partition = [
-        partition
-        for partition in node.tools[Mount].get_partition_info()
-        if partition.mount_point == "/"
-    ]
-    if len(home_partition) >= 1:
-        pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
-        matched = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)", re.M).match(
-            pv_result.splitlines()[0]
-        )
-        assert matched
-        disk = matched.group("disk")
-        number = matched.group("number")
-        node.execute(f"growpart {disk} {number}", sudo=True)
-        node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
-        device_name = home_partition[0].name
-        device_type = home_partition[0].type
-        cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
-        if cmd_result.exit_code == 0:
-            node.execute(f"lvextend -l 100%FREE {device_name}", sudo=True, shell=True)
-            if device_type == "xfs":
-                node.execute(f"xfs_growfs {device_name}", sudo=True)
-            elif device_type == "ext4":
-                node.execute(f"resize2fs {device_name}", sudo=True)
-            else:
-                raise LisaException(f"Unknown partition type: {device_type}")
+    if 1 == index:
+        home_partition = [
+            partition
+            for partition in node.tools[Mount].get_partition_info()
+            if partition.mount_point == "/"
+        ]
+        if len(home_partition) >= 1:
+            os_information = node.os.information
+            release = ".".join(
+                [
+                    os_information.release.split(".")[0],
+                    os_information.release.split(".")[1],
+                ]
+            )
+            if release == "9.2":
+                sed = node.tools[Sed]
+                sed.substitute(
+                    regexp="# use_devicesfile = 1",
+                    replacement="use_devicesfile = 1",
+                    file="/etc/lvm/lvm.conf",
+                    sudo=True,
+                )
+                node.execute("vgimportdevices -a", sudo=True)
+            pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
+            matched = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)", re.M).match(
+                pv_result.splitlines()[0]
+            )
+            assert matched
+            disk = matched.group("disk")
+            number = matched.group("number")
+            node.execute(f"growpart {disk} {number}", sudo=True)
+            node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
+            device_name = home_partition[0].name
+            device_type = home_partition[0].type
+            cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
+            if cmd_result.exit_code == 0:
+                node.execute(
+                    f"lvextend -l 100%FREE {device_name}", sudo=True, shell=True
+                )
+                if device_type == "xfs":
+                    node.execute(f"xfs_growfs {device_name}", sudo=True)
+                elif device_type == "ext4":
+                    node.execute(f"resize2fs {device_name}", sudo=True)
+                else:
+                    raise LisaException(f"Unknown partition type: {device_type}")
     # node.os.install_packages("grub2*")
     # node.reboot()
     node_nic = node.nics
