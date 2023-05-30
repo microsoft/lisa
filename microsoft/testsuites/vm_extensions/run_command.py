@@ -121,7 +121,7 @@ def _retrieve_storage_blob_url(
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
 
-    It has 7 test cases to verify if RC runs successfully when:
+    It has 9 test cases to verify if RC runs successfully when:
         1. Used with a pre-existing available script hardcoded in CRP
         2. Provided a custom linux shell script
         3. Provided a custom linux shell script with a named parameter
@@ -129,6 +129,9 @@ def _retrieve_storage_blob_url(
         5. Provided a public storage blob uri that points to the script
         6. Provided a storage uri pointing to script without a sas token (should fail)
         7. Provided a storage sas uri that points to script
+        8. Provided a command with a timeout of 1 second (should pass)
+        9. Provided a command that should take longer than 1 second, but with a
+           timeout of 1 second (should fail)
     """,
 )
 class RunCommand(TestSuite):
@@ -305,4 +308,50 @@ class RunCommand(TestSuite):
 
         _create_and_verify_extension_run(
             node, settings, f"ls '{test_file}'", 0, message
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Run Command v2 VM extension with a timeout of 0.1 seconds.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_script_run_with_timeout(self, log: Logger, node: Node) -> None:
+        test_file = "/tmp/rcv2timeout.txt"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": f"sleep 0.1; touch {test_file}",
+            },
+            "timeoutInSeconds": 1,
+        }
+        message = f"File {test_file} was not created on the test machine"
+
+        _create_and_verify_extension_run(
+            node, settings, f"ls '{test_file}'", 0, message
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Run Command v2 VM extension with a timeout of 1 second.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
+        test_file = "/tmp/rcv2timeout.txt"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": f"sleep 1; touch {test_file}",
+            },
+            "timeoutInSeconds": 1,
+        }
+        message = (
+            f"File {test_file} downloaded on test machine though it should not have"
+        )
+
+        _create_and_verify_extension_run(
+            node, settings, f"ls '{test_file}'", 2, message
         )
