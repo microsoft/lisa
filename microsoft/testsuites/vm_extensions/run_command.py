@@ -134,7 +134,7 @@ def _retrieve_storage_blob_url(
            timeout of 1 second (should fail)
     """,
 )
-class RunCommand(TestSuite):
+class RunCommandV2Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a pre-existing ifconfig script.
