@@ -77,7 +77,7 @@ class MshvHostTestSuite(TestSuite):
         priority=4,
         timeout=10800,  # 3 hours
     )
-    def verify_mshv_stress_vm_create(
+    def stress_mshv_vm_create(
         self,
         log: Logger,
         node: Node,

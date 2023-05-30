@@ -87,7 +87,7 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_validate_ptp(self, node: Node) -> None:
+    def verify_timesync_ptp(self, node: Node) -> None:
         # 1. PTP time source is available on Azure guests (newer versions of Linux).
         dmesg = node.tools[Dmesg]
         assert_that(dmesg.get_output()).contains(self.ptp_registered_msg)
@@ -136,7 +136,7 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_check_unbind_clocksource(self, node: Node, log: Logger) -> None:
+    def verify_timesync_unbind_clocksource(self, node: Node, log: Logger) -> None:
         unbind = node.shell.exists(PurePosixPath(self.unbind_clocksource))
         try:
             # 1. Check clock source name is one of hyperv_clocksource_tsc_page,
@@ -236,7 +236,7 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_check_unbind_clockevent(self, node: Node) -> None:
+    def verify_timesync_unbind_clockevent(self, node: Node) -> None:
         if node.shell.exists(PurePosixPath(self.current_clockevent)):
             # 1. Current clock event name is 'Hyper-V clockevent'.
             clockevent_map = {
@@ -308,7 +308,7 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_ntp(self, node: Node) -> None:
+    def verify_timesync_ntp(self, node: Node) -> None:
         if isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0":
             # refer from https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_basic_system_settings/using-chrony-to-configure-ntp # noqa: E501
             raise SkippedException(
@@ -347,7 +347,7 @@ class TimeSync(TestSuite):
         """,
         priority=2,
     )
-    def timesync_chrony(self, node: Node) -> None:
+    def verify_timesync_chrony(self, node: Node) -> None:
         chrony = node.tools[Chrony]
         # 1. Restart chrony service.
         chrony.restart()
@@ -377,7 +377,7 @@ class TimeSync(TestSuite):
         arch = lscpu.get_architecture()
         if CpuArchitecture(arch) != "aarch64":
             raise SkippedException(
-                f"This test case does not support {arch}."
+                f"This test case does not support {arch}. "
                 "This validation is only for ARM64."
             )
         # Check pmu is disabled in cmdline for arm64 images

@@ -46,7 +46,7 @@ class LtpTestsuite(TestSuite):
             ),
         ),
     )
-    def ltp_lite(
+    def verify_ltp_lite(
         self,
         node: Node,
         environment: Environment,

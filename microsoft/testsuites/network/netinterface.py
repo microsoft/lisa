@@ -51,7 +51,7 @@ class NetInterface(TestSuite):
         priority=1,
         requirement=simple_requirement(network_interface=Synthetic()),
     )
-    def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
+    def verify_netvsc_reload(self, node: Node, log_path: Path) -> None:
         self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
@@ -114,7 +114,7 @@ class NetInterface(TestSuite):
             ),
         ),
     )
-    def validate_network_interface_reload_via_ip_link(
+    def verify_network_interface_reload_via_ip_link(
         self, node: Node, log: Logger
     ) -> None:
         self._validate_netvsc_built_in(node)
@@ -171,7 +171,7 @@ class NetInterface(TestSuite):
             ),
         ),
     )
-    def validate_set_static_mac(self, node: Node, log: Logger) -> None:
+    def verify_set_static_mac(self, node: Node, log: Logger) -> None:
         ip = node.tools[Ip]
         node_nic_info = Nics(node)
         node_nic_info.initialize()

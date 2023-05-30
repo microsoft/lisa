@@ -56,7 +56,7 @@ class Stress(TestSuite):
             )
         ),
     )
-    def verify_stress_sriov_iperf(self, environment: Environment) -> None:
+    def stress_sriov_iperf(self, environment: Environment) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         vm_nics = initialize_nic_info(environment)
@@ -132,7 +132,7 @@ class Stress(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_stress_sriov_disable_enable(self, environment: Environment) -> None:
+    def stress_sriov_disable_enable(self, environment: Environment) -> None:
         sriov_disable_enable(environment, times=50)
 
     @TestCaseMetadata(
@@ -154,7 +154,7 @@ class Stress(TestSuite):
             ),
         ),
     )
-    def verify_stress_synthetic_provision_with_max_nics_reboot(
+    def stress_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -182,7 +182,7 @@ class Stress(TestSuite):
             ),
         ),
     )
-    def verify_stress_synthetic_with_max_nics_reboot_from_platform(
+    def stress_synthetic_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -211,7 +211,7 @@ class Stress(TestSuite):
             ),
         ),
     )
-    def verify_stress_synthetic_with_max_nics_stop_start_from_platform(
+    def stress_synthetic_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -239,9 +239,7 @@ class Stress(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_stress_sriov_with_max_nics_reboot(
-        self, environment: Environment
-    ) -> None:
+    def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment, vm_nics)
         for _ in range(10):
@@ -266,7 +264,7 @@ class Stress(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_sriov_with_max_nics_reboot_from_platform(
+    def stress_sriov_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
         vm_nics = initialize_nic_info(environment)
@@ -294,7 +292,7 @@ class Stress(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_sriov_with_max_nics_stop_start_from_platform(
+    def stress_sriov_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
         vm_nics = initialize_nic_info(environment)

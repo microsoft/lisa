@@ -109,7 +109,7 @@ class Sriov(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def sriov_basic_validation(self, environment: Environment) -> None:
+    def verify_sriov_basic(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment, vm_nics)
 

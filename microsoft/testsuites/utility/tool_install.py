@@ -27,7 +27,7 @@ class Utilities(TestSuite):
         """,
         priority=5,
     )
-    def execute_tools_install(
+    def utility_tools_install(
         self, log: Logger, node: RemoteNode, variables: Dict[str, Any]
     ) -> None:
         tool_name_parameter = "case_tool_install"

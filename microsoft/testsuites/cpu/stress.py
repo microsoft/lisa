@@ -31,5 +31,5 @@ class CPUStressSuite(TestSuite):
             min_core_count=32,
         ),
     )
-    def verify_cpu_hot_plug_stress(self, log: Logger, node: Node) -> None:
+    def stress_cpu_hot_plug(self, log: Logger, node: Node) -> None:
         verify_cpu_hot_plug(log, node, 10)
