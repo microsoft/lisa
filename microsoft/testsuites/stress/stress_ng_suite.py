@@ -39,7 +39,7 @@ class StressNgTestSuite(TestSuite):
         """,
         priority=4,
     )
-    def verify_stress_ng_jobfile(
+    def stress_ng_jobfile(
         self,
         variables: Dict[str, Any],
         environment: Environment,
@@ -56,7 +56,7 @@ class StressNgTestSuite(TestSuite):
         description="Runs stress-ng's 'cpu' class stressors for 60s each.",
         priority=4,
     )
-    def verify_stress_ng_cpu_stressors(
+    def stress_ng_cpu_stressors(
         self,
         environment: Environment,
     ) -> None:
@@ -66,7 +66,7 @@ class StressNgTestSuite(TestSuite):
         description="Runs stress-ng's 'memory' class stressors for 60s each.",
         priority=4,
     )
-    def verify_stress_ng_memory_stressors(
+    def stress_ng_memory_stressors(
         self,
         environment: Environment,
     ) -> None:
@@ -76,7 +76,7 @@ class StressNgTestSuite(TestSuite):
         description="Runs stress-ng's 'vm' class stressors for 60s each.",
         priority=4,
     )
-    def verify_stress_ng_vm_stressors(
+    def stress_ng_vm_stressors(
         self,
         environment: Environment,
     ) -> None:
@@ -86,7 +86,7 @@ class StressNgTestSuite(TestSuite):
         description="Runs stress-ng's 'io' class stressors for 60s each.",
         priority=4,
     )
-    def verify_stress_ng_io_stressors(
+    def stress_ng_io_stressors(
         self,
         environment: Environment,
     ) -> None:
@@ -96,7 +96,7 @@ class StressNgTestSuite(TestSuite):
         description="Runs stress-ng's 'network' class stressors for 60s each.",
         priority=4,
     )
-    def verify_stress_ng_network_stressors(
+    def stress_ng_network_stressors(
         self,
         environment: Environment,
     ) -> None:

@@ -60,7 +60,7 @@ class CPU(TestSuite):
         """,
         priority=2,
     )
-    def l3_cache_check(self, node: Node, log: Logger) -> None:
+    def verify_l3_cache(self, node: Node, log: Logger) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
         if "numa=off" in cmdline:
             uname_result = node.tools[Uname].get_linux_information()
@@ -107,7 +107,7 @@ class CPU(TestSuite):
             """,
         priority=2,
     )
-    def cpu_count_check(self, node: Node, log: Logger) -> None:
+    def verify_cpu_count(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
         # 1. Get vCPU count.
         cpu_count = lscpu.get_core_count()

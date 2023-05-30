@@ -137,7 +137,7 @@ class Storage(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_mtab_entry(self, node: RemoteNode) -> None:
+    def verify_resource_disk_mounted(self, node: RemoteNode) -> None:
         resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
@@ -305,7 +305,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_serial(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -319,7 +319,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -333,7 +333,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -353,7 +353,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -367,7 +367,9 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_parallel_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_standard_ssd(
+        self, log: Logger, node: Node
+    ) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -381,7 +383,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )

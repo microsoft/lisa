@@ -70,7 +70,7 @@ class LsVmBus(TestSuite):
             supported_platform_type=[AZURE], supported_os=[BSD]
         ),
     )
-    def lsvmbus_count_devices_channels_bsd(self, node: Node) -> None:
+    def verify_vmbus_devices_channels_bsd(self, node: Node) -> None:
         self._verify_and_get_lsvmbus_devices(node)
 
     @TestCaseMetadata(
@@ -109,7 +109,7 @@ class LsVmBus(TestSuite):
             supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
-    def lsvmbus_count_devices_channels(self, node: Node) -> None:
+    def verify_vmbus_devices_channels(self, node: Node) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
         vmbus_devices_list = self._verify_and_get_lsvmbus_devices(node)
 

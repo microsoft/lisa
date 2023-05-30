@@ -40,7 +40,7 @@ class PowerStress(TestSuite):
             supported_features=[HibernationEnabled()],
         ),
     )
-    def verify_stress_hibernation(self, environment: Environment, log: Logger) -> None:
+    def stress_hibernation(self, environment: Environment, log: Logger) -> None:
         node = cast(RemoteNode, environment.nodes[0])
         is_distro_supported(node)
         for _ in range(0, self._loop):

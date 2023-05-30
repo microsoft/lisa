@@ -56,7 +56,7 @@ class OSUTestSuite(TestSuite):
         ),
         priority=1,
     )
-    def run_osu_bench(self, node: Node, log: Logger, log_path: Path) -> None:
+    def perf_mpi_operations(self, node: Node, log: Logger, log_path: Path) -> None:
         _install_osu_mpi(node)
         path = _install_osu_bench(node)
 

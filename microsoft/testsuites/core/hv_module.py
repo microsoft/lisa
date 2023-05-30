@@ -215,14 +215,14 @@ class HvModule(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case will reload hyper-v modules as a stress test.
+        This test case will reload hyper-v modules for 100 times.
         """,
         priority=1,
         requirement=simple_requirement(
             min_core_count=4,
         ),
     )
-    def reload_hyperv_modules(self, case_name: str, log: Logger, node: Node) -> None:
+    def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
         # Constants
         module = "hv_netvsc"
         loop_count = 100
