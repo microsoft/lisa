@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import uuid
-from typing import Any, List, Dict, Union
+from typing import Any, Dict
 
 from assertpy import assert_that
 
@@ -29,7 +29,7 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 
 def _create_and_verify_extension_run(
     node: Node,
-    settings: Dict[str, Union[Dict[str, str], List[Dict[str, str]]]],
+    settings: Dict[str, Any],
     execute_command: str = "",
     exit_code: int = 0,
     message: str = "",
@@ -201,7 +201,7 @@ class RunCommand(TestSuite):
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
-                "script": f"touch $1",
+                "script": "touch $1",
             },
             "parameters": [{"Name": "", "Value": test_file}],
         }
