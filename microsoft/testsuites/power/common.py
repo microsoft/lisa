@@ -74,6 +74,7 @@ def verify_hibernation(
                     file="/etc/lvm/lvm.conf",
                     sudo=True,
                 )
+                node.execute("rm -rf /etc/lvm/devices/system.devices", sudo=True)
                 node.execute("vgimportdevices -a", sudo=True)
             pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
             matched = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)", re.M).match(
