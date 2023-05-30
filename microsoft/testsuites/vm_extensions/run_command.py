@@ -344,7 +344,7 @@ class RunCommand(TestSuite):
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
-                "script": f"sleep 1; touch {test_file}",
+                "script": f"sleep 1.5; touch {test_file}",
             },
             "timeoutInSeconds": 1,
         }
