@@ -141,6 +141,7 @@ class RunCommand(TestSuite):
     )
     def verify_existing_script_run(self, log: Logger, node: Node) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
+
         _create_and_verify_extension_run(node, settings)
 
     @TestCaseMetadata(
@@ -172,7 +173,6 @@ class RunCommand(TestSuite):
     def verify_script_run_with_named_parameter(self, log: Logger, node: Node) -> None:
         env_var_name = "TestVar"
         test_file = "/tmp/rcv2namedtest.txt"
-
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -180,7 +180,6 @@ class RunCommand(TestSuite):
             },
             "parameters": [{"Name": env_var_name, "Value": test_file}],
         }
-
         message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
@@ -197,7 +196,6 @@ class RunCommand(TestSuite):
     )
     def verify_script_run_with_unnamed_parameter(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/rcv2unnamedtest.txt"
-
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -205,7 +203,6 @@ class RunCommand(TestSuite):
             },
             "parameters": [{"Name": "", "Value": test_file}],
         }
-
         message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
@@ -228,7 +225,6 @@ class RunCommand(TestSuite):
         container_name = "rcv2lisa-public"
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/lisatest.txt"
-
         blob_url = _retrieve_storage_blob_url(
             node, environment, container_name, blob_name, test_file, True
         )
@@ -295,7 +291,6 @@ class RunCommand(TestSuite):
         container_name = "rcv2lisa"
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/rcv2lisasas.txt"
-
         blob_url = _retrieve_storage_blob_url(
             node, environment, container_name, blob_name, test_file, False, True
         )
