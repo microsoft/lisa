@@ -5,6 +5,8 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
+from azure.core.exceptions import HttpResponseError
+
 from lisa import (
     Logger,
     Node,
@@ -48,23 +50,32 @@ class CommandInfo(object):
 
 def _create_and_verify_extension_run(
     node: Node,
-    settings: Dict[str, Any],
-    protected_settings: Dict[str, Any],
-    execute_commands: List[CommandInfo],
+    settings: Dict[str, Any] = {},
+    protected_settings: Dict[str, Any] = {},
+    execute_commands: List[CommandInfo] = [],
+    assert_exception: Any = None,
 ) -> None:
     extension = node.features[AzureExtension]
-    result = extension.create_or_update(
-        name="CustomScript",
-        publisher="Microsoft.Azure.Extensions",
-        type_="CustomScript",
-        type_handler_version="2.1",
-        auto_upgrade_minor_version=True,
-        settings=settings,
-    )
 
-    assert_that(result["provisioning_state"]).described_as(
-        "Expected the extension to succeed"
-    ).is_equal_to("Succeeded")
+    def enable_extension() -> Any:
+        result = extension.create_or_update(
+            name="CustomScript",
+            publisher="Microsoft.Azure.Extensions",
+            type_="CustomScript",
+            type_handler_version="2.1",
+            auto_upgrade_minor_version=True,
+            settings=settings,
+            protected_settings=protected_settings,
+        )
+        return result
+
+    if assert_exception:
+        assert_that(enable_extension).raises(assert_exception).when_called_with()
+    else:
+        result = enable_extension()
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")
 
     for command_info in execute_commands:
         node.execute(
@@ -139,8 +150,14 @@ def _retrieve_storage_blob_url(
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
 
-    It has 1 test cases to verify if CSE runs successfully when:
-        1. 
+    It has 7 test cases to verify if CSE runs successfully when provided:
+        1. Public storage blob uri + command in public settings
+        2. 2 public blob uris + command for second script in public settings
+        3. 2 public blob uris + command for both scripts in public settings
+        4. Public blob uri + command in both public and protected settings (should fail)
+        5. Public blob uri + command in protected settings
+        6. Private blob uri without sas token in public settings (should fail)
+        7. Private sas uri + command in public settings
     """,
 )
 class CustomScriptTests(TestSuite):
@@ -151,7 +168,7 @@ class CustomScriptTests(TestSuite):
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_public_shell_script_run(
+    def verify_public_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
@@ -165,7 +182,9 @@ class CustomScriptTests(TestSuite):
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
 
         _create_and_verify_extension_run(
-            node, settings, {}, [CommandInfo(test_file, 0)]
+            node=node,
+            settings=settings,
+            execute_commands=[CommandInfo(test_file, 0)],
         )
 
     @TestCaseMetadata(
@@ -176,7 +195,7 @@ class CustomScriptTests(TestSuite):
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_second_public_shell_script_run(
+    def verify_second_public_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
@@ -198,10 +217,9 @@ class CustomScriptTests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node,
-            settings,
-            {},
-            [
+            node=node,
+            settings=settings,
+            execute_commands=[
                 CommandInfo(first_test_file, 2),
                 CommandInfo(second_test_file, 0),
             ],
@@ -215,7 +233,7 @@ class CustomScriptTests(TestSuite):
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_both_public_shell_scripts_run(
+    def verify_both_public_scripts_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
@@ -237,10 +255,9 @@ class CustomScriptTests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node,
-            settings,
-            {},
-            [
+            node=node,
+            settings=settings,
+            execute_commands=[
                 CommandInfo(first_test_file, 0),
                 CommandInfo(second_test_file, 0),
             ],
@@ -248,11 +265,123 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with 2 public file uris passed in
-        and both of them being run.
+        Runs the Custom Script VM extension with public file uri and command
+        in both public and protected settings.
         """,
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_idk() -> None:
-        pass
+    def verify_script_in_both_settings_failed(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, blob_name, test_file, True
+        )
+
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"sh {blob_name}",
+        }
+
+        # Expect HttpResponseError
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            protected_settings=settings,
+            assert_exception=HttpResponseError,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with public file uri and command in
+        protected settings.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_script_protected_settings_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, blob_name, test_file, True
+        )
+
+        protected_settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"sh {blob_name}",
+        }
+
+        _create_and_verify_extension_run(
+            node=node,
+            protected_settings=protected_settings,
+            execute_commands=[CommandInfo(test_file, 0)],
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with private Azure storage file uri
+        without a sas token.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_private_script_without_sas_run_failed(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, blob_name, test_file
+        )
+
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"sh {blob_name}",
+        }
+
+        # Expect HttpResponseError
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            assert_exception=HttpResponseError,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with private Azure storage file uri
+        with a sas token.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_sas_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, blob_name, test_file, False, True
+        )
+
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"sh {blob_name}",
+        }
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            execute_commands=[CommandInfo(test_file, 0)],
+        )
