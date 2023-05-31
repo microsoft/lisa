@@ -231,6 +231,41 @@ class Storage(TestSuite):
         from different sources.
 
         Steps:
+        1. Get the os partition disk type.
+        2. compare it with diskcontrollertype.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_disk_controller_type(
+        self,
+        log: Logger,
+        node: RemoteNode
+    ) -> None:
+        # get informaiton of os disk type.
+        os_disk_controller_type = (
+            node.features[Disk]
+            .get_partition_with_mount_point(self.os_disk_mount_point)
+            .disk
+        )
+        if node.capability.disk:
+            disk_controller_type = node.capability.disk.disk_controller_type
+
+        if os_disk_controller_type != disk_controller_type.lower():  # noqa E501
+            raise LisaException(
+                f"disk_controller_type is '{disk_controller_type}' but "
+                f"detected OS disk is of type: "
+                f"'{os_disk_controller_type}'"
+            )
+
+    @TestCaseMetadata(
+        description="""
+        This test will verify that identifier of root partition matches
+        from different sources.
+
+        Steps:
         1. Get the partition identifier from `blkid` command.
         2. Verify that the partition identifier from `blkid` is present in dmesg.
         3. Verify that the partition identifier from `blkid` is present in fstab output.
