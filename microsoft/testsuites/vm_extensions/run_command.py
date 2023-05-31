@@ -116,7 +116,7 @@ def _retrieve_storage_blob_url(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
