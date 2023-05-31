@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from assertpy import assert_that
 
@@ -27,12 +27,20 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 
 
+class CommandInfo(object):
+    def __init__(
+        self, command: str, expected_exit_code: int, failure_message: str
+    ) -> None:
+        self.command = command
+        self.expected_exit_code = expected_exit_code
+        self.failure_message = failure_message
+
+
 def _create_and_verify_extension_run(
     node: Node,
     settings: Dict[str, Any],
-    execute_command: str = "",
-    exit_code: int = 0,
-    message: str = "",
+    protected_settings: Dict[str, Any],
+    execute_commands: List[CommandInfo],
 ) -> None:
     extension = node.features[AzureExtension]
     result = extension.create_or_update(
@@ -48,12 +56,12 @@ def _create_and_verify_extension_run(
         "Expected the extension to succeed"
     ).is_equal_to("Succeeded")
 
-    if len(execute_command) > 0:
+    for command_info in execute_commands:
         node.execute(
-            execute_command,
+            command_info.command,
             shell=True,
-            expected_exit_code=exit_code,
-            expected_exit_code_failure_message=message,
+            expected_exit_code=command_info.expected_exit_code,
+            expected_exit_code_failure_message=command_info.failure_message,
         )
 
 
@@ -116,7 +124,7 @@ def _retrieve_storage_blob_url(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extensions1",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
@@ -125,5 +133,69 @@ def _retrieve_storage_blob_url(
         1. 
     """,
 )
-class CustomScriptExtension(TestSuite):
-    pass
+class CustomScriptTests(TestSuite):
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with a public script in Azure storage.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_shell_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, blob_name, test_file, True
+        )
+
+        settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
+        message = f"File {test_file} was not created on the test machine"
+
+        _create_and_verify_extension_run(
+            node, settings, {}, [CommandInfo(f"ls '{test_file}'", 0, message)]
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with 2 fileUris passed in
+        and only the second script being run.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_second_public_shell_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        first_blob_name = "cselisa.sh"
+        first_test_file = "/tmp/lisatest.txt"
+        second_blob_name = "cselisa2.sh"
+        second_test_file = "/tmp/lisatest2.txt"
+
+        first_blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, first_blob_name, first_test_file, True
+        )
+        second_blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, second_blob_name, second_test_file, True
+        )
+
+        settings = {
+            "fileUris": [first_blob_url, second_blob_url],
+            "commandToExecute": f"sh {second_blob_name}",
+        }
+        first_message = f"File {first_test_file} downloaded on test machine though it should not have"
+        second_message = f"File {second_test_file} was not created on the test machine"
+
+        _create_and_verify_extension_run(
+            node,
+            settings,
+            {},
+            [
+                CommandInfo(f"ls '{first_test_file}'", 2, first_message),
+                CommandInfo(f"ls '{second_test_file}'", 0, second_message),
+            ],
+        )
