@@ -78,7 +78,9 @@ hookimpl = pluggy.HookimplMarker(_NAME_LISA)
 
 
 class LisaException(Exception):
-    ...
+    def __init__(self, *args: object) -> None:
+        args = tuple(secret.mask(arg) if isinstance(arg, str) else arg for arg in args)
+        super().__init__(*args)
 
 
 class UnsupportedOperationException(LisaException):
