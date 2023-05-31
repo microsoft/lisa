@@ -60,7 +60,7 @@ from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
-from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
+from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -1630,6 +1630,31 @@ def get_deployable_vhd_path(
     full_vhd_path = copy_vhd_to_storage(
         platform, storage_name, original_vhd_path, vhd_path, log
     )
+    log.debug(
+        f"deployable vhd is cached at: {full_vhd_path}. "
+        f"original vhd url: {original_vhd_path}"
+    )
+
+    # Add substitutes for these normalized vhd names. Replace them with the original
+    # vhd name without SAS when printing
+    # e.g.
+    # full_vhd_path: https://lisatwestus3xx.blob.core.windows.net/lisa-sas-copied/99990101/https---userstorageaccount-blob-core-windows-net-vhds-fortinet-blob-6-7-4-vhd-sv-2019-xx.vhd  # noqa: E501
+    # replace it with: https://userstorageaccount.blob.core.windows.net/vhds/fortinet/blob-6.7.4.vhd?***  # noqa: E501
+    # vhd_path: 99990101/https---userstorageaccount-blob-core-windows-net-vhds-fortinet-blob-6-7-4-vhd-sv-2019-xx.vhd  # noqa: E501
+    # replace it with: fortinet/blob-6.7.4.vhd
+    original_vhd_path_without_sas = replace(original_vhd_path, mask=PATTERN_URL)
+    add_secret(
+        vhd_path,
+        sub="/".join(original_vhd_path_without_sas.split("/")[4:]).rstrip("?*"),
+    )
+    add_secret(full_vhd_path, sub=original_vhd_path_without_sas)
+    # In the returned message from Azure when creating VM, the blob url might contain
+    # the default blob port 8443, so also add substitute for the vhd path with 8443 port
+    full_vhd_path_with_port = "/".join(
+        x + ":8443" if i == 2 else x for i, x in enumerate(full_vhd_path.split("/"))
+    )
+    add_secret(full_vhd_path_with_port, sub=original_vhd_path_without_sas)
+
     return full_vhd_path
 
 
