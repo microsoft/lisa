@@ -29,11 +29,21 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 
 class CommandInfo(object):
     def __init__(
-        self, command: str, expected_exit_code: int, failure_message: str
+        self,
+        file_name: str,
+        expected_exit_code: int,
+        # self, command: str, expected_exit_code: int, failure_message: str
     ) -> None:
-        self.command = command
+        self.command = f"ls '{file_name}'"
         self.expected_exit_code = expected_exit_code
-        self.failure_message = failure_message
+        if expected_exit_code == 0:
+            self.failure_message = (
+                f"File {file_name} was not created on the test machine"
+            )
+        else:
+            self.failure_message = (
+                f"File {file_name} downloaded on test machine though it should not have"
+            )
 
 
 def _create_and_verify_extension_run(
@@ -136,7 +146,7 @@ def _retrieve_storage_blob_url(
 class CustomScriptTests(TestSuite):
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with a public script in Azure storage.
+        Runs the Custom Script VM extension with a public Azure storage file uri.
         """,
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
@@ -153,15 +163,14 @@ class CustomScriptTests(TestSuite):
         )
 
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, {}, [CommandInfo(f"ls '{test_file}'", 0, message)]
+            node, settings, {}, [CommandInfo(test_file, 0)]
         )
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with 2 fileUris passed in
+        Runs the Custom Script VM extension with 2 public file uris passed in
         and only the second script being run.
         """,
         priority=3,
@@ -187,15 +196,63 @@ class CustomScriptTests(TestSuite):
             "fileUris": [first_blob_url, second_blob_url],
             "commandToExecute": f"sh {second_blob_name}",
         }
-        first_message = f"File {first_test_file} downloaded on test machine though it should not have"
-        second_message = f"File {second_test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
             node,
             settings,
             {},
             [
-                CommandInfo(f"ls '{first_test_file}'", 2, first_message),
-                CommandInfo(f"ls '{second_test_file}'", 0, second_message),
+                CommandInfo(first_test_file, 2),
+                CommandInfo(second_test_file, 0),
             ],
         )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with 2 public file uris passed in
+        and both of them being run.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_both_public_shell_scripts_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        first_blob_name = "cselisa.sh"
+        first_test_file = "/tmp/lisatest.txt"
+        second_blob_name = "cselisa2.sh"
+        second_test_file = "/tmp/lisatest2.txt"
+
+        first_blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, first_blob_name, first_test_file, True
+        )
+        second_blob_url = _retrieve_storage_blob_url(
+            node, environment, container_name, second_blob_name, second_test_file, True
+        )
+
+        settings = {
+            "fileUris": [first_blob_url, second_blob_url],
+            "commandToExecute": f"sh {first_blob_name}; sh {second_blob_name}",
+        }
+
+        _create_and_verify_extension_run(
+            node,
+            settings,
+            {},
+            [
+                CommandInfo(first_test_file, 0),
+                CommandInfo(second_test_file, 0),
+            ],
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with 2 public file uris passed in
+        and both of them being run.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_idk() -> None:
+        pass
