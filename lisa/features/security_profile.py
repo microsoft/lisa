@@ -47,7 +47,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 search_space.decode_set_space_by_type(
                     data=input, base_type=SecurityProfileType
                 )
-                if input
+                if str(input).strip()
                 else search_space.SetSpace(
                     items=[
                         SecurityProfileType.Standard,
