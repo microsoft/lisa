@@ -4,7 +4,7 @@
 from typing import cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import CBLMariner, Posix
 from lisa.util.process import Process
 
 from .gcc import Gcc
@@ -76,12 +76,17 @@ class StressNg(Tool):
             sudo=sudo,
         )
 
+    def _install_required_packages(self) -> None:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
+
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)
         self.node.tools.get(Gcc)  # Ensure gcc is installed
         make = self.node.tools[Make]
+        self._install_required_packages()
         code_path = tool_path.joinpath("stress-ng")
         make.make_install(cwd=code_path)
         return self._check_exists()
