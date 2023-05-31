@@ -227,6 +227,34 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test will verify that disk controller type.
+
+        Steps:
+        1. Get the disk type of the os partition.
+        2. Compare it with diskcontrollertype passed through runbook.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_disk_controller_type(self, node: RemoteNode) -> None:
+        # Get OS disk type.
+        os_disk_controller_type = node.features[Disk].controller_type
+
+        # Get disk controller type.
+        if node.capability.disk:
+            disk_controller_type = node.capability.disk.disk_controller_type
+
+        if os_disk_controller_type != disk_controller_type:
+            raise LisaException(
+                f"disk_controller_type is '{disk_controller_type}' but "
+                f"detected OS disk is of type: "
+                f"'{os_disk_controller_type}'"
+            )
+
+    @TestCaseMetadata(
+        description="""
         This test will verify that identifier of root partition matches
         from different sources.
 
