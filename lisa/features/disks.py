@@ -8,7 +8,7 @@ from assertpy.assertpy import assert_that
 
 from lisa import schema
 from lisa.feature import Feature
-from lisa.tools import Mount
+from lisa.tools import Ls, Mount
 from lisa.tools.mount import PartitionInfo
 
 
@@ -63,6 +63,16 @@ class Disk(Feature):
 
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
+
+    # Get disk controller type of the VM by checking if there any SCSI devices.
+    # If DiskControllerType is NVMe, there will not be any SCSI disks in VM.
+    @property
+    def controller_type(self) -> str:
+        ls_tools = self._node.tools[Ls]
+        if ls_tools.path_exists("/dev/sda", sudo=True):
+            return schema.DiskControllerType.SCSI
+        else:
+            return schema.DiskControllerType.NVME
 
 
 DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)

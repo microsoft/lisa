@@ -185,6 +185,36 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test verifies the "disk controller" feature of the created VM.
+        Disk controller type can be NVMe or SCSI.
+        When a VM is created with SCSI disk controller, it's OS and data
+        disks will be of SCSI type.
+        If the VM is created with NVMe disk controller, both its OS and data
+        disks will be of NVMe type.
+
+        Steps:
+        1. Get the disk controller type from within VM.
+        2. Compare it with diskcontrollertype passed through runbook.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_disk_controller_type(self, node: RemoteNode) -> None:
+        # Get OS disk type.
+        os_disk_controller_type = node.features[Disk].controller_type
+
+        # Get disk controller type.
+        if node.capability.disk:
+            assert_that(
+                node.capability.disk.disk_controller_type,
+                "Expected disk_controller_type didn't match with VM's"
+                "disk_controller_type",
+            ).is_equal_to(os_disk_controller_type)
+
+    @TestCaseMetadata(
+        description="""
         This test will verify that identifier of root partition matches
         from different sources.
 
