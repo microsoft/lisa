@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
+
 from typing import Any, Dict, List
 
 from assertpy import assert_that
@@ -89,10 +91,9 @@ def _create_and_verify_extension_run(
 def _retrieve_storage_blob_url(
     node: Node,
     environment: Environment,
-    container_name: str,
-    blob_name: str,
-    test_file: str,
-    is_public_container: bool = False,
+    container_name: str = "",
+    blob_name: str = "",
+    test_file: str = "",
     is_sas: bool = False,
 ) -> Any:
     platform = environment.platform
@@ -104,6 +105,7 @@ def _retrieve_storage_blob_url(
     storage_account_name = get_storage_account_name(
         subscription_id=subscription_id, location=location
     )
+    is_public_container = container_name.endswith("-public")
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
@@ -150,14 +152,16 @@ def _retrieve_storage_blob_url(
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
 
-    It has 7 test cases to verify if CSE runs successfully when provided:
+    It has 9 test cases to verify if CSE runs as intended when provided:
         1. Public storage blob uri + command in public settings
         2. 2 public blob uris + command for second script in public settings
         3. 2 public blob uris + command for both scripts in public settings
         4. Public blob uri + command in both public and protected settings (should fail)
-        5. Public blob uri + command in protected settings
-        6. Private blob uri without sas token in public settings (should fail)
-        7. Private sas uri + command in public settings
+        5. Public blob uri without a command or base64 script in settings (should fail)
+        6. Public blob uri + base64 script in public settings
+        7. Public blob uri + command in protected settings
+        8. Private blob uri without sas token in public settings (should fail)
+        9. Private sas uri + command in public settings
     """,
 )
 class CustomScriptTests(TestSuite):
@@ -176,7 +180,11 @@ class CustomScriptTests(TestSuite):
         test_file = "/tmp/lisatest.txt"
 
         blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
@@ -205,10 +213,18 @@ class CustomScriptTests(TestSuite):
         second_test_file = "/tmp/lisatest2.txt"
 
         first_blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, first_blob_name, first_test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=first_blob_name,
+            test_file=first_test_file,
         )
         second_blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, second_blob_name, second_test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=second_blob_name,
+            test_file=second_test_file,
         )
 
         settings = {
@@ -243,10 +259,18 @@ class CustomScriptTests(TestSuite):
         second_test_file = "/tmp/lisatest2.txt"
 
         first_blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, first_blob_name, first_test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=first_blob_name,
+            test_file=first_test_file,
         )
         second_blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, second_blob_name, second_test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=second_blob_name,
+            test_file=second_test_file,
         )
 
         settings = {
@@ -279,7 +303,11 @@ class CustomScriptTests(TestSuite):
         test_file = "/tmp/lisatest.txt"
 
         blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         settings = {
@@ -311,7 +339,11 @@ class CustomScriptTests(TestSuite):
         test_file = "/tmp/lisatest.txt"
 
         blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         protected_settings = {
@@ -322,6 +354,72 @@ class CustomScriptTests(TestSuite):
         _create_and_verify_extension_run(
             node=node,
             protected_settings=protected_settings,
+            execute_commands=[CommandInfo(test_file, 0)],
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension without a command and a script.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_script_without_command_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = _retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+        )
+
+        settings = {
+            "fileUris": [blob_url],
+        }
+
+        # Expect HttpResponseError
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            assert_exception=HttpResponseError,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with a base64 script.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_script_with_base64_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        script = f"#!/bin/sh\nsh {blob_name}"
+        script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
+
+        blob_url = _retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+        )
+
+        settings = {"fileUris": [blob_url], "script": script_base64}
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
             execute_commands=[CommandInfo(test_file, 0)],
         )
 
@@ -341,7 +439,11 @@ class CustomScriptTests(TestSuite):
         test_file = "/tmp/lisatest.txt"
 
         blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         settings = {
@@ -364,7 +466,7 @@ class CustomScriptTests(TestSuite):
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_sas_script_run(
+    def verify_private_sas_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa"
@@ -372,7 +474,12 @@ class CustomScriptTests(TestSuite):
         test_file = "/tmp/lisatest.txt"
 
         blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, False, True
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+            is_sas=True,
         )
 
         settings = {
