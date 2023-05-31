@@ -12,6 +12,9 @@ class SecretTestCase(TestCase):
     def setUp(self) -> None:
         reset()
 
+    def tearDown(self) -> None:
+        reset()
+
     def test_happen_twice(self) -> None:
         add_secret("test1", sub="*")
         result = mask("test1 test1 test3")
