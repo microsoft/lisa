@@ -27,7 +27,12 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
-from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    SkippedException,
+    get_matched_str,
+)
 from lisa.util.perf_timer import create_timer
 
 
@@ -224,6 +229,39 @@ class Storage(TestSuite):
             read_text,
             "content read from file should be equal to content written to file",
         ).is_equal_to(original_text)
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the disk controller type of the VM.
+
+        Steps:
+        1. Get the disk type of the boot partition.
+        2. Compare it with diskcontrollertype of the VM.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_disk_controller_type(self, node: RemoteNode) -> None:
+        # Get VM's 'disk controller type' with azure api
+        vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
+
+        # Get 'disk controller type' from within VM.
+        os_disk_controller_type = node.features[Disk].os_disk_controller_type()
+
+        # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
+        if not vm_disk_controller_type:
+            raise SkippedException(
+                f"VM disk_controller_type is '{vm_disk_controller_type}'"
+            )
+
+        if os_disk_controller_type != vm_disk_controller_type:
+            raise LisaException(
+                f"VM disk_controller_type is '{vm_disk_controller_type}' but "
+                f"detected OS disk is of type: "
+                f"'{os_disk_controller_type}'"
+            )
 
     @TestCaseMetadata(
         description="""
