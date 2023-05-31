@@ -64,6 +64,15 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
+    # Get disk controller type of the VM by checking the OS disk partition
+    @property
+    def controller_type(self) -> str:
+        os_disk = self.get_partition_with_mount_point("/")
+        if os_disk.disk == 'nvme':  # noqa BLK100
+            return schema.DiskControllerType.NVME
+        else:
+            return schema.DiskControllerType.SCSI
+
 
 DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
 DiskPremiumSSDLRS = partial(
