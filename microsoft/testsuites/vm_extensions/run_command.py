@@ -16,23 +16,17 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
-from lisa.sut_orchestrator.azure.common import (
-    AZURE_SHARED_RG_NAME,
-    AzureNodeSchema,
-    generate_blob_sas_token,
-    get_or_create_storage_container,
-    get_storage_account_name,
-)
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from microsoft.testsuites.vm_extensions.common import (
+    CommandInfo,
+    retrieve_storage_blob_url,
+)
 
 
 def _create_and_verify_extension_run(
     node: Node,
     settings: Dict[str, Any],
-    execute_command: str = "",
-    exit_code: int = 0,
-    message: str = "",
+    command_info: CommandInfo = CommandInfo("", 0),
 ) -> None:
     extension = node.features[AzureExtension]
     result = extension.create_or_update(
@@ -48,75 +42,17 @@ def _create_and_verify_extension_run(
         "Expected the extension to succeed"
     ).is_equal_to("Succeeded")
 
-    if len(execute_command) > 0:
+    if len(command_info.command) > 0:
         node.execute(
-            execute_command,
+            command_info.command,
             shell=True,
-            expected_exit_code=exit_code,
-            expected_exit_code_failure_message=message,
+            expected_exit_code=command_info.expected_exit_code,
+            expected_exit_code_failure_message=command_info.failure_message,
         )
-
-
-def _retrieve_storage_blob_url(
-    node: Node,
-    environment: Environment,
-    container_name: str,
-    blob_name: str,
-    test_file: str,
-    is_public_container: bool = False,
-    is_sas: bool = False,
-) -> Any:
-    platform = environment.platform
-    assert isinstance(platform, AzurePlatform)
-
-    subscription_id = platform.subscription_id
-    node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-    location = node_context.location
-    storage_account_name = get_storage_account_name(
-        subscription_id=subscription_id, location=location
-    )
-
-    container_client = get_or_create_storage_container(
-        credential=platform.credential,
-        subscription_id=subscription_id,
-        cloud=platform.cloud,
-        account_name=storage_account_name,
-        container_name=container_name,
-        resource_group_name=AZURE_SHARED_RG_NAME,
-    )
-
-    blob = container_client.get_blob_client(blob_name)
-    if not blob.exists():
-        if is_public_container:
-            container_client.set_container_access_policy(
-                signed_identifiers={}, public_access="container"
-            )
-        # Upload blob to container if doesn't exist
-        container_client.upload_blob(
-            name=blob_name, data=f"touch {test_file}"  # type: ignore
-        )
-
-    blob_url = blob.url
-
-    if is_sas:
-        sas_token = generate_blob_sas_token(
-            credential=platform.credential,
-            subscription_id=subscription_id,
-            cloud=platform.cloud,
-            account_name=storage_account_name,
-            resource_group_name=AZURE_SHARED_RG_NAME,
-            container_name=container_name,
-            file_name=blob_name,
-            expired_hours=1,
-        )
-
-        blob_url = blob_url + "?" + sas_token
-
-    return blob_url
 
 
 @TestSuiteMetadata(
-    area="vm_extension",
+    area="vm_extensions1",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
@@ -159,10 +95,9 @@ class RunCommandV2Tests(TestSuite):
         settings = {
             "source": {"CommandId": "RunShellScript", "script": f"touch {test_file}"}
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -183,10 +118,9 @@ class RunCommandV2Tests(TestSuite):
             },
             "parameters": [{"Name": env_var_name, "Value": test_file}],
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -206,10 +140,9 @@ class RunCommandV2Tests(TestSuite):
             },
             "parameters": [{"Name": "", "Value": test_file}],
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -228,8 +161,12 @@ class RunCommandV2Tests(TestSuite):
         container_name = "rcv2lisa-public"
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/lisatest.txt"
-        blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, True
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         settings = {
@@ -238,10 +175,9 @@ class RunCommandV2Tests(TestSuite):
                 "scriptUri": blob_url,
             },
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -260,8 +196,12 @@ class RunCommandV2Tests(TestSuite):
         container_name = "rcv2lisa"
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/rcv2lisasas.txt"
-        blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
         )
 
         settings = {
@@ -270,12 +210,9 @@ class RunCommandV2Tests(TestSuite):
                 "scriptUri": blob_url,
             },
         }
-        message = (
-            f"File {test_file} downloaded on test machine though it should not have"
-        )
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 2, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 2)
         )
 
     @TestCaseMetadata(
@@ -294,8 +231,13 @@ class RunCommandV2Tests(TestSuite):
         container_name = "rcv2lisa"
         blob_name = "rcv2lisa.sh"
         test_file = "/tmp/rcv2lisasas.txt"
-        blob_url = _retrieve_storage_blob_url(
-            node, environment, container_name, blob_name, test_file, False, True
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+            is_sas=True,
         )
 
         settings = {
@@ -304,10 +246,9 @@ class RunCommandV2Tests(TestSuite):
                 "scriptUri": blob_url,
             },
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -326,10 +267,9 @@ class RunCommandV2Tests(TestSuite):
             },
             "timeoutInSeconds": 1,
         }
-        message = f"File {test_file} was not created on the test machine"
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 0, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
         )
 
     @TestCaseMetadata(
@@ -348,10 +288,7 @@ class RunCommandV2Tests(TestSuite):
             },
             "timeoutInSeconds": 1,
         }
-        message = (
-            f"File {test_file} downloaded on test machine though it should not have"
-        )
 
         _create_and_verify_extension_run(
-            node, settings, f"ls '{test_file}'", 2, message
+            node=node, settings=settings, command_info=CommandInfo(test_file, 2)
         )
