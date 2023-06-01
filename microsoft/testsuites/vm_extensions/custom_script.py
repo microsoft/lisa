@@ -65,22 +65,26 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions1",
+    area="vm_extensions2",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
 
-    Blob uri points to a linux shell script unless mentioned otherwise.
+    File uri is a public Azure storage blob uri unless mentioned otherwise.
+    File uri points to a linux shell script unless mentioned otherwise.
 
-    It has 8 test cases to verify if CSE runs as intended when provided:
-        1. Public storage blob uri + command in public settings
-        2. Two public blob uris + command for second script in public settings
-        3. Public blob uri + command in both public and protected settings (should fail)
-        4. Public blob uri without a command or base64 script in settings (should fail)
-        5. Public blob uri + base64 script in public settings
-        6. Public blob uri + command in protected settings
-        7. Private blob uri without sas token in public settings (should fail)
-        8. Private sas uri + command in public settings
+    It has 10 test cases to verify if CSE runs as intended when provided:
+        1. File uri and command in public settings
+        2. Two file uris and command for second downloaded script in public settings
+        3. File uri and command in both public and protected settings (should fail)
+        4. File uri without a command or base64 script in settings (should fail)
+        5. File uri and base64 script in public settings
+        6. File uri and command in protected settings
+        7. Private file uri without sas token in public settings (should fail)
+        8. Private sas file uri and command in public settings
+        9. File uri (pointing to python script) and command in public settings
+        10. File uri with dos2unix conversion skipped (should fail)
+            and then enabled again (should pass)
     """,
 )
 class CustomScriptTests(TestSuite):
@@ -364,4 +368,85 @@ class CustomScriptTests(TestSuite):
             node=node,
             settings=settings,
             execute_commands=[CommandInfo(test_file, 0)],
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with a public Azure storage file uri
+        pointing to a python script.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_python_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.py"
+        test_file = "/tmp/lisatest-python.txt"
+
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+            script=f"#!/usr/bin/env python\nopen('{test_file}', 'a').close()",
+        )
+
+        settings = {"fileUris": [blob_url], "commandToExecute": f"python3 {blob_name}"}
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            execute_commands=[CommandInfo(test_file, 0)],
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with public file uri
+        without dos2unix conversion and then with it.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_public_script_without_dos2unix_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa-dos2unix.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        # use multiline script to test dos2unix
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            script=f"touch {test_file}\r\n",  # include CRLF
+        )
+
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"sh {blob_name}",
+            "skipDos2Unix": True,
+        }
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            execute_commands=[
+                CommandInfo(test_file, 2),
+            ],
+        )
+
+        # will convert CRLF (/r/n) to LF (/n) which is recognized by Unix
+        settings["skipDos2Unix"] = False
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            execute_commands=[
+                CommandInfo(test_file, 0),
+            ],
         )

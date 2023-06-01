@@ -47,6 +47,7 @@ def retrieve_storage_blob_url(
     blob_name: str = "",
     test_file: str = "",
     is_sas: bool = False,
+    script: str = "",
 ) -> Any:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
@@ -58,6 +59,7 @@ def retrieve_storage_blob_url(
         subscription_id=subscription_id, location=location
     )
     is_public_container = container_name.endswith("-public")
+    blob_data = script or f"touch {test_file}"
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
@@ -75,9 +77,7 @@ def retrieve_storage_blob_url(
                 signed_identifiers={}, public_access="container"
             )
         # Upload blob to container if doesn't exist
-        container_client.upload_blob(
-            name=blob_name, data=f"touch {test_file}"  # type: ignore
-        )
+        container_client.upload_blob(name=blob_name, data=blob_data)  # type: ignore
 
     blob_url = blob.url
 
