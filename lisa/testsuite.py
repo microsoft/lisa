@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 from warnings import warn
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
@@ -584,18 +584,6 @@ class TestSuite:
         suite_log = self.__log
         suite_error_stacktrace = None
         #  replace to case's logger temporarily
-        if hasattr(self, "before_suite"):
-            (
-                is_suite_continue,
-                suite_error_message,
-                suite_error_stacktrace,
-            ) = self.__suite_method(
-                self.before_suite,  # type: ignore
-                test_kwargs=test_kwargs,
-                log=suite_log,
-            )
-            self.__print_warning("before_suite", "before_case")
-
         for case_result in case_results:
             case_name = case_result.runtime_data.name
 
@@ -670,14 +658,6 @@ class TestSuite:
                 suite_log.info("received stop message, stop run")
                 break
 
-        if hasattr(self, "after_suite"):
-            self.__suite_method(
-                self.after_suite,  # type: ignore
-                test_kwargs=test_kwargs,
-                log=suite_log,
-            )
-            self.__print_warning("after_suite", "after_case")
-
     def stop(self) -> None:
         self._should_stop = True
 
@@ -721,29 +701,6 @@ class TestSuite:
         # test case should create it, when it's used.
         working_path = constants.RUN_LOCAL_WORKING_PATH / test_part_path
         return working_path
-
-    def __suite_method(
-        self, method: Callable[..., Any], test_kwargs: Dict[str, Any], log: Logger
-    ) -> Tuple[bool, str, Optional[str]]:
-        result: bool = True
-        message: str = ""
-        timer = create_timer()
-        method_name = method.__name__
-        stacktrace: Optional[str] = None
-        try:
-            _call_with_retry_and_timeout(
-                method,
-                retries=0,
-                timeout=3600,
-                log=log,
-                test_kwargs=test_kwargs,
-            )
-        except Exception as identifier:
-            result = False
-            message = f"{method_name}: {identifier}"
-            stacktrace = traceback.format_exc()
-        log.debug(f"{method_name} end in {timer}")
-        return result, message, stacktrace
 
     def __before_case(
         self,
