@@ -23,6 +23,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from microsoft.testsuites.vm_extensions.common import (
     CommandInfo,
     retrieve_storage_blob_url,
+    retrieve_storage_account_name_and_key,
 )
 
 
@@ -73,7 +74,7 @@ def _create_and_verify_extension_run(
     File uri is a public Azure storage blob uri unless mentioned otherwise.
     File uri points to a linux shell script unless mentioned otherwise.
 
-    It has 10 test cases to verify if CSE runs as intended when provided:
+    It has 11 test cases to verify if CSE runs as intended when provided:
         1. File uri and command in public settings
         2. Two file uris and command for second downloaded script in public settings
         3. File uri and command in both public and protected settings (should fail)
@@ -81,9 +82,10 @@ def _create_and_verify_extension_run(
         5. File uri and base64 script in public settings
         6. File uri and command in protected settings
         7. Private file uri without sas token in public settings (should fail)
-        8. Private sas file uri and command in public settings
-        9. File uri (pointing to python script) and command in public settings
-        10. File uri with dos2unix conversion skipped (should fail)
+        8. Private file uri with storage account credentials in protected settings
+        9. Private sas file uri and command in public settings
+        10. File uri (pointing to python script) and command in public settings
+        11. File uri with dos2unix conversion skipped (should fail)
             and then enabled again (should pass)
     """,
 )
@@ -333,6 +335,47 @@ class CustomScriptTests(TestSuite):
             node=node,
             settings=settings,
             assert_exception=HttpResponseError,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with private Azure storage file uri
+        without a sas token but with storage account credentials.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_private_script_with_storage_credentials_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+        )
+
+        credentials = retrieve_storage_account_name_and_key(
+            node=node, environment=environment
+        )
+
+        settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
+
+        protected_settings = {
+            "storageAccountName": credentials["account_name"],
+            "storageAccountKey": credentials["account_key"],
+        }
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            protected_settings=protected_settings,
+            execute_commands=[CommandInfo(test_file, 0)],
         )
 
     @TestCaseMetadata(
