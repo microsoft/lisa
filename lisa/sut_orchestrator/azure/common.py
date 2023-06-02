@@ -201,7 +201,7 @@ class AzureNodeSchema:
     osdisk_size_in_gb: int = 30
     # Force to maximize capability of the vm size. It bypass requirements on
     # test cases, and uses to force run performance tests on any vm size.
-    maximize_capability: bool = False
+    maximize_capability: bool = True
 
     location: str = ""
     # Required by shared gallery images which are present in
