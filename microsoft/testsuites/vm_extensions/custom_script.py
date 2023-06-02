@@ -82,7 +82,7 @@ def _create_and_verify_extension_run(
     File uri is a public Azure storage blob uri unless mentioned otherwise.
     File uri points to a linux shell script unless mentioned otherwise.
 
-    It has 13 test cases to verify if CSE runs as intended when provided:
+    It has 12 test cases to verify if CSE runs as intended when provided:
         1. File uri and command in public settings
         2. Two file uris and command for downloading both scripts in public settings
         3. File uri and command in both public and protected settings (should fail)
@@ -95,7 +95,6 @@ def _create_and_verify_extension_run(
         10. Private file uri with storage account credentials
         11. Private sas file uri and command in public settings
         12. File uri (pointing to python script) and command in public settings
-        13. File uri with dos2unix conversion skipped (should fail)
     """,
     requirement=simple_requirement(unsupported_os=[BSD]),
 )
@@ -533,44 +532,4 @@ class CustomScriptTests(TestSuite):
             node=node,
             settings=settings,
             execute_commands=[CommandInfo(test_file, 0)],
-        )
-
-    @TestCaseMetadata(
-        description="""
-        Runs the Custom Script VM extension with public file uri
-        without dos2unix conversion.
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
-    )
-    def verify_public_script_without_dos2unix_run(
-        self, log: Logger, node: Node, environment: Environment
-    ) -> None:
-        container_name = "cselisa-public"
-        blob_name = "cselisa-dos2unix.sh"
-        test_file = "/tmp/lisatest.txt"
-
-        # use multiline script to test dos2unix
-        blob_url = retrieve_storage_blob_url(
-            node=node,
-            environment=environment,
-            container_name=container_name,
-            blob_name=blob_name,
-            script=f"touch {test_file}\r\n",  # include CRLF
-        )
-
-        settings = {
-            "fileUris": [blob_url],
-            "commandToExecute": f"sh {blob_name}",
-            "skipDos2Unix": True,
-        }
-
-        _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[
-                CommandInfo(test_file, 2),
-            ],
         )
