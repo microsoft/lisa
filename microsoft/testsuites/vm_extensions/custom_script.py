@@ -82,19 +82,20 @@ def _create_and_verify_extension_run(
     File uri is a public Azure storage blob uri unless mentioned otherwise.
     File uri points to a linux shell script unless mentioned otherwise.
 
-    It has 12 test cases to verify if CSE runs as intended when provided:
+    It has 13 test cases to verify if CSE runs as intended when provided:
         1. File uri and command in public settings
         2. Two file uris and command for downloading both scripts in public settings
         3. File uri and command in both public and protected settings (should fail)
         4. File uri without a command or base64 script (should fail)
-        5. File uri and base64 script in public settings
-        6. File uri and gzip'ed base64 script in public settings
-        7. File uri and command in protected settings
-        8. Private file uri without sas token or credentials (should fail)
-        9. Private file uri with storage account credentials
-        10. Private sas file uri and command in public settings
-        11. File uri (pointing to python script) and command in public settings
-        12. File uri with dos2unix conversion skipped (should fail)
+        5. Both base64 script and command in public settings (should fail)
+        6. File uri and base64 script in public settings
+        7. File uri and gzip'ed base64 script in public settings
+        8. File uri and command in protected settings
+        9. Private file uri without sas token or credentials (should fail)
+        10. Private file uri with storage account credentials
+        11. Private sas file uri and command in public settings
+        12. File uri (pointing to python script) and command in public settings
+        13. File uri with dos2unix conversion skipped (should fail)
     """,
     requirement=simple_requirement(unsupported_os=[BSD]),
 )
@@ -107,7 +108,7 @@ class CustomScriptTests(TestSuite):
         description="""
         Runs the Custom Script VM extension with a public Azure storage file uri.
         """,
-        priority=3,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension], supported_platform_type=[AZURE]
         ),
@@ -290,6 +291,26 @@ class CustomScriptTests(TestSuite):
             node=node,
             settings=settings,
             assert_exception=HttpResponseError,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Custom Script VM extension with a base64 script
+        and command with no file uris.
+        """,
+        priority=3,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
+    )
+    def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
+        test_file = "/tmp/lisatest.txt"
+
+        script = f"#!/bin/sh\touch {test_file}"
+        script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
+
+        settings = {"script": script_base64, "commandToExecute": "sh script.sh"}
+
+        _create_and_verify_extension_run(
+            node=node, settings=settings, assert_exception=HttpResponseError
         )
 
     @TestCaseMetadata(
