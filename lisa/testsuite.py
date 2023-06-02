@@ -5,13 +5,11 @@ from __future__ import annotations
 
 import copy
 import traceback
-import warnings
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
 from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
-from warnings import warn
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
@@ -773,20 +771,6 @@ class TestSuite:
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
-
-    def __print_warning(
-        self, deprecated_method_name: str, replaced_method_name: str
-    ) -> None:
-        warnings.simplefilter("always", DeprecationWarning)
-        warn(
-            (
-                f"{deprecated_method_name} is deprecated. "
-                f"please use {replaced_method_name}"
-            ),
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        warnings.simplefilter("ignore", DeprecationWarning)
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
