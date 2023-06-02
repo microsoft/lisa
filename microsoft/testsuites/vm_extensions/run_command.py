@@ -54,7 +54,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions1",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.

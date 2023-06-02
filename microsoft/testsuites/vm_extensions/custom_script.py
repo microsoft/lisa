@@ -74,7 +74,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions2",
+    area="vm_extensions",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.

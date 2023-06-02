@@ -45,11 +45,9 @@ class CommandInfo(object):
 
 def verify_waagent_version_supported(environment: Environment) -> None:
     platform = environment.platform
-
     assert isinstance(platform, AzurePlatform)
 
     env_information = platform.get_environment_information(environment)
-
     if "wala_version" in env_information:
         wala_version = env_information["wala_version"]
         result = VersionInfo.parse(wala_version).compare("2.4.0")
