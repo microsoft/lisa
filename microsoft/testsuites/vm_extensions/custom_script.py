@@ -31,10 +31,8 @@ from microsoft.testsuites.vm_extensions.common import (
     CommandInfo,
     retrieve_storage_blob_url,
     retrieve_storage_account_name_and_key,
+    verify_waagent_version_supported,
 )
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.util import SkippedException
-from semver import VersionInfo
 
 
 def _create_and_verify_extension_run(
@@ -103,20 +101,7 @@ def _create_and_verify_extension_run(
 class CustomScriptTests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        platform = environment.platform
-
-        assert isinstance(platform, AzurePlatform)
-
-        env_information = platform.get_environment_information(environment)
-
-        if "wala_version" in env_information:
-            wala_version = env_information["wala_version"]
-            result = VersionInfo.parse(wala_version).compare("2.1.0")
-            if result < 0:
-                raise SkippedException(
-                    f"Node with Windows Azure Linux Agent version {wala_version}"
-                    " is lower than 2.4.0 and doesn't have multiconfig support."
-                )
+        verify_waagent_version_supported(environment=environment)
 
     @TestCaseMetadata(
         description="""
