@@ -3,6 +3,10 @@
 
 import base64
 
+import gzip
+
+import logging
+
 from typing import Any, Dict, List
 
 from assertpy import assert_that
@@ -18,13 +22,19 @@ from lisa import (
     simple_requirement,
 )
 
+
 from lisa.environment import Environment
+from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.sut_orchestrator import AZURE
 from microsoft.testsuites.vm_extensions.common import (
     CommandInfo,
     retrieve_storage_blob_url,
     retrieve_storage_account_name_and_key,
 )
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.util import SkippedException
+from semver import VersionInfo
 
 
 def _create_and_verify_extension_run(
@@ -74,28 +84,48 @@ def _create_and_verify_extension_run(
     File uri is a public Azure storage blob uri unless mentioned otherwise.
     File uri points to a linux shell script unless mentioned otherwise.
 
-    It has 11 test cases to verify if CSE runs as intended when provided:
+    It has 12 test cases to verify if CSE runs as intended when provided:
         1. File uri and command in public settings
-        2. Two file uris and command for second downloaded script in public settings
+        2. Two file uris and command for downloading both scripts in public settings
         3. File uri and command in both public and protected settings (should fail)
-        4. File uri without a command or base64 script in settings (should fail)
+        4. File uri without a command or base64 script (should fail)
         5. File uri and base64 script in public settings
-        6. File uri and command in protected settings
-        7. Private file uri without sas token in public settings (should fail)
-        8. Private file uri with storage account credentials in protected settings
-        9. Private sas file uri and command in public settings
-        10. File uri (pointing to python script) and command in public settings
-        11. File uri with dos2unix conversion skipped (should fail)
-            and then enabled again (should pass)
+        6. File uri and gzip'ed base64 script in public settings
+        7. File uri and command in protected settings
+        8. Private file uri without sas token or credentials (should fail)
+        9. Private file uri with storage account credentials
+        10. Private sas file uri and command in public settings
+        11. File uri (pointing to python script) and command in public settings
+        12. File uri with dos2unix conversion skipped (should fail)
     """,
+    requirement=simple_requirement(unsupported_os=[BSD]),
 )
 class CustomScriptTests(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        platform = environment.platform
+
+        assert isinstance(platform, AzurePlatform)
+
+        env_information = platform.get_environment_information(environment)
+
+        if "wala_version" in env_information:
+            wala_version = env_information["wala_version"]
+            result = VersionInfo.parse(wala_version).compare("2.1.0")
+            if result < 0:
+                raise SkippedException(
+                    f"Node with Windows Azure Linux Agent version {wala_version}"
+                    " is lower than 2.4.0 and doesn't have multiconfig support."
+                )
+
     @TestCaseMetadata(
         description="""
         Runs the Custom Script VM extension with a public Azure storage file uri.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -123,12 +153,14 @@ class CustomScriptTests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Custom Script VM extension with 2 public file uris passed in
-        and only the second script being run.
+        and both scripts being run.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
-    def verify_second_public_script_run(
+    def verify_both_public_scripts_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
@@ -154,14 +186,14 @@ class CustomScriptTests(TestSuite):
 
         settings = {
             "fileUris": [first_blob_url, second_blob_url],
-            "commandToExecute": f"sh {second_blob_name}",
+            "commandToExecute": f"sh {first_blob_name}; sh {second_blob_name}",
         }
 
         _create_and_verify_extension_run(
             node=node,
             settings=settings,
             execute_commands=[
-                CommandInfo(first_test_file, 2),
+                CommandInfo(first_test_file, 0),
                 CommandInfo(second_test_file, 0),
             ],
         )
@@ -172,7 +204,9 @@ class CustomScriptTests(TestSuite):
         in both public and protected settings.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_script_in_both_settings_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -208,7 +242,9 @@ class CustomScriptTests(TestSuite):
         protected settings.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_script_protected_settings_run(
         self, log: Logger, node: Node, environment: Environment
@@ -241,7 +277,9 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension without a command and a script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_script_without_command_run(
         self, log: Logger, node: Node, environment: Environment
@@ -274,7 +312,9 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with a base64 script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_script_with_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -304,11 +344,49 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Runs the Custom Script VM extension with a gzip'ed base64 script.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
+    )
+    def verify_public_script_with_gzip_base64_script_run(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
+        container_name = "cselisa-public"
+        blob_name = "cselisa.sh"
+        test_file = "/tmp/lisatest.txt"
+
+        script = f"#!/bin/sh\nsh {blob_name}"
+        compressed_script = gzip.compress(bytes(script, "utf-8"))
+        script_base64 = base64.b64encode(compressed_script).decode("utf-8")
+
+        blob_url = retrieve_storage_blob_url(
+            node=node,
+            environment=environment,
+            container_name=container_name,
+            blob_name=blob_name,
+            test_file=test_file,
+        )
+
+        settings = {"fileUris": [blob_url], "script": script_base64}
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            execute_commands=[CommandInfo(test_file, 0)],
+        )
+
+    @TestCaseMetadata(
+        description="""
         Runs the Custom Script VM extension with private Azure storage file uri
         without a sas token.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_private_script_without_sas_run_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -343,7 +421,9 @@ class CustomScriptTests(TestSuite):
         without a sas token but with storage account credentials.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_private_script_with_storage_credentials_run(
         self, log: Logger, node: Node, environment: Environment
@@ -384,7 +464,9 @@ class CustomScriptTests(TestSuite):
         with a sas token.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_private_sas_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -419,7 +501,9 @@ class CustomScriptTests(TestSuite):
         pointing to a python script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_python_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -448,10 +532,12 @@ class CustomScriptTests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Custom Script VM extension with public file uri
-        without dos2unix conversion and then with it.
+        without dos2unix conversion.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+        ),
     )
     def verify_public_script_without_dos2unix_run(
         self, log: Logger, node: Node, environment: Environment
@@ -480,16 +566,5 @@ class CustomScriptTests(TestSuite):
             settings=settings,
             execute_commands=[
                 CommandInfo(test_file, 2),
-            ],
-        )
-
-        # will convert CRLF (/r/n) to LF (/n) which is recognized by Unix
-        settings["skipDos2Unix"] = False
-
-        _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[
-                CommandInfo(test_file, 0),
             ],
         )
