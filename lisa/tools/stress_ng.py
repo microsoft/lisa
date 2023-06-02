@@ -7,7 +7,6 @@ from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix
 from lisa.util.process import Process
 
-from .gcc import Gcc
 from .git import Git
 from .make import Make
 
@@ -84,7 +83,7 @@ class StressNg(Tool):
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path, ref=self.branch)
-        self.node.tools.get(Gcc)  # Ensure gcc is installed
+
         make = self.node.tools[Make]
         self._install_required_packages()
         code_path = tool_path.joinpath("stress-ng")
