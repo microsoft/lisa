@@ -53,6 +53,13 @@ def verify_hibernation(
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
     if 1 == index:
+        os_information = node.os.information
+        release = ".".join(
+            [
+                os_information.release.split(".")[0],
+                os_information.release.split(".")[1],
+            ]
+        )
         if release == "8.3":
             sed = node.tools[Sed]
             sed.substitute(
@@ -68,13 +75,6 @@ def verify_hibernation(
             if partition.mount_point == "/"
         ]
         if len(home_partition) >= 1:
-            os_information = node.os.information
-            release = ".".join(
-                [
-                    os_information.release.split(".")[0],
-                    os_information.release.split(".")[1],
-                ]
-            )
             if release == "9.2":
                 sed = node.tools[Sed]
                 sed.substitute(
