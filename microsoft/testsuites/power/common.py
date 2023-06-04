@@ -53,6 +53,15 @@ def verify_hibernation(
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
     if 1 == index:
+        if release == "8.3":
+            sed = node.tools[Sed]
+            sed.substitute(
+                regexp="SELINUX=enforcing",
+                replacement="SELINUX=disabled",
+                file="/etc/selinux/config",
+                sudo=True,
+            )
+            node.reboot()
         home_partition = [
             partition
             for partition in node.tools[Mount].get_partition_info()
