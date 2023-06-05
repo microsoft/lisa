@@ -21,11 +21,12 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
+from lisa.operating_system import BSD
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap, Sysctl
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
@@ -44,6 +45,11 @@ class Storage(TestSuite):
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
+    )
+
+    # kern.cam.da.default_timeout: 300
+    _get_default_timeout_bsd_regex = re.compile(
+        r"kern.cam.da.default_timeout:\s+(?P<timeout>\d+)\s*"
     )
 
     os_disk_mount_point = "/"
@@ -65,16 +71,44 @@ class Storage(TestSuite):
         node: RemoteNode,
     ) -> None:
         disks = node.features[Disk].get_all_disks()
-        root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
+        root_device_timeout_from_waagent = node.tools[
+            Waagent
+        ].get_root_device_timeout()  # value in seconds
         for disk in disks:
             timeout = 60
             timer = create_timer()
             while timeout > timer.elapsed(False):
-                device_timeout_from_distro = int(
-                    node.tools[Cat]
-                    .run(f"/sys/block/{disk}/device/timeout", force_run=True)
-                    .stdout
-                )
+                if isinstance(node.os, BSD):
+                    # Extract device type
+                    # For example, da0 disk has device type of da
+                    matched = re.compile(r"(^[a-z]+)").match(disk)
+                    assert matched, f"Failed to extract device type from {disk}"
+                    device_type = matched.group(0)
+
+                    # BSD has one setting per device type
+                    # and the output is of the format:
+                    # kern.cam.da.default_timeout: 300
+                    device_timeout_from_distro_unformatted = (
+                        node.tools[Sysctl]
+                        .run(
+                            f"kern.cam.{device_type}.default_timeout",
+                            force_run=True,
+                            shell=True,
+                        )
+                        .stdout
+                    )
+                    device_timeout_from_distro = int(
+                        get_matched_str(
+                            device_timeout_from_distro_unformatted,
+                            self._get_default_timeout_bsd_regex,
+                        )
+                    )
+                else:
+                    device_timeout_from_distro = int(
+                        node.tools[Cat]
+                        .run(f"/sys/block/{disk}/device/timeout", force_run=True)
+                        .stdout
+                    )
                 if root_device_timeout_from_waagent == device_timeout_from_distro:
                     break
                 else:

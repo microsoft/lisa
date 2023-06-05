@@ -46,7 +46,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
 from lisa.util import (
@@ -1138,6 +1138,15 @@ class Disk(AzureFeatureMixin, features.Disk):
     SCSI_PATTERN = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?$", re.M)
     UN_SUPPORT_SETTLE = re.compile(r"trigger: unrecognized option '--settle'", re.M)
 
+    # /sys/block/sda = > sda
+    # /sys/block/sdb = > sdb
+    DISK_LABEL_PATTERN = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
+
+    # =>       40  369098672  da1  GPT  (176G)
+    DISK_LABEL_PATTERN_BSD = re.compile(
+        r"^=>\s+\d+\s+\d+\s+(?P<label>\w*)\s+\w+\s+\(\w+\)", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1215,10 +1224,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         return disk_array
 
     def get_all_disks(self) -> List[str]:
-        # /sys/block/sda = > sda
-        # /sys/block/sdb = > sdb
-        disk_label_pattern = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
-        cmd_result = self._node.execute("ls -d /sys/block/sd*", shell=True, sudo=True)
+        if isinstance(self._node.os, BSD):
+            disk_label_pattern = self.DISK_LABEL_PATTERN_BSD
+            cmd_result = self._node.execute("gpart show", shell=True, sudo=True)
+        else:
+            disk_label_pattern = self.DISK_LABEL_PATTERN
+            cmd_result = self._node.execute(
+                "ls -d /sys/block/sd*", shell=True, sudo=True
+            )
         matched = find_patterns_in_lines(cmd_result.stdout, [disk_label_pattern])
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
