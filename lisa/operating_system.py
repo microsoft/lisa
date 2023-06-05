@@ -424,6 +424,13 @@ class Posix(OperatingSystem, BaseClassMixin):
                     )
                 except FileNotFoundError:
                     self._log.debug(f"File {file} doesn't exist.")
+                except Exception as identifier:
+                    # Some images have no /etc/os-release. e.g. osirium-ltd osirium_pem
+                    # image. It will have an exception (not FileNotFoundError).
+                    self._log.debug(
+                        f"Fail to copy back file {file}: {identifier}. "
+                        "Please check if the file exists"
+                    )
 
     def get_package_information(
         self, package_name: str, use_cached: bool = True
