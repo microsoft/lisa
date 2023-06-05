@@ -581,6 +581,10 @@ class TestSuite:
         is_suite_continue = True
         suite_log = self.__log
         suite_error_stacktrace = None
+        if hasattr(self, "before_suite"):
+            raise LisaException("before_suite is not supported. Please use before_case")
+        if hasattr(self, "after_suite"):
+            raise LisaException("after_suite is not supported. Please use after_case")
         #  replace to case's logger temporarily
         for case_result in case_results:
             case_name = case_result.runtime_data.name
