@@ -763,9 +763,7 @@ class TestSuite:
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
-            log.error("before_case: ", exc_info=identifier)
-            case_result.stacktrace = traceback.format_exc()
-            case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
+            case_result.handle_exception(identifier, log, "before_case")
             result = False
 
         log.debug(f"before_case end in {timer}")
