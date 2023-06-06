@@ -9,7 +9,7 @@ from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa.base_tools import Mv
-from lisa.executable import Tool
+from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
@@ -184,28 +184,10 @@ class DpdkTestpmd(Tool):
             major, minor = map(int, [match.group("major"), match.group("minor")])
             self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
 
-    def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, use_max_nics: bool = False
-    ) -> str:
+    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
         # identify which nics to inlude in test, exclude others
-
-        # TODO: Test does not make full use of multiple nics yet.
-        if use_max_nics:
-            self.node.log.warn(
-                "NOTE: Testpmd suite does not yet make full use of multiple nics"
-            )
-
-        # if use_max_nics:
-        #     ssh_nic = self.node.nics.get_nic(self.node.nics.default_nic)
-        #     include_nics = [
-        #         self.node.nics.get_nic(nic)
-        #         for nic in self.node.nics.get_upper_nics()
-        #         if nic != ssh_nic.upper
-        #     ]
-        #     exclude_nics = [ssh_nic]
-        # else:
         include_nics = [node_nic]
         exclude_nics = [
             self.node.nics.get_nic(nic)
@@ -250,7 +232,6 @@ class DpdkTestpmd(Tool):
         cores_available: int,
         txq: int,
         rxq: int,
-        use_max_nics: bool,
         service_cores: int = 1,
     ) -> int:
         # Use either:
@@ -260,14 +241,9 @@ class DpdkTestpmd(Tool):
         # this is a no-op for now,
         # test does not correctly handle multiple nics yet
 
-        if use_max_nics:
-            pass
-
-        nics_available = 1
-
         return min(
             cores_available - 1,
-            (nics_available * (txq + rxq)) + (nics_available * service_cores),
+            txq + rxq + (service_cores),
         )
 
     def generate_testpmd_command(
@@ -277,10 +253,8 @@ class DpdkTestpmd(Tool):
         mode: str,
         pmd: str,
         extra_args: str = "",
-        txq: int = 0,
-        rxq: int = 0,
+        multiple_queues: bool = False,
         service_cores: int = 1,
-        use_max_nics: bool = False,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -296,7 +270,10 @@ class DpdkTestpmd(Tool):
         # if test asks for multicore, it implies using more than one nic
         # otherwise default core count for single nic will be used
         # and then adjusted for queue count
-        if not (rxq or txq):
+        if multiple_queues:
+            txq = 4
+            rxq = 4
+        else:
             txq = 1
             rxq = 1
 
@@ -310,12 +287,10 @@ class DpdkTestpmd(Tool):
 
         # calculate how many cores to use based on txq/rxq per nic and how many nics
         use_core_count = self._calculate_core_count(
-            cores_per_numa, txq, rxq, use_max_nics, service_cores=service_cores
+            cores_per_numa, txq, rxq, service_cores=service_cores
         )
 
-        nic_include_info = self.generate_testpmd_include(
-            nic_to_include, vdev_id, use_max_nics
-        )
+        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
         # set up queue arguments
         if txq or rxq:
@@ -346,18 +321,27 @@ class DpdkTestpmd(Tool):
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-        # add delays such that receiver will always start first and end last
-        delay_start = 0
-        if "rxonly" in cmd:
-            timeout *= 2
-        if "txonly" in cmd:
-            delay_start = 5
+
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10, delay_start=delay_start
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
         self._last_run_output = proc_result.stdout
         self.populate_performance_data()
         return proc_result.stdout
+
+    def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
+        self._last_run_timeout = timeout
+        self.node.log.info(f"{self.node.name} running: {cmd}")
+
+        proc_result = self.node.tools[Timeout].run_with_timeout(
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+        )
+        return self.process_testpmd_output(proc_result)
+
+    def process_testpmd_output(self, result: ExecutableResult) -> str:
+        self._last_run_output = result.stdout
+        self.populate_performance_data()
+        return result.stdout
 
     def check_testpmd_is_running(self) -> bool:
         pids = self.node.tools[Pidof].get_pids(self.command, sudo=True)
