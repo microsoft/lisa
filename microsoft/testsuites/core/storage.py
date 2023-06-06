@@ -26,7 +26,7 @@ from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap, Sysctl
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
@@ -146,10 +146,18 @@ class Storage(TestSuite):
             .get_partition_with_mount_point(self.os_disk_mount_point)
             .disk
         )
-        mtab = node.tools[Cat].run("/etc/mtab").stdout
-        resource_disk_from_mtab = get_matched_str(
-            mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
-        )
+        if isinstance(node.os, BSD):
+            partition_info = node.tools[Mount].get_partition_info()
+            resource_disk_from_mtab = [
+                entry
+                for entry in partition_info
+                if entry.mount_point == resource_disk_mount_point
+            ][0].mount_point
+        else:
+            mtab = node.tools[Cat].run("/etc/mtab").stdout
+            resource_disk_from_mtab = get_matched_str(
+                mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
+            )
         assert (
             resource_disk_from_mtab
         ), f"resource disk mountpoint not found {resource_disk_mount_point}"
