@@ -15,9 +15,10 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, CpuArchitecture
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.util import SkippedException
 from microsoft.testsuites.vm_extensions.common import (
     CommandInfo,
     retrieve_storage_blob_url,
@@ -75,8 +76,12 @@ def _create_and_verify_extension_run(
 )
 class RunCommandV2Tests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs.pop("node")
         environment: Environment = kwargs.pop("environment")
         verify_waagent_version_supported(environment=environment)
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == CpuArchitecture.ARM64:
+            raise SkippedException("RunCommandv2 not published on ARM64.")
 
     @TestCaseMetadata(
         description="""
