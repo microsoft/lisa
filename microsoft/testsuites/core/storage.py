@@ -21,7 +21,7 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
@@ -229,7 +229,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
