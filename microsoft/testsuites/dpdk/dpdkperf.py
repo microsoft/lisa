@@ -102,9 +102,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(
-            "failsafe", result, log, variables, use_max_nics=True, service_cores=4
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
         description="""
@@ -149,9 +147,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(
-            "failsafe", result, log, variables, use_max_nics=True, use_queues=True
-        )
+        self._run_dpdk_perf_test("failsafe", result, log, variables, use_queues=True)
 
     @TestCaseMetadata(
         description="""
@@ -179,7 +175,6 @@ class DpdkPerformance(TestSuite):
             log,
             variables,
             service_cores=4,
-            use_max_nics=True,
             use_queues=True,
         )
 
@@ -249,9 +244,7 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self._run_dpdk_perf_test(
-            "netvsc", result, log, variables, service_cores=4, use_max_nics=True
-        )
+        self._run_dpdk_perf_test("netvsc", result, log, variables, service_cores=4)
 
     @TestCaseMetadata(
         description="""
@@ -296,7 +289,11 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         self._run_dpdk_perf_test(
-            "netvsc", result, log, variables, use_queues=True, use_max_nics=True
+            "netvsc",
+            result,
+            log,
+            variables,
+            use_queues=True,
         )
 
     @TestCaseMetadata(
@@ -325,7 +322,6 @@ class DpdkPerformance(TestSuite):
             log,
             variables,
             service_cores=4,
-            use_max_nics=True,
             use_queues=True,
         )
 
@@ -335,7 +331,6 @@ class DpdkPerformance(TestSuite):
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_max_nics: bool = False,
         use_queues: bool = False,
         service_cores: int = 1,
     ) -> None:
@@ -351,7 +346,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_max_nics=use_max_nics,
                     use_service_cores=service_cores,
                 )
             else:
@@ -360,7 +354,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_max_nics=use_max_nics,
                     use_service_cores=service_cores,
                 )
         except UnsupportedPackageVersionException as err:
