@@ -205,7 +205,6 @@ def generate_send_receive_run_info(
         snd_nic,
         0,
         "txonly",
-        pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
@@ -214,7 +213,6 @@ def generate_send_receive_run_info(
         rcv_nic,
         0,
         "rxonly",
-        pmd,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
     )
@@ -459,7 +457,6 @@ def verify_dpdk_build(
         test_nic,
         0,
         "txonly",
-        pmd,
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()

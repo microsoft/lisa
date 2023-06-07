@@ -227,31 +227,11 @@ class DpdkTestpmd(Tool):
 
         return vdev_info + exclude_flags
 
-    def _calculate_core_count(
-        self,
-        cores_available: int,
-        txq: int,
-        rxq: int,
-        service_cores: int = 1,
-    ) -> int:
-        # Use either:
-        #   - as many cores as are available, minus a core for the system
-        #   - 1 per queue on each nic + one per NIC PMD
-
-        # this is a no-op for now,
-        # test does not correctly handle multiple nics yet
-
-        return min(
-            cores_available - 1,
-            txq + rxq + (service_cores),
-        )
-
     def generate_testpmd_command(
         self,
         nic_to_include: NicInfo,
         vdev_id: int,
         mode: str,
-        pmd: str,
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
@@ -267,9 +247,6 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
 
-        # if test asks for multicore, it implies using more than one nic
-        # otherwise default core count for single nic will be used
-        # and then adjusted for queue count
         if multiple_queues:
             txq = 4
             rxq = 4
@@ -277,45 +254,46 @@ class DpdkTestpmd(Tool):
             txq = 1
             rxq = 1
 
-        # calculate the available cores per numa node, infer the offset
-        # required for core selection argument
-        cores_available = self.node.tools[Lscpu].get_core_count()
-        numa_node_count = self.node.tools[Lscpu].get_numa_node_count()
-        nic_numa_node = self.node.nics._get_nic_numa_node(nic_to_include.lower)
-        cores_per_numa = cores_available // numa_node_count
-        numa_core_offset = cores_per_numa * nic_numa_node
-
-        # calculate how many cores to use based on txq/rxq per nic and how many nics
-        use_core_count = self._calculate_core_count(
-            cores_per_numa, txq, rxq, service_cores=service_cores
-        )
-
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
-        # set up queue arguments
-        if txq or rxq:
-            # set number of queues to use for txq and rxq (per nic, default is 1)
-            assert_that(txq).described_as(
-                "TX queue value must be greater than 0 if txq is used"
-            ).is_greater_than(0)
-            assert_that(rxq).described_as(
-                "RX queue value must be greater than 0 if rxq is used"
-            ).is_greater_than(0)
-            extra_args += f" --txq={txq} --rxq={rxq}  "
+        # infer core count to assign based on number of queues
+        cores_available = self.node.tools[Lscpu].get_core_count()
+        assert_that(cores_available).described_as(
+            "DPDK tests need more than 4 cores, recommended more than 8 cores"
+        ).is_greater_than(4)
 
-        assert_that(use_core_count).described_as(
-            "Selection asked for more cores than were available for numa "
-            f"{nic_numa_node}. Requested {use_core_count}"
-        ).is_less_than_or_equal_to(cores_per_numa)
+        # EAL core model is logical cores, so one thread per EAL 'core'
+        threads_per_core = max(1, self.node.tools[Lscpu].get_thread_per_core_count())
+        logical_cores_available = cores_available * threads_per_core
+        queues_and_servicing_core = txq + rxq + service_cores
 
-        # use the selected amount of cores, adjusting for 0 index.
+        # use enough cores for (queues + service core) or max available
+        max_core_index = min(
+            logical_cores_available - threads_per_core,  # leave one physical for system
+            queues_and_servicing_core,
+        )
 
-        core_args = f"-l {numa_core_offset}-{numa_core_offset + use_core_count-1}"
+        # service cores excluded from forwarding cores count
+        forwarding_cores = max_core_index - service_cores
+
+        # core range argument
+        core_list = f"-l 1-{max_core_index}"
+        if extra_args:
+            extra_args = extra_args.strip()
+        else:
+            extra_args = ""
+
+        assert_that(forwarding_cores).described_as(
+            ("DPDK tests need at least one forwading core. ")
+        ).is_greater_than(0)
+        assert_that(max_core_index).described_as(
+            "Test needs at least 1 core for servicing and one core for forwarding"
+        ).is_greater_than(0)
 
         return (
-            f"{self._testpmd_install_path} {core_args} -n 4 --proc-type=primary "
-            f"{nic_include_info} -- --forward-mode={mode} {extra_args} "
-            "-a --stats-period 2 --port-topology=chained"
+            f"{self._testpmd_install_path} {core_list} "
+            f"{nic_include_info} -- --forward-mode={mode} "
+            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
