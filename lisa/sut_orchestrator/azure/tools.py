@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
 
@@ -54,6 +54,8 @@ class Waagent(Tool):
             )
         else:
             self._command = "waagent"
+        self._python_cmd: Optional[str] = None
+        self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
         self._waagent_conf_path: Optional[str] = None
 
@@ -126,9 +128,9 @@ class Waagent(Tool):
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
 
-    def get_waagent_conf_path(self) -> str:
-        if self._waagent_conf_path is not None:
-            return self._waagent_conf_path
+    def get_python_cmd(self) -> Tuple[str, bool]:
+        if self._python_cmd is not None and self._python_use_sudo is not None:
+            return self._python_cmd, self._python_use_sudo
 
         for python_cmd in self._python_candidates:
             python_exists, use_sudo = self.command_exists(command=python_cmd)
@@ -137,6 +139,17 @@ class Waagent(Tool):
             )
             if python_exists:
                 break
+
+        self._python_cmd = python_cmd
+        self._python_use_sudo = use_sudo
+
+        return self._python_cmd, self._python_use_sudo
+
+    def get_waagent_conf_path(self) -> str:
+        if self._waagent_conf_path is not None:
+            return self._waagent_conf_path
+
+        python_cmd, use_sudo = self.get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(
@@ -166,13 +179,7 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        for python_cmd in self._python_candidates:
-            python_exists, use_sudo = self.command_exists(command=python_cmd)
-            self._log.debug(
-                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
-            )
-            if python_exists:
-                break
+        python_cmd, use_sudo = self.get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(

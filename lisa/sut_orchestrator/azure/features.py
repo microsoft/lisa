@@ -48,6 +48,7 @@ from lisa.features.security_profile import (
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
+from lisa.secret import add_secret
 from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
 from lisa.util import (
     LisaException,
@@ -1996,6 +1997,12 @@ class AzureExtension(AzureFeatureMixin, Feature):
             protected_settings=protected_settings,
             suppress_failures=suppress_failures,
         )
+
+        if protected_settings:
+            add_secret(
+                str(extension_parameters.as_dict()["protected_settings"]),
+                sub="***REDACTED***",
+            )
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 

@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from assertpy import assert_that
 
@@ -19,17 +19,18 @@ from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from microsoft.testsuites.vm_extensions.common import (
-    CommandInfo,
+    execute_command,
     retrieve_storage_blob_url,
     verify_architecture_supported,
-    verify_waagent_version_supported,
+    check_waagent_version_supported,
 )
 
 
 def _create_and_verify_extension_run(
     node: Node,
     settings: Dict[str, Any],
-    command_info: CommandInfo = CommandInfo("", 0),
+    test_file: Optional[str] = None,
+    expected_exit_code: Optional[int] = None,
 ) -> None:
     extension = node.features[AzureExtension]
     result = extension.create_or_update(
@@ -45,17 +46,14 @@ def _create_and_verify_extension_run(
         "Expected the extension to succeed"
     ).is_equal_to("Succeeded")
 
-    if len(command_info.command) > 0:
-        node.execute(
-            command_info.command,
-            shell=True,
-            expected_exit_code=command_info.expected_exit_code,
-            expected_exit_code_failure_message=command_info.failure_message,
+    if test_file is not None and expected_exit_code is not None:
+        execute_command(
+            file_name=test_file, expected_exit_code=expected_exit_code, node=node
         )
 
 
 @TestSuiteMetadata(
-    area="vm_extension",
+    area="vm_extensions",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
@@ -77,9 +75,8 @@ def _create_and_verify_extension_run(
 class RunCommandV2Tests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
-        environment: Environment = kwargs.pop("environment")
         verify_architecture_supported(node=node)
-        verify_waagent_version_supported(node=node, environment=environment)
+        check_waagent_version_supported(node=node)
 
     @TestCaseMetadata(
         description="""
@@ -107,7 +104,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -130,7 +127,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -152,7 +149,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -187,7 +184,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -222,7 +219,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 2)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=2
         )
 
     @TestCaseMetadata(
@@ -258,7 +255,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -279,7 +276,7 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 0)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -300,5 +297,5 @@ class RunCommandV2Tests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node, settings=settings, command_info=CommandInfo(test_file, 2)
+            node=node, settings=settings, test_file=test_file, expected_exit_code=2
         )

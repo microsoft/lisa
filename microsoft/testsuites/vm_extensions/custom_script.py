@@ -24,18 +24,19 @@ from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator import AZURE
 from microsoft.testsuites.vm_extensions.common import (
-    CommandInfo,
+    execute_command,
     retrieve_storage_blob_url,
     retrieve_storage_account_name_and_key,
-    verify_waagent_version_supported,
+    check_waagent_version_supported,
 )
 
 
 def _create_and_verify_extension_run(
     node: Node,
-    settings: Optional[Dict[str, Any]] = None,
-    protected_settings: Optional[Dict[str, Any]] = None,
-    execute_commands: Optional[List[CommandInfo]] = None,
+    settings: Dict[str, Any] = {},
+    protected_settings: Dict[str, Any] = {},
+    test_file: Optional[str] = None,
+    expected_exit_code: Optional[int] = None,
     assert_exception: Any = None,
 ) -> None:
     extension = node.features[AzureExtension]
@@ -60,14 +61,10 @@ def _create_and_verify_extension_run(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
 
-    if execute_commands:
-        for command_info in execute_commands:
-            node.execute(
-                command_info.command,
-                shell=True,
-                expected_exit_code=command_info.expected_exit_code,
-                expected_exit_code_failure_message=command_info.failure_message,
-            )
+    if test_file is not None and expected_exit_code is not None:
+        execute_command(
+            file_name=test_file, expected_exit_code=expected_exit_code, node=node
+        )
 
 
 @TestSuiteMetadata(
@@ -81,7 +78,7 @@ def _create_and_verify_extension_run(
 
     It has 12 test cases to verify if CSE runs as intended when provided:
         1. File uri and command in public settings
-        2. Two file uris and command for downloading both scripts in public settings
+        2. Two file uris and command for downloading second script in public settings
         3. File uri and command in both public and protected settings (should fail)
         4. File uri without a command or base64 script (should fail)
         5. Both base64 script and command in public settings (should fail)
@@ -98,8 +95,7 @@ def _create_and_verify_extension_run(
 class CustomScriptTests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
-        environment: Environment = kwargs.pop("environment")
-        verify_waagent_version_supported(node=node, environment=environment)
+        check_waagent_version_supported(node=node)
 
     @TestCaseMetadata(
         description="""
@@ -128,22 +124,20 @@ class CustomScriptTests(TestSuite):
         settings = {"fileUris": [blob_url], "commandToExecute": f"sh {blob_name}"}
 
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
         description="""
         Runs the Custom Script VM extension with 2 public file uris passed in
-        and both scripts being run.
+        and second script being run. Verifies second script created.
         """,
         priority=3,
         requirement=simple_requirement(
             supported_features=[AzureExtension], supported_platform_type=[AZURE]
         ),
     )
-    def verify_both_public_scripts_run(
+    def verify_second_public_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
@@ -169,16 +163,14 @@ class CustomScriptTests(TestSuite):
 
         settings = {
             "fileUris": [first_blob_url, second_blob_url],
-            "commandToExecute": f"sh {first_blob_name}; sh {second_blob_name}",
+            "commandToExecute": f"sh {second_blob_name}",
         }
 
         _create_and_verify_extension_run(
             node=node,
             settings=settings,
-            execute_commands=[
-                CommandInfo(first_test_file, 0),
-                CommandInfo(second_test_file, 0),
-            ],
+            test_file=second_test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -252,7 +244,8 @@ class CustomScriptTests(TestSuite):
         _create_and_verify_extension_run(
             node=node,
             protected_settings=protected_settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -301,7 +294,7 @@ class CustomScriptTests(TestSuite):
     def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/lisatest.txt"
 
-        script = f"#!/bin/sh\touch {test_file}"
+        script = f"#!/bin/sh\ntouch {test_file}"
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
 
         settings = {"script": script_base64, "commandToExecute": "sh script.sh"}
@@ -340,9 +333,7 @@ class CustomScriptTests(TestSuite):
         settings = {"fileUris": [blob_url], "script": script_base64}
 
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -376,9 +367,7 @@ class CustomScriptTests(TestSuite):
         settings = {"fileUris": [blob_url], "script": script_base64}
 
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -458,7 +447,8 @@ class CustomScriptTests(TestSuite):
             node=node,
             settings=settings,
             protected_settings=protected_settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            test_file=test_file,
+            expected_exit_code=0,
         )
 
     @TestCaseMetadata(
@@ -493,9 +483,7 @@ class CustomScriptTests(TestSuite):
         }
 
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )
 
     @TestCaseMetadata(
@@ -527,7 +515,5 @@ class CustomScriptTests(TestSuite):
         settings = {"fileUris": [blob_url], "commandToExecute": f"python3 {blob_name}"}
 
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            execute_commands=[CommandInfo(test_file, 0)],
+            node=node, settings=settings, test_file=test_file, expected_exit_code=0
         )

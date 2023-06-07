@@ -23,41 +23,34 @@ from lisa.util import SkippedException
 from semver import VersionInfo
 
 
-class CommandInfo(object):
-    def __init__(
-        self,
-        file_name: str,
-        expected_exit_code: int,
-    ) -> None:
-        self.command = f"ls '{file_name}'"
-        self.expected_exit_code = expected_exit_code
-        if expected_exit_code == 0:
-            self.failure_message = (
-                f"File {file_name} was not created on the test machine"
+def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:
+    command = f"ls '{file_name}'"
+    if expected_exit_code == 0:
+        failure_message = f"File {file_name} was not created on the test machine"
+    else:
+        failure_message = (
+            f"File {file_name} downloaded on test machine though it should not have"
+        )
+
+    node.execute(
+        command,
+        shell=True,
+        expected_exit_code=expected_exit_code,
+        expected_exit_code_failure_message=failure_message,
+    )
+
+
+def check_waagent_version_supported(node: Node) -> None:
+    waagent = node.tools[Waagent]
+    waagent_version = waagent.get_version()
+    result = VersionInfo.parse(waagent_version).compare("2.4.0")
+    if result < 0:
+        waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
+        if not waagent_auto_update_enabled:
+            raise SkippedException(
+                f"Node with Windows Azure Linux Agent version {waagent_version}"
+                " is lower than 2.4.0 and doesn't have multiconfig support."
             )
-        else:
-            self.failure_message = (
-                f"File {file_name} downloaded on test machine though it should not have"
-            )
-
-
-def verify_waagent_version_supported(node: Node, environment: Environment) -> None:
-    platform = environment.platform
-    assert isinstance(platform, AzurePlatform)
-
-    env_information = platform.get_environment_information(environment)
-    if "wala_version" in env_information:
-        wala_version = env_information["wala_version"]
-        result = VersionInfo.parse(wala_version).compare("2.4.0")
-        if result < 0:
-            auto_update_enabled_from_waagent = node.tools[
-                Waagent
-            ].is_autoupdate_enabled()
-            if not auto_update_enabled_from_waagent:
-                raise SkippedException(
-                    f"Node with Goal State Agent version {wala_version}"
-                    " is lower than 2.4.0 and doesn't have multiconfig support."
-                )
 
 
 def verify_architecture_supported(node: Node) -> None:
