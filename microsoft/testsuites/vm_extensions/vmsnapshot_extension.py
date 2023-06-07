@@ -1,16 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that
-
 import uuid
-
 from datetime import datetime
-
 import time
-
-from azure.mgmt.compute import ComputeManagementClient
-
 from lisa import (
     Logger,
     Node,
@@ -34,15 +27,14 @@ from lisa.sut_orchestrator.azure.common import get_compute_client
 class BVTExtension(TestSuite):
     @TestCaseMetadata(
         description="""
-        creates a restore point collection then a restore point which helps in 
+        creates a restore point collection then a restore point which helps in
         validating the VMSnapshot extension.
         """,
         priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_vmsnapshot_extension(self, log: Logger, node: Node,
-                                   environment: Environment) -> None :
-
+                                    environment: Environment) -> None :
         unique_name = str(uuid.uuid4())
         information = environment.get_information()
         resource_group_name = information["resource_group_name"]
@@ -52,7 +44,7 @@ class BVTExtension(TestSuite):
         restore_point_collection = "rpc_" + unique_name
         platform = environment.platform
         assert isinstance(platform, AzurePlatform)
-        sub_id = platform.subscription_id   
+        sub_id = platform.subscription_id
         # creating restore point collection
         client = get_compute_client(environment.platform)
         response = client.restore_point_collections.create_or_update(
@@ -62,8 +54,7 @@ class BVTExtension(TestSuite):
                 "location": location,
                 "properties": {
                     "source": {
-                        "id": "/subscriptions/" + sub_id + "/resourceGroups/" + 
-                        resource_group_name + "/providers/Microsoft.Compute/virtualMachines/" + vm_name
+                        "id": "/subscriptions/" + sub_id + "/resourceGroups/" + resource_group_name + "/providers/Microsoft.Compute/virtualMachines/" + vm_name
                     }
                 },
             },
@@ -72,21 +63,20 @@ class BVTExtension(TestSuite):
         log.info(f"response {response}")
         count = 0
 
-        while (count < 10):
+        while count < 10:
             vm = client.virtual_machines.get(
                 resource_group_name,
                 vm_name
             )
             # check the state of the VM
-            if (vm.provisioning_state == "Succeeded"):
+            if vm.provisioning_state == "Succeeded":
                 try:
                     # create a restore point for the VM
                     response = client.restore_points.begin_create(
-                        resource_group_name = information["resource_group_name"],
-                        restore_point_collection_name = restore_point_collection,
-                        restore_point_name = "rp_" + 
-                        datetime.now().strftime("%Y-%m-%d-%H-%M-%S"),
-                        parameters = {},
+                        resource_group_name=information["resource_group_name"],
+                        restore_point_collection_name=restore_point_collection,
+                        restore_point_name="rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"),
+                        parameters={},
                     )
                     response.wait(3600)
                     log.info("restore point created")
@@ -98,5 +88,5 @@ class BVTExtension(TestSuite):
                         log.info(f"error {e}")
                         raise AssertionError("Test failed: Unexpected error occurred")
             time.sleep(1)
-            count = count + 1    
+            count = count + 1
         assert count < 10, "Failed in Creating Restore Point"
