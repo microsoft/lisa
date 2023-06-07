@@ -5,8 +5,6 @@ import base64
 
 import gzip
 
-import logging
-
 from typing import Any, Dict, List
 
 from assertpy import assert_that
@@ -74,7 +72,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
@@ -100,8 +98,9 @@ def _create_and_verify_extension_run(
 )
 class CustomScriptTests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs.pop("node")
         environment: Environment = kwargs.pop("environment")
-        verify_waagent_version_supported(environment=environment)
+        verify_waagent_version_supported(node=node, environment=environment)
 
     @TestCaseMetadata(
         description="""

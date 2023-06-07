@@ -11,6 +11,7 @@ from lisa import (
     Node,
 )
 from lisa.environment import Environment
+from lisa.operating_system import CpuArchitecture
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
@@ -21,6 +22,7 @@ from lisa.sut_orchestrator.azure.common import (
     get_storage_credential,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.util import SkippedException
 from semver import VersionInfo
 
@@ -43,7 +45,7 @@ class CommandInfo(object):
             )
 
 
-def verify_waagent_version_supported(environment: Environment) -> None:
+def verify_waagent_version_supported(node: Node, environment: Environment) -> None:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
 
@@ -52,10 +54,20 @@ def verify_waagent_version_supported(environment: Environment) -> None:
         wala_version = env_information["wala_version"]
         result = VersionInfo.parse(wala_version).compare("2.4.0")
         if result < 0:
-            raise SkippedException(
-                f"Node with Windows Azure Linux Agent version {wala_version}"
-                " is lower than 2.4.0 and doesn't have multiconfig support."
-            )
+            auto_update_enabled_from_waagent = node.tools[
+                Waagent
+            ].is_autoupdate_enabled()
+            if not auto_update_enabled_from_waagent:
+                raise SkippedException(
+                    f"Node with Goal State Agent version {wala_version}"
+                    " is lower than 2.4.0 and doesn't have multiconfig support."
+                )
+
+
+def verify_architecture_supported(node: Node) -> None:
+    arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+    if arch == CpuArchitecture.ARM64:
+        raise SkippedException("Extension not published on ARM64.")
 
 
 def retrieve_storage_blob_url(
