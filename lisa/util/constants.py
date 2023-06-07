@@ -150,6 +150,9 @@ NETWORK_PERFORMANCE_TOOL_SAR = "sar"
 NETWORK_PERFORMANCE_TOOL_LAGSCOPE = "lagscope"
 NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD = "dpdk-testpmd"
 
+# Test for command with sudo
+LISA_TEST_FOR_SUDO = "lisa test for sudo"
+
 SIGINT = 2
 SIGTERM = 15
 SIGKILL = 9

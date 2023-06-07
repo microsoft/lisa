@@ -40,6 +40,13 @@ __local_node: Optional[Node] = None
 class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
     _factory: Optional[subclasses.Factory[Node]] = None
 
+    # [sudo] password for
+    # Password:
+    _sudo_passwrod_prompts: List[str] = [
+        "[sudo] password for",
+        "Password:",
+    ]
+
     def __init__(
         self,
         runbook: schema.Node,
@@ -118,12 +125,21 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def check_sudo_password_required(self) -> None:
         # check if password is required when running command with sudo
+        require_sudo_password = False
         if self.is_remote and self.is_posix:
             process = self._execute(
-                "echo LISA_TEST_FOR_PASSWORD", shell=True, sudo=True, no_info_log=True
+                f"echo {constants.LISA_TEST_FOR_SUDO}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
             )
             result = process.wait_result(10)
-            if result.exit_code != 0 and "[sudo] password for" in result.stdout:
+            if result.exit_code != 0:
+                for prompt in self._sudo_passwrod_prompts:
+                    if prompt in result.stdout:
+                        require_sudo_password = True
+                        break
+            if require_sudo_password:
                 self.log.debug(
                     "Running commands with sudo in this node needs input of password."
                 )
@@ -142,7 +158,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 password_prompts = []
                 for i in range(1, 3):
                     process = self._execute(
-                        "echo LISA_TEST_FOR_PASSWORD",
+                        f"echo {constants.LISA_TEST_FOR_SUDO}",
                         shell=True,
                         sudo=True,
                         no_info_log=True,
@@ -153,7 +169,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                             "The password might be invalid for running sudo command"
                         )
                     password_prompt = result.stdout.replace(
-                        "LISA_TEST_FOR_PASSWORD", ""
+                        f"{constants.LISA_TEST_FOR_SUDO}", ""
                     )
                     password_prompts.append(password_prompt)
                     self.log.debug(f"password prompt {i}: {password_prompt}")
