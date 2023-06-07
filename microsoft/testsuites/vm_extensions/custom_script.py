@@ -1,15 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
+
 import base64
 
 import gzip
 
-from typing import Any, Dict, List
-
-from assertpy import assert_that
-
-from azure.core.exceptions import HttpResponseError
+from typing import Any, Dict, List, Optional
 
 from lisa import (
     Logger,
@@ -19,7 +18,6 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-
 
 from lisa.environment import Environment
 from lisa.operating_system import BSD
@@ -35,9 +33,9 @@ from microsoft.testsuites.vm_extensions.common import (
 
 def _create_and_verify_extension_run(
     node: Node,
-    settings: Dict[str, Any] = {},
-    protected_settings: Dict[str, Any] = {},
-    execute_commands: List[CommandInfo] = [],
+    settings: Optional[Dict[str, Any]] = None,
+    protected_settings: Optional[Dict[str, Any]] = None,
+    execute_commands: Optional[List[CommandInfo]] = None,
     assert_exception: Any = None,
 ) -> None:
     extension = node.features[AzureExtension]
@@ -62,13 +60,14 @@ def _create_and_verify_extension_run(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
 
-    for command_info in execute_commands:
-        node.execute(
-            command_info.command,
-            shell=True,
-            expected_exit_code=command_info.expected_exit_code,
-            expected_exit_code_failure_message=command_info.failure_message,
-        )
+    if execute_commands:
+        for command_info in execute_commands:
+            node.execute(
+                command_info.command,
+                shell=True,
+                expected_exit_code=command_info.expected_exit_code,
+                expected_exit_code_failure_message=command_info.failure_message,
+            )
 
 
 @TestSuiteMetadata(

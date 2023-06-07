@@ -1,13 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import uuid
-from typing import Any, Dict
-
-from assertpy import assert_that
+from typing import Any
 
 from lisa import (
-    Logger,
     Node,
 )
 from lisa.environment import Environment
