@@ -45,7 +45,7 @@ class BVTExtension(TestSuite):
         log.info(f"information {information}")
         restore_point_collection = "rpc_" + unique_name
         assert environment.platform
-        platform = environment.platform
+        platform: AzurePlatform = environment.platform  # type: ignore
         assert isinstance(platform, AzurePlatform)
         sub_id = platform.subscription_id
         # creating restore point collection
