@@ -78,6 +78,7 @@ def _create_and_verify_extension_run(
     """,
     requirement=simple_requirement(
         supported_features=[AzureExtension],
+        supported_platform_type=[AZURE],
         unsupported_os=[BSD],
     ),
 )
@@ -163,11 +164,6 @@ class RunCommandV2Tests(TestSuite):
         script in blob storage.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension],
-            supported_platform_type=[AZURE],
-            unsupported_os=[BSD],
-        ),
     )
     def verify_public_uri_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -200,11 +196,6 @@ class RunCommandV2Tests(TestSuite):
         to the script in blob storage. No sas token provided, should fail.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension],
-            supported_platform_type=[AZURE],
-            unsupported_os=[BSD],
-        ),
     )
     def verify_private_uri_script_run_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -237,11 +228,6 @@ class RunCommandV2Tests(TestSuite):
         to the script in blob storage.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension],
-            supported_platform_type=[AZURE],
-            unsupported_os=[BSD],
-        ),
     )
     def verify_sas_uri_script_run(
         self, log: Logger, node: Node, environment: Environment

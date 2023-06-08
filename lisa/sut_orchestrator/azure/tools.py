@@ -79,8 +79,8 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def get_configuration(self, force_run: bool = False) -> Dict[str, str]:
-        waagent_conf_file = self.get_waagent_conf_path()
+    def _get_configuration(self, force_run: bool = False) -> Dict[str, str]:
+        waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
         cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
@@ -92,22 +92,23 @@ class Waagent(Tool):
         return config
 
     def get_root_device_timeout(self) -> int:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return int(waagent_configuration["OS.RootDeviceScsiTimeout"])
 
     def get_resource_disk_mount_point(self) -> str:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return waagent_configuration["ResourceDisk.MountPoint"]
 
     def is_autoupdate_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         if waagent_configuration.get("AutoUpdate.Enabled") == "n":
             return False
         else:
-            return True  # if set or not present, defaults to "y"
+            # if set or not present, defaults to "y"
+            return True
 
     def is_swap_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         is_swap_enabled = waagent_configuration["ResourceDisk.EnableSwap"]
         if is_swap_enabled == "y":
             return True
@@ -119,7 +120,7 @@ class Waagent(Tool):
             )
 
     def is_rdma_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration(force_run=True)
+        waagent_configuration = self._get_configuration(force_run=True)
         is_rdma_enabled = waagent_configuration["OS.EnableRDMA"]
         if is_rdma_enabled == "y":
             return True
@@ -128,7 +129,7 @@ class Waagent(Tool):
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
 
-    def get_python_cmd(self) -> Tuple[str, bool]:
+    def _get_python_cmd(self) -> Tuple[str, bool]:
         if self._python_cmd is not None and self._python_use_sudo is not None:
             return self._python_cmd, self._python_use_sudo
 
@@ -145,11 +146,11 @@ class Waagent(Tool):
 
         return self._python_cmd, self._python_use_sudo
 
-    def get_waagent_conf_path(self) -> str:
+    def _get_waagent_conf_path(self) -> str:
         if self._waagent_conf_path is not None:
             return self._waagent_conf_path
 
-        python_cmd, use_sudo = self.get_python_cmd()
+        python_cmd, use_sudo = self._get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(
@@ -179,7 +180,7 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        python_cmd, use_sudo = self.get_python_cmd()
+        python_cmd, use_sudo = self._get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(

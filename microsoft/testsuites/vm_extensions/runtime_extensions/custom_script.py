@@ -304,9 +304,6 @@ class CustomScriptTests(TestSuite):
         and command with no file uris.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], unsupported_os=[BSD]
-        ),
     )
     def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/lisatest.txt"
