@@ -15,15 +15,21 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, CpuArchitecture
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from microsoft.testsuites.vm_extensions.common import (
+from lisa.util import SkippedException
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     execute_command,
     retrieve_storage_blob_url,
-    verify_architecture_supported,
     check_waagent_version_supported,
 )
+
+
+def _check_architecture_supported(node: Node) -> None:
+    arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+    if arch == CpuArchitecture.ARM64:
+        raise SkippedException("RunCommandv2 Extension not published on ARM64.")
 
 
 def _create_and_verify_extension_run(
@@ -53,7 +59,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
@@ -70,12 +76,15 @@ def _create_and_verify_extension_run(
         9. Provided a command that should take longer than 1 second, but with a
            timeout of 1 second (should fail)
     """,
-    requirement=simple_requirement(unsupported_os=[BSD]),
+    requirement=simple_requirement(
+        supported_features=[AzureExtension],
+        unsupported_os=[BSD],
+    ),
 )
 class RunCommandV2Tests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")
-        verify_architecture_supported(node=node)
+        _check_architecture_supported(node=node)
         check_waagent_version_supported(node=node)
 
     @TestCaseMetadata(
@@ -83,7 +92,6 @@ class RunCommandV2Tests(TestSuite):
         Runs the Run Command v2 VM extension with a pre-existing ifconfig script.
         """,
         priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_existing_script_run(self, log: Logger, node: Node) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
@@ -95,7 +103,6 @@ class RunCommandV2Tests(TestSuite):
         Runs the Run Command v2 VM extension with a custom shell script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_custom_script_run(self, log: Logger, node: Node) -> None:
         test_file = f"/tmp/{str(uuid.uuid4())}"
@@ -113,7 +120,6 @@ class RunCommandV2Tests(TestSuite):
         passed to a custom shell script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_script_run_with_named_parameter(self, log: Logger, node: Node) -> None:
         env_var_name = "TestVar"
@@ -136,7 +142,6 @@ class RunCommandV2Tests(TestSuite):
         passed to a custom shell script.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_script_run_with_unnamed_parameter(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/rcv2unnamedtest.txt"
@@ -159,7 +164,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD],
         ),
     )
     def verify_public_uri_script_run(
@@ -194,7 +201,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD],
         ),
     )
     def verify_private_uri_script_run_failed(
@@ -229,7 +238,9 @@ class RunCommandV2Tests(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD],
         ),
     )
     def verify_sas_uri_script_run(
@@ -263,7 +274,6 @@ class RunCommandV2Tests(TestSuite):
         Runs the Run Command v2 VM extension with a timeout of 0.1 seconds.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_script_run_with_timeout(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/rcv2timeout.txt"
@@ -284,7 +294,6 @@ class RunCommandV2Tests(TestSuite):
         Runs the Run Command v2 VM extension with a timeout of 1 second.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/rcv2timeout.txt"

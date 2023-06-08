@@ -5,10 +5,8 @@ from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
 
 import base64
-
 import gzip
-
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from lisa import (
     Logger,
@@ -18,23 +16,51 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-
 from lisa.environment import Environment
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator import AZURE
-from microsoft.testsuites.vm_extensions.common import (
+from lisa.sut_orchestrator.azure.common import (
+    AZURE_SHARED_RG_NAME,
+    AzureNodeSchema,
+    get_storage_account_name,
+    get_storage_credential,
+)
+from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     execute_command,
     retrieve_storage_blob_url,
-    retrieve_storage_account_name_and_key,
     check_waagent_version_supported,
 )
 
 
+def _retrieve_storage_account_name_and_key(
+    node: Node,
+    environment: Environment,
+) -> Any:
+    platform = environment.platform
+    assert isinstance(platform, AzurePlatform)
+
+    subscription_id = platform.subscription_id
+    node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    location = node_context.location
+    storage_account_name = get_storage_account_name(
+        subscription_id=subscription_id, location=location
+    )
+
+    return get_storage_credential(
+        credential=platform.credential,
+        subscription_id=subscription_id,
+        cloud=platform.cloud,
+        account_name=storage_account_name,
+        resource_group_name=AZURE_SHARED_RG_NAME,
+    )
+
+
 def _create_and_verify_extension_run(
     node: Node,
-    settings: Dict[str, Any] = {},
-    protected_settings: Dict[str, Any] = {},
+    settings: Optional[Dict[str, Any]] = None,
+    protected_settings: Optional[Dict[str, Any]] = None,
     test_file: Optional[str] = None,
     expected_exit_code: Optional[int] = None,
     assert_exception: Any = None,
@@ -48,8 +74,8 @@ def _create_and_verify_extension_run(
             type_="CustomScript",
             type_handler_version="2.1",
             auto_upgrade_minor_version=True,
-            settings=settings,
-            protected_settings=protected_settings,
+            settings=settings or {},
+            protected_settings=protected_settings or {},
         )
         return result
 
@@ -90,7 +116,11 @@ def _create_and_verify_extension_run(
         11. Private sas file uri and command in public settings
         12. File uri (pointing to python script) and command in public settings
     """,
-    requirement=simple_requirement(unsupported_os=[BSD]),
+    requirement=simple_requirement(
+        supported_features=[AzureExtension],
+        supported_platform_type=[AZURE],
+        unsupported_os=[BSD],
+    ),
 )
 class CustomScriptTests(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
@@ -102,9 +132,6 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with a public Azure storage file uri.
         """,
         priority=1,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -133,9 +160,6 @@ class CustomScriptTests(TestSuite):
         and second script being run. Verifies second script created.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_second_public_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -179,9 +203,6 @@ class CustomScriptTests(TestSuite):
         in both public and protected settings.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_script_in_both_settings_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -217,9 +238,6 @@ class CustomScriptTests(TestSuite):
         protected settings.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_script_protected_settings_run(
         self, log: Logger, node: Node, environment: Environment
@@ -253,9 +271,6 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension without a command and a script.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_script_without_command_run(
         self, log: Logger, node: Node, environment: Environment
@@ -289,7 +304,9 @@ class CustomScriptTests(TestSuite):
         and command with no file uris.
         """,
         priority=3,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], unsupported_os=[BSD]
+        ),
     )
     def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
         test_file = "/tmp/lisatest.txt"
@@ -308,9 +325,6 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with a base64 script.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_script_with_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -341,9 +355,6 @@ class CustomScriptTests(TestSuite):
         Runs the Custom Script VM extension with a gzip'ed base64 script.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_script_with_gzip_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -376,9 +387,6 @@ class CustomScriptTests(TestSuite):
         without a sas token.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_private_script_without_sas_run_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -413,9 +421,6 @@ class CustomScriptTests(TestSuite):
         without a sas token but with storage account credentials.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_private_script_with_storage_credentials_run(
         self, log: Logger, node: Node, environment: Environment
@@ -432,7 +437,7 @@ class CustomScriptTests(TestSuite):
             test_file=test_file,
         )
 
-        credentials = retrieve_storage_account_name_and_key(
+        credentials = _retrieve_storage_account_name_and_key(
             node=node, environment=environment
         )
 
@@ -457,9 +462,6 @@ class CustomScriptTests(TestSuite):
         with a sas token.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_private_sas_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -492,9 +494,6 @@ class CustomScriptTests(TestSuite):
         pointing to a python script.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_features=[AzureExtension], supported_platform_type=[AZURE]
-        ),
     )
     def verify_public_python_script_run(
         self, log: Logger, node: Node, environment: Environment
