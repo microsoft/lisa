@@ -5,6 +5,8 @@ import time
 import uuid
 from datetime import datetime
 
+from assertpy.assertpy import assert_that
+
 from lisa import (
     Environment,
     Logger,
@@ -14,7 +16,13 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.sut_orchestrator.azure.common import get_compute_client
+from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import (
+    AzureNodeSchema,
+    get_compute_client,
+    get_node_context,
+    wait_operation,
+)
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 
@@ -38,20 +46,20 @@ class BVTExtension(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         unique_name = str(uuid.uuid4())
-        information = environment.get_information()
-        resource_group_name = information["resource_group_name"]
-        location = information["location"]
-        vm_name = node.name
-        log.info(f"information {information}")
+        node_context = get_node_context(node)
+        resource_group_name = node_context.resource_group_name
+        vm_name = node_context.vm_name
+        node_location = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_location.location
         restore_point_collection = "rpc_" + unique_name
         assert environment.platform
         platform: AzurePlatform = environment.platform  # type: ignore
         assert isinstance(platform, AzurePlatform)
         sub_id = platform.subscription_id
         # creating restore point collection
-        client = get_compute_client(environment.platform)
+        client = get_compute_client(platform)
         response = client.restore_point_collections.create_or_update(
-            resource_group_name=information["resource_group_name"],
+            resource_group_name=resource_group_name,
             restore_point_collection_name=restore_point_collection,
             parameters={
                 "location": location,
@@ -67,32 +75,32 @@ class BVTExtension(TestSuite):
                 },
             },
         )
-        log.info("rpc created")
+        log.info("restore point collection created")
         log.info(f"response {response}")
         count = 0
 
         while count < 10:
-            vm = client.virtual_machines.get(resource_group_name, vm_name)
-            # check the state of the VM
-            if vm.provisioning_state == "Succeeded":
-                try:
-                    # create a restore point for the VM
-                    response = client.restore_points.begin_create(
-                        resource_group_name=information["resource_group_name"],
-                        restore_point_collection_name=restore_point_collection,
-                        restore_point_name="rp_"
-                        + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"),
-                        parameters={},
-                    )
-                    response.wait(3600)
-                    log.info("restore point created")
-                    break
-                except Exception as e:
-                    if "Changes were made to the Virtual Machine" in str(e):
-                        pass
-                    else:
-                        log.info(f"error {e}")
-                        raise AssertionError("Test failed: Unexpected error occurred")
+            try:
+                # create a restore point for the VM
+                restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                response = client.restore_points.begin_create(
+                    resource_group_name=resource_group_name,
+                    restore_point_collection_name=restore_point_collection,
+                    restore_point_name=restore_point,
+                    parameters={},
+                )
+                wait_operation(response)
+                log.info(f"restore point {restore_point} created")
+                break
+            except Exception as e:
+                # This message is sometimes seen while rp creation
+                # so we will be retrying it after some time
+                if "Changes were made to the Virtual Machine" in str(e):
+                    pass
+                else:
+                    raise e
             time.sleep(1)
             count = count + 1
-        assert count < 10, "Failed in Creating Restore Point"
+        assert_that(
+            count, "Restore point creation failed."
+        ).is_less_than(10)
