@@ -1,21 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 import uuid
 from datetime import datetime
-import time
+
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
-    Environment
 )
+from lisa.sut_orchestrator.azure.common import get_compute_client
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.sut_orchestrator.azure.common import get_compute_client
 
 
 @TestSuiteMetadata(
@@ -33,8 +34,9 @@ class BVTExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
-    def verify_vmsnapshot_extension(self, log: Logger, node: Node,
-                                    environment: Environment) -> None :
+    def verify_vmsnapshot_extension(
+        self, log: Logger, node: Node, environment: Environment
+    ) -> None:
         unique_name = str(uuid.uuid4())
         information = environment.get_information()
         resource_group_name = information["resource_group_name"]
@@ -42,7 +44,7 @@ class BVTExtension(TestSuite):
         vm_name = node.name
         log.info(f"information {information}")
         restore_point_collection = "rpc_" + unique_name
-        platform = environment.platform
+        platform: AzurePlatform = environment.platform
         assert isinstance(platform, AzurePlatform)
         sub_id = platform.subscription_id
         # creating restore point collection
@@ -54,7 +56,12 @@ class BVTExtension(TestSuite):
                 "location": location,
                 "properties": {
                     "source": {
-                        "id": "/subscriptions/" + sub_id + "/resourceGroups/" + resource_group_name + "/providers/Microsoft.Compute/virtualMachines/" + vm_name
+                        "id": "/subscriptions/"
+                        + sub_id
+                        + "/resourceGroups/"
+                        + resource_group_name
+                        + "/providers/Microsoft.Compute/virtualMachines/"
+                        + vm_name
                     }
                 },
             },
@@ -64,10 +71,7 @@ class BVTExtension(TestSuite):
         count = 0
 
         while count < 10:
-            vm = client.virtual_machines.get(
-                resource_group_name,
-                vm_name
-            )
+            vm = client.virtual_machines.get(resource_group_name, vm_name)
             # check the state of the VM
             if vm.provisioning_state == "Succeeded":
                 try:
@@ -75,7 +79,8 @@ class BVTExtension(TestSuite):
                     response = client.restore_points.begin_create(
                         resource_group_name=information["resource_group_name"],
                         restore_point_collection_name=restore_point_collection,
-                        restore_point_name="rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"),
+                        restore_point_name="rp_"
+                        + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"),
                         parameters={},
                     )
                     response.wait(3600)
