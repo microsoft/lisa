@@ -3,9 +3,9 @@
 
 from typing import Any
 
-from lisa import (
-    Node,
-)
+from semver import VersionInfo
+
+from lisa import Node
 from lisa.environment import Environment
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
@@ -18,7 +18,6 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.util import SkippedException
-from semver import VersionInfo
 
 
 def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:

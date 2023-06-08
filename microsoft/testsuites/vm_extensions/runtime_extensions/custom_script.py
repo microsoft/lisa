@@ -1,12 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that
-from azure.core.exceptions import HttpResponseError
-
 import base64
 import gzip
 from typing import Any, Dict, Optional
+
+from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Logger,
@@ -28,9 +28,9 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
+    check_waagent_version_supported,
     execute_command,
     retrieve_storage_blob_url,
-    check_waagent_version_supported,
 )
 
 
