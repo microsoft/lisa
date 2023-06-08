@@ -44,6 +44,7 @@ class BVTExtension(TestSuite):
         vm_name = node.name
         log.info(f"information {information}")
         restore_point_collection = "rpc_" + unique_name
+        assert environment.platform
         platform: AzurePlatform = environment.platform
         assert isinstance(platform, AzurePlatform)
         sub_id = platform.subscription_id
