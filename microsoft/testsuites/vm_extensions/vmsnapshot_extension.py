@@ -30,14 +30,16 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
-    description="Test for VMSnapshot extension ",
+    description="Test for VMSnapshot extension",
     requirement=simple_requirement(unsupported_os=[]),
 )
-class BVTExtension(TestSuite):
+class VmSnapsotLinuxBVTExtension(TestSuite):
     @TestCaseMetadata(
         description="""
-        creates a restore point collection then a restore point which helps in
-        validating the VMSnapshot extension.
+        Create a restore point collection for the virtual machine.
+        Create application consistent restore point on the restore point collection.
+        Validate response of the restore point for validity.
+        Attempt it a few items to rule out cases when VM is under changes.
         """,
         priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
@@ -49,8 +51,9 @@ class BVTExtension(TestSuite):
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
         vm_name = node_context.vm_name
-        node_location = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-        location = node_location.location
+        node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_capability.location
+        # restore_point_collection = "rpc_" + vm_name + "_" + unique_name
         restore_point_collection = "rpc_" + unique_name
         assert environment.platform
         platform: AzurePlatform = environment.platform  # type: ignore
@@ -65,21 +68,18 @@ class BVTExtension(TestSuite):
                 "location": location,
                 "properties": {
                     "source": {
-                        "id": "/subscriptions/"
-                        + sub_id
-                        + "/resourceGroups/"
-                        + resource_group_name
-                        + "/providers/Microsoft.Compute/virtualMachines/"
-                        + vm_name
+                        "id": f"/subscriptions/{sub_id}/resourceGroups/"
+                        f"{resource_group_name}/providers/Microsoft.Compute/"
+                        f"virtualMachines/{vm_name}"
                     }
                 },
             },
         )
         log.info("restore point collection created")
-        log.info(f"response {response}")
+        rpc_status = response.provisioning_state
+        assert_that(rpc_status, "RPC creation failed").is_equal_to("Succeeded")
         count = 0
-
-        while count < 10:
+        for count in range(10):
             try:
                 # create a restore point for the VM
                 restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -89,18 +89,18 @@ class BVTExtension(TestSuite):
                     restore_point_name=restore_point,
                     parameters={},
                 )
-                wait_operation(response)
+                wait_operation(response, time_out=600)
                 log.info(f"restore point {restore_point} created")
                 break
             except Exception as e:
-                # This message is sometimes seen while rp creation
-                # so we will be retrying it after some time
+                # Changes were made to the Virtual Machine, while the operation
+                # 'Create Restore Point' was in progress.
+                # Code: Conflict message is sometimes seen while rp creation
                 if "Changes were made to the Virtual Machine" in str(e):
+                    # so we will be retrying it after some time
                     pass
                 else:
                     raise e
             time.sleep(1)
             count = count + 1
-        assert_that(
-            count, "Restore point creation failed."
-        ).is_less_than(10)
+        assert_that(count, "Restore point creation failed.").is_less_than(10)
