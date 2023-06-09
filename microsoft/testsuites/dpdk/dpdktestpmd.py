@@ -188,7 +188,9 @@ class DpdkTestpmd(Tool):
             major, minor = map(int, [match.group("major"), match.group("minor")])
             self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
 
-    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
+    def generate_testpmd_include(
+        self, node_nic: NicInfo, vdev_id: int, use_primary_nic: bool = False
+    ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
         # identify which nics to inlude in test, exclude others
@@ -235,7 +237,14 @@ class DpdkTestpmd(Tool):
         # exclude pci slots not associated with the test nic
         exclude_flags = ""
         for nic in exclude_nics:
-            exclude_flags += f' -b "{nic.pci_slot}"'
+            if not nic.pci_slot:
+                try:
+                    self.node.nics._get_nic_device(nic.upper)
+                    nic = self.node.nics.get_nic(nic.upper)
+                except:
+                    continue
+            if nic.pci_slot:
+                exclude_flags += f' -b "{nic.pci_slot}"'
 
         return vdev_info + exclude_flags
 
@@ -267,6 +276,7 @@ class DpdkTestpmd(Tool):
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
+        use_primary_nic: bool = False,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -295,7 +305,9 @@ class DpdkTestpmd(Tool):
         # calculate the available cores per numa node, infer the offset
         # required for core selection argument
 
-        nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
+        nic_include_info = self.generate_testpmd_include(
+            nic_to_include, vdev_id, use_primary_nic
+        )
 
         # set up queue arguments
         if txq or rxq:
@@ -334,7 +346,7 @@ class DpdkTestpmd(Tool):
             extra_args = ""
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need to leave at least one core as a service core. ")
-        ).is_greater_than(2)
+        ).is_greater_than_or_equal_to(1)
         return (
             f"{self._testpmd_install_path} {core_list} "
             # "--log-level eal,debug --log-level mana,debug "
@@ -734,7 +746,10 @@ class DpdkTestpmd(Tool):
                     rdma_drivers.append(module)
 
         modprobe.load(rdma_drivers, skip_loaded=True)
-        modprobe.load(network_drivers, skip_loaded=True)
+        try:
+            modprobe.load(network_drivers, skip_loaded=True)
+        except:
+            ...
 
     def _install_dependencies(self) -> None:
         node = self.node

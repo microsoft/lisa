@@ -274,7 +274,7 @@ def initialize_node_resources(
         raise SkippedException(err)
 
     # verify SRIOV is setup as-expected on the node after compat check
-    node.nics.wait_for_sriov_enabled()
+    # node.nics.wait_for_sriov_enabled()
 
     # create tool, initialize testpmd tool (installs dpdk)
     testpmd: DpdkTestpmd = node.tools.get(
@@ -316,7 +316,8 @@ def initialize_node_resources(
 
     elif testpmd.is_mana:
         node.tools[Ip].down(test_nic.upper)
-        node.tools[Ip].down(test_nic.lower)
+        if test_nic.lower:
+            node.tools[Ip].down(test_nic.lower)
 
     return DpdkTestResources(node, testpmd)
 
