@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
 
@@ -54,7 +54,10 @@ class Waagent(Tool):
             )
         else:
             self._command = "waagent"
+        self._python_cmd: Optional[str] = None
+        self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
+        self._waagent_conf_path: Optional[str] = None
 
     def get_version(self) -> str:
         result = self.run("-version")
@@ -76,13 +79,8 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def get_configuration(self, force_run: bool = False) -> Dict[str, str]:
-        if isinstance(self.node.os, CoreOs):
-            waagent_conf_file = "/usr/share/oem/waagent.conf"
-        elif isinstance(self.node.os, BSD):
-            waagent_conf_file = "/usr/local/etc/waagent.conf"
-        else:
-            waagent_conf_file = "/etc/waagent.conf"
+    def _get_configuration(self, force_run: bool = False) -> Dict[str, str]:
+        waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
         cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
@@ -94,15 +92,23 @@ class Waagent(Tool):
         return config
 
     def get_root_device_timeout(self) -> int:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return int(waagent_configuration["OS.RootDeviceScsiTimeout"])
 
     def get_resource_disk_mount_point(self) -> str:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return waagent_configuration["ResourceDisk.MountPoint"]
 
+    def is_autoupdate_enabled(self) -> bool:
+        waagent_configuration = self._get_configuration()
+        if waagent_configuration.get("AutoUpdate.Enabled") == "n":
+            return False
+        else:
+            # if set or not present, defaults to "y"
+            return True
+
     def is_swap_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         is_swap_enabled = waagent_configuration["ResourceDisk.EnableSwap"]
         if is_swap_enabled == "y":
             return True
@@ -114,7 +120,7 @@ class Waagent(Tool):
             )
 
     def is_rdma_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration(force_run=True)
+        waagent_configuration = self._get_configuration(force_run=True)
         is_rdma_enabled = waagent_configuration["OS.EnableRDMA"]
         if is_rdma_enabled == "y":
             return True
@@ -122,6 +128,49 @@ class Waagent(Tool):
             return False
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
+
+    def _get_python_cmd(self) -> Tuple[str, bool]:
+        if self._python_cmd is not None and self._python_use_sudo is not None:
+            return self._python_cmd, self._python_use_sudo
+
+        for python_cmd in self._python_candidates:
+            python_exists, use_sudo = self.command_exists(command=python_cmd)
+            self._log.debug(
+                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
+            )
+            if python_exists:
+                break
+
+        self._python_cmd = python_cmd
+        self._python_use_sudo = use_sudo
+
+        return self._python_cmd, self._python_use_sudo
+
+    def _get_waagent_conf_path(self) -> str:
+        if self._waagent_conf_path is not None:
+            return self._waagent_conf_path
+
+        python_cmd, use_sudo = self._get_python_cmd()
+
+        # Try to use waagent code to detect
+        result = self.node.execute(
+            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil;'
+            'print(get_osutil().agent_conf_file_path)"',
+            sudo=use_sudo,
+        )
+        if result.exit_code == 0:
+            waagent_path = result.stdout
+        else:
+            if isinstance(self.node.os, CoreOs):
+                waagent_path = "/usr/share/oem/waagent.conf"
+            elif isinstance(self.node.os, BSD):
+                waagent_path = "/usr/local/etc/waagent.conf"
+            else:
+                waagent_path = "/etc/waagent.conf"
+
+        self._waagent_conf_path = waagent_path
+
+        return self._waagent_conf_path
 
     def get_distro_version(self) -> str:
         """
@@ -131,13 +180,7 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        for python_cmd in self._python_candidates:
-            python_exists, use_sudo = self.command_exists(command=python_cmd)
-            self._log.debug(
-                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
-            )
-            if python_exists:
-                break
+        python_cmd, use_sudo = self._get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(
