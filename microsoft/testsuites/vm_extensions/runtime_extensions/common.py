@@ -17,7 +17,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.util import SkippedException
+from lisa.util import SkippedException, parse_version
 
 
 def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:
@@ -40,7 +40,7 @@ def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None
 def check_waagent_version_supported(node: Node) -> None:
     waagent = node.tools[Waagent]
     waagent_version = waagent.get_version()
-    result = VersionInfo.parse(waagent_version).compare("2.4.0")
+    result = parse_version(waagent_version).compare("2.4.0")
     if result < 0:
         waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
         if not waagent_auto_update_enabled:
