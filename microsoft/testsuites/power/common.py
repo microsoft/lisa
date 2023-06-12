@@ -53,8 +53,11 @@ def verify_hibernation(
     resource_group_name = information["resource_group_name"]
     node = cast(RemoteNode, environment.nodes[0])
     if 1 == index:
-        pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
-        if "No matching physical volumes found" not in pv_result:
+        pv_result = node.execute("pvscan -s", sudo=True, shell=True)
+        if (
+            pv_result.exit_code == 0
+            or "No matching physical volumes found" not in pv_result.stdout
+        ):
             os_information = node.os.information
             release = ".".join(
                 [
