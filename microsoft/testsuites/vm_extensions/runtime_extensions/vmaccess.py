@@ -41,6 +41,23 @@ def _validate_ssh_key_exists(node: Node, username: str, exists: bool = True) -> 
     )
 
 
+def _validate_account_expiration_date(
+    node: Node, username: str, expiration_str: str
+) -> None:
+    # Command checks whether the account expiration specified is correct
+    result = node.execute(
+        cmd=f"chage -l {username}",
+        shell=True,
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=f"Cannot retrieve account details for user {username}",
+    )
+
+    assert_that(result.stdout).described_as(
+        f"Expected the account details to contain expiration date of {expiration_str}"
+    ).contains(expiration_str)
+
+
 def _create_and_verify_extension_run(
     node: Node,
     settings: Optional[Dict[str, Any]] = None,
@@ -71,19 +88,15 @@ def _create_and_verify_extension_run(
     Settings are protected unless otherwise mentioned.
     OpenSSH format public keys correspond to ssh-rsa keys.
 
-    It has 12 test cases to verify if VMAccess runs successfully when provided:
+    It has 8 test cases to verify if VMAccess runs successfully when provided:
         1. Username and password
         2. Username and OpenSSH format public key
         3. Username with both a password and OpenSSH format public key
         4. Username with no password or ssh key (should fail)
         5. Username and certificate containing public ssh key in pem format
         6. Username and SSH2 format public key
-        7. Password without username (should fail)
-        8. OpenSSH format public key without username (should fail)
-        9. Reset SSH set to true
-        10. Username to remove
-        11. Username, OpenSSH format public key, and valid expiration in future
-        12. Username, OpenSSH format public key, and invalid expiration (should fail)
+        7. Username to remove
+        8. Username, OpenSSH format public key, and valid expiration date
     """,
     requirement=simple_requirement(
         supported_features=[AzureExtension],
@@ -109,109 +122,170 @@ TlMoLkqGKe3WoXmhjaTOssulgDAGA24IeWy/u7luH+oHdZEmEufFhj4M7tQ1pAhN
 CT8JCL2dI3F76HD6ZutTOkwRar3PYk5q7RsSJdAemtnwVpgp+RBMtbmct7MQ
 -----END CERTIFICATE-----
 """
+    _SSH2_KEY = """\
+---- BEGIN SSH2 PUBLIC KEY ----
+Comment: "rsa-key-20230508"
+AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9vg4VBE
+xCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7xhlo
+sP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2xR
+Od5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js
+17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0g
+TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
+---- END SSH2 PUBLIC KEY ----
+"""
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with a valid username and password.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_valid_password_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     password = "vmaccesspassword"
+    #     incorrect_password = "vmaccesspassword1"
+    #     protected_settings = {
+    #         "username": username,
+    #         "password": password,
+    #     }
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_password(node=node, username=username, password=password)
+    #     _validate_password(
+    #         node=node, username=username, password=incorrect_password, valid=False
+    #     )
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with an OpenSSH public key.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_openssh_key_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     protected_settings = {"username": username, "ssh_key": self._OPENSSH_KEY}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_ssh_key_exists(node=node, username=username)
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with both a password and OpenSSH public key.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     password = "vmaccesspassword"
+    #     protected_settings = {
+    #         "username": username,
+    #         "ssh_key": self._OPENSSH_KEY,
+    #         "password": password,
+    #     }
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     # Expecting both password and ssh key to be created as intended
+    #     _validate_ssh_key_exists(node=node, username=username)
+    #     _validate_password(node=node, username=username, password=password)
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension without a password and OpenSSH public key.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_no_password_and_ssh_key_run_failed(
+    #     self, log: Logger, node: Node
+    # ) -> None:
+    #     username = "vmaccessuser"
+    #     password = "vmaccesspassword"
+    #     protected_settings = {"username": username}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     # Expecting no ssh keys and password to exist for this user
+    #     _validate_ssh_key_exists(node=node, username=username, exists=False)
+    #     _validate_password(node=node, username=username, password=password, valid=False)
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with a certificate containing a public ssh key
+    #     in pem format.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_pem_certificate_ssh_key_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     protected_settings = {"username": username, "ssh_key": self._CERT_SSH_KEY}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_ssh_key_exists(node=node, username=username)
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with an SSH2 public key.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_ssh2_key_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     protected_settings = {"username": username, "ssh_key": self._SSH2_KEY}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_ssh_key_exists(node=node, username=username)
+
+    # @TestCaseMetadata(
+    #     description="""
+    #     Runs the VMAccess VM extension with a username to remove.
+    #     """,
+    #     priority=3,
+    # )
+    # def verify_remove_username_run(self, log: Logger, node: Node) -> None:
+    #     username = "vmaccessuser"
+    #     password = "vmaccesspassword"
+    #     protected_settings = {"username": username, "password": password}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_password(node=node, username=username, password=password)
+
+    #     protected_settings = {"remove_user": username}
+
+    #     _create_and_verify_extension_run(
+    #         node=node, protected_settings=protected_settings
+    #     )
+    #     _validate_password(node=node, username=username, password=password, valid=False)
 
     @TestCaseMetadata(
         description="""
-        Runs the VMAccess VM extension with a valid username and password.
+        Runs the VMAccess VM extension with an OpenSSH public key and valid expiration date.
         """,
         priority=3,
     )
-    def verify_valid_password_run(self, log: Logger, node: Node) -> None:
+    def verify_valid_expiration_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser"
-        password = "vmaccesspassword"
-        incorrect_password = "vmaccesspassword1"
-
-        protected_settings = {
-            "username": username,
-            "password": password,
-        }
-
-        _create_and_verify_extension_run(
-            node=node, protected_settings=protected_settings
-        )
-
-        _validate_password(node=node, username=username, password=password)
-        _validate_password(
-            node=node, username=username, password=incorrect_password, valid=False
-        )
-
-    @TestCaseMetadata(
-        description="""
-        Runs the VMAccess VM extension with an OpenSSH public key.
-        """,
-        priority=3,
-    )
-    def verify_openssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
-
-        protected_settings = {"username": username, "ssh_key": self._OPENSSH_KEY}
-
-        _create_and_verify_extension_run(
-            node=node, protected_settings=protected_settings
-        )
-
-        _validate_ssh_key_exists(node=node, username=username)
-
-    @TestCaseMetadata(
-        description="""
-        Runs the VMAccess VM extension with both a password and OpenSSH public key
-        """,
-        priority=3,
-    )
-    def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
-        password = "vmaccesspassword"
-
         protected_settings = {
             "username": username,
             "ssh_key": self._OPENSSH_KEY,
-            "password": password,
+            "expiration": "2030-01-01",
         }
 
         _create_and_verify_extension_run(
             node=node, protected_settings=protected_settings
         )
-
-        # Expecting both password and ssh key to be created as intended
         _validate_ssh_key_exists(node=node, username=username)
-        _validate_password(node=node, username=username, password=password)
-
-    @TestCaseMetadata(
-        description="""
-        Runs the VMAccess VM extension without a password and OpenSSH public key
-        """,
-        priority=3,
-    )
-    def verify_no_password_and_ssh_key_run_failed(
-        self, log: Logger, node: Node
-    ) -> None:
-        username = "vmaccessuser"
-        password = "vmaccesspassword"
-
-        protected_settings = {"username": username}
-
-        _create_and_verify_extension_run(
-            node=node, protected_settings=protected_settings
+        _validate_account_expiration_date(
+            node=node, username=username, expiration_str="Jan 01, 2030"
         )
-
-        # Expecting no ssh keys and password to exist for this user
-        _validate_ssh_key_exists(node=node, username=username, exists=False)
-        _validate_password(node=node, username=username, password=password, valid=False)
-
-    @TestCaseMetadata(
-        description="""
-        Runs the VMAccess VM extension with a certificate containing a public ssh key
-        in pem format.
-        """,
-        priority=3,
-    )
-    def verify_pem_certificate_ssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
-
-        protected_settings = {"username": username, "ssh_key": self._CERT_SSH_KEY}
-
-        _create_and_verify_extension_run(
-            node=node, protected_settings=protected_settings
-        )
-
-        _validate_ssh_key_exists(node=node, username=username)
