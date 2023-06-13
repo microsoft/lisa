@@ -27,6 +27,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.sut_orchestrator.azure.tools import Waagent
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
     execute_command,
@@ -94,7 +95,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extension",
+    area="vm_extensionss",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
@@ -498,6 +499,7 @@ class CustomScriptTests(TestSuite):
         container_name = "cselisa-public"
         blob_name = "cselisa.py"
         test_file = "/tmp/lisatest-python.txt"
+        python_command, _ = node.tools[Waagent].get_python_cmd()
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -508,7 +510,10 @@ class CustomScriptTests(TestSuite):
             script=f"#!/usr/bin/env python\nopen('{test_file}', 'a').close()",
         )
 
-        settings = {"fileUris": [blob_url], "commandToExecute": f"python3 {blob_name}"}
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"{python_command} {blob_name}",
+        }
 
         _create_and_verify_extension_run(
             node=node, settings=settings, test_file=test_file, expected_exit_code=0
