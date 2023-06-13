@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, Optional
-
 from assertpy import assert_that
 
 from lisa import (
@@ -16,6 +14,9 @@ from lisa import (
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
+    create_and_verify_vmaccess_extension_run,
+)
 
 
 def _validate_password(
@@ -56,27 +57,6 @@ def _validate_account_expiration_date(
     assert_that(result.stdout).described_as(
         f"Expected the account details to contain expiration date of {expiration_str}"
     ).contains(expiration_str)
-
-
-def _create_and_verify_extension_run(
-    node: Node,
-    settings: Optional[Dict[str, Any]] = None,
-    protected_settings: Optional[Dict[str, Any]] = None,
-) -> None:
-    extension = node.features[AzureExtension]
-    result = extension.create_or_update(
-        name="VMAccess",
-        publisher="Microsoft.OSTCExtensions",
-        type_="VMAccessForLinux",
-        type_handler_version="1.5",
-        auto_upgrade_minor_version=True,
-        settings=settings or {},
-        protected_settings=protected_settings or {},
-    )
-
-    assert_that(result["provisioning_state"]).described_as(
-        "Expected the extension to succeed"
-    ).is_equal_to("Succeeded")
 
 
 @TestSuiteMetadata(
@@ -149,7 +129,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
             "password": password,
         }
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_password(node=node, username=username, password=password)
@@ -167,7 +147,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         username = "vmaccessuser-openssh"
         protected_settings = {"username": username, "ssh_key": self._OPENSSH_KEY}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_ssh_key_exists(node=node, username=username)
@@ -187,7 +167,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
             "password": password,
         }
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         # Expecting both password and ssh key to be created as intended
@@ -207,7 +187,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         password = "vmaccesspassword"
         protected_settings = {"username": username}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         # Expecting no ssh keys and password to exist for this user
@@ -225,7 +205,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         username = "vmaccessuser-cert"
         protected_settings = {"username": username, "ssh_key": self._CERT_SSH_KEY}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_ssh_key_exists(node=node, username=username)
@@ -240,7 +220,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         username = "vmaccessuser-ssh2"
         protected_settings = {"username": username, "ssh_key": self._SSH2_KEY}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_ssh_key_exists(node=node, username=username)
@@ -256,14 +236,14 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         password = "vmaccesspassword"
         protected_settings = {"username": username, "password": password}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_password(node=node, username=username, password=password)
 
         protected_settings = {"remove_user": username}
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_password(node=node, username=username, password=password, valid=False)
@@ -282,7 +262,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
             "expiration": "2024-01-01",
         }
 
-        _create_and_verify_extension_run(
+        create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
         _validate_ssh_key_exists(node=node, username=username)

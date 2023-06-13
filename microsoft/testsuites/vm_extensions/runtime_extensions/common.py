@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, Dict, Optional
 
-from semver import VersionInfo
+from assertpy import assert_that
 
 from lisa import Node
 from lisa.environment import Environment
@@ -16,8 +16,30 @@ from lisa.sut_orchestrator.azure.common import (
     get_storage_account_name,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.util import SkippedException, parse_version
+
+
+def create_and_verify_vmaccess_extension_run(
+    node: Node,
+    settings: Optional[Dict[str, Any]] = None,
+    protected_settings: Optional[Dict[str, Any]] = None,
+) -> None:
+    extension = node.features[AzureExtension]
+    result = extension.create_or_update(
+        name="VMAccess",
+        publisher="Microsoft.OSTCExtensions",
+        type_="VMAccessForLinux",
+        type_handler_version="1.5",
+        auto_upgrade_minor_version=True,
+        settings=settings or {},
+        protected_settings=protected_settings or {},
+    )
+
+    assert_that(result["provisioning_state"]).described_as(
+        "Expected the extension to succeed"
+    ).is_equal_to("Succeeded")
 
 
 def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:
