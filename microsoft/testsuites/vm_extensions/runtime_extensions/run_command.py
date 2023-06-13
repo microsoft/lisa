@@ -352,7 +352,7 @@ class RunCommandV2Tests(TestSuite):
             node=node, protected_settings=protected_settings
         )
 
-        test_file = "/tmp/rcv2-runas-valid.txt"
+        test_file = "/tmp/rcv2-runas-invalid.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
