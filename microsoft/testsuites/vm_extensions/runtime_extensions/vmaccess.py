@@ -22,36 +22,41 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 def _validate_password(
     node: Node, username: str, password: str, valid: bool = True
 ) -> None:
+    message = f"Password not set as intended for user {username}."
     # simple command to determine if username password combination is valid/invalid
     node.execute(
         cmd=f'echo "{password}" | su --command true - {username}',
         shell=True,
         expected_exit_code=0 if valid else 1,
-        expected_exit_code_failure_message=f"Password not set as intended for user {username}.",
+        expected_exit_code_failure_message=message,
     )
 
 
 def _validate_ssh_key_exists(node: Node, username: str, exists: bool = True) -> None:
-    # Command checks whether the authorized_keys file is created and has the correct format
+    # Command checks whether authorized_keys file is created and has correct format
+    message = (
+        f"Public key file for user {username} {'does not exist' if 0 else 'exists'}."
+    )
     node.execute(
         cmd=f"ssh-keygen -l -f /home/{username}/.ssh/authorized_keys",
         shell=True,
         sudo=True,
         expected_exit_code=0 if exists else 255,
-        expected_exit_code_failure_message=f"Public key file for user {username} {'does not exist' if 0 else 'exists'}.",
+        expected_exit_code_failure_message=message,
     )
 
 
 def _validate_account_expiration_date(
     node: Node, username: str, expiration_str: str
 ) -> None:
+    message = f"Cannot retrieve account details for user {username}"
     # Command checks whether the account expiration specified is correct
     result = node.execute(
         cmd=f"chage -l {username}",
         shell=True,
         sudo=True,
         expected_exit_code=0,
-        expected_exit_code_failure_message=f"Cannot retrieve account details for user {username}",
+        expected_exit_code_failure_message=message,
     )
 
     assert_that(result.stdout).described_as(
@@ -85,7 +90,15 @@ def _validate_account_expiration_date(
     ),
 )
 class VMAccessTests(TestSuite):
-    _OPENSSH_KEY = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9vg4VBExCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7xhlosP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2xROd5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0gTLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB"
+    # _OPENSSH_KEY = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9vg4VBExCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7xhlosP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2xROd5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0gTLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB"
+    _OPENSSH_KEY = (
+        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9"
+        "vg4VBExCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7"
+        "xhlosP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2"
+        "xROd5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js"
+        "17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0gTL"
+        "OyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB"
+    )
     _CERT_SSH_KEY = """\
 -----BEGIN CERTIFICATE-----
 MIICOTCCAaICCQD7F0nb+GtpcTANBgkqhkiG9w0BAQsFADBhMQswCQYDVQQGEwJh
@@ -250,7 +263,8 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
 
     @TestCaseMetadata(
         description="""
-        Runs the VMAccess VM extension with an OpenSSH public key and valid expiration date.
+        Runs the VMAccess VM extension with an OpenSSH public key
+        and valid expiration date.
         """,
         priority=3,
     )

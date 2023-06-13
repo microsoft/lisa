@@ -15,8 +15,8 @@ from lisa.sut_orchestrator.azure.common import (
     get_or_create_storage_container,
     get_storage_account_name,
 )
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.util import SkippedException, parse_version
 
