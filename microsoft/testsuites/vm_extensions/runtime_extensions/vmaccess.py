@@ -164,7 +164,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_openssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-openssh"
         protected_settings = {"username": username, "ssh_key": self._OPENSSH_KEY}
 
         _create_and_verify_extension_run(
@@ -179,7 +179,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-both"
         password = "vmaccesspassword"
         protected_settings = {
             "username": username,
@@ -203,7 +203,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     def verify_no_password_and_ssh_key_run_failed(
         self, log: Logger, node: Node
     ) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-none"
         password = "vmaccesspassword"
         protected_settings = {"username": username}
 
@@ -222,7 +222,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_pem_certificate_ssh_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-cert"
         protected_settings = {"username": username, "ssh_key": self._CERT_SSH_KEY}
 
         _create_and_verify_extension_run(
@@ -237,7 +237,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_ssh2_key_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-ssh2"
         protected_settings = {"username": username, "ssh_key": self._SSH2_KEY}
 
         _create_and_verify_extension_run(
@@ -252,7 +252,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_remove_username_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuser"
+        username = "vmaccessuser-remove"
         password = "vmaccesspassword"
         protected_settings = {"username": username, "password": password}
 
@@ -275,7 +275,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         priority=3,
     )
     def verify_valid_expiration_run(self, log: Logger, node: Node) -> None:
-        username = "vmaccessuserexp"
+        username = "vmaccessuser-exp"
         protected_settings = {
             "username": username,
             "ssh_key": self._OPENSSH_KEY,
