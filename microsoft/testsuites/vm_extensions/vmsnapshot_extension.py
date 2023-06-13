@@ -53,7 +53,6 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         vm_name = node_context.vm_name
         node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         location = node_capability.location
-        # restore_point_collection = "rpc_" + vm_name + "_" + unique_name
         restore_point_collection = "rpc_" + unique_name
         assert environment.platform
         platform: AzurePlatform = environment.platform  # type: ignore
