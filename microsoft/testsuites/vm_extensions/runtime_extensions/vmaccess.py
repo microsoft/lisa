@@ -34,9 +34,8 @@ def _validate_password(
 
 def _validate_ssh_key_exists(node: Node, username: str, exists: bool = True) -> None:
     # Command checks whether authorized_keys file is created and has correct format
-    message = (
-        f"Public key file for user {username} {'does not exist' if 0 else 'exists'}."
-    )
+    message = f"Public key file for user {username} \
+        {'does not exist' if exists else 'exists'}."
     node.execute(
         cmd=f"ssh-keygen -l -f /home/{username}/.ssh/authorized_keys",
         shell=True,
@@ -65,7 +64,7 @@ def _validate_account_expiration_date(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the VMAccess VM extension.
