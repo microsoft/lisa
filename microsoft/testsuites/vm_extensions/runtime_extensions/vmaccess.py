@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import uuid
+
 from assertpy import assert_that
 
 from lisa import (
@@ -17,6 +19,57 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     create_and_verify_vmaccess_extension_run,
 )
+
+
+def _generate_openssh_key(node: Node, filename: str) -> None:
+    node.execute(
+        cmd=f"ssh-keygen -f {filename} -N .",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Failed to create OpenSSH file.",
+    )
+
+
+def _generate_and_retrieve_openssh_key(node: Node, filename: str) -> str:
+    _generate_openssh_key(node=node, filename=filename)
+    result = node.execute(
+        cmd=f"cat {filename}.pub",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Failed to open OpenSSH key file.",
+    )
+    return result.stdout
+
+
+def _generate_and_retrieve_ssh2_key(node: Node, filename: str) -> str:
+    _generate_openssh_key(node=node, filename=filename)
+    result = node.execute(
+        cmd=f"ssh-keygen -e -f {filename}.pub",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Failed to generate SSH2 key.",
+    )
+    return result.stdout
+
+
+def _generate_and_retrieve_pem_cert(node: Node) -> str:
+    node.execute(
+        cmd='openssl req -nodes -x509 -newkey rsa:2048 -keyout \
+            /tmp/key.pem -out /tmp/cert.pem -subj "/C=US/ST=WA/\
+            L=Redmond/O=Microsoft/OU=DevOps/CN=www.example.com/\
+            emailAddress=dev@www.example.com"',
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Failed to create certificate.",
+    )
+
+    result = node.execute(
+        cmd="cat /tmp/cert.pem",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Failed to retrieve certificate.",
+    )
+    return result.stdout
 
 
 def _validate_password(
@@ -89,42 +142,6 @@ def _validate_account_expiration_date(
     ),
 )
 class VMAccessTests(TestSuite):
-    _OPENSSH_KEY = (
-        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9"
-        "vg4VBExCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7"
-        "xhlosP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2"
-        "xROd5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js"
-        "17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0gTL"
-        "OyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB"
-    )
-    _CERT_SSH_KEY = """\
------BEGIN CERTIFICATE-----
-MIICOTCCAaICCQD7F0nb+GtpcTANBgkqhkiG9w0BAQsFADBhMQswCQYDVQQGEwJh
-YjELMAkGA1UECAwCYWIxCzAJBgNVBAcMAmFiMQswCQYDVQQKDAJhYjELMAkGA1UE
-CwwCYWIxCzAJBgNVBAMMAmFiMREwDwYJKoZIhvcNAQkBFgJhYjAeFw0xNDA4MDUw
-ODIwNDZaFw0xNTA4MDUwODIwNDZaMGExCzAJBgNVBAYTAmFiMQswCQYDVQQIDAJh
-YjELMAkGA1UEBwwCYWIxCzAJBgNVBAoMAmFiMQswCQYDVQQLDAJhYjELMAkGA1UE
-AwwCYWIxETAPBgkqhkiG9w0BCQEWAmFiMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCB
-iQKBgQC4Vugyj4uAKGYHW/D1eAg1DmLAv01e+9I0zIi8HzJxP87MXmS8EdG5SEzR
-N6tfQQie76JBSTYI4ngTaVCKx5dVT93LiWxLV193Q3vs/HtwwH1fLq0rAKUhREQ6
-+CsRGNyeVfJkNsxAvNvQkectnYuOtcDxX5n/25eWAofobxVbSQIDAQABMA0GCSqG
-SIb3DQEBCwUAA4GBAF20gkq/DeUSXkZA+jjmmbCPioB3KL63GpoTXfP65d6yU4xZ
-TlMoLkqGKe3WoXmhjaTOssulgDAGA24IeWy/u7luH+oHdZEmEufFhj4M7tQ1pAhN
-CT8JCL2dI3F76HD6ZutTOkwRar3PYk5q7RsSJdAemtnwVpgp+RBMtbmct7MQ
------END CERTIFICATE-----
-"""
-    _SSH2_KEY = """\
----- BEGIN SSH2 PUBLIC KEY ----
-Comment: "rsa-key-20230508"
-AAAAB3NzaC1yc2EAAAADAQABAAABAQDNCPG1FxE2r/OOMCiUfUSuj6FdI9vg4VBE
-xCZ8k1MPLMy8w9mhPOCi3cb7bJ25MCwidsM9vKGJHVAHwcJseAGhYRCBBzO7xhlo
-sP6Kc6MJGFF/5OsODGd9gB2zqsrmF1hCpcQuBB8++4DBBFcQQuJRfXRBYBvYN2xR
-Od5Z3eJ/928TLLendbNOGlZUYoZT5bDGOUkNPu6x7BAwkuqaltF0MAgMEZRAg0Js
-17N/h8vVrEP1tCRfieC4TOvAP6PQtPlacjgTdYNg7ophVphyhwvS12oUpBlpAC0g
-TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
----- END SSH2 PUBLIC KEY ----
-"""
-
     @TestCaseMetadata(
         description="""
         Runs the VMAccess VM extension with a valid username and password.
@@ -133,8 +150,8 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_valid_password_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser"
-        password = "vmaccesspassword"
-        incorrect_password = "vmaccesspassword1"
+        password = str(uuid.uuid4())
+        incorrect_password = str(uuid.uuid4())
         protected_settings = {
             "username": username,
             "password": password,
@@ -156,7 +173,12 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_openssh_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-openssh"
-        protected_settings = {"username": username, "ssh_key": self._OPENSSH_KEY}
+        ssh_filename = f"/tmp/{str(uuid.uuid4())}"
+        openssh_key = _generate_and_retrieve_openssh_key(
+            node=node, filename=ssh_filename
+        )
+
+        protected_settings = {"username": username, "ssh_key": openssh_key}
 
         create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
@@ -171,10 +193,15 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-both"
-        password = "vmaccesspassword"
+        password = str(uuid.uuid4())
+        ssh_filename = f"/tmp/{str(uuid.uuid4())}"
+        openssh_key = _generate_and_retrieve_openssh_key(
+            node=node, filename=ssh_filename
+        )
+
         protected_settings = {
             "username": username,
-            "ssh_key": self._OPENSSH_KEY,
+            "ssh_key": openssh_key,
             "password": password,
         }
 
@@ -195,7 +222,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
         self, log: Logger, node: Node
     ) -> None:
         username = "vmaccessuser-none"
-        password = "vmaccesspassword"
+        password = str(uuid.uuid4())
         protected_settings = {"username": username}
 
         create_and_verify_vmaccess_extension_run(
@@ -214,7 +241,8 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_pem_certificate_ssh_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-cert"
-        protected_settings = {"username": username, "ssh_key": self._CERT_SSH_KEY}
+        pem_cert = _generate_and_retrieve_pem_cert(node=node)
+        protected_settings = {"username": username, "ssh_key": pem_cert}
 
         create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
@@ -229,7 +257,10 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_ssh2_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-ssh2"
-        protected_settings = {"username": username, "ssh_key": self._SSH2_KEY}
+        ssh_filename = f"/tmp/{str(uuid.uuid4())}"
+        ssh2_key = _generate_and_retrieve_ssh2_key(node=node, filename=ssh_filename)
+
+        protected_settings = {"username": username, "ssh_key": ssh2_key}
 
         create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
@@ -244,7 +275,7 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_remove_username_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-remove"
-        password = "vmaccesspassword"
+        password = str(uuid.uuid4())
         protected_settings = {"username": username, "password": password}
 
         create_and_verify_vmaccess_extension_run(
@@ -268,9 +299,14 @@ TLOyUluxEoC83mxmN3+UNxf9kdj+Uhg2oHk6S+cqHblpRI2KXqcB
     )
     def verify_valid_expiration_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-exp"
+        ssh_filename = f"/tmp/{str(uuid.uuid4())}"
+        openssh_key = _generate_and_retrieve_openssh_key(
+            node=node, filename=ssh_filename
+        )
+
         protected_settings = {
             "username": username,
-            "ssh_key": self._OPENSSH_KEY,
+            "ssh_key": openssh_key,
             "expiration": "2024-01-01",
         }
 
