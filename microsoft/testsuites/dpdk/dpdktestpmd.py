@@ -32,7 +32,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
 )
-from lisa.util.constants import SIGINT
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -199,14 +199,18 @@ class DpdkTestpmd(Tool):
         vdev_info = ""
         self.node.log.info(f"Running test with {len(include_nics)} nics.")
         for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
-                vdev_name = "net_vdev_netvsc"
-                vdev_flags = f"iface={nic.upper},force=1"
-            else:
+            if self._dpdk_version_info < "18.11.0":
                 vdev_name = "net_failsafe"
                 vdev_flags = (
                     f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
                 )
+            elif self.is_mana:
+                vdev_name = "net_vdev_netvsc"
+                vdev_flags = f"mac={nic.mac_addr}"
+            else:
+                vdev_name = "net_vdev_netvsc"
+                vdev_flags = f"iface={nic.upper},force=1"
+
             if nic.bound_driver == "hv_netvsc":
                 vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
             elif nic.bound_driver == "uio_hv_generic":
@@ -439,10 +443,11 @@ class DpdkTestpmd(Tool):
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
-        device_list = lspci.get_devices()
+        device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
         self.is_connect_x3 = any(
             ["ConnectX-3" in dev.device_info for dev in device_list]
         )
+        self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_pps_data"
@@ -633,6 +638,10 @@ class DpdkTestpmd(Tool):
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+        elif self.is_mana:
+            mellanox_drivers = ["mana"]
+            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
+                mellanox_drivers.append("mana_ib")
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
