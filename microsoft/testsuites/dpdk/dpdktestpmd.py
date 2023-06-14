@@ -189,11 +189,10 @@ class DpdkTestpmd(Tool):
 
         # identify which nics to inlude in test, exclude others
         include_nics = [node_nic]
-        exclude_nics = [
-            self.node.nics.get_nic(nic)
-            for nic in self.node.nics.get_nic_names()
-            if nic != node_nic.name
-        ]
+        if self._dpdk_version_info and self._dpdk_version_info < "20.11.0":
+            include_flag = "-w"
+        else:
+            include_flag = "-a"
 
         # build list of vdev info flags for each nic
         vdev_info = ""
@@ -225,11 +224,11 @@ class DpdkTestpmd(Tool):
                 )
 
         # exclude pci slots not associated with the test nic
-        exclude_flags = ""
-        for nic in exclude_nics:
-            exclude_flags += f' -b "{nic.pci_slot}"'
+        include_flags = ""
+        for nic in include_nics:
+            include_flags += f' {include_flag} "{nic.pci_slot}"'
 
-        return vdev_info + exclude_flags
+        return vdev_info + include_flags
 
     def generate_testpmd_command(
         self,
