@@ -454,7 +454,7 @@ class Sriov(TestSuite):
         3. Remove sriov module, check network traffic through synthetic nic.
         4. Load sriov module, check network traffic through VF.
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             min_count=2,
             min_nic_count=8,

@@ -58,7 +58,7 @@ class CPU(TestSuite):
         8   0    0      8   8   8  8
         9   1    1      9   9   9  9
         """,
-        priority=2,
+        priority=1,
     )
     def verify_l3_cache(self, node: Node, log: Logger) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
@@ -105,7 +105,7 @@ class CPU(TestSuite):
              thread_per_core_count.
             3. Judge whether the actual vCPU count equals to expected value.
             """,
-        priority=2,
+        priority=1,
     )
     def verify_cpu_count(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]

@@ -167,7 +167,7 @@ class Provisioning(TestSuite):
         The test steps are almost the same as `smoke_test` except for
         executing reboot from Azure SDK.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole, StartStop],
@@ -190,7 +190,7 @@ class Provisioning(TestSuite):
         The test steps are almost the same as `smoke_test` except for
         executing stop then start from Azure SDK.
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole, StartStop],

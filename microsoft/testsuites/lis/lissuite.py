@@ -50,7 +50,7 @@ class Lis(TestSuite):
             3. For each rhel version (5,6,7), it downloads the header file and compares
              the LIS version in the header file with the LIS version installed
         """,
-        priority=1,
+        priority=2,
     )
     def verify_lis_driver_version(self, node: Node, log: Logger) -> None:
         cat = node.tools[Cat]

@@ -97,7 +97,7 @@ class KdumpCrash(TestSuite):
         trigger kdump on the second cpu(cpu1), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=1,
+        priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=2, max=8),
@@ -129,7 +129,7 @@ class KdumpCrash(TestSuite):
         trigger kdump on the 33th cpu(cpu32), which is designed by a known issue.
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
-        priority=1,
+        priority=2,
         requirement=node_requirement(
             node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192))
         ),
