@@ -65,7 +65,7 @@ class Storage(TestSuite):
         2. Verify the timeout value for disk in
         `/sys/block/<disk>/device/timeout` file is set to 300.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE]),
     )
     def verify_disks_device_timeout_setting(

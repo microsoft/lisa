@@ -43,7 +43,7 @@ class HvModule(TestSuite):
            matches with the Linux kernel release number. (Drivers loaded directly in
            to the kernel are skipped)
         """,
-        priority=1,
+        priority=2,
     )
     def verify_lis_modules_version(self, node: Node) -> None:
         if not isinstance(node.os, Redhat):
@@ -76,7 +76,7 @@ class HvModule(TestSuite):
         2. Find the path of initrd file
         3. Use lsinitrd tool to check whether a necessary module is missing
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             unsupported_os=[BSD],
         ),

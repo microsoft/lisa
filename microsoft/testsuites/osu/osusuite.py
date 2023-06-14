@@ -54,7 +54,7 @@ class OSUTestSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole],
         ),
-        priority=1,
+        priority=2,
     )
     def perf_mpi_operations(self, node: Node, log: Logger, log_path: Path) -> None:
         _install_osu_mpi(node)

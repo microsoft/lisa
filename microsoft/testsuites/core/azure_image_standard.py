@@ -320,7 +320,7 @@ class AzureImageStandard(TestSuite):
         1. Get the output of command `rpm -q NetworkManager` and verify that
         network manager is not installed.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
@@ -482,7 +482,7 @@ class AzureImageStandard(TestSuite):
         1. Read the `yum.conf` file and verify that "http_caching=packages" is
         present in the file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_yum_conf(self, node: Node) -> None:
@@ -506,7 +506,7 @@ class AzureImageStandard(TestSuite):
         1. Verify that list of running process matching name of kvp daemon
         has length greater than zero.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
@@ -882,7 +882,7 @@ class AzureImageStandard(TestSuite):
         2. Pass with warning if not find it.
         3. Pass with warning if the value is not between 0 and 180.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
@@ -989,7 +989,7 @@ class AzureImageStandard(TestSuite):
         5. Verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
         DATALOSS_WARNING_README.txt file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(
             disk=AzureDiskOptionSettings(has_resource_disk=True),
             supported_platform_type=[AZURE],
