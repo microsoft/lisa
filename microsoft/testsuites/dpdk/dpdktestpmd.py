@@ -32,7 +32,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
 )
-from lisa.util.constants import SIGINT
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -187,45 +187,67 @@ class DpdkTestpmd(Tool):
     def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
-        # identify which nics to inlude in test, exclude others
-        include_nics = [node_nic]
-        exclude_nics = [
-            self.node.nics.get_nic(nic)
-            for nic in self.node.nics.get_nic_names()
-            if nic != node_nic.name
-        ]
+        # MANA and mlnx both don't require these arguments if all VFs are in use.
+        # We have a primary nic to exclude in our tests, so we include the
+        # test nic by either bus address and mac (MANA) or interface name (mlnx failsafe)
+        #
+        # include flag changed to 'allowlist' in 20.11
+        # use 'allow' instead of 'deny' for envionments where
+        # there is 1 shared bus address (MANA)
+        if self._dpdk_version_info and self._dpdk_version_info < "20.11.0":
+            include_flag = "-w"
+        else:
+            include_flag = "-a"
 
         # build list of vdev info flags for each nic
         vdev_info = ""
-        self.node.log.info(f"Running test with {len(include_nics)} nics.")
-        for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
-                vdev_name = "net_vdev_netvsc"
-                vdev_flags = f"iface={nic.name},force=1"
-            else:
-                vdev_name = "net_failsafe"
-                vdev_flags = (
-                    f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.name},force=1)"
-                )
-            if nic.module_name == "hv_netvsc":
-                vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
-            elif nic.module_name == "uio_hv_generic":
-                pass
-            else:
-                fail(
-                    (
-                        f"Unknown driver({nic.module_name}) bound to "
-                        f"{nic.name}/{nic.lower}."
-                        "Cannot generate testpmd include arguments."
-                    )
-                )
 
-        # exclude pci slots not associated with the test nic
-        exclude_flags = ""
-        for nic in exclude_nics:
-            exclude_flags += f' -b "{nic.pci_slot}"'
+        if self._dpdk_version_info < "18.11.0":
+            pmd_name = "net_failsafe"
+            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
+        elif self.is_mana:
+            # mana will not need include flag since it can select by mac
+            # return the vdev info directly
+            if node_nic.module_name == "uio_hv_generic":
+                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+            # if mana_ib is present, use mana friendly args
+            elif self.node.tools[Modprobe].module_exists("mana_ib"):
+                return (
+                    f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
+                    f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                )
+            else:
+                # use eth interface for failsafe otherwise
+                # test will probably fail due to low throughput
+                pmd_name = "net_vdev_netvsc"
+                pmd_flags = f"iface={node_nic.name}"
+                # reset include flag for MANA since there is only one interface
+                include_flag = ""
+        else:
+            # mlnx setup for failsafe
+            pmd_name = "net_vdev_netvsc"
+            pmd_flags = f"iface={node_nic.name},force=1"
 
-        return vdev_info + exclude_flags
+        if node_nic.module_name == "hv_netvsc":
+            vdev_info += f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" '
+        elif node_nic.module_name == "uio_hv_generic":
+            # if using netvsc pmd, just let -w or -a select
+            # which device to use. No other args are needed.
+            return include_flag
+        else:
+            fail(
+                (
+                    f"Unknown driver({node_nic.module_name}) bound to "
+                    f"{node_nic.name}/{node_nic.lower}."
+                    "Cannot generate testpmd include arguments."
+                )
+            )
+
+        # include bus address info for the test nic only
+
+        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+
+        return vdev_info + include_flag
 
     def generate_testpmd_command(
         self,
@@ -247,13 +269,20 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
 
+        # pick amount of queues for tx/rx (txq/rxq flag)
+        # our tests use equal amounts for rx and tx
         if multiple_queues:
-            txq = 4
-            rxq = 4
+            if self.is_mana:
+                queues = 8
+            else:
+                queues = 4
         else:
-            txq = 1
-            rxq = 1
+            queues = 1
 
+        # MANA needs a file descriptor argument, mlnx doesn't.
+        txd = 128
+
+        # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
         # infer core count to assign based on number of queues
@@ -262,16 +291,19 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 cores, recommended more than 8 cores"
         ).is_greater_than(4)
 
-        # EAL core model is logical cores, so one thread per EAL 'core'
-        threads_per_core = max(1, self.node.tools[Lscpu].get_thread_per_core_count())
-        logical_cores_available = cores_available * threads_per_core
-        queues_and_servicing_core = txq + rxq + service_cores
+        queues_and_servicing_core = (queues) + service_cores
 
-        # use enough cores for (queues + service core) or max available
-        max_core_index = min(
-            logical_cores_available - threads_per_core,  # leave one physical for system
-            queues_and_servicing_core,
-        )
+        while queues_and_servicing_core > (cores_available - 2):
+            # if less, split the number of queues
+            queues_and_servicing_core = queues + service_cores
+            queues = queues // 2
+            txd = 64  # txd has to be >= 64 for MANA.
+            assert_that(queues).described_as(
+                "txq value must be greater than 1"
+            ).is_greater_than_or_equal_to(1)
+
+        # label core index for future use
+        max_core_index = queues_and_servicing_core
 
         # service cores excluded from forwarding cores count
         forwarding_cores = max_core_index - service_cores
@@ -282,6 +314,11 @@ class DpdkTestpmd(Tool):
             extra_args = extra_args.strip()
         else:
             extra_args = ""
+        # mana pmd needs tx/rx descriptors declared.
+        if self.is_mana:
+            extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
+        if queues > 1:
+            extra_args += f" --txq={queues} --rxq={queues}"
 
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
@@ -425,6 +462,7 @@ class DpdkTestpmd(Tool):
         super().__init__(*args, **kwargs)
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        self._force_net_failsafe_pmd = kwargs.pop("force_net_failsafe_pmd", False)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
@@ -435,14 +473,16 @@ class DpdkTestpmd(Tool):
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
+        self._determine_network_hardware()
         self.find_testpmd_binary(assert_on_fail=False)
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
-        device_list = lspci.get_devices()
+        device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
         self.is_connect_x3 = any(
             ["ConnectX-3" in dev.device_info for dev in device_list]
         )
+        self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_pps_data"
@@ -477,7 +517,6 @@ class DpdkTestpmd(Tool):
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
-        self._determine_network_hardware()
         node = self.node
         if isinstance(node.os, Debian):
             repos = node.os.get_repositories()
@@ -633,6 +672,10 @@ class DpdkTestpmd(Tool):
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+        elif self.is_mana:
+            mellanox_drivers = ["mana"]
+            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
+                mellanox_drivers.append("mana_ib")
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
