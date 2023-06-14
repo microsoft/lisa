@@ -27,6 +27,7 @@ from lisa.tools import (
     Echo,
     Firewall,
     Free,
+    Ip,
     KernelConfig,
     Lscpu,
     Lsmod,
@@ -276,10 +277,21 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
+    # check for mana compatiblity, skip if driver is not available.
+    # FIXME: allow force run for compat/failure-mode tests
+    mana_is_present = node.nics._is_mana_device_discovered()
+    mana_driver_is_present = node.tools[Lsmod].module_exists("mana_ib")
+    if mana_is_present and not mana_driver_is_present:
+        raise SkippedException(
+            UnsupportedDistroException(
+                node.os, "mana_ib module is required for DPDK testing on MANA."
+            )
+        )
 
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
@@ -311,6 +323,7 @@ def initialize_node_resources(
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
+        force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
 
     # init and enable hugepages (required by dpdk)
@@ -337,9 +350,15 @@ def initialize_node_resources(
         node.mark_dirty()
         enable_uio_hv_generic_for_nic(node, test_nic)
         # if this device is paired, set the upper device 'down'
+
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # if mana is present, set VF interface down.
+    # FIXME: add mana dpdk docs link when it's available.
+    if testpmd.is_mana:
         if test_nic.lower:
-            node.nics.unbind(test_nic)
-            node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+            node.tools[Ip].down(test_nic.lower)
 
     return DpdkTestResources(node, testpmd)
 
