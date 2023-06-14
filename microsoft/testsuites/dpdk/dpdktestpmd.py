@@ -711,8 +711,8 @@ class DpdkTestpmd(Tool):
             if modprobe.module_exists(module):
                 rmda_drivers.append(module)
 
-        modprobe.load(rmda_drivers)
-        modprobe.load(mellanox_drivers)
+        modprobe.load(rmda_drivers, skip_loaded=True)
+        modprobe.load(mellanox_drivers, skip_loaded=True)
 
     def _install_dependencies(self) -> None:
         node = self.node
