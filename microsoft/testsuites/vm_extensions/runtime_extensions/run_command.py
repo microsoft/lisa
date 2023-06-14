@@ -308,7 +308,7 @@ class RunCommandV2Tests(TestSuite):
     )
     def verify_script_run_with_valid_user(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-valid"
-        password = "vmaccesspassword"
+        password = str(uuid.uuid4())
         protected_settings = {"username": username, "password": password}
 
         # Creates a user with given username and password on test VM
@@ -344,7 +344,7 @@ class RunCommandV2Tests(TestSuite):
     def verify_script_run_with_invalid_user(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-valid"
         invalid_username = "vmaccessuser-invalid"
-        password = "vmaccesspassword"
+        password = str(uuid.uuid4())
         protected_settings = {"username": username, "password": password}
 
         # Creates a user with given username and password on test VM
