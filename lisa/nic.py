@@ -437,6 +437,16 @@ class Nics(InitializableMixin):
                     self.nics[nic].pci_slot = pci_device.slot
                 break
 
+    def get_mac_address(self, nic_name: str) -> str:
+        return self._node.execute(
+            f"cat /sys/class/net/{nic_name}/address",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"No sysfs entry for mac address for {nic_name}"
+            ),
+            shell=True,
+        ).stdout.strip()
+
     def _is_mana_device_discovered(self) -> bool:
         lspci = self._node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
