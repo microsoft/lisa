@@ -42,6 +42,7 @@ def _generate_and_retrieve_openssh_key(node: Node, filename: str) -> str:
 
 
 def _generate_and_retrieve_ssh2_key(node: Node, filename: str) -> str:
+    # Converts OpenSSH public key to SSH2 public key
     _generate_openssh_key(node=node, filename=filename)
     result = node.execute(
         cmd=f"ssh-keygen -e -f {filename}.pub",
