@@ -12,7 +12,10 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.features import HibernationEnabled, Sriov
+from lisa.node import Node
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
+from lisa.util import SkippedException
 from microsoft.testsuites.power.common import (
     cleanup_env,
     is_distro_supported,
@@ -29,6 +32,11 @@ from microsoft.testsuites.power.common import (
 )
 class PowerStress(TestSuite):
     _loop = 10
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""

@@ -21,7 +21,7 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
+from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import UnsupportedOperationException, get_matched_str
@@ -45,6 +45,11 @@ class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
 
     _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""

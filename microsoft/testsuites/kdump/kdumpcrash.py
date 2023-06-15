@@ -22,7 +22,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Disk, SerialConsole
-from lisa.operating_system import Redhat
+from lisa.operating_system import BSD, Redhat, Windows
 from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
@@ -53,6 +53,11 @@ class KdumpCrash(TestSuite):
     timeout_of_dump_crash = 800
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
     is_auto = False
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""
