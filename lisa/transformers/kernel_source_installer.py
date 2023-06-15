@@ -297,10 +297,10 @@ class SourceInstaller(BaseInstaller):
             result.assert_exit_code()
 
         make = node.tools[Make]
-        make.make(arguments="olddefconfig", cwd=code_path)
+        make.make(arguments="olddefconfig", cwd=code_path, sudo=True)
 
         # set timeout to 2 hours
-        make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
+        make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2, sudo=True)
 
     def _install_build_tools(self, node: Node) -> None:
         os = node.os
