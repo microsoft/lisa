@@ -23,7 +23,7 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 
 def _generate_openssh_key(node: Node, filename: str) -> None:
     node.execute(
-        cmd=f"ssh-keygen -f {filename} -N .",
+        cmd=f"ssh-keygen -f {filename} -N example",
         shell=True,
         expected_exit_code=0,
         expected_exit_code_failure_message="Failed to create OpenSSH file.",
@@ -118,7 +118,7 @@ def _validate_account_expiration_date(
 
 
 @TestSuiteMetadata(
-    area="vm_extension",
+    area="vm_extensions",
     category="functional",
     description="""
     This test suite tests the functionality of the VMAccess VM extension.
