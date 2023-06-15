@@ -40,7 +40,7 @@ def _create_and_verify_extension_run(
 ) -> None:
     extension = node.features[AzureExtension]
     result = extension.create_or_update(
-        name="RunCommand",
+        name="RunCommandv2",
         publisher="Microsoft.CPlat.Core",
         type_="RunCommandHandlerLinux",
         type_handler_version="1.3",
@@ -64,16 +64,16 @@ def _create_and_verify_extension_run(
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
 
-    It has 9 test cases to verify if RC runs successfully when:
-        1. Used with a pre-existing available script hardcoded in CRP
-        2. Provided a custom linux shell script
-        3. Provided a custom linux shell script with a named parameter
-        4. Provided a custom linux shell script with an unnamed parameter
-        5. Provided a public storage blob uri that points to the script
-        6. Provided a storage uri pointing to script without a sas token (should fail)
-        7. Provided a storage sas uri that points to script
-        8. Provided a command with a timeout of 1 second (should pass)
-        9. Provided a command that should take longer than 1 second, but with a
+    It has 9 test cases to verify if RCv2 runs successfully when provided:
+        1. Pre-existing available script hardcoded in CRP
+        2. Custom linux shell script
+        3. Custom linux shell script with a named parameter
+        4. Custom linux shell script with an unnamed parameter
+        5. Public storage blob uri that points to the script
+        6. Storage uri pointing to script without a sas token (should fail)
+        7. Storage sas uri that points to script
+        8. Command with a timeout of 1 second (should pass)
+        9. Command that should take longer than 1 second, but with a
            timeout of 1 second (should fail)
     """,
     requirement=simple_requirement(

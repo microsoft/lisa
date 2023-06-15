@@ -14,6 +14,7 @@ from lisa.sut_orchestrator.azure.common import (
     generate_blob_sas_token,
     get_or_create_storage_container,
     get_storage_account_name,
+    get_storage_credential,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
@@ -106,3 +107,26 @@ def retrieve_storage_blob_url(
         blob_url = blob_url + "?" + sas_token
 
     return blob_url
+
+
+def retrieve_storage_account_name_and_key(
+    node: Node,
+    environment: Environment,
+) -> Any:
+    platform = environment.platform
+    assert isinstance(platform, AzurePlatform)
+
+    subscription_id = platform.subscription_id
+    node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    location = node_context.location
+    storage_account_name = get_storage_account_name(
+        subscription_id=subscription_id, location=location
+    )
+
+    return get_storage_credential(
+        credential=platform.credential,
+        subscription_id=subscription_id,
+        cloud=platform.cloud,
+        account_name=storage_account_name,
+        resource_group_name=AZURE_SHARED_RG_NAME,
+    )
