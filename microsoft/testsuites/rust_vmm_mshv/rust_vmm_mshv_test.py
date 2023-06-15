@@ -16,6 +16,7 @@ from lisa import (
     notifier,
 )
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Cargo, Git, Ls
 from lisa.util import SkippedException
@@ -31,7 +32,10 @@ from lisa.util.process import ExecutableResult
 )
 class RustVmmTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
         mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         if not mshv_exists:
             raise SkippedException(
