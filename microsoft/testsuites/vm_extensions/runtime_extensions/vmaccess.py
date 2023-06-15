@@ -118,7 +118,7 @@ def _validate_account_expiration_date(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the VMAccess VM extension.
