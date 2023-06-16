@@ -129,7 +129,7 @@ class Waagent(Tool):
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
 
-    def _get_python_cmd(self) -> Tuple[str, bool]:
+    def get_python_cmd(self) -> Tuple[str, bool]:
         if self._python_cmd is not None and self._python_use_sudo is not None:
             return self._python_cmd, self._python_use_sudo
 
@@ -150,7 +150,7 @@ class Waagent(Tool):
         if self._waagent_conf_path is not None:
             return self._waagent_conf_path
 
-        python_cmd, use_sudo = self._get_python_cmd()
+        python_cmd, use_sudo = self.get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(
@@ -180,7 +180,7 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        python_cmd, use_sudo = self._get_python_cmd()
+        python_cmd, use_sudo = self.get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(

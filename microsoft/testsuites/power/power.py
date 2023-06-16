@@ -15,8 +15,11 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.features import HibernationEnabled, Sriov, Synthetic
+from lisa.node import Node
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
+from lisa.util import SkippedException
 from lisa.util.perf_timer import create_timer
 from microsoft.testsuites.power.common import (
     cleanup_env,
@@ -35,6 +38,11 @@ from microsoft.testsuites.power.common import (
     """,
 )
 class Power(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
     @TestCaseMetadata(
         description="""
             This case is to verify vm hibernation with synthetic network.

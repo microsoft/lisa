@@ -22,6 +22,7 @@ from lisa import (
 from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
@@ -55,6 +56,10 @@ _default_latency_threshold = 1.4
 class XdpPerformance(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
 

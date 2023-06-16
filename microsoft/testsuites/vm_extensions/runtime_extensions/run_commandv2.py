@@ -23,6 +23,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     check_waagent_version_supported,
+    create_and_verify_vmaccess_extension_run,
     execute_command,
     retrieve_storage_blob_url,
 )
@@ -69,7 +70,7 @@ def _create_and_verify_extension_run(
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
 
-    It has 10 test cases to verify if RCv2 runs successfully when provided:
+    It has 12 test cases to verify if RCv2 runs successfully when provided:
         1. Pre-existing available script hardcoded in CRP
         2. Custom shell script
         3. Script with a named parameter
@@ -81,6 +82,8 @@ def _create_and_verify_extension_run(
         9. Command with a timeout of 1 second (should pass)
         10. Command that should take longer than 1 second, but with a
            timeout of 1 second (should fail)
+        11. Provided a different valid user to run a command with
+        12. Provided a different invalid user to run a command with (should fail)
     """,
     requirement=simple_requirement(
         supported_features=[AzureExtension],
@@ -319,7 +322,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2timeout.txt"
+        test_file = "/tmp/rcv2timeout-failed.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -330,6 +333,77 @@ class RunCommandV2Tests(TestSuite):
 
         _create_and_verify_extension_run(
             node=node, settings=settings, test_file=test_file, expected_exit_code=2
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Run Command v2 VM extension with a different valid user on the VM.
+        """,
+        priority=3,
+    )
+    def verify_script_run_with_valid_user(self, log: Logger, node: Node) -> None:
+        username = "vmaccessuser-valid"
+        password = str(uuid.uuid4())
+        protected_settings = {"username": username, "password": password}
+
+        # Creates a user with given username and password on test VM
+        create_and_verify_vmaccess_extension_run(
+            node=node, protected_settings=protected_settings
+        )
+
+        test_file = "/tmp/rcv2-runas-valid.txt"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": f"touch {test_file}",
+            },
+            "runAsUser": username,
+        }
+
+        protected_settings = {"runAsPassword": password}
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            protected_settings=protected_settings,
+            test_file=test_file,
+            expected_exit_code=0,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Runs the Run Command v2 VM extension with a different invalid user on the VM.
+        """,
+        priority=3,
+    )
+    def verify_script_run_with_invalid_user(self, log: Logger, node: Node) -> None:
+        username = "vmaccessuser-valid"
+        invalid_username = "vmaccessuser-invalid"
+        password = str(uuid.uuid4())
+        protected_settings = {"username": username, "password": password}
+
+        # Creates a user with given username and password on test VM
+        create_and_verify_vmaccess_extension_run(
+            node=node, protected_settings=protected_settings
+        )
+
+        test_file = "/tmp/rcv2-runas-invalid.txt"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": f"touch {test_file}",
+            },
+            "runAsUser": invalid_username,
+        }
+
+        protected_settings = {"runAsPassword": password}
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            protected_settings=protected_settings,
+            test_file=test_file,
+            expected_exit_code=2,
         )
 
     @TestCaseMetadata(
