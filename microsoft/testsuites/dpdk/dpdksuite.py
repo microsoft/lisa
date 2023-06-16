@@ -338,9 +338,7 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, 0, "txonly", "failsafe"
-        )
+        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
