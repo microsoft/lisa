@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import uuid
 import base64
 import gzip
 from typing import Any, Dict, Optional
@@ -18,12 +17,10 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.operating_system import BSD, CpuArchitecture
+from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.util import SkippedException
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
-    check_waagent_version_supported,
     execute_command,
     retrieve_storage_blob_url,
     retrieve_storage_account_name_and_key,
@@ -67,7 +64,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v1 VM extension.
@@ -241,7 +238,7 @@ class RunCommandV1Tests(TestSuite):
         """,
         priority=3,
     )
-    def verify_public_script_without_command_run(
+    def verify_public_script_without_command_run_failed(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "rcv1lisa-public"

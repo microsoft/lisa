@@ -19,6 +19,7 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.util import SkippedException
+from azure.storage.blob import BlobType
 
 
 def execute_command(file_name: str, expected_exit_code: int, node: Node) -> None:
@@ -59,6 +60,7 @@ def retrieve_storage_blob_url(
     test_file: str = "",
     is_sas: bool = False,
     script: str = "",
+    blob_type: BlobType = BlobType.BlockBlob,
 ) -> Any:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
@@ -88,7 +90,7 @@ def retrieve_storage_blob_url(
                 signed_identifiers={}, public_access="container"
             )
         # Upload blob to container if doesn't exist
-        container_client.upload_blob(name=blob_name, data=blob_data)  # type: ignore
+        container_client.upload_blob(name=blob_name, data=blob_data, blob_type=blob_type, overwrite=True)  # type: ignore
 
     blob_url = blob.url
 

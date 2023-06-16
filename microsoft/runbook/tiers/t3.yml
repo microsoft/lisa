@@ -1,3 +1,4 @@
 testcase:
   - criteria:
-      priority: [0, 1, 2, 3]
+      priority: [3]
+      area: vm_extensions
