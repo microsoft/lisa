@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import Any, List, Pattern, Tuple, Type, Union
+from typing import Any, List, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -20,6 +20,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Pidof,
+    Pkgconfig,
     Rm,
     Service,
     Tar,
@@ -148,18 +149,21 @@ class DpdkTestpmd(Tool):
         return [Git, Wget, Lscpu]
 
     def get_dpdk_version(self) -> VersionInfo:
+        self.node.log.debug(f"Found DPDK version {str(self._dpdk_version_info)}.")
         return self._dpdk_version_info
 
+    def has_dpdk_version(self) -> bool:
+        return bool(self._dpdk_version_info > "0.0.0")
+
     def has_tx_ip_flag(self) -> bool:
-        dpdk_version = self.get_dpdk_version()
-        if not dpdk_version:
+        if not self.has_dpdk_version():
             fail(
                 "Test suite bug: dpdk version was not set prior "
                 "to querying the version information."
             )
 
         # black doesn't like to direct return VersionInfo comparison
-        return bool(dpdk_version >= "19.11.0")  # appease the type checker
+        return bool(self.get_dpdk_version() >= "19.11.0")  # appease the type checker
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
@@ -171,19 +175,6 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def set_version_info_from_source_install(
-        self, branch_identifier: str, matcher: Pattern[str]
-    ) -> None:
-        match = matcher.search(branch_identifier)
-        if not match or not match.group("major") or not match.group("minor"):
-            fail(
-                f"Could not determine dpdk version info from '{self._dpdk_source}'"
-                f" with id: '{branch_identifier}' using regex: '{matcher.pattern}'"
-            )
-        else:
-            major, minor = map(int, [match.group("major"), match.group("minor")])
-            self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
-
     def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
@@ -194,16 +185,14 @@ class DpdkTestpmd(Tool):
             include_flag = "-w"
         else:
             include_flag = "-a"
+        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
-        # build list of vdev info flags for each nic
-        vdev_info = ""
-
-        if self._dpdk_version_info < "18.11.0":
+        # build pmd argument
+        if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
-            # mana will not need include flag since it can select by mac
-            # return the vdev info directly
+            # mana selects by mac, just return the vdev info directly
             if node_nic.module_name == "uio_hv_generic":
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
@@ -221,23 +210,24 @@ class DpdkTestpmd(Tool):
             pmd_flags = f"iface={node_nic.name},force=1"
 
         if node_nic.module_name == "hv_netvsc":
-            vdev_info += f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" '
+            # primary/upper/master nic is bound to hv_netvsc
+            # when using net_failsafe implicitly or explicitly.
+            # Set up net_failsafe/net_vdev_netvsc args here
+            return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
         elif node_nic.module_name == "uio_hv_generic":
-            pass
+            # if using netvsc pmd, just let -w or -a select
+            # which device to use.
+            return include_flag
         else:
-            fail(
+            # if we're all the way through and haven't picked a pmd, something
+            # has gone wrong. fail fast
+            raise LisaException(
                 (
                     f"Unknown driver({node_nic.module_name}) bound to "
                     f"{node_nic.name}/{node_nic.lower}."
                     "Cannot generate testpmd include arguments."
                 )
             )
-
-        # include bus address info for the test nic only
-
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
-
-        return vdev_info + include_flag
 
     def generate_testpmd_command(
         self,
@@ -450,7 +440,6 @@ class DpdkTestpmd(Tool):
         super().__init__(*args, **kwargs)
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
-        self._force_net_failsafe_pmd = kwargs.pop("force_net_failsafe_pmd", False)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
@@ -462,7 +451,11 @@ class DpdkTestpmd(Tool):
                 self._dpdk_repo_path_name
             )
         self._determine_network_hardware()
-        self.find_testpmd_binary(assert_on_fail=False)
+        # if dpdk is already installed, find the binary and check the version
+        if self.find_testpmd_binary(assert_on_fail=False):
+            pkgconfig = self.node.tools[Pkgconfig]
+            if pkgconfig.get_package_info("libdpdk", check_exists=True):
+                self._dpdk_version_info = pkgconfig.get_package_version("libdpdk")
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
@@ -513,12 +506,22 @@ class DpdkTestpmd(Tool):
                 self._debian_backports_args = [f"-t {backport_repo}"]
             else:
                 self._debian_backports_args = []
+        if self.has_dpdk_version():
+            # DPDK is already installed
+            node.log.info(
+                "DPDK was installed from source previously, using existing DPDK."
+            )
+            self._load_drivers_for_dpdk()
+            return True
+
+        # otherwise, install from package manager, git, or tar
         self._install_dependencies()
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
+
             if isinstance(node.os, Debian):
                 node.os.install_packages(
                     ["dpdk", "dpdk-dev"],
@@ -531,13 +534,12 @@ class DpdkTestpmd(Tool):
                     "Dpdk package names are missing in dpdktestpmd.install"
                     f" for os {node.os.name}"
                 )
-
-            self._dpdk_version_info = node.os.get_package_information("dpdk")
-
             self.node.log.info(
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
+
+            self._dpdk_version_info = node.os.get_package_information("dpdk")
             self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
@@ -548,6 +550,7 @@ class DpdkTestpmd(Tool):
         if self.find_testpmd_binary(
             assert_on_fail=False, check_path="/usr/local/bin"
         ):  # tools are already installed
+            # version info must already be set from __init__
             return True
 
         git_tool = node.tools[Git]
@@ -574,9 +577,6 @@ class DpdkTestpmd(Tool):
                 str(self.dpdk_path),
                 strip_components=1,
             )
-            self.set_version_info_from_source_install(
-                self._dpdk_source, self._version_info_from_tarball_regex
-            )
         else:
             git_tool.clone(
                 self._dpdk_source,
@@ -591,9 +591,6 @@ class DpdkTestpmd(Tool):
                 )
 
             git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-            self.set_version_info_from_source_install(
-                self._dpdk_branch, self._version_info_from_git_tag_regex
-            )
 
         self._load_drivers_for_dpdk()
 
@@ -653,7 +650,9 @@ class DpdkTestpmd(Tool):
         )
 
         self.find_testpmd_binary(check_path="/usr/local/bin")
-
+        self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
+            "libdpdk", update_cached=True
+        )
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
