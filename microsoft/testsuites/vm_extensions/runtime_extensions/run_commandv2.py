@@ -207,7 +207,7 @@ class RunCommandV2Tests(TestSuite):
     ) -> None:
         container_name = "rcv2lisa-public"
         blob_name = "public.sh"
-        test_file = "/tmp/rcv2lisa-public.txt"
+        test_file = "/tmp/rcv2-public.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -239,7 +239,7 @@ class RunCommandV2Tests(TestSuite):
     ) -> None:
         container_name = "rcv2lisa"
         blob_name = "no-sas.sh"
-        test_file = "/tmp/rcv2lisa-no-sas.txt"
+        test_file = "/tmp/rcv2-no-sas.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -271,7 +271,7 @@ class RunCommandV2Tests(TestSuite):
     ) -> None:
         container_name = "rcv2lisa"
         blob_name = "sas.sh"
-        test_file = "/tmp/rcv2lisa-sas.txt"
+        test_file = "/tmp/rcv2-sas.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -299,7 +299,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_timeout(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2timeout.txt"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -319,7 +319,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2timeout-failed.txt"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
