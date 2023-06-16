@@ -205,7 +205,7 @@ class DpdkTestpmd(Tool):
                 if nic.module_name == "uio_hv_generic":
                     return f' --vdev="{nic.pci_slot},mac={nic.mac_addr}" '
                 elif self.node.tools[Modprobe].module_exists("mana_ib"):
-                   return f' --vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
+                    return f' --vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
                 else:
                     return f' --vdev="net_vdev_netvsc0,iface={nic.name}" '
             elif self._force_net_failsafe_pmd:
@@ -304,13 +304,10 @@ class DpdkTestpmd(Tool):
         else:
             extra_args = ""
 
-<<<<<<< HEAD
-=======
         if self.is_mana:
             extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
         if txq > 1:
             extra_args += f" --txq={txq} --rxq={rxq}"
->>>>>>> 262e9025 (DPDK: Enable MANA pmd, allow force use of net_failsafe pmd.)
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
         ).is_greater_than(0)
