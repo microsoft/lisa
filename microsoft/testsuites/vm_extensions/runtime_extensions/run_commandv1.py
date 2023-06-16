@@ -23,8 +23,8 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.tools import Waagent
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     execute_command,
-    retrieve_storage_blob_url,
     retrieve_storage_account_name_and_key,
+    retrieve_storage_blob_url,
 )
 
 

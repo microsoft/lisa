@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from azure.storage.blob import BlobType
 
 from lisa import Node
 from lisa.environment import Environment
@@ -19,7 +20,6 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
-from azure.storage.blob import BlobType
 from lisa.util import SkippedException, parse_version
 
 

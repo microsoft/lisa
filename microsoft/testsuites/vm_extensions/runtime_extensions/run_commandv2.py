@@ -4,8 +4,6 @@
 import uuid
 from typing import Any, Dict, Optional
 
-import logging
-
 from assertpy import assert_that
 
 from lisa import (
@@ -27,7 +25,6 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     execute_command,
     retrieve_storage_blob_url,
 )
-from azure.storage.blob import BlobType
 
 
 def _check_architecture_supported(node: Node) -> None:
