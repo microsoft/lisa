@@ -85,6 +85,7 @@ from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
 from .pidof import Pidof
 from .ping import Ping
+from .pkgconfig import Pkgconfig
 from .powershell import PowerShell
 from .python import Pip, Python
 from .qemu import Qemu
@@ -200,6 +201,7 @@ __all__ = [
     "Pgrep",
     "Ping",
     "Pip",
+    "Pkgconfig",
     "PowerShell",
     "ProcessInfo",
     "Python",
