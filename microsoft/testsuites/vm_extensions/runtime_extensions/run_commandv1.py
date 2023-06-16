@@ -20,6 +20,7 @@ from lisa.environment import Environment
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.sut_orchestrator.azure.tools import Waagent
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     execute_command,
     retrieve_storage_blob_url,
@@ -465,6 +466,7 @@ class RunCommandV1Tests(TestSuite):
         container_name = "rcv1lisa-public"
         blob_name = "python.py"
         test_file = "/tmp/rcv1-python.txt"
+        python_command, _ = node.tools[Waagent].get_python_cmd()
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -475,7 +477,10 @@ class RunCommandV1Tests(TestSuite):
             script=f"#!/usr/bin/env python\nopen('{test_file}', 'a').close()",
         )
 
-        settings = {"fileUris": [blob_url], "commandToExecute": f"python3 {blob_name}"}
+        settings = {
+            "fileUris": [blob_url],
+            "commandToExecute": f"{python_command} {blob_name}",
+        }
 
         _create_and_verify_extension_run(
             node=node, settings=settings, test_file=test_file, expected_exit_code=0

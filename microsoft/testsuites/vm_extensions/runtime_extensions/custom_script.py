@@ -67,7 +67,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extension",
+    area="vm_extensions",
     category="functional",
     description="""
     This test suite tests the functionality of the Custom Script VM extension.
@@ -110,8 +110,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "public.sh"
+        test_file = "/tmp/cse-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -138,10 +138,10 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        first_blob_name = "cselisa.sh"
-        first_test_file = "/tmp/lisatest.txt"
-        second_blob_name = "cselisa2.sh"
-        second_test_file = "/tmp/lisatest2.txt"
+        first_blob_name = "public.sh"
+        first_test_file = "/tmp/cse-public.txt"
+        second_blob_name = "public2.sh"
+        second_test_file = "/tmp/cse-public2.txt"
 
         first_blob_url = retrieve_storage_blob_url(
             node=node,
@@ -181,8 +181,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "public.sh"
+        test_file = "/tmp/cse-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -216,8 +216,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "protected-settings.sh"
+        test_file = "/tmp/cse-protected-settings.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -249,8 +249,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "public.sh"
+        test_file = "/tmp/cse-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -279,7 +279,7 @@ class CustomScriptTests(TestSuite):
         priority=3,
     )
     def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/lisatest.txt"
+        test_file = "/tmp/cse-base64-command.txt"
 
         script = f"#!/bin/sh\ntouch {test_file}"
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
@@ -300,8 +300,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "base64-script.sh"
+        test_file = "/tmp/cse-base64-script.txt"
 
         script = f"#!/bin/sh\nsh {blob_name}"
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
@@ -330,8 +330,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "base64-gzip.sh"
+        test_file = "/tmp/cse-base64-gzip.txt"
 
         script = f"#!/bin/sh\nsh {blob_name}"
         compressed_script = gzip.compress(bytes(script, "utf-8"))
@@ -362,8 +362,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "no-sas.sh"
+        test_file = "/tmp/cse-no-sas.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -396,8 +396,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "storage-creds.sh"
+        test_file = "/tmp/cse-storage-creds.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -437,8 +437,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa"
-        blob_name = "cselisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "sas.sh"
+        test_file = "/tmp/cse-sas.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -469,8 +469,8 @@ class CustomScriptTests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "cselisa-public"
-        blob_name = "cselisa.py"
-        test_file = "/tmp/lisatest-python.txt"
+        blob_name = "python.py"
+        test_file = "/tmp/cse-python.txt"
         python_command, _ = node.tools[Waagent].get_python_cmd()
 
         blob_url = retrieve_storage_blob_url(

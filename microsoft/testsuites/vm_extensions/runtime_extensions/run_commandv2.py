@@ -3,7 +3,6 @@
 
 import uuid
 from typing import Any, Dict, Optional
-import time
 
 import logging
 
@@ -66,7 +65,7 @@ def _create_and_verify_extension_run(
 
 
 @TestSuiteMetadata(
-    area="vm_extensions",
+    area="vm_extension",
     category="functional",
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
@@ -406,40 +405,3 @@ class RunCommandV2Tests(TestSuite):
             test_file=test_file,
             expected_exit_code=2,
         )
-
-    # @TestCaseMetadata(
-    #     description="""
-    #     Runs the Run Command v2 VM extension with an output blob uri.
-    #     """,
-    #     priority=3,
-    #     use_new_environment=True,
-    # )
-    # def verify_script_run_with_output_blob(
-    #     self, log: Logger, node: Node, environment: Environment
-    # ) -> None:
-    #     container_name = "rcv2lisa"
-    #     blob_name = "output-blob.sh"
-    #     random_uid = uuid.uuid4()
-    #     blob_url = retrieve_storage_blob_url(
-    #         node=node,
-    #         environment=environment,
-    #         container_name=container_name,
-    #         blob_name=blob_name,
-    #         script="ls",
-    #         is_sas=True,
-    #         blob_type=BlobType.AppendBlob,
-    #     )
-
-    #     time.sleep(5)
-
-    #     log.log(logging.INFO, blob_url)
-
-    #     settings = {
-    #         "source": {
-    #             "CommandId": "RunShellScript",
-    #             "script": f"echo {random_uid}",
-    #         },
-    #         "outputBlobUri": blob_url,
-    #     }
-
-    #     _create_and_verify_extension_run(node=node, settings=settings)
