@@ -112,7 +112,9 @@ def retrieve_storage_blob_url(
                 signed_identifiers={}, public_access="container"
             )
         # Upload blob to container if doesn't exist
-        container_client.upload_blob(name=blob_name, data=blob_data, blob_type=blob_type)  # type: ignore
+        container_client.upload_blob(
+            name=blob_name, data=blob_data, blob_type=blob_type
+        )  # type: ignore
 
     blob_url = blob.url
 
