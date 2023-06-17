@@ -122,7 +122,7 @@ class Dpdk(TestSuite):
             supported_features=[IsolatedResource],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
-                data_disk_size=search_space.IntRange(min=32),
+                data_disk_size=search_space.IntRange(min=64),
             ),
         ),
     )
@@ -131,13 +131,15 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         self._force_dpdk_default_source(variables)
-        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        test_kit = initialize_node_resources(node, log, variables, "netvsc")
 
         # checkout OpenVirtualSwitch
         ovs = node.tools[DpdkOvs]
 
+        # check for runbook variable to skip dpdk version check
+        use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
-        ovs.build_with_dpdk(test_kit.testpmd)
+        ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
 
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
