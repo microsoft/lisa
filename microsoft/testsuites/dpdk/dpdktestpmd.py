@@ -149,6 +149,7 @@ class DpdkTestpmd(Tool):
         return [Git, Wget, Lscpu]
 
     def get_dpdk_version(self) -> VersionInfo:
+        self.node.log.debug(f"Found DPDK version {str(self._dpdk_version_info)}.")
         return self._dpdk_version_info
 
     def has_tx_ip_flag(self) -> bool:
@@ -559,9 +560,9 @@ class DpdkTestpmd(Tool):
                 str(self.dpdk_path),
                 strip_components=1,
             )
-            self.set_version_info_from_source_install(
-                self._dpdk_source, self._version_info_from_tarball_regex
-            )
+            # self.set_version_info_from_source_install(
+            #    self._dpdk_source, self._version_info_from_tarball_regex
+            # )
         else:
             git_tool.clone(
                 self._dpdk_source,
@@ -576,9 +577,9 @@ class DpdkTestpmd(Tool):
                 )
 
             git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-            self.set_version_info_from_source_install(
-                self._dpdk_branch, self._version_info_from_git_tag_regex
-            )
+            # self.set_version_info_from_source_install(
+            #    self._dpdk_branch, self._version_info_from_git_tag_regex
+            # )
 
         self._load_drivers_for_dpdk()
 
@@ -638,7 +639,9 @@ class DpdkTestpmd(Tool):
         )
 
         self.find_testpmd_binary(check_path="/usr/local/bin")
-
+        self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
+            "libdpdk"
+        )
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
