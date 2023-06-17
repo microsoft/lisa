@@ -3,6 +3,7 @@
 
 import re
 import time
+from pathlib import PosixPath
 from typing import Any, List, Optional
 
 from assertpy.assertpy import assert_that
@@ -10,7 +11,7 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
-from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
+from lisa.tools import Ip, Kill, Lscpu, Lsmod, Make, Pgrep, Tar, Wget
 from lisa.tools.lscpu import CpuType
 from lisa.util import LisaException, SkippedException, get_matched_str
 
@@ -19,6 +20,8 @@ class Qemu(Tool):
     QEMU_INSTALL_LOCATIONS = ["qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"]
     # qemu-kvm: unrecognized feature pcid
     NO_PCID_PATTERN = re.compile(r".*unrecognized feature pcid", re.M)
+
+    _SOURCE_URL = "https://download.qemu.org/qemu-2.10.0.tar.bz2"
 
     @property
     def command(self) -> str:
@@ -198,6 +201,51 @@ class Qemu(Tool):
                 return True
 
         return False
+
+    def _build_from_source(self, image_folder_path: str) -> bool:
+        assert isinstance(self.node.os, Posix)
+
+        # install dependencies
+        self.node.os.install_packages(
+            "make",
+            "gcc",
+            "glib2",
+            "glib2-devel",
+            "zlib-devel",
+            "autoconf",
+            "flex",
+            "bison",
+            "libtool",
+            "automake",
+        )
+
+        # download qemu source
+        self.node.tools[Wget].get(
+            self._SOURCE_URL, file_path=image_folder_path, filename="qemu.tar.bz2"
+        )
+
+        # extract qemu source
+        self.node.tools[Tar].extract(
+            file=f"{image_folder_path}/qemu.tar.bz2",
+            dest_dir=f"{image_folder_path}/qemu",
+        )
+
+        # build qemu
+        self.node.execute(
+            "./configure",
+            cwd=PosixPath(f"{image_folder_path}/qemu"),
+            shell=True,
+        )
+
+        self.node.tools[Make].make(
+            argument="", cwd=PosixPath(f"{image_folder_path}/qemu")
+        )
+
+        self.node.tools[Make].make_install(cwd=PosixPath(f"{image_folder_path}/qemu"))
+
+        self._qemu_command = "/usr/local/bin/qemu-system-x86_64"
+
+        return True
 
     def _is_kvm_successfully_enabled(self) -> None:
         # verify that kvm module is loaded
