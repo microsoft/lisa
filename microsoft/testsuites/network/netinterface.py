@@ -51,7 +51,7 @@ class NetInterface(TestSuite):
         priority=1,
         requirement=simple_requirement(network_interface=Synthetic()),
     )
-    def verify_netvsc_reload(self, node: Node, log_path: Path) -> None:
+    def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
         self._validate_netvsc_built_in(node)
         network_interface_feature = node.features[NetworkInterface]
         # Test loading and unloading netvsc driver
