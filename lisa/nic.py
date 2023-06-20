@@ -426,9 +426,7 @@ class Nics(InitializableMixin):
         ).is_greater_than(0)
 
         # handle situation when there is no mana driver, but have mana pci devices
-        if self._is_mana_device_discovered() and not self._node.tools[
-            KernelConfig
-        ].is_enabled("CONFIG_MICROSOFT_MANA"):
+        if self.is_mana_device_present() and not self.is_mana_driver_enabled():
             pci_devices = lspci.get_devices_by_type(
                 constants.DEVICE_TYPE_SRIOV, force_run=True
             )
@@ -437,10 +435,7 @@ class Nics(InitializableMixin):
                     self.nics[nic].pci_slot = pci_device.slot
                 break
 
-    def is_mana_present(self) -> bool:
-        return self._is_mana_device_discovered()
-
-    def _is_mana_device_discovered(self) -> bool:
+    def is_mana_device_present(self) -> bool:
         lspci = self._node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
@@ -456,6 +451,9 @@ class Nics(InitializableMixin):
             else:
                 all_mana_devices = False
         return all_mana_devices
+
+    def is_mana_driver_enabled(self) -> bool:
+        return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
