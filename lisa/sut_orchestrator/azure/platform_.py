@@ -53,7 +53,8 @@ from lisa.environment import Environment
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
-from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
+from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
+from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -169,6 +170,8 @@ KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
+KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
+KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
@@ -733,6 +736,24 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+            node.log.debug("detecting mana driver enabled...")
+            information[KEY_MANA_DRIVER_ENABLED] = node.nics.is_mana_driver_enabled()
+            node.log.debug(f"mana enabled: {information[KEY_MANA_DRIVER_ENABLED]}")
+
+            node.log.debug("detecting nvme driver enabled...")
+
+            _has_nvme_core = node.tools[KernelConfig].is_built_in(
+                "CONFIG_NVME_CORE"
+            ) or (
+                node.tools[KernelConfig].is_built_as_module("CONFIG_NVME_CORE")
+                and node.tools[Lsinitrd].has_module("nvme-core.ko")
+            )
+            _has_nvme = node.tools[KernelConfig].is_built_in("CONFIG_BLK_DEV_NVME") or (
+                node.tools[KernelConfig].is_built_as_module("CONFIG_BLK_DEV_NVME")
+                and node.tools[Lsinitrd].has_module("nvme.ko")
+            )
+            information[KEY_NVME_ENABLED] = _has_nvme_core and _has_nvme
+            node.log.debug(f"nvme enabled: {information[KEY_NVME_ENABLED]}")
 
         node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         if node_runbook:

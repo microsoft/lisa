@@ -122,7 +122,7 @@ class LsVmBus(TestSuite):
         expected_network_channel_count = min(core_count, 8)
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
-        if node.nics.is_mana_present():
+        if node.nics.is_mana_device_present():
             expected_scsi_channel_count = min(core_count, 64)
         else:
             expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
