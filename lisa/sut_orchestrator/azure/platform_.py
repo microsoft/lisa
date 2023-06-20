@@ -53,7 +53,7 @@ from lisa.environment import Environment
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
-from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
+from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -169,6 +169,7 @@ KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
+KEY_MANA_ENABLED = "mana_enabled"
 ATTRIBUTE_FEATURES = "features"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
@@ -732,6 +733,11 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+            node.log.debug("detecting mana driver enabled...")
+            information[KEY_MANA_ENABLED] = node.tools[KernelConfig].is_enabled(
+                "CONFIG_MICROSOFT_MANA"
+            )
+            node.log.debug(f"mana enabled: {information[KEY_MANA_ENABLED]}")
 
         node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         if node_runbook:
