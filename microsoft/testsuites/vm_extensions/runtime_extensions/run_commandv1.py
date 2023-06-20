@@ -22,7 +22,6 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.tools import Waagent
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
-    check_waagent_version_supported,
     execute_command,
     retrieve_storage_account_name_and_key,
     retrieve_storage_blob_url,
@@ -35,16 +34,16 @@ def _create_and_verify_extension_run(
     protected_settings: Optional[Dict[str, Any]] = None,
     test_file: Optional[str] = None,
     expected_exit_code: Optional[int] = None,
-    assert_exception: Any = None,
+    assert_exception: Optional[Any] = None,
 ) -> None:
     extension = node.features[AzureExtension]
 
     def enable_extension() -> Any:
         result = extension.create_or_update(
-            name="CustomScript",
-            publisher="Microsoft.Azure.Extensions",
-            type_="CustomScript",
-            type_handler_version="2.1",
+            name="RunCommandv1",
+            publisher="Microsoft.CPlat.Core",
+            type_="RunCommandLinux",
+            type_handler_version="1.0",
             auto_upgrade_minor_version=True,
             settings=settings or {},
             protected_settings=protected_settings or {},
@@ -69,24 +68,24 @@ def _create_and_verify_extension_run(
     area="vm_extension",
     category="functional",
     description="""
-    This test suite tests the functionality of the Custom Script VM extension.
+    This test suite tests the functionality of the Run Command v1 VM extension.
 
-    File uri is a public Azure storage blob uri unless mentioned otherwise.
-    File uri points to a linux shell script unless mentioned otherwise.
+    ** Same set of tests as CSE **
 
-    It has 12 test cases to verify if CSE runs as intended when provided:
-        1. File uri and command in public settings
-        2. Two file uris and command for downloading second script in public settings
-        3. File uri and command in both public and protected settings (should fail)
-        4. File uri without a command or base64 script (should fail)
-        5. Both base64 script and command in public settings (should fail)
-        6. File uri and base64 script in public settings
-        7. File uri and gzip'ed base64 script in public settings
-        8. File uri and command in protected settings
-        9. Private file uri without sas token or credentials (should fail)
-        10. Private file uri with storage account credentials
-        11. Private sas file uri and command in public settings
-        12. File uri (pointing to python script) and command in public settings
+    It has 12 test cases to verify if RCv1 runs successfully when provided:
+    1. File uri and command in public settings
+    2. Two file uris and command for downloading second script in settings
+    3. File uri and command in both public and protected settings (should fail)
+    4. File uri without a command or base64 script (should fail)
+    5. Both base64 script and command in public settings (should fail)
+    6. File uri and base64 script in public settings
+    7. File uri and gzip'ed base64 script in public settings
+    8. File uri and command in protected settings
+    9. Private file uri without sas token or credentials (should fail)
+    10. Private file uri with storage account credentials
+    11. Private sas file uri and command in public settings
+    12. File uri (pointing to python script) and command in public settings
+
     """,
     requirement=simple_requirement(
         supported_features=[AzureExtension],
@@ -94,23 +93,19 @@ def _create_and_verify_extension_run(
         unsupported_os=[BSD],
     ),
 )
-class CustomScriptTests(TestSuite):
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs.pop("node")
-        check_waagent_version_supported(node=node)
-
+class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with a public Azure storage file uri.
+        Runs the Run Command v2 VM extension with a public Azure storage file uri.
         """,
-        priority=1,
+        priority=3,
     )
     def verify_public_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "public.sh"
-        test_file = "/tmp/cse-public.txt"
+        test_file = "/tmp/rcv1-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -128,7 +123,7 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with 2 public file uris passed in
+        Runs the Run Command v1 VM extension with 2 public file uris passed in
         and second script being run. Verifies second script created.
         """,
         priority=3,
@@ -136,11 +131,11 @@ class CustomScriptTests(TestSuite):
     def verify_second_public_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         first_blob_name = "public.sh"
-        first_test_file = "/tmp/cse-public.txt"
+        first_test_file = "/tmp/rcv1-public.txt"
         second_blob_name = "public2.sh"
-        second_test_file = "/tmp/cse-public2.txt"
+        second_test_file = "/tmp/rcv1-public2.txt"
 
         first_blob_url = retrieve_storage_blob_url(
             node=node,
@@ -171,7 +166,7 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with public file uri and command
+        Runs the Run Command v1 VM extension with public file uri and command
         in both public and protected settings.
         """,
         priority=3,
@@ -179,9 +174,9 @@ class CustomScriptTests(TestSuite):
     def verify_script_in_both_settings_failed(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa"
+        container_name = "rcv1lisa-public"
         blob_name = "public.sh"
-        test_file = "/tmp/cse-public.txt"
+        test_file = "/tmp/rcv1-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -206,7 +201,7 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with public file uri and command in
+        Runs the Run Command v1 VM extension with public file uri and command in
         protected settings.
         """,
         priority=3,
@@ -214,9 +209,9 @@ class CustomScriptTests(TestSuite):
     def verify_public_script_protected_settings_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "protected-settings.sh"
-        test_file = "/tmp/cse-protected-settings.txt"
+        test_file = "/tmp/rcv1-protected-settings.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -240,16 +235,16 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension without a command and a script.
+        Runs the Run Command v1 VM extension without a command and a script.
         """,
         priority=3,
     )
-    def verify_public_script_without_command_run(
+    def verify_public_script_without_command_run_failed(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "public.sh"
-        test_file = "/tmp/cse-public.txt"
+        test_file = "/tmp/rcv1-public.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -272,13 +267,15 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with a base64 script
+        Runs the Run Command v1 VM extension with a base64 script
         and command with no file uris.
         """,
         priority=3,
     )
-    def verify_base64_script_with_command_run(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/cse-base64-command.txt"
+    def verify_base64_script_with_command_run_failed(
+        self, log: Logger, node: Node
+    ) -> None:
+        test_file = "/tmp/rcv1-base64-command.txt"
 
         script = f"#!/bin/sh\ntouch {test_file}"
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
@@ -298,9 +295,9 @@ class CustomScriptTests(TestSuite):
     def verify_public_script_with_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "base64-script.sh"
-        test_file = "/tmp/cse-base64-script.txt"
+        test_file = "/tmp/rcv1-base64-script.txt"
 
         script = f"#!/bin/sh\nsh {blob_name}"
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
@@ -321,16 +318,16 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with a gzip'ed base64 script.
+        Runs the Run Command v1 VM extension with a gzip'ed base64 script.
         """,
         priority=3,
     )
     def verify_public_script_with_gzip_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "base64-gzip.sh"
-        test_file = "/tmp/cse-base64-gzip.txt"
+        test_file = "/tmp/rcv1-base64-gzip.txt"
 
         script = f"#!/bin/sh\nsh {blob_name}"
         compressed_script = gzip.compress(bytes(script, "utf-8"))
@@ -352,17 +349,18 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with private Azure storage file uri
+        Runs the Run Command v1 VM extension with private Azure storage file uri
         without a sas token.
         """,
         priority=3,
+        use_new_environment=True,
     )
     def verify_private_script_without_sas_run_failed(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa"
+        container_name = "rcv1lisa"
         blob_name = "no-sas.sh"
-        test_file = "/tmp/cse-no-sas.txt"
+        test_file = "/tmp/rcv1-no-sas.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -379,14 +377,12 @@ class CustomScriptTests(TestSuite):
 
         # Expect HttpResponseError
         _create_and_verify_extension_run(
-            node=node,
-            settings=settings,
-            assert_exception=HttpResponseError,
+            node=node, settings=settings, assert_exception=HttpResponseError
         )
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with private Azure storage file uri
+        Runs the Run Command v1 VM extension with private Azure storage file uri
         without a sas token but with storage account credentials.
         """,
         priority=3,
@@ -394,9 +390,9 @@ class CustomScriptTests(TestSuite):
     def verify_private_script_with_storage_credentials_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa"
+        container_name = "rcv1lisa"
         blob_name = "storage-creds.sh"
-        test_file = "/tmp/cse-storage-creds.txt"
+        test_file = "/tmp/rcv1-storage-creds.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -427,7 +423,7 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with private Azure storage file uri
+        Runs the Run Command v1 VM extension with private Azure storage file uri
         with a sas token.
         """,
         priority=3,
@@ -435,9 +431,9 @@ class CustomScriptTests(TestSuite):
     def verify_private_sas_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa"
+        container_name = "rcv1lisa"
         blob_name = "sas.sh"
-        test_file = "/tmp/cse-sas.txt"
+        test_file = "/tmp/rcv1-sas.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
@@ -459,7 +455,7 @@ class CustomScriptTests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Custom Script VM extension with a public Azure storage file uri
+        Runs the Run Command v1 VM extension with a public Azure storage file uri
         pointing to a python script.
         """,
         priority=3,
@@ -467,9 +463,9 @@ class CustomScriptTests(TestSuite):
     def verify_public_python_script_run(
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
-        container_name = "cselisa-public"
+        container_name = "rcv1lisa-public"
         blob_name = "python.py"
-        test_file = "/tmp/cse-python.txt"
+        test_file = "/tmp/rcv1-python.txt"
         python_command, _ = node.tools[Waagent].get_python_cmd()
 
         blob_url = retrieve_storage_blob_url(

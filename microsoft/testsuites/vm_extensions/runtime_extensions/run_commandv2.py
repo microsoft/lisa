@@ -42,7 +42,7 @@ def _create_and_verify_extension_run(
 ) -> None:
     extension = node.features[AzureExtension]
     result = extension.create_or_update(
-        name="RunCommand",
+        name="RunCommandv2",
         publisher="Microsoft.CPlat.Core",
         type_="RunCommandHandlerLinux",
         type_handler_version="1.3",
@@ -67,19 +67,20 @@ def _create_and_verify_extension_run(
     description="""
     This test suite tests the functionality of the Run Command v2 VM extension.
 
-    It has 11 test cases to verify if RC runs successfully when:
-        1. Used with a pre-existing available script hardcoded in CRP
-        2. Provided a custom linux shell script
-        3. Provided a custom linux shell script with a named parameter
-        4. Provided a custom linux shell script with an unnamed parameter
-        5. Provided a public storage blob uri that points to the script
-        6. Provided a storage uri pointing to script without a sas token (should fail)
-        7. Provided a storage sas uri that points to script
-        8. Provided a command with a timeout of 1 second (should pass)
-        9. Provided a command that should take longer than 1 second, but with a
+    It has 12 test cases to verify if RCv2 runs successfully when provided:
+        1. Pre-existing available script hardcoded in CRP
+        2. Custom shell script
+        3. Script with a named parameter
+        4. Script with an unnamed parameter
+        5. Script with a named protected parameter
+        6. Public storage blob uri that points to the script
+        7. Storage uri pointing to script without a sas token (should fail)
+        8. Storage sas uri that points to script
+        9. Command with a timeout of 1 second (should pass)
+        10. Command that should take longer than 1 second, but with a
            timeout of 1 second (should fail)
-        10. Provided a different valid user to run a command with
-        11. Provided a different invalid user to run a command with (should fail)
+        11. Provided a different valid user to run a command with
+        12. Provided a different invalid user to run a command with (should fail)
     """,
     requirement=simple_requirement(
         supported_features=[AzureExtension],
@@ -102,7 +103,7 @@ class RunCommandV2Tests(TestSuite):
     def verify_existing_script_run(self, log: Logger, node: Node) -> None:
         settings = {"source": {"CommandId": "ifconfig"}}
 
-        _create_and_verify_extension_run(node, settings)
+        _create_and_verify_extension_run(node=node, settings=settings)
 
     @TestCaseMetadata(
         description="""
@@ -122,14 +123,14 @@ class RunCommandV2Tests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Run Command v2 VM extension with a named parameter
+        Runs the Run Command v2 VM extension with a named public parameter
         passed to a custom shell script.
         """,
         priority=3,
     )
     def verify_script_run_with_named_parameter(self, log: Logger, node: Node) -> None:
         env_var_name = "TestVar"
-        test_file = "/tmp/rcv2namedtest.txt"
+        test_file = "/tmp/rcv2-named.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -144,13 +145,13 @@ class RunCommandV2Tests(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the Run Command v2 VM extension with an unnamed parameter
+        Runs the Run Command v2 VM extension with an unnamed public parameter
         passed to a custom shell script.
         """,
         priority=3,
     )
     def verify_script_run_with_unnamed_parameter(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2unnamedtest.txt"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -165,6 +166,37 @@ class RunCommandV2Tests(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Runs the Run Command v2 VM extension with a named protected parameter
+        passed to a custom shell script.
+        """,
+        priority=3,
+    )
+    def verify_script_run_with_protected_parameter(
+        self, log: Logger, node: Node
+    ) -> None:
+        env_var_name = "ProtectedVar"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
+        settings = {
+            "source": {
+                "CommandId": "RunShellScript",
+                "script": f"touch ${env_var_name}",
+            },
+        }
+
+        protected_settings = {
+            "protectedParameters": [{"Name": env_var_name, "Value": test_file}],
+        }
+
+        _create_and_verify_extension_run(
+            node=node,
+            settings=settings,
+            protected_settings=protected_settings,
+            test_file=test_file,
+            expected_exit_code=0,
+        )
+
+    @TestCaseMetadata(
+        description="""
         Runs the Run Command v2 VM extension with a public uri pointing to the
         script in blob storage.
         """,
@@ -174,8 +206,8 @@ class RunCommandV2Tests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "rcv2lisa-public"
-        blob_name = "rcv2lisa.sh"
-        test_file = "/tmp/lisatest.txt"
+        blob_name = "public.sh"
+        test_file = "/tmp/rcv2-public.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -206,8 +238,8 @@ class RunCommandV2Tests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "rcv2lisa"
-        blob_name = "rcv2lisa.sh"
-        test_file = "/tmp/rcv2lisasas.txt"
+        blob_name = "no-sas.sh"
+        test_file = "/tmp/rcv2-no-sas.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -238,8 +270,8 @@ class RunCommandV2Tests(TestSuite):
         self, log: Logger, node: Node, environment: Environment
     ) -> None:
         container_name = "rcv2lisa"
-        blob_name = "rcv2lisa.sh"
-        test_file = "/tmp/rcv2lisasas.txt"
+        blob_name = "sas.sh"
+        test_file = "/tmp/rcv2-sas.txt"
         blob_url = retrieve_storage_blob_url(
             node=node,
             environment=environment,
@@ -267,7 +299,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_timeout(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2timeout.txt"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",
@@ -287,7 +319,7 @@ class RunCommandV2Tests(TestSuite):
         priority=3,
     )
     def verify_script_run_with_timeout_failed(self, log: Logger, node: Node) -> None:
-        test_file = "/tmp/rcv2timeout-failed.txt"
+        test_file = f"/tmp/{uuid.uuid4()}.txt"
         settings = {
             "source": {
                 "CommandId": "RunShellScript",

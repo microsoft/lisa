@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from azure.storage.blob import BlobType
 
 from lisa import Node
 from lisa.environment import Environment
@@ -14,6 +15,7 @@ from lisa.sut_orchestrator.azure.common import (
     generate_blob_sas_token,
     get_or_create_storage_container,
     get_storage_account_name,
+    get_storage_credential,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -80,6 +82,7 @@ def retrieve_storage_blob_url(
     test_file: str = "",
     is_sas: bool = False,
     script: str = "",
+    blob_type: BlobType = BlobType.BlockBlob,
 ) -> Any:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
@@ -109,7 +112,9 @@ def retrieve_storage_blob_url(
                 signed_identifiers={}, public_access="container"
             )
         # Upload blob to container if doesn't exist
-        container_client.upload_blob(name=blob_name, data=blob_data)  # type: ignore
+        container_client.upload_blob(
+            name=blob_name, data=blob_data, blob_type=blob_type  # type: ignore
+        )
 
     blob_url = blob.url
 
@@ -128,3 +133,26 @@ def retrieve_storage_blob_url(
         blob_url = blob_url + "?" + sas_token
 
     return blob_url
+
+
+def retrieve_storage_account_name_and_key(
+    node: Node,
+    environment: Environment,
+) -> Any:
+    platform = environment.platform
+    assert isinstance(platform, AzurePlatform)
+
+    subscription_id = platform.subscription_id
+    node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    location = node_context.location
+    storage_account_name = get_storage_account_name(
+        subscription_id=subscription_id, location=location
+    )
+
+    return get_storage_credential(
+        credential=platform.credential,
+        subscription_id=subscription_id,
+        cloud=platform.cloud,
+        account_name=storage_account_name,
+        resource_group_name=AZURE_SHARED_RG_NAME,
+    )
