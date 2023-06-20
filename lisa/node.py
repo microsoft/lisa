@@ -332,7 +332,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         saved_path = self.local_log_path / f"{get_datetime_path()}_captured_{name}"
         saved_path.mkdir(parents=True, exist_ok=True)
         self.log.debug(f"capturing system information to {saved_path}.")
-        self.os.capture_system_information(saved_path)
+        try:
+            self.os.capture_system_information(saved_path)
+        except Exception as identifier:
+            # For some images like cisco, southrivertech1586314123192, they might raise
+            # exception when calling copy_back. This should not block the test, so add
+            # try-except.
+            self.log.debug(f"error on capturing system information: {identifier}")
 
     def find_partition_with_freespace(
         self, size_in_gb: int, use_os_drive: bool = True
