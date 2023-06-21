@@ -170,6 +170,7 @@ KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_ENABLED = "mana_enabled"
+KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
@@ -738,6 +739,13 @@ class AzurePlatform(Platform):
                 "CONFIG_MICROSOFT_MANA"
             )
             node.log.debug(f"mana enabled: {information[KEY_MANA_ENABLED]}")
+
+            node.log.debug("detecting nvme driver enabled...")
+            information[KEY_NVME_ENABLED] = ( node.tools[KernelConfig].is_enabled
+                    ("CONFIG_NVME_CORE" ) and node.tools[KernelConfig].is_enabled
+                    ("CONFIG_BLK_DEV_NVME" )
+                    )
+            node.log.debug(f"nvme enabled: {information[KEY_NVME_ENABLED]}")
 
         node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         if node_runbook:

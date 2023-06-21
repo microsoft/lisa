@@ -164,9 +164,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_sriov(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self.check_sriov(node)
+        self.check_sriov(log, node)
         self._smoke_test(log, node, log_path, "verify_deployment_provision_sriov")
-        self.check_sriov(node)
+        self.check_sriov(log, node)
 
     @TestCaseMetadata(
         description="""
@@ -314,12 +314,13 @@ class Provisioning(TestSuite):
                 break
         return all_mana_devices
 
-    def check_sriov(self, node: RemoteNode) -> None:
+    def check_sriov(self, log: Logger, node: RemoteNode) -> None:
         node_nic_info = Nics(node)
         node_nic_info.initialize()
 
         network_interface_feature = node.features[NetworkInterface]
         sriov_count = network_interface_feature.get_nic_count()
+        log.info(f"check_sriov: sriov_count {sriov_count}")
         pci_nic_check = True
         if self.is_mana_device_discovered(node):
             if not node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA"):
@@ -327,6 +328,7 @@ class Provisioning(TestSuite):
             else:
                 pci_nic_check = True
         if pci_nic_check:
+            log.info(f"check_sriov: PCI nic count {len(node_nic_info.get_lower_nics())}")
             assert_that(len(node_nic_info.get_lower_nics())).described_as(
                 f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
                 f"actual sriov nic count is {sriov_count}"
