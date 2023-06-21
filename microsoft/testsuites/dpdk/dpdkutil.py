@@ -455,7 +455,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", pmd, multiple_queues=multiple_queues
+        test_nic, 0, "txonly", multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
