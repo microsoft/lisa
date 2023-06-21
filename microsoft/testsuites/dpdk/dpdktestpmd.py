@@ -215,7 +215,12 @@ class DpdkTestpmd(Tool):
                 )
             else:
                 vdev_name = "net_vdev_netvsc"
-                if self.is_mana:
+                if self._force_net_failsafe_pmd:
+                    vdev_name = "net_failsafe"
+                    vdev_flags = (
+                        f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
+                    )
+                elif self.is_mana:
                     vdev_flags = f"mac={nic.mac_addr}"
                 else:
                     vdev_flags = f"iface={nic.upper},force=1"
@@ -435,6 +440,7 @@ class DpdkTestpmd(Tool):
         super().__init__(*args, **kwargs)
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        self._force_net_failsafe_pmd = kwargs.pop("force_net_failsafe_pmd", False)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
