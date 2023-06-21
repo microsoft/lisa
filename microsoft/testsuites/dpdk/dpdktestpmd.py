@@ -215,7 +215,10 @@ class DpdkTestpmd(Tool):
                 )
             else:
                 vdev_name = "net_vdev_netvsc"
-                vdev_flags = f"iface={nic.upper},force=1"
+                if self.is_mana:
+                    vdev_flags = f"mac={nic.mac_addr}"
+                else:
+                    vdev_flags = f"iface={nic.upper},force=1"
 
             if nic.bound_driver == "hv_netvsc":
                 vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
