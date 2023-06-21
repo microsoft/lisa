@@ -163,12 +163,11 @@ class DpdkOvs(Tool):
         self, dpdk_tool: DpdkTestpmd, use_latest_ovs: bool = False
     ) -> None:
         node = self.node
-        # run dpdk version check if not forcing latest
+        # run dpdk version check if not forcing latest OVS
         if not use_latest_ovs:
             self._force_ovs_dpdk_compatibility(dpdk_tool)
         make = node.tools[Make]
-        # dpdk_build_dir = dpdk_tool.dpdk_path.joinpath("build")
-        # add_to_env = {"DPDK_BUILD": str(dpdk_build_dir)}
+
         node.execute(
             "./boot.sh",
             shell=True,
