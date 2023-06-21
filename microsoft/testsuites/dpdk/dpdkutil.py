@@ -27,6 +27,7 @@ from lisa.tools import (
     Echo,
     Firewall,
     Free,
+    Ip,
     KernelConfig,
     Lscpu,
     Lsmod,
@@ -276,6 +277,7 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
@@ -311,6 +313,7 @@ def initialize_node_resources(
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
+        force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
 
     # init and enable hugepages (required by dpdk)
@@ -337,9 +340,20 @@ def initialize_node_resources(
         node.mark_dirty()
         enable_uio_hv_generic_for_nic(node, test_nic)
         # if this device is paired, set the upper device 'down'
+
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # check for other nics with the same mac address, set them down for netvsc or mana
+    if pmd == "netvsc" or testpmd.is_mana:
         if test_nic.lower:
-            node.nics.unbind(test_nic)
-            node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+            node.tools[Ip].down(test_nic.lower)
+        else:
+            test_mac = test_nic.mac_addr
+            for nic in node.nics._get_nic_names():
+                nic_ = node.nics.get_nic(nic)
+                if nic_.mac_addr == test_mac:
+                    node.tools[Ip].down(nic_.name)
 
     return DpdkTestResources(node, testpmd)
 
@@ -455,7 +469,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic, 0, "txonly", pmd, multiple_queues=multiple_queues
+        test_nic, 0, "txonly", multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -490,7 +504,7 @@ def verify_dpdk_send_receive(
 
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
+    test_duration: int = variables.get("dpdk_test_duration", 300)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(environment, log, variables, pmd)
 
