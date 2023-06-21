@@ -60,8 +60,8 @@ def initialize_nic_info(
                 f"This interface {node_nic.upper} does not have a IP address."
             ).is_not_empty()
         if is_sriov:
-            assert_that(len(node_nic_info.get_lower_nics())).described_as(
-                f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+            assert_that(len(node_nic_info.get_nics_with_bus_info())).described_as(
+                f"VF count inside VM is {len(node_nic_info.get_nics_with_bus_info())},"
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = node_nic_info.nics

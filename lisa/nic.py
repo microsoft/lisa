@@ -130,6 +130,10 @@ class Nics(InitializableMixin):
         )
     )
 
+    _bus_info_regex = re.compile(
+        r"[a-zA-Z0-9]{4}:[a-zA-Z0-9]{2}:[a-zA-Z0-9]{2}.[a-zA-Z0-9]"
+    )
+
     _file_not_exist = re.compile(r"No such file or directory", re.MULTILINE)
 
     def __init__(self, node: "Node"):
@@ -428,6 +432,11 @@ class Nics(InitializableMixin):
             if x not in self.get_upper_nics() and x not in self.get_lower_nics()
         ]:
             nic_info = NicInfo(nic_name)
+            has_address = self._get_nic_device(nic_name)
+            if has_address and not nic_info.lower:
+                match = re.search(self._bus_info_regex, has_address)
+                if match:
+                    nic_info.pci_slot = has_address
             self.append(nic_info)
 
         assert_that(len(self)).described_as(
@@ -456,3 +465,6 @@ class Nics(InitializableMixin):
         ).is_true()
         self.default_nic: str = default_interface_name
         self.default_nic_route = dev_match.group()
+
+    def get_nics_with_bus_info(self) -> List[NicInfo]:
+        return list([nic for nic in self.nics.values() if nic.pci_slot])
