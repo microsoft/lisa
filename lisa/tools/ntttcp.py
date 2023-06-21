@@ -312,6 +312,7 @@ class Ntttcp(Tool):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+            timeout=2000,
         )
         return result
 
