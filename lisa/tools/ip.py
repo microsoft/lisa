@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Optional, Type
 
 from assertpy import assert_that
 
@@ -32,6 +33,10 @@ class Ip(Tool):
 
     def _check_exists(self) -> bool:
         return True
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return IpFreebsd
 
     def _set_device_status(
         self, nic_name: str, status: str, persist: bool = False
@@ -230,3 +235,21 @@ class Ip(Tool):
 
         # start interface
         self.up(name)
+
+    def get_interface_list(self) -> list[str]:
+        raise NotImplementedError()
+
+
+class IpFreebsd(Ip):
+    @property
+    def command(self) -> str:
+        return "ifconfig"
+
+    def get_interface_list(self) -> list[str]:
+        output = self.run(
+            "-l",
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to get interface list",
+        )
+        return output.stdout.split()
