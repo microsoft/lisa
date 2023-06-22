@@ -12,6 +12,7 @@ from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Redhat, Ubuntu
 from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
+from lisa.tools.chmod import Chmod
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.util import LisaException, field_metadata, subclasses
@@ -250,9 +251,12 @@ class SourceInstaller(BaseInstaller):
                 ),
                 dest=PurePath(".config"),
                 cwd=code_path,
+                sudo=True,
             )
 
         config_path = code_path.joinpath(".config")
+        chmod = self._node.tools[Chmod]
+        chmod.chmod(str(config_path), permission="777", sudo=True)
         sed = self._node.tools[Sed]
         sed.substitute(
             regexp="CONFIG_DEBUG_INFO_BTF=.*",
