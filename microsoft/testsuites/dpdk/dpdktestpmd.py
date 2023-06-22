@@ -210,19 +210,18 @@ class DpdkTestpmd(Tool):
         for nic in include_nics:
             if has_version_info and self._dpdk_version_info < "18.11.0":
                 vdev_name = "net_failsafe"
-                vdev_flags = (
-                    f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
-                )
+                vdev_flags = f"dev({nic.pci_slot}),dev(iface={nic.upper},force=1)"
             else:
-                vdev_name = "net_vdev_netvsc"
-                if self._force_net_failsafe_pmd:
-                    vdev_name = "net_failsafe"
-                    vdev_flags = (
-                        f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.upper},force=1)"
+                if self.is_mana:
+                    return include_flags + (
+                        f' --vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
+                        f' --vdev="{nic.pci_slot},mac={nic.mac_addr}" '
                     )
-                elif self.is_mana:
-                    vdev_flags = f"mac={nic.mac_addr}"
+                elif self._force_net_failsafe_pmd:
+                    vdev_name = "net_failsafe"
+                    vdev_flags = f'--vdev="net_failsafe0,mac={nic.mac_addr},dev(net_tap0,iface={nic.upper},force=1)"'
                 else:
+                    vdev_name = "net_vdev_netvsc"
                     vdev_flags = f"iface={nic.upper},force=1"
 
             if nic.bound_driver == "hv_netvsc":
@@ -297,7 +296,7 @@ class DpdkTestpmd(Tool):
             extra_args = ""
 
         if self.is_mana:
-            extra_args += " --txd=128 --rxd=128"
+            extra_args += " --txd=128 --rxd=128  --stats 2"
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
         ).is_greater_than(0)

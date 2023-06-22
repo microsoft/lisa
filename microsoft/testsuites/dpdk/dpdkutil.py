@@ -27,6 +27,7 @@ from lisa.tools import (
     Echo,
     Firewall,
     Free,
+    Ip,
     KernelConfig,
     Lscpu,
     Lsmod,
@@ -339,9 +340,16 @@ def initialize_node_resources(
         node.mark_dirty()
         enable_uio_hv_generic_for_nic(node, test_nic)
         # if this device is paired, set the upper device 'down'
-        if test_nic.lower:
-            node.nics.unbind(test_nic)
-            node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+        # check for other nics with the same mac address, set them down for netvsc
+    for nic in node.nics.get_upper_nics():
+        if (
+            nic != test_nic.upper
+            and node.nics.get_nic(nic).mac_addr == test_nic.mac_addr
+        ):
+            node.tools[Ip].down(nic)
 
     return DpdkTestResources(node, testpmd)
 
