@@ -23,7 +23,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Uname
-from lisa.operating_system import Debian, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
@@ -248,9 +248,12 @@ class NetworkSettings(TestSuite):
         required_features = [
             "rx-checksumming",
             "tx-checksumming",
-            "scatter-gather",
             "tcp-segmentation-offload",
         ]
+
+        if not isinstance(node.os, BSD):
+            required_features.append("scatter-gather")
+
         ethtool = node.tools[Ethtool]
         devices_features = ethtool.get_all_device_enabled_features()
 
@@ -279,6 +282,7 @@ class NetworkSettings(TestSuite):
             4. Revert back the settings to original values.
         """,
         priority=1,
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
         ethtool = node.tools[Ethtool]
