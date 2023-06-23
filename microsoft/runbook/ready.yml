@@ -9,7 +9,7 @@ variable:
   - name: origin
     value: tiers/tier.yml
   - name: case
-    value: cpu_count_check
+    value: verify_cpu_count
 notifier:
   - type: html
 environment:
