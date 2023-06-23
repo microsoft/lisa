@@ -12,6 +12,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
     get_or_create_storage_container,
@@ -42,7 +43,7 @@ class AzurePerformanceDiagnostics(TestSuite):
         Verifies a report was created and uploaded to the storage account.
         Deletes the VM Extension.
         """,
-        priority=3,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -132,13 +133,17 @@ class AzurePerformanceDiagnostics(TestSuite):
         for _ in blob_iter:
             report_exists = True
 
-        assert_that(report_exists).is_true()
+        assert_that(report_exists).described_as(
+            "Expected to find a report in the storage account, but no report was found"
+        ).is_true()
 
         # Delete VM Extension
         extension.delete("AzurePerformanceDiagnosticsLinux")
 
         assert_that(
             extension.check_exist("AzurePerformanceDiagnosticsLinux")
+        ).described_as(
+            "Found the VM Extension still unexpectedly exists on the VM after deletion"
         ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
@@ -174,19 +179,8 @@ class AzurePerformanceDiagnostics(TestSuite):
         not supported by Azure Performance Diagnostics,
         even though the major version is generally supported
         """
-        unsupported_versions = {
-            "redhat": [{"major": 8, "minor": 0}],
-            "red hat": [{"major": 8, "minor": 0}],
-        }
-
-        unsupported_versions_list = unsupported_versions.get(
-            (node.os.information.vendor).lower()
-        )
-        if unsupported_versions_list:
-            for version in unsupported_versions_list:
-                if node.os.information.version.major == version.get(
-                    "major"
-                ) and node.os.information.version.minor == version.get("minor"):
-                    return True
-
-        return False
+        version = node.os.information.version
+        if isinstance(node.os, Redhat) and (version == "8.0.0" or version == "8.0.1"):
+            return True
+        else:
+            return False
