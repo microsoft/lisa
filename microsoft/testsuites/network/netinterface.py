@@ -141,7 +141,7 @@ class NetInterface(TestSuite):
 
             timer = perf_timer.Timer()
             while timer.elapsed(stop=False) < self.DHCLIENT_TIMEOUT:
-                node_nic_info.load_interface_info(default_nic)
+                node_nic_info.load_nics_info(default_nic)
                 if node_nic_info.nics[default_nic].ip_addr:
                     break
                 time.sleep(1)
@@ -188,7 +188,7 @@ class NetInterface(TestSuite):
         current_nic_count = len(node_nic_info)
         for index in range(0, current_nic_count):
             test_nic = node_nic_info.get_nic_by_index(index)
-            test_nic_name = test_nic.upper
+            test_nic_name = test_nic.name
             if "eth0" == test_nic_name:
                 continue
         assert_that(test_nic).is_not_none()
@@ -198,7 +198,7 @@ class NetInterface(TestSuite):
         try:
             random_mac_address = str(RandMac())
             ip.set_mac_address(test_nic_name, random_mac_address)
-            node_nic_info.load_interface_info(test_nic_name)
+            node_nic_info.load_nics_info(test_nic_name)
             assert_that(test_nic.mac_addr).described_as(
                 f"fail to set network interface {test_nic_name}'s mac "
                 f"address into {random_mac_address}"
@@ -206,7 +206,7 @@ class NetInterface(TestSuite):
         finally:
             # restore the test nic state back to origin state
             ip.set_mac_address(test_nic_name, origin_mac_address)
-            node_nic_info.load_interface_info(test_nic_name)
+            node_nic_info.load_nics_info(test_nic_name)
             assert_that(test_nic.mac_addr).described_as(
                 f"fail to set network interface {test_nic}'s mac "
                 f"address back into {origin_mac_address}"
