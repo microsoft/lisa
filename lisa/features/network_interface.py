@@ -43,6 +43,9 @@ class NetworkInterface(Feature):
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
         raise NotImplementedError
 
+    def get_all_nics(self) -> Any:
+        raise NotImplementedError
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.origin_extra_synthetic_nics_count: int = 0
         self.origin_extra_sriov_nics_count: int = 0

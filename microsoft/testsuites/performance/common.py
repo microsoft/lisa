@@ -281,12 +281,26 @@ def perf_ntttcp(  # noqa: C901
                 # check sriov count not change after reboot
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
-            server_nic_name = (
-                server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
-            )
-            client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.get_lower_nics()[0]
-            )
+            if len(server.nics.get_pci_nics()) > 0:
+                server_nic_name = (
+                    server_nic_name if server_nic_name else server.nics.default_nic
+                )
+            else:
+                server_nic_name = (
+                    server_nic_name
+                    if server_nic_name
+                    else server.nics.get_lower_nics()[0]
+                )
+            if len(client.nics.get_pci_nics()) > 0:
+                client_nic_name = (
+                    client_nic_name if client_nic_name else client.nics.default_nic
+                )
+            else:
+                client_nic_name = (
+                    client_nic_name
+                    if client_nic_name
+                    else client.nics.get_lower_nics()[0]
+                )
             dev_differentiator = "mlx"
         else:
             server_nic_name = (
@@ -504,6 +518,8 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = Nics(node)
     node_nic_info.initialize()
 
+    if len(node_nic_info.get_pci_nics()) > 0:
+        return
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
         f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
         f"actual sriov nic count is {sriov_count}"

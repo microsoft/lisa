@@ -525,11 +525,11 @@ class Ethtool(Tool):
                 continue
             cmd_result = self.node.execute(f"ls {netdir}")
             cmd_result.assert_exit_code(message="Could not find the network device.")
-
-            # add only the network devices with netvsc driver
-            driver = self.get_device_driver(cmd_result.stdout)
-            if "hv_netvsc" in driver:
-                self._device_set.add(cmd_result.stdout)
+            for result in cmd_result.stdout.split():
+                # add only the network devices with netvsc driver
+                driver = self.get_device_driver(result)
+                if "hv_netvsc" in driver:
+                    self._device_set.add(result)
 
         if not self._device_set:
             raise LisaException("Did not find any synthetic network interface.")

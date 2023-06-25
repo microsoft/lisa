@@ -610,7 +610,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
-        all_nics = self._get_all_nics()
+        all_nics = self.get_all_nics()
         # store extra synthetic and sriov nics count
         # in order to restore nics status after testing which needs change nics
         # extra synthetic nics count before testing
@@ -632,6 +632,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
+        status_changed = False
         for nic in vm.network_profile.network_interfaces:
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
@@ -663,9 +664,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
+                status_changed = True
 
         # wait settings effective
-        if wait:
+        if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
@@ -762,7 +764,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         return len(
             [
                 x
-                for x in self._get_all_nics()
+                for x in self.get_all_nics()
                 if x.enable_accelerated_networking == is_sriov_enabled
             ]
         )
@@ -806,16 +808,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        self._node.nics.reload()
-        default_nic = self._node.nics.get_primary_nic()
-
-        if enabled and not default_nic.lower:
-            raise LisaException("SRIOV is enabled, but VF is not found.")
-        elif not enabled and default_nic.lower:
-            raise LisaException("SRIOV is disabled, but VF exists.")
-        else:
-            # the enabled flag is consistent with VF presents.
-            ...
+        self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
         self, nics: List[NetworkInterfaceReference]
@@ -826,7 +819,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         raise LisaException(f"failed to find primary nic for vm {self._node.name}")
 
-    def _get_all_nics(self) -> Any:
+    def get_all_nics(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)

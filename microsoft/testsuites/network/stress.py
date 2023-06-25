@@ -240,12 +240,12 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for _ in range(10):
             for node in environment.nodes.list():
                 node.reboot()
-            sriov_basic_test(environment, vm_nics)
+            sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -267,13 +267,13 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for _ in range(10):
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.restart()
-            sriov_basic_test(environment, vm_nics)
+            sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -295,14 +295,14 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for _ in range(10):
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.stop()
                 start_stop.start()
-            sriov_basic_test(environment, vm_nics)
+            sriov_basic_test(environment)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

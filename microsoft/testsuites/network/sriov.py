@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
@@ -26,25 +26,13 @@ from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import (
-    Cat,
-    Ethtool,
-    Firewall,
-    InterruptInspector,
-    Iperf3,
-    KernelConfig,
-    Lscpu,
-    Lspci,
-)
+from lisa.tools import Cat, Ethtool, Firewall, InterruptInspector, Iperf3, Lscpu, Lspci
 from lisa.util import UnsupportedDistroException, check_till_timeout
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
-    get_used_config,
     initialize_nic_info,
-    load_module,
     remove_extra_nics,
-    remove_module,
     restore_extra_nics,
     sriov_basic_test,
     sriov_disable_enable,
@@ -110,8 +98,8 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_basic(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -136,7 +124,7 @@ class Sriov(TestSuite):
     )
     def verify_sriov_single_vf_connection(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -166,7 +154,7 @@ class Sriov(TestSuite):
         self, environment: Environment
     ) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -196,7 +184,8 @@ class Sriov(TestSuite):
     )
     def verify_sriov_max_vf_connection(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
+        vm_nics = initialize_nic_info(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -227,7 +216,8 @@ class Sriov(TestSuite):
     )
     def verify_sriov_max_vf_connection_max_cpu(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
+        vm_nics = initialize_nic_info(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -273,7 +263,8 @@ class Sriov(TestSuite):
             lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
             lspci.enable_devices()
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
+        vm_nics = initialize_nic_info(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -296,8 +287,9 @@ class Sriov(TestSuite):
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
-        sriov_vf_connection_test(environment, vm_nics, turn_off_vf=True)
+        sriov_basic_test(environment)
+        vm_nics = initialize_nic_info(environment)
+        sriov_vf_connection_test(environment, vm_nics, turn_off_pci_nic=True)
 
     @TestCaseMetadata(
         description="""
@@ -332,8 +324,8 @@ class Sriov(TestSuite):
                 timeout=self.TIME_OUT,
             )
             if is_ready:
-                vm_nics = initialize_nic_info(environment)
-                sriov_basic_test(environment, vm_nics)
+                initialize_nic_info(environment)
+                sriov_basic_test(environment)
             else:
                 serial_console = node.features[SerialConsole]
                 serial_console.check_panic(
@@ -363,8 +355,8 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_provision_with_max_nics(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -385,11 +377,11 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             node.reboot()
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -410,12 +402,12 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
             start_stop.restart()
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -436,13 +428,13 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
             start_stop.stop()
             start_stop.start()
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -462,19 +454,26 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
-        for node in environment.nodes.list():
-            if node.tools[KernelConfig].is_built_in(get_used_config(node)):
-                raise SkippedException(
-                    "current VM's mlx driver is built-in, can not reload."
-                )
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
-        module_in_used: Dict[str, str] = {}
+        sriov_basic_test(environment)
+
+        module_in_used: Dict[str, List[str]] = {}
+        module_name_list: List[str] = []
         for node in environment.nodes.list():
-            module_in_used[node.name] = remove_module(node)
-        sriov_vf_connection_test(environment, vm_nics, remove_module=True)
+            for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+                if node.nics.is_module_reloadable(module_name):
+                    module_name_list.extend(node.nics.unload_module(module_name))
+            module_in_used[node.name] = module_name_list
+
         for node in environment.nodes.list():
-            load_module(node, module_in_used[node.name])
+            if module_in_used[node.name]:
+                remove_module = True
+            else:
+                remove_module = False
+        sriov_vf_connection_test(environment, vm_nics, remove_module=remove_module)
+        for node in environment.nodes.list():
+            for module_name in module_in_used[node.name]:
+                node.nics.load_module(module_name)
         vm_nics = initialize_nic_info(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
@@ -501,21 +500,26 @@ class Sriov(TestSuite):
             ),
         ),
     )
-    def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
+    def verify_sriov_ethtool_offload_setting(  # noqa: C901
+        self, environment: Environment
+    ) -> None:
         client_iperf3_log = "iperfResults.log"
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         client_ethtool = client_node.tools[Ethtool]
         vm_nics = initialize_nic_info(environment)
+
         # skip test if scatter-gather can't be updated
         for client_nic_info in vm_nics[client_node.name].values():
+            if client_nic_info.is_pci:
+                raise SkippedException("pci nic not present, skipping test.")
             device_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.upper, True
+                client_nic_info.name, True
             )
             if device_sg_settings.sg_fixed:
                 raise SkippedException(
                     "scatter-gather is fixed, it cannot be changed for device"
-                    f" {client_nic_info.upper}. Skipping test."
+                    f" {client_nic_info.name}. Skipping test."
                 )
             else:
                 break
@@ -561,7 +565,7 @@ class Sriov(TestSuite):
         # verify vf scatter-gather feature has value 'on'
         for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
-                client_nic_info.upper, True
+                client_nic_info.name, True
             )
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.lower, True
@@ -575,7 +579,7 @@ class Sriov(TestSuite):
         # verify vf scatter-gather feature has value 'off'
         for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
-                client_nic_info.upper, False
+                client_nic_info.name, False
             )
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.lower, True
@@ -625,14 +629,14 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # reload sriov modules
-        module_built_in = any(
-            node.tools[KernelConfig].is_built_in(get_used_config(node))
-            for node in environment.nodes.list()
-        )
-        if not module_built_in:
-            for node in environment.nodes.list():
-                load_module(node, remove_module(node))
-
+        reload_modules = False
+        for node in environment.nodes.list():
+            for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+                if node.nics.is_module_reloadable(module_name):
+                    node.nics.unload_module(module_name)
+                    node.nics.load_module(module_name)
+                    reload_modules = True
+        if reload_modules:
             # check VF still paired with synthetic nic
             vm_nics = initialize_nic_info(environment)
 
@@ -693,12 +697,14 @@ class Sriov(TestSuite):
         server_iperf3.run_as_server_async()
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
+            if client_nic_info.is_pci:
+                raise SkippedException("pci nic not present, skipping test.")
             # 2. Get initial interrupts sum per irq and cpu number on client node.
             # only collect 'Completion Queue Interrupts' irqs
             initial_pci_interrupts_by_irqs = (
                 client_interrupt_inspector.sum_cpu_counter_by_irqs(
                     client_nic_info.pci_slot,
-                    exclude_key_words=["pages", "cmd", "async"],
+                    exclude_key_words=["pages", "cmd", "async", "hwc"],
                 )
             )
 
@@ -734,7 +740,7 @@ class Sriov(TestSuite):
             final_pci_interrupts_by_irqs = (
                 client_interrupt_inspector.sum_cpu_counter_by_irqs(
                     client_nic_info.pci_slot,
-                    exclude_key_words=["pages", "cmd", "async"],
+                    exclude_key_words=["pages", "cmd", "async", "hwc"],
                 )
             )
             assert_that(len(final_pci_interrupts_by_irqs)).described_as(

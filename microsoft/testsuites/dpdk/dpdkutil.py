@@ -102,7 +102,7 @@ def _enable_hugepages(node: Node) -> None:
     echo = node.tools[Echo]
 
     meminfo = node.tools[Free]
-    nics_count = len(node.nics.get_upper_nics())
+    nics_count = len(node.nics.get_nic_names())
 
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
     request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
@@ -181,8 +181,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         node_a, node_b = node_pair  # get nodes and nics
         nic_a, nic_b = [x.nics.get_nic_by_index(1) for x in node_pair]
         ip_a, ip_b = [x.ip_addr for x in [nic_a, nic_b]]  # get ips
-        ping_a = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.upper)
-        ping_b = node_b.tools[Ping].ping(target=ip_a, nic_name=nic_b.upper)
+        ping_a = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.name)
+        ping_b = node_b.tools[Ping].ping(target=ip_a, nic_name=nic_b.name)
         assert_that(ping_a and ping_b).described_as(
             (
                 "VM ping test failed.\n"
@@ -303,7 +303,7 @@ def initialize_node_resources(
         raise SkippedException(err)
 
     # verify SRIOV is setup as-expected on the node after compat check
-    node.nics.wait_for_sriov_enabled()
+    node.nics.check_pci_enabled(pci_enabled=True)
 
     # create tool, initialize testpmd tool (installs dpdk)
     testpmd: DpdkTestpmd = node.tools.get(
@@ -325,9 +325,9 @@ def initialize_node_resources(
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
 
-    assert_that(test_nic.bound_driver).described_as(
-        f"Error: Expected test nic {test_nic.upper} to be "
-        f"bound to hv_netvsc. Found {test_nic.bound_driver}."
+    assert_that(test_nic.module_name).described_as(
+        f"Error: Expected test nic {test_nic.name} to be "
+        f"bound to hv_netvsc. Found {test_nic.module_name}."
     ).is_equal_to("hv_netvsc")
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
@@ -461,7 +461,7 @@ def verify_dpdk_build(
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
     log.info(
-        f"TX-PPS:{tx_pps} from {test_nic.upper}/{test_nic.lower}:"
+        f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
     assert_that(tx_pps).described_as(
