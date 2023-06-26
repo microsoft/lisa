@@ -86,7 +86,7 @@ In simple terms:
    you from lengthy command-line commands and makes it easy to adjust
    configurations.`
 
-See :ref:`write_test/concepts:runbook` for further knowledge.
+See `Documentation for Runbook <https://github.com/microsoft/lisa/blob/aditya/fix_transformer_doc/docs/write_test/concepts.rst#runbook>`__ for further knowledge.
 
 How-to
 ------
@@ -632,8 +632,7 @@ Example of html notifier:
 environment
 ~~~~~~~~~~~
 
-List of environments. For more information, refer to
-:ref:`write_test/concepts:node and environment`.
+List of environments. For more information, refer to `Node and Environment <https://github.com/microsoft/lisa/blob/main/docs/write_test/concepts.rst#node-and-environment>`__.
 
 environments
 ^^^^^^^^^^^^
@@ -660,8 +659,7 @@ nodes
 '''''
 
 List of node, it can be a virtual machine on Azure or Hyper-V, bare metal or
-others. For more information, refer to :ref:`write_test/concepts:node and
-environment`.
+others. For more information, refer to `Node and Environment <https://github.com/microsoft/lisa/blob/main/docs/write_test/concepts.rst#node-and-environment>`__.
 
 nodes_requirement
 '''''''''''''''''
