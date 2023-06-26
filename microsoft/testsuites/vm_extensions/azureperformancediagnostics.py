@@ -15,6 +15,7 @@ from lisa import (
 from lisa.operating_system import Redhat
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
+    delete_storage_account,
     get_or_create_storage_container,
     get_storage_credential,
 )
@@ -145,6 +146,15 @@ class AzurePerformanceDiagnostics(TestSuite):
         ).described_as(
             "Found the VM Extension still unexpectedly exists on the VM after deletion"
         ).is_false()
+
+        delete_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            log=log,
+        )
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions = {
