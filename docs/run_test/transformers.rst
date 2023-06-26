@@ -3,14 +3,13 @@ Transformer References
 -  `Using transformers <https://github.com/microsoft/lisa/blob/main/docs/run_test/runbook.rst#transformer>`__
 -  `How-to <#how-to>`__
     
-  -  `Use Shared Image Gallery (SIG) transformer <#sig-transformer>`__
-  -  `Use Deploy Transformer <#deploy-transformer>`__
-  -  `Use Delete Transformer <#delete-transformer>`__
-  -  `Vhd Transformer <#vhd-transformer>`__
+  -  `Use Shared Image Gallery (SIG) transformer <#use-shared-image-gallery-sig-transformer>`__
+  -  `Use Deploy Transformer <#use-deploy-transformer>`__
+  -  `Use Delete Transformer <#use-delete-transformer>`__
+  -  `Use Vhd Transformer <#use-vhd-transformer>`__
   
 How-to
 ------
-.. _sig-transformer:
 
 Use Shared Image Gallery (SIG) transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -172,7 +171,6 @@ Used to rename the ouput variable
 eg: azure_sig_url: shared_gallery
 Rename's the transformer output `azure_sig_url` to `shared_gallery`
 
-.. _deploy-transformer:
 
 Use Deploy Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -224,7 +222,6 @@ type: int
 
 Automatically selects vm_size based on the count provided.
 
-.. _delete-transformer:
 
 Use Delete Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -249,9 +246,9 @@ type: string
 
 Name of the resource group that should be deleted.
 
-.. _vhd-transformer:
 
-Vhd Transformer
+
+Use Vhd Transformer
 ~~~~~~~~~~~~~~~
 
 Convert a VM to a VHD using this transformer. This VHD can be used to deploy a VM.
