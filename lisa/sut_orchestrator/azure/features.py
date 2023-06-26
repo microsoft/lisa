@@ -1197,15 +1197,15 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
-        if (
-            self._node.capability.disk
-            and self._node.capability.disk.disk_controller_type
-            == schema.DiskControllerType.NVME
-        ):
-            nvme = self._node.features[Nvme]
-            # Skip OS disk which is '[0]' in namespaces list
-            disk_array = nvme.get_namespaces()[1:]
-            return disk_array
+        # if (
+        #     self._node.capability.disk
+        #     and self._node.capability.disk.disk_controller_type
+        #     == schema.DiskControllerType.NVME
+        # ):
+        nvme = self._node.features[Nvme]
+        # Skip OS disk which is '[0]' in namespaces list
+        disk_array = nvme.get_namespaces()[1:]
+        return disk_array
         # disk_controller_type == SCSI
         # refer here to get data disks from folder /dev/disk/azure/scsi1
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
