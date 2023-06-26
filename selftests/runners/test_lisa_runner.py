@@ -431,13 +431,13 @@ class RunnerTestCase(TestCase):
             runner=runner,
         )
 
-        before_case_failed = "before_case: failed"
+        before_case_failed = "before_case failed. "
         self.verify_test_results(
             expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
             expected_envs=["customized_0", "customized_0", "customized_0"],
             expected_status=[
-                TestStatus.SKIPPED,
-                TestStatus.SKIPPED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
                 TestStatus.PASSED,
             ],
             expected_message=[before_case_failed, before_case_failed, ""],
