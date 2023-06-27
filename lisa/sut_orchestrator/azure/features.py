@@ -447,7 +447,12 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
         re.I,
     )
-    _amd_supported_skus = re.compile(r"^Standard_[^_]+_v4$", re.I)
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVv4 Series: Standard_NV[^_]+_v4
+    _amd_supported_skus = re.compile(
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+    )
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
