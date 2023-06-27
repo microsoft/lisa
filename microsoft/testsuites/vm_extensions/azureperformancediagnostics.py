@@ -12,10 +12,19 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Redhat
+from lisa.operating_system import (
+    AlmaLinux,
+    CBLMariner,
+    CentOs,
+    Debian,
+    Oracle,
+    Redhat,
+    Suse,
+    Ubuntu,
+)
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
-    delete_storage_account,
+    get_node_context,
     get_or_create_storage_container,
     get_storage_credential,
 )
@@ -61,8 +70,9 @@ class AzurePerformanceDiagnostics(TestSuite):
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         storage_account_name = f"lisasc{random_str}"
         information = environment.get_information()
-        resource_group_name = information["resource_group_name"]
         location = information["location"]
+        node_context = get_node_context(node)
+        resource_group_name = node_context.resource_group_name
 
         check_or_create_storage_account(
             credential=platform.credential,
@@ -147,50 +157,26 @@ class AzurePerformanceDiagnostics(TestSuite):
             "Found the VM Extension still unexpectedly exists on the VM after deletion"
         ).is_false()
 
-        delete_storage_account(
-            credential=platform.credential,
-            subscription_id=platform.subscription_id,
-            cloud=platform.cloud,
-            account_name=storage_account_name,
-            resource_group_name=resource_group_name,
-            log=log,
-        )
-
     def _is_supported_linux_distro(self, node: Node) -> bool:
-        supported_major_versions = {
-            "redhat": [7, 8],
-            "red hat": [7, 8],
-            "centos": [6, 7],
-            "oracle": [6, 7],
-            "debian": [8, 9, 10, 11],
-            "ubuntu": [14, 16, 18, 20],
-            "suse": [12, 15],
-            "sles": [12, 15],
-            "almalinux": [8],
-            "mariner": [2],
-        }
-
-        version_list = supported_major_versions.get(
-            (node.os.information.vendor).lower()
-        )
-
-        if (
-            version_list is not None
-            and node.os.information.version.major in version_list
-            and not self._is_unsupported_version(node)
-        ):
-            return True
-        else:
-            return False
-
-    def _is_unsupported_version(self, node: Node) -> bool:
-        """
-        These are specific Linux distro versions that are
-        not supported by Azure Performance Diagnostics,
-        even though the major version is generally supported
-        """
         version = node.os.information.version
-        if isinstance(node.os, Redhat) and (version == "8.0.0" or version == "8.0.1"):
-            return True
-        else:
-            return False
+        major_version = version.major
+        if type(node.os) == CentOs:
+            return major_version in [6, 7]
+        elif type(node.os) == Oracle:
+            return major_version in [6, 7]  
+        elif type(node.os) == Debian:
+            return major_version in [8, 9, 10, 11]
+        elif type(node.os) == Ubuntu:
+            return major_version in [14, 16, 18, 20]
+        elif type(node.os) == AlmaLinux:
+            return major_version in [8]
+        elif type(node.os) == CBLMariner:
+            return major_version in [2]
+        elif isinstance(node.os, Suse):
+            return major_version in [12, 15]
+        elif type(node.os) == Redhat:
+            if major_version in [7, 8]:
+                if version != "8.0.0" and version != "8.0.1":
+                    return True
+
+        return False
