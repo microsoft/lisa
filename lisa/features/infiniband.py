@@ -8,10 +8,11 @@ from typing import Any, Dict, List
 from assertpy import assert_that
 from retry import retry
 
-from lisa.base_tools import Cat, Sed, Service, Uname, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
 from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Firewall, Ls, Lspci, Make
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -301,6 +302,11 @@ class Infiniband(Feature):
         firewall = node.tools[Firewall]
         firewall.stop()
 
+        waagent = node.tools[Waagent]
+        devices = self._get_ib_device_names()
+        if len(devices) > 1:
+            waagent.upgrade_from_source()
+
         # Disable SELinux
         sed = node.tools[Sed]
         sed.substitute(
@@ -403,6 +409,7 @@ class Infiniband(Feature):
             file="/etc/waagent.conf",
             sudo=True,
         )
+        waagent.restart()
 
         if isinstance(node.os, Ubuntu) and node.os.information.version > "18.4.0":
             node.tools[Sed].substitute(
@@ -413,12 +420,6 @@ class Infiniband(Feature):
             )
             node.execute("update-grub", sudo=True)
             node.reboot()
-
-        service = node.tools[Service]
-        if isinstance(node.os, Ubuntu):
-            service.restart_service("walinuxagent")
-        else:
-            service.restart_service("waagent")
 
     def install_intel_mpi(self) -> None:
         node = self._node
