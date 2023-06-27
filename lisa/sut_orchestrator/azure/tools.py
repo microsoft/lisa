@@ -9,8 +9,8 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat
-from lisa.tools import Gcc, Modinfo, PowerShell, Uname
+from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat, Ubuntu
+from lisa.tools import Gcc, Git, Modinfo, PowerShell, Service, Uname
 from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
@@ -38,6 +38,7 @@ class Waagent(Tool):
         # for flatcar
         "/usr/share/oem/python/bin/python3",
     ]
+    _src_url = "https://github.com/Azure/WALinuxAgent/"
 
     @property
     def command(self) -> str:
@@ -78,6 +79,28 @@ class Waagent(Tool):
         # user with below command:
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
+
+    def upgrade_from_source(self) -> None:
+        git = self.node.tools[Git]
+        git.clone(self._src_url, cwd=self.node.working_path)
+        python_cmd, _ = self.get_python_cmd()
+        for package in list(["python-setuptools", "python3-setuptools"]):
+            if self.node.os.is_package_in_repo(package):  # type: ignore
+                self.node.os.install_packages(package)  # type: ignore
+        self.node.execute(
+            f"{python_cmd} setup.py install --force",
+            sudo=True,
+            cwd=self.node.working_path.joinpath("WALinuxAgent"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install waagent",
+        )
+
+    def restart(self) -> None:
+        service = self.node.tools[Service]
+        if isinstance(self.node.os, Ubuntu):
+            service.restart_service("walinuxagent")
+        else:
+            service.restart_service("waagent")
 
     def _get_configuration(self, force_run: bool = False) -> Dict[str, str]:
         waagent_conf_file = self._get_waagent_conf_path()
