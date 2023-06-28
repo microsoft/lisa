@@ -13,6 +13,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import (
+    SLES,
     AlmaLinux,
     CBLMariner,
     CentOs,
@@ -158,30 +159,39 @@ class AzurePerformanceDiagnostics(TestSuite):
         ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
-        is_supported = False
-        version = node.os.information.version
-        major_version = version.major
-        if type(node.os) == CentOs:
-            is_supported = major_version in [6, 7]
-        elif type(node.os) == Oracle:
-            is_supported = major_version in [6, 7]
-        elif type(node.os) == Debian:
-            is_supported = major_version in [8, 9, 10, 11]
-        elif type(node.os) == Ubuntu:
-            is_supported = major_version in [14, 16, 18, 20]
-        elif type(node.os) == AlmaLinux:
-            is_supported = major_version in [8]
-        elif type(node.os) == CBLMariner:
-            is_supported = major_version in [2]
-        elif isinstance(node.os, Suse):
-            is_supported = major_version in [12, 15]
-        elif type(node.os) == Redhat:
-            if major_version in [7, 8]:
-                """
-                Even though major version 8 is generally supported,
-                RedHat 8.0 is not supported
-                """
-                if version != "8.0.0" and version != "8.0.1":
-                    is_supported = True
+        supported_major_versions = {
+            Redhat: [7, 8],
+            CentOs: [6, 7],
+            Oracle: [6, 7],
+            Debian: [8, 9, 10, 11],
+            Ubuntu: [14, 16, 18, 20],
+            Suse: [12, 15],
+            SLES: [12, 15],
+            AlmaLinux: [8],
+            CBLMariner: [2],
+        }
 
-        return is_supported
+        for distro in supported_major_versions:
+            if type(node.os) == distro:
+                version_list = supported_major_versions.get(distro)
+                if (
+                    version_list is not None
+                    and node.os.information.version.major in version_list
+                    and not self._is_unsupported_version(node)
+                ):
+                    return True
+                else:
+                    return False
+        return False
+
+    def _is_unsupported_version(self, node: Node) -> bool:
+        """
+        These are specific Linux distro versions that are
+        not supported by Azure Performance Diagnostics,
+        even though the major version is generally supported
+        """
+        version = node.os.information.version
+        if type(node.os) and (version == "8.0.0" or version == "8.0.1"):
+            return True
+        else:
+            return False
