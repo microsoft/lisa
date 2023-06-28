@@ -158,25 +158,30 @@ class AzurePerformanceDiagnostics(TestSuite):
         ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
+        is_supported = False
         version = node.os.information.version
         major_version = version.major
         if type(node.os) == CentOs:
-            return major_version in [6, 7]
+            is_supported = major_version in [6, 7]
         elif type(node.os) == Oracle:
-            return major_version in [6, 7]  
+            is_supported = major_version in [6, 7]
         elif type(node.os) == Debian:
-            return major_version in [8, 9, 10, 11]
+            is_supported = major_version in [8, 9, 10, 11]
         elif type(node.os) == Ubuntu:
-            return major_version in [14, 16, 18, 20]
+            is_supported = major_version in [14, 16, 18, 20]
         elif type(node.os) == AlmaLinux:
-            return major_version in [8]
+            is_supported = major_version in [8]
         elif type(node.os) == CBLMariner:
-            return major_version in [2]
+            is_supported = major_version in [2]
         elif isinstance(node.os, Suse):
-            return major_version in [12, 15]
+            is_supported = major_version in [12, 15]
         elif type(node.os) == Redhat:
             if major_version in [7, 8]:
+                """
+                Even though major version 8 is generally supported,
+                RedHat 8.0 is not supported
+                """
                 if version != "8.0.0" and version != "8.0.1":
-                    return True
+                    is_supported = True
 
-        return False
+        return is_supported
