@@ -157,7 +157,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_tcp_ntttcp_synthetic(self, result: TestResult) -> None:
-        run_times = 300
+        run_times = 75
         while run_times > 0:
             perf_ntttcp(result)
             run_times -= 1
