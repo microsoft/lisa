@@ -222,7 +222,7 @@ class CloudHypervisorTests(Tool):
         if username not in res.stdout:  # if current user is not in docker group
             self.node.execute(f"usermod -a -G docker {username}", sudo=True)
             # reboot for group membership change to take effect
-            self.node.reboot()
+            self.node.reboot(time_out=900)
 
         self.node.tools[Docker].start()
 
