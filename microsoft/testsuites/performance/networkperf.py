@@ -160,7 +160,6 @@ class NetworkPerformace(TestSuite):
         run_times = 10
         while run_times > 0:
             perf_ntttcp(result)
-            self.node.log.info(f"Iteration:{10-run_times}")
             run_times -= 1
 
     @TestCaseMetadata(
