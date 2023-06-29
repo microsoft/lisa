@@ -23,7 +23,9 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
+    AzureNodeSchema,
     check_or_create_storage_account,
     get_node_context,
     get_or_create_storage_container,
@@ -70,10 +72,10 @@ class AzurePerformanceDiagnostics(TestSuite):
         # Create storage account and get credentials
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         storage_account_name = f"lisasc{random_str}"
-        information = environment.get_information()
-        location = information["location"]
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
+        node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        location = node_capability.location
 
         check_or_create_storage_account(
             credential=platform.credential,
