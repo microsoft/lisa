@@ -49,7 +49,7 @@ from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
+from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm, Sed
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -591,6 +591,30 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
     def is_over_nd(self) -> bool:
         dmesg = self._node.tools[Dmesg]
         return "hvnd_try_bind_nic" in dmesg.get_output()
+
+    def setup_rdma(self) -> None:
+        super().setup_rdma()
+        waagent = self._node.tools[Waagent]
+        devices = self._get_ib_device_names()
+        if len(devices) > 1:
+            # upgrade waagent to latest version to resolve
+            # multiple ib devices not getting ip address issue
+            waagent.upgrade_from_source()
+        # Update waagent.conf
+        sed = self._node.tools[Sed]
+        sed.substitute(
+            regexp="# OS.EnableRDMA=y",
+            replacement="OS.EnableRDMA=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="# AutoUpdate.Enabled=y",
+            replacement="AutoUpdate.Enabled=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        waagent.restart()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)

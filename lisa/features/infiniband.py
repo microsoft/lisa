@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 from assertpy import assert_that
 from retry import retry
 
-from lisa.base_tools import Cat, Sed, Service, Uname, Wget
+from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
 from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
@@ -390,20 +390,6 @@ class Infiniband(Feature):
             sudo=True,
         )
 
-        # Update waagent.conf
-        sed.substitute(
-            regexp="# OS.EnableRDMA=y",
-            replacement="OS.EnableRDMA=y",
-            file="/etc/waagent.conf",
-            sudo=True,
-        )
-        sed.substitute(
-            regexp="# AutoUpdate.Enabled=y",
-            replacement="AutoUpdate.Enabled=y",
-            file="/etc/waagent.conf",
-            sudo=True,
-        )
-
         if isinstance(node.os, Ubuntu) and node.os.information.version > "18.4.0":
             node.tools[Sed].substitute(
                 regexp='GRUB_CMDLINE_LINUX="\\(.*\\)"',
@@ -413,12 +399,6 @@ class Infiniband(Feature):
             )
             node.execute("update-grub", sudo=True)
             node.reboot()
-
-        service = node.tools[Service]
-        if isinstance(node.os, Ubuntu):
-            service.restart_service("walinuxagent")
-        else:
-            service.restart_service("waagent")
 
     def install_intel_mpi(self) -> None:
         node = self._node
