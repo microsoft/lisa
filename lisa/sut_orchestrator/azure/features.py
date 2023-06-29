@@ -2005,6 +2005,20 @@ class AzureExtension(AzureFeatureMixin, Feature):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
+    def get(
+        self,
+        name: str = "",
+    ) -> Any:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        extension = compute_client.virtual_machine_extensions.get(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+            expand="instanceView",
+        )
+        return extension
+
     def create_or_update(
         self,
         type_: str,
