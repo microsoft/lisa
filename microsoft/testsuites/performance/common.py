@@ -282,10 +282,15 @@ def perf_ntttcp(  # noqa: C901
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
             server_nic_name = (
-                server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
+                server_nic_name
+                if server_nic_name
+                else server.nics.get_primary_nic().pci_device_name
             )
+
             client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.get_lower_nics()[0]
+                client_nic_name
+                if client_nic_name
+                else client.nics.get_primary_nic().pci_device_name
             )
             dev_differentiator = "mlx"
         else:

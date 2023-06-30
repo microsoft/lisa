@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from retry import retry
+
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Redhat
@@ -15,6 +17,7 @@ class Docker(Tool):
     def can_install(self) -> bool:
         return True
 
+    @retry(tries=10, delay=5)
     def build_image(self, image_name: str, dockerfile: str) -> None:
         self.run(
             f"build -t {image_name} -f {dockerfile} .",

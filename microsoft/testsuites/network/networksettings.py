@@ -55,7 +55,7 @@ class NetworkSettings(TestSuite):
     #  {'name': 'rx_queue_1_packets', 'value': '1108'},
     #  {'name': 'rx_queue_1_bytes', 'value': '1415269'},
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
-    _vf_queue_stats_regex = re.compile(r"[tr]x(?P<name>[\d]+)_packets")
+    _vf_queue_stats_regex = re.compile(r"[tr]x[_]?(?P<name>[\d]+)_packets")
 
     # This will match different tx queues like -
     # {'name': 'tx_queue_0_packets', 'value': '0'}
@@ -68,11 +68,15 @@ class NetworkSettings(TestSuite):
     # This will match different vf tx queues like -
     # {'name': 'tx0_packets', 'value': '966'}
     # {'name': 'tx1_packets', 'value': '820'}
-    _vf_tx_stats_regex = re.compile(r"tx(?P<name>[\d]+)_packets")
+    # {'name': 'tx_0_packets', 'value': '2773'}
+    # {'name': 'tx_1_packets', 'value': '2605'}
+    _vf_tx_stats_regex = re.compile(r"tx[_]?(?P<name>[\d]+)_packets")
     # This will match different vf rx queues like -
     # {'name': 'rx0_packets', 'value': '283'}
     # {'name': 'rx1_packets', 'value': '158'}
-    _vf_rx_stats_regex = re.compile(r"rx(?P<name>[\d]+)_packets")
+    # {'name': 'rx_0_packets', 'value': '2500'}
+    # {'name': 'rx_1_packets', 'value': '3113'}
+    _vf_rx_stats_regex = re.compile(r"rx[_]?(?P<name>[\d]+)_packets")
 
     @TestCaseMetadata(
         description="""

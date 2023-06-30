@@ -49,7 +49,7 @@ from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm, Sed
+from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -656,6 +656,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
+        status_changed = False
         for nic in vm.network_profile.network_interfaces:
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
@@ -687,9 +688,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
+                status_changed = True
 
         # wait settings effective
-        if wait:
+        if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
@@ -830,16 +832,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        self._node.nics.reload()
-        default_nic = self._node.nics.get_primary_nic()
-
-        if enabled and not default_nic.lower:
-            raise LisaException("SRIOV is enabled, but VF is not found.")
-        elif not enabled and default_nic.lower:
-            raise LisaException("SRIOV is disabled, but VF exists.")
-        else:
-            # the enabled flag is consistent with VF presents.
-            ...
+        self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
         self, nics: List[NetworkInterfaceReference]
@@ -866,6 +859,22 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 )
             )
         return all_nics
+
+    def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
+        interfaces_info_list: List[IpInfo] = []
+        for interface in self._get_all_nics():
+            interfaces_info_list.append(
+                IpInfo(
+                    interface.name,
+                    ":".join(interface.mac_address.lower().split("-")),
+                    [
+                        x.private_ip_address
+                        for x in interface.ip_configurations
+                        if x.primary
+                    ][0],
+                )
+            )
+        return interfaces_info_list
 
 
 # Tuple: (IOPS, Disk Size)

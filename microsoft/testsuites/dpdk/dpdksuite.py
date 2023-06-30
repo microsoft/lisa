@@ -616,8 +616,8 @@ class Dpdk(TestSuite):
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
         nic = node.nics.get_secondary_nic()
-        node.nics.get_nic_driver(nic.upper)
-        if nic.bound_driver == "hv_netvsc":
+        node.nics.get_nic_driver(nic.name)
+        if nic.module_name == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
 
         original_driver = nic.driver_sysfs_path
@@ -638,12 +638,12 @@ class Dpdk(TestSuite):
 
         node.nics.unbind(nic)
         node.nics.bind(nic, str(original_driver))
-        nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+        nic.module_name = node.nics.get_nic_driver(nic.name)
 
-        assert_that(nic.bound_driver).described_as(
+        assert_that(nic.module_name).described_as(
             (
                 "Driver after unbind/rebind was unexpected. "
-                f"Expected hv_netvsc, found {nic.bound_driver}"
+                f"Expected hv_netvsc, found {nic.module_name}"
             )
         ).is_equal_to("hv_netvsc")
 

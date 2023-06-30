@@ -138,7 +138,7 @@ class XdpFunctional(TestSuite):
         xdpdump = get_xdpdump(node)
         for i in range(3):
             nic_info = node.nics.get_nic_by_index(i)
-            output = xdpdump.test_by_ping(nic_name=nic_info.upper)
+            output = xdpdump.test_by_ping(nic_name=nic_info.name)
 
             self._verify_xdpdump_result(output)
 

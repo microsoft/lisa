@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
 
@@ -26,25 +26,15 @@ from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import (
-    Cat,
-    Ethtool,
-    Firewall,
-    InterruptInspector,
-    Iperf3,
-    KernelConfig,
-    Lscpu,
-    Lspci,
-)
+from lisa.tools import Cat, Ethtool, Firewall, InterruptInspector, Iperf3, Lscpu
 from lisa.util import UnsupportedDistroException, check_till_timeout
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
-    get_used_config,
+    disable_enable_devices,
     initialize_nic_info,
-    load_module,
+    reload_modules,
     remove_extra_nics,
-    remove_module,
     restore_extra_nics,
     sriov_basic_test,
     sriov_disable_enable,
@@ -110,8 +100,8 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_basic(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -136,7 +126,7 @@ class Sriov(TestSuite):
     )
     def verify_sriov_single_vf_connection(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -166,7 +156,7 @@ class Sriov(TestSuite):
         self, environment: Environment
     ) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -196,7 +186,7 @@ class Sriov(TestSuite):
     )
     def verify_sriov_max_vf_connection(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -227,7 +217,7 @@ class Sriov(TestSuite):
     )
     def verify_sriov_max_vf_connection_max_cpu(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -268,12 +258,9 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
-        for node in environment.nodes.list():
-            lspci = node.tools[Lspci]
-            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
-            lspci.enable_devices()
+        disable_enable_devices(environment)
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
     @TestCaseMetadata(
@@ -296,8 +283,8 @@ class Sriov(TestSuite):
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
-        sriov_vf_connection_test(environment, vm_nics, turn_off_vf=True)
+        sriov_basic_test(environment)
+        sriov_vf_connection_test(environment, vm_nics, turn_off_lower=True)
 
     @TestCaseMetadata(
         description="""
@@ -332,8 +319,8 @@ class Sriov(TestSuite):
                 timeout=self.TIME_OUT,
             )
             if is_ready:
-                vm_nics = initialize_nic_info(environment)
-                sriov_basic_test(environment, vm_nics)
+                initialize_nic_info(environment)
+                sriov_basic_test(environment)
             else:
                 serial_console = node.features[SerialConsole]
                 serial_console.check_panic(
@@ -363,8 +350,8 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_provision_with_max_nics(self, environment: Environment) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -385,11 +372,12 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             node.reboot()
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -410,12 +398,13 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
             start_stop.restart()
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -436,13 +425,14 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
-        vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         for node in environment.nodes.list():
             start_stop = node.features[StartStop]
             start_stop.stop()
             start_stop.start()
-        sriov_basic_test(environment, vm_nics)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
 
     @TestCaseMetadata(
         description="""
@@ -462,19 +452,29 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
-        for node in environment.nodes.list():
-            if node.tools[KernelConfig].is_built_in(get_used_config(node)):
-                raise SkippedException(
-                    "current VM's mlx driver is built-in, can not reload."
-                )
         vm_nics = initialize_nic_info(environment)
-        sriov_basic_test(environment, vm_nics)
-        module_in_used: Dict[str, str] = {}
+        sriov_basic_test(environment)
+
+        module_in_used: Dict[str, List[str]] = {}
+        module_name_list: List[str] = []
         for node in environment.nodes.list():
-            module_in_used[node.name] = remove_module(node)
-        sriov_vf_connection_test(environment, vm_nics, remove_module=True)
+            for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+                if node.nics.is_module_reloadable(module_name):
+                    module_name_list.extend(node.nics.unload_module(module_name))
+            module_in_used[node.name] = module_name_list
+
         for node in environment.nodes.list():
-            load_module(node, module_in_used[node.name])
+            if module_in_used[node.name]:
+                remove_module = True
+            else:
+                remove_module = False
+
+        sriov_vf_connection_test(environment, vm_nics, remove_module=remove_module)
+
+        for node in environment.nodes.list():
+            for module_name in module_in_used[node.name]:
+                node.nics.load_module(module_name)
+
         vm_nics = initialize_nic_info(environment)
         sriov_vf_connection_test(environment, vm_nics)
 
@@ -507,15 +507,16 @@ class Sriov(TestSuite):
         client_node = cast(RemoteNode, environment.nodes[1])
         client_ethtool = client_node.tools[Ethtool]
         vm_nics = initialize_nic_info(environment)
+
         # skip test if scatter-gather can't be updated
         for client_nic_info in vm_nics[client_node.name].values():
             device_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.upper, True
+                client_nic_info.name, True
             )
             if device_sg_settings.sg_fixed:
                 raise SkippedException(
                     "scatter-gather is fixed, it cannot be changed for device"
-                    f" {client_nic_info.upper}. Skipping test."
+                    f" {client_nic_info.name}. Skipping test."
                 )
             else:
                 break
@@ -541,10 +542,7 @@ class Sriov(TestSuite):
         assert_that(iperf_log).does_not_contain("error")
 
         # disable and enable VF in pci level
-        for node in environment.nodes.list():
-            lspci = node.tools[Lspci]
-            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
-            lspci.enable_devices()
+        disable_enable_devices(environment)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
@@ -561,10 +559,10 @@ class Sriov(TestSuite):
         # verify vf scatter-gather feature has value 'on'
         for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
-                client_nic_info.upper, True
+                client_nic_info.name, True
             )
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.lower, True
+                client_nic_info.pci_device_name, True
             )
             assert_that(
                 new_settings.sg_setting,
@@ -575,10 +573,10 @@ class Sriov(TestSuite):
         # verify vf scatter-gather feature has value 'off'
         for client_nic_info in vm_nics[client_node.name].values():
             new_settings = client_ethtool.change_device_sg_settings(
-                client_nic_info.upper, False
+                client_nic_info.name, False
             )
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.lower, True
+                client_nic_info.pci_device_name, True
             )
             assert_that(
                 new_settings.sg_setting,
@@ -586,18 +584,14 @@ class Sriov(TestSuite):
             ).is_equal_to(device_vf_sg_settings.sg_setting)
 
         #  disable and enable VF in pci level
-        for node in environment.nodes.list():
-            lspci = node.tools[Lspci]
-            lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
-            lspci.enable_devices()
-
+        disable_enable_devices(environment)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.lower, True
+                client_nic_info.pci_device_name, True
             )
             assert_that(
                 device_vf_sg_settings.sg_setting,
@@ -605,19 +599,14 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # disable and enable sriov in network interface level
-        network_interface_feature = client_node.features[NetworkInterface]
-        for _ in range(3):
-            sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-            network_interface_feature.switch_sriov(enable=not sriov_is_enabled)
-        network_interface_feature.switch_sriov(enable=True)
-
+        sriov_disable_enable(environment, 3)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                client_nic_info.lower, True
+                client_nic_info.pci_device_name, True
             )
             assert_that(
                 device_vf_sg_settings.sg_setting,
@@ -625,21 +614,14 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # reload sriov modules
-        module_built_in = any(
-            node.tools[KernelConfig].is_built_in(get_used_config(node))
-            for node in environment.nodes.list()
-        )
-        if not module_built_in:
-            for node in environment.nodes.list():
-                load_module(node, remove_module(node))
-
+        if reload_modules(environment):
             # check VF still paired with synthetic nic
             vm_nics = initialize_nic_info(environment)
 
             # check VF's scatter-gather feature keep consistent with previous status
             for client_nic_info in vm_nics[client_node.name].values():
                 device_vf_sg_settings = client_ethtool.get_device_sg_settings(
-                    client_nic_info.lower, True
+                    client_nic_info.pci_device_name, True
                 )
                 assert_that(
                     device_vf_sg_settings.sg_setting,
@@ -693,87 +675,92 @@ class Sriov(TestSuite):
         server_iperf3.run_as_server_async()
         client_interrupt_inspector = client_node.tools[InterruptInspector]
         for _, client_nic_info in vm_nics[client_node.name].items():
-            # 2. Get initial interrupts sum per irq and cpu number on client node.
-            # only collect 'Completion Queue Interrupts' irqs
-            initial_pci_interrupts_by_irqs = (
-                client_interrupt_inspector.sum_cpu_counter_by_irqs(
-                    client_nic_info.pci_slot,
-                    exclude_key_words=["pages", "cmd", "async"],
+            if client_nic_info.is_pci_module_enabled:
+                # 2. Get initial interrupts sum per irq and cpu number on client node.
+                # only collect 'Completion Queue Interrupts' irqs
+                initial_pci_interrupts_by_irqs = (
+                    client_interrupt_inspector.sum_cpu_counter_by_irqs(
+                        client_nic_info.pci_slot,
+                        exclude_key_words=["pages", "cmd", "async", "hwc"],
+                    )
                 )
-            )
 
-            initial_pci_interrupts_by_cpus = (
-                client_interrupt_inspector.sum_cpu_counter_by_index(
-                    client_nic_info.pci_slot
+                initial_pci_interrupts_by_cpus = (
+                    client_interrupt_inspector.sum_cpu_counter_by_index(
+                        client_nic_info.pci_slot
+                    )
                 )
-            )
-            assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
-                "initial cpu count of interrupts should be equal to cpu count"
-            ).is_equal_to(client_cpu_count)
-            matched_server_nic_info: NicInfo
-            for _, server_nic_info in vm_nics[server_node.name].items():
-                if (
-                    server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
-                    == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
-                ):
-                    matched_server_nic_info = server_nic_info
-                    break
-            assert matched_server_nic_info, (
-                "not found the server nic has the same subnet of"
-                f" {client_nic_info.ip_addr}"
-            )
-
-            # 3. Start iperf3 for 120 seconds with 128 threads on client node.
-            client_iperf3.run_as_client(
-                server_ip=matched_server_nic_info.ip_addr,
-                run_time_seconds=120,
-                parallel_number=128,
-                client_ip=client_nic_info.ip_addr,
-            )
-            # 4. Get final interrupts sum per irq number on client node.
-            final_pci_interrupts_by_irqs = (
-                client_interrupt_inspector.sum_cpu_counter_by_irqs(
-                    client_nic_info.pci_slot,
-                    exclude_key_words=["pages", "cmd", "async"],
-                )
-            )
-            assert_that(len(final_pci_interrupts_by_irqs)).described_as(
-                "final irqs count should be greater than 0"
-            ).is_greater_than(0)
-            for init_interrupts_irq in initial_pci_interrupts_by_irqs:
-                init_irq_number = list(init_interrupts_irq)[0]
-                init_interrupts_value = init_interrupts_irq[init_irq_number]
-                for final_interrupts in final_pci_interrupts_by_irqs:
-                    final_irq_number = list(final_interrupts)[0]
-                    final_interrupts_value = final_interrupts[final_irq_number]
-                    if init_irq_number == final_irq_number:
+                assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
+                    "initial cpu count of interrupts should be equal to cpu count"
+                ).is_equal_to(client_cpu_count)
+                matched_server_nic_info: NicInfo
+                for _, server_nic_info in vm_nics[server_node.name].items():
+                    if (
+                        server_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
+                        == client_nic_info.ip_addr.rsplit(".", maxsplit=1)[0]
+                    ):
+                        matched_server_nic_info = server_nic_info
                         break
-                # 5. Compare interrupts changes, expected to see interrupts increased.
-                assert_that(final_interrupts_value).described_as(
-                    f"irq {init_irq_number} didn't have an increased interrupts count"
-                    " after iperf3 run!"
-                ).is_greater_than(init_interrupts_value)
-            # 6. Get final interrupts sum per cpu on client node.
-            final_pci_interrupts_by_cpus = (
-                client_interrupt_inspector.sum_cpu_counter_by_index(
-                    client_nic_info.pci_slot
+                assert matched_server_nic_info, (
+                    "not found the server nic has the same subnet of"
+                    f" {client_nic_info.ip_addr}"
                 )
-            )
-            assert_that(len(final_pci_interrupts_by_cpus)).described_as(
-                "final cpu count of interrupts should be equal to cpu count"
-            ).is_equal_to(client_cpu_count)
-            unused_cpu = 0
-            for cpu, init_interrupts_value in initial_pci_interrupts_by_cpus.items():
-                final_interrupts_value = final_pci_interrupts_by_cpus[cpu]
-                # 7. Collect cpus which don't have interrupts count increased.
-                if final_interrupts_value == init_interrupts_value:
-                    unused_cpu += 1
-            # 8. Compare interrupts count changes, expected half of cpus' interrupts
-            #    increased.
-            assert_that(client_cpu_count / 2).described_as(
-                f"More than half of the vCPUs {unused_cpu} didn't have increased "
-                "interrupt count!"
-            ).is_greater_than(unused_cpu)
+
+                # 3. Start iperf3 for 120 seconds with 128 threads on client node.
+                client_iperf3.run_as_client(
+                    server_ip=matched_server_nic_info.ip_addr,
+                    run_time_seconds=120,
+                    parallel_number=128,
+                    client_ip=client_nic_info.ip_addr,
+                )
+                # 4. Get final interrupts sum per irq number on client node.
+                final_pci_interrupts_by_irqs = (
+                    client_interrupt_inspector.sum_cpu_counter_by_irqs(
+                        client_nic_info.pci_slot,
+                        exclude_key_words=["pages", "cmd", "async", "hwc"],
+                    )
+                )
+                assert_that(len(final_pci_interrupts_by_irqs)).described_as(
+                    "final irqs count should be greater than 0"
+                ).is_greater_than(0)
+                for init_interrupts_irq in initial_pci_interrupts_by_irqs:
+                    init_irq_number = list(init_interrupts_irq)[0]
+                    init_interrupts_value = init_interrupts_irq[init_irq_number]
+                    for final_interrupts in final_pci_interrupts_by_irqs:
+                        final_irq_number = list(final_interrupts)[0]
+                        final_interrupts_value = final_interrupts[final_irq_number]
+                        if init_irq_number == final_irq_number:
+                            break
+                    # 5. Compare interrupts changes, expected to see interrupts
+                    # increased.
+                    assert_that(final_interrupts_value).described_as(
+                        f"irq {init_irq_number} didn't have an increased interrupts "
+                        " count after iperf3 run!"
+                    ).is_greater_than(init_interrupts_value)
+                # 6. Get final interrupts sum per cpu on client node.
+                final_pci_interrupts_by_cpus = (
+                    client_interrupt_inspector.sum_cpu_counter_by_index(
+                        client_nic_info.pci_slot
+                    )
+                )
+                assert_that(len(final_pci_interrupts_by_cpus)).described_as(
+                    "final cpu count of interrupts should be equal to cpu count"
+                ).is_equal_to(client_cpu_count)
+                unused_cpu = 0
+                for (
+                    cpu,
+                    init_interrupts_value,
+                ) in initial_pci_interrupts_by_cpus.items():
+                    final_interrupts_value = final_pci_interrupts_by_cpus[cpu]
+                    # 7. Collect cpus which don't have interrupts count increased.
+                    if final_interrupts_value == init_interrupts_value:
+                        unused_cpu += 1
+                # 8. Compare interrupts count changes, expected half of cpus' interrupts
+                #    increased.
+                assert_that(client_cpu_count / 2).described_as(
+                    f"More than half of the vCPUs {unused_cpu} didn't have increased "
+                    "interrupt count!"
+                ).is_greater_than(unused_cpu)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

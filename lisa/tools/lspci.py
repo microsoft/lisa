@@ -161,5 +161,4 @@ class Lspci(Tool):
             expected_exit_code=0,
         )
         matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
-        assert matched
         return matched
