@@ -427,7 +427,12 @@
                     ],
                     "output": {
                         "type": "object",
-                        "value": "[parameters('node')['marketplace']]"
+                        "value": {
+                            "publisher": "[parameters('node')['marketplace']['publisher']]",
+                            "offer": "[parameters('node')['marketplace']['offer']]",
+                            "sku": "[parameters('node')['marketplace']['sku']]",
+                            "version": "[parameters('node')['marketplace']['version']]"
+                        }
                     }
                 },
                 "getOsDiskSharedGallery": {

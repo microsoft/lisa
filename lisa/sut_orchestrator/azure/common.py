@@ -6,7 +6,7 @@ import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from threading import Lock
 from time import sleep
@@ -68,7 +68,7 @@ from msrestazure.azure_cloud import Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
 from retry import retry
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
@@ -135,6 +135,15 @@ global_credential_access_lock = Lock()
 # add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
 
+MARKETPLACE_IMAGE_KEYS = ["publisher", "offer", "sku", "version"]
+SIG_IMAGE_KEYS = [
+    "subscription_id",
+    "resource_group_name",
+    "image_gallery",
+    "image_definition",
+    "image_version",
+]
+
 
 @dataclass
 class EnvironmentContext:
@@ -165,9 +174,30 @@ class AzureVmPurchasePlanSchema:
     publisher: str
 
 
+@dataclass_json
+@dataclass
+class AzureImageSchema:
+    network_data_path: Optional[
+        Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                schema.NetworkDataPath.Synthetic,
+                schema.NetworkDataPath.Sriov,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_set_space_by_type, base_type=schema.NetworkDataPath
+            )
+        ),
+    )
+
+
 @dataclass_json()
 @dataclass
-class AzureVmMarketplaceSchema:
+class AzureVmMarketplaceSchema(AzureImageSchema):
     publisher: str = "Canonical"
     offer: str = "0001-com-ubuntu-server-jammy"
     sku: str = "22_04-lts"
@@ -179,7 +209,7 @@ class AzureVmMarketplaceSchema:
 
 @dataclass_json()
 @dataclass
-class SharedImageGallerySchema:
+class SharedImageGallerySchema(AzureImageSchema):
     subscription_id: str = ""
     resource_group_name: Optional[str] = None
     image_gallery: str = ""
@@ -197,7 +227,7 @@ class SharedImageGallerySchema:
 
 @dataclass_json()
 @dataclass
-class VhdSchema:
+class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     vmgs_path: Optional[str] = None
 
@@ -284,7 +314,10 @@ class AzureNodeSchema:
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
                 self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
+                    (k, v.lower())
+                    if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
+                    else (k, v)
+                    for k, v in self.marketplace_raw.items()
                 )
                 marketplace = schema.load_by_type(
                     AzureVmMarketplaceSchema, self.marketplace_raw
@@ -309,7 +342,12 @@ class AzureNodeSchema:
                     )
 
                     if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                        marketplace = AzureVmMarketplaceSchema(
+                            publisher=marketplace_strings[0],
+                            offer=marketplace_strings[1],
+                            sku=marketplace_strings[2],
+                            version=marketplace_strings[3],
+                        )
                         # marketplace_raw is used
                         self.marketplace_raw = marketplace.to_dict()  # type: ignore
                     else:
@@ -345,7 +383,8 @@ class AzureNodeSchema:
             # The lower() normalizes the image names,
             #  it has no impact on deployment.
             self.shared_gallery_raw = dict(
-                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
+                (k, v.lower()) if isinstance(v, str) and k in SIG_IMAGE_KEYS else (k, v)
+                for k, v in self.shared_gallery_raw.items()
             )
             shared_gallery = schema.load_by_type(
                 SharedImageGallerySchema, self.shared_gallery_raw
@@ -367,12 +406,21 @@ class AzureNodeSchema:
                 r"[/]+", self.shared_gallery_raw.strip().lower()
             )
             if len(shared_gallery_strings) == 5:
-                shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
+                shared_gallery = SharedImageGallerySchema(
+                    subscription_id=shared_gallery_strings[0],
+                    resource_group_name=shared_gallery_strings[1],
+                    image_gallery=shared_gallery_strings[2],
+                    image_definition=shared_gallery_strings[3],
+                    image_version=shared_gallery_strings[4],
+                )
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
             elif len(shared_gallery_strings) == 3:
                 shared_gallery = SharedImageGallerySchema(
-                    self.subscription_id, None, *shared_gallery_strings
+                    subscription_id=self.subscription_id,
+                    image_gallery=shared_gallery_strings[0],
+                    image_definition=shared_gallery_strings[1],
+                    image_version=shared_gallery_strings[2],
                 )
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
@@ -414,7 +462,7 @@ class AzureNodeSchema:
             self.vhd_raw = vhd.to_dict()  # type: ignore
         elif self.vhd_raw is not None:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
-            vhd = VhdSchema(self.vhd_raw)
+            vhd = VhdSchema(vhd_path=self.vhd_raw)
             add_secret(vhd.vhd_path, PATTERN_URL)
             self.vhd_raw = vhd.to_dict()  # type: ignore
         self._vhd = vhd
@@ -440,7 +488,9 @@ class AzureNodeSchema:
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
             if self.shared_gallery.resource_group_name:
-                result = "/".join([x for x in self.shared_gallery_raw.values()])
+                result = "/".join(
+                    [self.shared_gallery_raw.get(k, "") for k in SIG_IMAGE_KEYS]
+                )
             else:
                 result = (
                     f"{self.shared_gallery.image_gallery}/"
@@ -451,7 +501,9 @@ class AzureNodeSchema:
             assert isinstance(
                 self.marketplace_raw, dict
             ), f"actual type: {type(self.marketplace_raw)}"
-            result = " ".join([x for x in self.marketplace_raw.values()])
+            result = " ".join(
+                [self.marketplace_raw.get(k, "") for k in MARKETPLACE_IMAGE_KEYS]
+            )
         return result
 
 
