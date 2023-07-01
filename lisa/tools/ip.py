@@ -206,9 +206,9 @@ class Ip(Tool):
         )
 
     def get_mac(self, nic_name: str) -> str:
-        result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
+        result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
         matched = self.__ip_addr_show_regex.match(result.stdout)
-        assert matched
+        assert matched, f"not find mac address for nic {nic_name}"
         return matched.group("mac")
 
     def get_info(self, nic_name: Optional[str] = None) -> List[IpInfo]:
@@ -318,7 +318,7 @@ class Ip(Tool):
     def get_ip_address(self, nic_name: str) -> str:
         result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
         matched = self.__ip_addr_show_regex.match(result.stdout)
-        assert matched
+        assert matched, f"not find ip address for nic {nic_name}"
         return matched.group("ip_addr")
 
     def get_default_route_info(self) -> tuple[str, str]:
