@@ -205,12 +205,13 @@ class Ip(Tool):
         return matched.group("mac")
 
     def get_info(self, nic_name: Optional[str] = None) -> List[IpInfo]:
-        command = "ip addr show"
+        command = "addr show"
         if nic_name:
             command += f" {nic_name}"
-        result = self.node.execute(
+        result = self.run(
             command,
             shell=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Could not run {command} on node {self.node.name}"
