@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Type
+from typing import List, Optional, Type, cast
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
@@ -76,8 +77,14 @@ class Ip(Tool):
     def command(self) -> str:
         return "ip"
 
-    def _check_exists(self) -> bool:
+    @property
+    def can_install(self) -> bool:
         return True
+
+    def install(self) -> bool:
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.install_packages("iproute2")
+        return self._check_exists()
 
     @classmethod
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
