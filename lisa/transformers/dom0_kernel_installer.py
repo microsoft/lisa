@@ -178,22 +178,22 @@ def _update_mariner_config(
     current_kernel: str,
     new_kernel: str,
 ) -> None:
-    ll_conf_file: str = "/boot/mariner-mshv.cfg"
+    mariner_config: str = "/boot/mariner-mshv.cfg"
     sed = node.tools[Sed]
 
     # Modify the /boot/mariner-mshv.cfg to point new kernel binary
     sed.substitute(
-        regexp=f"mariner_linux=vmlinuz-{current_kernel}",
-        replacement=f"mariner_linux=vmlinuz-{new_kernel}",
-        file=ll_conf_file,
+        regexp=f"mariner_linux_mshv=vmlinuz-{current_kernel}",
+        replacement=f"mariner_linux_mshv=vmlinuz-{new_kernel}",
+        file=mariner_config,
         sudo=True,
     )
 
     if is_initrd:
         # Modify the /boot/mariner-mshv.cfg to point new initrd binary
         sed.substitute(
-            regexp=f"mariner_initrd=initrd.img-{current_kernel}",
-            replacement=f"mariner_initrd=initrd.img-{new_kernel}",
-            file=ll_conf_file,
+            regexp=f"mariner_initrd_mshv=initrd.img-{current_kernel}",
+            replacement=f"mariner_initrd_mshv=initrd.img-{new_kernel}",
+            file=mariner_config,
             sudo=True,
         )
