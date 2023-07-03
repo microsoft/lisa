@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Type, cast
+from typing import Dict, List, Optional, Type, cast
 
 from assertpy import assert_that
 
@@ -12,7 +12,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import LisaException
 
 
 class IpInfo:
@@ -27,7 +27,18 @@ class Ip(Tool):
     __mac_address_pattern = re.compile(
         "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", re.M
     )
+    __ip_details_pattern = re.compile(
+        r"(\d+: \w+:[\w\W]*?)(?=\d+: \w+:|\Z)", re.MULTILINE
+    )
     """
+    1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000  # noqa: E501
+        link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+        inet 127.0.0.1/8 scope host lo
+        valid_lft forever preferred_lft forever
+        inet6 ::1/128 scope host
+        valid_lft forever preferred_lft forever
+    3: eth1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000  # noqa: E501
+        link/ether 00:15:5d:33:ff:0b brd ff:ff:ff:ff:ff:ff
     3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state ...
         UP group default qlen 1000
         link/ether 00:22:48:79:69:b4 brd ff:ff:ff:ff:ff:ff
@@ -55,9 +66,9 @@ class Ip(Tool):
     """
     __ip_addr_show_regex = re.compile(
         (
-            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband) "
-            r"(?P<mac>[0-9a-z:]+) .+\n(?:(?:.+\n\s+|.*)altname \w+)?"
-            r"(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n)?"
+            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband|loopback)"
+            r" (?P<mac>[0-9a-z:]+)( .+\\n(?:(?:.+\n\s+|.*)altname \w+))?"
+            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n))?"
         )
     )
     # capturing from ip route show
@@ -106,6 +117,15 @@ class Ip(Tool):
             self.node.tools[StartConfiguration].add_command(
                 f"ip link set {nic_name} {status}"
             )
+
+    def _get_matched_dict(self, result: str) -> Dict[str, str]:
+        matched = self.__ip_addr_show_regex.match(result)
+        assert matched is not None, f"Could not parse result: {result}"
+        return {
+            "name": matched.group("name"),
+            "mac": matched.group("mac"),
+            "ip_addr": matched.group("ip_addr"),
+        }
 
     def up(self, nic_name: str, persist: bool = False) -> None:
         self._set_device_status(nic_name, "up", persist=persist)
@@ -207,9 +227,9 @@ class Ip(Tool):
 
     def get_mac(self, nic_name: str) -> str:
         result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
-        matched = self.__ip_addr_show_regex.match(result.stdout)
-        assert matched, f"not find mac address for nic {nic_name}"
-        return matched.group("mac")
+        matched = self._get_matched_dict(result.stdout)
+        assert "mac" in matched, f"not find mac address for nic {nic_name}"
+        return matched["mac"]
 
     def get_info(self, nic_name: Optional[str] = None) -> List[IpInfo]:
         command = "addr show"
@@ -224,16 +244,15 @@ class Ip(Tool):
                 f"Could not run {command} on node {self.node.name}"
             ),
         )
-        entries = find_groups_in_lines(
-            result.stdout, self.__ip_addr_show_regex, single_line=False
-        )
+        raw_list = re.finditer(self.__ip_details_pattern, result.stdout)
         found_nics: List[IpInfo] = []
-        for entry in entries:
+        for ip_raw in raw_list:
+            matched = self._get_matched_dict(ip_raw.group())
             found_nics.append(
                 IpInfo(
-                    nic_name=entry["name"],
-                    mac_addr=entry["mac"],
-                    ip_addr=entry["ip_addr"],
+                    nic_name=matched["name"],
+                    mac_addr=matched["mac"],
+                    ip_addr=matched["ip_addr"],
                 )
             )
         return found_nics
@@ -317,9 +336,9 @@ class Ip(Tool):
 
     def get_ip_address(self, nic_name: str) -> str:
         result = self.run(f"addr show {nic_name}", force_run=True, sudo=True)
-        matched = self.__ip_addr_show_regex.match(result.stdout)
-        assert matched, f"not find ip address for nic {nic_name}"
-        return matched.group("ip_addr")
+        matched = self._get_matched_dict(result.stdout)
+        assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
+        return matched["ip_addr"]
 
     def get_default_route_info(self) -> tuple[str, str]:
         result = self.run("route", force_run=True, sudo=True)
