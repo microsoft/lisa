@@ -1,23 +1,18 @@
 Transformer References
 ======================
--  `Using transformers <https://github.com/microsoft/lisa/blob/main/docs/run_test/runbook.rst#transformer>`__
--  `How-to <#how-to>`__
-    
-  -  `Use Shared Image Gallery (SIG) transformer <#sig-transformer>`__
-  -  `Use Deploy Transformer <#deploy-transformer>`__
-  -  `Use Delete Transformer <#delete-transformer>`__
-  -  `Vhd Transformer <#vhd-transformer>`__
-  
-How-to
+.. contents:: Index
+   :depth: 3
+
+
+How to
 ------
-.. _sig-transformer:
 
 Use Shared Image Gallery (SIG) transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A Azure Compute Gallery (formerly known as Shared Image Gallery) simplifies custom image sharing across your organization. Custom images are like marketplace images, but you create them yourself. Images can be created from a VM, VHD, snapshot, managed image, or another image version.
 
-Usage:
+Usage
 ``````
 .. code:: yaml
 
@@ -36,7 +31,7 @@ Usage:
             rename:
               azure_sig_url: shared_gallery
 
-Process:
+Process
 ````````
   - Create Resource group
   - Create Gallery
@@ -172,14 +167,13 @@ Used to rename the ouput variable
 eg: azure_sig_url: shared_gallery
 Rename's the transformer output `azure_sig_url` to `shared_gallery`
 
-.. _deploy-transformer:
 
 Use Deploy Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Deploy transformer is used to deploy a node in the transformer phase.
 
-Usage:
+Usage
 ``````
 .. code:: yaml
 
@@ -194,7 +188,7 @@ Usage:
           location: westus3
         core_count: 5
 
-Outputs:
+Outputs
 ````````
   - azure_deploy_address
   - azure_deploy_port
@@ -224,14 +218,13 @@ type: int
 
 Automatically selects vm_size based on the count provided.
 
-.. _delete-transformer:
 
 Use Delete Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Delete transformer is used to delete an environment.
 
-Usage:
+Usage
 ``````
 .. code:: yaml
 
@@ -249,14 +242,14 @@ type: string
 
 Name of the resource group that should be deleted.
 
-.. _vhd-transformer:
 
-Vhd Transformer
+
+Use Vhd Transformer
 ~~~~~~~~~~~~~~~
 
 Convert a VM to a VHD using this transformer. This VHD can be used to deploy a VM.
 
-Usage:
+Usage
 ``````
 .. code:: yaml
 
@@ -270,7 +263,7 @@ Usage:
       custom_blob_name: name_of_blob
       restore: false
 
-Outputs:
+Outputs
 ````````
  - azure_vhd_url
 
