@@ -28,11 +28,18 @@ class EnvironmentContext:
 
 
 @dataclass
+class InitSystem:
+    CLOUD_INIT: str = "cloud-init"
+    IGNITION: str = "ignition"
+
+
+@dataclass
 class NodeContext:
     vm_name: str = ""
     firmware_source_path: str = ""
     firmware_path: str = ""
     cloud_init_file_path: str = ""
+    ignition_file_path: str = ""
     os_disk_source_file_path: Optional[str] = None
     os_disk_base_file_path: str = ""
     os_disk_base_file_fmt: DiskImageFormat = DiskImageFormat.QCOW2
@@ -45,6 +52,7 @@ class NodeContext:
     next_disk_index: int = 0
     machine_type: Optional[str] = None
     enable_secure_boot: bool = False
+    init_system: str = InitSystem.CLOUD_INIT
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None
