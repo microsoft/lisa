@@ -48,6 +48,7 @@ from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
 from .context import (
     DataDiskContext,
+    InitSystem,
     NodeContext,
     get_environment_context,
     get_node_context,
@@ -405,6 +406,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     ) -> None:
         node_context = get_node_context(node)
 
+        if node_runbook.ignition:
+            node_context.init_system = InitSystem.IGNITION
+
         if (
             not node_runbook.firmware_type
             or node_runbook.firmware_type == FIRMWARE_TYPE_UEFI
@@ -430,9 +434,14 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if not node.name:
             node.name = node_context.vm_name
 
-        node_context.cloud_init_file_path = os.path.join(
-            self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
-        )
+        if node_context.init_system == InitSystem.CLOUD_INIT:
+            node_context.cloud_init_file_path = os.path.join(
+                self.vm_disks_dir, f"{node_context.vm_name}-cloud-init.iso"
+            )
+        else:
+            node_context.ignition_file_path = os.path.join(
+                self.vm_disks_dir, f"{node_context.vm_name}-ignition.json"
+            )
 
         if self.host_node.is_remote:
             node_context.os_disk_source_file_path = node_runbook.disk_img
@@ -570,8 +579,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                         Path(node_context.os_disk_base_file_path),
                     )
 
-        # Create cloud-init ISO file.
-        self._create_node_cloud_init_iso(environment, log, node)
+        if node_context.init_system == InitSystem.CLOUD_INIT:
+            # Create cloud-init ISO file.
+            self._create_node_cloud_init_iso(environment, log, node)
+        else:
+            # Prepate Ignition injection.
+            self._create_node_ignition(environment, log, node)
 
         # Create OS disk from the provided image.
         self._create_node_os_disk(environment, log, node)
@@ -709,13 +722,48 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 private_key_file=self.runbook.admin_private_key_file,
             )
 
-            # Ensure cloud-init completes its setup.
-            node.execute(
-                "cloud-init status --wait",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="waiting on cloud-init",
+            node_context = get_node_context(node)
+            if node_context.init_system == InitSystem.CLOUD_INIT:
+                # Ensure cloud-init completes its setup.
+                node.execute(
+                    "cloud-init status --wait",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="waiting on cloud-init",
+                )
+
+    # Setup Ignition for a VM.
+    def _create_node_ignition(
+        self, environment: Environment, log: Logger, node: Node
+    ) -> None:
+        environment_context = get_environment_context(environment)
+        node_context = get_node_context(node)
+
+        user_data = {
+            "ignition": {
+                "version": "3.3.0",
+            },
+            "passwd": {
+                "users": [
+                    {
+                        "name": self.runbook.admin_username,
+                        "sshAuthorizedKeys": [environment_context.ssh_public_key],
+                    },
+                ],
+            },
+        }
+
+        tmp_dir = tempfile.TemporaryDirectory()
+        try:
+            ignition_path = os.path.join(tmp_dir.name, "ignition.json")
+            with open(ignition_path, "w") as f:
+                json.dump(user_data, f)
+
+            self.host_node.shell.copy(
+                Path(ignition_path), Path(node_context.ignition_file_path)
             )
+        finally:
+            tmp_dir.cleanup()
 
     # Create a cloud-init ISO for a VM.
     def _create_node_cloud_init_iso(
@@ -929,14 +977,23 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         network_interface_model = ET.SubElement(network_interface, "model")
         network_interface_model.attrib["type"] = "virtio"
 
-        self._add_disk_xml(
-            node_context,
-            devices,
-            node_context.cloud_init_file_path,
-            "cdrom",
-            "raw",
-            "sata",
-        )
+        if node_context.init_system == InitSystem.CLOUD_INIT:
+            self._add_disk_xml(
+                node_context,
+                devices,
+                node_context.cloud_init_file_path,
+                "cdrom",
+                "raw",
+                "sata",
+            )
+        else:
+            sysinfo_tag = ET.SubElement(domain, "sysinfo")
+            sysinfo_tag.attrib["type"] = "fwcfg"
+
+            entry_tag = ET.SubElement(sysinfo_tag, "entry")
+            entry_tag.attrib["name"] = "opt/org.flatcar-linux/config"
+            entry_tag.attrib["file"] = node_context.ignition_file_path
+
         self._add_disk_xml(
             node_context,
             devices,
