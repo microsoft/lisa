@@ -259,8 +259,12 @@ class DpdkTestpmd(Tool):
         #   --stats-period <display interval in seconds>
 
         if multiple_queues:
-            txq = 4
-            rxq = 4
+            if self.is_mana:
+                txq = 8
+                rxq = 8
+            else:
+                txq = 4
+                rxq = 4
         else:
             txq = 1
             rxq = 1
@@ -296,6 +300,8 @@ class DpdkTestpmd(Tool):
 
         if self.is_mana:
             extra_args += " --txd=128 --rxd=128  --stats 2"
+        if txq or rxq:
+            extra_args += f" --txq={txq} --rxq={rxq}"
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
         ).is_greater_than(0)
