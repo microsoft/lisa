@@ -1486,14 +1486,15 @@ class Resize(AzureFeatureMixin, features.Resize):
         # current location and that are available for the current vm size to resize to
         for size in available_sizes:
             vm_size_name = size.as_dict()["name"]
-            # Getting eligible vm sizes and their capability data
-            new_vm_size = next(
-                (x for x in sorted_sizes if x.vm_size == vm_size_name), None
-            )
-            if not new_vm_size:
-                continue
+            if vm_size_name.startswith(("Standard_", "Basic_")):
+                # Getting eligible vm sizes and their capability data
+                new_vm_size = next(
+                    (x for x in sorted_sizes if x.vm_size == vm_size_name), None
+                )
+                if not new_vm_size:
+                    continue
 
-            avail_eligible_intersect.append(new_vm_size)
+                avail_eligible_intersect.append(new_vm_size)
 
         current_network_interface = current_vm_size.capability.network_interface
         assert_that(current_network_interface).described_as(
