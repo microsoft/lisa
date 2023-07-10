@@ -284,7 +284,7 @@ class DpdkTestpmd(Tool):
 
         # use enough cores for (queues + service core) or max available
         max_core_index = min(
-            logical_cores_available - threads_per_core,  # leave one physical for system
+            cores_available - 1,  # leave one physical for system
             queues_and_servicing_core,
         )
 
