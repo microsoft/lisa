@@ -43,7 +43,7 @@ class InfinibandSuite(TestSuite):
     )
     def verify_ib_naming(self, log: Logger, node: Node) -> None:
         ib_interfaces = node.features[Infiniband].get_ib_interfaces()
-        ib_first_device_name = ib_interfaces[0].ib_device_name
+        ib_first_device_name = [x.nic_name for x in ib_interfaces]
 
         if not ib_first_device_name:
             raise LisaException("This node has no IB devices available.")
