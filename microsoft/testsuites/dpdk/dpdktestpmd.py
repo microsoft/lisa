@@ -282,11 +282,17 @@ class DpdkTestpmd(Tool):
         logical_cores_available = cores_available * threads_per_core
         queues_and_servicing_core = txq + rxq + service_cores
 
-        # use enough cores for (queues + service core) or max available
-        max_core_index = min(
-            cores_available - 1,  # leave one physical for system
-            queues_and_servicing_core,
-        )
+        # use less than max queues if not enough cores are available
+        if queues_and_servicing_core > cores_available - 1:
+            txq = (cores_available - 2) // 2
+            rxq = txq
+            assert_that(txq).described_as(
+                "txq value must be greater than 1"
+            ).is_greater_than_or_equal_to(1)
+            queues_and_servicing_core = txq + rxq + service_cores
+
+        # label core index for future use
+        max_core_index = queues_and_servicing_core
 
         # service cores excluded from forwarding cores count
         forwarding_cores = max_core_index - service_cores
