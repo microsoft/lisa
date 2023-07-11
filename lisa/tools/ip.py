@@ -67,7 +67,7 @@ class Ip(Tool):
     __ip_addr_show_regex = re.compile(
         (
             r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband|loopback)"
-            r" (?P<mac>[0-9a-z:]+)( .+\\n(?:(?:.+\n\s+|.*)altname \w+))?"
+            r" (?P<mac>[0-9a-z:]+)( .+\n(?:(?:.+\n\s+|.*)altname \w+))?"
             r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n))?"
         )
     )

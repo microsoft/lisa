@@ -12,7 +12,7 @@ from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
 from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
-from lisa.tools import Firewall, Ls, Lspci, Make
+from lisa.tools import Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
@@ -171,7 +171,40 @@ class Infiniband(Feature):
         cat = self._node.tools[Cat]
         return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
 
-    def setup_rdma(self) -> None:  # noqa: C901
+    def setup_rdma(self, install_ofed: bool = True) -> None:
+        if install_ofed:
+            self.install_ofed()
+
+        node = self._node
+        # Turn off firewall
+        firewall = node.tools[Firewall]
+        firewall.stop()
+        # Disable SELinux
+        sed = node.tools[Sed]
+        sed.substitute(
+            regexp="SELINUX=enforcing",
+            replacement="SELINUX=disabled",
+            file="/etc/selinux/config",
+            sudo=True,
+        )
+
+        # for non-hpc images, add net.ifnames=0 biosdevname=0 in boot kernel parameter
+        # to make ib device name consistent across reboots
+        if (
+            not node.tools[Service].is_service_running("azure_persistent_rdma_naming")
+            and isinstance(node.os, Ubuntu)
+            and node.os.information.version > "18.4.0"
+        ):
+            node.tools[Sed].substitute(
+                regexp='GRUB_CMDLINE_LINUX="\\(.*\\)"',
+                replacement='GRUB_CMDLINE_LINUX="\\1 net.ifnames=0 biosdevname=0"',
+                file="/etc/default/grub",
+                sudo=True,
+            )
+            node.execute("update-grub", sudo=True)
+            node.reboot()
+
+    def _install_dependencies(self) -> None:
         node = self._node
         os_version = node.os.information.release.split(".")
         # Dependencies
@@ -297,18 +330,12 @@ class Infiniband(Feature):
                 "supported by the HCP team",
             )
 
-        # Turn off firewall
-        firewall = node.tools[Firewall]
-        firewall.stop()
-
-        # Disable SELinux
-        sed = node.tools[Sed]
-        sed.substitute(
-            regexp="SELINUX=enforcing",
-            replacement="SELINUX=disabled",
-            file="/etc/selinux/config",
-            sudo=True,
-        )
+    def install_ofed(self) -> None:
+        node = self._node
+        os_version = node.os.information.release.split(".")
+        # Dependencies
+        kernel = node.tools[Uname].get_linux_information().kernel_version_raw
+        self._install_dependencies()
 
         # Install OFED
         mofed_version = self._get_mofed_version()
@@ -390,16 +417,6 @@ class Infiniband(Feature):
             sudo=True,
         )
 
-        if isinstance(node.os, Ubuntu) and node.os.information.version > "18.4.0":
-            node.tools[Sed].substitute(
-                regexp='GRUB_CMDLINE_LINUX="\\(.*\\)"',
-                replacement='GRUB_CMDLINE_LINUX="\\1 net.ifnames=0 biosdevname=0"',
-                file="/etc/default/grub",
-                sudo=True,
-            )
-            node.execute("update-grub", sudo=True)
-            node.reboot()
-
     def install_intel_mpi(self) -> None:
         node = self._node
         # Install Intel MPI
@@ -451,6 +468,15 @@ class Infiniband(Feature):
         node = self._node
         if isinstance(node.os, Redhat):
             node.os.install_packages("libstdc++.i686")
+        if isinstance(node.os, Ubuntu):
+            for package in [
+                "lib32gcc-9-dev",
+                "python3-dev",
+                "lib32gcc-8-dev",
+                "python-dev",
+            ]:
+                if node.os.is_package_in_repo(package):
+                    node.os.install_packages(package)
         # Install Open MPI
         wget = node.tools[Wget]
         script_path = wget.get(

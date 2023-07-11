@@ -592,8 +592,12 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         dmesg = self._node.tools[Dmesg]
         return "hvnd_try_bind_nic" in dmesg.get_output()
 
-    def setup_rdma(self) -> None:
-        super().setup_rdma()
+    def setup_rdma(self, install_ofed: bool = True) -> None:
+        if self._node.tools[Ls].path_exists(
+            "/opt/azurehpc/component_versions.txt", sudo=True
+        ):
+            install_ofed = False
+        super().setup_rdma(install_ofed)
         waagent = self._node.tools[Waagent]
         devices = self._get_ib_device_names()
         if len(devices) > 1:
