@@ -215,7 +215,7 @@ class DpdkTestpmd(Tool):
                 if nic.module_name == "uio_hv_generic":
                     return f' --vdev="{nic.pci_slot},mac={nic.mac_addr}" '
                 else:
-                    return f' --vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
+                    return f' --vdev="net_vdev_netvsc1,dev({nic.pci_slot},mac={nic.mac_addr}),dev(iface=eth1,force=1)" '
             elif self._force_net_failsafe_pmd:
                 vdev_name = "net_failsafe"
                 vdev_flags = f'--vdev="net_failsafe0,mac={nic.mac_addr},dev(net_tap0,iface={nic.name},force=1)"'
@@ -269,6 +269,8 @@ class DpdkTestpmd(Tool):
             txq = 1
             rxq = 1
 
+        txd = 128
+
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
         # infer core count to assign based on number of queues
@@ -286,6 +288,7 @@ class DpdkTestpmd(Tool):
         while queues_and_servicing_core > (cores_available - 2):
             txq = txq // 2
             rxq = txq
+            txd = txd // 2
             assert_that(txq).described_as(
                 "txq value must be greater than 1"
             ).is_greater_than_or_equal_to(1)
@@ -305,7 +308,7 @@ class DpdkTestpmd(Tool):
             extra_args = ""
 
         if self.is_mana:
-            extra_args += " --txd=128 --rxd=128  --stats 2"
+            extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
         if txq or rxq:
             extra_args += f" --txq={txq} --rxq={rxq}"
         assert_that(forwarding_cores).described_as(
