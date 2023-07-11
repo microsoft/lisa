@@ -223,7 +223,13 @@ class GpuTestSuite(TestSuite):
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
         # stop the service which uses nvidia module
         service = node.tools[Service]
-        service.stop_service("nvidia-persistenced")
+        service_name_list = [
+            "nvidia-persistenced",
+            "nvidia-dcgm",
+            "nvidia-fabricmanager",
+        ]
+        for service_name in service_name_list:
+            service.stop_service(service_name)
 
         for device in gpu_devices:
             lspci.disable_device(device)
