@@ -283,8 +283,8 @@ class DpdkTestpmd(Tool):
         queues_and_servicing_core = txq + rxq + service_cores
 
         # use less than max queues if not enough cores are available
-        if queues_and_servicing_core > cores_available - 2:
-            txq = (cores_available - 2) // 2
+        while queues_and_servicing_core > (cores_available - 2):
+            txq = tzq // 2
             rxq = txq
             assert_that(txq).described_as(
                 "txq value must be greater than 1"
