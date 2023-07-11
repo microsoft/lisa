@@ -215,7 +215,9 @@ class DpdkTestpmd(Tool):
                 if nic.module_name == "uio_hv_generic":
                     return f' --vdev="{nic.pci_slot},mac={nic.mac_addr}" '
                 else:
-                    return f' --vdev="net_vdev_netvsc1,dev({nic.pci_slot},mac={nic.mac_addr}),dev(iface=eth1,force=1)" '
+                    return (
+                        f' --vdev="net_vdev_netvsc1,{nic.pci_slot},mac={nic.mac_addr}" '
+                    )
             elif self._force_net_failsafe_pmd:
                 vdev_name = "net_failsafe"
                 vdev_flags = f'--vdev="net_failsafe0,mac={nic.mac_addr},dev(net_tap0,iface={nic.name},force=1)"'
