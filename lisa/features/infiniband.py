@@ -493,13 +493,23 @@ class Infiniband(Feature):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to install IBM MPI.",
         )
-        make = node.tools[Make]
-        make.make(
-            "",
-            cwd=node.get_pure_path("/opt/ibm/platform_mpi/help"),
-            update_envs={"MPI_IB_PKEY": self.get_pkey()},
-            sudo=True,
-        )
+        # if it is hpc image, use module tool load mpi/hpcx to compile the ping_pong.c
+        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            node.execute(
+                "bash -c 'source /usr/share/modules/init/bash"
+                " && module load mpi/hpcx && mpicc -o ping_pong ping_pong.c'",
+                cwd=node.get_pure_path("/opt/ibm/platform_mpi/help"),
+                sudo=True,
+                shell=True,
+            )
+        else:
+            make = node.tools[Make]
+            make.make(
+                "",
+                cwd=node.get_pure_path("/opt/ibm/platform_mpi/help"),
+                update_envs={"MPI_IB_PKEY": self.get_pkey()},
+                sudo=True,
+            )
 
     def install_mvapich_mpi(self) -> None:
         node = self._node
