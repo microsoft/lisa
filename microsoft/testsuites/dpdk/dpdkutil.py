@@ -348,6 +348,12 @@ def initialize_node_resources(
     if pmd == "netvsc" or testpmd.is_mana:
         if test_nic.lower:
             node.tools[Ip].down(test_nic.lower)
+        else:
+            test_mac = test_nic.mac_addr
+            for nic in node.nics.get_unpaired_devices():
+                nic_ = node.nics.get_nic(nic)
+                if nic_.mac_addr == test_mac:
+                    node.tools[Ip].down(nic_.name)
 
     return DpdkTestResources(node, testpmd)
 
