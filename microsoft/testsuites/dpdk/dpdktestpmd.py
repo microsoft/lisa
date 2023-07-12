@@ -214,10 +214,10 @@ class DpdkTestpmd(Tool):
             elif self.is_mana:
                 if nic.module_name == "uio_hv_generic":
                     return f' --vdev="{nic.pci_slot},mac={nic.mac_addr}" '
+                elif self.node.tools[Modprobe].module_exists("mana_ib"):
+                    return f' --vdev="net_vdev_netvsc0,mac={nic.mac_addr}" '
                 else:
-                    return (
-                        f' --vdev="net_vdev_netvsc0,{nic.pci_slot},mac={nic.mac_addr}" '
-                    )
+                    return f' --vdev="net_vdev_netvsc0,iface={nic.name}" '
             elif self._force_net_failsafe_pmd:
                 vdev_name = "net_failsafe"
                 vdev_flags = f'--vdev="net_failsafe0,mac={nic.mac_addr},dev(net_tap0,iface={nic.name},force=1)"'
@@ -311,7 +311,7 @@ class DpdkTestpmd(Tool):
 
         if self.is_mana:
             extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
-        if txq or rxq:
+        if txq > 1:
             extra_args += f" --txq={txq} --rxq={rxq}"
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
