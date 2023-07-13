@@ -13,7 +13,7 @@ from lisa import (
 )
 from lisa.features import Infiniband, Sriov
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
+from lisa.tools import Find, KernelConfig, Modprobe, Ssh
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -435,7 +435,7 @@ class InfinibandSuite(TestSuite):
 
         # if it is hpc image, use module tool load mpi/hpcx
         # then run pingpong test
-        if server_node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+        if server_ib.is_hpc_image:
             command_str_1 = (
                 "bash -c 'source /usr/share/modules/init/bash && module load mpi/hpcx "
                 f"&& mpirun --host {server_ip}:1,{server_ip}:1 -np 2 -x "

@@ -55,6 +55,7 @@ class Infiniband(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
+        self.is_hpc_image = False
         self.resource_disk_path = self._node.features[
             Disk
         ].get_resource_disk_mount_point()
@@ -171,8 +172,8 @@ class Infiniband(Feature):
         cat = self._node.tools[Cat]
         return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
 
-    def setup_rdma(self, install_ofed: bool = True) -> None:
-        if install_ofed:
+    def setup_rdma(self) -> None:
+        if not self.is_hpc_image:
             self.install_ofed()
 
         node = self._node
@@ -494,7 +495,7 @@ class Infiniband(Feature):
             expected_exit_code_failure_message="Failed to install IBM MPI.",
         )
         # if it is hpc image, use module tool load mpi/hpcx to compile the ping_pong.c
-        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+        if self.is_hpc_image:
             node.execute(
                 "bash -c 'source /usr/share/modules/init/bash"
                 " && module load mpi/hpcx && mpicc -o ping_pong ping_pong.c'",
