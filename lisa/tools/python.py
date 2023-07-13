@@ -31,6 +31,7 @@ class Python(Tool):
 
 class Pip(Tool):
     _no_permission_pattern = re.compile(r"Permission denied", re.M)
+    _option_b_pattern = re.compile(r"no such option: -b", re.M)
 
     @property
     def command(self) -> str:
@@ -60,8 +61,12 @@ class Pip(Tool):
             node.tools[Mkdir].create_directory(tagert_path)
             cache_path = install_path + "/tmp"
             node.tools[Mkdir].create_directory(cache_path)
+            cmd_line += f" -t {tagert_path} --cache-dir={cache_path}"
 
-            cmd_line += f" -t {tagert_path} --cache-dir={cache_path} -b {cache_path}"
+            check_result = self.run("-b")
+            if not get_matched_str(check_result.stdout, self._option_b_pattern):
+                cmd_line += f" -b {cache_path}"
+
             # Since Python 3.9, pip 21.2, -b for build path has been deprecated
             # Using TMPDIR/TMP/TEMP Env Variable instead
             envs = {"TMPDIR": cache_path}
@@ -79,4 +84,8 @@ class Pip(Tool):
 
     def exists_package(self, package_name: str) -> bool:
         result = self.run(f"show {package_name}", force_run=True)
+        return result.exit_code == 0
+
+    def uninstall_package(self, package_name: str) -> bool:
+        result = self.run(f"uninstall {package_name} -y", force_run=True, sudo=True)
         return result.exit_code == 0
