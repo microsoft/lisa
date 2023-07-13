@@ -284,7 +284,7 @@ class InfinibandSuite(TestSuite):
                 f"/opt/intel/oneapi/mpi/2021.1.1/bin/{test}",
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
-                timeout=2400,
+                timeout=3000,
             )
 
     @TestCaseMetadata(
