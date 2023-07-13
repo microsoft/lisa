@@ -433,20 +433,44 @@ class InfinibandSuite(TestSuite):
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
 
+        # if it is hpc image, use module tool load mpi/hpcx
+        # then run pingpong test
+        if server_ib.is_hpc_image:
+            command_str_1 = (
+                "bash -c 'source /usr/share/modules/init/bash && module load mpi/hpcx "
+                f"&& mpirun --host {server_ip}:1,{server_ip}:1 -np 2 -x "
+                f"MPI_IB_PKEY={server_ib.get_pkey()} -x LD_LIBRARY_PATH "
+                "/opt/ibm/platform_mpi/help/ping_pong 4096'"
+            )
+            command_str_2 = (
+                "bash -c 'source /usr/share/modules/init/bash && module load mpi/hpcx "
+                f"&& mpirun --host {server_ip}:1,{client_ip}:1 -np 2 -x "
+                f"MPI_IB_PKEY={server_ib.get_pkey()} -x LD_LIBRARY_PATH "
+                "/opt/ibm/platform_mpi/help/ping_pong 4096'"
+            )
+        else:
+            command_str_1 = (
+                "/opt/ibm/platform_mpi/bin/mpirun "
+                f"-hostlist {server_ip}:1,{server_ip}:1 -np 2 -e "
+                f"MPI_IB_PKEY={server_ib.get_pkey()} -ibv /opt/ibm/platform_mpi/help/"
+                "ping_pong 4096"
+            )
+            command_str_2 = (
+                "/opt/ibm/platform_mpi/bin/mpirun "
+                f"-hostlist {server_ip}:1,{client_ip}:1 -np 2 -e "
+                f"MPI_IB_PKEY={server_ib.get_pkey()} -ibv /opt/ibm/platform_mpi/help/"
+                "ping_pong 4096"
+            )
         server_node.execute(
-            "/opt/ibm/platform_mpi/bin/mpirun "
-            f"-hostlist {server_ip}:1,{server_ip}:1 -np 2 -e "
-            f"MPI_IB_PKEY={server_ib.get_pkey()} -ibv /opt/ibm/platform_mpi/help/"
-            "ping_pong 4096",
+            command_str_1,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Infiniband intra-node ping pong "
             "test failed with IBM MPI",
         )
         server_node.execute(
-            "/opt/ibm/platform_mpi/bin/mpirun "
-            f"-hostlist {server_ip}:1,{client_ip}:1 -np 2 -e "
-            f"MPI_IB_PKEY={server_ib.get_pkey()} -ibv /opt/ibm/platform_mpi/help/"
-            "ping_pong 4096",
+            command_str_2,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Infiniband inter-node ping pong "
             "test failed with IBM MPI",
