@@ -370,6 +370,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         mount = self.tools[Mount]
         lsblk = self.tools[Lsblk]
         disks = lsblk.get_disks()
+        df = self.tools[Df]
 
         # find a disk/partition with required space
         for disk in disks:
@@ -383,26 +384,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     if disk.is_os_disk and partition.mountpoint != "/":
                         continue
 
-                    if not partition.size_in_gb >= size_in_gb:
-                        continue
-
                     # mount partition if it is not mounted
-                    partition_name = partition.name
+                    disk_name = partition_name = partition.name
                     if not partition.is_mounted:
                         mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
                         mount.mount(partition.device_name, mountpoint, format_=True)
                     else:
                         mountpoint = partition.mountpoint
-
-                    # some distro use absolute path wrt to the root, so we need to
-                    # requery the mount point after mounting
-                    return lsblk.find_mountpoint_by_volume_name(
-                        partition_name, force_run=True
-                    )
             else:
-                if not disk.size_in_gb >= size_in_gb:
-                    continue
-
                 # mount the disk if it isn't mounted
                 disk_name = disk.name
                 if not disk.is_mounted:
@@ -412,6 +401,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 else:
                     mountpoint = disk.mountpoint
 
+            if df.get_filesystem_available_space(mountpoint, True) >= size_in_gb:
                 # some distro use absolute path wrt to the root, so we need to requery
                 # the mount point after mounting
                 return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
