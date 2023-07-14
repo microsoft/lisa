@@ -1749,6 +1749,10 @@ class CBLMariner(RPMDistro):
     def _dnf_tool(self) -> str:
         return self._dnf_tool_name
 
+    def _package_exists(self, package: str) -> bool:
+        self._initialize_package_installation()
+        return super()._package_exists(package)
+
 
 @dataclass
 # `zypper lr` repolist is of the form
