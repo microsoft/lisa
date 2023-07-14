@@ -63,6 +63,12 @@ class CpuArchitecture(str, Enum):
     ARM64 = "aarch64"
 
 
+class AzureCoreRepo(str, Enum):
+    AzureCoreMultiarch = "azurecore-multiarch"
+    AzureCoreDebian = "azurecore-debian"
+    AzureCore = "azurecore"
+
+
 @dataclass
 # stores information about repository in Posix operating systems
 class RepositoryInfo(object):
@@ -443,7 +449,9 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def add_azure_core_repo(self) -> None:
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None
+    ) -> None:
         raise NotImplementedError("add_azure_core_repo is not implemented")
 
     def _process_extra_package_args(self, extra_args: Optional[List[str]]) -> str:
@@ -766,7 +774,9 @@ class Debian(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    def add_azure_core_repo(self) -> None:
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None
+    ) -> None:
         arch = self.get_kernel_information().hardware_platform
         arch_name = "arm64" if arch == "aarch64" else "amd64"
 
@@ -775,24 +785,31 @@ class Debian(Linux):
             "https://packages.microsoft.com/keys/microsoft.asc",
             "https://packages.microsoft.com/keys/msopentech.asc",
         ]
-        # Some scenarios need packages which are not in azurecore-debian, such as
-        # azure-compatscanner. Add azurecore from Ubuntu bionic instead
-        codename = "bionic"
-        repo_url = "http://packages.microsoft.com/repos/azurecore/"
+        if (
+            repo_name == AzureCoreRepo.AzureCore
+            or self.information.codename != "buster"
+        ):
+            # 1. Some scenarios need packages which are not in azurecore-debian, such as
+            # azure-compatscanner. Add azurecore from Ubuntu bionic instead
+            # 2. azurezcore-debian only supports buster. For other versions,
+            # use azurecore instead
+            codename = "bionic"
+            # If it's architecture is aarch64, azurecore-multiarch repo is also needed
+            if arch == "aarch64":
+                repo_url = f"http://packages.microsoft.com/repos/{AzureCoreRepo.AzureCoreMultiarch}/"  # noqa: E501
+                self.add_repository(
+                    repo=(f"deb [arch={arch_name}] {repo_url} {codename} main"),
+                    keys_location=keys,
+                )
+        else:
+            codename = self.information.codename
+            repo_name = AzureCoreRepo.AzureCoreDebian
+
+        repo_url = f"http://packages.microsoft.com/repos/{repo_name}/"
         self.add_repository(
             repo=(f"deb [arch={arch_name}] {repo_url} {codename} main"),
             keys_location=keys,
         )
-        # If it's architecture is aarch64, azurecore-multiarch repo is also needed
-        if arch == "aarch64":
-            repo_url = "http://packages.microsoft.com/repos/azurecore-multiarch/"
-            self.add_repository(
-                repo=(f"deb [arch={arch_name}] {repo_url} {codename} main"),
-                keys_location=[
-                    "https://packages.microsoft.com/keys/microsoft.asc",
-                    "https://packages.microsoft.com/keys/msopentech.asc",
-                ],
-            )
 
     def wait_running_package_process(self) -> None:
         is_first_time: bool = True
@@ -1150,7 +1167,9 @@ class Ubuntu(Debian):
 
         return information
 
-    def add_azure_core_repo(self) -> None:
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None
+    ) -> None:
         arch = self.get_kernel_information().hardware_platform
         arch_name = "arm64" if arch == "aarch64" else "amd64"
         codename = self.information.codename
@@ -1296,7 +1315,9 @@ class RPMDistro(Linux):
     ) -> None:
         self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
 
-    def add_azure_core_repo(self) -> None:
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None
+    ) -> None:
         self.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
 
     def _get_package_information(self, package_name: str) -> VersionInfo:
@@ -1766,7 +1787,9 @@ class Suse(Linux):
         else:
             self._log.debug(f"repo {repo_name} already exist")
 
-    def add_azure_core_repo(self) -> None:
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None
+    ) -> None:
         self.add_repository(
             repo="https://packages.microsoft.com/yumrepos/azurecore/",
             repo_name="packages-microsoft-com-azurecore",
