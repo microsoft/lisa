@@ -353,6 +353,21 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._install_packages(package_names, signed, timeout, extra_args)
 
+    def uninstall_packages(
+        self,
+        packages: Union[
+            str,
+            Tool,
+            Type[Tool],
+            Sequence[Union[str, Tool, Type[Tool]]],
+        ],
+        signed: bool = False,
+        timeout: int = 1200,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        package_names = self._get_package_list(packages)
+        self._uninstall_packages(package_names, signed, timeout, extra_args)
+
     def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
         Query if a package/tool is installed on the node.
@@ -462,6 +477,15 @@ class Posix(OperatingSystem, BaseClassMixin):
         return add_args
 
     def _install_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        raise NotImplementedError()
+
+    def _uninstall_packages(
         self,
         packages: List[str],
         signed: bool = True,
@@ -945,6 +969,32 @@ class Debian(Linux):
             + "\n",
         )
 
+    def _uninstall_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        add_args = self._process_extra_package_args(extra_args)
+        command = (
+            f"DEBIAN_FRONTEND=noninteractive apt-get {add_args} "
+            f"-y remove {' '.join(packages)}"
+        )
+        if not signed:
+            command += " --allow-unauthenticated"
+        uninstall_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
+        # get error lines.
+        uninstall_result.assert_exit_code(
+            0,
+            f"Failed to uninstall {packages}, "
+            f"please check the package name and repo are correct or not.\n"
+            + "\n".join(self.get_apt_error(uninstall_result.stdout))
+            + "\n",
+        )
+
     def _package_exists(self, package: str) -> bool:
         command = "dpkg --get-selections"
         result = self._node.execute(command, sudo=True, shell=True)
@@ -1362,6 +1412,29 @@ class RPMDistro(Linux):
         )
 
         self._log.debug(f"{packages} is/are installed successfully.")
+
+    def _uninstall_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"{self._dnf_tool()} remove {add_args} -y {' '.join(packages)}"
+        if not signed:
+            command += " --nogpgcheck"
+
+        self._node.execute(
+            command,
+            shell=True,
+            sudo=True,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to uninstall {packages}.",
+        )
+
+        self._log.debug(f"{packages} is/are uninstalled successfully.")
 
     def _package_exists(self, package: str) -> bool:
         command = f"{self._dnf_tool()} list installed {package}"
