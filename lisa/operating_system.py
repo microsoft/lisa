@@ -464,9 +464,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def get_repositories(self) -> List[RepositoryInfo]:
         raise NotImplementedError("get_repositories is not implemented")
 
-    def add_azure_core_repo(
-        self, repo_name: Optional[AzureCoreRepo] = None
-    ) -> None:
+    def add_azure_core_repo(self, repo_name: Optional[AzureCoreRepo] = None) -> None:
         raise NotImplementedError("add_azure_core_repo is not implemented")
 
     def _process_extra_package_args(self, extra_args: Optional[List[str]]) -> str:
@@ -798,9 +796,7 @@ class Debian(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
-    def add_azure_core_repo(
-        self, repo_name: Optional[AzureCoreRepo] = None
-    ) -> None:
+    def add_azure_core_repo(self, repo_name: Optional[AzureCoreRepo] = None) -> None:
         arch = self.get_kernel_information().hardware_platform
         arch_name = "arm64" if arch == "aarch64" else "amd64"
 
@@ -1217,9 +1213,7 @@ class Ubuntu(Debian):
 
         return information
 
-    def add_azure_core_repo(
-        self, repo_name: Optional[AzureCoreRepo] = None
-    ) -> None:
+    def add_azure_core_repo(self, repo_name: Optional[AzureCoreRepo] = None) -> None:
         arch = self.get_kernel_information().hardware_platform
         arch_name = "arm64" if arch == "aarch64" else "amd64"
         codename = self.information.codename
@@ -1365,9 +1359,7 @@ class RPMDistro(Linux):
     ) -> None:
         self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
 
-    def add_azure_core_repo(
-        self, repo_name: Optional[AzureCoreRepo] = None
-    ) -> None:
+    def add_azure_core_repo(self, repo_name: Optional[AzureCoreRepo] = None) -> None:
         self.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
 
     def _get_package_information(self, package_name: str) -> VersionInfo:
@@ -1864,9 +1856,7 @@ class Suse(Linux):
         else:
             self._log.debug(f"repo {repo_name} already exist")
 
-    def add_azure_core_repo(
-        self, repo_name: Optional[AzureCoreRepo] = None
-    ) -> None:
+    def add_azure_core_repo(self, repo_name: Optional[AzureCoreRepo] = None) -> None:
         self.add_repository(
             repo="https://packages.microsoft.com/yumrepos/azurecore/",
             repo_name="packages-microsoft-com-azurecore",
