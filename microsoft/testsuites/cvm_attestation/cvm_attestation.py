@@ -21,7 +21,7 @@ from microsoft.testsuites.cvm_attestation.cvm_attestation_tool import (
 
 @TestSuiteMetadata(
     area="cvm",
-    category="attestation",
+    category="functional",
     description="""
     This test suite is for generating and verifying CVM attestation report.
     """,
