@@ -12,7 +12,7 @@ from lisa.operating_system import Posix
 from lisa.tools import Cat
 from lisa.tools.start_configuration import StartConfiguration
 from lisa.tools.whoami import Whoami
-from lisa.util import LisaException
+from lisa.util import LisaException, find_patterns_in_lines
 
 
 class IpInfo:
@@ -341,6 +341,16 @@ class Ip(Tool):
 
 
 class IpFreebsd(Ip):
+    # ether 00:22:48:ba:0a:39
+    __mac_address_pattern = re.compile(
+        r"ether\s+(?P<mac>(?:[0-9A-Fa-f]{2}[:-]){5}(?:[0-9A-Fa-f]{2}))"
+    )
+
+    # inet 172.20.0.7
+    __ip_address_pattern = re.compile(
+        r"inet\s+(?P<ip_addr>(?:[0-9]{1,3}\.){3}[0-9]{1,3})"
+    )
+
     @property
     def command(self) -> str:
         return "ifconfig"
@@ -353,3 +363,43 @@ class IpFreebsd(Ip):
             expected_exit_code_failure_message="Failed to get interface list",
         )
         return output.stdout.split()
+
+    def get_mac(self, nic_name: str) -> str:
+        output = self.run(
+            nic_name,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to get mac address",
+        ).stdout
+        matched = find_patterns_in_lines(output, [self.__mac_address_pattern])
+        assert_that(matched).described_as("could not find mac address").is_length(1)
+        return str(matched[0][0])
+
+    def get_ip_address(self, nic_name: str) -> str:
+        output = self.run(
+            nic_name,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to get ip address",
+        ).stdout
+        matched = find_patterns_in_lines(output, [self.__ip_address_pattern])
+        assert_that(matched[0]).described_as("could not find ip address").is_length(1)
+        return str(matched[0][0])
+
+    def down(self, nic_name: str, persist: bool = False) -> None:
+        self.run(
+            f"{nic_name} down",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"Could not set {nic_name} to down"),
+        )
+
+    def up(self, nic_name: str, persist: bool = False) -> None:
+        self.run(
+            f"{nic_name} up",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"Could not set {nic_name} to up"),
+        )

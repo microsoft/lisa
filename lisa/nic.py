@@ -13,7 +13,7 @@ from assertpy import assert_that
 from retry import retry
 
 from lisa.tools import Cat, Ip, KernelConfig, Lspci, Modprobe, Tee
-from lisa.util import InitializableMixin, LisaException, constants
+from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
     from lisa import Node
@@ -492,3 +492,127 @@ class Nics(InitializableMixin):
         return int(
             cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True)
         )
+
+
+class NicsBSD(Nics):
+    # hn0
+    # hn1
+    _nic_vf_index_regex = re.compile(r"hn(?P<index>\d+)")
+
+    def _get_nic_names(self) -> List[str]:
+        # identify all of the nics on the device
+        return self._node.tools[Ip].get_interface_list()
+
+    def _load_nics(self) -> None:
+        # Get list of mac addresses for nics excluding loopback and netvsc
+        mac_address_map = {}
+        ip_tool = self._node.tools[Ip]
+        for nic_name in [
+            x
+            for x in self._nic_names
+            if not x.startswith("lo") and not x.startswith("hn")
+        ]:
+            mac_address_map[ip_tool.get_mac(nic_name)] = nic_name
+
+        netvsc_nics = [x for x in self._nic_names if x.startswith("hn")]
+        for nic_name in netvsc_nics:
+            # check if there is a paired SRIOV nic
+            mac = self._node.tools[Ip].get_mac(nic_name)
+
+            # check for paired SRIOV nics
+            lower = ""
+            module = ""
+            pci_slot = ""
+            if mac in mac_address_map.keys():
+                lower = mac_address_map[mac]
+
+                # get index of the nic
+                nic_index = find_groups_in_lines(nic_name, self._nic_vf_index_regex)[0][
+                    "index"
+                ]
+
+                # get info about its pci slot and mlx module version
+                slot_regex = re.compile(
+                    rf"mlx(?P<index>\d+)_core{nic_index}@(?P<pci_slot>.*):\s+"
+                )
+                module_slot_info = self._node.execute("pciconf -l", sudo=True).stdout
+                matched = find_groups_in_lines(module_slot_info, slot_regex)[0]
+                module_version = matched["index"]
+                pci_slot = matched["pci_slot"]
+
+                # set the module name
+                module = f"mlx{module_version}_core"
+
+            self.append(
+                NicInfo(
+                    name=nic_name,
+                    lower=lower,
+                    lower_module_name=module,
+                    pci_slot=pci_slot,
+                )
+            )
+
+        assert_that(len(self)).described_as(
+            "During Lisa nic info initialization, Nics class could not "
+            f"find any nics attached to {self._node.name}."
+        ).is_greater_than(0)
+
+    def _get_nics_driver(self) -> None:
+        # This function is not needed for FreeBSD
+        # We get the driver name in the _load_nics function
+        pass
+
+    def load_nics_info(self, nic_name: Optional[str] = None) -> None:
+        ip_tool = self._node.tools[Ip]
+        if nic_name:
+            nic_names = [nic_name]
+        else:
+            nic_names = self.get_nic_names()
+        nics = [self.nics[nic_name] for nic_name in nic_names]
+        for nic in nics:
+            try:
+                nic.ip_addr = ip_tool.get_ip_address(nic.name)
+            except AssertionError:
+                # handle case where nic is not configured correctly
+                nic.ip_addr = ""
+            nic.mac_addr = ip_tool.get_mac(nic.name)
+
+    def _get_nic_uuids(self) -> None:
+        # This information is presently not needed for FreeBSD tests
+        pass
+
+    def _get_default_nic(self) -> None:
+        # This information is presently not needed for FreeBSD tests
+        pass
+
+    def _get_tx_packets(self, nic_name: str) -> int:
+        output = self._node.execute(
+            f"netstat -I {nic_name} -n -b | awk '{{print $9}}'",
+            sudo=True,
+            shell=True,
+        ).stdout
+        entries = output.splitlines()
+        assert_that(
+            entries[0], f"Could not find tx_packets for {nic_name}"
+        ).is_equal_to("Opkts")
+        return int(entries[1])
+
+    def _get_rx_packets(self, nic_name: str) -> int:
+        output = self._node.execute(
+            f"netstat -I {nic_name} -n -b | awk '{{print $5}}'",
+            sudo=True,
+            shell=True,
+        ).stdout
+        entries = output.splitlines()
+        assert_that(
+            entries[0], f"Could not find rx_packets for {nic_name}"
+        ).is_equal_to("Ipkts")
+        return int(entries[1])
+
+    def get_packets(self, nic_name: str, name: str = "tx_packets") -> int:
+        if name == "tx_packets":
+            return self._get_tx_packets(nic_name)
+        elif name == "rx_packets":
+            return self._get_rx_packets(nic_name)
+        else:
+            raise LisaException(f"Unknown packet type {name}")

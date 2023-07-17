@@ -1,12 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Pattern, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Echo
-from lisa.util import LisaException, constants, get_matched_str
+from lisa.util import LisaException, constants, find_patterns_in_lines, get_matched_str
 
 # Example output of lspci command -
 # lspci -m
@@ -74,6 +74,10 @@ class Lspci(Tool):
     @property
     def command(self) -> str:
         return "lspci"
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return LspciBSD
 
     @property
     def can_install(self) -> bool:
@@ -162,3 +166,23 @@ class Lspci(Tool):
         )
         matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
         return matched
+
+
+class LspciBSD(Lspci):
+    _DEVICE_DRIVER_MAPPING: Dict[str, Pattern[str]] = {
+        constants.DEVICE_TYPE_SRIOV: re.compile(r"mlx\d+_core"),
+    }
+
+    def get_device_names_by_type(
+        self, device_type: str, force_run: bool = False
+    ) -> List[str]:
+        output = self.node.execute("pciconf -l", sudo=True).stdout
+        if device_type.upper() not in self._DEVICE_DRIVER_MAPPING.keys():
+            raise LisaException(f"pci_type '{device_type}' is not recognized.")
+
+        class_names = self._DEVICE_DRIVER_MAPPING[device_type.upper()]
+        matched = find_patterns_in_lines(
+            output,
+            [class_names],
+        )
+        return matched[0]

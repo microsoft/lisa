@@ -16,7 +16,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
-from lisa.nic import Nics
+from lisa.node import create_nics
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -506,7 +506,7 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
-    node_nic_info = Nics(node)
+    node_nic_info = create_nics(node)
     node_nic_info.initialize()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(

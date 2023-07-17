@@ -223,7 +223,7 @@ class Sriov(TestSuite):
     @TestCaseMetadata(
         description="""
         This case verify VM works well after disable and enable accelerated network in
-         network interface through sdk.
+        network interface through sdk.
 
         Steps,
         1. Do the basic sriov check.

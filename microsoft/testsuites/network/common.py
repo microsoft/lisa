@@ -7,7 +7,8 @@ from retry import retry
 
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
-from lisa.nic import NicInfo, Nics
+from lisa.nic import NicInfo
+from lisa.operating_system import BSD
 from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ping, Ssh
 
 
@@ -26,7 +27,7 @@ def initialize_nic_info(
             assert_that(sriov_count).described_as(
                 f"there is no sriov nic attached to VM {node.name}"
             ).is_greater_than(0)
-        nics_info = Nics(node)
+        nics_info = node.nics
         nics_info.initialize()
         found_ip = False
         for interface_info in interfaces_info_list:
@@ -35,6 +36,7 @@ def initialize_nic_info(
             for node_nic in nics_info.nics.values():
                 if interface_info.mac_addr == node_nic.mac_addr:
                     if not node_nic.ip_addr:
+                        node.tools[Ip].up(node_nic.name)
                         node.tools[Dhclient].renew(node_nic.name)
                         node_nic.ip_addr = node.tools[Ip].get_ip_address(node_nic.name)
                     if interface_info.ip_addr != node_nic.ip_addr:
@@ -93,12 +95,19 @@ def sriov_vf_connection_test(
     source_ssh = source_node.tools[Ssh]
     dest_ssh = dest_node.tools[Ssh]
 
+    # enable public key for ssh connection
     dest_ssh.enable_public_key(source_ssh.generate_key_pairs())
+
     # generate 200Mb file
     source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
+
+    # for each nic on source node, find the same subnet nic on dest node, then copy
+    # 200Mb file
     max_retry_times = 10
     for _, source_nic_info in vm_nics[source_node.name].items():
         matched_dest_nic_name = ""
+
+        # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
             # only when IPs are in the same subnet, IP1 of machine A can connect to
             # IP2 of machine B
@@ -115,6 +124,8 @@ def sriov_vf_connection_test(
             f" machine {source_node.name}, please check network setting of "
             f"machine {dest_node.name}."
         ).is_not_empty()
+
+        # set source and dest network info
         dest_nic_info = vm_nics[dest_node.name][matched_dest_nic_name]
         dest_ip = vm_nics[dest_node.name][matched_dest_nic_name].ip_addr
         source_ip = source_nic_info.ip_addr
@@ -123,15 +134,18 @@ def sriov_vf_connection_test(
         source_nic = source_pci_nic = source_nic_info.pci_device_name
         dest_nic = dest_pci_nic = dest_nic_info.pci_device_name
 
-        if remove_module or turn_off_lower:
+        # if remove_module is True, use synthetic nic to copy file
+        if remove_module or turn_off_lower or isinstance(source_node.os, BSD):
+            # For FreeBSD, packets are logged on the vsc interface
             source_nic = source_synthetic_nic
             dest_nic = dest_synthetic_nic
 
+        # turn off lower device
         if turn_off_lower:
             if source_nic_info.lower:
-                source_node.execute(f"ip link set dev {source_pci_nic} down", sudo=True)
+                source_node.tools[Ip].down(source_pci_nic)
             if dest_nic_info.lower:
-                dest_node.execute(f"ip link set dev {dest_pci_nic} down", sudo=True)
+                dest_node.tools[Ip].down(dest_pci_nic)
 
         # get origin tx_packets and rx_packets before copy file
         source_tx_packets_origin = source_node.nics.get_packets(source_nic)
@@ -139,8 +153,7 @@ def sriov_vf_connection_test(
 
         # check the connectivity between source and dest machine using ping
         for _ in range(max_retry_times):
-            ping = source_node.tools[Ping]
-            ping_result = ping.ping(
+            ping_result = source_node.tools[Ping].ping(
                 target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
             )
             if ping_result:
@@ -160,24 +173,29 @@ def sriov_vf_connection_test(
             expected_exit_code_failure_message="Fail to copy file large_file from"
             f" {source_ip} to {dest_ip}",
         )
+
+        # get tx_packets and rx_packets after copy file
         source_tx_packets = source_node.nics.get_packets(source_nic)
         dest_tx_packets = dest_node.nics.get_packets(dest_nic, "rx_packets")
+
         # verify tx_packets value of source nic is increased after coping 200Mb file
         #  from source to dest
         assert_that(
             int(source_tx_packets), "insufficient TX packets sent"
         ).is_greater_than(int(source_tx_packets_origin))
+
         # verify rx_packets value of dest nic is increased after receiving 200Mb
         #  file from source to dest
         assert_that(
             int(dest_tx_packets), "insufficient RX packets received"
         ).is_greater_than(int(dest_tx_packets_origin))
 
+        # turn on lower device, if turned off before
         if turn_off_lower:
             if source_nic_info.lower:
-                source_node.execute(f"ip link set dev {source_pci_nic} up", sudo=True)
+                source_node.tools[Ip].up(source_pci_nic)
             if dest_nic_info.lower:
-                dest_node.execute(f"ip link set dev {dest_pci_nic} up", sudo=True)
+                dest_node.tools[Ip].up(dest_pci_nic)
 
 
 def cleanup_iperf3(environment: Environment) -> None:

@@ -1,14 +1,19 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, List, Union
+from typing import Any, List, Optional, Type, Union
 
 from lisa.executable import Tool
+from lisa.tools.kernel_config import KLDStat
 
 
 class Modprobe(Tool):
     @property
     def command(self) -> str:
         return self._command
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return ModprobeFreeBSD
 
     def _check_exists(self) -> bool:
         return True
@@ -132,3 +137,15 @@ class Modprobe(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message=f"failed to load module {file_name}",
         )
+
+
+class ModprobeFreeBSD(Modprobe):
+    def module_exists(self, modules: Union[str, List[str]]) -> bool:
+        module_list = []
+        if isinstance(modules, str):
+            module_list.append(modules)
+        for module in module_list:
+            if not self.node.tools[KLDStat].module_exists(module):
+                return False
+
+        return True

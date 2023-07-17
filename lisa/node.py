@@ -10,8 +10,8 @@ from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, ca
 from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
-from lisa.nic import Nics
-from lisa.operating_system import OperatingSystem
+from lisa.nic import Nics, NicsBSD
+from lisa.operating_system import BSD, OperatingSystem
 from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
@@ -216,7 +216,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     @property
     def nics(self) -> Nics:
         if self._nics is None:
-            self._nics = Nics(self)
+            self._nics = create_nics(self)
             self._nics.initialize()
 
         return self._nics
@@ -835,3 +835,13 @@ class NodeHookImpl:
 
 plugin_manager.add_hookspecs(NodeHookSpec)
 plugin_manager.register(NodeHookImpl())
+
+
+def create_nics(node: Node) -> Nics:
+    """
+    Returns a Nics object for the node based on the OS type.
+    """
+    if isinstance(node.os, BSD):
+        return NicsBSD(node)
+
+    return Nics(node)
