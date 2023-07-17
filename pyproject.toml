@@ -21,7 +21,7 @@ dependencies = [
     "pytest-html >= 3.2.0",
     # Work around build error on PyYAML with CPython 3. It can be uncommented
     # after 6.0b1 released.
-    "PyYAML = 6.0b1",
+    "PyYAML == 6.0b1",
     "randmac ~= 0.1",
     "retry ~= 0.9.2",
     "semver ~= 2.13.0",
