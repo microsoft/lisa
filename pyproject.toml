@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 65", "setuptools_scm[toml] >= 6.2", "Cython<3.0"]
+requires = ["setuptools >= 65", "setuptools_scm[toml] >= 6.2", "Cython~=3.0a"]
 build-backend = "setuptools.build_meta"
 
 
