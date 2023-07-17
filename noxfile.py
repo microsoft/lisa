@@ -246,7 +246,6 @@ def dev(session: nox.Session) -> None:
 def _install_dependencies(session: nox.Session) -> None:
     # Handle build break dependencies. Install it separately, until it's
     # released.
-    session.install("--pre", "PyYaml~=6.0.1")
     session.install(
         *DEPENDENCIES,
     )
