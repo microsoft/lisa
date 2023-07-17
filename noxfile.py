@@ -33,8 +33,9 @@ nox.needs_version = ">=2022.8.7"
 @nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
 def test(session: nox.Session) -> None:
     """Run tests"""
-    _install_dependencies(session)
-    session.install(*OPTIONAL_DEPENDENCIES["azure"], *OPTIONAL_DEPENDENCIES["test"])
+    session.install(
+        *DEPENDENCIES, *OPTIONAL_DEPENDENCIES["azure"], *OPTIONAL_DEPENDENCIES["test"]
+    )
     session.run("python", "-m", "unittest", "discover")
 
 
@@ -48,8 +49,8 @@ def example(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["all"])
 def coverage(session: nox.Session) -> None:
     """Check test coverage"""
-    _install_dependencies(session)
     session.install(
+        *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["test"],
         "coverage",
@@ -95,8 +96,8 @@ def flake8(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])
 def pylint(session: nox.Session) -> None:
     """Run pylint"""
-    _install_dependencies(session)
     session.install(
+        *DEPENDENCIES,
         *NOX_DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["aws"],
         *OPTIONAL_DEPENDENCIES["azure"],
@@ -122,8 +123,8 @@ def pylint(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["typing", "all"])
 def mypy(session: nox.Session) -> None:
     """Run mypy"""
-    _install_dependencies(session)
     session.install(
+        *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["typing"],
@@ -141,8 +142,8 @@ def mypy(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["all"])
 def docs(session: nox.Session) -> None:
     """Build docs"""
-    _install_dependencies(session)
     session.install(
+        *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["docs"],
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["aws"],
@@ -241,11 +242,3 @@ def dev(session: nox.Session) -> None:
 
     else:
         print(f"    source {venv_path}/bin/activate\n")
-
-
-def _install_dependencies(session: nox.Session) -> None:
-    # Handle build break dependencies. Install it separately, until it's
-    # released.
-    session.install(
-        *DEPENDENCIES,
-    )
