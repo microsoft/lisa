@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Optional
+from typing import Optional, Type
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
@@ -19,6 +19,10 @@ class Dhclient(Tool):
     @property
     def command(self) -> str:
         return "dhclient"
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return DhclientFreeBSD
 
     @property
     def can_install(self) -> bool:
@@ -54,7 +58,7 @@ class Dhclient(Tool):
 
         return value
 
-    def renew(self, interface: Optional[str] = None) -> None:
+    def renew(self, interface: str = "") -> None:
         if interface:
             result = self.run(
                 f"-r {interface} && dhclient {interface}",
@@ -71,4 +75,21 @@ class Dhclient(Tool):
             )
         result.assert_exit_code(
             0, f"dhclient renew return non-zero exit code: {result.stdout}"
+        )
+
+
+class DhclientFreeBSD(Dhclient):
+    @property
+    def command(self) -> str:
+        return "dhclient"
+
+    def renew(self, interface: str = "") -> None:
+        interface = interface or ""
+        self.run(
+            interface,
+            shell=True,
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="unable to renew ip address",
         )
