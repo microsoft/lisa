@@ -1,0 +1,52 @@
+platform:
+  type: bare_metal
+  # global settings like passwords
+  build_source: // rename build_server to build_source to easier understand
+    - type: // one of smb, ado, ftp, http, https, local. If it's ado, refer to fields you provided.
+      name: // it's a general name, so one build_source and serve multiple installations.
+      organization:
+      project:
+      build_id:
+    pat:
+      artifact_name:
+  destination:
+    - type: // one of smb, ado, ftp, http, https, local. If it's ado, refer to fields you provided.
+      name:
+      share: \\10.199.210.198\reminst
+      username:
+      password:
+      files:
+        - grub.cfg # relative path to share \\10.199.210.198\reminst\grub.cfg
+        - grubx64.efi
+        - Boot\x64\bootx64.efi
+        - OneDhcp\Mariner\initrd_5.15.111.1-1_2.0_230530.2335.img
+        - OneDhcp\Mariner\vmlinuz-5.15.111.1-1.cm2
+        - id_rsa_mariner_230713.1750
+enabled:
+  cluster: # all clusters, which groups by server roles
+    - type: general // not a e2e service, define roles one by one.
+        power: // power management
+          type: // Maybe an IP power switch.
+        serial: // serial console, Maybe it's not available for general infra.
+          type: // maybe not available for general solution.
+        file: // rename build to file, file service for boot files.
+          type: // tftp, smb...
+          path: // the path to store build files.
+      // we don't need pxe or dhcp actually, because there is no configuration needed.
+      client: # the schema type depends on management, below is for rack manager.
+        - address: // static IP to find the client from public network. It may not work with public DHCP, if we cannot find the new address.
+    - type: rack_Manager
+      address: ...
+      file: // rack manager doesn't include file server, so we need to define it here. The schema is the same as general.
+          ...
+      client:
+          // I'm not sure if we can get IP from rack manager. Maybe the management port is enough.
+        - management_port: 3
+    - type: idrac
+      address: ...
+              boot_order:
+      file:
+           address:
+      client:
+        // iDRAC should support only one client. But we still make it like a list as others.
+        - ???
