@@ -448,9 +448,9 @@ class DpdkTestpmd(Tool):
         self._determine_network_hardware()
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
-            self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
-                "libdpdk"
-            )
+            pkgconfig = self.node.tools[Pkgconfig]
+            if pkgconfig.get_package_info("libdpdk", check_exists=True):
+                self._dpdk_version_info = pkgconfig.get_package_version("libdpdk")
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
