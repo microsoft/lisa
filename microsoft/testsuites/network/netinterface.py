@@ -4,7 +4,6 @@ import time
 from pathlib import Path
 
 from assertpy import assert_that
-from randmac import RandMac  # type: ignore
 
 from lisa import (
     LisaException,
@@ -22,8 +21,6 @@ from lisa.nic import Nics
 from lisa.operating_system import FreeBSD
 from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
-
-from .common import restore_extra_nics_per_node
 
 
 @TestSuiteMetadata(
@@ -151,71 +148,6 @@ class NetInterface(TestSuite):
                 raise LisaException(
                     "Cannot access internet from inside VM after test run."
                 )
-
-    @TestCaseMetadata(
-        description="""
-            This test case verifies if the second network interface can be brought up
-             after setting static MAC address.
-
-            Steps:
-            1. Validate the second nic has IP address.
-            2. Bring down the second nic.
-            3. Set a random MAC address to the second nic.
-            4. Bring up the second nic.
-
-        """,
-        priority=3,
-        requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=2,
-            ),
-        ),
-    )
-    def verify_set_static_mac(self, node: Node, log: Logger) -> None:
-        ip = node.tools[Ip]
-        node_nic_info = Nics(node)
-        node_nic_info.initialize()
-        origin_nic_count = len(node_nic_info)
-        # attach one more nic for testing if only 1 nic by default
-        if 1 == origin_nic_count:
-            network_interface_feature = node.features[NetworkInterface]
-            network_interface_feature.attach_nics(
-                extra_nic_count=1, enable_accelerated_networking=True
-            )
-            node_nic_info = Nics(node)
-            node_nic_info.initialize()
-        # get one nic which is not eth0 for setting new mac address
-        current_nic_count = len(node_nic_info)
-        for index in range(0, current_nic_count):
-            test_nic = node_nic_info.get_nic_by_index(index)
-            test_nic_name = test_nic.name
-            if "eth0" == test_nic_name:
-                continue
-        assert_that(test_nic).is_not_none()
-        assert_that(test_nic.ip_addr).is_not_none()
-        assert_that(test_nic.mac_addr).is_not_none()
-        origin_mac_address = test_nic.mac_addr
-        try:
-            random_mac_address = str(RandMac())
-            ip.set_mac_address(test_nic_name, random_mac_address)
-            node_nic_info.load_nics_info(test_nic_name)
-            assert_that(test_nic.mac_addr).described_as(
-                f"fail to set network interface {test_nic_name}'s mac "
-                f"address into {random_mac_address}"
-            ).is_equal_to(random_mac_address)
-        finally:
-            # restore the test nic state back to origin state
-            ip.set_mac_address(test_nic_name, origin_mac_address)
-            node_nic_info.load_nics_info(test_nic_name)
-            assert_that(test_nic.mac_addr).described_as(
-                f"fail to set network interface {test_nic}'s mac "
-                f"address back into {origin_mac_address}"
-            ).is_equal_to(origin_mac_address)
-            # restore vm nics status if 1 extra nic attached
-            if 1 == origin_nic_count:
-                restore_extra_nics_per_node(node)
-                node_nic_info = Nics(node)
-                node_nic_info.initialize()
 
     def _validate_netvsc_built_in(self, node: Node) -> None:
         if isinstance(node.os, FreeBSD):

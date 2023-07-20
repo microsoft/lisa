@@ -201,23 +201,6 @@ class Ip(Tool):
         new_mtu = self.get_mtu(nic_name=nic_name)
         assert_that(new_mtu).described_as("set mtu failed").is_equal_to(mtu)
 
-    def set_mac_address(self, nic_name: str, mac_address: str) -> None:
-        if not self.__mac_address_pattern.match(mac_address):
-            raise LisaException(f"MAC address {mac_address} is invalid")
-        self.down(nic_name)
-        try:
-            self.node.execute(
-                f"/sbin/ip link set {nic_name} address {mac_address}",
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    f"fail to set mac address {mac_address} for nic {nic_name}"
-                ),
-            )
-        finally:
-            self.up(nic_name)
-
     def nic_exists(self, nic_name: str) -> bool:
         result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
         return not (
