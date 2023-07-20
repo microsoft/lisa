@@ -13,7 +13,7 @@ from lisa import (
     UnsupportedDistroException,
 )
 from lisa.features import SecureBootEnabled
-from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import AzureCoreRepo, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.util import find_patterns_in_lines
@@ -71,7 +71,12 @@ class TvmTest(TestSuite):
     def verify_measuredboot_compatibility(self, node: Node) -> None:
         self._is_supported(node)
         posix_os: Posix = cast(Posix, node.os)
-        posix_os.add_azure_core_repo()
+        if isinstance(posix_os, Debian):
+            # azurecore-debian doesn't have azure-compatscanner package
+            # use azurecore instead
+            posix_os.add_azure_core_repo(AzureCoreRepo.AzureCore)
+        else:
+            posix_os.add_azure_core_repo()
         posix_os.install_packages("azure-compatscanner", signed=False)
         node.execute(
             "/usr/bin/mbinfo",
