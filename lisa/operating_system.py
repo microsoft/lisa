@@ -755,6 +755,8 @@ class Debian(Linux):
         re.compile("does no longer have a Release file", re.M),
     ]
     end_of_life_releases: List[str] = []
+    # The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 0E98404D386FA1D9 NO_PUBKEY 6ED0E7B82643E131 # noqa: E501
+    _key_not_available_pattern = re.compile(r"NO_PUBKEY (?P<key>[0-9A-F]{16})", re.M)
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -914,6 +916,17 @@ class Debian(Linux):
         # wait running system package process.
         self.wait_running_package_process()
         result = self._node.execute("apt-get update", sudo=True, timeout=1800)
+        if result.exit_code != 0:
+            not_available_keys = self._key_not_available_pattern.findall(result.stdout)
+            if len(set(not_available_keys)) > 0:
+                self.install_packages("gnupg")
+                for key in set(not_available_keys):
+                    self._node.execute(
+                        "apt-key adv --keyserver keyserver.ubuntu.com "
+                        f"--recv-keys {key}",
+                        sudo=True,
+                    )
+                result = self._node.execute("apt-get update", sudo=True, timeout=1800)
         for pattern in self._repo_not_exist_patterns:
             if pattern.search(result.stdout):
                 if self.is_end_of_life_release():
