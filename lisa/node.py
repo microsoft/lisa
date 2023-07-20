@@ -369,11 +369,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         mount = self.tools[Mount]
         lsblk = self.tools[Lsblk]
-        disks = lsblk.get_disks()
+        disks = lsblk.get_disks(force_run=True)
         df = self.tools[Df]
 
         # find a disk/partition with required space
         for disk in disks:
+            mountpoint = ""
             if disk.is_os_disk and not use_os_drive:
                 continue
 
@@ -401,7 +402,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 else:
                     mountpoint = disk.mountpoint
 
-            if df.get_filesystem_available_space(mountpoint, True) >= size_in_gb:
+            if (
+                mountpoint
+                and df.get_filesystem_available_space(mountpoint, True) >= size_in_gb
+            ):
                 # some distro use absolute path wrt to the root, so we need to requery
                 # the mount point after mounting
                 return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
