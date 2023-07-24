@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from random import randint
+from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import websockets
@@ -63,6 +64,7 @@ from lisa.util import (
     get_matched_str,
     set_filtered_fields,
 )
+from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform, AzureCapability
@@ -138,7 +140,18 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
-        self._node.initialize()
+        timeout = 300
+        timer = create_timer()
+        identifier_str = ""
+        while timer.elapsed(False) < timeout:
+            try:
+                self._node.initialize()
+                break
+            except Exception as identifier:
+                identifier_str = str(identifier)
+                sleep(5)
+        if timer.elapsed() >= timeout:
+            raise LisaException(f"timeout: {identifier_str}")
 
     def _restart(self, wait: bool = True) -> None:
         self._execute(wait, "begin_restart")
