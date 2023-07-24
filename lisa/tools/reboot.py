@@ -65,6 +65,7 @@ class Reboot(Tool):
             raise identifier
 
     def reboot(self, time_out: int = 300) -> None:
+        time_out = 3000
         who = self.node.tools[Who]
         timer = create_timer()
 
