@@ -140,7 +140,7 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
-        timeout = 300
+        timeout = 3000
         timer = create_timer()
         identifier_str = ""
         while timer.elapsed(False) < timeout:

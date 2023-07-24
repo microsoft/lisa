@@ -141,8 +141,10 @@ class Infiniband(Feature):
         ).is_not_empty()
         return device_info
 
+    @retry(tries=20, delay=5)
     def _get_ib_device_names(self) -> List[str]:
         node = self._node
+        node.close()
         result = node.execute(
             "ls /sys/class/infiniband",
             expected_exit_code=0,
