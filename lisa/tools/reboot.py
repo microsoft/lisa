@@ -8,6 +8,7 @@ from time import sleep
 from typing import Any, Optional, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from retry import retry
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole
@@ -48,6 +49,7 @@ class Reboot(Tool):
     def _check_exists(self) -> bool:
         return True
 
+    @retry(tries=30, delay=5)
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
