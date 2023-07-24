@@ -277,7 +277,7 @@ class BSDLsblk(Lsblk):
         disks: List[DiskInfo] = []
 
         # parse output of lsblk
-        output = self.run().stdout
+        output = self.run(force_run=force_run).stdout
         entries = find_patterns_groups_in_lines(output, [self._ENTRY_REGEX])[0]
 
         # create partition map to store partitions for each disk
