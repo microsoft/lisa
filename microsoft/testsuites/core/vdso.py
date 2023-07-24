@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 from lisa import TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.node import Node
+from lisa.operating_system import BSD, Windows
+from lisa.testsuite import simple_requirement
 from lisa.tools import Vdsotest
 
 
@@ -29,6 +31,9 @@ class Vdso(TestSuite):
             2. Run vdsotest benchmark.
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_vdso(self, node: Node) -> None:
         vdso_test = node.tools[Vdsotest]
