@@ -934,6 +934,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         result = super().check(capability)
 
         result.merge(
+            search_space.check_setspace(self.os_disk_type, capability.os_disk_type),
+            "os_disk_type",
+        )
+        result.merge(
             search_space.check_setspace(self.disk_type, capability.disk_type),
             "disk_type",
         )
@@ -984,6 +988,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         ), f"actual: {type(capability)}"
 
         assert (
+            capability.os_disk_type
+        ), "capability should have at least one OS disk type, but it's None"
+        assert (
             capability.disk_type
         ), "capability should have at least one disk type, but it's None"
         assert (
@@ -994,6 +1001,24 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             self, method, capability
         )
         set_filtered_fields(super_value, value, ["data_disk_count"])
+
+        cap_os_disk_type = capability.os_disk_type
+        if isinstance(cap_os_disk_type, search_space.SetSpace):
+            assert (
+                len(cap_os_disk_type) > 0
+            ), "capability should have at least one disk type, but it's empty"
+        elif isinstance(cap_os_disk_type, schema.DiskType):
+            cap_os_disk_type = search_space.SetSpace[schema.DiskType](
+                is_allow_set=True, items=[cap_os_disk_type]
+            )
+        else:
+            raise LisaException(
+                f"unknown OS disk type on capability, type: {cap_os_disk_type}"
+            )
+
+        value.os_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.os_disk_type, capability.os_disk_type, schema.disk_type_priority)
 
         cap_disk_type = capability.disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
@@ -1115,6 +1140,23 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                     value.data_disk_size = self._get_disk_size_from_iops(
                         value.data_disk_iops, disk_type_iops
                     )
+            elif value.disk_type == schema.DiskType.UltraSSDLRS:
+                req_disk_size = search_space.count_space_to_int_range(
+                    self.data_disk_size
+                )
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                value.data_disk_size = max(req_disk_size.min, cap_disk_size.min)
+
+                req_disk_iops = search_space.count_space_to_int_range(
+                    self.data_disk_iops
+                )
+                cap_disk_iops = search_space.count_space_to_int_range(
+                    capability.data_disk_iops
+                )
+                value.data_disk_iops = max(req_disk_iops.min, cap_disk_iops.min)
+
         elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
                 self.data_disk_iops, capability.data_disk_iops
@@ -1407,10 +1449,11 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
 
 
 _disk_type_mapping: Dict[schema.DiskType, str] = {
-    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.Ephemeral: "Ephemeral",
+    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
+    schema.DiskType.UltraSSDLRS: "UltraSSD_LRS",
 }
 
 

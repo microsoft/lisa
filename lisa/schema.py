@@ -409,6 +409,7 @@ class DiskType(str, Enum):
     Ephemeral = "Ephemeral"
     StandardHDDLRS = "StandardHDDLRS"
     StandardSSDLRS = "StandardSSDLRS"
+    UltraSSDLRS = "UltraSSDLRS"
 
 
 # disk types are ordered by commonly and cost. The earlier is lower cost.
@@ -417,6 +418,7 @@ disk_type_priority: List[DiskType] = [
     DiskType.StandardSSDLRS,
     DiskType.Ephemeral,
     DiskType.PremiumSSDLRS,
+    DiskType.UltraSSDLRS,
 ]
 
 
@@ -435,7 +437,7 @@ disk_controller_type_priority: List[DiskControllerType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    disk_type: Optional[
+    os_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
     ] = field(  # type:ignore
         default_factory=partial(
@@ -445,6 +447,22 @@ class DiskOptionSettings(FeatureSettings):
                 DiskType.StandardSSDLRS,
                 DiskType.Ephemeral,
                 DiskType.PremiumSSDLRS,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
+        ),
+    )
+    disk_type: Optional[
+        Union[search_space.SetSpace[DiskType], DiskType]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                DiskType.StandardHDDLRS,
+                DiskType.StandardSSDLRS,
+                DiskType.PremiumSSDLRS,
+                DiskType.UltraSSDLRS,
             ],
         ),
         metadata=field_metadata(
@@ -512,6 +530,7 @@ class DiskOptionSettings(FeatureSettings):
         assert isinstance(o, DiskOptionSettings), f"actual: {type(o)}"
         return (
             self.type == o.type
+            and self.os_disk_type == o.os_disk_type
             and self.disk_type == o.disk_type
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
@@ -523,6 +542,7 @@ class DiskOptionSettings(FeatureSettings):
 
     def __repr__(self) -> str:
         return (
+            f"os_disk_type: {self.os_disk_type},"
             f"disk_type: {self.disk_type},"
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
@@ -563,7 +583,7 @@ class DiskOptionSettings(FeatureSettings):
 
     def _get_key(self) -> str:
         return (
-            f"{super()._get_key()}/{self.disk_type}/"
+            f"{super()._get_key()}/{self.os_disk_type}/{self.disk_type}/"
             f"{self.data_disk_count}/{self.data_disk_caching_type}/"
             f"{self.data_disk_iops}/{self.data_disk_size}/"
             f"{self.disk_controller_type}"
@@ -582,6 +602,10 @@ class DiskOptionSettings(FeatureSettings):
         search_space_countspace_method = getattr(
             search_space, f"{method.value}_countspace"
         )
+        if self.os_disk_type or capability.os_disk_type:
+            value.os_disk_type = getattr(
+                search_space, f"{method.value}_setspace_by_priority"
+            )(self.os_disk_type, capability.os_disk_type, disk_type_priority)
         if self.disk_type or capability.disk_type:
             value.disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
