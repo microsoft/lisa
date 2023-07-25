@@ -732,8 +732,8 @@ function New-ZipFile( $zipFileName, $sourceDir ) {
 Function Get-LISAv2Tools($XMLSecretFile) {
 	# Copy required binary files to working folder
 	$CurrentDirectory = Get-Location
-	$CmdArray = @('7za.exe', 'dos2unix.exe', 'gawk', 'jq', 'plink_0.77.exe', 'pscp.exe', `
-			'kvp_client32', 'kvp_client64', 'nc.exe', 'lz4.exe')
+	$CmdArray = @('7za.exe', 'dos2unix.exe', 'gawk', 'jq', 'plink_0.78.exe', 'pscp.exe', `
+		'kvp_client32', 'kvp_client64', 'nc.exe', 'lz4.exe')
 
 	if ($XMLSecretFile) {
 		$WebClient = New-Object System.Net.WebClient
@@ -759,8 +759,8 @@ Function Get-LISAv2Tools($XMLSecretFile) {
 				}
 				else {
 					Write-LogInfo "File $_ successfully downloaded in Tools folder: $CurrentDirectory\Tools."
-					if ($_ -eq "plink_0.77.exe") {
-						Rename-Item -Path "$CurrentDirectory\Tools\plink_0.77.exe" -NewName "plink.exe" -Force | Out-Null
+					if ($_ -eq "plink_0.78.exe") {
+						Rename-Item -Path "$CurrentDirectory\Tools\plink_0.78.exe" -NewName "plink.exe" -Force | Out-Null
 						Write-LogInfo "Successfully renamed File $_ to plink.exe"
 					}
 				}
