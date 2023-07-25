@@ -65,13 +65,24 @@ class Disk(Feature):
         raise NotImplementedError
 
 
-DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
+DiskEphemeral = partial(
+    schema.DiskOptionSettings, os_disk_type=schema.DiskType.Ephemeral
+)
 DiskPremiumSSDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.PremiumSSDLRS
+    schema.DiskOptionSettings,
+    disk_type=schema.DiskType.PremiumSSDLRS,
+    os_disk_type=schema.DiskType.PremiumSSDLRS,
 )
 DiskStandardHDDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardHDDLRS
+    schema.DiskOptionSettings,
+    disk_type=schema.DiskType.StandardHDDLRS,
+    os_disk_type=schema.DiskType.StandardHDDLRS,
 )
 DiskStandardSSDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardSSDLRS
+    schema.DiskOptionSettings,
+    disk_type=schema.DiskType.StandardSSDLRS,
+    os_disk_type=schema.DiskType.StandardSSDLRS,
+)
+DiskUltraSSDLRS = partial(
+    schema.DiskOptionSettings, disk_type=schema.DiskType.UltraSSDLRS
 )
