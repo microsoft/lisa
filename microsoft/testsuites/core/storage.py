@@ -27,7 +27,12 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
-from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    SkippedException,
+    get_matched_str,
+)
 from lisa.util.perf_timer import create_timer
 
 
@@ -239,13 +244,21 @@ class Storage(TestSuite):
         ),
     )
     def verify_disk_controller_type(self, node: RemoteNode) -> None:
-        # Get OS disk type.
+        # Get 'disk controller type' with azure api
         vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
+
+        # Get 'disk controller type' from within VM
         os_disk_controller_type = node.features[Disk].os_controller_type()
+
+        # On certain SKUs & gen1 images 'disk_controller_type' will be 'None'
+        if not vm_disk_controller_type:
+            raise SkippedException(
+                f"VM disk_controller_type is '{vm_disk_controller_type}'"
+            )
 
         if os_disk_controller_type != vm_disk_controller_type:
             raise LisaException(
-                f"disk_controller_type is '{vm_disk_controller_type}' but "
+                f"VM disk_controller_type is '{vm_disk_controller_type}' but "
                 f"detected OS disk is of type: "
                 f"'{os_disk_controller_type}'"
             )

@@ -67,10 +67,16 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
-    # Get disk controller type of the VM by checking the OS disk partition
-    # @property
+    # Get disk controller type from the VM by checking the boot partition
     def os_controller_type(self) -> schema.DiskControllerType:
-        os_disk = self.get_partition_with_mount_point("/")
+        partition_info = self._node.tools[Mount].get_partition_info()
+
+        # On certain gen2 image only "/boot/efi" exists
+        for partition in partition_info:
+            if partition.mount_point in ("/boot", "/boot/efi"):
+                boot_partition = partition.mount_point
+
+        os_disk = self.get_partition_with_mount_point(boot_partition)
         if os_disk.disk == "nvme":
             return schema.DiskControllerType.NVME
         else:
