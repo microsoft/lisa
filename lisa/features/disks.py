@@ -47,6 +47,9 @@ class Disk(Feature):
     def get_all_disks(self) -> List[str]:
         raise NotImplementedError
 
+    def get_disk_controller_type(self) -> schema.DiskControllerType:
+        raise NotImplementedError
+
     def add_data_disk(
         self,
         count: int,
@@ -65,10 +68,10 @@ class Disk(Feature):
         raise NotImplementedError
 
     # Get disk controller type of the VM by checking the OS disk partition
-    @property
-    def controller_type(self) -> str:
+    # @property
+    def os_controller_type(self) -> schema.DiskControllerType:
         os_disk = self.get_partition_with_mount_point("/")
-        if os_disk.disk == 'nvme':  # noqa BLK100
+        if os_disk.disk == "nvme":
             return schema.DiskControllerType.NVME
         else:
             return schema.DiskControllerType.SCSI
