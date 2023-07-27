@@ -103,6 +103,10 @@ class Lscpu(Tool):
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsLscpu
 
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return BSDLscpu
+
     @property
     def can_install(self) -> bool:
         return True
@@ -299,4 +303,15 @@ class WindowsLscpu(Lscpu):
             force_run=force_run,
         )
         core_count = int(result.strip())
+        return core_count
+
+
+class BSDLscpu(Lscpu):
+    @property
+    def command(self) -> str:
+        return "sysctl"
+
+    def get_core_count(self, force_run: bool = False) -> int:
+        output = self.run("-n hw.ncpu", force_run=force_run)
+        core_count = int(output.stdout.strip())
         return core_count
