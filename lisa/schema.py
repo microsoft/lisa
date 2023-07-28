@@ -197,6 +197,7 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
                 [
                     constants.TRANSFORMER_PHASE_INIT,
                     constants.TRANSFORMER_PHASE_EXPANDED,
+                    constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP,
                     constants.TRANSFORMER_PHASE_CLEANUP,
                 ]
             ),

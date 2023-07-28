@@ -278,6 +278,11 @@ class RootRunner(Action):
                 )
                 for runner in runners:
                     yield runner
+
+                transformer.run(
+                    sub_runbook_builder,
+                    phase=constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP,
+                )
         else:
             # no combinator, use the root runbook
             transformer.run(
@@ -288,6 +293,11 @@ class RootRunner(Action):
                 root_runbook, self._runbook_builder.variables
             ):
                 yield runner
+
+            transformer.run(
+                self._runbook_builder,
+                phase=constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP,
+            )
 
     def _generate_runners(
         self, runbook: schema.Runbook, variables: Dict[str, VariableEntry]
