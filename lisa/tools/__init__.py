@@ -93,6 +93,7 @@ from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .rm import Rm
 from .sar import Sar
+from .sockperf import Sockperf
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -213,6 +214,7 @@ __all__ = [
     "Sed",
     "Service",
     "ServiceInternal",
+    "Sockperf",
     "Ssh",
     "Sshpass",
     "StartConfiguration",
