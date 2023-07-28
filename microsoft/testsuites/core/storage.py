@@ -235,8 +235,8 @@ class Storage(TestSuite):
         This test will verify that disk controller type.
 
         Steps:
-        1. Get the disk type of the os partition.
-        2. Compare it with diskcontrollertype passed through runbook.
+        1. Get the disk type of the boot partition.
+        2. Compare it with diskcontrollertype of the VM.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -244,13 +244,13 @@ class Storage(TestSuite):
         ),
     )
     def verify_disk_controller_type(self, node: RemoteNode) -> None:
-        # Get 'disk controller type' with azure api
+        # Get VM's 'disk controller type' with azure api
         vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
 
         # Get 'disk controller type' from within VM
-        os_disk_controller_type = node.features[Disk].os_controller_type()
+        os_disk_controller_type = node.features[Disk].os_disk_controller_type()
 
-        # On certain SKUs & gen1 images 'disk_controller_type' will be 'None'
+        # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
         if not vm_disk_controller_type:
             raise SkippedException(
                 f"VM disk_controller_type is '{vm_disk_controller_type}'"
