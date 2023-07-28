@@ -507,8 +507,7 @@ def perf_sockperf(
 
     if set_busy_poll:
         for node in [client, server]:
-            node.tools[Sysctl].write("net.core.busy_poll", "50")
-            node.tools[Sysctl].write("net.core.busy_read", "50")
+            node.tools[Sysctl].enable_busy_polling("50")
 
     run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
 
