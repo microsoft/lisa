@@ -232,7 +232,7 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will verify that disk controller type.
+        This test verifies the disk controller type of the VM.
 
         Steps:
         1. Get the disk type of the boot partition.
@@ -247,7 +247,7 @@ class Storage(TestSuite):
         # Get VM's 'disk controller type' with azure api
         vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
 
-        # Get 'disk controller type' from within VM
+        # Get 'disk controller type' from within VM.
         os_disk_controller_type = node.features[Disk].os_disk_controller_type()
 
         # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
