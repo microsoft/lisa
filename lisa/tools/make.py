@@ -5,7 +5,7 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING, Dict, Optional, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import BSD, Posix
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.util.process import ExecutableResult
@@ -21,7 +21,10 @@ class Make(Tool):
 
     @property
     def command(self) -> str:
-        return "make"
+        if isinstance(self.node.os, BSD):
+            return "gmake"
+        else:
+            return "make"
 
     @property
     def can_install(self) -> bool:

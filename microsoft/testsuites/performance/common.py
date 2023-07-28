@@ -23,6 +23,7 @@ from lisa.tools import (
     Fdisk,
     Fio,
     FIOResult,
+    Firewall,
     Iperf3,
     Kill,
     Lagscope,
@@ -31,7 +32,9 @@ from lisa.tools import (
     Netperf,
     Ntttcp,
     Sar,
+    Sockperf,
     Ssh,
+    Sysctl,
 )
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
 from lisa.util import LisaException
@@ -491,6 +494,41 @@ def perf_iperf(
                 )
     for iperf3_message in iperf3_messages_list:
         notifier.notify(iperf3_message)
+
+
+def perf_sockperf(
+    test_result: TestResult, mode: str, test_case_name: str, set_busy_poll: bool = False
+) -> None:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
+    client = cast(RemoteNode, environment.nodes[0])
+    server = cast(RemoteNode, environment.nodes[1])
+
+    if set_busy_poll:
+        for node in [client, server]:
+            node.tools[Sysctl].write("net.core.busy_poll", "50")
+            node.tools[Sysctl].write("net.core.busy_read", "50")
+
+    run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
+
+    # disable any firewalls running which might mess with the test
+    for firewall in [client.tools[Firewall], server.tools[Firewall]]:
+        firewall.stop()
+
+    server_proc = server.tools[Sockperf].start_server(mode)
+    # wait for sockperf to start, fail if it doesn't.
+    server_proc.wait_output(
+        "sockperf: Warmup stage (sending a few dummy messages)...",
+        timeout=30,
+    )
+    client_output = client.tools[Sockperf].run_client(
+        mode, server.nics.get_primary_nic().ip_addr
+    )
+    server_proc.kill()
+    client.tools[Sockperf].create_latency_performance_message(
+        client_output, test_case_name, test_result
+    )
 
 
 def calculate_middle_average(values: List[Union[float, int]]) -> float:

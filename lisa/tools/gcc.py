@@ -7,8 +7,8 @@ from typing import cast
 from semver import VersionInfo
 
 from lisa.executable import Tool
-from lisa.operating_system import Posix
-from lisa.util import LisaException
+from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Suse
+from lisa.util import LisaException, UnsupportedDistroException
 
 
 class Gcc(Tool):
@@ -52,3 +52,19 @@ class Gcc(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("gcc")
         return self._check_exists()
+
+    def install_cpp_compiler(self) -> None:
+        node_os = self.node.os
+        if isinstance(node_os, Debian):
+            node_os.install_packages("g++")
+        elif (
+            isinstance(node_os, Fedora)
+            or isinstance(node_os, Suse)
+            or isinstance(node_os, CBLMariner)
+        ):
+            node_os.install_packages("gcc-c++")
+        else:
+            raise UnsupportedDistroException(
+                node_os,
+                "No support for installing g++ for this distro in the Lisa[GCC] tool.",
+            )
