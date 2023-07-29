@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Any, Dict, List, Optional, Pattern, Type
+from typing import Any, Dict, List, Optional, Pattern, Set, Type
+
+from retry import retry
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -170,8 +172,11 @@ class Lspci(Tool):
 
 class LspciBSD(Lspci):
     _DEVICE_DRIVER_MAPPING: Dict[str, Pattern[str]] = {
-        constants.DEVICE_TYPE_SRIOV: re.compile(r"mlx\d+_core"),
+        constants.DEVICE_TYPE_SRIOV: re.compile(r"mlx\d+_core\d+"),
+        constants.DEVICE_TYPE_NVME: re.compile(r"nvme\d+"),
     }
+
+    _disabled_devices: Set[str] = set()
 
     def get_device_names_by_type(
         self, device_type: str, force_run: bool = False
@@ -186,3 +191,38 @@ class LspciBSD(Lspci):
             [class_names],
         )
         return matched[0]
+
+    @retry(tries=15, delay=3, backoff=1.15)
+    def _enable_device(self, device: str) -> None:
+        self.node.execute(
+            f"devctl enable {device}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Fail to enable {device} devices.",
+        )
+
+    @retry(tries=15, delay=3, backoff=1.15)
+    def _disable_device(self, device: str) -> None:
+        if device in self._disabled_devices:
+            return
+
+        # devctl disable will fail if the device is already disabled.
+        self.node.execute(
+            f"devctl disable {device}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Fail to disable {device} devices.",
+        )
+
+    def enable_devices(self) -> None:
+        for device in self._disabled_devices:
+            self._enable_device(device)
+        self._disabled_devices.clear()
+
+    def disable_devices_by_type(self, device_type: str) -> int:
+        devices = self.get_device_names_by_type(device_type, force_run=True)
+        for device in devices:
+            self._disable_device(device)
+            self._disabled_devices.add(device)
+
+        return len(devices)
