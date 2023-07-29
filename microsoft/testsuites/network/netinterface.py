@@ -17,7 +17,6 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, SerialConsole, Synthetic
-from lisa.node import create_nics
 from lisa.operating_system import FreeBSD
 from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
@@ -120,8 +119,8 @@ class NetInterface(TestSuite):
         # Ensure netvsc module is loaded
         network_interface_feature.reload_module()
 
-        node_nic_info = create_nics(node)
-        node_nic_info.initialize()
+        node_nic_info = node.nics
+        node_nic_info.reload()
         default_nic = node_nic_info.default_nic
         default_route = node_nic_info.default_nic_route
 
