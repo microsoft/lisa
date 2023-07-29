@@ -28,7 +28,7 @@ def initialize_nic_info(
                 f"there is no sriov nic attached to VM {node.name}"
             ).is_greater_than(0)
         nics_info = node.nics
-        nics_info.initialize()
+        nics_info.reload()
         found_ip = False
         for interface_info in interfaces_info_list:
             # for some old distro, need run dhclient to get ip address for extra nics
@@ -70,7 +70,8 @@ def sriov_basic_test(environment: Environment) -> None:
         devices_slots = lspci.get_device_names_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
-
+        if len(devices_slots) != len(set(node.nics.get_device_slots())):
+            node.nics.reload()
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
