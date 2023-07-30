@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
 from assertpy import assert_that
@@ -116,9 +117,14 @@ def get_nic_datapath(node: Node) -> str:
 
 
 def cleanup_process(environment: Environment, process_name: str) -> None:
-    for node in environment.nodes.list():
-        kill = node.tools[Kill]
-        kill.by_name(process_name)
+    nodes = environment.nodes.list()
+
+    # use cleanup function
+    def do_cleanup(node: Node) -> None:
+        node.tools[Kill].by_name(process_name)
+
+    # to run parallel cleanup for processes
+    run_in_parallel([partial(do_cleanup, node) for node in nodes])
 
 
 def reset_partitions(
@@ -504,10 +510,13 @@ def perf_sockperf(
 
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
-
+    sysctls: List[Sysctl] = []
     if set_busy_poll:
-        for node in [client, server]:
-            node.tools[Sysctl].enable_busy_polling("50")
+        sysctls = run_in_parallel(
+            [lambda: client.tools[Sysctl], lambda: server.tools[Sysctl]]
+        )
+        for sysctl in sysctls:
+            sysctl.enable_busy_polling("50")
 
     run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
 
@@ -517,17 +526,23 @@ def perf_sockperf(
 
     server_proc = server.tools[Sockperf].start_server(mode)
     # wait for sockperf to start, fail if it doesn't.
-    server_proc.wait_output(
-        "sockperf: Warmup stage (sending a few dummy messages)...",
-        timeout=30,
-    )
-    client_output = client.tools[Sockperf].run_client(
-        mode, server.nics.get_primary_nic().ip_addr
-    )
-    server_proc.kill()
-    client.tools[Sockperf].create_latency_performance_message(
-        client_output, test_case_name, test_result
-    )
+    try:
+        server_proc.wait_output(
+            "sockperf: Warmup stage (sending a few dummy messages)...",
+            timeout=30,
+        )
+        client_output = client.tools[Sockperf].run_client(
+            mode, server.nics.get_primary_nic().ip_addr
+        )
+        client.tools[Sockperf].create_latency_performance_message(
+            client_output, test_case_name, test_result
+        )
+    finally:
+        if server_proc.is_running():
+            server_proc.kill()
+
+        for sysctl in sysctls:
+            sysctl.reset()
 
 
 def calculate_middle_average(values: List[Union[float, int]]) -> float:

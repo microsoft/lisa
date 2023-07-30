@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from functools import partial
 from typing import Any
 
 from lisa import (
@@ -12,9 +13,10 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.environment import Environment
+from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
 from lisa.testsuite import TestResult
+from lisa.tools import Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
@@ -22,6 +24,7 @@ from lisa.tools.iperf3 import (
     IPERF_UDP_CONCURRENCY,
 )
 from lisa.tools.sockperf import SOCKPERF_TCP, SOCKPERF_UDP
+from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.performance.common import (
     cleanup_process,
     perf_iperf,
@@ -406,5 +409,27 @@ class NetworkPerformace(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]:
+
+        # use these cleanup functions
+        def do_process_cleanup(process: str) -> None:
             cleanup_process(environment, process)
+
+        def do_sysctl_cleanup(node: Node) -> None:
+            node.tools[Sysctl].reset()
+
+        # to run parallel cleanup of processes and sysctl settings
+        run_in_parallel(
+            [
+                partial(do_process_cleanup, x)
+                for x in [
+                    "lagscope",
+                    "netperf",
+                    "netserver",
+                    "ntttcp",
+                    "iperf3",
+                ]
+            ]
+        )
+        run_in_parallel(
+            [partial(do_sysctl_cleanup, x) for x in environment.nodes.list()]
+        )
