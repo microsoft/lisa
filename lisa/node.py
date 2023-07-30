@@ -395,6 +395,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             else:
                 # mount the disk if it isn't mounted
                 disk_name = disk.name
+                # skip floppy disk
+                if "fd" in disk_name:
+                    continue
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
