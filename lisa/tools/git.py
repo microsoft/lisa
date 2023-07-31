@@ -11,6 +11,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.operating_system import Posix, Suse
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
+from lisa.util.process import ExecutableResult
 
 
 class CodeExistsException(LisaException):
@@ -171,6 +172,20 @@ class Git(Tool):
             no_error_log=True,
         )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
+
+    def bisect(
+        self,
+        cwd: pathlib.PurePath,
+        cmd: str,
+    ) -> ExecutableResult:
+        result = self.run(
+            f"bisect {cmd}",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+        )
+        result.assert_exit_code(message=f"failed on bisect {cmd}. {result.stdout}")
+        return result
 
     def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
