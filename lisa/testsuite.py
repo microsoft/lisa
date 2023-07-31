@@ -5,13 +5,11 @@ from __future__ import annotations
 
 import copy
 import traceback
-import warnings
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
-from warnings import warn
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry.api import retry_call
@@ -583,19 +581,11 @@ class TestSuite:
         is_suite_continue = True
         suite_log = self.__log
         suite_error_stacktrace = None
-        #  replace to case's logger temporarily
         if hasattr(self, "before_suite"):
-            (
-                is_suite_continue,
-                suite_error_message,
-                suite_error_stacktrace,
-            ) = self.__suite_method(
-                self.before_suite,  # type: ignore
-                test_kwargs=test_kwargs,
-                log=suite_log,
-            )
-            self.__print_warning("before_suite", "before_case")
-
+            raise LisaException("before_suite is not supported. Please use before_case")
+        if hasattr(self, "after_suite"):
+            raise LisaException("after_suite is not supported. Please use after_case")
+        #  replace to case's logger temporarily
         for case_result in case_results:
             case_name = case_result.runtime_data.name
 
@@ -670,14 +660,6 @@ class TestSuite:
                 suite_log.info("received stop message, stop run")
                 break
 
-        if hasattr(self, "after_suite"):
-            self.__suite_method(
-                self.after_suite,  # type: ignore
-                test_kwargs=test_kwargs,
-                log=suite_log,
-            )
-            self.__print_warning("after_suite", "after_case")
-
     def stop(self) -> None:
         self._should_stop = True
 
@@ -722,29 +704,6 @@ class TestSuite:
         working_path = constants.RUN_LOCAL_WORKING_PATH / test_part_path
         return working_path
 
-    def __suite_method(
-        self, method: Callable[..., Any], test_kwargs: Dict[str, Any], log: Logger
-    ) -> Tuple[bool, str, Optional[str]]:
-        result: bool = True
-        message: str = ""
-        timer = create_timer()
-        method_name = method.__name__
-        stacktrace: Optional[str] = None
-        try:
-            _call_with_retry_and_timeout(
-                method,
-                retries=0,
-                timeout=3600,
-                log=log,
-                test_kwargs=test_kwargs,
-            )
-        except Exception as identifier:
-            result = False
-            message = f"{method_name}: {identifier}"
-            stacktrace = traceback.format_exc()
-        log.debug(f"{method_name} end in {timer}")
-        return result, message, stacktrace
-
     def __before_case(
         self,
         case_result: TestResult,
@@ -764,9 +723,7 @@ class TestSuite:
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
-            log.error("before_case: ", exc_info=identifier)
-            case_result.stacktrace = traceback.format_exc()
-            case_result.set_status(TestStatus.SKIPPED, f"before_case: {identifier}")
+            case_result.handle_exception(identifier, log, "before_case")
             result = False
 
         log.debug(f"before_case end in {timer}")
@@ -816,20 +773,6 @@ class TestSuite:
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
-
-    def __print_warning(
-        self, deprecated_method_name: str, replaced_method_name: str
-    ) -> None:
-        warnings.simplefilter("always", DeprecationWarning)
-        warn(
-            (
-                f"{deprecated_method_name} is deprecated. "
-                f"please use {replaced_method_name}"
-            ),
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        warnings.simplefilter("ignore", DeprecationWarning)
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:

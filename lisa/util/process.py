@@ -23,9 +23,11 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell, SshShell
 
 # [sudo] password for lisatest: \r\nsudo: timed out reading password
-REQUIRE_INPUT_PASSWORD_PATTERN = re.compile(
-    r"\[sudo\] password for.+\r\nsudo: timed out reading password"
-)
+# Password: \r\nsudo: timed out reading password
+TIMEOUT_READING_PASSWORD_PATTERNS = [
+    re.compile(r"\[sudo\] password for.+\r\nsudo: timed out reading password"),
+    re.compile(r"Password: .+\r\nsudo: timed out reading password"),
+]
 
 
 @dataclass
@@ -433,10 +435,12 @@ class Process:
     def _check_if_need_input_password(self, raw_input: str) -> None:
         # Check if the stdout contains "[sudo] password for .*: " and
         # "sudo: timed out reading password" strings. If so, raise exception
-        if re.search(REQUIRE_INPUT_PASSWORD_PATTERN, raw_input):
-            raise RequireUserPasswordException(
-                "Running commands with sudo requires user's password"
-            )
+        for pattern in TIMEOUT_READING_PASSWORD_PATTERNS:
+            if re.search(pattern, raw_input):
+                raise RequireUserPasswordException(
+                    "Timed out reading password. "
+                    "Running commands with sudo requires user's password"
+                )
 
     def _filter_sudo_required_password_info(self, raw_input: str) -> str:
         # If system needs input of password when running commands with sudo, the output

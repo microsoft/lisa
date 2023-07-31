@@ -46,9 +46,10 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
-from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
+from lisa.secret import add_secret
+from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -446,7 +447,12 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
         re.I,
     )
-    _amd_supported_skus = re.compile(r"^Standard_[^_]+_v4$", re.I)
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVv4 Series: Standard_NV[^_]+_v4
+    _amd_supported_skus = re.compile(
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+    )
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
@@ -586,6 +592,32 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         dmesg = self._node.tools[Dmesg]
         return "hvnd_try_bind_nic" in dmesg.get_output()
 
+    def setup_rdma(self) -> None:
+        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            self.is_hpc_image = True
+        super().setup_rdma()
+        waagent = self._node.tools[Waagent]
+        devices = self._get_ib_device_names()
+        if len(devices) > 1:
+            # upgrade waagent to latest version to resolve
+            # multiple ib devices not getting ip address issue
+            waagent.upgrade_from_source()
+        # Update waagent.conf
+        sed = self._node.tools[Sed]
+        sed.substitute(
+            regexp="# OS.EnableRDMA=y",
+            replacement="OS.EnableRDMA=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="# AutoUpdate.Enabled=y",
+            replacement="AutoUpdate.Enabled=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        waagent.restart()
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
@@ -626,6 +658,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
+        status_changed = False
         for nic in vm.network_profile.network_interfaces:
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
@@ -657,9 +690,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
+                status_changed = True
 
         # wait settings effective
-        if wait:
+        if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
@@ -800,16 +834,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        self._node.nics.reload()
-        default_nic = self._node.nics.get_primary_nic()
-
-        if enabled and not default_nic.lower:
-            raise LisaException("SRIOV is enabled, but VF is not found.")
-        elif not enabled and default_nic.lower:
-            raise LisaException("SRIOV is disabled, but VF exists.")
-        else:
-            # the enabled flag is consistent with VF presents.
-            ...
+        self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
         self, nics: List[NetworkInterfaceReference]
@@ -836,6 +861,22 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 )
             )
         return all_nics
+
+    def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
+        interfaces_info_list: List[IpInfo] = []
+        for interface in self._get_all_nics():
+            interfaces_info_list.append(
+                IpInfo(
+                    interface.name,
+                    ":".join(interface.mac_address.lower().split("-")),
+                    [
+                        x.private_ip_address
+                        for x in interface.ip_configurations
+                        if x.primary
+                    ][0],
+                )
+            )
+        return interfaces_info_list
 
 
 # Tuple: (IOPS, Disk Size)
@@ -1138,6 +1179,15 @@ class Disk(AzureFeatureMixin, features.Disk):
     SCSI_PATTERN = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?$", re.M)
     UN_SUPPORT_SETTLE = re.compile(r"trigger: unrecognized option '--settle'", re.M)
 
+    # /sys/block/sda = > sda
+    # /sys/block/sdb = > sdb
+    DISK_LABEL_PATTERN = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
+
+    # =>       40  369098672  da1  GPT  (176G)
+    DISK_LABEL_PATTERN_BSD = re.compile(
+        r"^=>\s+\d+\s+\d+\s+(?P<label>\w*)\s+\w+\s+\(\w+\)", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1145,6 +1195,11 @@ class Disk(AzureFeatureMixin, features.Disk):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+
+    def get_disk_controller_type(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+        return vm.storage_profile.disk_controller_type
 
     def get_raw_data_disks(self) -> List[str]:
         if (
@@ -1215,10 +1270,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         return disk_array
 
     def get_all_disks(self) -> List[str]:
-        # /sys/block/sda = > sda
-        # /sys/block/sdb = > sdb
-        disk_label_pattern = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
-        cmd_result = self._node.execute("ls -d /sys/block/sd*", shell=True, sudo=True)
+        if isinstance(self._node.os, BSD):
+            disk_label_pattern = self.DISK_LABEL_PATTERN_BSD
+            cmd_result = self._node.execute("gpart show", shell=True, sudo=True)
+        else:
+            disk_label_pattern = self.DISK_LABEL_PATTERN
+            cmd_result = self._node.execute(
+                "ls -d /sys/block/sd*", shell=True, sudo=True
+            )
         matched = find_patterns_in_lines(cmd_result.stdout, [disk_label_pattern])
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
@@ -1434,14 +1493,15 @@ class Resize(AzureFeatureMixin, features.Resize):
         # current location and that are available for the current vm size to resize to
         for size in available_sizes:
             vm_size_name = size.as_dict()["name"]
-            # Getting eligible vm sizes and their capability data
-            new_vm_size = next(
-                (x for x in sorted_sizes if x.vm_size == vm_size_name), None
-            )
-            if not new_vm_size:
-                continue
+            if vm_size_name.startswith(("Standard_", "Basic_")):
+                # Getting eligible vm sizes and their capability data
+                new_vm_size = next(
+                    (x for x in sorted_sizes if x.vm_size == vm_size_name), None
+                )
+                if not new_vm_size:
+                    continue
 
-            avail_eligible_intersect.append(new_vm_size)
+                avail_eligible_intersect.append(new_vm_size)
 
         current_network_interface = current_vm_size.capability.network_interface
         assert_that(current_network_interface).described_as(
@@ -1962,6 +2022,20 @@ class AzureExtension(AzureFeatureMixin, Feature):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
+    def get(
+        self,
+        name: str = "",
+    ) -> Any:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        extension = compute_client.virtual_machine_extensions.get(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+            expand="instanceView",
+        )
+        return extension
+
     def create_or_update(
         self,
         type_: str,
@@ -1996,6 +2070,12 @@ class AzureExtension(AzureFeatureMixin, Feature):
             protected_settings=protected_settings,
             suppress_failures=suppress_failures,
         )
+
+        if protected_settings:
+            add_secret(
+                str(extension_parameters.as_dict()["protected_settings"]),
+                sub="***REDACTED***",
+            )
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 

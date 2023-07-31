@@ -35,7 +35,7 @@ def is_distro_supported(node: RemoteNode) -> None:
 def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
-    upper_nics_before_hibernation = node_nic.get_upper_nics()
+    upper_nics_before_hibernation = node_nic.get_nic_names()
     hibernation_setup_tool = node.tools[HibernationSetup]
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
@@ -83,7 +83,7 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     node_nic = node.nics
     node_nic.initialize()
     lower_nics_after_hibernation = node_nic.get_lower_nics()
-    upper_nics_after_hibernation = node_nic.get_upper_nics()
+    upper_nics_after_hibernation = node_nic.get_nic_names()
     assert_that(
         len(lower_nics_after_hibernation),
         "sriov nics count changes after hibernation.",

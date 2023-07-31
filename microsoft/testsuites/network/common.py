@@ -7,35 +7,9 @@ from retry import retry
 
 from lisa import Environment, Node, RemoteNode, constants
 from lisa.features import NetworkInterface
-from lisa.nic import NicInfo, Nics
-from lisa.tools import (
-    Cat,
-    Dhclient,
-    KernelConfig,
-    Kill,
-    Lsmod,
-    Lspci,
-    Modprobe,
-    Ping,
-    Ssh,
-)
-
-# ConnectX-3 uses mlx4_core
-# mlx4_en and mlx4_ib depends on mlx4_core
-#  need remove mlx4_en and mlx4_ib firstly
-#  otherwise will see modules is in used issue
-# ConnectX-4/ConnectX-5 uses mlx5_core
-# mlx5_ib depends on mlx5_core, need remove mlx5_ib firstly
-reload_modules_dict: Dict[str, List[str]] = {
-    "mlx5_core": ["mlx5_ib"],
-    "mlx4_core": ["mlx4_en", "mlx4_ib"],
-    "mana": ["mana", "mana_en", "mana_ib"],
-}
-modules_config_dict: Dict[str, str] = {
-    "mlx5_core": "CONFIG_MLX5_CORE",
-    "mlx4_core": "CONFIG_MLX4_CORE",
-    "mana": "CONFIG_MICROSOFT_MANA",
-}
+from lisa.nic import NicInfo
+from lisa.operating_system import BSD
+from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ping, Ssh
 
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
@@ -44,69 +18,52 @@ def initialize_nic_info(
 ) -> Dict[str, Dict[str, NicInfo]]:
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
+        network_interface_feature = node.features[NetworkInterface]
+        interfaces_info_list: List[
+            IpInfo
+        ] = network_interface_feature.get_all_primary_nics_ip_info()
         if is_sriov:
-            network_interface_feature = node.features[NetworkInterface]
             sriov_count = network_interface_feature.get_nic_count()
             assert_that(sriov_count).described_as(
                 f"there is no sriov nic attached to VM {node.name}"
             ).is_greater_than(0)
-        node_nic_info = Nics(node)
-        node_nic_info.initialize()
-        for _, node_nic in node_nic_info.nics.items():
+        nics_info = node.nics
+        nics_info.initialize()
+        found_ip = False
+        for interface_info in interfaces_info_list:
             # for some old distro, need run dhclient to get ip address for extra nics
-            if not node_nic.ip_addr:
-                node.tools[Dhclient].renew(node_nic.upper)
-            assert_that(node_nic.ip_addr).described_as(
-                f"This interface {node_nic.upper} does not have a IP address."
-            ).is_not_empty()
+            found_ip = False
+            for node_nic in nics_info.nics.values():
+                if interface_info.mac_addr == node_nic.mac_addr:
+                    if not node_nic.ip_addr:
+                        node.tools[Ip].up(node_nic.name)
+                        node.tools[Dhclient].renew(node_nic.name)
+                        node_nic.ip_addr = node.tools[Ip].get_ip_address(node_nic.name)
+                    if interface_info.ip_addr != node_nic.ip_addr:
+                        assert_that(node_nic.ip_addr).described_as(
+                            f"This interface {node_nic} ip {node_nic.ip_addr} is not "
+                            f"equal to ip from nic {interface_info.ip_addr} from "
+                            "network interface."
+                        ).is_equal_to(interface_info.ip_addr)
+                    found_ip = True
+                    break
+            assert_that(found_ip).described_as(
+                f"This interface name {interface_info.nic_name} with mac: "
+                f"{interface_info.mac_addr} does not have a IP address "
+                f"inside vm, it should equal to {interface_info.ip_addr}."
+            ).is_true()
         if is_sriov:
-            assert_that(len(node_nic_info.get_lower_nics())).described_as(
-                f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+            assert_that(len(nics_info.get_device_slots())).described_as(
+                f"VF count inside VM is {len(set(nics_info.get_device_slots()))},"
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
-        vm_nics[node.name] = node_nic_info.nics
+        vm_nics[node.name] = nics_info.nics
+
     return vm_nics
 
 
-def get_used_module(node: Node) -> str:
-    lspci = node.tools[Lspci]
-    devices_slots = lspci.get_device_names_by_type(
-        constants.DEVICE_TYPE_SRIOV, force_run=True
-    )
-    # there will not be multiple Mellanox types in one VM
-    # get the used module using any one of sriov device
-    return lspci.get_used_module(devices_slots[0])
-
-
-def get_used_config(node: Node) -> str:
-    return modules_config_dict[get_used_module(node)]
-
-
-def remove_module(node: Node) -> str:
-    modprobe = node.tools[Modprobe]
-    module_in_used = get_used_module(node)
-    assert_that(reload_modules_dict).described_as(
-        f"used modules {module_in_used} should be contained"
-        f" in dict {reload_modules_dict}"
-    ).contains(module_in_used)
-    modprobe.remove(reload_modules_dict[module_in_used])
-    return module_in_used
-
-
-def load_module(node: Node, module_name: str) -> None:
-    modprobe = node.tools[Modprobe]
-    modprobe.load(module_name)
-
-
-def get_packets(node: Node, nic_name: str, name: str = "tx_packets") -> int:
-    cat = node.tools[Cat]
-    return int(cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True))
-
-
 @retry(exceptions=AssertionError, tries=150, delay=2)
-def sriov_basic_test(
-    environment: Environment, vm_nics: Dict[str, Dict[str, NicInfo]]
-) -> None:
+def sriov_basic_test(environment: Environment) -> None:
     for node in environment.nodes.list():
         # 1. Check VF counts listed from lspci is expected.
         lspci = node.tools[Lspci]
@@ -117,21 +74,20 @@ def sriov_basic_test(
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
             " please check the driver works properly"
-        ).is_length(len([x for x in vm_nics[node.name].values() if x.lower != ""]))
+        ).is_length(len(set(node.nics.get_device_slots())))
 
         # 2. Check module of sriov network device is loaded.
-        used_module = get_used_module(node)
-        if not node.tools[KernelConfig].is_built_in(modules_config_dict[used_module]):
-            lsmod = node.tools[Lsmod]
-            assert_that(lsmod.module_exists(used_module, force_run=True)).described_as(
-                "The module of sriov network device isn't loaded."
-            ).is_true()
+        for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+            if node.nics.is_module_reloadable(module_name):
+                assert_that(node.nics.module_exists(module_name)).described_as(
+                    "The module of sriov network device isn't loaded."
+                ).is_true()
 
 
 def sriov_vf_connection_test(
     environment: Environment,
     vm_nics: Dict[str, Dict[str, NicInfo]],
-    turn_off_vf: bool = False,
+    turn_off_lower: bool = False,
     remove_module: bool = False,
 ) -> None:
     source_node = cast(RemoteNode, environment.nodes[0])
@@ -139,12 +95,19 @@ def sriov_vf_connection_test(
     source_ssh = source_node.tools[Ssh]
     dest_ssh = dest_node.tools[Ssh]
 
+    # enable public key for ssh connection
     dest_ssh.enable_public_key(source_ssh.generate_key_pairs())
+
     # generate 200Mb file
     source_node.execute("dd if=/dev/urandom of=large_file bs=1M count=200")
+
+    # for each nic on source node, find the same subnet nic on dest node, then copy
+    # 200Mb file
     max_retry_times = 10
     for _, source_nic_info in vm_nics[source_node.name].items():
         matched_dest_nic_name = ""
+
+        # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
             # only when IPs are in the same subnet, IP1 of machine A can connect to
             # IP2 of machine B
@@ -161,29 +124,36 @@ def sriov_vf_connection_test(
             f" machine {source_node.name}, please check network setting of "
             f"machine {dest_node.name}."
         ).is_not_empty()
-        desc_nic_info = vm_nics[dest_node.name][matched_dest_nic_name]
+
+        # set source and dest network info
+        dest_nic_info = vm_nics[dest_node.name][matched_dest_nic_name]
         dest_ip = vm_nics[dest_node.name][matched_dest_nic_name].ip_addr
         source_ip = source_nic_info.ip_addr
-        source_synthetic_nic = source_nic_info.upper
-        dest_synthetic_nic = desc_nic_info.upper
-        source_nic = source_vf_nic = source_nic_info.lower
-        dest_nic = dest_vf_nic = desc_nic_info.lower
+        source_synthetic_nic = source_nic_info.name
+        dest_synthetic_nic = dest_nic_info.name
+        source_nic = source_pci_nic = source_nic_info.pci_device_name
+        dest_nic = dest_pci_nic = dest_nic_info.pci_device_name
 
-        if remove_module or turn_off_vf:
+        # if remove_module is True, use synthetic nic to copy file
+        if remove_module or turn_off_lower or isinstance(source_node.os, BSD):
+            # For FreeBSD, packets are logged on the vsc interface
             source_nic = source_synthetic_nic
             dest_nic = dest_synthetic_nic
-        if turn_off_vf:
-            source_node.execute(f"ip link set dev {source_vf_nic} down", sudo=True)
-            dest_node.execute(f"ip link set dev {dest_vf_nic} down", sudo=True)
+
+        # turn off lower device
+        if turn_off_lower:
+            if source_nic_info.lower:
+                source_node.tools[Ip].down(source_pci_nic)
+            if dest_nic_info.lower:
+                dest_node.tools[Ip].down(dest_pci_nic)
 
         # get origin tx_packets and rx_packets before copy file
-        source_tx_packets_origin = get_packets(source_node, source_nic)
-        dest_tx_packets_origin = get_packets(dest_node, dest_nic, "rx_packets")
+        source_tx_packets_origin = source_node.nics.get_packets(source_nic)
+        dest_tx_packets_origin = dest_node.nics.get_packets(dest_nic, "rx_packets")
 
         # check the connectivity between source and dest machine using ping
         for _ in range(max_retry_times):
-            ping = source_node.tools[Ping]
-            ping_result = ping.ping(
+            ping_result = source_node.tools[Ping].ping(
                 target=dest_ip, nic_name=source_synthetic_nic, count=1, sudo=True
             )
             if ping_result:
@@ -203,22 +173,29 @@ def sriov_vf_connection_test(
             expected_exit_code_failure_message="Fail to copy file large_file from"
             f" {source_ip} to {dest_ip}",
         )
-        source_tx_packets = get_packets(source_node, source_nic)
-        dest_tx_packets = get_packets(dest_node, dest_nic, "rx_packets")
+
+        # get tx_packets and rx_packets after copy file
+        source_tx_packets = source_node.nics.get_packets(source_nic)
+        dest_tx_packets = dest_node.nics.get_packets(dest_nic, "rx_packets")
+
         # verify tx_packets value of source nic is increased after coping 200Mb file
         #  from source to dest
         assert_that(
             int(source_tx_packets), "insufficient TX packets sent"
         ).is_greater_than(int(source_tx_packets_origin))
+
         # verify rx_packets value of dest nic is increased after receiving 200Mb
         #  file from source to dest
         assert_that(
             int(dest_tx_packets), "insufficient RX packets received"
         ).is_greater_than(int(dest_tx_packets_origin))
 
-        if turn_off_vf:
-            source_node.execute(f"ip link set dev {source_vf_nic} up", sudo=True)
-            dest_node.execute(f"ip link set dev {dest_vf_nic} up", sudo=True)
+        # turn on lower device, if turned off before
+        if turn_off_lower:
+            if source_nic_info.lower:
+                source_node.tools[Ip].up(source_pci_nic)
+            if dest_nic_info.lower:
+                dest_node.tools[Ip].up(dest_pci_nic)
 
 
 def cleanup_iperf3(environment: Environment) -> None:
@@ -228,15 +205,17 @@ def cleanup_iperf3(environment: Environment) -> None:
 
 
 def sriov_disable_enable(environment: Environment, times: int = 4) -> None:
-    vm_nics = initialize_nic_info(environment)
-    sriov_basic_test(environment, vm_nics)
+    initialize_nic_info(environment)
+    sriov_basic_test(environment)
     node = cast(RemoteNode, environment.nodes[0])
     network_interface_feature = node.features[NetworkInterface]
     for _ in range(times):
         sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-        if sriov_is_enabled:
-            sriov_basic_test(environment, vm_nics)
         network_interface_feature.switch_sriov(enable=not sriov_is_enabled)
+    sriov_is_enabled = network_interface_feature.is_enabled_sriov()
+    if not sriov_is_enabled:
+        network_interface_feature.switch_sriov(enable=True)
+    sriov_basic_test(environment)
 
 
 def remove_extra_nics_per_node(node: Node) -> None:
@@ -267,3 +246,21 @@ def restore_extra_nics(environment: Environment) -> None:
     # restore nics info into previous status
     for node in environment.nodes.list():
         restore_extra_nics_per_node(node)
+
+
+def disable_enable_devices(environment: Environment) -> None:
+    for node in environment.nodes.list():
+        lspci = node.tools[Lspci]
+        lspci.disable_devices_by_type(constants.DEVICE_TYPE_SRIOV)
+        lspci.enable_devices()
+
+
+def reload_modules(environment: Environment) -> bool:
+    reload_modules = False
+    for node in environment.nodes.list():
+        for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+            if node.nics.is_module_reloadable(module_name):
+                node.nics.unload_module(module_name)
+                node.nics.load_module(module_name)
+                reload_modules = True
+    return reload_modules

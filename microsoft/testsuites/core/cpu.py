@@ -60,7 +60,7 @@ class CPU(TestSuite):
         """,
         priority=2,
     )
-    def l3_cache_check(self, node: Node, log: Logger) -> None:
+    def verify_l3_cache(self, node: Node, log: Logger) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
         if "numa=off" in cmdline:
             uname_result = node.tools[Uname].get_linux_information()
@@ -77,7 +77,9 @@ class CPU(TestSuite):
         processor_name = lscpu.get_cpu_model_name()
 
         if processor_name:
-            if "7452" in processor_name:
+            # ND A100 v4-series and NDm A100 v4-series
+            # CPU type is "AMD EPYC 7V12 (Rome)"
+            if "7452" in processor_name or "7V12" in processor_name:
                 # This is AMD EPYC Rome processor series
                 effective_numa_node_size = EPYC_ROME_NUMA_NODE_SIZE * threads_per_core
                 self._verify_node_mapping(node, effective_numa_node_size)
@@ -107,7 +109,7 @@ class CPU(TestSuite):
             """,
         priority=2,
     )
-    def cpu_count_check(self, node: Node, log: Logger) -> None:
+    def verify_cpu_count(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
         # 1. Get vCPU count.
         cpu_count = lscpu.get_core_count()

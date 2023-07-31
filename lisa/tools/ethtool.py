@@ -1,12 +1,18 @@
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, List, Optional, Set, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import LisaException, UnsupportedOperationException, find_groups_in_lines
+from lisa.util import (
+    LisaException,
+    UnsupportedOperationException,
+    find_group_in_lines,
+    find_groups_in_lines,
+)
 
 from .find import Find
+from .ip import Ip
 from .lscpu import Lscpu
 
 # Few ethtool device settings follow similar pattern like -
@@ -131,25 +137,9 @@ class DeviceFeatures:
         r"^[\s]*(?P<name>.*):(?P<value>.*?)?$", re.MULTILINE
     )
 
-    def __init__(self, interface: str, device_feature_raw: str) -> None:
-        self._parse_feature_info(interface, device_feature_raw)
-
-    def _parse_feature_info(self, interface: str, raw_str: str) -> None:
-        matched_features_info = self._feature_info_pattern.search(raw_str)
-        if not matched_features_info:
-            raise LisaException(f"Cannot get {interface} features settings info")
-
+    def __init__(self, interface: str, enabled_features: List[str]) -> None:
         self.device_name = interface
-        self.enabled_features = []
-        for row in matched_features_info.group("value").splitlines():
-            feature_info = self._feature_settings_pattern.match(row)
-            if not feature_info:
-                raise LisaException(
-                    f"Could not get feature setting for device {interface}"
-                    " in the defined pattern."
-                )
-            if "on" in feature_info.group("value"):
-                self.enabled_features.append(feature_info.group("name"))
+        self.enabled_features = enabled_features
 
 
 class DeviceLinkSettings:
@@ -482,6 +472,10 @@ class Ethtool(Tool):
         r"^firmware-version:[\s+](?P<value>.*?)?$", re.MULTILINE
     )
 
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return EthtoolFreebsd
+
     @property
     def command(self) -> str:
         return "ethtool"
@@ -531,11 +525,11 @@ class Ethtool(Tool):
                 continue
             cmd_result = self.node.execute(f"ls {netdir}")
             cmd_result.assert_exit_code(message="Could not find the network device.")
-
-            # add only the network devices with netvsc driver
-            driver = self.get_device_driver(cmd_result.stdout)
-            if "hv_netvsc" in driver:
-                self._device_set.add(cmd_result.stdout)
+            for result in cmd_result.stdout.split():
+                # add only the network devices with netvsc driver
+                driver = self.get_device_driver(result)
+                if "hv_netvsc" in driver:
+                    self._device_set.add(result)
 
         if not self._device_set:
             raise LisaException("Did not find any synthetic network interface.")
@@ -590,11 +584,16 @@ class Ethtool(Tool):
         if not force_run and device.device_features:
             return device.device_features
 
-        result = self.run(f"-k {interface}", force_run=force_run)
-        result.assert_exit_code()
-
-        device.device_features = DeviceFeatures(interface, result.stdout)
-        return device.device_features
+        result = self.run(
+            f"-k {interface}",
+            force_run=force_run,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Unable to get device {interface} features."
+            ),
+        )
+        enabled_features = self.feature_from_device_info(result.stdout)
+        return DeviceFeatures(interface, enabled_features)
 
     def get_device_gro_lro_settings(
         self, interface: str, force_run: bool = False
@@ -1028,3 +1027,78 @@ class Ethtool(Tool):
             settings = DeviceSettings(interface)
             self._device_settings_map[interface] = settings
         return settings
+
+    def feature_from_device_info(self, device_feature_raw: str) -> List[str]:
+        matched_features_info = DeviceFeatures._feature_info_pattern.search(
+            device_feature_raw
+        )
+        if not matched_features_info:
+            raise LisaException("Cannot get features settings info")
+
+        enabled_features: List[str] = []
+        for row in matched_features_info.group("value").splitlines():
+            feature_info = DeviceFeatures._feature_settings_pattern.match(row)
+            if not feature_info:
+                raise LisaException(
+                    "Could not get feature setting for device"
+                    " in the defined pattern."
+                )
+            if "on" in feature_info.group("value"):
+                enabled_features.append(feature_info.group("name"))
+
+        return enabled_features
+
+
+class EthtoolFreebsd(Ethtool):
+    # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
+    _interface_features_pattern = re.compile(
+        r"options=.+<(?P<features>.*)>(.|\n)*ether"
+    )
+
+    _get_bsd_to_linux_features_map = {
+        "RXCSUM": "rx-checksumming",
+        "TXCSUM": "tx-checksumming",
+        "VLAN_MTU": "vlan-mtu",
+        "VLAN_HWTAGGING": "vlan-hw-tag-offload",
+        "TSO4": "tcp-segmentation-offload",
+        "LRO": "large-receive-offload",
+        "LINKSTATE": "link-state",
+    }
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def get_device_list(self, force_run: bool = False) -> Set[str]:
+        devices = self.node.tools[Ip].get_interface_list()
+
+        # remove non netvsc devices
+        # netvsc device name begin with hn
+        devices = [device for device in devices if device.startswith("hn")]
+        return set(devices)
+
+    def get_device_enabled_features(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceFeatures:
+        interface_info = self.node.tools[Ip].run(interface).stdout
+
+        # Example output:
+        # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
+        # The features are separated by comma and enclosed by "<>"
+        features_pattern = find_group_in_lines(
+            interface_info, self._interface_features_pattern, False
+        )["features"].split(",")
+
+        features = []
+        for feature in features_pattern:
+            features.append(self._get_bsd_to_linux_features_map[feature])
+        device_features = DeviceFeatures(interface, features)
+
+        return device_features

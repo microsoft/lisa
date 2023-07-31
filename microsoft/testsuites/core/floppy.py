@@ -29,7 +29,7 @@ class Floppy(TestSuite):
         """,
         priority=1,
     )
-    def check_floppy_module(self, node: RemoteNode) -> None:
+    def verify_floppy_module_is_blacklisted(self, node: RemoteNode) -> None:
         modprobe = node.tools[Modprobe]
 
         assert_that(modprobe.is_module_loaded("floppy")).described_as(

@@ -21,12 +21,18 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
+from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
-from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    SkippedException,
+    get_matched_str,
+)
 from lisa.util.perf_timer import create_timer
 
 
@@ -44,6 +50,11 @@ class Storage(TestSuite):
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
+    )
+
+    # kern.cam.da.default_timeout: 300
+    _get_default_timeout_bsd_regex = re.compile(
+        r"kern.cam.da.default_timeout:\s+(?P<timeout>\d+)\s*"
     )
 
     os_disk_mount_point = "/"
@@ -65,16 +76,44 @@ class Storage(TestSuite):
         node: RemoteNode,
     ) -> None:
         disks = node.features[Disk].get_all_disks()
-        root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
+        root_device_timeout_from_waagent = node.tools[
+            Waagent
+        ].get_root_device_timeout()  # value in seconds
         for disk in disks:
             timeout = 60
             timer = create_timer()
             while timeout > timer.elapsed(False):
-                device_timeout_from_distro = int(
-                    node.tools[Cat]
-                    .run(f"/sys/block/{disk}/device/timeout", force_run=True)
-                    .stdout
-                )
+                if isinstance(node.os, BSD):
+                    # Extract device type
+                    # For example, da0 disk has device type of da
+                    matched = re.compile(r"(^[a-z]+)").match(disk)
+                    assert matched, f"Failed to extract device type from {disk}"
+                    device_type = matched.group(0)
+
+                    # BSD has one setting per device type
+                    # and the output is of the format:
+                    # kern.cam.da.default_timeout: 300
+                    device_timeout_from_distro_unformatted = (
+                        node.tools[Sysctl]
+                        .run(
+                            f"kern.cam.{device_type}.default_timeout",
+                            force_run=True,
+                            shell=True,
+                        )
+                        .stdout
+                    )
+                    device_timeout_from_distro = int(
+                        get_matched_str(
+                            device_timeout_from_distro_unformatted,
+                            self._get_default_timeout_bsd_regex,
+                        )
+                    )
+                else:
+                    device_timeout_from_distro = int(
+                        node.tools[Cat]
+                        .run(f"/sys/block/{disk}/device/timeout", force_run=True)
+                        .stdout
+                    )
                 if root_device_timeout_from_waagent == device_timeout_from_distro:
                     break
                 else:
@@ -103,7 +142,7 @@ class Storage(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_mtab_entry(self, node: RemoteNode) -> None:
+    def verify_resource_disk_mounted(self, node: RemoteNode) -> None:
         resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
@@ -112,10 +151,18 @@ class Storage(TestSuite):
             .get_partition_with_mount_point(self.os_disk_mount_point)
             .disk
         )
-        mtab = node.tools[Cat].run("/etc/mtab").stdout
-        resource_disk_from_mtab = get_matched_str(
-            mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
-        )
+        if isinstance(node.os, BSD):
+            partition_info = node.tools[Mount].get_partition_info()
+            resource_disk_from_mtab = [
+                entry
+                for entry in partition_info
+                if entry.mount_point == resource_disk_mount_point
+            ][0].mount_point
+        else:
+            mtab = node.tools[Cat].run("/etc/mtab").stdout
+            resource_disk_from_mtab = get_matched_str(
+                mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
+            )
         assert (
             resource_disk_from_mtab
         ), f"resource disk mountpoint not found {resource_disk_mount_point}"
@@ -185,16 +232,11 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test verifies the "disk controller" feature of the created VM.
-        Disk controller type can be NVMe or SCSI.
-        When a VM is created with SCSI disk controller, it's OS and data
-        disks will be of SCSI type.
-        If the VM is created with NVMe disk controller, both its OS and data
-        disks will be of NVMe type.
+        This test verifies the disk controller type of the VM.
 
         Steps:
-        1. Get the disk controller type from within VM.
-        2. Compare it with diskcontrollertype passed through runbook.
+        1. Get the disk type of the boot partition.
+        2. Compare it with diskcontrollertype of the VM.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -202,16 +244,24 @@ class Storage(TestSuite):
         ),
     )
     def verify_disk_controller_type(self, node: RemoteNode) -> None:
-        # Get OS disk type.
-        os_disk_controller_type = node.features[Disk].controller_type
+        # Get VM's 'disk controller type' with azure api
+        vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
 
-        # Get disk controller type.
-        if node.capability.disk:
-            assert_that(
-                node.capability.disk.disk_controller_type,
-                "Expected disk_controller_type didn't match with VM's"
-                "disk_controller_type",
-            ).is_equal_to(os_disk_controller_type)
+        # Get 'disk controller type' from within VM.
+        os_disk_controller_type = node.features[Disk].os_disk_controller_type()
+
+        # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
+        if not vm_disk_controller_type:
+            raise SkippedException(
+                f"VM disk_controller_type is '{vm_disk_controller_type}'"
+            )
+
+        if os_disk_controller_type != vm_disk_controller_type:
+            raise LisaException(
+                f"VM disk_controller_type is '{vm_disk_controller_type}' but "
+                f"detected OS disk is of type: "
+                f"'{os_disk_controller_type}'"
+            )
 
     @TestCaseMetadata(
         description="""
@@ -225,7 +275,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
@@ -301,7 +351,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_serial(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -315,7 +365,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -329,7 +379,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -349,7 +399,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -363,7 +413,9 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_parallel_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_standard_ssd(
+        self, log: Logger, node: Node
+    ) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -377,7 +429,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )

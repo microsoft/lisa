@@ -19,6 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from lisa.util.constants import SIGINT
@@ -58,6 +59,11 @@ class Dpdk(TestSuite):
     # grabbing the max latency of 99.999% of data in nanoseconds.
     # ex: percentile 99.999 = 12302
     _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""
@@ -610,8 +616,8 @@ class Dpdk(TestSuite):
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
         nic = node.nics.get_secondary_nic()
-        node.nics.get_nic_driver(nic.upper)
-        if nic.bound_driver == "hv_netvsc":
+        node.nics.get_nic_driver(nic.name)
+        if nic.module_name == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
 
         original_driver = nic.driver_sysfs_path
@@ -632,12 +638,12 @@ class Dpdk(TestSuite):
 
         node.nics.unbind(nic)
         node.nics.bind(nic, str(original_driver))
-        nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+        nic.module_name = node.nics.get_nic_driver(nic.name)
 
-        assert_that(nic.bound_driver).described_as(
+        assert_that(nic.module_name).described_as(
             (
                 "Driver after unbind/rebind was unexpected. "
-                f"Expected hv_netvsc, found {nic.bound_driver}"
+                f"Expected hv_netvsc, found {nic.module_name}"
             )
         ).is_equal_to("hv_netvsc")
 

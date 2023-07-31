@@ -39,7 +39,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_provision_with_max_nics_validation(
+    def verify_synthetic_provision_with_max_nics(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -62,7 +62,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_provision_with_max_nics_reboot_validation(
+    def verify_synthetic_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -88,7 +88,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_provision_with_max_nics_reboot_from_platform_validation(
+    def verify_synthetic_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -115,7 +115,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_provision_with_max_nics_stop_start_from_platform_validation(
+    def verify_synthetic_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
         initialize_nic_info(environment, is_sriov=False)
@@ -144,7 +144,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_add_max_nics_one_time_after_provision_validation(
+    def verify_synthetic_add_max_nics_one_time_after_provision(
         self, environment: Environment
     ) -> None:
         remove_extra_nics(environment)
@@ -177,7 +177,7 @@ class Synthetic(TestSuite):
             ),
         ),
     )
-    def synthetic_add_max_nics_one_by_one_after_provision_validation(
+    def verify_synthetic_add_max_nics_one_by_one_after_provision(
         self, environment: Environment
     ) -> None:
         remove_extra_nics(environment)

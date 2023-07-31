@@ -16,10 +16,14 @@ _rx_drop_patterns = [
     re.compile(r"^rx_queue_\d+_xdp_drop$"),
     # rx_xdp_drop
     re.compile(r"^rx_xdp_drop$"),
+    # rx_0_xdp_drop
+    re.compile(r"^rx_\d+_xdp_drop$"),
 ]
 _tx_forwarded_patterns = [
     # rx_xdp_tx
     re.compile(r"^rx_xdp_tx$"),
+    # rx_xdp_0_tx
+    re.compile(r"^rx_xdp_\d+_tx$"),
     # rx_xdp_tx_xmit
     re.compile(r"^rx_xdp_tx_xmit$"),
 ]
@@ -151,7 +155,7 @@ def _aggregate_count(
     patterns: List[Pattern[str]],
 ) -> int:
     ethtool = node.tools[Ethtool]
-    nic_names = [nic.upper, nic.lower]
+    nic_names = [nic.name, nic.lower]
 
     # aggregate xdp drop count by different nic type
     new_count = -previous_count

@@ -21,7 +21,7 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
+from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import UnsupportedOperationException, get_matched_str
@@ -45,6 +45,15 @@ class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
 
     _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
+    _numpy_error_pattern = re.compile(
+        "Otherwise reinstall numpy",
+        re.M,
+    )
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""
@@ -218,7 +227,13 @@ class GpuTestSuite(TestSuite):
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
         # stop the service which uses nvidia module
         service = node.tools[Service]
-        service.stop_service("nvidia-persistenced")
+        service_name_list = [
+            "nvidia-persistenced",
+            "nvidia-dcgm",
+            "nvidia-fabricmanager",
+        ]
+        for service_name in service_name_list:
+            service.stop_service(service_name)
 
         for device in gpu_devices:
             lspci.disable_device(device)
@@ -248,8 +263,8 @@ class GpuTestSuite(TestSuite):
         _install_driver(node, log_path, log)
         _check_driver_installed(node, log)
 
-        # Step 1, pytorch and CUDA needs 4GB space to download and install
-        torch_required_space = 5
+        # Step 1, pytorch and CUDA needs 8GB space to download and install
+        torch_required_space = 8
         work_path = node.get_working_path_with_required_space(torch_required_space)
         use_new_path = work_path != str(node.working_path)
 
@@ -281,6 +296,18 @@ class GpuTestSuite(TestSuite):
             force_run=True,
             update_envs=python_envs,
         )
+
+        if script_result.exit_code != 0 and self._numpy_error_pattern.findall(
+            script_result.stdout
+        ):
+            if pip.uninstall_package("numpy"):
+                pip.install_packages("numpy")
+            script_result = python.run(
+                f'-c "{gpu_script}"',
+                force_run=True,
+                update_envs=python_envs,
+            )
+
         gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)
         script_result.assert_exit_code(
             message=f"failed on run gpu script: {gpu_script}, "

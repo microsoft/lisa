@@ -26,6 +26,8 @@ class Dmesg(Tool):
         r"\[\s+\d+.\d+\]\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"
     )
 
+    __color_code_pattern = r"\x1b\[[0-9;]*m"
+
     @property
     def command(self) -> str:
         return "dmesg"
@@ -69,7 +71,11 @@ class Dmesg(Tool):
         result.assert_exit_code(
             message=f"exit code should be zero, but actually {result.exit_code}"
         )
-        raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, result.stdout)
+
+        # Remove the color code from stdout stream
+        stdout = re.sub(self.__color_code_pattern, "", result.stdout)
+
+        raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, stdout)
         for vmbus_version in raw_vmbus_version:
             matched_vmbus_version = self.__vmbus_version_pattern.match(
                 vmbus_version.group()

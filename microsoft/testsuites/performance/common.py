@@ -16,7 +16,6 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
-from lisa.nic import Nics
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -282,10 +281,15 @@ def perf_ntttcp(  # noqa: C901
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
             server_nic_name = (
-                server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
+                server_nic_name
+                if server_nic_name
+                else server.nics.get_primary_nic().pci_device_name
             )
+
             client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.get_lower_nics()[0]
+                client_nic_name
+                if client_nic_name
+                else client.nics.get_primary_nic().pci_device_name
             )
             dev_differentiator = "mlx"
         else:
@@ -501,8 +505,8 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
-    node_nic_info = Nics(node)
-    node_nic_info.initialize()
+    node_nic_info = node.nics
+    node_nic_info.reload()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
         f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"

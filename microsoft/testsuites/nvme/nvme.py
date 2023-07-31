@@ -64,8 +64,8 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_basic_validation(self, environment: Environment, node: Node) -> None:
-        self._validate_nvme_disk(environment, node)
+    def verify_nvme_basic(self, environment: Environment, node: Node) -> None:
+        self._verify_nvme_disk(environment, node)
 
     @TestCaseMetadata(
         description="""
@@ -77,8 +77,8 @@ class NvmeTestSuite(TestSuite):
             supported_features=[NvmeSettings(disk_count=10)],
         ),
     )
-    def nvme_max_disk_validation(self, environment: Environment, node: Node) -> None:
-        self._validate_nvme_disk(environment, node)
+    def verify_nvme_max_disk(self, environment: Environment, node: Node) -> None:
+        self._verify_nvme_disk(environment, node)
 
     @TestCaseMetadata(
         description="""
@@ -96,7 +96,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_function_validation(self, node: Node) -> None:
+    def verify_nvme_function(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_namespaces()
         nvme_cli = node.tools[Nvmecli]
@@ -183,7 +183,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_fstrim_validation(self, node: Node) -> None:
+    def verify_nvme_fstrim(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_namespaces()
         mount = node.tools[Mount]
@@ -254,7 +254,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_blkdiscard_validation(self, node: Node) -> None:
+    def verify_nvme_blkdiscard(self, node: Node) -> None:
         os_information = node.os.information
         if "Ubuntu" == os_information.vendor and "14.04" == os_information.release:
             raise SkippedException(
@@ -312,7 +312,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_manage_ns_validation(self, node: Node) -> None:
+    def verify_nvme_manage_ns(self, node: Node) -> None:
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_namespaces()
         nvme_devices = nvme.get_devices()
@@ -357,7 +357,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_rescind_validation(self, node: Node) -> None:
+    def verify_nvme_rescind(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable NVME devices.
         lspci.disable_devices_by_type(device_type=constants.DEVICE_TYPE_NVME)
@@ -379,7 +379,7 @@ class NvmeTestSuite(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def nvme_sriov_rescind_validation(self, node: Node) -> None:
+    def verify_nvme_sriov_rescind(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         device_types = [constants.DEVICE_TYPE_NVME, constants.DEVICE_TYPE_SRIOV]
         for device_type in device_types:
@@ -395,7 +395,7 @@ class NvmeTestSuite(TestSuite):
                 "After rescan, the disabled PCI devices should be back.",
             ).is_length(before_pci_count)
 
-    def _validate_nvme_disk(self, environment: Environment, node: Node) -> None:
+    def _verify_nvme_disk(self, environment: Environment, node: Node) -> None:
         # 1. Get nvme devices and nvme namespaces from /dev/ folder,
         #  compare the count of nvme namespaces and nvme devices.
         nvme = node.features[Nvme]

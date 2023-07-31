@@ -47,7 +47,7 @@ from .hostname import Hostname
 from .hwclock import Hwclock
 from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
-from .ip import Ip
+from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
 from .journalctl import Journalctl
 from .kdump import KdumpBase
@@ -150,6 +150,7 @@ __all__ = [
     "Gdb",
     "Git",
     "Ip",
+    "IpInfo",
     "Iperf3",
     "HibernationSetup",
     "Hostname",

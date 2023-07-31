@@ -471,6 +471,8 @@ type: str, required, the type of transformer. See `transformers
 <https://github.com/microsoft/lisa/tree/main/lisa/transformers>`__ for all
 transformers.
 
+See  :ref:`documentation for transformers <transformers.rst>`
+
 .. _name-3:
 
 name

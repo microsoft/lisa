@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import cast
+from typing import List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -24,6 +24,10 @@ class Nvmecli(Tool):
     # FLBAS corresponding to block size 0 not found
     # Please correct block size, or specify FLBAS directly
     __missing_block_size_parameter = "FLBAS corresponding to block size 0 not found"
+    # '/dev/nvme0n1          351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
+    _namespace_cli_pattern = re.compile(
+        r"(?P<namespace>/dev/nvme[0-9]n[0-9])", re.MULTILINE
+    )
 
     @property
     def command(self) -> str:
@@ -32,6 +36,10 @@ class Nvmecli(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return BSDNvmecli
 
     def _install_from_src(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -87,3 +95,43 @@ class Nvmecli(Tool):
         cmd_result = self.run(f"id-ctrl -H {device_name}", shell=True, sudo=True)
         cmd_result.assert_exit_code()
         return self.__format_device_support in cmd_result.stdout
+
+    def get_namespaces(self) -> List[str]:
+        namespaces_cli = []
+        nvme_list = self.run("list", shell=True, sudo=True)
+        for row in nvme_list.stdout.splitlines():
+            matched_result = self._namespace_cli_pattern.match(row)
+            if matched_result:
+                namespaces_cli.append(matched_result.group("namespace"))
+        return namespaces_cli
+
+
+class BSDNvmecli(Nvmecli):
+    # nvme0ns1 (1831420MB)
+    # nvme10ns12 (1831420MB)
+    _namespace_cli_pattern = re.compile(r"(?P<namespace>nvme\d+ns\d+)")
+
+    @property
+    def command(self) -> str:
+        return "nvmecontrol"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def get_namespaces(self) -> List[str]:
+        output = self.run(
+            "devlist",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Unable to get namespaces information",
+        )
+        namespaces_cli = []
+        matched = find_patterns_in_lines(output.stdout, [self._namespace_cli_pattern])
+        if matched[0]:
+            matched_namespaces = matched[0]
+            for namespace in matched_namespaces:
+                namespaces_cli.append(f"/dev/{namespace}")
+
+        return namespaces_cli

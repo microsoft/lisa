@@ -13,6 +13,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
+from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot
 from lisa.util import SkippedException
@@ -106,7 +107,10 @@ class Drm(TestSuite):
         ).is_true()
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
         if node.tools[KernelConfig].is_enabled("CONFIG_DRM_HYPERV"):
             log.debug(
                 f"Current os {node.os.name} {node.os.information.version} "

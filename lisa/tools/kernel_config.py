@@ -1,10 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Any, Optional, Type
+
+from assertpy.assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.operating_system import CoreOs
 from lisa.tools import Cat, Uname
+from lisa.util import find_groups_in_lines
 
 
 class KernelConfig(Tool):
@@ -60,11 +64,18 @@ class KernelConfig(Tool):
 
 
 class KernelConfigFreeBSD(KernelConfig):
+    _MODULE_CONFIG_MAP = {
+        "CONFIG_MLX5_CORE": "mlx5en_load",
+        "CONFIG_MLX4_CORE": "mlx4en_load",
+    }
+
     def is_built_in(self, config_name: str) -> bool:
         return self.node.tools[KLDStat].module_statically_linked(config_name)
 
     def is_built_as_module(self, config_name: str) -> bool:
         output = self.node.tools[Cat].read(self.config_path, sudo=True)
+        if config_name in self._MODULE_CONFIG_MAP:
+            config_name = self._MODULE_CONFIG_MAP[config_name]
         return f'{config_name}="YES"' in output
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -72,6 +83,17 @@ class KernelConfigFreeBSD(KernelConfig):
 
 
 class KLDStat(Tool):
+    _MODULE_DRIVER_MAPPING = {
+        "mlx5_core": "mlx5en",
+        "mlx4_core": "mlx4en",
+    }
+
+    # Id Refs Address                Size Name
+    # 2    1 0xffffffff8213f000    23bc8 mlx4en.ko
+    _LOADED_MODULES = re.compile(
+        r"(?P<id>\d+)\s+(?P<refs>\d+)\s+(?P<address>0x[0-9a-f]+)\s+(?P<size>\S+)\s+(?P<name>\w+).ko"  # noqa: E501
+    )
+
     @property
     def command(self) -> str:
         return "kldstat"
@@ -82,3 +104,20 @@ class KLDStat(Tool):
     ) -> bool:
         output = self.run("-v -i 1", sudo=True).stdout
         return mod_name in output
+
+    def module_exists(
+        self,
+        name: str,
+    ) -> bool:
+        if name in self._MODULE_DRIVER_MAPPING:
+            name = self._MODULE_DRIVER_MAPPING[name]
+        output = self.run(
+            f"-n {name}",
+            sudo=True,
+        ).stdout
+        matched = find_groups_in_lines(output, self._LOADED_MODULES, False)
+        if len(matched) == 0:
+            return False
+
+        assert_that(len(matched)).is_equal_to(1)
+        return matched[0]["name"] == name and int(matched[0]["refs"]) > 0
