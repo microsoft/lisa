@@ -8,7 +8,7 @@ from assertpy.assertpy import assert_that
 
 from lisa import schema
 from lisa.feature import Feature
-from lisa.tools import Mount
+from lisa.tools import Ls, Mount
 from lisa.tools.mount import PartitionInfo
 
 
