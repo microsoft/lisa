@@ -3,7 +3,7 @@
 
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Type, Union, cast
 
 from assertpy import assert_that
 
@@ -11,7 +11,7 @@ from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
 from lisa.operating_system import BSD, CBLMariner, Posix
-from lisa.tools import Gcc, Git, Make
+from lisa.tools import Firewall, Gcc, Git, Make
 from lisa.util import constants
 from lisa.util.process import Process
 
@@ -71,7 +71,7 @@ class Sockperf(Tool):
         if not isinstance(posix_os, BSD) and posix_os.is_package_in_repo("sockperf"):
             posix_os.install_packages("sockperf")
         else:
-            packages: List[type[Tool] | str] = [
+            packages: List[Union[Type[Tool], str]] = [
                 Git,
                 Make,
                 "automake",
@@ -125,6 +125,9 @@ class Sockperf(Tool):
             )
 
             make.make_install(cwd=code_path, sudo=True)
+
+        # disable any firewalls running which might mess with the test
+        self.node.tools[Firewall].stop()
 
         return self._check_exists()
 
