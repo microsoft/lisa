@@ -24,7 +24,6 @@ from lisa.tools import (
     Fdisk,
     Fio,
     FIOResult,
-    Firewall,
     Iperf3,
     Kill,
     Lagscope,
@@ -519,10 +518,6 @@ def perf_sockperf(
             sysctl.enable_busy_polling("50")
 
     run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
-
-    # disable any firewalls running which might mess with the test
-    for firewall in [client.tools[Firewall], server.tools[Firewall]]:
-        firewall.stop()
 
     server_proc = server.tools[Sockperf].start_server(mode)
     # wait for sockperf to start, fail if it doesn't.
