@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Cat, Ip, KernelConfig, Lspci, Modprobe, Tee
+from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -488,10 +488,16 @@ class Nics(InitializableMixin):
         return modprobe.module_exists(module_name)
 
     def get_packets(self, nic_name: str, name: str = "tx_packets") -> int:
+        if not self.packet_path_exist(nic_name, name):
+            self.reload()
         cat = self._node.tools[Cat]
         return int(
             cat.read(f"/sys/class/net/{nic_name}/statistics/{name}", force_run=True)
         )
+
+    def packet_path_exist(self, nic_name: str, name: str = "tx_packets") -> bool:
+        ls = self._node.tools[Ls]
+        return ls.path_exists(f"/sys/class/net/{nic_name}/statistics/{name}", sudo=True)
 
 
 class NicsBSD(Nics):
