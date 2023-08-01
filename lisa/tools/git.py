@@ -103,6 +103,31 @@ class Git(Tool):
             self.checkout(ref, cwd=full_path)
         return full_path
 
+    _git_show_ref_regex = re.compile(
+        r"(?P<commit_id>[a-fA-F0-9]+)\s+(?P<name>[a-zA-Z0-9\-_!@#$%&*()}/;]+)"
+    )
+
+    def _get_git_commit_id(self, output: str) -> str:
+        matches = self._git_show_ref_regex.search(output)
+        if not matches or not matches.group("commit_id"):
+            raise LisaException(
+                f"Could not parse commit_id in output from git: {output}"
+            )
+        return str(matches.group("commit_id"))
+
+    def _get_ref_type(self, ref: str) -> str:
+        result = self.run(f"show-ref --tags {ref}")
+        if result.exit_code == 0 and result.stdout.strip() != "":
+            return self._get_git_commit_id(result.stdout)
+        result = self.run(f"show-ref --heads {ref}")
+        if result.exit_code == 0 and result.stdout.strip() != "":
+            return self._get_git_commit_id(result.stdout)
+        result = self.run(f"branch --all --contains {ref}")
+        if result.exit_code == 0 and result.stdout.strip() != "":
+            return ref
+        else:
+            raise LisaException("Unknown branch/tag/reference passed to Git tool.")
+
     def checkout(
         self, ref: str, cwd: pathlib.PurePath, checkout_branch: str = ""
     ) -> None:
@@ -113,9 +138,12 @@ class Git(Tool):
         # mark directory safe
         self._mark_safe(cwd)
 
+        # ensure we resolve branch/tag/commit to a commit id
+        commit_id = self._get_git_commit_id(ref)
+
         # force run to make sure checkout among branches correctly.
         result = self.run(
-            f"checkout {ref} -b {checkout_branch}",
+            f"checkout {commit_id} -b {checkout_branch}",
             force_run=True,
             cwd=cwd,
             no_info_log=True,
