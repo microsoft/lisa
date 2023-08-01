@@ -103,6 +103,32 @@ class Git(Tool):
             self.checkout(ref, cwd=full_path)
         return full_path
 
+    _git_show_ref_regex = re.compile(
+        r"(?P<commit_id>[a-fA-F0-9]+)\s+(?P<name>[a-zA-Z0-9\-_!@#$%&*.,;'\"=+()}\/;]+)"
+    )
+
+    # parse show-ref output and return commit hash
+    def _get_git_commit_id(self, output: str) -> str:
+        # NOTE: This code doesn't handle differences between remote
+        # and local copies. It just returns the first ref in the output.
+        matches = self._git_show_ref_regex.search(output)
+        if not matches or not matches.group("commit_id"):
+            raise LisaException(
+                f"Could not parse commit_id in output from git: {output}"
+            )
+        commit_id = str(matches.group("commit_id"))
+        self.node.log.debug(f"Found commit id: {commit_id}")
+        return commit_id
+
+    # handle resolving branches, tags, heads, etc, to a commit
+    def _get_ref_from(self, ref: str, cwd: pathlib.PurePath) -> str:
+        # if a tag or branch or head is passed, get the commit id
+        result = self.run(f"show-ref {ref}", cwd=cwd, force_run=True)
+        if result.exit_code == 0 and result.stdout.strip() != "":
+            self.node.log.debug(f"Fetchig commit id for {ref}...")
+            return self._get_git_commit_id(result.stdout)
+        return ref
+
     def checkout(
         self, ref: str, cwd: pathlib.PurePath, checkout_branch: str = ""
     ) -> None:
@@ -113,9 +139,12 @@ class Git(Tool):
         # mark directory safe
         self._mark_safe(cwd)
 
+        # ensure we resolve branch/tag/commit to a commit id
+        commit_id = self._get_ref_from(ref=ref, cwd=cwd)
+
         # force run to make sure checkout among branches correctly.
         result = self.run(
-            f"checkout {ref} -b {checkout_branch}",
+            f"checkout {commit_id} -b {checkout_branch}",
             force_run=True,
             cwd=cwd,
             no_info_log=True,
