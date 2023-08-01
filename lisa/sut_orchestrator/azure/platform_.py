@@ -1401,9 +1401,9 @@ class AzurePlatform(Platform):
         arm_parameters.os_disk_type = features.get_azure_disk_type(
             capability.disk.os_disk_type
         )
-        assert isinstance(capability.disk.disk_type, schema.DiskType)
-        arm_parameters.disk_type = features.get_azure_disk_type(
-            capability.disk.disk_type
+        assert isinstance(capability.disk.data_disk_type, schema.DiskType)
+        arm_parameters.data_disk_type = features.get_azure_disk_type(
+            capability.disk.data_disk_type
         )
         assert isinstance(
             capability.disk.disk_controller_type, schema.DiskControllerType
@@ -1637,7 +1637,7 @@ class AzurePlatform(Platform):
         node_space.disk.os_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
         node_space.disk.disk_controller_type = search_space.SetSpace[
@@ -1696,10 +1696,10 @@ class AzurePlatform(Platform):
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
-            node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
 
         if azure_raw_capabilities.get("UltraSSDAvailable", None) == "True":
-            node_space.disk.disk_type.add(schema.DiskType.UltraSSDLRS)
+            node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
 
         disk_controller_types = azure_raw_capabilities.get("DiskControllerTypes", None)
         if disk_controller_types:
@@ -1823,8 +1823,8 @@ class AzurePlatform(Platform):
 
         node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
 
         return node_space
@@ -1999,13 +1999,13 @@ class AzurePlatform(Platform):
         node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
         node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
-        node_space.disk.disk_type.add(schema.DiskType.UltraSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.disk.disk_controller_type = search_space.SetSpace[
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
@@ -2092,7 +2092,7 @@ class AzurePlatform(Platform):
                             _get_disk_size_in_gb(
                                 default_data_disk.additional_properties
                             ),
-                            azure_node_runbook.disk_type,
+                            azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                         )
                     )
@@ -2105,7 +2105,7 @@ class AzurePlatform(Platform):
                 DataDiskSchema(
                     node.capability.disk.data_disk_caching_type,
                     node.capability.disk.data_disk_size,
-                    azure_node_runbook.disk_type,
+                    azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
             )

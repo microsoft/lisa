@@ -367,7 +367,7 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
         result = super().check(capability)
 
         result.merge(
-            search_space.check_setspace(self.disk_type, capability.disk_type),
+            search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
             "disk_type",
         )
         result.merge(
@@ -405,7 +405,7 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
         ), f"actual: {type(capability)}"
 
         assert (
-            capability.disk_type
+            capability.data_disk_type
         ), "capability should have at least one disk type, but it's None"
         value = AwsDiskOptionSettings()
         super_value = schema.DiskOptionSettings._call_requirement_method(
@@ -413,7 +413,7 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
         )
         set_filtered_fields(super_value, value, ["data_disk_count"])
 
-        cap_disk_type = capability.disk_type
+        cap_disk_type = capability.data_disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
             assert (
                 len(cap_disk_type) > 0
@@ -427,9 +427,9 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        value.disk_type = getattr(search_space, f"{method.value}_setspace_by_priority")(
-            self.disk_type, capability.disk_type, schema.disk_type_priority
-        )
+        value.data_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.data_disk_type, capability.data_disk_type, schema.disk_type_priority)
 
         # below values affect data disk only.
         if self.data_disk_count is not None or capability.data_disk_count is not None:
@@ -452,9 +452,9 @@ class AwsDiskOptionSettings(schema.DiskOptionSettings):
 
         if method == RequirementMethod.generate_min_capability:
             assert isinstance(
-                value.disk_type, schema.DiskType
-            ), f"actual: {type(value.disk_type)}"
-            disk_type_iops = _disk_size_iops_map.get(value.disk_type, None)
+                value.data_disk_type, schema.DiskType
+            ), f"actual: {type(value.data_disk_type)}"
+            disk_type_iops = _disk_size_iops_map.get(value.data_disk_type, None)
             # ignore unsupported disk type like Ephemeral. It supports only os
             # disk. Calculate for iops, if it has value. If not, try disk size
             if disk_type_iops:

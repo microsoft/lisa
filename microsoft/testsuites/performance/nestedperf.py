@@ -85,7 +85,8 @@ class KVMPerformance(TestSuite):  # noqa
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=2),
             ),
@@ -111,7 +112,8 @@ class KVMPerformance(TestSuite):  # noqa
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=7),
             ),
@@ -139,7 +141,8 @@ class KVMPerformance(TestSuite):  # noqa
             supported_os=[Windows],
             supported_platform_type=[AZURE, READY],
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=1),
             ),
@@ -166,7 +169,8 @@ class KVMPerformance(TestSuite):  # noqa
             supported_os=[Windows],
             supported_platform_type=[AZURE, READY],
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=6),
             ),

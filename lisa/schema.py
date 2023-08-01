@@ -453,7 +453,7 @@ class DiskOptionSettings(FeatureSettings):
             decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
         ),
     )
-    disk_type: Optional[
+    data_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
     ] = field(  # type:ignore
         default_factory=partial(
@@ -531,7 +531,7 @@ class DiskOptionSettings(FeatureSettings):
         return (
             self.type == o.type
             and self.os_disk_type == o.os_disk_type
-            and self.disk_type == o.disk_type
+            and self.data_disk_type == o.data_disk_type
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
             and self.data_disk_iops == o.data_disk_iops
@@ -543,7 +543,7 @@ class DiskOptionSettings(FeatureSettings):
     def __repr__(self) -> str:
         return (
             f"os_disk_type: {self.os_disk_type},"
-            f"disk_type: {self.disk_type},"
+            f"data_disk_type: {self.data_disk_type},"
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
             f"iops: {self.data_disk_iops},"
@@ -583,7 +583,7 @@ class DiskOptionSettings(FeatureSettings):
 
     def _get_key(self) -> str:
         return (
-            f"{super()._get_key()}/{self.os_disk_type}/{self.disk_type}/"
+            f"{super()._get_key()}/{self.os_disk_type}/{self.data_disk_type}/"
             f"{self.data_disk_count}/{self.data_disk_caching_type}/"
             f"{self.data_disk_iops}/{self.data_disk_size}/"
             f"{self.disk_controller_type}"
@@ -606,10 +606,10 @@ class DiskOptionSettings(FeatureSettings):
             value.os_disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
             )(self.os_disk_type, capability.os_disk_type, disk_type_priority)
-        if self.disk_type or capability.disk_type:
-            value.disk_type = getattr(
+        if self.data_disk_type or capability.data_disk_type:
+            value.data_disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
-            )(self.disk_type, capability.disk_type, disk_type_priority)
+            )(self.data_disk_type, capability.data_disk_type, disk_type_priority)
         if self.data_disk_count or capability.data_disk_count:
             value.data_disk_count = search_space_countspace_method(
                 self.data_disk_count, capability.data_disk_count

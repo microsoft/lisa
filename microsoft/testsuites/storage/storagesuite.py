@@ -62,7 +62,8 @@ class StorageTest(TestSuite):
         priority=3,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=search_space.IntRange(min=500),
                 data_disk_count=search_space.IntRange(min=64),
             ),

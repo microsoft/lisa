@@ -395,7 +395,7 @@
                         "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
                     }
                 },
-                "additionalCapabilities": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['disk_type'], 'UltraSSD_LRS'), json('{\"ultraSSDEnabled\": true}'), json('null'))]",
+                "additionalCapabilities": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['data_disk_type'], 'UltraSSD_LRS'), json('{\"ultraSSDEnabled\": true}'), json('null'))]",
                 "securityProfile": "[if(empty(parameters('nodes')[copyIndex('vmCopy')]['security_profile']), json('null'), lisa.getSecurityProfile(parameters('nodes')[copyIndex('vmCopy')]['security_profile']))]"
             }
         }

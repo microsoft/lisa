@@ -54,7 +54,8 @@ class StoragePerformance(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
@@ -71,7 +72,8 @@ class StoragePerformance(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
@@ -88,7 +90,8 @@ class StoragePerformance(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=24),
             ),
@@ -107,7 +110,8 @@ class StoragePerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
                 data_disk_size=search_space.IntRange(min=10),
@@ -128,7 +132,8 @@ class StoragePerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
                 data_disk_size=search_space.IntRange(min=10),
@@ -149,7 +154,8 @@ class StoragePerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
                 data_disk_size=search_space.IntRange(min=10),
@@ -170,7 +176,8 @@ class StoragePerformance(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=12),
                 data_disk_size=search_space.IntRange(min=10),
