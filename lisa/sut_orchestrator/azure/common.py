@@ -253,7 +253,7 @@ class AzureNodeSchema:
                 "vhd_raw",
                 "data_disk_caching_type",
                 "os_disk_type",
-                "disk_type",
+                "data_disk_type",
             ],
         )
         # If vhd contains sas token, need add mask
@@ -450,7 +450,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
     os_disk_type: str = ""
-    disk_type: str = ""
+    data_disk_type: str = ""
     disk_controller_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 

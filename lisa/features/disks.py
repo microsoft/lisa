@@ -70,19 +70,19 @@ DiskEphemeral = partial(
 )
 DiskPremiumSSDLRS = partial(
     schema.DiskOptionSettings,
-    disk_type=schema.DiskType.PremiumSSDLRS,
+    data_disk_type=schema.DiskType.PremiumSSDLRS,
     os_disk_type=schema.DiskType.PremiumSSDLRS,
 )
 DiskStandardHDDLRS = partial(
     schema.DiskOptionSettings,
-    disk_type=schema.DiskType.StandardHDDLRS,
+    data_disk_type=schema.DiskType.StandardHDDLRS,
     os_disk_type=schema.DiskType.StandardHDDLRS,
 )
 DiskStandardSSDLRS = partial(
     schema.DiskOptionSettings,
-    disk_type=schema.DiskType.StandardSSDLRS,
+    data_disk_type=schema.DiskType.StandardSSDLRS,
     os_disk_type=schema.DiskType.StandardSSDLRS,
 )
 DiskUltraSSDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.UltraSSDLRS
+    schema.DiskOptionSettings, data_disk_type=schema.DiskType.UltraSSDLRS
 )
