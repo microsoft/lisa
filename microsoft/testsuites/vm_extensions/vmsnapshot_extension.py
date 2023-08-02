@@ -37,7 +37,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
     @TestCaseMetadata(
         description="""
         Create a restore point collection for the virtual machine.
-        Create application consistent restore point on the restore point collection.
+        Create application consistent rp on the restore point collection.
         Validate response of the restore point for validity.
         Attempt it a few items to rule out cases when VM is under changes.
         """,
@@ -51,7 +51,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
         vm_name = node_context.vm_name
-        node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+        node_capability = node.capability.get_extended_runbook(
+            AzureNodeSchema, AZURE)
         location = node_capability.location
         restore_point_collection = "rpc_" + unique_name
         assert environment.platform
@@ -81,7 +82,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         for count in range(10):
             try:
                 # create a restore point for the VM
-                restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+                restore_point = ("rp_" +
+                                 datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
                 response = client.restore_points.begin_create(
                     resource_group_name=resource_group_name,
                     restore_point_collection_name=restore_point_collection,
@@ -89,8 +91,21 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     parameters={},
                 )
                 wait_operation(response, time_out=600)
-                log.info(f"restore point {restore_point} created")
-                break
+                # get the status of the restore point created
+                response = client.restore_points.get(
+                    resource_group_name=resource_group_name,
+                    restore_point_collection_name=restore_point_collection,
+                    restore_point_name=restore_point,
+                    expand=None)
+                # log.info(f"{response}")
+                # log.info(f"{type(response)}")
+                if response.provisioning_state == "Succeeded":
+                    log.info(f"restore point {restore_point} created")
+                    log.info(
+                        f"consistency mode is {response.consistency_mode}")
+                    break
+                else:
+                    log.info(f"rp status is {response.provisioning_state}")
             except Exception as e:
                 # Changes were made to the Virtual Machine, while the operation
                 # 'Create Restore Point' was in progress.
