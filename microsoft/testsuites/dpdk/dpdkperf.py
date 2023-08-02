@@ -51,7 +51,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_send_only_failsafe_pmd(
@@ -96,7 +96,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_send_only_netvsc_pmd(
@@ -141,7 +141,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_minimal_failsafe_pmd(
@@ -163,7 +163,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_minimal_netvsc_pmd(
@@ -186,7 +186,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_multi_queue_failsafe_pmd(
@@ -214,7 +214,7 @@ class DpdkPerformance(TestSuite):
             min_nic_count=2,
             min_core_count=16,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
+            # supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_multi_queue_netvsc_pmd(
