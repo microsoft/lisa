@@ -39,6 +39,11 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.compute.models import VirtualMachineIdentity
+from azure.keyvault.secrets import SecretClient
+
 from azure.storage.blob import (
     AccountSasPermissions,
     BlobClient,
@@ -73,6 +78,10 @@ from lisa.util import (
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
+
+
+from azure.keyvault.certificates import CertificateClient, CertificatePolicy
+from azure.identity import DefaultAzureCredential
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -1433,6 +1442,7 @@ def load_environment(
         node_schema = schema.RemoteNode(name=vm.name)
         environment_runbook.nodes_raw.append(node_schema)
         vms_map[vm.name] = vm
+        vm.identity = {"type": "SystemAssigned"}
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])
@@ -1895,3 +1905,39 @@ class DataDisk:
             return iops_dict[min_iops]
         else:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
+
+
+
+def get_instance_id(node: Node) -> str:
+    node_context = get_node_context(node)
+    return node_context.instance_id
+
+
+
+def create_certificates(vault_url: str, credential: DefaultAzureCredential):
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    secret_client = SecretClient(vault_url=vault_url, credential=credential)
+
+    # Define a policy with a 20-second expiration time
+    cert_policy = CertificatePolicy.get_default()
+
+    certificate_names = ["Cert1", "Cert2"]
+    secret_urls = []
+
+    for cert_name in certificate_names:
+        # Create certificate
+        create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
+
+        # Enable secret associated with the certificate
+        certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+
+        # Get secret identifier for AKV extension retrieval
+        secret_id = secret_client.get_secret(name=cert_name).id
+
+        # Remove the version from the secret URL
+        secret_url_without_version = secret_id.rsplit('/', 1)[0]
+        secret_urls.append(secret_url_without_version)
+
+    return secret_urls
+
+
