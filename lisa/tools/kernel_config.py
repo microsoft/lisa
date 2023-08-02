@@ -114,6 +114,7 @@ class KLDStat(Tool):
         output = self.run(
             f"-n {name}",
             sudo=True,
+            force_run=True,
         ).stdout
         matched = find_groups_in_lines(output, self._LOADED_MODULES, False)
         if len(matched) == 0:
