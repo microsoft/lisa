@@ -3,15 +3,11 @@
 
 import datetime
 import uuid
-import json
 import base64
 import re
 from typing import Any, Dict
-from pathlib import Path, PurePath, PurePosixPath
-
-from azure.mgmt.compute.models import InstanceViewStatus
-from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.features import Disk
+from pathlib import Path
+from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
@@ -25,9 +21,10 @@ from lisa import (
     create_timer,
 )
 from lisa.executable import ExecutableResult
-from lisa.operating_system import Posix
-from lisa.tools import Echo, Uname, Ls, Mkdir, Wget, Find
-from assertpy import assert_that
+from lisa.tools import Uname, Mkdir, Wget, Find
+
+from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.features import Disk
 
 @TestSuiteMetadata(
     area="cvt",
@@ -52,20 +49,18 @@ class CVTTest(TestSuite):
         log.info("Adding 2nd managed disk of size 10GB")
         disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 10)
 
-
     def get_extension_name(
         self,
         log: Logger,
         os: str
     ) -> str:
 
-        #UBUNTU-22.04-64
+        # UBUNTU-22.04-64
         distro = os[:-3]
         distro = "".join(re.findall(r'[A-Z0-9]', distro))
-        extension_name = "Linux" +  distro
+        extension_name = "Linux" + distro
         log.info(f"Extension name : '{extension_name}'")
         return extension_name
-
 
     def install_asr_extension_common(
         self,
@@ -113,13 +108,17 @@ class CVTTest(TestSuite):
         log.info(f"Substatus : '{extension_substatus}'")
         split_status = re.split(',|/', extension_substatus)
         for component_status in split_status:
-            if component_status is not None and component_status.find("osidentifier") != -1:
+            if (
+                component_status is not None and
+                component_status.find("osidentifier") != -1
+            ):
                 log.info(f"Component status : '{component_status}'")
-                OS = base64.b64decode(re.split(':', component_status)[-1]).decode()
+                OS = base64.b64decode(
+                    re.split(':', component_status)[-1]
+                ).decode()
 
         log.info(f"OS : '{OS}'")
         return OS
-
 
     def install_asr_extension_distro(
         self,
@@ -145,7 +144,6 @@ class CVTTest(TestSuite):
             "OL6-64",
             "RHEL7-64"
         }
-        #publisher_name = "Microsoft.Azure.RecoveryServices.SiteRecovery"
         publisher_name = "Microsoft.Azure.SiteRecovery.Test"
         extension_name = self.get_extension_name(os=os, log=log)
         if os in extension_publishers:
@@ -164,7 +162,6 @@ class CVTTest(TestSuite):
         }
         extension = node.features[AzureExtension]
 
-
         result = extension.create_or_update(
             name=extension_name,
             publisher=publisher_name,
@@ -176,7 +173,6 @@ class CVTTest(TestSuite):
         assert_that(result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
-
 
     def run_script(
         self,
@@ -190,13 +186,12 @@ class CVTTest(TestSuite):
         log.info(f"Script run with param {test_dir} finished within {timer}")
         return result
 
-
     def copy_cvt_logs(
         self,
         log: Logger,
         node: Node,
-        test_dir : Path,
-        log_path : Path
+        test_dir: Path,
+        log_path: Path
     ) -> None:
 
         find_tool = node.tools[Find]
@@ -238,16 +233,16 @@ class CVTTest(TestSuite):
         sas_uri = variables.get("cvt_binary_sas_uri", "")
         cvt_root_dir = str(node.working_path) + '/LisaTest/'
         cvt_download_dir = cvt_root_dir + 'cvt_files/'
-        cvt_bin_path = cvt_download_dir + cvt_bin
 
         mkdir = node.tools[Mkdir]
         wget = node.tools[Wget]
-        ls = node.tools[Ls]
 
         mkdir.create_directory(cvt_download_dir, sudo=True)
-
         download_path = wget.get(
-            url=f"{sas_uri}", filename=cvt_bin, file_path=cvt_download_dir, sudo=True
+            url=f"{sas_uri}",
+            filename=cvt_bin,
+            file_path=cvt_download_dir,
+            sudo=True
         )
 
         cvt_md5sum = node.execute(
@@ -256,9 +251,13 @@ class CVTTest(TestSuite):
         log.info(f"md5sum '{download_path}' : '{cvt_md5sum}'")
 
         result = self.run_script(node=node, log=log, test_dir=cvt_download_dir)
-        self.copy_cvt_logs(node=node, log=log, test_dir=Path(node.working_path.parent.parent), log_path=log_path)
+        self.copy_cvt_logs(
+            node=node,
+            log=log,
+            test_dir=Path(node.working_path.parent.parent),
+            log_path=log_path
+        )
         return result
-
 
     @TestCaseMetadata(
         description="""
@@ -288,7 +287,12 @@ class CVTTest(TestSuite):
         self.init_disk(node=node, log=log)
         OS = self.install_asr_extension_common(node=node, log=log)
         self.install_asr_extension_distro(node=node, log=log, os=OS)
-        result = self.run_cvt_tests(node=node, log=log, log_path=log_path, variables=variables)
+        result = self.run_cvt_tests(
+            node=node,
+            log=log,
+            log_path=log_path,
+            variables=variables
+        )
         assert_that(result.exit_code).is_equal_to(0)
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
