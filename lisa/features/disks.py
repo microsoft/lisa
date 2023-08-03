@@ -47,6 +47,9 @@ class Disk(Feature):
     def get_all_disks(self) -> List[str]:
         raise NotImplementedError
 
+    def get_disk_controller_type(self) -> schema.DiskControllerType:
+        raise NotImplementedError
+
     def add_data_disk(
         self,
         count: int,
