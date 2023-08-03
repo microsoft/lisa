@@ -68,7 +68,7 @@ class Disk(Feature):
         raise NotImplementedError
 
     # Get disk controller type from the VM by checking the boot partition
-    def os_disk_controller_type(self) -> schema.DiskControllerType:
+    def get_os_disk_controller_type(self) -> schema.DiskControllerType:
         partition_info = self._node.tools[Mount].get_partition_info()
 
         # On certain gen2 image only "/boot/efi" exists

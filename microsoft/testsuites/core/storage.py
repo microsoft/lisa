@@ -236,7 +236,7 @@ class Storage(TestSuite):
 
         Steps:
         1. Get the disk type of the boot partition.
-        2. Compare it with diskcontrollertype of the VM.
+        2. Compare it with disk controller type of the VM.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -244,24 +244,25 @@ class Storage(TestSuite):
         ),
     )
     def verify_disk_controller_type(self, node: RemoteNode) -> None:
+        node_disk = node.features[Disk]
+
         # Get VM's 'disk controller type' with azure api
-        vm_disk_controller_type = node.features[Disk].get_disk_controller_type()
+        vm_disk_controller_type = node_disk.get_disk_controller_type()
 
         # Get 'disk controller type' from within VM.
-        os_disk_controller_type = node.features[Disk].os_disk_controller_type()
+        os_disk_controller_type = node_disk.get_os_disk_controller_type()
 
         # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
         if not vm_disk_controller_type:
             raise SkippedException(
-                f"VM disk_controller_type is '{vm_disk_controller_type}'"
+                f"VM disk_controller_type is '{vm_disk_controller_type}'."
+                f"Few SKUs& gen1 images doesn't support 'disk_controller_type'"
             )
 
-        if os_disk_controller_type != vm_disk_controller_type:
-            raise LisaException(
-                f"VM disk_controller_type is '{vm_disk_controller_type}' but "
-                f"detected OS disk is of type: "
-                f"'{os_disk_controller_type}'"
-            )
+        assert_that(
+            os_disk_controller_type,
+            "VM and OS disk_controller_types are different"
+        ).is_equal_to(vm_disk_controller_type)
 
     @TestCaseMetadata(
         description="""
