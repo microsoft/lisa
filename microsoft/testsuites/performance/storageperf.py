@@ -56,7 +56,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_count=search_space.IntRange(min=64),
             ),
         ),
     )
@@ -73,7 +73,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_count=search_space.IntRange(min=64),
             ),
         ),
     )
@@ -90,7 +90,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=24),
+                data_disk_count=search_space.IntRange(min=64),
             ),
         ),
     )
@@ -109,7 +109,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=64),
                 data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Sriov(),
@@ -130,7 +130,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=64),
                 data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Sriov(),
@@ -151,7 +151,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=64),
                 data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Synthetic(),
@@ -172,7 +172,7 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=64),
                 data_disk_size=search_space.IntRange(min=10),
             ),
             network_interface=Synthetic(),
