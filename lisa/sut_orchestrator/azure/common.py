@@ -13,6 +13,7 @@ from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
+from assertpy import assert_that
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
@@ -141,6 +142,8 @@ class NodeContext:
     use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
+    location: str = ""
+    subscription_id: str = ""
 
 
 @dataclass_json()
@@ -1444,6 +1447,9 @@ def load_environment(
     for node in environment.nodes.list():
         assert isinstance(node, RemoteNode)
 
+        vm = vms_map.get(node.name)
+        assert_that(vm).is_not_none()
+
         node_context = get_node_context(node)
         node_context.vm_name = node.name
         node_context.resource_group_name = resource_group_name
@@ -1451,6 +1457,9 @@ def load_environment(
         node_context.username = platform_runbook.admin_username
         node_context.password = platform_runbook.admin_password
         node_context.private_key_file = platform_runbook.admin_private_key_file
+        node_context.location = vm.location
+        node_context.subscription_id = platform.subscription_id
+
         (
             node_context.public_ip_address,
             node_context.private_ip_address,
