@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from time import sleep
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
@@ -1939,5 +1940,12 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential):
         secret_urls.append(secret_url_without_version)
 
     return secret_urls
+
+def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential) -> None:
+    time.sleep(10)
+    # Rotate the certificate once
+    create_certificates(vault_url, credential)
+    log.info("Certificates rotated")
+
 
 
