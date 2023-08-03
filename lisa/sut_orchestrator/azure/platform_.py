@@ -1147,6 +1147,8 @@ class AzurePlatform(Platform):
             # it's Windows, fill in the password always. If it's Linux, the
             # private key has higher priority.
             node_context.username = arm_parameters.admin_username
+            node_context.location = arm_parameters.location
+            node_context.subscription_id = self.subscription_id
             if azure_node_runbook.is_linux:
                 node_context.password = arm_parameters.admin_password
             else:
