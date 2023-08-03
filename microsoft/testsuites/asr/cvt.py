@@ -1,30 +1,30 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
-import datetime
-import uuid
 import base64
+import datetime
 import re
-from typing import Any, Dict
+import uuid
 from pathlib import Path
+from typing import Any, Dict
+
 from assertpy import assert_that
+
 from lisa import (
-    Logger,
-    Node,
     CustomScript,
     CustomScriptBuilder,
+    Logger,
+    Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    simple_requirement,
-    schema,
     create_timer,
+    schema,
+    simple_requirement,
 )
 from lisa.executable import ExecutableResult
-from lisa.tools import Uname, Mkdir, Wget, Find
-
-from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.features import Disk
+from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.tools import Find, Mkdir, Uname, Wget
 
 @TestSuiteMetadata(
     area="cvt",
@@ -113,12 +113,12 @@ class CVTTest(TestSuite):
                 component_status.find("osidentifier") != -1
             ):
                 log.info(f"Component status : '{component_status}'")
-                OS = base64.b64decode(
+                os = base64.b64decode(
                     re.split(':', component_status)[-1]
                 ).decode()
 
-        log.info(f"OS : '{OS}'")
-        return OS
+        log.info(f"os : '{os}'")
+        return os
 
     def install_asr_extension_distro(
         self,
@@ -285,8 +285,8 @@ class CVTTest(TestSuite):
         )
 
         self.init_disk(node=node, log=log)
-        OS = self.install_asr_extension_common(node=node, log=log)
-        self.install_asr_extension_distro(node=node, log=log, os=OS)
+        os = self.install_asr_extension_common(node=node, log=log)
+        self.install_asr_extension_distro(node=node, log=log, os=os)
         result = self.run_cvt_tests(
             node=node,
             log=log,
