@@ -26,6 +26,7 @@ from lisa.features import Disk
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Find, Mkdir, Uname, Wget
 
+
 @TestSuiteMetadata(
     area="cvt",
     category="functional",
@@ -37,45 +38,30 @@ from lisa.tools import Find, Mkdir, Uname, Wget
 class CVTTest(TestSuite):
     TIMEOUT = 12000
 
-    def init_disk(
-        self,
-        log: Logger,
-        node: Node
-    ) -> None:
-
+    def init_disk(self, log: Logger, node: Node) -> None:
         disk = node.features[Disk]
         log.info("Adding 1st managed disk of size 1GB")
         disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 1)
         log.info("Adding 2nd managed disk of size 10GB")
         disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 10)
 
-    def get_extension_name(
-        self,
-        log: Logger,
-        os: str
-    ) -> str:
-
+    def get_extension_name(self, log: Logger, os: str) -> str:
         # UBUNTU-22.04-64
         distro = os[:-3]
-        distro = "".join(re.findall(r'[A-Z0-9]', distro))
+        distro = "".join(re.findall(r"[A-Z0-9]", distro))
         extension_name = "Linux" + distro
         log.info(f"Extension name : '{extension_name}'")
         return extension_name
 
-    def install_asr_extension_common(
-        self,
-        log: Logger,
-        node: Node
-    ) -> str:
-
+    def install_asr_extension_common(self, log: Logger, node: Node) -> str:
         task_id = str(uuid.uuid4())
-        cur_time = datetime.datetime.now().isoformat() + 'Z'
+        cur_time = datetime.datetime.now().isoformat() + "Z"
         settings = {
             "publicObject": "",
             "module": "a2a",
             "timeStamp": cur_time,
             "commandToExecute": "GetOsDetails",
-            "taskId": task_id
+            "taskId": task_id,
         }
         extension = node.features[AzureExtension]
 
@@ -106,27 +92,23 @@ class CVTTest(TestSuite):
             return extension_substatus
 
         log.info(f"Substatus : '{extension_substatus}'")
-        split_status = re.split(',|/', extension_substatus)
+        split_status = re.split(",|/", extension_substatus)
         for component_status in split_status:
             if (
-                component_status is not None and
-                component_status.find("osidentifier") != -1
+                component_status is not None
+                and component_status.find("osidentifier") != -1
             ):
                 log.info(f"Component status : '{component_status}'")
                 os = base64.b64decode(
-                    re.split(':', component_status)[-1]
+                    re.split(":", component_status)[-1]
                 ).decode()
 
         log.info(f"os : '{os}'")
         return os
 
     def install_asr_extension_distro(
-        self,
-        log: Logger,
-        node: Node,
-        os: str
+        self, log: Logger, node: Node, os: str
     ) -> None:
-
         task_id = str(uuid.uuid4())
         extension_publishers = {
             "SLES11-SP3-64",
@@ -136,13 +118,13 @@ class CVTTest(TestSuite):
             "UBUNTU-14.04-64",
             "UBUNTU-16.04-64",
             "OL6-64",
-            "OL7-64"
+            "OL7-64",
         }
         extension_test = {
             "SLES11-SP3-64",
             "SLES11-SP4-64",
             "OL6-64",
-            "RHEL7-64"
+            "RHEL7-64",
         }
         publisher_name = "Microsoft.Azure.SiteRecovery.Test"
         extension_name = self.get_extension_name(os=os, log=log)
@@ -152,13 +134,13 @@ class CVTTest(TestSuite):
         else:
             publisher_name = "Microsoft.Azure.SiteRecovery2.Test"
 
-        cur_time = datetime.datetime.now().isoformat() + 'Z'
+        cur_time = datetime.datetime.now().isoformat() + "Z"
         settings = {
             "publicObject": "",
             "module": "a2a",
             "timeStamp": cur_time,
             "commandToExecute": "Install",
-            "taskId": task_id
+            "taskId": task_id,
         }
         extension = node.features[AzureExtension]
 
@@ -175,10 +157,7 @@ class CVTTest(TestSuite):
         ).is_equal_to("Succeeded")
 
     def run_script(
-        self,
-        node: Node,
-        log: Logger,
-        test_dir: str
+        self, node: Node, log: Logger, test_dir: str
     ) -> ExecutableResult:
         timer = create_timer()
         script: CustomScript = node.tools[self._cvt_script]
@@ -187,13 +166,8 @@ class CVTTest(TestSuite):
         return result
 
     def copy_cvt_logs(
-        self,
-        log: Logger,
-        node: Node,
-        test_dir: Path,
-        log_path: Path
+        self, log: Logger, node: Node, test_dir: Path, log_path: Path
     ) -> None:
-
         find_tool = node.tools[Find]
         file_list = find_tool.find_files(
             test_dir,
@@ -227,12 +201,12 @@ class CVTTest(TestSuite):
         log: Logger,
         node: Node,
         log_path: Path,
-        variables: Dict[str, Any]
+        variables: Dict[str, Any],
     ) -> ExecutableResult:
         cvt_bin = "indskflt_ct"
         sas_uri = variables.get("cvt_binary_sas_uri", "")
-        cvt_root_dir = str(node.working_path) + '/LisaTest/'
-        cvt_download_dir = cvt_root_dir + 'cvt_files/'
+        cvt_root_dir = str(node.working_path) + "/LisaTest/"
+        cvt_download_dir = cvt_root_dir + "cvt_files/"
 
         mkdir = node.tools[Mkdir]
         wget = node.tools[Wget]
@@ -242,7 +216,7 @@ class CVTTest(TestSuite):
             url=f"{sas_uri}",
             filename=cvt_bin,
             file_path=cvt_download_dir,
-            sudo=True
+            sudo=True,
         )
 
         cvt_md5sum = node.execute(
@@ -255,7 +229,7 @@ class CVTTest(TestSuite):
             node=node,
             log=log,
             test_dir=Path(node.working_path.parent.parent),
-            log_path=log_path
+            log_path=log_path,
         )
         return result
 
@@ -266,16 +240,15 @@ class CVTTest(TestSuite):
         """,
         priority=0,
         use_new_environment=True,
-        timeout=TIMEOUT
+        timeout=TIMEOUT,
     )
     def run_cvt(
         self,
         node: Node,
         log: Logger,
         log_path: Path,
-        variables: Dict[str, Any]
+        variables: Dict[str, Any],
     ) -> None:
-
         info = node.tools[Uname].get_linux_information()
         log.info(
             f"release: '{info.uname_version}', "
@@ -288,10 +261,7 @@ class CVTTest(TestSuite):
         os = self.install_asr_extension_common(node=node, log=log)
         self.install_asr_extension_distro(node=node, log=log, os=os)
         result = self.run_cvt_tests(
-            node=node,
-            log=log,
-            log_path=log_path,
-            variables=variables
+            node=node, log=log, log_path=log_path, variables=variables
         )
         assert_that(result.exit_code).is_equal_to(0)
 
