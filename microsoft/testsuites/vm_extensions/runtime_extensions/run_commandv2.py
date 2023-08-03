@@ -15,8 +15,9 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.operating_system import BSD, CpuArchitecture
+from lisa.operating_system import BSD, CBLMariner, CpuArchitecture
 from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
@@ -30,6 +31,13 @@ from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
 def _check_architecture_supported(node: Node) -> None:
     arch = node.os.get_kernel_information().hardware_platform  # type: ignore
     if arch == CpuArchitecture.ARM64:
+        # Support RCv2 on ARM64 Mariner in Canary regions
+        if isinstance(node.os, CBLMariner):
+            node_context = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+            canary_locations = ["centraluseuap", "eastus2euap"]
+            if node_context.location in canary_locations:
+                return
+
         raise SkippedException("RunCommandv2 Extension not published on ARM64.")
 
 
