@@ -91,9 +91,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         #We need to assign an identity to VM for later entry access policies for Key Vault
         compute_client = ComputeManagementClient(credential, platform.subscription_id)
         vm = compute_client.virtual_machines.get(resource_group_name, node_context.vm_name)
-        object_id_vm = vm.identity.principal_id
-        #Key Vault administrator role
-        
+        object_id_vm = vm.identity.principal_id        
         # Section for Key Vault properties and permissions
         keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
         vault_properties = VaultProperties(
