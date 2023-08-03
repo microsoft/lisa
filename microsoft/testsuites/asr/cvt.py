@@ -12,10 +12,7 @@ import uuid
 import json
 import base64
 
-from azure.mgmt.compute.models import (
-    VirtualMachineExtensionInstanceView,
-    InstanceViewStatus,
-)
+from azure.mgmt.compute.models import InstanceViewStatus
 from lisa.sut_orchestrator.azure.features import AzureExtension
 
 from lisa.features import Disk
@@ -64,7 +61,7 @@ class CVTTest(TestSuite):
         self,
         log: Logger,
         os: str
-    ) -> None:
+    ) -> str:
 
         #UBUNTU-22.04-64
         distro = os[:-3]
@@ -78,7 +75,7 @@ class CVTTest(TestSuite):
         self,
         log: Logger,
         node: Node
-    ) -> None:
+    ) -> str:
 
         task_id = str(uuid.uuid4())
         cur_time = datetime.datetime.now().isoformat() + 'Z'
@@ -185,7 +182,12 @@ class CVTTest(TestSuite):
         ).is_equal_to("Succeeded")
 
 
-    def run_script(self, node: Node, log: Logger, test_dir: str) -> None:
+    def run_script(
+        self,
+        node: Node,
+        log: Logger,
+        test_dir: str
+    ) -> ExecutableResult:
         timer = create_timer()
         script: CustomScript = node.tools[self._cvt_script]
         result = script.run(parameters=test_dir, timeout=19800, sudo=True)
@@ -235,7 +237,7 @@ class CVTTest(TestSuite):
         node: Node,
         log_path: Path,
         variables: Dict[str, Any]
-    ) -> None:
+    ) -> ExecutableResult:
         cvt_bin = "indskflt_ct"
         sas_uri = variables.get("cvt_binary_sas_uri", "")
         cvt_root_dir = str(node.working_path) + '/LisaTest/'
@@ -258,7 +260,7 @@ class CVTTest(TestSuite):
         log.info(f"md5sum '{download_path}' : '{cvt_md5sum}'")
 
         result = self.run_script(node=node, log=log, test_dir=cvt_download_dir)
-        self.copy_cvt_logs(node=node, log=log, test_dir=node.working_path.parent.parent, log_path=log_path)
+        self.copy_cvt_logs(node=node, log=log, test_dir=Path(node.working_path.parent.parent), log_path=log_path)
         return result
 
 

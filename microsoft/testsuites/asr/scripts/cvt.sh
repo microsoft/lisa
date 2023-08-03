@@ -5,7 +5,7 @@ PASSED_TEST=0
 FAILED_TEST=1
 log()
 {
-    echo "`date`:[cvt] -> $@" | tee -a $tdir/cvt.log
+    echo "`date`:[cvt] -> $*" | tee -a $tdir/cvt.log
 }
 
 exit_with_logs()
