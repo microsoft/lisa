@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import Lock
 from time import sleep
 import time
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from msrestazure import AzureConfiguration
 
