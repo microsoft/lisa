@@ -1,30 +1,31 @@
 #!/bin/bash -x
 
 tdir=$1
-PASSED_TEST=0
 FAILED_TEST=1
+PASSED_TEST=0
 log()
 {
-    echo "`date`:[cvt] -> $*" | tee -a $tdir/cvt.log
+    echo "$(date):[cvt] -> $*" | tee -a "$tdir/cvt.log"
 }
 
 exit_with_logs()
 {
     echo "TEST_STATUS:$1:$2"
-    exit $1
+    exit "$1"
 }
 
 get_testname()
 {
     TESTNAME="barrierhonourwithouttag"
-    local curr_kernel=`uname -r`
-    local major_ver=`echo $curr_kernel | cut -f1 -d'.'`
-    local minor_ver=`echo $curr_kernel | cut -f2 -d'.'`
+    local curr_kernel, major_ver, minor_ver
+    curr_kernel=$(uname -r)
+    major_ver=$(echo "$curr_kernel" | cut -f1 -d'.')
+    minor_ver=$(echo "$curr_kernel" | cut -f2 -d'.')
 
-    if [ $major_ver -gt 5 ]; then
+    if [ "$major_ver" -gt 5 ]; then
        return
     fi
-    if [ $major_ver -eq 5 -a $minor_ver -ge 8 ]; then
+    if [ "$major_ver" -eq 5 ] && [ "$minor_ver" -ge 8 ]; then
        return
     fi
 
@@ -38,10 +39,10 @@ get_testname()
 
 set_test_params()
 {
-    local _ret=
+    local timeout
 
     log "Setting test params"
-    local timeout=60000
+    timeout=60000
     get_testname
     if [ "$TESTNAME" = "barrierhonourwithouttag" ]; then
         timeout=600000
@@ -70,8 +71,7 @@ execute_cmd()
     fi
 
     echo "Executing command: $cmd"
-    #op=$($cmd)
-    eval $cmd
+    eval "$cmd"
     local funret=$?
     if [[ $funret != 0 ]]; then
         printf 'command: %s failed with return value %d\n' "$cmd" "$funret"
@@ -89,18 +89,20 @@ startcvt()
         return 1
     fi
 
-    local source_dev=$1
-    local target_dir=$2
-    local subtestname=$3
-    local testname=$4
+    local source_dev, target_dir, subtestname, testname
+    local workingdir, cvt_logs_dir, cvt_log_file, cvt_op_file
+    local lsmodop, grepop
+    source_dev=$1
+    target_dir=$2
+    subtestname=$3
+    testname=$4
+    workingdir=$PWD
+    cvt_logs_dir="$workingdir/cvt_logs"
+    cvt_log_file="$cvt_logs_dir/cvtlog_$subtestname.txt"
+    cvt_op_file="$cvt_logs_dir/cvt_$subtestname.txt"
 
-    local workingdir=$PWD
-    local cvt_logs_dir="$workingdir/cvt_logs"
-    local cvt_log_file="$cvt_logs_dir/cvtlog_$subtestname.txt"
-    local cvt_op_file="$cvt_logs_dir/cvt_$subtestname.txt"
 
-
-    local lsmodop=$(lsmod | grep "involflt")
+    lsmodop=$(lsmod | grep "involflt")
     if [[ -z "${lsmodop// }" ]]; then
         echo "Driver not loaded, exiting"
         return 1
@@ -116,9 +118,9 @@ startcvt()
         return 1
     fi
 
-    if [ $testname = "ditest" ]; then
-        sourcedevsize=`blockdev --getsize64 $source_dev`
-        if [[ $sourcedevsize -gt 2147483648 ]]; then
+    if [ "$testname" = "ditest" ]; then
+        sourcedevsize=$(blockdev --getsize64 "$source_dev")
+        if [[ "$sourcedevsize" -gt 2147483648 ]]; then
             echo "Source dev $source_dev size is $sourcedevsize"
             echo "CVT works on source dev of size <= 2GB"
             return 1
@@ -128,56 +130,58 @@ startcvt()
     /usr/local/ASR/Vx/bin/stop
     execute_cmd "mkdir -p $cvt_logs_dir"
 
-    chmod +x $workingdir/indskflt_ct
+    chmod +x "$workingdir/indskflt_ct"
     /usr/local/ASR/Vx/bin/inm_dmit --op=start_notify&
     execute_cmd "time $workingdir/indskflt_ct --tc=$testname --loggerPath=$cvt_logs_dir --pair[ -type=d-f -sd=$source_dev -td=$target_dir/target_file.tgt -subtest=$subtestname -log=$cvt_log_file ] >> $cvt_op_file 2>&1" "ignorefail"
     killall inm_dmit
     pkill inm_dmit
 
-    local grepop=$(cat $cvt_op_file | grep -i "DI Test Passed")
+    grepop=$(grep -i "DI Test Passed" < "$cvt_op_file")
     if [[ -z "${grepop// }" ]]; then
             echo "CVT test failed"
-            mv $cvt_log_file $cvt_log_file.`date`
-            mv $cvt_op_file $cvt_op_file.`date`
-            return 1
+            mv "$cvt_log_file" "$cvt_log_file"."$(date)"
+            mv "$cvt_op_file" "$cvt_op_file"."$(date)"
+            return "$FAILED_TEST"
     else
             echo "CVT test passed"
-            return 0
+            return "$PASSED_TEST"
     fi
 
 }
 
 run_tests()
 {
-    local failed=0
-    local stime=10
+    local failed, stime, ctests, ntests
+    local diskname, testcases, curdir
+    failed=0
+    stime=10
+    ctests=0
 
     umount /data
-    local diskname=`fdisk -l 2>/dev/null | grep -o /dev/sd[d-i]`
+    diskname=$(fdisk -l 2>/dev/null | grep -o "/dev/sd[d-i]")
     log "Formatting Disk"
-    yes | mkfs $diskname
+    yes | mkfs "$diskname"
     log "Mounting $diskname to /data"
     mkdir /data > /dev/null 2>&1
-    mount $diskname /data
+    mount "$diskname" /data
 
     rm -rf /data/*
 
-    local testcases=('mixed' '16k_random' '16k_seq' '1mb_random' '1mb_seq' '4k_random' '4k_seq' '4mb_random' '4mb_seq' '512k_random' '512k_seq' '64k_random' '64k_seq' '8mb_random' '8mb_seq' '9mb_random' '9mb_seq')
-    local ntests=${#testcases[@]}
+    testcases=('mixed' '16k_random' '16k_seq' '1mb_random' '1mb_seq' '4k_random' '4k_seq' '4mb_random' '4mb_seq' '512k_random' '512k_seq' '64k_random' '64k_seq' '8mb_random' '8mb_seq' '9mb_random' '9mb_seq')
+    ntests=${#testcases[@]}
     log "Total Tests: $ntests"
 
-    local ctests=0
-
-    cd $tdir > /dev/null 2>&1
+    curdir=$(pwd)
+    cd "$tdir" || exit_with_logs "$FAILED_TEST"
     for testcase in "${testcases[@]}"; do
         echo -e "$ctests/$ntests\r"
         log "Starting $testcase test"
-        startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > $tdir/$testcase.log 2>&1
+        startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
         failed=$?
         if [[ $failed != 0 ]]; then
             sleep $stime
             # might have failed to take barrier, retry
-            startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > $tdir/$testcase.log 2>&1
+            startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
             failed=$?
         fi
         ((ctests++))
@@ -191,10 +195,11 @@ run_tests()
 
         sleep $stime
     done
-    cd - > /dev/null 2>&1
 
-    return $failed
+    cd "$curdir" || exit_with_logs "$FAILED_TEST"
+    return "$failed"
 }
+
 set_test_params
 run_tests
 exit_with_logs $?

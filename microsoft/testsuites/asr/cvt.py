@@ -1,22 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict
-
-from assertpy import assert_that
-
-from pathlib import Path, PurePath, PurePosixPath
-
 import datetime
 import uuid
 import json
 import base64
+import re
+from typing import Any, Dict
+from pathlib import Path, PurePath, PurePosixPath
 
 from azure.mgmt.compute.models import InstanceViewStatus
 from lisa.sut_orchestrator.azure.features import AzureExtension
-
 from lisa.features import Disk
-
 from lisa import (
     Logger,
     Node,
@@ -29,9 +24,10 @@ from lisa import (
     schema,
     create_timer,
 )
+from lisa.executable import ExecutableResult
 from lisa.operating_system import Posix
 from lisa.tools import Echo, Uname, Ls, Mkdir, Wget, Find
-import re
+from assertpy import assert_that
 
 @TestSuiteMetadata(
     area="cvt",
@@ -52,9 +48,9 @@ class CVTTest(TestSuite):
 
         disk = node.features[Disk]
         log.info("Adding 1st managed disk of size 1GB")
-        data_disk1 = disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 1)
+        disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 1)
         log.info("Adding 2nd managed disk of size 10GB")
-        data_disk1 = disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 10)
+        disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 10)
 
 
     def get_extension_name(
@@ -104,7 +100,7 @@ class CVTTest(TestSuite):
             name="Linux",
         ).instance_view
 
-        extension_substatus = "";
+        extension_substatus = ""
         for substatus in extension_instance_view.substatuses:
             log.info(f"Substatus : '{substatus}'")
             code = substatus.code
@@ -303,4 +299,3 @@ class CVTTest(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         log.info("after test case")
-
