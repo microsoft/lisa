@@ -333,6 +333,28 @@
             }
         },
         {
+            "name": "[concat(parameters('nodes')[div(copyIndex(), length(parameters('data_disks')))]['name'], '-data-disk-', mod(copyIndex(), length(parameters('data_disks'))))]",
+            "type": "Microsoft.Compute/disks",
+            "apiVersion": "2022-03-02",
+            "location": "[parameters('location')]",
+            "condition": "[equals(parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].type, 'UltraSSD_LRS')]",
+            "properties": {
+                "diskSizeGB": "[parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].size]",
+                "creationData": {
+                    "createOption": "[parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].create_option]"
+                },
+                "diskIOPSReadWrite": "[parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].iops]",
+                "diskMBpsReadWrite": "[parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].throughput]"
+            },
+            "sku": {
+                "name": "[parameters('data_disks')[mod(copyIndex(), length(parameters('data_disks')))].type]"
+            },
+            "copy": {
+                "name": "ultraDisks",
+                "count": "[mul(length(parameters('data_disks')), variables('node_count'))]"
+            }
+        },
+        {
             "apiVersion": "2022-08-01",
             "type": "Microsoft.Compute/virtualMachines",
             "copy": {
@@ -344,6 +366,7 @@
             "tags": "[parameters('vm_tags')]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
+                "ultraDisks",
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name'))]",
                 "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk'), resourceId('Microsoft.Compute/images',concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-image')))]",
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
@@ -362,16 +385,7 @@
                         {
                             "name": "dataDisks",
                             "count": "[length(parameters('data_disks'))]",
-                            "input": {
-                                "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-data-disk-', copyIndex('dataDisks'))]",
-                                "createOption": "[parameters('data_disks')[copyIndex('dataDisks')].create_option]",
-                                "caching": "[parameters('data_disks')[copyIndex('dataDisks')].caching_type]",
-                                "diskSizeGB": "[parameters('data_disks')[copyIndex('dataDisks')].size]",
-                                "lun": "[copyIndex('dataDisks')]",
-                                "managedDisk": {
-                                    "storageAccountType": "[parameters('data_disks')[copyIndex('dataDisks')].type]"
-                                }
-                            }
+                            "input": "[if(equals(parameters('data_disks')[copyIndex('dataDisks')].type, 'UltraSSD_LRS'), lisa.getAttachDisk(parameters('data_disks')[copyIndex('dataDisks')],concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-data-disk-', copyIndex('dataDisks')),copyIndex('dataDisks')), lisa.getCreateDisk(parameters('data_disks')[copyIndex('dataDisks')],concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-data-disk-', copyIndex('dataDisks')),copyIndex('dataDisks')))]"
                         }
                     ]
                 },
@@ -580,6 +594,62 @@
                         "value": {
                             "createOption": "Attach",
                             "osType": "Linux",
+                            "managedDisk": {
+                                "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
+                            }
+                        }
+                    }
+                },
+                "getCreateDisk": {
+                    "parameters": [
+                        {
+                            "name": "disk",
+                            "type": "object"
+                        },
+                        {
+                            "name": "diskName",
+                            "type": "string"
+                        },
+                        {
+                            "name": "index",
+                            "type": "int"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "name": "[parameters('diskName')]",
+                            "createOption": "[parameters('disk').create_option]",
+                            "caching": "[parameters('disk').caching_type]",
+                            "diskSizeGB": "[parameters('disk').size]",
+                            "lun": "[parameters('index')]",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('disk').type]"
+                            }
+                        }
+                    }
+                },
+                "getAttachDisk": {
+                    "parameters": [
+                        {
+                            "name": "disk",
+                            "type": "object"
+                        },
+                        {
+                            "name": "diskName",
+                            "type": "string"
+                        },
+                        {
+                            "name": "index",
+                            "type": "int"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": {
+                            "lun": "[parameters('index')]",
+                            "createOption": "attach",
+                            "caching": "[parameters('disk').caching_type]",
                             "managedDisk": {
                                 "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
                             }

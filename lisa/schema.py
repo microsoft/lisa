@@ -491,6 +491,12 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
+    data_disk_throughput: search_space.CountSpace = field(
+        default_factory=partial(search_space.IntRange, min=0),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
     data_disk_size: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(
@@ -535,6 +541,7 @@ class DiskOptionSettings(FeatureSettings):
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
             and self.data_disk_iops == o.data_disk_iops
+            and self.data_disk_throughput == o.data_disk_throughput
             and self.data_disk_size == o.data_disk_size
             and self.max_data_disk_count == o.max_data_disk_count
             and self.disk_controller_type == o.disk_controller_type
@@ -547,6 +554,7 @@ class DiskOptionSettings(FeatureSettings):
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
             f"iops: {self.data_disk_iops},"
+            f"throughput: {self.data_disk_throughput},"
             f"size: {self.data_disk_size},"
             f"max_data_disk_count: {self.max_data_disk_count},"
             f"disk_controller_type: {self.disk_controller_type}"
@@ -579,14 +587,20 @@ class DiskOptionSettings(FeatureSettings):
             ),
             "data_disk_iops",
         )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
+            ),
+            "data_disk_throughput",
+        )
         return result
 
     def _get_key(self) -> str:
         return (
             f"{super()._get_key()}/{self.os_disk_type}/{self.data_disk_type}/"
             f"{self.data_disk_count}/{self.data_disk_caching_type}/"
-            f"{self.data_disk_iops}/{self.data_disk_size}/"
-            f"{self.disk_controller_type}"
+            f"{self.data_disk_iops}/{self.data_disk_throughput}/"
+            f"{self.data_disk_size}/{self.disk_controller_type}"
         )
 
     def _call_requirement_method(
@@ -617,6 +631,10 @@ class DiskOptionSettings(FeatureSettings):
         if self.data_disk_iops or capability.data_disk_iops:
             value.data_disk_iops = search_space_countspace_method(
                 self.data_disk_iops, capability.data_disk_iops
+            )
+        if self.data_disk_throughput or capability.data_disk_throughput:
+            value.data_disk_throughput = search_space_countspace_method(
+                self.data_disk_throughput, capability.data_disk_throughput
             )
         if self.data_disk_size or capability.data_disk_size:
             value.data_disk_size = search_space_countspace_method(

@@ -502,6 +502,8 @@ class DataDiskSchema:
         ),
     )
     size: int = 32
+    iops: int = 0
+    throughput: int = 0  # MB/s
     type: str = field(
         default=schema.DiskType.StandardHDDLRS,
         metadata=field_metadata(
