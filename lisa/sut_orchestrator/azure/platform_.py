@@ -1644,6 +1644,7 @@ class AzurePlatform(Platform):
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
+        node_space.disk.data_disk_throughput = search_space.IntRange(min=0)
         node_space.disk.data_disk_size = search_space.IntRange(min=0)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
@@ -2092,6 +2093,8 @@ class AzurePlatform(Platform):
                             _get_disk_size_in_gb(
                                 default_data_disk.additional_properties
                             ),
+                            0,
+                            0,
                             azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                         )
@@ -2100,11 +2103,21 @@ class AzurePlatform(Platform):
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
         for _ in range(node.capability.disk.data_disk_count):
-            assert isinstance(node.capability.disk.data_disk_size, int)
+            assert isinstance(
+                node.capability.disk.data_disk_size, int
+            ), f"actual: {type(node.capability.disk.data_disk_size)}"
+            assert isinstance(
+                node.capability.disk.data_disk_iops, int
+            ), f"actual: {type(node.capability.disk.data_disk_iops)}"
+            assert isinstance(
+                node.capability.disk.data_disk_throughput, int
+            ), f"actual: {type(node.capability.disk.data_disk_throughput)}"
             data_disks.append(
                 DataDiskSchema(
                     node.capability.disk.data_disk_caching_type,
                     node.capability.disk.data_disk_size,
+                    node.capability.disk.data_disk_iops,
+                    node.capability.disk.data_disk_throughput,
                     azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )

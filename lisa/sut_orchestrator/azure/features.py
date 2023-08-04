@@ -877,30 +877,41 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         return interfaces_info_list
 
 
-# Tuple: (IOPS, Disk Size)
-_disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
+# Tuple: (Disk Size, IOPS, Throughput)
+_disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = {
     schema.DiskType.PremiumSSDLRS: [
-        (120, 4),
-        (240, 64),
-        (500, 128),
-        (1100, 256),
-        (2300, 512),
-        (5000, 1024),
-        (7500, 2048),
-        (16000, 8192),
-        (18000, 16384),
-        (20000, 32767),
+        (4, 120, 25),
+        (64, 240, 50),
+        (128, 500, 100),
+        (256, 1100, 125),
+        (512, 2300, 150),
+        (1024, 5000, 200),
+        (2048, 7500, 250),
+        (8192, 16000, 500),
+        (16384, 18000, 750),
+        (32767, 20000, 900),
     ],
     schema.DiskType.StandardHDDLRS: [
-        (500, 32),
-        (1300, 8192),
-        (2000, 16384),
+        (32, 500, 60),
+        (8192, 1300, 300),
+        (16384, 2000, 500),
     ],
     schema.DiskType.StandardSSDLRS: [
-        (500, 4),
-        (2000, 8192),
-        (4000, 16384),
-        (6000, 32767),
+        (4, 500, 60),
+        (8192, 2000, 400),
+        (16384, 4000, 600),
+        (32767, 6000, 750),
+    ],
+    schema.DiskType.UltraSSDLRS: [
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
     ],
 }
 
@@ -952,6 +963,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_iops, capability.data_disk_iops
             ),
             "data_disk_iops",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
+            ),
+            "data_disk_throughput",
         )
         result.merge(
             search_space.check_countspace(
@@ -1079,87 +1096,70 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         # The Ephemeral doesn't support data disk, but it needs a value. And it
         # doesn't need to calculate on intersect
         value.data_disk_iops = 0
+        value.data_disk_throughput = 0
         value.data_disk_size = 0
 
         if method == RequirementMethod.generate_min_capability:
             assert isinstance(
                 value.data_disk_type, schema.DiskType
             ), f"actual: {type(value.data_disk_type)}"
-            disk_type_iops = _disk_size_iops_map.get(value.data_disk_type, None)
+            disk_type_performance = _disk_size_performance_map.get(
+                value.data_disk_type, None
+            )
             # ignore unsupported disk type like Ephemeral. It supports only os
             # disk. Calculate for iops, if it has value. If not, try disk size
-            if disk_type_iops:
-                if isinstance(self.data_disk_iops, int) or (
-                    self.data_disk_iops != search_space.IntRange(min=0)
-                ):
-                    req_disk_iops = search_space.count_space_to_int_range(
-                        self.data_disk_iops
-                    )
-                    cap_disk_iops = search_space.count_space_to_int_range(
-                        capability.data_disk_iops
-                    )
-                    min_iops = max(req_disk_iops.min, cap_disk_iops.min)
-                    max_iops = min(req_disk_iops.max, cap_disk_iops.max)
-
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= min_iops and iops <= max_iops
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                elif self.data_disk_size:
-                    req_disk_size = search_space.count_space_to_int_range(
-                        self.data_disk_size
-                    )
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    min_size = max(req_disk_size.min, cap_disk_size.min)
-                    max_size = min(req_disk_size.max, cap_disk_size.max)
-
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, disk_size in disk_type_iops
-                        if disk_size >= min_size and disk_size <= max_size
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                else:
-                    # if req is not specified, query minimum value.
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= cap_disk_size.min and iops <= cap_disk_size.max
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-            elif value.data_disk_type == schema.DiskType.UltraSSDLRS:
-                req_disk_size = search_space.count_space_to_int_range(
-                    self.data_disk_size
-                )
-                cap_disk_size = search_space.count_space_to_int_range(
-                    capability.data_disk_size
-                )
-                value.data_disk_size = max(req_disk_size.min, cap_disk_size.min)
-
+            if disk_type_performance:
                 req_disk_iops = search_space.count_space_to_int_range(
                     self.data_disk_iops
                 )
                 cap_disk_iops = search_space.count_space_to_int_range(
                     capability.data_disk_iops
                 )
-                value.data_disk_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                min_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                max_iops = min(req_disk_iops.max, cap_disk_iops.max)
+
+                req_disk_throughput = search_space.count_space_to_int_range(
+                    self.data_disk_throughput
+                )
+                cap_disk_throughput = search_space.count_space_to_int_range(
+                    capability.data_disk_throughput
+                )
+                min_throughput = max(req_disk_throughput.min, cap_disk_throughput.min)
+                max_throughput = min(req_disk_throughput.max, cap_disk_throughput.max)
+
+                req_disk_size = search_space.count_space_to_int_range(
+                    self.data_disk_size
+                )
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                min_size = max(req_disk_size.min, cap_disk_size.min)
+                max_size = min(req_disk_size.max, cap_disk_size.max)
+
+                value.data_disk_size = min(
+                    size
+                    for size, iops, throughput in disk_type_performance
+                    if iops >= min_iops
+                    and iops <= max_iops
+                    and throughput >= min_throughput
+                    and throughput <= max_throughput
+                    and size >= min_size
+                    and size <= max_size
+                )
+
+                (
+                    value.data_disk_iops,
+                    value.data_disk_throughput,
+                ) = self._get_disk_performance_from_size(
+                    value.data_disk_size, disk_type_performance
+                )
 
         elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
                 self.data_disk_iops, capability.data_disk_iops
+            )
+            value.data_disk_throughput = search_space.intersect_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
             )
             value.data_disk_size = search_space.intersect_countspace(
                 self.data_disk_size, capability.data_disk_size
@@ -1177,11 +1177,13 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return value
 
-    def _get_disk_size_from_iops(
-        self, data_disk_iops: int, disk_type_iops: List[Tuple[int, int]]
-    ) -> int:
+    def _get_disk_performance_from_size(
+        self, data_disk_size: int, disk_type_performance: List[Tuple[int, int, int]]
+    ) -> Tuple[int, int]:
         return next(
-            disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
+            (iops, throughput)
+            for size, iops, throughput in disk_type_performance
+            if size == data_disk_size
         )
 
     def _check_has_resource_disk(
