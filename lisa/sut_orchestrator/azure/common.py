@@ -1931,18 +1931,6 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential, retr
                     sleep(5) 
                 else:
                     raise
-        for attempt in range(retries):
-            try:
-                # Create certificate
-                create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
-                # Enable secret associated with the certificate
-                certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
-                break
-            except AzureConfiguration.core.exceptions.ResourceExistsError:
-                if attempt < retries - 1:
-                    sleep(5) 
-                else:
-                    raise
 
         secret_id = secret_client.get_secret(name=cert_name).id
         secret_url_without_version = secret_id.rsplit('/', 1)[0]
@@ -1966,15 +1954,31 @@ def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAz
             break
         except AzureConfiguration.core.exceptions.ResourceExistsError:
             if attempt < 1: 
-            if attempt < 1: 
                 time.sleep(1) 
             else:
                 raise
-def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
-    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
-    # Retrieve the old version of the certificate
-    old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
-    log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+
+
+
+    # Retrieve the new version of the certificate from the creation result
+    new_certificate_version = create_certificate_result.properties.version
+    log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+
+    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+
+    # Get the OS release information
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
 
 
     log.info("Certificate rotated")
@@ -1985,6 +1989,22 @@ def check_system_status(node: Node, log: Logger) -> None:
     log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
     ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
     log.info(f"Directory contents: {ls_result.stdout}")
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+
+    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+
+    # Get the OS release information
     os_release_result = node.execute("cat /etc/os-release", sudo=False)
     log.info(f"OS release: {os_release_result.stdout}")
 
