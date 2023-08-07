@@ -45,6 +45,10 @@ from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.keyvault.secrets import SecretClient
 
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.compute import ComputeManagementClient
+from azure.keyvault.secrets import SecretClient
+
 from azure.storage.blob import (
     AccountSasPermissions,
     BlobClient,
