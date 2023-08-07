@@ -49,6 +49,7 @@ azure = [
     "azure-mgmt-storage ~= 20.0.0",
     "azure-storage-blob ~= 12.11.0",
     "azure-storage-file-share ~= 12.4.0",
+    "azure-keyvault-secrets ~= 4.7.0", 
     "msrestazure ~= 0.6.4",
     "cachetools ~= 5.2.0",
     "requests",
