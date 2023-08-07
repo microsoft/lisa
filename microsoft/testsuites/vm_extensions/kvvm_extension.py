@@ -150,7 +150,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         extension_version = os.environ.get('extension_version')
         settings = {
             "secretsManagementSettings": {
-               "enableAutomaticUpgrade": True,
+                "autoUpgradeMinorVersion": True,
+                "enableAutomaticUpgrade": True,
                 "pollingIntervalInS": "10",
                 "certificateStoreLocation": "/var/lib/waagent/Microsoft.Azure.KeyVault",
                 "observedCertificates": [
