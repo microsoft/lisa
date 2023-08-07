@@ -3,27 +3,23 @@ include:
   - path: ./tiers/tier.yml
 variable:
   - name: location
-    value: "westus2"
+    value: "westus3"
   - name: keep_environment
     value: "no"
   - name: resource_group_name
     value: ""
-  - name: cvt_binary_sas_uri
-    value: ""
-    is_case_visible: true
-    is_secret: true
   - name: marketplace_image
     value: ""
   - name: vhd
     value: ""
   - name: vm_size
-    value: "Standard_D2s_v3"
+    value: ""
   - name: deploy
     value: true
   - name: wait_delete
-    value: true
+    value: false
   - name: concurrency
-    value: 3
+    value: 5
   - name: admin_private_key_file
     value: ""
     is_secret: true
@@ -34,18 +30,13 @@ concurrency: $(concurrency)
 notifier:
   - type: html
   - type: env_stats
-combinator:
-  type: grid
-  items:
-    - name: marketplace_image
-      value:
-        - "redhat rhel 7_9 latest"
 platform:
   - type: azure
     admin_private_key_file: $(admin_private_key_file)
     admin_password: $(admin_password)
     keep_environment: $(keep_environment)
     azure:
+      resource_group_name: $(resource_group_name)
       deploy: $(deploy)
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
@@ -54,9 +45,6 @@ platform:
         min: 2
       azure:
         marketplace: $(marketplace_image)
+        vhd: $(vhd)
         location: $(location)
         vm_size: $(vm_size)
-testcase:
-  - criteria:
-      area: cvt
-      priority: 0
