@@ -107,9 +107,9 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             ),
                 AccessPolicyEntry(
                     tenant_id=user_tenant_id,
-                    object_id=object_id_vm, # Object ID of the VM
+                    object_id=object_id_vm, 
                     permissions=Permissions(
-                        keys=['all'],          # Permissions for the VM
+                        keys=['all'],          
                         secrets=['all'],
                         certificates=['all']
                     )
