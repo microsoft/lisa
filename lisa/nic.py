@@ -505,6 +505,11 @@ class NicsBSD(Nics):
     # hn1
     _nic_vf_index_regex = re.compile(r"hn(?P<index>\d+)")
 
+    # default            172.20.0.1         UGS         hn0
+    _default_nic_regex = re.compile(
+        r"default\s+(?P<ip_addr>\d+\.\d+\.\d+\.\d+)\s+UGS\s+(?P<nic_name>\w+)"
+    )
+
     def _get_nic_names(self) -> List[str]:
         # identify all of the nics on the device
         return self._node.tools[Ip].get_interface_list()
@@ -589,7 +594,9 @@ class NicsBSD(Nics):
 
     def _get_default_nic(self) -> None:
         # This information is presently not needed for FreeBSD tests
-        pass
+        output = self._node.execute("netstat -4rn", sudo=True).stdout
+        matched = find_groups_in_lines(output, self._default_nic_regex)[0]
+        self.default_nic = matched["nic_name"]
 
     def _get_tx_packets(self, nic_name: str) -> int:
         output = self._node.execute(

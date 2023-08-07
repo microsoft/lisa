@@ -2,12 +2,12 @@
 # Licensed under the MIT license.
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
 from lisa.operating_system import Posix
-from lisa.util import constants
+from lisa.util import constants, find_groups_in_lines
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
@@ -29,6 +29,10 @@ class Sar(Tool):
     @property
     def command(self) -> str:
         return "sar"
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return SarBSD
 
     @property
     def can_install(self) -> bool:
@@ -79,22 +83,9 @@ class Sar(Tool):
             expected_exit_code_failure_message="fail to run sar command",
         )
 
-    def create_pps_performance_messages(
-        self,
-        result: ExecutableResult,
-        test_case_name: str,
-        test_type: str,
-        test_result: "TestResult",
-    ) -> NetworkPPSPerformanceMessage:
-        # IFACE: Name of the network interface for which statistics are reported.
-        # rxpck/s: packet receiving rate (unit: packets/second)
-        # txpck/s: packet transmitting rate (unit: packets/second)
-        # rxkB/s: data receiving rate (unit: Kbytes/second)
-        # txkB/s: data transmitting rate (unit: Kbytes/second)
-        # rxcmp/s: compressed packets receiving rate (unit: Kbytes/second)
-        # txcmp/s: compressed packets transmitting rate (unit: Kbytes/second)
-        # rxmcst/s: multicast packets receiving rate (unit: Kbytes/second)
-        nic_name = self.node.nics.default_nic
+    def get_data(
+        self, nic_name: str, result: ExecutableResult
+    ) -> Dict[str, List[Decimal]]:
         sar_result_pattern = re.compile(
             rf"([\w\W]*?){nic_name}([\w\W]*?)\s+(?P<rxpck>\d+.\d+)"
             r"([\w\W]*?)\s+(?P<txpck>\d+.\d+)([\w\W]*?)\s+(?P<rxkb>\d+.\d+)"
@@ -114,6 +105,34 @@ class Sar(Tool):
             tx_rx_pps.append(
                 Decimal(temp.group("rxpck")) + Decimal(temp.group("txpck"))
             )
+
+        return {
+            "rx_pps": rx_pps,
+            "tx_pps": tx_pps,
+            "tx_rx_pps": tx_rx_pps,
+        }
+
+    def create_pps_performance_messages(
+        self,
+        result: ExecutableResult,
+        test_case_name: str,
+        test_type: str,
+        test_result: "TestResult",
+    ) -> NetworkPPSPerformanceMessage:
+        # IFACE: Name of the network interface for which statistics are reported.
+        # rxpck/s: packet receiving rate (unit: packets/second)
+        # txpck/s: packet transmitting rate (unit: packets/second)
+        # rxkB/s: data receiving rate (unit: Kbytes/second)
+        # txkB/s: data transmitting rate (unit: Kbytes/second)
+        # rxcmp/s: compressed packets receiving rate (unit: Kbytes/second)
+        # txcmp/s: compressed packets transmitting rate (unit: Kbytes/second)
+        # rxmcst/s: multicast packets receiving rate (unit: Kbytes/second)
+        nic_name = self.node.nics.default_nic
+        data = self.get_data(nic_name, result)
+        rx_pps = data["rx_pps"]
+        tx_pps = data["tx_pps"]
+        tx_rx_pps = data["tx_rx_pps"]
+
         result_fields: Dict[str, Any] = {}
         result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_SAR
         result_fields["test_type"] = test_type
@@ -138,3 +157,49 @@ class Sar(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
         firewall.stop()
+
+
+class SarBSD(Sar):
+    #             input            hn0           output
+    # packets  errs idrops      bytes    packets  errs      bytes colls
+    #   16     0     0       3506         23     0       5473     0
+    #  34     0     0       8253         50     0       8570     0
+    sar_results_pattern = re.compile(
+        r"\s*(?P<rxpck>\d+)\s+(?P<rxerr>\d+)\s+(?P<rxdrop>\d+)\s+(?P<rxbytes>\d+)"
+        r"\s+(?P<txpck>\d+)\s+(?P<txerr>\d+)\s+(?P<txdrop>\d+)\s+(?P<txbytes>\d+)",
+        re.M,
+    )
+
+    @property
+    def command(self) -> str:
+        return "netstat"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def get_statistics_async(
+        self, key_word: str = "DEV", interval: int = 1, count: int = 120
+    ) -> Process:
+        nic_name = self.node.nics.default_nic
+        cmd = f"netstat -I {nic_name} -w {interval} -q {count}"
+        process = self.node.execute_async(cmd, shell=True)
+        return process
+
+    def get_data(
+        self, nic_name: str, result: ExecutableResult
+    ) -> Dict[str, List[Decimal]]:
+        data = find_groups_in_lines(result.stdout, self.sar_results_pattern)
+        rx_pps: List[Decimal] = []
+        tx_pps: List[Decimal] = []
+        tx_rx_pps: List[Decimal] = []
+        for item in data:
+            rx_pps.append(Decimal(item["rxpck"]))
+            tx_pps.append(Decimal(item["txpck"]))
+            tx_rx_pps.append(Decimal(item["rxpck"]) + Decimal(item["txpck"]))
+
+        return {
+            "rx_pps": rx_pps,
+            "tx_pps": tx_pps,
+            "tx_rx_pps": tx_rx_pps,
+        }
