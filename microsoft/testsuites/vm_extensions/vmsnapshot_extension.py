@@ -41,7 +41,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Validate response of the restore point for validity.
         Attempt it a few items to rule out cases when VM is under changes.
         """,
-        priority=6,
+        priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_vmsnapshot_extension(
