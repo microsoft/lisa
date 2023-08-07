@@ -10,7 +10,9 @@ from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from time import sleep
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from msrestazure import AzureConfiguration
 
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
@@ -39,6 +41,10 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.compute import ComputeManagementClient
+from azure.keyvault.secrets import SecretClient
+
 from azure.storage.blob import (
     AccountSasPermissions,
     BlobClient,
@@ -73,6 +79,10 @@ from lisa.util import (
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
+
+
+from azure.keyvault.certificates import CertificateClient, CertificatePolicy
+from azure.identity import DefaultAzureCredential
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -1433,6 +1443,7 @@ def load_environment(
         node_schema = schema.RemoteNode(name=vm.name)
         environment_runbook.nodes_raw.append(node_schema)
         vms_map[vm.name] = vm
+        vm.identity = {"type": "SystemAssigned"}
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])
@@ -1895,3 +1906,105 @@ class DataDisk:
             return iops_dict[min_iops]
         else:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
+
+
+def create_certificates(vault_url: str, credential: DefaultAzureCredential, retries=5, delay=2):
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    secret_client = SecretClient(vault_url=vault_url, credential=credential)
+
+    cert_policy = CertificatePolicy.get_default()
+
+    certificate_names = ["Cert1", "Cert2"]
+    secret_urls = []
+
+    for cert_name in certificate_names:
+        for attempt in range(retries):
+            try:
+                # Create certificate
+                create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
+                certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+                break
+            except AzureConfiguration.core.exceptions.ResourceExistsError:
+                if attempt < retries - 1:
+                    sleep(5) 
+                else:
+                    raise
+
+        secret_id = secret_client.get_secret(name=cert_name).id
+        secret_url_without_version = secret_id.rsplit('/', 1)[0]
+        secret_urls.append(secret_url_without_version)
+
+    return secret_urls
+
+def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    # Retrieve the old version of the certificate
+    old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
+    log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+    cert_policy = CertificatePolicy.get_default()
+    # Create only the specified certificate
+    for attempt in range(2):
+        try:
+            # Create certificate
+            create_certificate_poller = certificate_client.begin_create_certificate(cert_name_to_rotate, policy=cert_policy)
+            create_certificate_result = create_certificate_poller.result() # Wait for completion
+            certificate_client.update_certificate_properties(certificate_name=cert_name_to_rotate, enabled=True)
+            break
+        except AzureConfiguration.core.exceptions.ResourceExistsError:
+            if attempt < 1: 
+                time.sleep(1) 
+            else:
+                raise
+
+
+
+    # Retrieve the new version of the certificate from the creation result
+    new_certificate_version = create_certificate_result.properties.version
+    log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+
+    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+
+    # Get the OS release information
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
+
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+
+    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+
+    # Get the OS release information
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
+
+
+
