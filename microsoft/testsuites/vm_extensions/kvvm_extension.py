@@ -66,13 +66,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_key_vault_extension(self, log: Logger, node: Node, result: TestResult) -> None:
-        # Section for vault name and supported OS check
+        #Section for vault name and supported OS check
         vault_name = os.getenv("vault_name", f"python-keyvault-{random.randint(1, 100000):05}")
         vault_name_a = vault_name + "prp"
         if isinstance(node.os, FreeBSD):
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
-        # Section for environment setup
+        #Section for environment setup
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
@@ -90,7 +90,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         compute_client = ComputeManagementClient(credential, platform.subscription_id)
         vm = compute_client.virtual_machines.get(resource_group_name, node_context.vm_name)
         object_id_vm = vm.identity.principal_id        
-        # Section for Key Vault properties and permissions
+        #Section for Key Vault properties and permissions
         keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
         vault_properties = VaultProperties(
             tenant_id=user_tenant_id,
@@ -122,12 +122,12 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         keyvault_result = keyvault_poller.result()
         log.info(f"Provisioned key vault {keyvault_result.name} in the {keyvault_result.location} region")
 
-           # Assert that the name of the Key Vault matches the expected value
+        #Assert that the name of the Key Vault matches the expected value
         assert_that(keyvault_result.name).described_as(
             "Expected the Key Vault name to match the given value"
         ).is_equal_to(vault_name_a)
 
-        # Assert that the location of the Key Vault matches the expected value
+        #Assert that the location of the Key Vault matches the expected value
         assert_that(keyvault_result.location).described_as(
             "Expected the Key Vault location to match the given value"
         ).is_equal_to(location)
@@ -137,17 +137,17 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         log.info(f"Created certificates 'cert1' and 'cert2' in the key vault")
         log.info(f"Cert1: {certificate1_secret_id}")
         log.info(f"Cert2: {certificate2_secret_id}")
-        # Assert that the first certificate's secret ID is not None, indicating successful creation
+        #Assert that the first certificate's secret ID is not None, indicating successful creation
         assert_that(certificate1_secret_id).described_as(
             "Expected the first certificate's secret ID to be created successfully"
         ).is_not_none()
 
-        # Assert that the second certificate's secret ID is not None, indicating successful creation
+        #Assert that the second certificate's secret ID is not None, indicating successful creation
         assert_that(certificate2_secret_id).described_as(
             "Expected the second certificate's secret ID to be created successfully"
         ).is_not_none()
 
-        # Section for extension details and installation
+        #Section for extension details and installation
         extension_name = os.environ.get('extension_name')
         extension_publisher = os.environ.get('extension_publisher')
         extension_version = os.environ.get('extension_version')

@@ -43,7 +43,6 @@ from azure.mgmt.storage.models import (  # type: ignore
 )
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import VirtualMachineIdentity
 from azure.keyvault.secrets import SecretClient
 
 from azure.storage.blob import (
