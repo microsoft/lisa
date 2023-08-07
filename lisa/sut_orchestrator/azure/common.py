@@ -14,6 +14,7 @@ import time
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from msrestazure import AzureConfiguration
+from msrestazure import AzureConfiguration
 
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
@@ -1930,6 +1931,18 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential, retr
                     sleep(5) 
                 else:
                     raise
+        for attempt in range(retries):
+            try:
+                # Create certificate
+                create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
+                # Enable secret associated with the certificate
+                certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+                break
+            except AzureConfiguration.core.exceptions.ResourceExistsError:
+                if attempt < retries - 1:
+                    sleep(5) 
+                else:
+                    raise
 
         secret_id = secret_client.get_secret(name=cert_name).id
         secret_url_without_version = secret_id.rsplit('/', 1)[0]
@@ -1956,9 +1969,12 @@ def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAz
                 time.sleep(1) 
             else:
                 raise
+def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    # Retrieve the old version of the certificate
+    old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
+    log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
 
-    new_certificate_version = create_certificate_result.properties.version
-    log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
 
     log.info("Certificate rotated")
 
