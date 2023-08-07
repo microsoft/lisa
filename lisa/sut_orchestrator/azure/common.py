@@ -11,9 +11,7 @@ from pathlib import Path
 from threading import Lock
 from time import sleep
 import time
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-from msrestazure import AzureConfiguration
 from msrestazure import AzureConfiguration
 
 import requests
@@ -84,7 +82,6 @@ from lisa.util.perf_timer import create_timer
 
 
 from azure.keyvault.certificates import CertificateClient, CertificatePolicy
-from azure.identity import DefaultAzureCredential
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
