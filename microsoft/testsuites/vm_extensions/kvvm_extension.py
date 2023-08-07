@@ -134,8 +134,6 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             "Expected the Key Vault location to match the given value"
         ).is_equal_to(location)
 
-
-
         #Creation of two certificates, returns their secrets ID
         certificate1_secret_id, certificate2_secret_id = create_certificates(vault_url=keyvault_result.properties.vault_uri, credential=credential)
         log.info(f"Created certificates 'cert1' and 'cert2' in the key vault")
@@ -177,12 +175,10 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             settings=settings,
         )
 
-                # Assert that the provisioning state of the extension installation succeeded
+        # Assert that the provisioning state of the extension installation succeeded
         assert_that(result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
-
-     
 
         #Certificate rotation after AKV Extension installation
         rotate_certificates(self, log, vault_url=keyvault_result.properties.vault_uri, credential=credential, cert_name_to_rotate="Cert1")

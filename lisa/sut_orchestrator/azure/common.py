@@ -12,6 +12,7 @@ from threading import Lock
 from time import sleep
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from msrestazure import AzureConfiguration
 
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
@@ -1908,29 +1909,28 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-
-def get_instance_id(node: Node) -> str:
-    node_context = get_node_context(node)
-    return node_context.instance_id
-
-
-
-def create_certificates(vault_url: str, credential: DefaultAzureCredential):
+def create_certificates(vault_url: str, credential: DefaultAzureCredential, retries=5, delay=2):
     certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
     secret_client = SecretClient(vault_url=vault_url, credential=credential)
 
-    # Define a policy with a 20-second expiration time
     cert_policy = CertificatePolicy.get_default()
 
     certificate_names = ["Cert1", "Cert2"]
     secret_urls = []
 
     for cert_name in certificate_names:
-        # Create certificate
-        create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
-
-        # Enable secret associated with the certificate
-        certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+        for attempt in range(retries):
+            try:
+                # Create certificate
+                create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
+                # Enable secret associated with the certificate
+                certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+                break
+            except AzureConfiguration.core.exceptions.ResourceExistsError:
+                if attempt < retries - 1:
+                    sleep(5) 
+                else:
+                    raise
 
         # Get secret identifier for AKV extension retrieval
         secret_id = secret_client.get_secret(name=cert_name).id
@@ -1941,11 +1941,48 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential):
 
     return secret_urls
 
-def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential) -> None:
-    time.sleep(10)
-    # Rotate the certificate once
-    create_certificates(vault_url, credential)
-    log.info("Certificates rotated")
+def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    # Retrieve the old version of the certificate
+    old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
+    log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+
+    cert_policy = CertificatePolicy.get_default()
+
+    # Create only the specified certificate
+    for attempt in range(2):
+        try:
+            # Create certificate
+            create_certificate_poller = certificate_client.begin_create_certificate(cert_name_to_rotate, policy=cert_policy)
+            create_certificate_result = create_certificate_poller.result() # Wait for completion
+            # Enable secret associated with the certificate
+            certificate_client.update_certificate_properties(certificate_name=cert_name_to_rotate, enabled=True)
+            break
+        except AzureConfiguration.core.exceptions.ResourceExistsError:
+            if attempt < 1: # You can adjust this based on the number of retries
+                time.sleep(1) 
+            else:
+                raise
+
+    # Retrieve the new version of the certificate from the creation result
+    new_certificate_version = create_certificate_result.properties.version
+    log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
+
+    log.info("Certificate rotated")
+
+
+def check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service
+    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+
+    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+    log.info(f"Directory contents: {ls_result.stdout}")
+
+    # Get the OS release information
+    os_release_result = node.execute("cat /etc/os-release", sudo=False)
+    log.info(f"OS release: {os_release_result.stdout}")
 
 
 
