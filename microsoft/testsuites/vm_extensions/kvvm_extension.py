@@ -1,12 +1,11 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
+
 import os
 import random
-import time
 
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.authorization import AuthorizationManagementClient
-from azure.mgmt.authorization.models import RoleAssignmentCreateParameters
-
 
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
@@ -21,7 +20,6 @@ from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute import ComputeManagementClient
 
 from lisa import (
-    Environment,
     Logger,
     Node,
     TestCaseMetadata,
