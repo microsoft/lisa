@@ -66,13 +66,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_key_vault_extension(self, log: Logger, node: Node, result: TestResult) -> None:
-        #Section for vault name and supported OS check
+        # Section for vault name and supported OS check
         vault_name = os.getenv("vault_name", f"python-keyvault-{random.randint(1, 100000):05}")
         vault_name_a = vault_name + "prp"
         if isinstance(node.os, FreeBSD):
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
-        #Section for environment setup
+        # Section for environment setup
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
@@ -90,7 +90,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         compute_client = ComputeManagementClient(credential, platform.subscription_id)
         vm = compute_client.virtual_machines.get(resource_group_name, node_context.vm_name)
         object_id_vm = vm.identity.principal_id        
-        #Section for Key Vault properties and permissions
+        # Section for Key Vault properties and permissions
         keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
         vault_properties = VaultProperties(
             tenant_id=user_tenant_id,
@@ -144,7 +144,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             "Second certificate created successfully"
         ).is_not_none()
 
-        #Section for extension details and installation
+        # Section for extension details and installation
         extension_name = os.environ.get('extension_name')
         extension_publisher = os.environ.get('extension_publisher')
         extension_version = os.environ.get('extension_version')

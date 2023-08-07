@@ -1966,6 +1966,7 @@ def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAz
             break
         except AzureConfiguration.core.exceptions.ResourceExistsError:
             if attempt < 1: 
+            if attempt < 1: 
                 time.sleep(1) 
             else:
                 raise
