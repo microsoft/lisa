@@ -57,7 +57,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         A VM
         A Key Vault
         Two certificates in the Key Vault
-        Retrieval of the certificate's secrets through SecretClient class from the Azure SDK.
+        Retrieval of the certificate's secrets through SecretClient class from Azure SDK.
         Installation of the Azure Key Vault Linux Extension on the VM.
         Rotation of the certificates (After KVVM Extension has been installed)
         All of the resources have been created by using the Azure SDK Python.
