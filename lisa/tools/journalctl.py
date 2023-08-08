@@ -22,3 +22,13 @@ class Journalctl(Tool):
         )
 
         return result.stdout
+
+    def first_n_logs_from_boot(self, boot_id: str = "", no_of_lines: int = 1000) -> str:
+        result = self.run(
+            f"-b {boot_id} | head -n {no_of_lines} ",
+            force_run=True,
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+        )
+        return result.stdout
