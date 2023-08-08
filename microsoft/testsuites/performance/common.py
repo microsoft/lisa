@@ -519,7 +519,9 @@ def perf_sockperf(
     server = cast(RemoteNode, environment.nodes[1])
     sysctls: List[Sysctl] = []
     if isinstance(client.os, Ubuntu) and (client.os.information.version < "18.4.0"):
-        raise SkippedException
+        raise SkippedException(
+            f"Sockperf tests don't support EOL Ubuntu {client.os.information.release}"
+        )
     if set_busy_poll:
         sysctls = run_in_parallel(
             [lambda: client.tools[Sysctl], lambda: server.tools[Sysctl]]
