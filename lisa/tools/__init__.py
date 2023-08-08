@@ -22,6 +22,7 @@ from .cargo import Cargo
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
+from .cmake import Cmake
 from .cp import Cp
 from .curl import Curl
 from .date import Date
@@ -128,6 +129,7 @@ __all__ = [
     "Chmod",
     "Chown",
     "Chrony",
+    "Cmake",
     "Cp",
     "Curl",
     "Date",

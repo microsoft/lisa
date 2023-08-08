@@ -21,8 +21,9 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Debian, OperatingSystem, Ubuntu
 from lisa.tools import (
+    Cmake,
     Dmesg,
     Echo,
     Firewall,
@@ -32,10 +33,13 @@ from lisa.tools import (
     Lscpu,
     Lsmod,
     Lspci,
+    Make,
     Modprobe,
     Mount,
     Ping,
+    Tar,
     Timeout,
+    Wget,
 )
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
@@ -158,9 +162,18 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    is_old_ubuntu = isinstance(node.os, Ubuntu)
+    is_old_debian = (
+        not is_old_ubuntu
+        and isinstance(node.os, Debian)
+        and node.os.information.version < "11.0.0"
+    )
+    if is_old_ubuntu or is_old_debian:
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+    if is_old_debian:
+        # install a recent rdma-core version along with newer dpdk
+        install_recent_rdma_core(node, "46.0")
 
 
 def _ping_all_nodes_in_environment(environment: Environment) -> None:
@@ -573,3 +586,18 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
+
+
+def install_recent_rdma_core(node: Node, version: str) -> None:
+    wget_url = f"https://github.com/linux-rdma/rdma-core/releases/download/v{version}/rdma-core-{version}.tar.gz"
+    path = node.tools[Wget].get(wget_url, str(node.working_path))
+    node.tools[Tar].extract(file=path, dest_dir=str(node.working_path), gzip=True)
+    cmake_path = node.working_path.joinpath(f"rdma-core-{version}")
+    node.tools[Cmake].run(
+        "-DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+        force_run=True,
+        shell=True,
+        cwd=cmake_path,
+    )
+    node.tools[Make].make(arguments="", cwd=cmake_path)
+    node.tools[Make].make_install(cwd=cmake_path)
