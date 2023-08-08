@@ -4,6 +4,8 @@ import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
+from assertpy.assertpy import assert_that
+
 from lisa.executable import Tool
 from lisa.messages import NetworkPPSPerformanceMessage, create_perf_message
 from lisa.operating_system import Posix
@@ -181,6 +183,11 @@ class SarBSD(Sar):
     def get_statistics_async(
         self, key_word: str = "DEV", interval: int = 1, count: int = 120
     ) -> Process:
+        assert_that(
+            interval,
+            "SAR equivalent on FreeBSD needs to be run every second "
+            "to get packets received and sent per second",
+        ).is_equal_to(1)
         nic_name = self.node.nics.default_nic
         cmd = f"netstat -I {nic_name} -w {interval} -q {count}"
         process = self.node.execute_async(cmd, shell=True)
