@@ -62,7 +62,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         Rotation of the certificates (After KVVM Extension has been installed)
         All of the resources have been created by using the Azure SDK Python.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_key_vault_extension(self, log: Logger, node: Node, result: TestResult) -> None:

@@ -339,6 +339,10 @@
                 "name": "vmCopy",
                 "count": "[variables('node_count')]"
             },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+                        
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
             "tags": "[parameters('vm_tags')]",
