@@ -310,7 +310,7 @@ class AzurePlatformSchema:
     # do actual deployment, or try to retrieve existing vms
     deploy: bool = True
     # wait resource deleted or not
-    wait_delete: bool = False
+    wait_delete: bool = True
     # the AzCopy path can be specified if use this tool to copy blob
     azcopy_path: str = field(default="")
 
