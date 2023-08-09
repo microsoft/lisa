@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import pathlib
 import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Type, Union, cast
@@ -10,7 +11,7 @@ from assertpy import assert_that
 from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
-from lisa.operating_system import BSD, CBLMariner, Posix
+from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
 from lisa.tools import Firewall, Gcc, Git, Make
 from lisa.util import constants
 from lisa.util.process import Process
@@ -29,9 +30,11 @@ class Sockperf(Tool):
 
     @property
     def can_install(self) -> bool:
-        # FIXME: bug in BSD bulld is blocking BSD runs.
-        # Fast fail if attempting ot install.
-        return self.node.is_posix
+        # FIXME: skip support for Ubuntu 16.04
+        return self.node.is_posix and not (
+            isinstance(self.node.os, Ubuntu)
+            and (self.node.os.information.version < "18.4.0")
+        )
 
     _sockperf_repo = "https://github.com/Mellanox/sockperf.git"
 
@@ -102,34 +105,47 @@ class Sockperf(Tool):
             git = self.node.tools[Git]
             git.clone(self._sockperf_repo, tool_path)
             code_path = tool_path.joinpath("sockperf")
-
-            make = self.node.tools[Make]
-            self.node.execute(
-                "./autogen.sh",
-                shell=True,
-                cwd=code_path,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Sockperf: autogen.sh failed after git clone."
-                ),
-            )
-
-            self.node.execute(
-                "./configure --prefix=/usr",
-                shell=True,
-                cwd=code_path,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Sockperf: ./configure failed after github clone"
-                ),
-            )
-
-            make.make_install(cwd=code_path, sudo=True)
+            # try latest, if fails, try stable
+            # seems to work best for BSD+Linux compat for now
+            try:
+                self.run_build_install(code_path)
+            except AssertionError:  # catch build failures
+                self.node.tools[Make].run("clean", cwd=code_path, force_run=True)
+                # try and older stable tag
+                git.checkout(cwd=code_path, ref="3.10")
+                self.node.log.debug(
+                    "Latest build failed, re-running with stable version 3.10."
+                )
+                self.run_build_install(code_path)
 
         # disable any firewalls running which might mess with the test
         self.node.tools[Firewall].stop()
 
         return self._check_exists()
+
+    def run_build_install(self, code_path: pathlib.PurePath) -> None:
+        make = self.node.tools[Make]
+        self.node.execute(
+            "./autogen.sh",
+            shell=True,
+            cwd=code_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Sockperf: autogen.sh failed after git clone."
+            ),
+        )
+
+        self.node.execute(
+            "./configure --prefix=/usr",
+            shell=True,
+            cwd=code_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Sockperf: ./configure failed after github clone"
+            ),
+        )
+
+        make.make_install(cwd=code_path, sudo=True)
 
     def get(self, command: str) -> str:
         return self.run(command, shell=True, force_run=True).stdout

@@ -4,7 +4,8 @@ from typing import Dict, Union
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata, notifier
 from lisa.messages import DescriptorPollThroughput, IPCLatency, create_perf_message
-from lisa.testsuite import TestResult
+from lisa.operating_system import BSD, Windows
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Perf
 
 
@@ -24,6 +25,9 @@ class PerfToolSuite(TestSuite):
         3. Calculate the average, min, max time of the 20 runs.
         """,
         priority=3,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def perf_messaging(
         self,
@@ -54,6 +58,9 @@ class PerfToolSuite(TestSuite):
         3. Calculate the average, min, max operations of the 20 runs.
         """,
         priority=3,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def perf_epoll(
         self,
