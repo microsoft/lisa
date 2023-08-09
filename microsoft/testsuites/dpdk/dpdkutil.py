@@ -37,6 +37,7 @@ from lisa.tools import (
     Modprobe,
     Mount,
     Ping,
+    Pkgconfig,
     Tar,
     Timeout,
     Wget,
@@ -593,11 +594,20 @@ def install_recent_rdma_core(node: Node, version: str) -> None:
     path = node.tools[Wget].get(wget_url, str(node.working_path))
     node.tools[Tar].extract(file=path, dest_dir=str(node.working_path), gzip=True)
     cmake_path = node.working_path.joinpath(f"rdma-core-{version}")
+    if isinstance(node.os, Debian):
+        node.os.install_packages(
+            packages=["cython", "libnl-3-dev", "libnl-route-3-dev", Pkgconfig]
+        )
+    else:
+        raise UnsupportedDistroException(
+            node.os, "rdma-core manual installation not supported on this os."
+        )
     node.tools[Cmake].run(
         "-DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
         force_run=True,
         shell=True,
         cwd=cmake_path,
     )
+
     node.tools[Make].make(arguments="", cwd=cmake_path)
     node.tools[Make].make_install(cwd=cmake_path)
