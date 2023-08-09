@@ -10,12 +10,13 @@ from functools import lru_cache
 from pathlib import Path
 from threading import Lock
 from time import sleep
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-from msrestazure import AzureConfiguration
 
 import requests
 from assertpy import assert_that
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.certificates import CertificateClient, CertificatePolicy
+from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
@@ -42,10 +43,6 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
-from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute import ComputeManagementClient
-from azure.keyvault.secrets import SecretClient
-
 from azure.storage.blob import (
     AccountSasPermissions,
     BlobClient,
@@ -80,10 +77,6 @@ from lisa.util import (
 from lisa.util.logger import Logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
-
-
-from azure.keyvault.certificates import CertificateClient, CertificatePolicy
-from azure.identity import DefaultAzureCredential
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -1917,8 +1910,13 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-def create_certificates(vault_url: str, credential: DefaultAzureCredential, log: Logger, retries=5, delay=2):
-    
+def create_certificates(
+    vault_url: str,
+    credential: DefaultAzureCredential,
+    log: Logger,
+    retries: int = 5,
+    delay: int = 2,
+) -> List[str]:
     certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
     secret_client = SecretClient(vault_url=vault_url, credential=credential)
 
@@ -1931,40 +1929,63 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential, log:
         for attempt in range(retries):
             try:
                 # Create certificate
-                create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
-                certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
+                create_certificate_result = certificate_client.begin_create_certificate(
+                    cert_name, policy=cert_policy
+                )
+                log.info(
+                    f"Certificate has been created: "
+                    f"Result: {create_certificate_result}"
+                )
+                certificate_client.update_certificate_properties(
+                    certificate_name=cert_name, enabled=True
+                )
                 break
             except Exception as e:
                 if attempt < retries - 1:
                     sleep(delay)
                 else:
-                    log.error(f"Failed to create certificate named '{cert_name}' after {retries} retries.")
+                    log.error(
+                        f"Failed to create certificate named"
+                        f"{cert_name}' after {retries} retries."
+                        f"Error info {e}"
+                    )
                     raise
-            except Exception as e:
-                log.error(f"Unexpected error occurred while creating certificate named '{cert_name}': {e}")
-                raise
 
         try:
-            secret_id = secret_client.get_secret(name=cert_name).id
-            secret_url_without_version = secret_id.rsplit('/', 1)[0]
-            secret_urls.append(secret_url_without_version)
+            secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+            if secret_id:
+                secret_url_without_version = secret_id.rsplit("/", 1)[0]
+                secret_urls.append(secret_url_without_version)
+            else:
+                log.error(
+                    f"Failed to retrieve secret ID for certificate named '{cert_name}'."
+                )
         except Exception as e:
-            log.error(f"Failed to retrieve secret ID for certificate named '{cert_name}': {e}")
+            log.error(
+                f"Failed to retrieve secret ID for certificate named '{cert_name}': {e}"
+            )
             raise
 
     return secret_urls
 
 
-def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
-    
+def rotate_certificates(
+    self,
+    log: Logger,
+    vault_url: str,
+    credential: DefaultAzureCredential,
+    cert_name_to_rotate: str,
+) -> None:
     certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
-    
+
     try:
         # Retrieve the old version of the certificate
-        old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
-        log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+        certificate_client.get_certificate(cert_name_to_rotate)
     except Exception as e:
-        log.error(f"Failed to retrieve old version of certificate named '{cert_name_to_rotate}': {e}")
+        log.error(
+            f"Failed to retrieve old version of certificate:"
+            f"{cert_name_to_rotate}': {e}"
+        )
         raise
 
     cert_policy = CertificatePolicy.get_default()
@@ -1973,36 +1994,57 @@ def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAz
     for attempt in range(2):
         try:
             # Create certificate
-            create_certificate_poller = certificate_client.begin_create_certificate(cert_name_to_rotate, policy=cert_policy)
-            create_certificate_result = create_certificate_poller.result()  # Wait for completion
-            certificate_client.update_certificate_properties(certificate_name=cert_name_to_rotate, enabled=True)
+            create_certificate_poller = certificate_client.begin_create_certificate(
+                cert_name_to_rotate, policy=cert_policy
+            )
+            create_certificate_result = create_certificate_poller.result()
+
+            # Handle possible None value
+            if (
+                create_certificate_result
+                and hasattr(create_certificate_result, "properties")
+                and create_certificate_result.properties
+            ):
+                new_certificate_version = create_certificate_result.properties.version
+                log.info(
+                    f"New version of certificate '{cert_name_to_rotate}': "
+                    f"{new_certificate_version}"
+                )
+                log.info("Certificate rotated")
+            else:
+                log.error(
+                    "Failed to retrieve properties from create certificate result."
+                )
+
+            certificate_client.update_certificate_properties(
+                certificate_name=cert_name_to_rotate, enabled=True
+            )
             break
         except Exception as e:
             if attempt < 1:
                 sleep(1)
             else:
-                log.error(f"Failed to rotate certificate named '{cert_name_to_rotate}' after 2 attempts.")
+                log.error(
+                    f"Failed to rotate certificate:"
+                    f"{cert_name_to_rotate}' after 2 attempts."
+                    f"More exception info: {e}"
+                )
                 raise
-        except Exception as e:
-            log.error(f"Unexpected error occurred while rotating certificate named '{cert_name_to_rotate}': {e}")
-            raise
-
-    # Retrieve the new version of the certificate from the creation result
-    new_certificate_version = create_certificate_result.properties.version
-    log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
-    log.info("Certificate rotated")
 
 
 def check_system_status(node: Node, log: Logger) -> None:
     # Check the status of the akvvm_service service
-    akvvm_service_result = node.execute("systemctl status akvvm_service.service", sudo=True, timeout=10)
+    akvvm_service_result = node.execute(
+        "systemctl status akvvm_service.service", sudo=True, timeout=10
+    )
     log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
-    # List the contents of the directory /var/lib/waagent/Microsoft.Azure.KeyVault
-    ls_result = node.execute("sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True)
+
+    # List the contents directory /var/lib/waagent/Microsoft.Azure.KeyVault
+    ls_result = node.execute(
+        "sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
+    )
     log.info(f"Directory contents: {ls_result.stdout}")
+
     # Get the OS release information
     os_release_result = node.execute("cat /etc/os-release", sudo=False)
     log.info(f"OS release: {os_release_result.stdout}")
-
-
-
