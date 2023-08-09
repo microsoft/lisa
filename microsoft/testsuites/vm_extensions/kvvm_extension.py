@@ -89,7 +89,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         #We need to assign an identity to VM for later entry access policies for Key Vault
         compute_client = ComputeManagementClient(credential, platform.subscription_id)
         vm = compute_client.virtual_machines.get(resource_group_name, node_context.vm_name)
-        object_id_vm = vm.identity.principal_id        
+        object_id_vm = vm.identity.principal_id      
         # Section for Key Vault properties and permissions
         keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
         vault_properties = VaultProperties(
@@ -130,29 +130,39 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             "Expected the Key Vault location to match the given value"
         ).is_equal_to(location)
 
+        # Before calling the function
+        log.info("About to call create_certificates with vault_url: %s", keyvault_result.properties.vault_uri)
+
+        # Function call
         certificate1_secret_id, certificate2_secret_id = create_certificates(
             vault_url=keyvault_result.properties.vault_uri, 
-            credential=credential)
+            credential=credential,
+            log=log
+        )
+
+        # After the function call
+        log.info("Certificates created. Cert1 ID: %s, Cert2 ID: %s", certificate1_secret_id, certificate2_secret_id)
+
         log.info(f"Created certificates 'cert1' and 'cert2' in the key vault")
-        log.info(f"Cert1: {certificate1_secret_id}")
-        log.info(f"Cert2: {certificate2_secret_id}")
         assert_that(certificate1_secret_id).described_as(
             "First certificate created successfully"
-        ).is_not_none()
-
+        ).is_not_none()        
+        log.info(f"Cert1: {certificate1_secret_id}")
         assert_that(certificate2_secret_id).described_as(
             "Second certificate created successfully"
-        ).is_not_none()
+        ).is_not_none()        
+        log.info(f"Cert2: {certificate2_secret_id}")
+
 
         # Section for extension details and installation
-        extension_name = "KVVMExtensionForLinux"
+        extension_name = "KeyVaultForLinux"
         extension_publisher = "Microsoft.Azure.KeyVault"
         extension_version = "2.0"
         settings = {
             "secretsManagementSettings": {
                 "autoUpgradeMinorVersion": True,
                 "enableAutomaticUpgrade": True,
-                "pollingIntervalInS": "10",
+                "pollingIntervalInS": "360",
                 "certificateStoreLocation": "/var/lib/waagent/Microsoft.Azure.KeyVault",
                 "observedCertificates": [
                     certificate1_secret_id,
@@ -167,6 +177,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             type_=extension_name,
             type_handler_version=extension_version,
             auto_upgrade_minor_version=True,
+            enable_automatic_upgrade=True,
             settings=settings,
         )
 
@@ -180,7 +191,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                             vault_url=keyvault_result.properties.vault_uri,
                             credential=credential,
                             cert_name_to_rotate="Cert1")
-        assert True, "Certificates could not be rotated."
+        assert True, "Cert1 has been rotated."
         # Commands to VM to show certs/status of the extension
         check_system_status(node, log)
 

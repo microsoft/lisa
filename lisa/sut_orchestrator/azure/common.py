@@ -82,6 +82,7 @@ from lisa.util.perf_timer import create_timer
 
 
 from azure.keyvault.certificates import CertificateClient, CertificatePolicy
+from azure.identity import DefaultAzureCredential
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
@@ -1907,7 +1908,8 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-def create_certificates(vault_url: str, credential: DefaultAzureCredential, retries=5, delay=2):
+def create_certificates(vault_url: str, credential: DefaultAzureCredential, log: Logger, retries=5, delay=2):
+    
     certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
     secret_client = SecretClient(vault_url=vault_url, credential=credential)
 
@@ -1923,36 +1925,59 @@ def create_certificates(vault_url: str, credential: DefaultAzureCredential, retr
                 create_certificate_result = certificate_client.begin_create_certificate(cert_name, policy=cert_policy)
                 certificate_client.update_certificate_properties(certificate_name=cert_name, enabled=True)
                 break
-            except AzureConfiguration.core.exceptions.ResourceExistsError:
+            except Exception as e:
                 if attempt < retries - 1:
-                    sleep(5) 
+                    sleep(delay)
                 else:
+                    log.error(f"Failed to create certificate named '{cert_name}' after {retries} retries.")
                     raise
+            except Exception as e:
+                log.error(f"Unexpected error occurred while creating certificate named '{cert_name}': {e}")
+                raise
 
-        secret_id = secret_client.get_secret(name=cert_name).id
-        secret_url_without_version = secret_id.rsplit('/', 1)[0]
-        secret_urls.append(secret_url_without_version)
+        try:
+            secret_id = secret_client.get_secret(name=cert_name).id
+            secret_url_without_version = secret_id.rsplit('/', 1)[0]
+            secret_urls.append(secret_url_without_version)
+        except Exception as e:
+            log.error(f"Failed to retrieve secret ID for certificate named '{cert_name}': {e}")
+            raise
+
     return secret_urls
 
+
 def rotate_certificates(self, log: Logger, vault_url: str, credential: DefaultAzureCredential, cert_name_to_rotate: str) -> None:
+    
     certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
-    # Retrieve the old version of the certificate
-    old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
-    log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+    
+    try:
+        # Retrieve the old version of the certificate
+        old_certificate = certificate_client.get_certificate(cert_name_to_rotate)
+        log.info(f"Old version of certificate '{cert_name_to_rotate}': {old_certificate.properties.version}")
+    except Exception as e:
+        log.error(f"Failed to retrieve old version of certificate named '{cert_name_to_rotate}': {e}")
+        raise
+
     cert_policy = CertificatePolicy.get_default()
+
     # Create only the specified certificate
     for attempt in range(2):
         try:
             # Create certificate
             create_certificate_poller = certificate_client.begin_create_certificate(cert_name_to_rotate, policy=cert_policy)
-            create_certificate_result = create_certificate_poller.result() # Wait for completion
+            create_certificate_result = create_certificate_poller.result()  # Wait for completion
             certificate_client.update_certificate_properties(certificate_name=cert_name_to_rotate, enabled=True)
             break
-        except AzureConfiguration.core.exceptions.ResourceExistsError:
-            if attempt < 1: 
-                time.sleep(1) 
+        except Exception as e:
+            if attempt < 1:
+                sleep(1)
             else:
+                log.error(f"Failed to rotate certificate named '{cert_name_to_rotate}' after 2 attempts.")
                 raise
+        except Exception as e:
+            log.error(f"Unexpected error occurred while rotating certificate named '{cert_name_to_rotate}': {e}")
+            raise
+
     # Retrieve the new version of the certificate from the creation result
     new_certificate_version = create_certificate_result.properties.version
     log.info(f"New version of certificate '{cert_name_to_rotate}': {new_certificate_version}")
