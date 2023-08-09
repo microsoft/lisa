@@ -197,7 +197,10 @@ class DpdkTestpmd(Tool):
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
-                return f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}" '
+                return (
+                    f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
+                    f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                )
             else:
                 # use eth interface for failsafe otherwise
                 # test will probably fail due to low throughput
