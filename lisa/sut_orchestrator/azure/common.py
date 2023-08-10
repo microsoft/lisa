@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential
-from azure.keyvault.certificates import CertificateClient, CertificatePolicy
+from azure.keyvault.certificates import (
+    CertificateClient,
+    CertificatePolicy,
+    KeyVaultCertificate,
+)
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
@@ -1970,7 +1974,6 @@ def create_certificates(
 
 
 def rotate_certificates(
-    self,
     log: Logger,
     vault_url: str,
     credential: DefaultAzureCredential,
@@ -1998,10 +2001,9 @@ def rotate_certificates(
                 cert_name_to_rotate, policy=cert_policy
             )
             create_certificate_result = create_certificate_poller.result()
-
             # Handle possible None value
             if (
-                create_certificate_result
+                isinstance(create_certificate_result, KeyVaultCertificate)
                 and hasattr(create_certificate_result, "properties")
                 and create_certificate_result.properties
             ):

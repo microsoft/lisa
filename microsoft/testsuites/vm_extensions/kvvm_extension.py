@@ -48,13 +48,13 @@ from lisa.util import SkippedException
 class AzureKeyVaultExtensionBvt(TestSuite):
     @TestCaseMetadata(
         description="""
-        The following test case validates the Azure Key Vault Linux 
+        The following test case validates the Azure Key Vault Linux
         Extension while creating the following resources:
         A resource group
         A VM
         A Key Vault
         Two certificates in the Key Vault
-        Retrieval of the certificate's secrets 
+        Retrieval of the certificate's secrets
         through SecretClient class from Azure SDK.
         Installation of the Azure Key Vault Linux Extension on the VM.
         Rotation of the certificates (After KVVM Extension has been installed)
@@ -87,7 +87,12 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         # User's attributes
         user_tenant_id = os.environ.get("tenant_id")
+        if user_tenant_id is None:
+            raise ValueError("Environment variable 'tenant_id' is not set.")
         user_object_id = os.environ.get("user_object_id")
+        if user_tenant_id is None:
+            raise ValueError("Environment variable 'user_object_id' is not set.")
+        assert user_object_id is not None
         credential = DefaultAzureCredential(additionally_allowed_tenants=["*"])
 
         # Identity assignment
@@ -96,6 +101,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             resource_group_name, node_context.vm_name
         )
         object_id_vm = vm.identity.principal_id
+        if object_id_vm is None:
+            raise ValueError("object_id_vm is not set.")
 
         # Key Vault properties
         keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
@@ -180,7 +187,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             }
         }
         extension = node.features[AzureExtension]
-        result = extension.create_or_update(
+        extension_result = extension.create_or_update(
             name=extension_name,
             publisher=extension_publisher,
             type_=extension_name,
@@ -189,13 +196,12 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             enable_automatic_upgrade=True,
             settings=settings,
         )
-        assert_that(result["provisioning_state"]).described_as(
+        assert_that(extension_result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
 
         # Rotate certificates
         rotate_certificates(
-            self,
             log,
             vault_url=keyvault_result.properties.vault_uri,
             credential=credential,
