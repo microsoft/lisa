@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential  # type: ignore
-from azure.keyvault.certificates import (   # type: ignore
+from azure.keyvault.certificates import (  # type: ignore
     CertificateClient,
     CertificatePolicy,
     KeyVaultCertificate,
