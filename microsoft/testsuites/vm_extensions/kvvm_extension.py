@@ -5,10 +5,10 @@ import os
 import random
 
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.keyvault import KeyVaultManagementClient
-from azure.mgmt.keyvault.models import (
+from azure.identity import DefaultAzureCredential # type: ignore
+from azure.mgmt.compute import ComputeManagementClient # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient # type: ignore
+from azure.mgmt.keyvault.models import ( # type: ignore
     AccessPolicyEntry,
     Permissions,
     Sku,

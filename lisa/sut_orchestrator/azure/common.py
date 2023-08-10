@@ -14,13 +14,13 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.certificates import (
+from azure.identity import DefaultAzureCredential  # type: ignore
+from azure.keyvault.certificates import (   # type: ignore
     CertificateClient,
     CertificatePolicy,
     KeyVaultCertificate,
 )
-from azure.keyvault.secrets import SecretClient
+from azure.keyvault.secrets import SecretClient  # type: ignore
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
@@ -47,7 +47,7 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
-from azure.storage.blob import (
+from azure.storage.blob import (  # type: ignore
     AccountSasPermissions,
     BlobClient,
     BlobSasPermissions,
