@@ -122,7 +122,10 @@ class LsVmBus(TestSuite):
         expected_network_channel_count = min(core_count, 8)
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
-        expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
+        if node.nics.is_mana_present():
+            expected_scsi_channel_count = min(core_count, 64)
+        else:
+            expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 assert_that(vmbus_device.channel_vp_map).is_length(

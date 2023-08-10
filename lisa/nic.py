@@ -437,6 +437,9 @@ class Nics(InitializableMixin):
                     self.nics[nic].pci_slot = pci_device.slot
                 break
 
+    def is_mana_present(self) -> bool:
+        return self._is_mana_device_discovered()
+
     def _is_mana_device_discovered(self) -> bool:
         lspci = self._node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
