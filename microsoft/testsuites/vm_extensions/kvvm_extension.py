@@ -1,20 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import os
 import random
 
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute import ComputeManagementClient  # type: ignore
-from azure.mgmt.keyvault import KeyVaultManagementClient
-from azure.mgmt.keyvault.models import (
-    AccessPolicyEntry,
-    Permissions,
-    Sku,
-    VaultCreateOrUpdateParameters,
-    VaultProperties,
-)
 
 from lisa import (
     Logger,
@@ -24,19 +14,21 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import FreeBSD
-from lisa.sut_orchestrator import AZURE
+from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.common import (
-    AzureNodeSchema,
+    add_system_assign_identity,
+    check_certificate_existence,
     check_system_status,
-    create_certificates,
+    create_certificate,
+    create_keyvault,
+    delete_certificate,
+    delete_keyvault,
     get_node_context,
     rotate_certificates,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
-from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -60,19 +52,16 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         Rotation of the certificates (After KVVM Extension has been installed)
         All of the resources have been created by using the Azure SDK Python.
         """,
-        priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        priority=0,
+        requirement=simple_requirement(
+            supported_features=[AzureExtension], unsupported_os=[BSD]
+        ),
     )
     def verify_key_vault_extension(
         self, log: Logger, node: Node, result: TestResult
     ) -> None:
         # Section for vault name and supported OS check
-        vault_name = os.getenv(
-            "vault_name", f"python-keyvault-{random.randint(1, 100000):05}"
-        )
-        vault_name_a = vault_name + "prp"
-        if isinstance(node.os, FreeBSD):
-            raise SkippedException(f"unsupported distro type: {type(node.os)}")
+        vault_name_a = f"python-keyvault-{random.randint(1, 100000):05}prp"
 
         # Section for environment setup
         environment = result.environment
@@ -81,9 +70,6 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         assert isinstance(platform, AzurePlatform)
         # VM attributes
         node_context = get_node_context(node)
-        resource_group_name = node_context.resource_group_name
-        node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
-        location = node_capability.location
 
         # User's attributes
         user_tenant_id = os.environ.get("tenant_id")
@@ -95,73 +81,50 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         assert user_object_id is not None
         credential = DefaultAzureCredential(additionally_allowed_tenants=["*"])
 
-        # Identity assignment
-        compute_client = ComputeManagementClient(credential, platform.subscription_id)
-        vm = compute_client.virtual_machines.get(
-            resource_group_name, node_context.vm_name
-        )
-        object_id_vm = vm.identity.principal_id
-        if object_id_vm is None:
-            raise ValueError("object_id_vm is not set.")
-
-        # Key Vault properties
-        keyvault_client = KeyVaultManagementClient(credential, platform.subscription_id)
-        vault_properties = VaultProperties(
-            tenant_id=user_tenant_id,
-            sku=Sku(name="standard"),
-            access_policies=[
-                AccessPolicyEntry(
-                    tenant_id=user_tenant_id,
-                    object_id=user_object_id,
-                    permissions=Permissions(
-                        keys=["all"], secrets=["all"], certificates=["all"]
-                    ),
-                ),
-                AccessPolicyEntry(
-                    tenant_id=user_tenant_id,
-                    object_id=object_id_vm,
-                    permissions=Permissions(
-                        keys=["all"], secrets=["all"], certificates=["all"]
-                    ),
-                ),
-            ],
+        # Object ID System assignment
+        object_id_vm = add_system_assign_identity(
+            credential=credential,
+            subscription_id=node_context.subscription_id,
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+            location=node_context.location,
+            log=log,
         )
 
         # Create Key Vault
-        parameters = VaultCreateOrUpdateParameters(
-            location=location, properties=vault_properties
+        keyvault_result = create_keyvault(
+            credential,
+            platform.subscription_id,
+            user_tenant_id,
+            user_object_id,
+            object_id_vm,
+            node_context.location,
+            node_context.resource_group_name,
+            vault_name_a,
         )
-        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
-            resource_group_name, vault_name_a, parameters
-        )
-        keyvault_result = keyvault_poller.result()
 
-        # Assertions and logging
-        log.info(
-            f"Provisioned vault {keyvault_result.name} "
-            f"in {keyvault_result.location} region"
-        )
-        assert_that(keyvault_result.name).described_as(
-            "Expected the Key Vault name to match the given value"
-        ).is_equal_to(vault_name_a)
-        assert_that(keyvault_result.location).described_as(
-            "Expected the Key Vault location to match the given value"
-        ).is_equal_to(location)
+        log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
 
         # Certificates
         log.info(
-            "About to call create_certificates with vault_url: %s",
-            keyvault_result.properties.vault_uri,
+            "About to call create_certificates with vault_url: "
+            f"{keyvault_result.properties.vault_uri}"
         )
-        certificate1_secret_id, certificate2_secret_id = create_certificates(
+        certificate1_secret_id = create_certificate(
             vault_url=keyvault_result.properties.vault_uri,
             credential=credential,
             log=log,
+            cert_name="Cert1",
+        )
+        certificate2_secret_id = create_certificate(
+            vault_url=keyvault_result.properties.vault_uri,
+            credential=credential,
+            log=log,
+            cert_name="Cert2",
         )
         log.info(
-            "Certificates created. Cert1 ID: %s, Cert2 ID: %s",
-            certificate1_secret_id,
-            certificate2_secret_id,
+            f"Certificates created. Cert1 ID: {certificate1_secret_id}, "
+            f"Cert2 ID: {certificate2_secret_id}"
         )
         assert_that(certificate1_secret_id).described_as(
             "First certificate created successfully"
@@ -207,5 +170,53 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             credential=credential,
             cert_name_to_rotate="Cert1",
         )
-        assert True, "Cert1 has been rotated."
         check_system_status(node, log)
+
+        # Deleting the certificates after the test
+        delete_certificate(
+            vault_url=keyvault_result.properties.vault_uri,
+            credential=credential,
+            cert_name="Cert1",
+            log=log,
+        )
+        assert_that(
+            check_certificate_existence(
+                vault_url=keyvault_result.properties.vault_uri,
+                cert_name="Cert1",
+                credential=credential,
+                log=log,
+            )
+        ).is_false
+
+        delete_certificate(
+            vault_url=keyvault_result.properties.vault_uri,
+            credential=credential,
+            cert_name="Cert2",
+            log=log,
+        )
+
+        assert_that(
+            check_certificate_existence(
+                vault_url=keyvault_result.properties.vault_uri,
+                cert_name="Cert1",
+                credential=credential,
+                log=log,
+            )
+        ).is_false
+        # Deleting key vault
+        delete_keyvault(
+            credential=credential,
+            subscription_id=platform.subscription_id,
+            resource_group_name=node_context.resource_group_name,
+            vault_name_a=vault_name_a,
+            log=log,
+        )
+
+        assert_that(keyvault_result.properties.vault_uri).does_not_exist
+
+        # Delete VM Extension
+        extension.delete("KeyVaultForLinux")
+
+        assert_that(extension.check_exist("KeyVaultForLinux")).described_as(
+            "Found the VM Extension still exists on the VM after deletion"
+        ).is_false()

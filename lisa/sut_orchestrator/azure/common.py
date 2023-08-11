@@ -1,6 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT license.
-
 import os
 import re
 import sys
@@ -15,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential
+from azure.keyvault.administration import KeyVaultAccessControlClient
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -23,6 +21,10 @@ from azure.keyvault.certificates import (
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku
+from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -65,10 +67,12 @@ from PIL import Image, UnidentifiedImageError
 from retry import retry
 
 from lisa import schema
+from lisa.base_tools.service import Service
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
+from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -1443,7 +1447,6 @@ def load_environment(
         node_schema = schema.RemoteNode(name=vm.name)
         environment_runbook.nodes_raw.append(node_schema)
         vms_map[vm.name] = vm
-        vm.identity = {"type": "SystemAssigned"}
 
     environments = load_environments(
         schema.EnvironmentRoot(environments=[environment_runbook])
@@ -1914,72 +1917,241 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
-def create_certificates(
-    vault_url: str,
+def add_system_assign_identity(
     credential: DefaultAzureCredential,
+    subscription_id: str,
+    resource_group_name: str,
+    vm_name: str,
+    location: str,
     log: Logger,
+) -> Any:
+    compute_client = ComputeManagementClient(credential, subscription_id)
+    params_identity = {"type": "SystemAssigned"}
+    params_create = {"location": location, "identity": params_identity}
+
+    try:
+        vm_poller = compute_client.virtual_machines.begin_create_or_update(
+            resource_group_name,
+            vm_name,
+            params_create,
+        )
+        vm_result = vm_poller.result()
+        object_id_vm = vm_result.identity.principal_id
+        log.info(object_id_vm)
+
+        if not object_id_vm:
+            raise ValueError("object_id_vm is not set.")
+
+        return object_id_vm
+
+    except Exception as e:
+        log.error(f"Error creating VM: {e}")
+        raise LisaException(str(e))
+
+
+def get_key_vault_management_client(
+    credential: DefaultAzureCredential, subscription_id: str
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(credential, subscription_id)
+
+
+def create_keyvault(
+    credential: DefaultAzureCredential,
+    subscription_id: str,
+    user_tenant_id: str,
+    user_object_id: str,
+    object_id_vm: str,
+    location: str,
+    resource_group_name: str,
+    vault_name_a: str,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(credential, subscription_id)
+
+    vault_properties = VaultProperties(
+        tenant_id=user_tenant_id,
+        sku=KeyVaultSku(name="standard"),
+        access_policies=[
+            AccessPolicyEntry(
+                tenant_id=user_tenant_id,
+                object_id=user_object_id,
+                permissions=Permissions(
+                    keys=["all"], secrets=["all"], certificates=["all"]
+                ),
+            ),
+            AccessPolicyEntry(
+                tenant_id=user_tenant_id,
+                object_id=object_id_vm,
+                permissions=Permissions(
+                    keys=["all"], secrets=["all"], certificates=["all"]
+                ),
+            ),
+        ],
+    )
+
+    parameters = VaultCreateOrUpdateParameters(
+        location=location, properties=vault_properties
+    )
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name_a, parameters
+    )
+
+    return keyvault_poller.result()
+
+
+def delete_keyvault(
+    credential: Any,
+    subscription_id: str,
+    resource_group_name: str,
+    vault_name_a: str,
+    log: Logger,
+) -> None:
+    keyvault_client = get_key_vault_management_client(credential, subscription_id)
+
+    try:
+        keyvault_poller = keyvault_client.vaults.delete(
+            resource_group_name, vault_name_a
+        )
+        log.info(f"{keyvault_poller}")
+        log.info(f"Key Vault {vault_name_a} deleted successfully.")
+    except Exception as e:
+        log.error(f"Error deleting Key Vault: {e}")
+        raise LisaException(str(e))
+
+
+def get_key_vault_access_control_client(
+    vault_url: str, credential: DefaultAzureCredential
+) -> KeyVaultAccessControlClient:
+    return KeyVaultAccessControlClient(vault_url=vault_url, credential=credential)
+
+
+# If RBAC policy is needed/wanted for Key Vault
+# Remember then to set up enable_rbac_role = True
+# In Vault properties
+def assign_role_to_principal(
+    vault_url: str,
+    role_definition_id: str,
+    principal_id: str,
+    credential: Any,
+    resource_group: str,
+    log: Logger,
+) -> None:
+    # Use the helper function to get client
+    client = get_key_vault_access_control_client(vault_url, credential)
+
+    try:
+        role_assignment = client.create_role_assignment(
+            resource_group, role_definition_id, principal_id
+        )
+        if role_assignment.name:
+            role_assignment = client.get_role_assignment(
+                resource_group, role_assignment.name
+            )
+        else:
+            # Handle the case where role_assignment.name is None.
+            raise ValueError("role_assignment.name is None")
+    except Exception as e:
+        log.error(f"Error assigning role: {e}")
+        log.error(f"Role {role_definition_id} and principal: {principal_id}")
+        log.error(f"{vault_url}")
+        raise LisaException(str(e))
+
+
+def get_certificate_client(vault_url: str, credential: Any) -> CertificateClient:
+    return CertificateClient(vault_url=vault_url, credential=credential)
+
+
+def get_secret_client(vault_url: str, credential: Any) -> SecretClient:
+    return SecretClient(vault_url=vault_url, credential=credential)
+
+
+def create_certificate(
+    vault_url: str,
+    credential: Any,
+    log: Logger,
+    cert_name: str,
     retries: int = 5,
     delay: int = 2,
-) -> List[str]:
-    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
-    secret_client = SecretClient(vault_url=vault_url, credential=credential)
+) -> str:
+    certificate_client = get_certificate_client(vault_url, credential)
+    secret_client = get_secret_client(vault_url, credential)
 
     cert_policy = CertificatePolicy.get_default()
 
-    certificate_names = ["Cert1", "Cert2"]
-    secret_urls = []
-
-    for cert_name in certificate_names:
-        for attempt in range(retries):
-            try:
-                # Create certificate
-                create_certificate_result = certificate_client.begin_create_certificate(
-                    cert_name, policy=cert_policy
-                )
-                log.info(
-                    f"Certificate has been created: "
-                    f"Result: {create_certificate_result}"
-                )
-                certificate_client.update_certificate_properties(
-                    certificate_name=cert_name, enabled=True
-                )
-                break
-            except Exception as e:
-                if attempt < retries - 1:
-                    sleep(delay)
-                else:
-                    log.error(
-                        f"Failed to create certificate named"
-                        f"{cert_name}' after {retries} retries."
-                        f"Error info {e}"
-                    )
-                    raise
-
+    for attempt in range(retries):
         try:
-            secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
-            if secret_id:
-                secret_url_without_version = secret_id.rsplit("/", 1)[0]
-                secret_urls.append(secret_url_without_version)
+            # Create certificate
+            create_certificate_result = certificate_client.begin_create_certificate(
+                cert_name, policy=cert_policy
+            )
+            log.info(
+                f"Certificate '{cert_name}' has been created. "
+                f"Result: {create_certificate_result}"
+            )
+            certificate_client.update_certificate_properties(
+                certificate_name=cert_name, enabled=True
+            )
+            break
+        except Exception as e:
+            if attempt < retries - 1:
+                sleep(delay)
             else:
                 log.error(
-                    f"Failed to retrieve secret ID for certificate named '{cert_name}'."
+                    f"Failed to create certificate named '{cert_name}' "
+                    f"after {retries} retries. Error: {e}"
                 )
-        except Exception as e:
-            log.error(
-                f"Failed to retrieve secret ID for certificate named '{cert_name}': {e}"
-            )
-            raise
+                raise LisaException(str(e))
 
-    return secret_urls
+    try:
+        secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+        if secret_id:
+            secret_url_without_version = secret_id.rsplit("/", 1)[0]
+            return secret_url_without_version
+        else:
+            log.error(f"Failed to retrieve secret ID:'{cert_name}'.")
+            raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
+    except Exception as e:
+        log.error(f"Failed to retrieve secret ID:'{cert_name}': {e}")
+        raise LisaException(str(e))
+
+
+def check_certificate_existence(
+    vault_url: str, cert_name: str, log: Logger, credential: Any
+) -> bool:
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    try:
+        # Try to get the certificate. If this call succeeds, the certificate exists.
+        certificate_client.get_certificate(cert_name)
+        return True
+    except Exception as e:
+        log.error(f"Failed check existance of cert:'{cert_name}': {e}")
+        return False
+
+
+def delete_certificate(
+    vault_url: str,
+    credential: Any,
+    cert_name: str,
+    log: Logger,
+) -> bool:
+    certificate_client = get_certificate_client(vault_url, credential)
+
+    try:
+        certificate_client.delete_certificate_operation(cert_name)
+        log.info(f"Certificate {cert_name} deleted successfully.")
+        return True
+    except Exception as e:
+        log.error(f"Error deleting certificate: {e}")
+        raise LisaException(str(e))
 
 
 def rotate_certificates(
     log: Logger,
     vault_url: str,
-    credential: DefaultAzureCredential,
+    credential: Any,
     cert_name_to_rotate: str,
 ) -> None:
-    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    # Use the helper function to get certificate_client
+    certificate_client = get_certificate_client(vault_url, credential)
 
     try:
         # Retrieve the old version of the certificate
@@ -1989,7 +2161,7 @@ def rotate_certificates(
             f"Failed to retrieve old version of certificate:"
             f"{cert_name_to_rotate}': {e}"
         )
-        raise
+        raise LisaException(str(e))
 
     cert_policy = CertificatePolicy.get_default()
 
@@ -2031,21 +2203,21 @@ def rotate_certificates(
                     f"{cert_name_to_rotate}' after 2 attempts."
                     f"More exception info: {e}"
                 )
-                raise
+                raise LisaException(str(e))
 
 
 def check_system_status(node: Node, log: Logger) -> None:
-    # Check the status of the akvvm_service service
-    akvvm_service_result = node.execute(
-        "systemctl status akvvm_service.service", sudo=True, timeout=10
-    )
-    log.info(f"akvvm_service status: {akvvm_service_result.stdout}")
+    # Check the status of the akvvm_service service using the Service tool
+    service = node.tools[Service]
+    if service.is_service_running("akvvm_service.service"):
+        log.info("akvvm_service is running")
+    else:
+        log.info("akvvm_service is not running")
 
-    # List the contents directory /var/lib/waagent/Microsoft.Azure.KeyVault
-    ls_result = node.execute(
-        "sudo ls /var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
-    )
-    log.info(f"Directory contents: {ls_result.stdout}")
+    # List the contents of the directory
+    ls = node.tools[Ls]
+    directory_contents = ls.run("/var/lib/waagent/Microsoft.Azure.KeyVault -la").stdout
+    log.info(f"Directory contents: {directory_contents}")
 
     # Get the OS release information
     os_release_result = node.execute("cat /etc/os-release", sudo=False)
