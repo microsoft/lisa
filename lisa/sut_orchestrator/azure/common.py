@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from assertpy import assert_that
 from azure.identity import DefaultAzureCredential
-from azure.keyvault.administration import KeyVaultAccessControlClient
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -2016,44 +2015,6 @@ def delete_keyvault(
         log.info(f"Key Vault {vault_name} deleted successfully.")
     except Exception as e:
         log.error(f"Error deleting Key Vault: {e}")
-        raise LisaException(str(e))
-
-
-def get_key_vault_access_control_client(
-    vault_url: str, credential: DefaultAzureCredential
-) -> KeyVaultAccessControlClient:
-    return KeyVaultAccessControlClient(vault_url=vault_url, credential=credential)
-
-
-# If RBAC policy is needed/wanted for Key Vault
-# Remember then to set up enable_rbac_role = True
-# In Vault properties
-def assign_role_to_principal(
-    vault_url: str,
-    role_definition_id: str,
-    principal_id: str,
-    credential: Any,
-    resource_group: str,
-    log: Logger,
-) -> None:
-    # Use the helper function to get client
-    client = get_key_vault_access_control_client(vault_url, credential)
-
-    try:
-        role_assignment = client.create_role_assignment(
-            resource_group, role_definition_id, principal_id
-        )
-        if role_assignment.name:
-            role_assignment = client.get_role_assignment(
-                resource_group, role_assignment.name
-            )
-        else:
-            # Handle the case where role_assignment.name is None.
-            raise ValueError("role_assignment.name is None")
-    except Exception as e:
-        log.error(f"Error assigning role: {e}")
-        log.error(f"Role {role_definition_id} and principal: {principal_id}")
-        log.error(f"{vault_url}")
         raise LisaException(str(e))
 
 
