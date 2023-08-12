@@ -332,6 +332,7 @@
                 }
             }
         },
+        
         {
             "apiVersion": "2022-08-01",
             "type": "Microsoft.Compute/virtualMachines",
