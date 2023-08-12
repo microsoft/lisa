@@ -1966,7 +1966,7 @@ def create_keyvault(
     object_id_vm: str,
     location: str,
     resource_group_name: str,
-    vault_name_a: str,
+    vault_name: str,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(credential, subscription_id)
 
@@ -1995,7 +1995,7 @@ def create_keyvault(
         location=location, properties=vault_properties
     )
     keyvault_poller = keyvault_client.vaults.begin_create_or_update(
-        resource_group_name, vault_name_a, parameters
+        resource_group_name, vault_name, parameters
     )
 
     return keyvault_poller.result()
@@ -2005,17 +2005,15 @@ def delete_keyvault(
     credential: Any,
     subscription_id: str,
     resource_group_name: str,
-    vault_name_a: str,
+    vault_name: str,
     log: Logger,
 ) -> None:
     keyvault_client = get_key_vault_management_client(credential, subscription_id)
 
     try:
-        keyvault_poller = keyvault_client.vaults.delete(
-            resource_group_name, vault_name_a
-        )
+        keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
         log.info(f"{keyvault_poller}")
-        log.info(f"Key Vault {vault_name_a} deleted successfully.")
+        log.info(f"Key Vault {vault_name} deleted successfully.")
     except Exception as e:
         log.error(f"Error deleting Key Vault: {e}")
         raise LisaException(str(e))
@@ -2161,7 +2159,7 @@ def rotate_certificates(
         certificate_client.get_certificate(cert_name_to_rotate)
     except Exception as e:
         log.error(
-            f"Failed to retrieve old version of certificate:"
+            "Failed to retrieve old version of certificate:"
             f"{cert_name_to_rotate}': {e}"
         )
         raise LisaException(str(e))
@@ -2215,7 +2213,8 @@ def check_system_status(node: Node, log: Logger) -> None:
     if service.is_service_running("akvvm_service.service"):
         log.info("akvvm_service is running")
     else:
-        log.info("akvvm_service is not running")
+        log.error("akvvm_service is not running")
+        raise LisaException("akvvm_service is not running. Test case failed.")
 
     # List the contents of the directory
     ls = node.tools[Ls]

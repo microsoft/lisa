@@ -4,7 +4,6 @@ import os
 import random
 
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
 
 from lisa import (
     Logger,
@@ -61,7 +60,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         self, log: Logger, node: Node, result: TestResult
     ) -> None:
         # Section for vault name and supported OS check
-        vault_name_a = f"python-keyvault-{random.randint(1, 100000):05}prp"
+        vault_name = f"python-keyvault-{random.randint(1, 100000):05}prp"
 
         # Section for environment setup
         environment = result.environment
@@ -79,11 +78,10 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         if user_tenant_id is None:
             raise ValueError("Environment variable 'user_object_id' is not set.")
         assert user_object_id is not None
-        credential = DefaultAzureCredential(additionally_allowed_tenants=["*"])
 
         # Object ID System assignment
         object_id_vm = add_system_assign_identity(
-            credential=credential,
+            credential=platform.credential,
             subscription_id=node_context.subscription_id,
             resource_group_name=node_context.resource_group_name,
             vm_name=node_context.vm_name,
@@ -93,14 +91,14 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         # Create Key Vault
         keyvault_result = create_keyvault(
-            credential,
+            platform.credential,
             platform.subscription_id,
             user_tenant_id,
             user_object_id,
             object_id_vm,
             node_context.location,
             node_context.resource_group_name,
-            vault_name_a,
+            vault_name,
         )
 
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
@@ -112,13 +110,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         )
         certificate1_secret_id = create_certificate(
             vault_url=keyvault_result.properties.vault_uri,
-            credential=credential,
+            credential=platform.credential,
             log=log,
             cert_name="Cert1",
         )
         certificate2_secret_id = create_certificate(
             vault_url=keyvault_result.properties.vault_uri,
-            credential=credential,
+            credential=platform.credential,
             log=log,
             cert_name="Cert2",
         )
@@ -167,7 +165,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         rotate_certificates(
             log,
             vault_url=keyvault_result.properties.vault_uri,
-            credential=credential,
+            credential=platform.credential,
             cert_name_to_rotate="Cert1",
         )
         check_system_status(node, log)
@@ -175,7 +173,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         # Deleting the certificates after the test
         delete_certificate(
             vault_url=keyvault_result.properties.vault_uri,
-            credential=credential,
+            credential=platform.credential,
             cert_name="Cert1",
             log=log,
         )
@@ -183,14 +181,14 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             check_certificate_existence(
                 vault_url=keyvault_result.properties.vault_uri,
                 cert_name="Cert1",
-                credential=credential,
+                credential=platform.credential,
                 log=log,
             )
         ).is_false
 
         delete_certificate(
             vault_url=keyvault_result.properties.vault_uri,
-            credential=credential,
+            credential=platform.credential,
             cert_name="Cert2",
             log=log,
         )
@@ -199,16 +197,16 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             check_certificate_existence(
                 vault_url=keyvault_result.properties.vault_uri,
                 cert_name="Cert1",
-                credential=credential,
+                credential=platform.credential,
                 log=log,
             )
         ).is_false
         # Deleting key vault
         delete_keyvault(
-            credential=credential,
+            credential=platform.credential,
             subscription_id=platform.subscription_id,
             resource_group_name=node_context.resource_group_name,
-            vault_name_a=vault_name_a,
+            vault_name=vault_name,
             log=log,
         )
 
