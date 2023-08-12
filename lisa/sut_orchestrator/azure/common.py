@@ -2181,7 +2181,3 @@ def check_system_status(node: Node, log: Logger) -> None:
     ls = node.tools[Ls]
     directory_contents = ls.run("/var/lib/waagent/Microsoft.Azure.KeyVault -la").stdout
     log.info(f"Directory contents: {directory_contents}")
-
-    # Get the OS release information
-    os_release_result = node.execute("cat /etc/os-release", sudo=False)
-    log.info(f"OS release: {os_release_result.stdout}")
