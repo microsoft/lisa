@@ -1960,8 +1960,8 @@ def get_key_vault_management_client(
 def create_keyvault(
     credential: DefaultAzureCredential,
     subscription_id: str,
-    user_tenant_id: str,
-    user_object_id: str,
+    tenant_id: str,
+    object_id: str,
     object_id_vm: str,
     location: str,
     resource_group_name: str,
@@ -1970,18 +1970,18 @@ def create_keyvault(
     keyvault_client = get_key_vault_management_client(credential, subscription_id)
 
     vault_properties = VaultProperties(
-        tenant_id=user_tenant_id,
+        tenant_id=tenant_id,
         sku=KeyVaultSku(name="standard"),
         access_policies=[
             AccessPolicyEntry(
-                tenant_id=user_tenant_id,
-                object_id=user_object_id,
+                tenant_id=tenant_id,
+                object_id=object_id,
                 permissions=Permissions(
                     keys=["all"], secrets=["all"], certificates=["all"]
                 ),
             ),
             AccessPolicyEntry(
-                tenant_id=user_tenant_id,
+                tenant_id=tenant_id,
                 object_id=object_id_vm,
                 permissions=Permissions(
                     keys=["all"], secrets=["all"], certificates=["all"]
@@ -2098,7 +2098,7 @@ def delete_certificate(
     certificate_client = get_certificate_client(vault_url, credential)
 
     try:
-        certificate_client.delete_certificate_operation(cert_name)
+        certificate_client.begin_delete_certificate(cert_name)
         log.info(f"Certificate {cert_name} deleted successfully.")
         return True
     except Exception as e:
@@ -2179,5 +2179,7 @@ def check_system_status(node: Node, log: Logger) -> None:
 
     # List the contents of the directory
     ls = node.tools[Ls]
-    directory_contents = ls.run("/var/lib/waagent/Microsoft.Azure.KeyVault -la").stdout
+    directory_contents = ls.run(
+        "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
+    ).stdout
     log.info(f"Directory contents: {directory_contents}")

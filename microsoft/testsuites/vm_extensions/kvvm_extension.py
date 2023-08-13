@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 import os
 import random
+from typing import List
+import time
 
 from assertpy import assert_that
 
@@ -71,13 +73,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         node_context = get_node_context(node)
 
         # User's attributes
-        user_tenant_id = os.environ.get("tenant_id")
-        if user_tenant_id is None:
+        tenant_id = os.environ["AZURE_TENANT_ID"]
+        if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
-        user_object_id = os.environ.get("user_object_id")
-        if user_tenant_id is None:
-            raise ValueError("Environment variable 'user_object_id' is not set.")
-        assert user_object_id is not None
+        object_id = os.environ["AZURE_CLIENT_ID"]
+        if tenant_id is None:
+            raise ValueError("Environment variable 'object_id' is not set.")
+        assert object_id is not None
 
         # Object ID System assignment
         object_id_vm = add_system_assign_identity(
@@ -93,8 +95,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         keyvault_result = create_keyvault(
             platform.credential,
             platform.subscription_id,
-            user_tenant_id,
-            user_object_id,
+            tenant_id,
+            object_id,
             object_id_vm,
             node_context.location,
             node_context.resource_group_name,
@@ -108,28 +110,20 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             "About to call create_certificates with vault_url: "
             f"{keyvault_result.properties.vault_uri}"
         )
-        certificate1_secret_id = create_certificate(
-            vault_url=keyvault_result.properties.vault_uri,
-            credential=platform.credential,
-            log=log,
-            cert_name="Cert1",
-        )
-        certificate2_secret_id = create_certificate(
-            vault_url=keyvault_result.properties.vault_uri,
-            credential=platform.credential,
-            log=log,
-            cert_name="Cert2",
-        )
-        log.info(
-            f"Certificates created. Cert1 ID: {certificate1_secret_id}, "
-            f"Cert2 ID: {certificate2_secret_id}"
-        )
-        assert_that(certificate1_secret_id).described_as(
-            "First certificate created successfully"
-        ).is_not_none()
-        assert_that(certificate2_secret_id).described_as(
-            "Second certificate created successfully"
-        ).is_not_none()
+
+        certificates_secret_id: List[str] = []
+        for cert_name in ["Cert1", "Cert2"]:
+            certificate_secret_id = create_certificate(
+                vault_url=keyvault_result.properties.vault_uri,
+                credential=platform.credential,
+                log=log,
+                cert_name=cert_name,
+            )
+            log.info(f"Certificates created. Cert ID: {certificate_secret_id}, ")
+            assert_that(certificate_secret_id).described_as(
+                "First certificate created successfully"
+            ).is_not_none()
+            certificates_secret_id.append(certificate_secret_id)
 
         # Extension
         extension_name = "KeyVaultForLinux"
@@ -142,8 +136,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                 "pollingIntervalInS": "360",
                 "certificateStoreLocation": "/var/lib/waagent/Microsoft.Azure.KeyVault",
                 "observedCertificates": [
-                    certificate1_secret_id,
-                    certificate2_secret_id,
+                    certificates_secret_id[0],
+                    certificates_secret_id[1],
                 ],
             }
         }
@@ -169,38 +163,28 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             cert_name_to_rotate="Cert1",
         )
         check_system_status(node, log)
-
         # Deleting the certificates after the test
-        delete_certificate(
-            vault_url=keyvault_result.properties.vault_uri,
-            credential=platform.credential,
-            cert_name="Cert1",
-            log=log,
-        )
-        assert_that(
-            check_certificate_existence(
+        for cert_name in ["Cert2", "Cert1"]:
+            delete_certificate(
                 vault_url=keyvault_result.properties.vault_uri,
-                cert_name="Cert1",
                 credential=platform.credential,
+                cert_name=cert_name,
                 log=log,
             )
-        ).is_false
 
-        delete_certificate(
-            vault_url=keyvault_result.properties.vault_uri,
-            credential=platform.credential,
-            cert_name="Cert2",
-            log=log,
-        )
+            retries = 2
+            for _ in range(retries):
+                certificate_exists = check_certificate_existence(
+                    vault_url=keyvault_result.properties.vault_uri,
+                    cert_name=cert_name,
+                    credential=platform.credential,
+                    log=log,
+                )
+                if not certificate_exists:
+                    break
+                time.sleep(5)  # wait for 5 seconds before retrying
 
-        assert_that(
-            check_certificate_existence(
-                vault_url=keyvault_result.properties.vault_uri,
-                cert_name="Cert1",
-                credential=platform.credential,
-                log=log,
-            )
-        ).is_false
+            assert_that(certificate_exists).is_false()
         # Deleting key vault
         delete_keyvault(
             credential=platform.credential,
