@@ -2,8 +2,8 @@
 # Licensed under the MIT license.
 import os
 import random
-from typing import List
 import time
+from typing import List
 
 from assertpy import assert_that
 
