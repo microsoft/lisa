@@ -71,6 +71,15 @@ class CloudHypervisorTestSuite(TestSuite):
         include_list, exclude_list = get_test_list(
             variables, "ch_integration_tests_included", "ch_integration_tests_excluded"
         )
+
+        use_ms_clh_repo = variables.get("use_ms_clh_repo", None)
+        ms_access_token = variables.get("ms_access_token", None)
+        if use_ms_clh_repo == "yes":
+            if not ms_access_token:
+                raise SkippedException("Access Token is needed while using MS-CLH")
+            CloudHypervisorTests.use_ms_clh_repo = True
+            CloudHypervisorTests.ms_access_token = ms_access_token
+
         node.tools[CloudHypervisorTests].run_tests(
             result,
             environment,
@@ -112,6 +121,15 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_live_migration_tests_included",
             "ch_live_migration_tests_excluded",
         )
+
+        use_ms_clh_repo = variables.get("use_ms_clh_repo", None)
+        ms_access_token = variables.get("ms_access_token", None)
+        if use_ms_clh_repo == "yes":
+            if not ms_access_token:
+                raise SkippedException("Access Token is needed while using MS-CLH")
+            CloudHypervisorTests.use_ms_clh_repo = True
+            CloudHypervisorTests.ms_access_token = ms_access_token
+
         node.tools[CloudHypervisorTests].run_tests(
             result,
             environment,
@@ -148,6 +166,15 @@ class CloudHypervisorTestSuite(TestSuite):
             "ch_perf_tests_excluded",
         )
         subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
+
+        use_ms_clh_repo = variables.get("use_ms_clh_repo", None)
+        ms_access_token = variables.get("ms_access_token", None)
+        if use_ms_clh_repo == "yes":
+            if not ms_access_token:
+                raise SkippedException("Access Token is needed while using MS-CLH")
+            CloudHypervisorTests.use_ms_clh_repo = True
+            CloudHypervisorTests.ms_access_token = ms_access_token
+
         node.tools[CloudHypervisorTests].run_metrics_tests(
             result,
             environment,
