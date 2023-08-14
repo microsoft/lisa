@@ -115,7 +115,15 @@ class Git(Tool):
 
         # force run to make sure checkout among branches correctly.
         result = self.run(
-            f"checkout {ref} -b {checkout_branch}",
+            f"checkout {ref}",
+            force_run=True,
+            cwd=cwd,
+            no_info_log=True,
+            no_error_log=True,
+        )
+
+        result = self.run(
+            f"checkout -b {checkout_branch}",
             force_run=True,
             cwd=cwd,
             no_info_log=True,
