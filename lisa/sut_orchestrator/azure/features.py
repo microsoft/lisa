@@ -1461,7 +1461,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         else:
             disk_label_pattern = self.DISK_LABEL_PATTERN
             cmd_result = self._node.execute(
-                "ls -d /sys/block/sd*", shell=True, sudo=True
+                "ls -d /sys/block/nvme*", shell=True, sudo=True
             )
         matched = find_patterns_in_lines(cmd_result.stdout, [disk_label_pattern])
         assert matched[0], "not found the matched disk label"
