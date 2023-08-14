@@ -1952,11 +1952,11 @@ def get_key_vault_management_client(
 
 def create_keyvault(
     platform: "AzurePlatform",
-    resource_group_name: str,
     tenant_id: str,
     object_id: str,
     location: str,
     vault_name: str,
+    resource_group_name: str,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(platform)
 
@@ -2013,20 +2013,13 @@ def assign_access_policy_to_vm(
 
 
 def delete_keyvault(
-    platform: "AzurePlatform",
-    resource_group_name: str,
-    vault_name: str,
-    log: Logger,
+    platform: "AzurePlatform", vault_name: str, log: Logger, resource_group_name: str
 ) -> None:
     keyvault_client = get_key_vault_management_client(platform)
 
-    try:
-        keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
-        log.info(f"{keyvault_poller}")
-        log.info(f"Key Vault {vault_name} deleted successfully.")
-    except Exception as e:
-        log.error(f"Error deleting Key Vault: {e}")
-        raise LisaException(str(e))
+    keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
+    log.info(f"{keyvault_poller}")
+    log.info(f"Key Vault {vault_name} deleted successfully.")
 
 
 def get_certificate_client(
@@ -2052,41 +2045,26 @@ def create_certificate(
 
     cert_policy = CertificatePolicy.get_default()
 
-    for attempt in range(retries):
-        try:
-            # Create certificate
-            create_certificate_result = certificate_client.begin_create_certificate(
-                cert_name, policy=cert_policy
-            )
-            log.info(
-                f"Certificate '{cert_name}' has been created. "
-                f"Result: {create_certificate_result}"
-            )
-            certificate_client.update_certificate_properties(
-                certificate_name=cert_name, enabled=True
-            )
-            break
-        except Exception as e:
-            if attempt < retries - 1:
-                sleep(delay)
-            else:
-                log.error(
-                    f"Failed to create certificate named '{cert_name}' "
-                    f"after {retries} retries. Error: {e}"
-                )
-                raise LisaException(str(e))
+    for _attempt in range(retries):
+        # Create certificate
+        create_certificate_result = certificate_client.begin_create_certificate(
+            cert_name, policy=cert_policy
+        )
+        log.info(
+            f"Certificate '{cert_name}' has been created. "
+            f"Result: {create_certificate_result}"
+        )
+        certificate_client.update_certificate_properties(
+            certificate_name=cert_name, enabled=True
+        )
+        break
 
-    try:
-        secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
-        if secret_id:
-            secret_url_without_version = secret_id.rsplit("/", 1)[0]
-            return secret_url_without_version
-        else:
-            log.error(f"Failed to retrieve secret ID:'{cert_name}'.")
-            raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
-    except Exception as e:
-        log.error(f"Failed to retrieve secret ID:'{cert_name}': {e}")
-        raise LisaException(str(e))
+    secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+    if secret_id:
+        secret_url_without_version = secret_id.rsplit("/", 1)[0]
+        return secret_url_without_version
+    else:
+        raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
 
 
 def check_certificate_existence(
@@ -2095,13 +2073,18 @@ def check_certificate_existence(
     certificate_client = CertificateClient(
         vault_url=vault_url, credential=platform.credential
     )
+
     try:
-        # Try to get the certificate. If this call succeeds, the certificate exists.
-        certificate_client.get_certificate(cert_name)
+        certificate = certificate_client.get_certificate(cert_name)
+        log.info(f"Cert found '{certificate}")
         return True
     except Exception as e:
-        log.error(f"Failed check existance of cert:'{cert_name}': {e}")
-        return False
+        if "not found" in str(e).lower():
+            log.info(f"Certificate '{cert_name}' does not exist.")
+            return False
+        else:
+            log.error(f"Unexpected error checking certificate '{cert_name}': {e}")
+            raise LisaException(f"Error while checking certificate '{cert_name}': {e}")
 
 
 def delete_certificate(
@@ -2117,8 +2100,8 @@ def delete_certificate(
         log.info(f"Certificate {cert_name} deleted successfully.")
         return True
     except Exception as e:
-        log.error(f"Error deleting certificate: {e}")
-        raise LisaException(str(e))
+        log.error(f"Error deleting certificate {cert_name}: {e}")
+        return False
 
 
 def rotate_certificates(
@@ -2130,54 +2113,44 @@ def rotate_certificates(
     # Use the helper function to get certificate_client
     certificate_client = get_certificate_client(vault_url, platform)
 
-    try:
-        # Retrieve the old version of the certificate
-        certificate_client.get_certificate(cert_name_to_rotate)
-    except Exception as e:
-        log.error(
-            "Failed to retrieve old version of certificate:"
-            f"{cert_name_to_rotate}': {e}"
+    # Retrieve the old version of the certificate
+    if not certificate_client.get_certificate(cert_name_to_rotate):
+        error_message = (
+            f"Failed to retrieve old version of certificate: {cert_name_to_rotate}"
         )
-        raise LisaException(str(e))
+        log.error(error_message)
+        raise LisaException(error_message)
 
     cert_policy = CertificatePolicy.get_default()
 
     # Create only the specified certificate
-    for attempt in range(2):
-        try:
-            # Create certificate
-            create_certificate_poller = certificate_client.begin_create_certificate(
-                cert_name_to_rotate, policy=cert_policy
-            )
-            create_certificate_result = create_certificate_poller.result()
-            # Handle possible None value
-            if (
-                isinstance(create_certificate_result, KeyVaultCertificate)
-                and hasattr(create_certificate_result, "properties")
-                and create_certificate_result.properties
-            ):
-                new_certificate_version = create_certificate_result.properties.version
-                log.info(
-                    f"New version of certificate '{cert_name_to_rotate}': "
-                    f"{new_certificate_version}"
-                )
-                log.info("Certificate rotated")
-            else:
-                log.error(
-                    "Failed to retrieve properties from create certificate result."
-                )
+    for _ in range(2):
+        # Create certificate
+        create_certificate_poller = certificate_client.begin_create_certificate(
+            cert_name_to_rotate, policy=cert_policy
+        )
+        create_certificate_result = create_certificate_poller.result()
 
-            certificate_client.update_certificate_properties(
-                certificate_name=cert_name_to_rotate, enabled=True
+        # Handle possible None value
+        if (
+            isinstance(create_certificate_result, KeyVaultCertificate)
+            and hasattr(create_certificate_result, "properties")
+            and create_certificate_result.properties
+        ):
+            new_certificate_version = create_certificate_result.properties.version
+            log.info(
+                f"New version of certificate '{cert_name_to_rotate}': "
+                f"{new_certificate_version}"
             )
-            break
-        except Exception as e:
-            if attempt < 1:
-                sleep(1)
-            else:
-                log.error(
-                    f"Failed to rotate certificate:"
-                    f"{cert_name_to_rotate}' after 2 attempts."
-                    f"More exception info: {e}"
-                )
-                raise LisaException(str(e))
+            log.info("Certificate rotated")
+        else:
+            error_message = (
+                "Failed to retrieve properties from create certificate result."
+            )
+            log.error(error_message)
+            raise LisaException(error_message)
+
+        certificate_client.update_certificate_properties(
+            certificate_name=cert_name_to_rotate, enabled=True
+        )
+        break

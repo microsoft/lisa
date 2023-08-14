@@ -29,7 +29,7 @@ from lisa.sut_orchestrator.azure.common import (
     rotate_certificates,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult
 from lisa.tools.ls import Ls
 from lisa.util import LisaException
@@ -73,7 +73,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         * Printing the cert after rotation from the VM
         * Deletion of the resources
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),
@@ -89,17 +89,19 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
         assert isinstance(platform, AzurePlatform)
-        # VM attributes
-        node_context = get_node_context(node)
+        runbook = platform.runbook.get_extended_runbook(AzurePlatformSchema)
+        # Use the shared_resource_group_name if the resource_group_name is not provided
+        resource_group_name = (
+            runbook.resource_group_name or runbook.shared_resource_group_name
+        )
 
-        # User's attributes
+        node_context = get_node_context(node)
         tenant_id = os.environ["AZURE_TENANT_ID"]
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
         object_id = os.environ["AZURE_CLIENT_ID"]
-        if tenant_id is None:
+        if object_id is None:
             raise ValueError("Environment variable 'object_id' is not set.")
-        assert object_id is not None
 
         # Object ID System assignment
         object_id_vm = add_system_assign_identity(
@@ -113,16 +115,20 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         # Create Key Vault
         keyvault_result = create_keyvault(
             platform=platform,
-            resource_group_name=node_context.resource_group_name,
+            resource_group_name=resource_group_name,
             tenant_id=tenant_id,
             object_id=object_id,
             location=node_context.location,
             vault_name=vault_name,
         )
+
+        # Check if KeyVault is successfully created before proceeding
+        assert keyvault_result, f"Failed to create KeyVault with name: {vault_name}"
+
         # Acces policies for VM
         assign_access_policy_to_vm(
             platform=platform,
-            resource_group_name=node_context.resource_group_name,
+            resource_group_name=resource_group_name,
             tenant_id=tenant_id,
             object_id_vm=object_id_vm,
             vault_name=vault_name,
@@ -209,7 +215,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         # Deleting key vault
         delete_keyvault(
             platform=platform,
-            resource_group_name=node_context.resource_group_name,
+            resource_group_name=resource_group_name,
             vault_name=vault_name,
             log=log,
         )
