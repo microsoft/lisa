@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -1920,14 +1919,15 @@ class DataDisk:
 
 
 def add_system_assign_identity(
-    credential: DefaultAzureCredential,
-    subscription_id: str,
+    platform: "AzurePlatform",
     resource_group_name: str,
     vm_name: str,
     location: str,
     log: Logger,
 ) -> Any:
-    compute_client = ComputeManagementClient(credential, subscription_id)
+    compute_client = ComputeManagementClient(
+        platform.credential, platform.subscription_id
+    )
     params_identity = {"type": "SystemAssigned"}
     params_create = {"location": location, "identity": params_identity}
 
@@ -1952,22 +1952,21 @@ def add_system_assign_identity(
 
 
 def get_key_vault_management_client(
-    credential: DefaultAzureCredential, subscription_id: str
+    platform: "AzurePlatform",
 ) -> KeyVaultManagementClient:
-    return KeyVaultManagementClient(credential, subscription_id)
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
 
 
 def create_keyvault(
-    credential: DefaultAzureCredential,
-    subscription_id: str,
+    platform: "AzurePlatform",
+    resource_group_name: str,
     tenant_id: str,
     object_id: str,
     object_id_vm: str,
     location: str,
-    resource_group_name: str,
     vault_name: str,
 ) -> Any:
-    keyvault_client = get_key_vault_management_client(credential, subscription_id)
+    keyvault_client = get_key_vault_management_client(platform)
 
     vault_properties = VaultProperties(
         tenant_id=tenant_id,
@@ -2001,13 +2000,12 @@ def create_keyvault(
 
 
 def delete_keyvault(
-    credential: Any,
-    subscription_id: str,
+    platform: "AzurePlatform",
     resource_group_name: str,
     vault_name: str,
     log: Logger,
 ) -> None:
-    keyvault_client = get_key_vault_management_client(credential, subscription_id)
+    keyvault_client = get_key_vault_management_client(platform)
 
     try:
         keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
@@ -2018,24 +2016,26 @@ def delete_keyvault(
         raise LisaException(str(e))
 
 
-def get_certificate_client(vault_url: str, credential: Any) -> CertificateClient:
-    return CertificateClient(vault_url=vault_url, credential=credential)
+def get_certificate_client(
+    vault_url: str, platform: "AzurePlatform"
+) -> CertificateClient:
+    return CertificateClient(vault_url, platform.credential)
 
 
-def get_secret_client(vault_url: str, credential: Any) -> SecretClient:
-    return SecretClient(vault_url=vault_url, credential=credential)
+def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
+    return SecretClient(vault_url, platform.credential)
 
 
 def create_certificate(
+    platform: "AzurePlatform",
     vault_url: str,
-    credential: Any,
     log: Logger,
     cert_name: str,
     retries: int = 5,
     delay: int = 2,
 ) -> str:
-    certificate_client = get_certificate_client(vault_url, credential)
-    secret_client = get_secret_client(vault_url, credential)
+    certificate_client = get_certificate_client(vault_url, platform)
+    secret_client = get_secret_client(vault_url, platform)
 
     cert_policy = CertificatePolicy.get_default()
 
@@ -2077,9 +2077,11 @@ def create_certificate(
 
 
 def check_certificate_existence(
-    vault_url: str, cert_name: str, log: Logger, credential: Any
+    vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
 ) -> bool:
-    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
+    certificate_client = CertificateClient(
+        vault_url=vault_url, credential=platform.credential
+    )
     try:
         # Try to get the certificate. If this call succeeds, the certificate exists.
         certificate_client.get_certificate(cert_name)
@@ -2090,12 +2092,12 @@ def check_certificate_existence(
 
 
 def delete_certificate(
+    platform: "AzurePlatform",
     vault_url: str,
-    credential: Any,
     cert_name: str,
     log: Logger,
 ) -> bool:
-    certificate_client = get_certificate_client(vault_url, credential)
+    certificate_client = get_certificate_client(vault_url, platform)
 
     try:
         certificate_client.begin_delete_certificate(cert_name)
@@ -2109,11 +2111,11 @@ def delete_certificate(
 def rotate_certificates(
     log: Logger,
     vault_url: str,
-    credential: Any,
+    platform: "AzurePlatform",
     cert_name_to_rotate: str,
 ) -> None:
     # Use the helper function to get certificate_client
-    certificate_client = get_certificate_client(vault_url, credential)
+    certificate_client = get_certificate_client(vault_url, platform)
 
     try:
         # Retrieve the old version of the certificate

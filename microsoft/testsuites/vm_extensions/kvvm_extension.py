@@ -53,7 +53,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         Rotation of the certificates (After KVVM Extension has been installed)
         All of the resources have been created by using the Azure SDK Python.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),
@@ -83,8 +83,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         # Object ID System assignment
         object_id_vm = add_system_assign_identity(
-            credential=platform.credential,
-            subscription_id=node_context.subscription_id,
+            platform=platform,
             resource_group_name=node_context.resource_group_name,
             vm_name=node_context.vm_name,
             location=node_context.location,
@@ -93,14 +92,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         # Create Key Vault
         keyvault_result = create_keyvault(
-            platform.credential,
-            platform.subscription_id,
-            tenant_id,
-            object_id,
-            object_id_vm,
-            node_context.location,
-            node_context.resource_group_name,
-            vault_name,
+            platform=platform,
+            resource_group_name=node_context.resource_group_name,
+            tenant_id=tenant_id,
+            object_id=object_id,
+            object_id_vm=object_id_vm,
+            location=node_context.location,
+            vault_name=vault_name,
         )
 
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
@@ -114,8 +112,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         certificates_secret_id: List[str] = []
         for cert_name in ["Cert1", "Cert2"]:
             certificate_secret_id = create_certificate(
+                platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,
-                credential=platform.credential,
                 log=log,
                 cert_name=cert_name,
             )
@@ -159,15 +157,15 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         rotate_certificates(
             log,
             vault_url=keyvault_result.properties.vault_uri,
-            credential=platform.credential,
+            platform=platform,
             cert_name_to_rotate="Cert1",
         )
         check_system_status(node, log)
         # Deleting the certificates after the test
         for cert_name in ["Cert2", "Cert1"]:
             delete_certificate(
+                platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,
-                credential=platform.credential,
                 cert_name=cert_name,
                 log=log,
             )
@@ -177,8 +175,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                 certificate_exists = check_certificate_existence(
                     vault_url=keyvault_result.properties.vault_uri,
                     cert_name=cert_name,
-                    credential=platform.credential,
                     log=log,
+                    platform=platform,
                 )
                 if not certificate_exists:
                     break
@@ -187,8 +185,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             assert_that(certificate_exists).is_false()
         # Deleting key vault
         delete_keyvault(
-            credential=platform.credential,
-            subscription_id=platform.subscription_id,
+            platform=platform,
             resource_group_name=node_context.resource_group_name,
             vault_name=vault_name,
             log=log,
