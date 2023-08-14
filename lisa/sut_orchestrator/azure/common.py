@@ -68,12 +68,10 @@ from PIL import Image, UnidentifiedImageError
 from retry import retry
 
 from lisa import schema
-from lisa.base_tools.service import Service
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
-from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -1931,24 +1929,19 @@ def add_system_assign_identity(
     params_identity = {"type": "SystemAssigned"}
     params_create = {"location": location, "identity": params_identity}
 
-    try:
-        vm_poller = compute_client.virtual_machines.begin_create_or_update(
-            resource_group_name,
-            vm_name,
-            params_create,
-        )
-        vm_result = vm_poller.result()
-        object_id_vm = vm_result.identity.principal_id
-        log.info(object_id_vm)
+    vm_poller = compute_client.virtual_machines.begin_create_or_update(
+        resource_group_name,
+        vm_name,
+        params_create,
+    )
+    vm_result = vm_poller.result()
+    object_id_vm = vm_result.identity.principal_id
+    log.info(object_id_vm)
 
-        if not object_id_vm:
-            raise ValueError("object_id_vm is not set.")
+    if not object_id_vm:
+        raise ValueError("object_id_vm is not set.")
 
-        return object_id_vm
-
-    except Exception as e:
-        log.error(f"Error creating VM: {e}")
-        raise LisaException(str(e))
+    return object_id_vm
 
 
 def get_key_vault_management_client(
@@ -1962,7 +1955,6 @@ def create_keyvault(
     resource_group_name: str,
     tenant_id: str,
     object_id: str,
-    object_id_vm: str,
     location: str,
     vault_name: str,
 ) -> Any:
@@ -1979,13 +1971,6 @@ def create_keyvault(
                     keys=["all"], secrets=["all"], certificates=["all"]
                 ),
             ),
-            AccessPolicyEntry(
-                tenant_id=tenant_id,
-                object_id=object_id_vm,
-                permissions=Permissions(
-                    keys=["all"], secrets=["all"], certificates=["all"]
-                ),
-            ),
         ],
     )
 
@@ -1994,6 +1979,34 @@ def create_keyvault(
     )
     keyvault_poller = keyvault_client.vaults.begin_create_or_update(
         resource_group_name, vault_name, parameters
+    )
+
+    return keyvault_poller.result()
+
+
+def assign_access_policy_to_vm(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    tenant_id: str,
+    object_id_vm: str,
+    vault_name: str,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+
+    # Fetch the current policies and add the VM's policy
+    vault = keyvault_client.vaults.get(resource_group_name, vault_name)
+    current_policies = vault.properties.access_policies
+    new_policy = AccessPolicyEntry(
+        tenant_id=tenant_id,
+        object_id=object_id_vm,
+        permissions=Permissions(keys=["all"], secrets=["all"], certificates=["all"]),
+    )
+    current_policies.append(new_policy)
+
+    # Update the vault with the new policies
+    vault.properties.access_policies = current_policies
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name, vault
     )
 
     return keyvault_poller.result()
@@ -2168,20 +2181,3 @@ def rotate_certificates(
                     f"More exception info: {e}"
                 )
                 raise LisaException(str(e))
-
-
-def check_system_status(node: Node, log: Logger) -> None:
-    # Check the status of the akvvm_service service using the Service tool
-    service = node.tools[Service]
-    if service.is_service_running("akvvm_service.service"):
-        log.info("akvvm_service is running")
-    else:
-        log.error("akvvm_service is not running")
-        raise LisaException("akvvm_service is not running. Test case failed.")
-
-    # List the contents of the directory
-    ls = node.tools[Ls]
-    directory_contents = ls.run(
-        "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
-    ).stdout
-    log.info(f"Directory contents: {directory_contents}")

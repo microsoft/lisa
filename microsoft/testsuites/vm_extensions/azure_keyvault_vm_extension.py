@@ -15,11 +15,12 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.base_tools.service import Service
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
+    assign_access_policy_to_vm,
     check_certificate_existence,
-    check_system_status,
     create_certificate,
     create_keyvault,
     delete_certificate,
@@ -30,6 +31,8 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
+from lisa.tools.ls import Ls
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -39,21 +42,38 @@ from lisa.testsuite import TestResult
     requirement=simple_requirement(unsupported_os=[]),
 )
 class AzureKeyVaultExtensionBvt(TestSuite):
+    # Private method for checking system status
+    def _check_system_status(self, node: Node, log: Logger) -> None:
+        # Check the status of the akvvm_service service using the Service tool
+        service = node.tools[Service]
+        if service.is_service_running("akvvm_service.service"):
+            log.info("akvvm_service is running")
+        else:
+            log.error("akvvm_service is not running")
+            raise LisaException("akvvm_service is not running. Test case failed.")
+
+        # List the contents of the directory
+        ls = node.tools[Ls]
+        directory_contents = ls.run(
+            "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
+        ).stdout
+        log.info(f"Directory contents: {directory_contents}")
+
     @TestCaseMetadata(
         description="""
         The following test case validates the Azure Key Vault Linux
-        Extension while creating the following resources:
-        A resource group
-        A VM
-        A Key Vault
-        Two certificates in the Key Vault
-        Retrieval of the certificate's secrets
+        * Extension while creating the following resources:
+        * A Key Vault
+        * Two certificates in the Key Vault
+        * Retrieval of the certificate's secrets
         through SecretClient class from Azure SDK.
-        Installation of the Azure Key Vault Linux Extension on the VM.
-        Rotation of the certificates (After KVVM Extension has been installed)
-        All of the resources have been created by using the Azure SDK Python.
+        * Installation of the Azure Key Vault Linux Extension on the VM.
+        * Installation of the certs through AKV extension
+        * Rotation of the certificates
+        * Printing the cert after rotation from the VM
+        * Deletion of the resources
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),
@@ -62,7 +82,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         self, log: Logger, node: Node, result: TestResult
     ) -> None:
         # Section for vault name and supported OS check
-        vault_name = f"python-keyvault-{random.randint(1, 100000):05}prp"
+        vault_name = f"kve-{time.strftime('%y%m%d%H%M%S')}-{random.randint(1, 1000):03}"
 
         # Section for environment setup
         environment = result.environment
@@ -96,18 +116,19 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             resource_group_name=node_context.resource_group_name,
             tenant_id=tenant_id,
             object_id=object_id,
-            object_id_vm=object_id_vm,
             location=node_context.location,
+            vault_name=vault_name,
+        )
+        # Acces policies for VM
+        assign_access_policy_to_vm(
+            platform=platform,
+            resource_group_name=node_context.resource_group_name,
+            tenant_id=tenant_id,
+            object_id_vm=object_id_vm,
             vault_name=vault_name,
         )
 
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
-
-        # Certificates
-        log.info(
-            "About to call create_certificates with vault_url: "
-            f"{keyvault_result.properties.vault_uri}"
-        )
 
         certificates_secret_id: List[str] = []
         for cert_name in ["Cert1", "Cert2"]:
@@ -160,7 +181,9 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             platform=platform,
             cert_name_to_rotate="Cert1",
         )
-        check_system_status(node, log)
+
+        self._check_system_status(node, log)
+
         # Deleting the certificates after the test
         for cert_name in ["Cert2", "Cert1"]:
             delete_certificate(
