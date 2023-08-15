@@ -1448,7 +1448,10 @@ def load_environment(
         assert isinstance(node, RemoteNode)
 
         vm = vms_map.get(node.name)
-        assert_that(vm).is_not_none()
+        assert_that(vm).described_as(
+            f"Cannot find vm with name {node.name}. Make sure the VM exists in "
+            f"resource group {resource_group_name}"
+        ).is_not_none()
 
         node_context = get_node_context(node)
         node_context.vm_name = node.name
