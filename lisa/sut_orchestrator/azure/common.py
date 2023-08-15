@@ -1976,7 +1976,7 @@ def add_system_assign_identity(
     )
     vm_result = vm_poller.result()
     object_id_vm = vm_result.identity.principal_id
-    log.info(object_id_vm)
+    log.info(f"VM object ID assigned: {object_id_vm}")
 
     if not object_id_vm:
         raise ValueError(
@@ -2060,8 +2060,7 @@ def delete_keyvault(
     keyvault_client = get_key_vault_management_client(platform)
 
     keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
-    log.info(f"{keyvault_poller}")
-    log.info(f"Key Vault {vault_name} deleted successfully.")
+    log.debug(f"{keyvault_poller} - Key Vault {vault_name} deleted successfully.")
 
 
 def get_certificate_client(
