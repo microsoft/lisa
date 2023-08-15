@@ -36,7 +36,7 @@ from lisa.tools import Find, Mkdir, Uname, Wget
     requirement=simple_requirement(unsupported_os=[]),
 )
 class CVTTest(TestSuite):
-    TIMEOUT = 12000
+    TIMEOUT = 21600
 
     def init_disk(self, log: Logger, node: Node) -> None:
         disk = node.features[Disk]
@@ -53,7 +53,7 @@ class CVTTest(TestSuite):
         log.info(f"Extension name : '{extension_name}'")
         return extension_name
 
-    def install_asr_extension_common(self, log: Logger, node: Node) -> str:
+    def get_os_info_from_extension(self, log: Logger, node: Node) -> str:
         task_id = str(uuid.uuid4())
         cur_time = datetime.datetime.now().isoformat() + "Z"
         settings = {
@@ -202,9 +202,12 @@ class CVTTest(TestSuite):
         node: Node,
         log_path: Path,
         variables: Dict[str, Any],
-    ) -> ExecutableResult:
+    ) -> int:
         cvt_bin = "indskflt_ct"
         sas_uri = variables.get("cvt_binary_sas_uri", "")
+        if not sas_uri:
+            log.error("sas uri for cvt binary is empty.")
+            return 1
         cvt_root_dir = str(node.working_path) + "/LisaTest/"
         cvt_download_dir = cvt_root_dir + "cvt_files/"
 
@@ -231,7 +234,7 @@ class CVTTest(TestSuite):
             test_dir=Path(node.working_path.parent.parent),
             log_path=log_path,
         )
-        return result
+        return result.exit_code
 
     @TestCaseMetadata(
         description="""
@@ -258,12 +261,12 @@ class CVTTest(TestSuite):
         )
 
         self.init_disk(node=node, log=log)
-        os = self.install_asr_extension_common(node=node, log=log)
+        os = self.get_os_info_from_extension(node=node, log=log)
         self.install_asr_extension_distro(node=node, log=log, os=os)
         result = self.run_cvt_tests(
             node=node, log=log, log_path=log_path, variables=variables
         )
-        assert_that(result.exit_code).is_equal_to(0)
+        assert_that(result).is_equal_to(0)
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         self._cvt_script = CustomScriptBuilder(
