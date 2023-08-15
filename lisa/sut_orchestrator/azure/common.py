@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
+from azure.identity import DefaultAzureCredential
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -45,6 +46,7 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     VirtualNetworkLink,
 )
 from azure.mgmt.resource import ResourceManagementClient  # type: ignore
+from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -1718,7 +1720,7 @@ def check_or_create_gallery(
                 "location": gallery_location,
                 "description": gallery_description,
             }
-            operation = compute_client.galleries.begin_create_or_update(
+            operation = compute_client.galleries.begin_update(
                 gallery_resource_group_name,
                 gallery_name,
                 gallery_post_body,
@@ -1916,6 +1918,44 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
+def get_tenant_id(credential: Any) -> Any:
+    # Initialize the Subscription client
+    subscription_client = SubscriptionClient(credential)
+    # Get the subscription
+    subscription = next(subscription_client.subscriptions.list())
+    return subscription.tenant_id
+
+
+def get_object_id() -> Any:
+    # Define constants
+    graph_api_url = "https://graph.microsoft.com/.default"
+    request_url = "https://graph.microsoft.com/v1.0/me"
+
+    # Get a token for the Microsoft Graph API
+    token_credential = DefaultAzureCredential()
+    token = token_credential.get_token(graph_api_url)
+
+    # Set up the API call headers
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type": "application/json",
+    }
+
+    # Set a timeout of 10 seconds for the request
+    response = requests.get(request_url, headers=headers, timeout=10)
+
+    if response.status_code == 200:
+        user_data = response.json()
+        return user_data.get("id")
+    else:
+        error_msg = (
+            f"Failed to retrieve user object ID. "
+            f"Status code: {response.status_code}. "
+            f"Response: {response.text}"
+        )
+        raise LisaException(error_msg)
+
+
 def add_system_assign_identity(
     platform: "AzurePlatform",
     resource_group_name: str,
@@ -1939,7 +1979,9 @@ def add_system_assign_identity(
     log.info(object_id_vm)
 
     if not object_id_vm:
-        raise ValueError("object_id_vm is not set.")
+        raise ValueError(
+            "Cannot retrieve managed identity after set system assigned identity on vm"
+        )
 
     return object_id_vm
 
@@ -2076,15 +2118,17 @@ def check_certificate_existence(
 
     try:
         certificate = certificate_client.get_certificate(cert_name)
-        log.info(f"Cert found '{certificate}")
+        log.info(f"Cert found '{certificate.name}'")
         return True
     except Exception as e:
         if "not found" in str(e).lower():
             log.info(f"Certificate '{cert_name}' does not exist.")
             return False
         else:
-            log.error(f"Unexpected error checking certificate '{cert_name}': {e}")
-            raise LisaException(f"Error while checking certificate '{cert_name}': {e}")
+            # Directly raise an exception without logging an error
+            raise LisaException(
+                f"Unexpected error checking certificate '{cert_name}': {e}"
+            )
 
 
 def delete_certificate(

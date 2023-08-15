@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import os
+
 import random
 import time
 from typing import List
@@ -26,6 +26,8 @@ from lisa.sut_orchestrator.azure.common import (
     delete_certificate,
     delete_keyvault,
     get_node_context,
+    get_object_id,
+    get_tenant_id,
     rotate_certificates,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -35,6 +37,23 @@ from lisa.tools.ls import Ls
 from lisa.util import LisaException
 
 
+def _check_system_status(node: Node, log: Logger) -> None:
+    # Check the status of the akvvm_service service using the Service tool
+    service = node.tools[Service]
+    if service.is_service_running("akvvm_service.service"):
+        log.info("akvvm_service is running")
+    else:
+        log.error("akvvm_service is not running")
+        raise LisaException("akvvm_service is not running. Test case failed.")
+
+    # List the contents of the directory
+    ls = node.tools[Ls]
+    directory_contents = ls.run(
+        "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
+    ).stdout
+    log.info(f"Directory contents: {directory_contents}")
+
+
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
@@ -42,23 +61,6 @@ from lisa.util import LisaException
     requirement=simple_requirement(unsupported_os=[]),
 )
 class AzureKeyVaultExtensionBvt(TestSuite):
-    # Private method for checking system status
-    def _check_system_status(self, node: Node, log: Logger) -> None:
-        # Check the status of the akvvm_service service using the Service tool
-        service = node.tools[Service]
-        if service.is_service_running("akvvm_service.service"):
-            log.info("akvvm_service is running")
-        else:
-            log.error("akvvm_service is not running")
-            raise LisaException("akvvm_service is not running. Test case failed.")
-
-        # List the contents of the directory
-        ls = node.tools[Ls]
-        directory_contents = ls.run(
-            "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
-        ).stdout
-        log.info(f"Directory contents: {directory_contents}")
-
     @TestCaseMetadata(
         description="""
         The following test case validates the Azure Key Vault Linux
@@ -94,12 +96,11 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         resource_group_name = (
             runbook.resource_group_name or runbook.shared_resource_group_name
         )
-
         node_context = get_node_context(node)
-        tenant_id = os.environ["AZURE_TENANT_ID"]
+        tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
-        object_id = os.environ["AZURE_CLIENT_ID"]
+        object_id = get_object_id()
         if object_id is None:
             raise ValueError("Environment variable 'object_id' is not set.")
 
@@ -188,7 +189,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             cert_name_to_rotate="Cert1",
         )
 
-        self._check_system_status(node, log)
+        _check_system_status(node, log)
 
         # Deleting the certificates after the test
         for cert_name in ["Cert2", "Cert1"]:
