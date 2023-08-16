@@ -296,6 +296,17 @@ class Ip(Tool):
             ),
         )
 
+    def get_child(self, master_interface: str) -> str:
+        # -br gives brief and machine readable output (tab seperated)
+        # $ ip -br link show master eth1
+        # > eth3             UP             00:0d:3a:ef:f1:8b <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP>
+        result = self.run(f"-br link show master {master_interface}", force_run=True)
+        if result.exit_code == 0:
+            br_output = result.stdout
+            if br_output:
+                return br_output.split()[0]
+        return ""
+
     def setup_tap(self, name: str, bridge: str) -> None:
         if self.nic_exists(name):
             self._log.debug(f"Tap {name} already exists")

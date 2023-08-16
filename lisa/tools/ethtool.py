@@ -37,7 +37,7 @@ _max_settings_pattern = re.compile(
 _current_settings_pattern = re.compile(
     r"Current hardware settings:[\s+](?P<settings>.*?)$", re.DOTALL
 )
-
+_bus_info_pattern = re.compile(r"bus-info:[\s+](?P<bus_info>.*?)$", re.DOTALL)
 # Some device settings are retrieved like below -
 #
 # ~$ ethtool eth0
@@ -562,6 +562,14 @@ class Ethtool(Tool):
 
         device.device_channel = device_channel_info
         return device_channel_info
+
+    def get_device_bus_info(self, interface: str) -> str:
+        output = self.run(f"-i {interface}").stdout
+        for line in output.splitlines():
+            match = _bus_info_pattern.search(line)
+            if match:
+                return match.group("bus_info").strip()
+        return ""
 
     def change_device_channels_info(
         self,
