@@ -2122,30 +2122,12 @@ def check_certificate_existence(
 
 
 @retry(tries=10, delay=1)
-def delete_certificate(
-    platform: "AzurePlatform",
-    vault_url: str,
-    cert_name: str,
-    log: Logger,
-) -> bool:
-    certificate_client = get_certificate_client(vault_url, platform)
-
-    try:
-        certificate_client.begin_delete_certificate(cert_name)
-        log.debug(f"Certificate {cert_name} deleted successfully.")
-        return True
-    except Exception:
-        raise LisaException
-
-
-@retry(tries=10, delay=1)
 def rotate_certificate(
     platform: "AzurePlatform",
     vault_url: str,
     cert_name: str,
     log: Logger,
 ) -> None:
-    # Use the helper function to get certificate_client
     certificate_client = get_certificate_client(vault_url, platform)
 
     # Retrieve the old version of the certificate
@@ -2180,3 +2162,20 @@ def rotate_certificate(
     certificate_client.update_certificate_properties(
         certificate_name=cert_name, enabled=True
     )
+
+ 
+@retry(tries=10, delay=1)
+def delete_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> bool:
+    certificate_client = get_certificate_client(vault_url, platform)
+
+    try:
+        certificate_client.begin_delete_certificate(cert_name)
+        log.debug(f"Certificate {cert_name} deleted successfully.")
+        return True
+    except Exception:
+        raise LisaException
