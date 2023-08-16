@@ -1944,7 +1944,14 @@ def get_object_id() -> Any:
     # Set a timeout of 10 seconds for the request
     response = requests.get(request_url, headers=headers, timeout=10)
 
-    if response.status_code == 200:
+    if response.status_code != 200:
+      raise LisaException(
+            f"Failed to retrieve user object ID. "
+            f"Status code: {response.status_code}. "
+            f"Response: {response.text}"
+      )
+
+  return response.json().get("id")
         user_data = response.json()
         return user_data.get("id")
     else:
