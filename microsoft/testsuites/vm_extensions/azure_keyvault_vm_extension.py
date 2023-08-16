@@ -74,7 +74,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         * Printing the cert after rotation from the VM
         * Deletion of the resources
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),

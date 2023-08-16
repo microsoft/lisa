@@ -2163,7 +2163,7 @@ def rotate_certificate(
         certificate_name=cert_name, enabled=True
     )
 
- 
+
 @retry(tries=10, delay=1)
 def delete_certificate(
     platform: "AzurePlatform",
