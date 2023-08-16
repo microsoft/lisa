@@ -363,7 +363,7 @@ class SshShell(InitializableMixin):
                     if matched:
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
-                        )
+                        ).replace("*", "")
                 else:
                     raise identifier
         return process

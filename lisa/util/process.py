@@ -429,10 +429,8 @@ class Process:
             isinstance(self._shell, SshShell)
             and self._shell.spawn_initialization_error_string
         ):
-            raw_input = re.sub(
-                re.compile(rf"{self._shell.spawn_initialization_error_string}\r\n"),
-                "",
-                raw_input,
+            raw_input = raw_input.replace(
+                rf"{self._shell.spawn_initialization_error_string}\n", ""
             )
             self._log.debug(
                 "filter the profile error string: "
