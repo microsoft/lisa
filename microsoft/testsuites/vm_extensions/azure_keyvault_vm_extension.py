@@ -74,7 +74,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         * Printing the cert after rotation from the VM
         * Deletion of the resources
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),
@@ -132,6 +132,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
 
         certificates_secret_id: List[str] = []
+        # Providing a random Cert name format is: Cert-xxx
         for cert_name in [f"Cert-{random.randint(1, 1000):03}" for _ in range(2)]:
             certificate_secret_id = create_certificate(
                 platform=platform,
@@ -176,9 +177,11 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Rotate certificates
-        match = re.search(r"/([^/]+)$", certificates_secret_id[0])
+        # Example: "https://example.vault.azure.net/secrets/Cert-123"
+        # Expected match: "Cert-123"
+        match = re.search(r"/(?P<certificate_name>[^/]+)$", certificates_secret_id[0])
         if match:
-            cert_name = match.group(1)
+            cert_name = match.group("certificate_name")
         else:
             raise LisaException(
                 f"Failed to extract certificate name from {certificates_secret_id[0]}"
@@ -193,9 +196,11 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         _check_system_status(node, log)
 
         for cert_secret_id in certificates_secret_id:
-            match = re.search(r"/([^/]+)$", cert_secret_id)
+            # Example: "https://example.vault.azure.net/secrets/Cert-123"
+            # Expected match for 'certificate_name': "Cert-123"
+            match = re.search(r"/(?P<certificate_name>[^/]+)$", cert_secret_id)
             if match:
-                cert_name = match.group(1)
+                cert_name = match.group("certificate_name")
             else:
                 raise LisaException(
                     f"Failed to extract certificate name from {cert_secret_id}"

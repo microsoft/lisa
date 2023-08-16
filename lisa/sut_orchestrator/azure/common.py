@@ -2087,9 +2087,14 @@ def create_certificate(
 
     secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
     if secret_id:
-        match = re.match(r"(https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id)
+        # Example: "https://example.vault.azure.net/secrets/Cert-123/SomeVersion"
+        # Expected match for 'cert_url':
+        # "https://example.vault.azure.net/secrets/Cert-123"
+        match = re.match(
+            r"(?P<cert_url>https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id
+        )
         if match:
-            secret_url_without_version = match.group(1)
+            secret_url_without_version = match.group("cert_url")
             return secret_url_without_version
         else:
             raise LisaException(
@@ -2152,9 +2157,9 @@ def rotate_certificate(
     ):
         new_certificate_version = create_certificate_result.properties.version
         log.debug(
-            f"New version of certificate '{cert_name}': " f"{new_certificate_version}"
+            f"New version of certificate '{cert_name}': {new_certificate_version}. "
+            "Certificate rotated."
         )
-        log.debug("Certificate rotated")
     else:
         error_message = "Failed to retrieve properties from create certificate result."
         raise LisaException(error_message)
