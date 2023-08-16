@@ -55,6 +55,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        encoding: str = "utf-8",
     ) -> None:
         super().__init__(runbook=runbook)
         self.is_default = runbook.is_default
@@ -65,6 +66,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.provision_time: float
         self._shell: Optional[Shell] = None
         self._first_initialize: bool = False
+        self._encoding = encoding
 
         # will be initialized by platform
         self.features: Features
@@ -499,6 +501,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             no_debug_log=no_debug_log,
+            encoding=self._encoding,
             cwd=cwd,
             update_envs=update_envs,
         )
