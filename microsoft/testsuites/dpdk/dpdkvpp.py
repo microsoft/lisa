@@ -119,19 +119,41 @@ class DpdkVpp(Tool):
         self._install_from_package_manager()
         return True
 
-    def _install_from_package_manager(self) -> None:
+    def _get_vpp_package_list(self) -> List[str]:
         node = self.node
         vpp_packages = ["vpp"]
-
         if isinstance(node.os, Debian):
             vpp_packages += ["vpp-plugin-dpdk", "vpp-plugin-core"]
         elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
             vpp_packages.append("vpp-plugins")
-        else:
-            raise SkippedException(
-                UnsupportedDistroException(
-                    self.node.os, "VPP is not supported on this OS"
-                )
-            )
+        return vpp_packages
 
+    def _install_from_package_manager(self) -> None:
+        node = self.node
+        vpp_packages = self._get_vpp_package_list()
+        # this check has already passed in install()
+        assert (
+            isinstance(node.os, Fedora)
+            or isinstance(node.os, Debian)
+            or isinstance(node.os, Suse)
+        )
         node.os.install_packages(vpp_packages)
+
+    def uninstall(self) -> None:
+        node = self.node
+        assert (
+            isinstance(node.os, Fedora)
+            or isinstance(node.os, Debian)
+            or isinstance(node.os, Suse)
+        )
+        # attempt to cleanup after ourselves. mark dirty on failure.
+        if node.os.package_exists("vpp"):
+            try:
+                vpp_packages = self._get_vpp_package_list()
+                node.os.uninstall_packages(vpp_packages)
+            except AssertionError:
+                node.log.warning(
+                    "VPP cleanup has failed, this is a test suite bug."
+                    " Marking node dirty."
+                )
+                node.mark_dirty()

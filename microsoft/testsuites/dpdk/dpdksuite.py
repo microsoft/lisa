@@ -393,23 +393,26 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         vpp = node.tools[DpdkVpp]
-        vpp.install()
+        try:
+            vpp.install()
 
-        net = node.nics
-        nics_dict = {key: value for key, value in net.nics.items() if key != "eth0"}
-        pci_slots = []
-        # set devices to down and restart vpp service
-        ip = node.tools[Ip]
-        start_up_conf = vpp.get_start_up_file_content()
-        for key, value in nics_dict.items():
-            ip.down(key)
-            if value.pci_slot not in start_up_conf:
-                pci_slots.append(f"dev {value.pci_slot}")
-        replace_str = "\n".join(pci_slots)
-        vpp.set_start_up_file(replace_str)
+            net = node.nics
+            nics_dict = {key: value for key, value in net.nics.items() if key != "eth0"}
+            pci_slots = []
+            # set devices to down and restart vpp service
+            ip = node.tools[Ip]
+            start_up_conf = vpp.get_start_up_file_content()
+            for key, value in nics_dict.items():
+                ip.down(key)
+                if value.pci_slot not in start_up_conf:
+                    pci_slots.append(f"dev {value.pci_slot}")
+            replace_str = "\n".join(pci_slots)
+            vpp.set_start_up_file(replace_str)
 
-        vpp.start()
-        vpp.run_test()
+            vpp.start()
+            vpp.run_test()
+        finally:
+            vpp.uninstall()
 
     @TestCaseMetadata(
         description="""
