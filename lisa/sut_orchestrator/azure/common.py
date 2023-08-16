@@ -1720,7 +1720,7 @@ def check_or_create_gallery(
                 "location": gallery_location,
                 "description": gallery_description,
             }
-            operation = compute_client.galleries.begin_update(
+            operation = compute_client.galleries.begin_create_or_update(
                 gallery_resource_group_name,
                 gallery_name,
                 gallery_post_body,
@@ -1918,6 +1918,22 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
+def get_certificate_client(
+    vault_url: str, platform: "AzurePlatform"
+) -> CertificateClient:
+    return CertificateClient(vault_url, platform.credential)
+
+
+def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
+    return SecretClient(vault_url, platform.credential)
+
+
+def get_key_vault_management_client(
+    platform: "AzurePlatform",
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
+
+
 def get_tenant_id(credential: Any) -> Any:
     # Initialize the Subscription client
     subscription_client = SubscriptionClient(credential)
@@ -1926,7 +1942,7 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
-def get_object_id() -> Any:
+def get_identity_id() -> Any:
     # Define constants
     graph_api_url = "https://graph.microsoft.com/.default"
     request_url = "https://graph.microsoft.com/v1.0/me"
@@ -1944,16 +1960,13 @@ def get_object_id() -> Any:
     # Set a timeout of 10 seconds for the request
     response = requests.get(request_url, headers=headers, timeout=10)
 
-    if response.status_code == 200:
-        user_data = response.json()
-        return user_data.get("id")
-    else:
-        error_msg = (
+    if response.status_code != 200:
+        raise LisaException(
             f"Failed to retrieve user object ID. "
             f"Status code: {response.status_code}. "
             f"Response: {response.text}"
         )
-        raise LisaException(error_msg)
+    return response.json().get("id")
 
 
 def add_system_assign_identity(
@@ -1969,14 +1982,14 @@ def add_system_assign_identity(
     params_identity = {"type": "SystemAssigned"}
     params_create = {"location": location, "identity": params_identity}
 
-    vm_poller = compute_client.virtual_machines.begin_create_or_update(
+    vm_poller = compute_client.virtual_machines.begin_update(
         resource_group_name,
         vm_name,
         params_create,
     )
     vm_result = vm_poller.result()
     object_id_vm = vm_result.identity.principal_id
-    log.info(f"VM object ID assigned: {object_id_vm}")
+    log.debug(f"VM object ID assigned: {object_id_vm}")
 
     if not object_id_vm:
         raise ValueError(
@@ -1984,12 +1997,6 @@ def add_system_assign_identity(
         )
 
     return object_id_vm
-
-
-def get_key_vault_management_client(
-    platform: "AzurePlatform",
-) -> KeyVaultManagementClient:
-    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
 
 
 def create_keyvault(
@@ -2054,56 +2061,40 @@ def assign_access_policy_to_vm(
     return keyvault_poller.result()
 
 
-def delete_keyvault(
-    platform: "AzurePlatform", vault_name: str, log: Logger, resource_group_name: str
-) -> None:
-    keyvault_client = get_key_vault_management_client(platform)
-
-    keyvault_poller = keyvault_client.vaults.delete(resource_group_name, vault_name)
-    log.debug(f"{keyvault_poller} - Key Vault {vault_name} deleted successfully.")
-
-
-def get_certificate_client(
-    vault_url: str, platform: "AzurePlatform"
-) -> CertificateClient:
-    return CertificateClient(vault_url, platform.credential)
-
-
-def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
-    return SecretClient(vault_url, platform.credential)
-
-
+@retry(tries=5, delay=1)
 def create_certificate(
     platform: "AzurePlatform",
     vault_url: str,
-    log: Logger,
     cert_name: str,
-    retries: int = 5,
-    delay: int = 2,
+    log: Logger,
 ) -> str:
     certificate_client = get_certificate_client(vault_url, platform)
     secret_client = get_secret_client(vault_url, platform)
 
     cert_policy = CertificatePolicy.get_default()
 
-    for _attempt in range(retries):
-        # Create certificate
-        create_certificate_result = certificate_client.begin_create_certificate(
-            cert_name, policy=cert_policy
-        )
-        log.info(
-            f"Certificate '{cert_name}' has been created. "
-            f"Result: {create_certificate_result}"
-        )
-        certificate_client.update_certificate_properties(
-            certificate_name=cert_name, enabled=True
-        )
-        break
+    # Create certificate
+    create_certificate_result = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    log.debug(
+        f"Certificate '{cert_name}' has been created. "
+        f"Result: {create_certificate_result}"
+    )
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )
 
     secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
     if secret_id:
-        secret_url_without_version = secret_id.rsplit("/", 1)[0]
-        return secret_url_without_version
+        match = re.match(r"(https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id)
+        if match:
+            secret_url_without_version = match.group(1)
+            return secret_url_without_version
+        else:
+            raise LisaException(
+                f"Failed to parse the URL pattern of secret ID: '{secret_id}'."
+            )
     else:
         raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
 
@@ -2117,11 +2108,11 @@ def check_certificate_existence(
 
     try:
         certificate = certificate_client.get_certificate(cert_name)
-        log.info(f"Cert found '{certificate.name}'")
+        log.debug(f"Cert found '{certificate.name}'")
         return True
     except Exception as e:
         if "not found" in str(e).lower():
-            log.info(f"Certificate '{cert_name}' does not exist.")
+            log.debug(f"Certificate '{cert_name}' does not exist.")
             return False
         else:
             # Directly raise an exception without logging an error
@@ -2130,6 +2121,7 @@ def check_certificate_existence(
             )
 
 
+@retry(tries=10, delay=1)
 def delete_certificate(
     platform: "AzurePlatform",
     vault_url: str,
@@ -2140,60 +2132,51 @@ def delete_certificate(
 
     try:
         certificate_client.begin_delete_certificate(cert_name)
-        log.info(f"Certificate {cert_name} deleted successfully.")
+        log.debug(f"Certificate {cert_name} deleted successfully.")
         return True
-    except Exception as e:
-        log.error(f"Error deleting certificate {cert_name}: {e}")
-        return False
+    except Exception:
+        raise LisaException
 
 
-def rotate_certificates(
-    log: Logger,
-    vault_url: str,
+@retry(tries=10, delay=1)
+def rotate_certificate(
     platform: "AzurePlatform",
-    cert_name_to_rotate: str,
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
 ) -> None:
     # Use the helper function to get certificate_client
     certificate_client = get_certificate_client(vault_url, platform)
 
     # Retrieve the old version of the certificate
-    if not certificate_client.get_certificate(cert_name_to_rotate):
-        error_message = (
-            f"Failed to retrieve old version of certificate: {cert_name_to_rotate}"
-        )
-        log.error(error_message)
+    if not certificate_client.get_certificate(cert_name):
+        error_message = f"Failed to retrieve old version of certificate: {cert_name}"
         raise LisaException(error_message)
 
     cert_policy = CertificatePolicy.get_default()
 
     # Create only the specified certificate
-    for _ in range(2):
-        # Create certificate
-        create_certificate_poller = certificate_client.begin_create_certificate(
-            cert_name_to_rotate, policy=cert_policy
-        )
-        create_certificate_result = create_certificate_poller.result()
+    # Create certificate
+    create_certificate_poller = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    create_certificate_result = create_certificate_poller.result()
 
-        # Handle possible None value
-        if (
-            isinstance(create_certificate_result, KeyVaultCertificate)
-            and hasattr(create_certificate_result, "properties")
-            and create_certificate_result.properties
-        ):
-            new_certificate_version = create_certificate_result.properties.version
-            log.info(
-                f"New version of certificate '{cert_name_to_rotate}': "
-                f"{new_certificate_version}"
-            )
-            log.info("Certificate rotated")
-        else:
-            error_message = (
-                "Failed to retrieve properties from create certificate result."
-            )
-            log.error(error_message)
-            raise LisaException(error_message)
-
-        certificate_client.update_certificate_properties(
-            certificate_name=cert_name_to_rotate, enabled=True
+    # Handle possible None value
+    if (
+        isinstance(create_certificate_result, KeyVaultCertificate)
+        and hasattr(create_certificate_result, "properties")
+        and create_certificate_result.properties
+    ):
+        new_certificate_version = create_certificate_result.properties.version
+        log.debug(
+            f"New version of certificate '{cert_name}': " f"{new_certificate_version}"
         )
-        break
+        log.debug("Certificate rotated")
+    else:
+        error_message = "Failed to retrieve properties from create certificate result."
+        raise LisaException(error_message)
+
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )

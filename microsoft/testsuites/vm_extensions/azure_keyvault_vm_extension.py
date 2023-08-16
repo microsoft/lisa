@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import random
-import time
+import re
 from typing import List
 
 from assertpy import assert_that
@@ -24,11 +24,10 @@ from lisa.sut_orchestrator.azure.common import (
     create_certificate,
     create_keyvault,
     delete_certificate,
-    delete_keyvault,
+    get_identity_id,
     get_node_context,
-    get_object_id,
     get_tenant_id,
-    rotate_certificates,
+    rotate_certificate,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
@@ -43,7 +42,7 @@ def _check_system_status(node: Node, log: Logger) -> None:
     if service.is_service_running("akvvm_service.service"):
         log.info("akvvm_service is running")
     else:
-        log.error("akvvm_service is not running")
+        log.info("akvvm_service is not running")
         raise LisaException("akvvm_service is not running. Test case failed.")
 
     # List the contents of the directory
@@ -75,7 +74,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         * Printing the cert after rotation from the VM
         * Deletion of the resources
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(
             supported_features=[AzureExtension], unsupported_os=[BSD]
         ),
@@ -83,24 +82,19 @@ class AzureKeyVaultExtensionBvt(TestSuite):
     def verify_key_vault_extension(
         self, log: Logger, node: Node, result: TestResult
     ) -> None:
-        # Section for vault name and supported OS check
-        vault_name = f"kve-{time.strftime('%y%m%d%H%M%S')}-{random.randint(1, 1000):03}"
-
         # Section for environment setup
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
         assert isinstance(platform, AzurePlatform)
         runbook = platform.runbook.get_extended_runbook(AzurePlatformSchema)
-        # Use the shared_resource_group_name if the resource_group_name is not provided
-        resource_group_name = (
-            runbook.resource_group_name or runbook.shared_resource_group_name
-        )
+        resource_group_name = runbook.shared_resource_group_name
+        vault_name = f"kve-{platform.subscription_id[-6:]}"
         node_context = get_node_context(node)
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
-        object_id = get_object_id()
+        object_id = get_identity_id()
         if object_id is None:
             raise ValueError("Environment variable 'object_id' is not set.")
 
@@ -138,7 +132,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
 
         certificates_secret_id: List[str] = []
-        for cert_name in ["Cert1", "Cert2"]:
+        for cert_name in [f"Cert-{random.randint(1, 1000):03}" for _ in range(2)]:
             certificate_secret_id = create_certificate(
                 platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,
@@ -182,17 +176,30 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Rotate certificates
-        rotate_certificates(
-            log,
-            vault_url=keyvault_result.properties.vault_uri,
+        match = re.search(r"/([^/]+)$", certificates_secret_id[0])
+        if match:
+            cert_name = match.group(1)
+        else:
+            raise LisaException(
+                f"Failed to extract certificate name from {certificates_secret_id[0]}"
+            )
+        rotate_certificate(
             platform=platform,
-            cert_name_to_rotate="Cert1",
+            vault_url=keyvault_result.properties.vault_uri,
+            cert_name=cert_name,
+            log=log,
         )
 
         _check_system_status(node, log)
 
-        # Deleting the certificates after the test
-        for cert_name in ["Cert2", "Cert1"]:
+        for cert_secret_id in certificates_secret_id:
+            match = re.search(r"/([^/]+)$", cert_secret_id)
+            if match:
+                cert_name = match.group(1)
+            else:
+                raise LisaException(
+                    f"Failed to extract certificate name from {cert_secret_id}"
+                )
             delete_certificate(
                 platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,
@@ -200,28 +207,16 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                 log=log,
             )
 
-            retries = 2
-            for _ in range(retries):
-                certificate_exists = check_certificate_existence(
-                    vault_url=keyvault_result.properties.vault_uri,
-                    cert_name=cert_name,
-                    log=log,
-                    platform=platform,
-                )
-                if not certificate_exists:
-                    break
-                time.sleep(5)  # wait for 5 seconds before retrying
+            certificate_exists = check_certificate_existence(
+                log=log,
+                platform=platform,
+                vault_url=keyvault_result.properties.vault_uri,
+                cert_name=cert_name,
+            )
 
-            assert_that(certificate_exists).is_false()
-        # Deleting key vault
-        delete_keyvault(
-            platform=platform,
-            resource_group_name=resource_group_name,
-            vault_name=vault_name,
-            log=log,
-        )
-
-        assert_that(keyvault_result.properties.vault_uri).does_not_exist
+            assert_that(certificate_exists).described_as(
+                f"The certificate '{cert_name}' was not deleted after 10 attempts."
+            ).is_false()
 
         # Delete VM Extension
         extension.delete("KeyVaultForLinux")
