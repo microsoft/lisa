@@ -296,6 +296,32 @@ class Ip(Tool):
             ),
         )
 
+    # $ ip -br link show master eth1
+    # eth3             UP             00:0d:3a:ef:f1:8b <SLAVE,UP,LOWER_UP>
+    _ip_br_child_regex = re.compile(
+        (
+            # eth1
+            r"(?P<nic_name>[\w\-]+)\s+"
+            # UP/DOWN
+            r"\w+\s+"
+            # 00:0d:3a:ef:f1:8b
+            r"(?P<mac_addr>(([0-9a-fA-F]{2}:)+)[0-9a-fA-f]{2})\s+"
+            # <SLAVE,UP,LOWER_UP>
+            r"(?P<flags><(\w+,?)+>)"
+        )
+    )
+
+    def get_child(self, master_interface: str) -> str:
+        # -br gives brief and machine readable output (tab seperated)
+        result = self.run(f"-br link show master {master_interface}", force_run=True)
+        # used in node.nic to check for master interfaces, so failure is not fatal
+        if result.exit_code == 0:
+            br_output = result.stdout
+            matches = self._ip_br_child_regex.search(br_output)
+            if matches and matches.group("nic_name"):
+                return matches.group("nic_name")
+        return ""
+
     def setup_tap(self, name: str, bridge: str) -> None:
         if self.nic_exists(name):
             self._log.debug(f"Tap {name} already exists")
