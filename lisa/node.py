@@ -267,6 +267,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
         timeout: int = 600,
+        encoding: str = "utf-8",
         update_envs: Optional[Dict[str, str]] = None,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
@@ -281,6 +282,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
         return process.wait_result(
             timeout=timeout,
@@ -297,6 +299,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_error_log: bool = False,
         no_info_log: bool = True,
         no_debug_log: bool = False,
+        encoding: str = "utf-8",
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
     ) -> Process:
@@ -311,6 +314,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_info_log=no_info_log,
             no_debug_log=no_debug_log,
             cwd=cwd,
+            encoding=encoding,
             update_envs=update_envs,
         )
 
@@ -486,6 +490,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_error_log: bool = False,
         no_info_log: bool = False,
         no_debug_log: bool = False,
+        encoding: str = "utf-8",
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
     ) -> Process:
@@ -499,6 +504,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             no_debug_log=no_debug_log,
+            encoding=encoding,
             cwd=cwd,
             update_envs=update_envs,
         )

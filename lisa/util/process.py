@@ -108,6 +108,7 @@ class Process:
         no_error_log: bool = False,
         no_info_log: bool = False,
         no_debug_log: bool = False,
+        encoding: str = "utf-8",
     ) -> None:
         """
         command include all parameters also.
@@ -169,7 +170,7 @@ class Process:
                 update_env=update_envs,
                 allow_error=True,
                 store_pid=self._is_posix,
-                encoding="utf-8",
+                encoding=encoding,
                 use_pty=self._is_posix,
             )
             # save for logging.
