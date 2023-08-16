@@ -6,14 +6,17 @@ import os
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
+from functools import partial
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
+from lisa.tools import Cat, Ethtool, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
+from lisa.tools.ip import IpInfo
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
+from lisa.util.parallel import run_in_parallel
 
 if TYPE_CHECKING:
     from lisa import Node
@@ -34,12 +37,14 @@ class NicInfo:
         lower: str = "",
         pci_slot: str = "",
         lower_module_name: str = "",
+        mac_addr: str = "",
+        ip_addr: str = "",
         driver_sysfs_path: Optional[PurePosixPath] = None,
     ) -> None:
         self.name = name
         self.lower = lower
-        self.mac_addr = ""
-        self.ip_addr = ""
+        self.mac_addr = mac_addr
+        self.ip_addr = ip_addr
         self.pci_slot = pci_slot
         self.dev_uuid = ""
         self.module_name = ""
@@ -358,67 +363,55 @@ class Nics(InitializableMixin):
 
     def _load_nics(self) -> None:
         # Identify which nics are slaved to master devices.
-        # This should be really simple with /usr/bin/ip but experience shows
-        # the tool isn't super consistent across distros in this regard
 
-        # use sysfs to gather synthetic/pci nic pairings and pci slot info
-        nic_info_fetch_cmd = "ls -la /sys/class/net/*/lower*/device"
         self._node.log.debug(f"Gathering NIC information on {self._node.name}.")
+        nic_names = self._get_nic_names()
+        ip = self._node.tools[Ip]
+        ethtool = self._node.tools[Ethtool]
         lspci = self._node.tools[Lspci]
-        result = self._node.execute(
-            nic_info_fetch_cmd,
-            shell=True,
-        )
-        if result.exit_code != 0:
-            nic_info_fetch_cmd = "ls -la /sys/class/net/*/device"
-            result = self._node.execute(
-                nic_info_fetch_cmd,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="Could not grab NIC device info.",
-            )
+        all_ip_info: Dict[str, IpInfo] = {}
+        for ip_info in ip.get_info():
+            all_ip_info[ip_info.nic_name] = ip_info
 
-        for line in result.stdout.splitlines():
-            sriov_match = self.__nic_pci_device_regex.search(line)
-            if sriov_match:
-                nic_name, lower, pci_slot = sriov_match.groups()
-                used_module = lspci.get_used_module(pci_slot)
-                self.append(
-                    NicInfo(
-                        name=nic_name,
-                        lower=lower,
-                        pci_slot=pci_slot,
-                        lower_module_name=used_module,
-                    )
+        # create local function for fetching info in parallel
+        def _get_nic_info(nic_name: str) -> NicInfo:
+            # get mac address for interface
+            mac = all_ip_info[nic_name].mac_addr
+            ip_addr = all_ip_info[nic_name].ip_addr
+            # check for child interface
+            child = ip.get_child(nic_name)
+            if child:
+                # if there's a child, get the bus info and driver info
+                bus_info = ethtool.get_device_bus_info(child)
+                used_module = lspci.get_used_module(bus_info)
+                info = NicInfo(
+                    name=nic_name,
+                    lower=child,
+                    pci_slot=bus_info,
+                    lower_module_name=used_module,
+                    mac_addr=mac,
+                    ip_addr=ip_addr,
                 )
+            else:
+                info = NicInfo(name=nic_name, mac_addr=mac, ip_addr=ip_addr)
+            return info
 
-            sriov_match = self.__nic_vf_slot_regex.search(line)
-            if sriov_match:
-                lower, pci_slot = sriov_match.groups()
-                ip = self._node.tools[Ip]
-                pci_nic_mac = ip.get_mac(lower)
-                for nic_name in [x for x in self._nic_names if x != lower]:
-                    synthetic_nic_mac = ip.get_mac(nic_name)
-                    if synthetic_nic_mac == pci_nic_mac:
-                        used_module = lspci.get_used_module(pci_slot)
-                        self.append(
-                            NicInfo(
-                                name=nic_name,
-                                lower=lower,
-                                pci_slot=pci_slot,
-                                lower_module_name=used_module,
-                            )
-                        )
-                        break
-
-        # Collects NIC info for any unpaired NICS
-        for nic_name in [
-            x
-            for x in self._nic_names
-            if x not in self.nics.keys() and x not in self.get_lower_nics()
-        ]:
-            nic_info = NicInfo(name=nic_name)
-            self.append(nic_info)
+        # run the info fetching function for each nic
+        nics = run_in_parallel(
+            [partial(_get_nic_info, nic_name=nic) for nic in nic_names]
+        )
+        # identify the child interfaces, add the parents
+        lowers = []
+        for nic in nics:
+            if nic.lower:
+                self.nics[nic.name] = nic
+                lowers.append(nic.lower)
+        # second pass, add unpaired interfaces
+        children = self.get_lower_nics()
+        parents = self.nics.keys()
+        for nic in nics:
+            if nic.name not in parents and nic.name not in children:
+                self.nics[nic.name] = nic
 
         assert_that(len(self)).described_as(
             "During Lisa nic info initialization, Nics class could not "
@@ -433,8 +426,8 @@ class Nics(InitializableMixin):
                 constants.DEVICE_TYPE_SRIOV, force_run=True
             )
             for pci_device in pci_devices:
-                for nic in self.get_unpaired_devices():
-                    self.nics[nic].pci_slot = pci_device.slot
+                for unpaired in self.get_unpaired_devices():
+                    self.nics[unpaired].pci_slot = pci_device.slot
                 break
 
     def is_mana_present(self) -> bool:
