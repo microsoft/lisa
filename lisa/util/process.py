@@ -327,6 +327,13 @@ class Process:
         return self._result
 
     def kill(self) -> None:
+        if (
+            isinstance(self._shell, SshShell)
+            and self._shell._inner_shell
+            and self._shell._inner_shell._spur._shell_type
+            == spur.ssh.ShellTypes.minimal
+        ):
+            return
         if self._process:
             self._log.debug(f"Killing process : {self._id_}")
             try:
