@@ -5,7 +5,7 @@ import datetime
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from assertpy import assert_that
 
@@ -202,7 +202,7 @@ class CVTTest(TestSuite):
         node: Node,
         log_path: Path,
         variables: Dict[str, Any],
-    ) -> int:
+    ) -> Optional[int]:
         cvt_bin = "indskflt_ct"
         sas_uri = variables.get("cvt_binary_sas_uri", "")
         if not sas_uri:
@@ -273,6 +273,3 @@ class CVTTest(TestSuite):
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
         log.info("before test case")
-
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        log.info("after test case")
