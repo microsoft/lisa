@@ -41,6 +41,7 @@ aws = [
 azure = [
     "azure-identity ~= 1.9.0",
     "azure-mgmt-compute ~= 26.1.0",
+    "azure-mgmt-keyvault ~= 10.2.3",
     "azure-mgmt-marketplaceordering ~= 1.1.0",
     "azure-mgmt-network ~= 19.3.0",
     "azure-mgmt-privatedns ~= 1.0.0",

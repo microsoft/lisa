@@ -15,6 +15,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient  # type: ignore
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -33,7 +37,7 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import ResourceManagementClient  # type: ignore
+from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -119,9 +123,10 @@ _global_sas_vhd_copy_lock = Lock()
 # to prevent it happens.
 global_credential_access_lock = Lock()
 # if user uses lisa for the first time in parallel, there will be a possiblilty
-# to create the same stroage account at the same time.
-# add a lock to prevent it happens.
+# to create the same stroage account or keyvault at the same time.
+# add a lock to prevent it from happening.
 _global_storage_account_check_create_lock = Lock()
+_global_key_vault_check_create_lock = Lock()
 
 
 @dataclass
@@ -889,6 +894,19 @@ def get_storage_client(
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
+def get_tenant_id(
+    credential: Any
+) -> str:
+    # Initialize the Subscription client
+    subscription_client = SubscriptionClient(credential)
+    # Get the subscription
+    subscription = next(subscription_client.subscriptions.list())
+    return subscription.tenant_id
+
+def get_key_vault_management_client(
+    platform: "AzurePlatform",
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
 
 def get_resource_management_client(
     credential: Any, subscription_id: str, cloud: Cloud
@@ -1078,6 +1096,22 @@ def get_or_create_storage_container(
         container_client.create_container()
     return container_client
 
+def create_keyvault(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    location: str,
+    vault_name: str,
+    vault_properties: VaultProperties
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+    with _global_key_vault_check_create_lock:
+        parameters = VaultCreateOrUpdateParameters(
+            location=location, properties=vault_properties
+        )
+        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+            resource_group_name, vault_name, parameters
+        )
+        return keyvault_poller.result()
 
 def check_or_create_storage_account(
     credential: Any,

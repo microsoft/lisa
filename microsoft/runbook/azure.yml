@@ -2,6 +2,8 @@ name: azure default
 include:
   - path: ./tiers/tier.yml
 variable:
+  - name : test_name
+    value : ""
   - name: location
     value: "westus3"
   - name: keep_environment
