@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import Path
 from typing import List, Optional, Union, cast
 from unittest import TestCase
 
@@ -9,6 +10,7 @@ from lisa import LisaException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import register_notifier
+from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
 from lisa.testsuite import TestResult, simple_requirement
@@ -43,7 +45,7 @@ def generate_runner(
     runbook.wait_resource_timeout = 0
     if env_runbook:
         runbook.environment = env_runbook
-    runner = LisaRunner(runbook, 0, {})
+    runner = LisaRunner(RunbookBuilder(Path("mock_runbook.yml")), runbook, 0, {})
 
     return runner
 

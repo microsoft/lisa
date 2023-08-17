@@ -94,11 +94,13 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
 
     def __init__(
         self,
+        runbook_builder: RunbookBuilder,
         runbook: schema.Runbook,
         index: int,
         case_variables: Dict[str, Any],
     ) -> None:
         super().__init__()
+        self._runbook_builder = runbook_builder
         self._runbook = runbook
 
         self.id = f"{self.type_name()}_{index}"
@@ -273,9 +275,7 @@ class RootRunner(Action):
                     sub_runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
                 )
 
-                runners = self._generate_runners(
-                    sub_runbook_builder.resolve(), variables
-                )
+                runners = self._generate_runners(sub_runbook_builder, variables)
                 for runner in runners:
                     yield runner
 
@@ -290,7 +290,7 @@ class RootRunner(Action):
             )
 
             for runner in self._generate_runners(
-                root_runbook, self._runbook_builder.variables
+                self._runbook_builder, self._runbook_builder.variables
             ):
                 yield runner
 
@@ -300,9 +300,10 @@ class RootRunner(Action):
             )
 
     def _generate_runners(
-        self, runbook: schema.Runbook, variables: Dict[str, VariableEntry]
+        self, runbook_builder: RunbookBuilder, variables: Dict[str, VariableEntry]
     ) -> Iterator[BaseRunner]:
         # group filters by runner type
+        runbook = runbook_builder.resolve(variables=variables)
         case_variables = get_case_variables(variables)
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in runbook.testcase_raw:
@@ -329,6 +330,7 @@ class RootRunner(Action):
             runbook.testcase = parse_testcase_filters(raw_filters)
             runner = factory.create_by_type_name(
                 type_name=runner_name,
+                runbook_builder=runbook_builder,
                 runbook=runbook,
                 index=self._runner_count,
                 case_variables=case_variables,

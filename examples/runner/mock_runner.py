@@ -9,6 +9,7 @@ from dataclasses_json import dataclass_json
 from marshmallow import validate
 
 from lisa import schema
+from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import BaseRunner
 from lisa.schema import BaseTestCaseFilter
 from lisa.util import field_metadata
@@ -41,10 +42,14 @@ class MockRunner(BaseRunner):
     _is_done = False
 
     def __init__(
-        self, runbook: schema.Runbook, index: int, case_variables: Dict[str, Any]
+        self,
+        runbook_builder: RunbookBuilder,
+        runbook: schema.Runbook,
+        index: int,
+        case_variables: Dict[str, Any],
     ) -> None:
         self._is_done = False
-        super().__init__(runbook, index, case_variables)
+        super().__init__(runbook_builder, runbook, index, case_variables)
 
     @classmethod
     def type_name(cls) -> str:
