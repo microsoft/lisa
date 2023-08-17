@@ -37,7 +37,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
     @TestCaseMetadata(
         description="""
         Create a restore point collection for the virtual machine.
-        Create application consistent restore point on the restore point collection.
+        Create application consistent restore point on the restore point
+        collection.
         Validate response of the restore point for validity.
         Attempt it a few items to rule out cases when VM is under changes.
         """,
@@ -89,7 +90,14 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     parameters={},
                 )
                 wait_operation(response, time_out=600)
-                log.info(f"restore point {restore_point} created")
+                # check the status of rp and validate the result.
+                self.get_restore_point(
+                    log,
+                    environment,
+                    resource_group_name,
+                    restore_point_collection,
+                    restore_point,
+                )
                 break
             except Exception as e:
                 # Changes were made to the Virtual Machine, while the operation
@@ -100,6 +108,51 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     pass
                 else:
                     raise e
-            time.sleep(1)
+            time.sleep(5)
             count = count + 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
+
+    def get_restore_point(
+        self,
+        log: Logger,
+        environment: Environment,
+        resource_group_name: str,
+        restore_point_collection: str,
+        restore_point: str,
+    ) -> None:
+        assert environment.platform
+        platform: AzurePlatform = environment.platform  # type: ignore
+        assert isinstance(platform, AzurePlatform)
+        client = get_compute_client(platform)
+        attempts = 0
+        max_attempts = 15
+        while attempts < max_attempts:
+            response = client.restore_points.get(
+                resource_group_name=resource_group_name,
+                restore_point_collection_name=restore_point_collection,
+                restore_point_name=restore_point,
+                expand=None,
+            )
+            if response.provisioning_state == "Succeeded":
+                log.info(f"restore point {restore_point} created")
+                consistency_mode = response.consistency_mode
+                log.info(f"consistency mode is {consistency_mode}")
+                if (
+                    "FileSystemConsistent" in consistency_mode
+                    or "ApplicationConsistent" in consistency_mode
+                ):
+                    return
+                else:
+                    raise ValueError(
+                        "Restore point consistency mode is not "
+                        "FileSystemConsistent or ApplicationConsistent"
+                    )
+            else:
+                log.info(f"rp status is {response.provisioning_state}")
+                attempts += 1
+                if attempts < max_attempts:
+                    time.sleep(60)
+        raise ValueError(
+            "Restore point provisioning status not Succeeded "
+            "after multiple attempts."
+        )
