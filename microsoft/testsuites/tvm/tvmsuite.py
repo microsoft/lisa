@@ -13,7 +13,7 @@ from lisa import (
     UnsupportedDistroException,
 )
 from lisa.features import SecureBootEnabled
-from lisa.operating_system import Debian, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import AzureCoreRepo, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
 from lisa.util import find_patterns_in_lines
@@ -43,8 +43,8 @@ class TvmTest(TestSuite):
     )
     def verify_secureboot_compatibility(self, node: Node) -> None:
         self._is_supported(node)
-        self._add_azure_core_repo(node)
         posix_os: Posix = cast(Posix, node.os)
+        posix_os.add_azure_core_repo()
         posix_os.install_packages("azure-security", signed=False)
         cmd_result = node.execute("/usr/local/bin/sbinfo", sudo=True, timeout=1000)
         secure_boot_pattern = re.compile(
@@ -70,8 +70,17 @@ class TvmTest(TestSuite):
     )
     def verify_measuredboot_compatibility(self, node: Node) -> None:
         self._is_supported(node)
-        self._add_azure_core_repo(node)
         posix_os: Posix = cast(Posix, node.os)
+        if isinstance(posix_os, Ubuntu):
+            # focal and jammy don't have azure-compatscanner package in azurecore repo
+            # use bionic for temp solution
+            posix_os.add_azure_core_repo(code_name="bionic")
+        elif isinstance(posix_os, Debian):
+            # azurecore-debian doesn't have azure-compatscanner package
+            # use azurecore instead
+            posix_os.add_azure_core_repo(repo_name=AzureCoreRepo.AzureCore)
+        else:
+            posix_os.add_azure_core_repo()
         posix_os.install_packages("azure-compatscanner", signed=False)
         node.execute(
             "/usr/bin/mbinfo",
@@ -95,36 +104,3 @@ class TvmTest(TestSuite):
             raise SkippedException(
                 UnsupportedDistroException(node.os, "TVM doesn't support this version.")
             )
-
-    def _add_azure_core_repo(self, node: Node) -> None:
-        if isinstance(node.os, Redhat):
-            node.os.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
-        elif isinstance(node.os, Debian):
-            if not isinstance(node.os, Ubuntu):
-                node.os.install_packages(["gnupg", "software-properties-common"])
-                # no azure-compatscanner package in azurecore-debian
-                # use azurecore instead
-                codename = "bionic"
-                repo_url = "http://packages.microsoft.com/repos/azurecore/"
-            else:
-                # there is no available repo for distro which higher than ubuntu 18.04,
-                # use bionic for temp solution
-                if node.os.information.version >= "18.4.0":
-                    codename = "bionic"
-                else:
-                    codename = node.os.information.codename
-                repo_url = "http://packages.microsoft.com/repos/azurecore/"
-            node.os.add_repository(
-                repo=(f"deb [arch=amd64] {repo_url} {codename} main"),
-                keys_location=[
-                    "https://packages.microsoft.com/keys/microsoft.asc",
-                    "https://packages.microsoft.com/keys/msopentech.asc",
-                ],
-            )
-        elif isinstance(node.os, Suse):
-            node.os.add_repository(
-                repo="https://packages.microsoft.com/yumrepos/azurecore/",
-                repo_name="packages-microsoft-com-azurecore",
-            )
-        else:
-            raise SkippedException(f"current os {node.os.name} doesn't support tvm")

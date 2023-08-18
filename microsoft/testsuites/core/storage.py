@@ -21,11 +21,14 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
+from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, NFSClient, Swap
+from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools.blkid import PartitionInfo
+from lisa.tools.journalctl import Journalctl
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
@@ -44,6 +47,11 @@ class Storage(TestSuite):
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
+    )
+
+    # kern.cam.da.default_timeout: 300
+    _get_default_timeout_bsd_regex = re.compile(
+        r"kern.cam.da.default_timeout:\s+(?P<timeout>\d+)\s*"
     )
 
     os_disk_mount_point = "/"
@@ -65,16 +73,44 @@ class Storage(TestSuite):
         node: RemoteNode,
     ) -> None:
         disks = node.features[Disk].get_all_disks()
-        root_device_timeout_from_waagent = node.tools[Waagent].get_root_device_timeout()
+        root_device_timeout_from_waagent = node.tools[
+            Waagent
+        ].get_root_device_timeout()  # value in seconds
         for disk in disks:
             timeout = 60
             timer = create_timer()
             while timeout > timer.elapsed(False):
-                device_timeout_from_distro = int(
-                    node.tools[Cat]
-                    .run(f"/sys/block/{disk}/device/timeout", force_run=True)
-                    .stdout
-                )
+                if isinstance(node.os, BSD):
+                    # Extract device type
+                    # For example, da0 disk has device type of da
+                    matched = re.compile(r"(^[a-z]+)").match(disk)
+                    assert matched, f"Failed to extract device type from {disk}"
+                    device_type = matched.group(0)
+
+                    # BSD has one setting per device type
+                    # and the output is of the format:
+                    # kern.cam.da.default_timeout: 300
+                    device_timeout_from_distro_unformatted = (
+                        node.tools[Sysctl]
+                        .run(
+                            f"kern.cam.{device_type}.default_timeout",
+                            force_run=True,
+                            shell=True,
+                        )
+                        .stdout
+                    )
+                    device_timeout_from_distro = int(
+                        get_matched_str(
+                            device_timeout_from_distro_unformatted,
+                            self._get_default_timeout_bsd_regex,
+                        )
+                    )
+                else:
+                    device_timeout_from_distro = int(
+                        node.tools[Cat]
+                        .run(f"/sys/block/{disk}/device/timeout", force_run=True)
+                        .stdout
+                    )
                 if root_device_timeout_from_waagent == device_timeout_from_distro:
                     break
                 else:
@@ -103,7 +139,7 @@ class Storage(TestSuite):
             supported_platform_type=[AZURE],
         ),
     )
-    def verify_resource_disk_mtab_entry(self, node: RemoteNode) -> None:
+    def verify_resource_disk_mounted(self, node: RemoteNode) -> None:
         resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
@@ -112,10 +148,18 @@ class Storage(TestSuite):
             .get_partition_with_mount_point(self.os_disk_mount_point)
             .disk
         )
-        mtab = node.tools[Cat].run("/etc/mtab").stdout
-        resource_disk_from_mtab = get_matched_str(
-            mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
-        )
+        if isinstance(node.os, BSD):
+            partition_info = node.tools[Mount].get_partition_info()
+            resource_disk_from_mtab = [
+                entry
+                for entry in partition_info
+                if entry.mount_point == resource_disk_mount_point
+            ][0].mount_point
+        else:
+            mtab = node.tools[Cat].run("/etc/mtab").stdout
+            resource_disk_from_mtab = get_matched_str(
+                mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
+            )
         assert (
             resource_disk_from_mtab
         ), f"resource disk mountpoint not found {resource_disk_mount_point}"
@@ -195,7 +239,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
@@ -208,30 +252,21 @@ class Storage(TestSuite):
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
         # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
-        # present in dmesg
+        # present in dmesg or journalctl logs
         dmesg = node.tools[Dmesg].run(sudo=True).stdout
-        if (
-            not get_matched_str(
-                dmesg,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
-                ),
+        dmesg_root_present = self._check_root_partition_in_log(dmesg, os_partition_info)
+
+        if not dmesg_root_present:
+            journalctl_out = node.tools[Journalctl].first_n_logs_from_boot()
+            journal_root_present = self._check_root_partition_in_log(
+                journalctl_out, os_partition_info
             )
-            and not get_matched_str(
-                dmesg, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
-            )
-            and not get_matched_str(
-                dmesg,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
-                ),
-            )
-        ):
+        if not (dmesg_root_present or journal_root_present):
             raise LisaException(
                 f"One of root={os_partition_info.name} or "
                 f"root=UUID={os_partition_info.uuid} or "
                 f"root=PARTUUID={os_partition_info.part_uuid} "
-                "should be present in dmesg output"
+                "should be present in dmesg/journalctl output"
             )
 
         # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
@@ -271,7 +306,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_serial(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -285,7 +320,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_standard_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -299,7 +334,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_serial_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_serial(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -319,7 +354,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
-    def hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardHDDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -333,7 +368,9 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
-    def hot_add_disk_parallel_standard_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_standard_ssd(
+        self, log: Logger, node: Node
+    ) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.StandardSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -347,7 +384,7 @@ class Storage(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
-    def hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
+    def verify_hot_add_disk_parallel_premium_ssd(self, log: Logger, node: Node) -> None:
         self._hot_add_disk_parallel(
             log, node, DiskType.PremiumSSDLRS, self.DEFAULT_DISK_SIZE_IN_GB
         )
@@ -526,3 +563,26 @@ class Storage(TestSuite):
     def _get_mtab_mount_point_regex(self, mount_point: str) -> Pattern[str]:
         regex = re.compile(rf".*\s+\/dev\/(?P<partition>\D+).*\s+{mount_point}.*")
         return regex
+
+    def _check_root_partition_in_log(
+        self, log: str, os_partition_info: PartitionInfo
+    ) -> bool:
+        if (
+            not get_matched_str(
+                log,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
+                ),
+            )
+            and not get_matched_str(
+                log, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
+            )
+            and not get_matched_str(
+                log,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
+                ),
+            )
+        ):
+            return False
+        return True

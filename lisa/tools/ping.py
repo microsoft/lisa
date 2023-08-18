@@ -5,6 +5,7 @@ from typing import Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Alpine, Debian
+from lisa.tools.ip import Ip
 from lisa.util import UnsupportedDistroException
 from lisa.util.process import Process
 
@@ -134,10 +135,13 @@ class FreeBSDPing(Ping):
         # or without sudo, set interval >= 1
         if interval < 1 and not sudo:
             sudo = True
-        args = f"-c {count} -i {interval} {target}"
+        args = f"-c {count} -i {interval}"
         if nic_name:
-            args += f" -I {nic_name}"
+            # pinging with interface name has issue in FreeBSD
+            # https://unix.stackexchange.com/questions/341590/invalid-multicast-interface
+            interface_inet = self.node.tools[Ip].get_ip_address(nic_name)
+            args += f" -S {interface_inet}"
         if package_size:
             args += f" -s {package_size}"
-
+        args += f" {target}"
         return self.run_async(args, force_run=True, sudo=sudo)

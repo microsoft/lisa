@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import Path
+from typing import Any
 
 from lisa import (
     Environment,
@@ -10,7 +11,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util import SkippedException
@@ -26,6 +27,11 @@ from microsoft.testsuites.kvm.kvm_unit_tests_tool import KvmUnitTests
     """,
 )
 class KvmUnitTestSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
     @TestCaseMetadata(
         description="""
             Runs kvm-unit-tests.

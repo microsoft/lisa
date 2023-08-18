@@ -86,7 +86,7 @@ class BinaryInstaller(BaseInstaller):
         _copy_kernel_binary(
             node,
             node.get_pure_path(f"/var/tmp/vmlinuz-{new_kernel}"),
-            node.get_pure_path(f"/boot/efi/vmlinuz-{new_kernel}"),
+            node.get_pure_path(f"/boot/vmlinuz-{new_kernel}"),
         )
 
         err = f"Can not find kernel modules path: {kernel_modules_path}"
@@ -114,10 +114,10 @@ class BinaryInstaller(BaseInstaller):
             _copy_kernel_binary(
                 node,
                 node.get_pure_path(f"/var/tmp/initrd.img-{new_kernel}"),
-                node.get_pure_path(f"/boot/efi/initrd.img-{new_kernel}"),
+                node.get_pure_path(f"/boot/initrd.img-{new_kernel}"),
             )
 
-        _update_linux_loader(
+        _update_mariner_config(
             node,
             is_initrd,
             current_kernel,
@@ -149,22 +149,7 @@ class Dom0Installer(SourceInstaller):
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
 
-        # Copy the kernel to /boot/efi from /boot
-        # Copy the new initrd to /boot/efi from /boot
-        # Here super.install() will create new initrd/kernel binary at /boot
-        _copy_kernel_binary(
-            node,
-            node.get_pure_path(f"/boot/vmlinuz-{new_kernel}"),
-            node.get_pure_path(f"/boot/efi/vmlinuz-{new_kernel}"),
-        )
-
-        _copy_kernel_binary(
-            node,
-            node.get_pure_path(f"/boot/initrd.img-{new_kernel}"),
-            node.get_pure_path(f"/boot/efi/initrd.img-{new_kernel}"),
-        )
-
-        _update_linux_loader(
+        _update_mariner_config(
             node,
             True,
             current_kernel,
@@ -187,28 +172,28 @@ def _copy_kernel_binary(
     )
 
 
-def _update_linux_loader(
+def _update_mariner_config(
     node: Node,
     is_initrd: bool,
     current_kernel: str,
     new_kernel: str,
 ) -> None:
-    ll_conf_file: str = "/boot/efi/linuxloader.conf"
+    mariner_config: str = "/boot/mariner-mshv.cfg"
     sed = node.tools[Sed]
 
-    # Modify the linuxloader.conf to point new kernel binary
+    # Modify the /boot/mariner-mshv.cfg to point new kernel binary
     sed.substitute(
-        regexp=f"KERNEL_PATH=vmlinuz-{current_kernel}",
-        replacement=f"KERNEL_PATH=vmlinuz-{new_kernel}",
-        file=ll_conf_file,
+        regexp=f"mariner_linux_mshv=vmlinuz-{current_kernel}",
+        replacement=f"mariner_linux_mshv=vmlinuz-{new_kernel}",
+        file=mariner_config,
         sudo=True,
     )
 
     if is_initrd:
-        # Modify the linuxloader.conf to point new initrd binary
+        # Modify the /boot/mariner-mshv.cfg to point new initrd binary
         sed.substitute(
-            regexp=f"INITRD_PATH=initrd.img-{current_kernel}",
-            replacement=f"INITRD_PATH=initrd.img-{new_kernel}",
-            file=ll_conf_file,
+            regexp=f"mariner_initrd_mshv=initrd.img-{current_kernel}",
+            replacement=f"mariner_initrd_mshv=initrd.img-{new_kernel}",
+            file=mariner_config,
             sudo=True,
         )

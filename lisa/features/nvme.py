@@ -10,8 +10,9 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema, search_space
 from lisa.feature import Feature
+from lisa.operating_system import BSD
 from lisa.schema import FeatureSettings
-from lisa.tools import Lspci, Nvmecli
+from lisa.tools import Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
 from lisa.util import field_metadata
 
@@ -20,13 +21,20 @@ class Nvme(Feature):
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
     _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]$)", re.MULTILINE)
     # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n1
+    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n64
     _namespace_pattern = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]+$)", re.MULTILINE
     )
     # '/dev/nvme0n1          351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
     _namespace_cli_pattern = re.compile(
         r"(?P<namespace>/dev/nvme[0-9]n[0-9])", re.MULTILINE
     )
+
+    # crw-------  1 root  wheel  0x4e Jul 27 21:16 /dev/nvme0ns1
+    _namespace_pattern_bsd = re.compile(
+        r".*(?P<namespace>/dev/nvme[0-9]ns[0-9]+$)", re.MULTILINE
+    )
+
     _pci_device_name = "Non-Volatile memory controller"
     _ls_devices: str = ""
 
@@ -54,20 +62,16 @@ class Nvme(Feature):
         namespaces = []
         self._get_device_from_ls()
         for row in self._ls_devices.splitlines():
-            matched_result = self._namespace_pattern.match(row)
+            if isinstance(self._node.os, BSD):
+                matched_result = self._namespace_pattern_bsd.match(row)
+            else:
+                matched_result = self._namespace_pattern.match(row)
             if matched_result:
                 namespaces.append(matched_result.group("namespace"))
         return namespaces
 
     def get_namespaces_from_cli(self) -> List[str]:
-        namespaces_cli = []
-        nvme_cli = self._node.tools[Nvmecli]
-        nvme_list = nvme_cli.run("list", shell=True, sudo=True)
-        for row in nvme_list.stdout.splitlines():
-            matched_result = self._namespace_cli_pattern.match(row)
-            if matched_result:
-                namespaces_cli.append(matched_result.group("namespace"))
-        return namespaces_cli
+        return self._node.tools[Nvmecli].get_namespaces()
 
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
@@ -83,8 +87,8 @@ class Nvme(Feature):
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:
         if (not self._ls_devices) or force_run:
-            execute_results = self._node.execute(
-                "ls -l /dev/nvme*", shell=True, sudo=True
+            execute_results = self._node.tools[Ls].run(
+                "-l /dev/nvme*", shell=True, sudo=True
             )
             self._ls_devices = execute_results.stdout
 

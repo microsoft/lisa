@@ -11,27 +11,39 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
+from lisa.tools.lsvmbus import VmBusDevice
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
 
 
 class VmbusDeviceNames:
-    def __init__(self, is_gen1: bool) -> None:
-        self.names = [
-            "Operating system shutdown",
-            "Time Synchronization",
-            "Heartbeat",
-            "Data Exchange",
-            "Synthetic mouse",
-            "Synthetic keyboard",
-            "Synthetic network adapter",
-            "Synthetic SCSI Controller",
-        ]
-        if is_gen1:
-            self.names.append("Synthetic IDE Controller")
+    def __init__(self, is_gen1: bool, node: Node) -> None:
+        if isinstance(node.os, BSD):
+            self.names = [
+                "Hyper-V Shutdown",
+                "Hyper-V Timesync",
+                "Hyper-V Heartbeat",
+                "Hyper-V KBD",
+                "Hyper-V Network Interface",
+                "Hyper-V SCSI",
+            ]
+        else:
+            self.names = [
+                "Operating system shutdown",
+                "Time Synchronization",
+                "Heartbeat",
+                "Data Exchange",
+                "Synthetic mouse",
+                "Synthetic keyboard",
+                "Synthetic network adapter",
+                "Synthetic SCSI Controller",
+            ]
+            if is_gen1:
+                self.names.append("Synthetic IDE Controller")
 
 
 @TestSuiteMetadata(
@@ -42,6 +54,25 @@ class VmbusDeviceNames:
     """,
 )
 class LsVmBus(TestSuite):
+    @TestCaseMetadata(
+        description="""
+        This test case will check expected vmbus device names presented in the lsvmbus
+        output for FreeBSD.
+            - Hyper-V Shutdown
+            - Hyper-V Timesync
+            - Hyper-V Heartbeat
+            - Hyper-V KBD
+            - Hyper-V Network Interface
+            - Hyper-V SCSI
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE], supported_os=[BSD]
+        ),
+    )
+    def verify_vmbus_devices_channels_bsd(self, node: Node) -> None:
+        self._verify_and_get_lsvmbus_devices(node)
+
     @TestCaseMetadata(
         description="""
         This test case will
@@ -75,19 +106,12 @@ class LsVmBus(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
-    def lsvmbus_count_devices_channels(self, node: Node) -> None:
+    def verify_vmbus_devices_channels(self, node: Node) -> None:
         # 1. Check expected vmbus device names presented in the lsvmbus output.
-        vmbus_devices = VmbusDeviceNames(
-            "1" == node.tools[VmGeneration].get_generation()
-        )
-        lsvmbus_tool = node.tools[Lsvmbus]
-        vmbus_devices_list = lsvmbus_tool.get_device_channels()
-        actual_vmbus_device_names = [x.name for x in vmbus_devices_list]
-        assert_that(actual_vmbus_device_names).is_not_none()
-        assert_that(vmbus_devices.names).is_subset_of(actual_vmbus_device_names)
+        vmbus_devices_list = self._verify_and_get_lsvmbus_devices(node)
 
         # 2. Check that each netvsc and storvsc SCSI device have correct number of
         #  vmbus channels created and associated.
@@ -98,7 +122,10 @@ class LsVmBus(TestSuite):
         expected_network_channel_count = min(core_count, 8)
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
-        expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
+        if node.nics.is_mana_present():
+            expected_scsi_channel_count = min(core_count, 64)
+        else:
+            expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 assert_that(vmbus_device.channel_vp_map).is_length(
@@ -121,7 +148,7 @@ class LsVmBus(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_vmbus_heartbeat_properties(self, node: Node) -> None:
@@ -233,3 +260,15 @@ class LsVmBus(TestSuite):
                     f"{channel}/interrupts or {channel}/events did not increase after"
                     f" timeout"
                 )
+
+    def _verify_and_get_lsvmbus_devices(self, node: Node) -> List[VmBusDevice]:
+        # Check expected vmbus device names presented in the lsvmbus output.
+        vmbus_devices = VmbusDeviceNames(
+            "1" == node.tools[VmGeneration].get_generation(), node
+        )
+        vmbus_devices_list = node.tools[Lsvmbus].get_device_channels()
+        actual_vmbus_device_names = [x.name for x in vmbus_devices_list]
+        assert_that(actual_vmbus_device_names).is_not_none()
+        assert_that(vmbus_devices.names).is_subset_of(actual_vmbus_device_names)
+
+        return vmbus_devices_list

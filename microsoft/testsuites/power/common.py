@@ -9,7 +9,7 @@ from lisa import Environment, Logger, RemoteNode, features
 from lisa.features import StartStop
 from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
-from lisa.util import LisaException, SkippedException
+from lisa.util import LisaException, SkippedException, constants
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -35,7 +35,7 @@ def is_distro_supported(node: RemoteNode) -> None:
 def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
-    upper_nics_before_hibernation = node_nic.get_upper_nics()
+    upper_nics_before_hibernation = node_nic.get_nic_names()
     hibernation_setup_tool = node.tools[HibernationSetup]
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
@@ -49,8 +49,8 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     timer = create_timer()
     while timeout > timer.elapsed(False):
         is_ready, _ = wait_tcp_port_ready(
-            node.public_address,
-            node.public_port,
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
             log=log,
             timeout=10,
         )
@@ -83,7 +83,7 @@ def verify_hibernation(node: RemoteNode, log: Logger) -> None:
     node_nic = node.nics
     node_nic.initialize()
     lower_nics_after_hibernation = node_nic.get_lower_nics()
-    upper_nics_after_hibernation = node_nic.get_upper_nics()
+    upper_nics_after_hibernation = node_nic.get_nic_names()
     assert_that(
         len(lower_nics_after_hibernation),
         "sriov nics count changes after hibernation.",

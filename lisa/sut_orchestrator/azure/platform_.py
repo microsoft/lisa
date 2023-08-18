@@ -1147,6 +1147,8 @@ class AzurePlatform(Platform):
             # it's Windows, fill in the password always. If it's Linux, the
             # private key has higher priority.
             node_context.username = arm_parameters.admin_username
+            node_context.location = arm_parameters.location
+            node_context.subscription_id = self.subscription_id
             if azure_node_runbook.is_linux:
                 node_context.password = arm_parameters.admin_password
             else:
@@ -2120,15 +2122,20 @@ class AzurePlatform(Platform):
 
         remote_node = cast(RemoteNode, node)
 
+        node_ssh_port = remote_node.connection_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_PORT
+        ]
         log = node.log
         log.debug(
-            f"checking if SSH port {remote_node.public_port} is reachable "
+            f"checking if SSH port {node_ssh_port} is reachable "
             f"on {remote_node.name}..."
         )
 
         connected, _ = wait_tcp_port_ready(
-            address=remote_node.public_address,
-            port=remote_node.public_port,
+            address=remote_node.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+            ],
+            port=remote_node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
             log=log,
             timeout=3,
         )
@@ -2472,9 +2479,7 @@ class AzurePlatform(Platform):
                     node_runbook.location, node_runbook.marketplace
                 )
 
-    def _add_image_features(self, node_space: schema.NodeSpace) -> None:
-        # Load image information, and add to requirements.
-
+    def _find_marketplace_image_location(self) -> List[str]:
         # locations used to query marketplace image information. Some image is not
         # available in all locations, so try several of them.
         _marketplace_image_locations = [
@@ -2497,6 +2502,10 @@ class AzurePlatform(Platform):
                 _marketplace_image_locations = (
                     self._azure_runbook.marketplace_image_information_location
                 )
+        return _marketplace_image_locations
+
+    def _add_image_features(self, node_space: schema.NodeSpace) -> None:
+        # Load image information, and add to requirements.
 
         if not node_space:
             return
@@ -2514,7 +2523,7 @@ class AzurePlatform(Platform):
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
 
         if azure_runbook.marketplace:
-            for location in _marketplace_image_locations:
+            for location in self._find_marketplace_image_location():
                 image_info = self._get_image_info(location, azure_runbook.marketplace)
                 if image_info:
                     break

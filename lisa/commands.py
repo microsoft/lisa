@@ -78,7 +78,9 @@ def list_start(args: Namespace) -> int:
         if list_all:
             cases: Iterable[TestCaseRuntimeData] = select_testcases()
         else:
-            cases = select_testcases(builder.partial_resolve(constants.TESTCASE))
+            criteria_dict = builder.partial_resolve(constants.TESTCASE)
+            criteria = schema.load_by_type_many(schema.TestCase, criteria_dict)
+            cases = select_testcases(criteria)
         for case_data in cases:
             log.info(
                 f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "

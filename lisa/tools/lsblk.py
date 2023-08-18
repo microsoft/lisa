@@ -10,13 +10,15 @@ from lisa.operating_system import BSD, Posix
 from lisa.util import LisaException, find_patterns_groups_in_lines
 
 
-def _get_size_in_bytes(size: int, size_unit: str) -> int:
+def _get_size_in_bytes(size: float, size_unit: str) -> int:
+    if size_unit == "T":
+        return int(size * 1024 * 1024 * 1024 * 1024)
     if size_unit == "G":
-        return size * 1024 * 1024 * 1024
+        return int(size * 1024 * 1024 * 1024)
     elif size_unit == "M":
-        return size * 1024 * 1024
+        return int(size * 1024 * 1024)
     elif size_unit == "K":
-        return size * 1024
+        return int(size * 1024)
     else:
         raise LisaException(f"Unknown size unit {size_unit}")
 
@@ -245,8 +247,9 @@ class Lsblk(Tool):
 
 class BSDLsblk(Lsblk):
     # da1p1          0:103  12G freebsd-ufs                                       - /mnt/resource   # noqa: E501
+    # nvd0             0:79  1.7T -                  diskid/DISK-a35fc877165000000001 - # noqa: E501
     _ENTRY_REGEX = re.compile(
-        r"\s*(?P<name>\S+)\s+\d+:\d+\s+(?P<size>\d+)(?P<size_unit>\w+)\s+"
+        r"\s*(?P<name>\S+)\s+\d+:\d+\s+(?P<size>\d+|\d+.\d+)(?P<size_unit>\w+)\s+"
         r"(?P<type>\S+)\s+(?P<label>\S+)\s+(?P<mountpoint>\S*)"
     )
 
@@ -277,7 +280,7 @@ class BSDLsblk(Lsblk):
         disks: List[DiskInfo] = []
 
         # parse output of lsblk
-        output = self.run().stdout
+        output = self.run(force_run=force_run).stdout
         entries = find_patterns_groups_in_lines(output, [self._ENTRY_REGEX])[0]
 
         # create partition map to store partitions for each disk
@@ -297,7 +300,7 @@ class BSDLsblk(Lsblk):
             drive_name = matched[0]["disk_name"]
 
             # convert size to bytes
-            size_in_bytes = _get_size_in_bytes(int(entry["size"]), entry["size_unit"])
+            size_in_bytes = _get_size_in_bytes(float(entry["size"]), entry["size_unit"])
 
             # add partition to disk partition map
             if drive_name not in disk_partition_map:

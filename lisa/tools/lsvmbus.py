@@ -1,10 +1,12 @@
 import re
-from typing import Any, List
+from dataclasses import dataclass, field
+from typing import Any, List, Optional, Set, Type
 
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.util import LisaException
+from lisa.tools import Dmesg
+from lisa.util import LisaException, find_groups_in_lines
 
 from .ln import Ln
 from .python import Python
@@ -45,7 +47,28 @@ class ChannelVPMap:
         return self.__str__()
 
 
+@dataclass
 class VmBusDevice:
+    name: str = ""
+    device_id: str = ""
+    class_id: str = ""
+    channel_vp_map: List[ChannelVPMap] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return (
+            f"(name: {self.name}, device_id: {self.device_id},"
+            f" class_id: {self.class_id},"
+            f" channel_vp_map: {self.channel_vp_map})"
+        )
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.device_id))
+
+
+class LinuxVmBusDeviceParser(VmBusDevice):
     # VMBUS ID  1: Class_ID = {525074dc-8985-46e2-8057-a307dc18a502}
     # - [Dynamic Memory]
     __pattern_vmbus_device_info = re.compile(
@@ -119,6 +142,10 @@ class Lsvmbus(Tool):
     @property
     def command(self) -> str:
         return self._command
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return LsvmbusFreeBSD
 
     @property
     def can_install(self) -> bool:
@@ -214,7 +241,36 @@ class Lsvmbus(Tool):
                 )
             raw_list = re.finditer(PATTERN_VMBUS_DEVICE, result.stdout)
             for vmbus_raw in raw_list:
-                vmbus_device = VmBusDevice(vmbus_raw.group())
+                vmbus_device = LinuxVmBusDeviceParser(vmbus_raw.group())
                 self._vmbus_devices.append(vmbus_device)
 
         return self._vmbus_devices
+
+
+class LsvmbusFreeBSD(Lsvmbus):
+    # pcib2: <Hyper-V PCI Express Pass Through> on vmbus0
+    # FORMAT: <device>: <description> on <vmbus><vmbus_id>
+    _DEVICE_REGEX = re.compile(
+        r"^(?P<device>\w+): <(?P<description>.*)> on vmbus(?P<vmbus_id>\d+)$"
+    )
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    def _check_exists(self) -> bool:
+        return True
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def get_device_channels(self, force_run: bool = False) -> List[VmBusDevice]:
+        output = self.node.tools[Dmesg].run(sudo=force_run).stdout
+        groups = find_groups_in_lines(output, self._DEVICE_REGEX, True)
+        devices: Set[VmBusDevice] = set()
+        for group in groups:
+            device = VmBusDevice(name=group["description"], device_id=group["device"])
+            devices.add(device)
+
+        return list(devices)

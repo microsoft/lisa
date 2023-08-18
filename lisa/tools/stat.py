@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import cast
+from typing import Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -11,6 +11,10 @@ class Stat(Tool):
     @property
     def command(self) -> str:
         return "stat"
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return StatFreeBSD
 
     @property
     def can_install(self) -> bool:
@@ -44,10 +48,11 @@ class Stat(Tool):
         )
         return int(cmd_result.stdout)
 
-    def get_total_size(self, file: str) -> int:
+    def get_total_size(self, file: str, sudo: bool = False) -> int:
         cmd_result = self.run(
             f"{file}" " --format='%s'",
             force_run=True,
+            sudo=sudo,
             expected_exit_code=0,
             expected_exit_code_failure_message=(f"fail to get total size of {file}"),
         )
@@ -63,3 +68,39 @@ class Stat(Tool):
             ),
         )
         return int(cmd_result.stdout)
+
+    def get_file_permission(self, file: str, sudo: bool = False) -> int:
+        cmd_result = self.run(
+            f"-c '%a' {file}",
+            force_run=True,
+            sudo=sudo,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"fail to get permission of {file}"),
+        )
+        return int(cmd_result.stdout)
+
+
+class StatFreeBSD(Stat):
+    @property
+    def command(self) -> str:
+        return "stat"
+
+    def get_total_size(self, file: str, sudo: bool = False) -> int:
+        cmd_result = self.run(
+            f"-f '%z' {file}",
+            force_run=True,
+            sudo=sudo,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"fail to get total size of {file}"),
+        )
+        return int(cmd_result.stdout)
+
+    def get_file_permission(self, file: str, sudo: bool = False) -> int:
+        cmd_result = self.run(
+            f"-f '%OLp' {file}",
+            force_run=True,
+            sudo=sudo,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"fail to get permission of {file}"),
+        ).stdout
+        return int(cmd_result)

@@ -3,14 +3,15 @@
 
 import re
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat
-from lisa.tools import Gcc, Modinfo, PowerShell, Uname
+from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat, Ubuntu
+from lisa.tools import Gcc, Git, Modinfo, PowerShell, Service, Uname
+from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
     UnsupportedDistroException,
@@ -37,6 +38,7 @@ class Waagent(Tool):
         # for flatcar
         "/usr/share/oem/python/bin/python3",
     ]
+    _src_url = "https://github.com/Azure/WALinuxAgent/"
 
     @property
     def command(self) -> str:
@@ -53,7 +55,10 @@ class Waagent(Tool):
             )
         else:
             self._command = "waagent"
+        self._python_cmd: Optional[str] = None
+        self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
+        self._waagent_conf_path: Optional[str] = None
 
     def get_version(self) -> str:
         result = self.run("-version")
@@ -75,13 +80,30 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def get_configuration(self, force_run: bool = False) -> Dict[str, str]:
-        if isinstance(self.node.os, CoreOs):
-            waagent_conf_file = "/usr/share/oem/waagent.conf"
-        elif isinstance(self.node.os, BSD):
-            waagent_conf_file = "/usr/local/etc/waagent.conf"
+    def upgrade_from_source(self) -> None:
+        git = self.node.tools[Git]
+        git.clone(self._src_url, cwd=self.node.working_path)
+        python_cmd, _ = self.get_python_cmd()
+        for package in list(["python-setuptools", "python3-setuptools"]):
+            if self.node.os.is_package_in_repo(package):  # type: ignore
+                self.node.os.install_packages(package)  # type: ignore
+        self.node.execute(
+            f"{python_cmd} setup.py install --force",
+            sudo=True,
+            cwd=self.node.working_path.joinpath("WALinuxAgent"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install waagent",
+        )
+
+    def restart(self) -> None:
+        service = self.node.tools[Service]
+        if isinstance(self.node.os, Ubuntu):
+            service.restart_service("walinuxagent")
         else:
-            waagent_conf_file = "/etc/waagent.conf"
+            service.restart_service("waagent")
+
+    def _get_configuration(self, force_run: bool = False) -> Dict[str, str]:
+        waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
         cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
@@ -93,15 +115,23 @@ class Waagent(Tool):
         return config
 
     def get_root_device_timeout(self) -> int:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return int(waagent_configuration["OS.RootDeviceScsiTimeout"])
 
     def get_resource_disk_mount_point(self) -> str:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         return waagent_configuration["ResourceDisk.MountPoint"]
 
+    def is_autoupdate_enabled(self) -> bool:
+        waagent_configuration = self._get_configuration()
+        if waagent_configuration.get("AutoUpdate.Enabled") == "n":
+            return False
+        else:
+            # if set or not present, defaults to "y"
+            return True
+
     def is_swap_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration()
+        waagent_configuration = self._get_configuration()
         is_swap_enabled = waagent_configuration["ResourceDisk.EnableSwap"]
         if is_swap_enabled == "y":
             return True
@@ -113,7 +143,7 @@ class Waagent(Tool):
             )
 
     def is_rdma_enabled(self) -> bool:
-        waagent_configuration = self.get_configuration(force_run=True)
+        waagent_configuration = self._get_configuration(force_run=True)
         is_rdma_enabled = waagent_configuration["OS.EnableRDMA"]
         if is_rdma_enabled == "y":
             return True
@@ -121,6 +151,49 @@ class Waagent(Tool):
             return False
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
+
+    def get_python_cmd(self) -> Tuple[str, bool]:
+        if self._python_cmd is not None and self._python_use_sudo is not None:
+            return self._python_cmd, self._python_use_sudo
+
+        for python_cmd in self._python_candidates:
+            python_exists, use_sudo = self.command_exists(command=python_cmd)
+            self._log.debug(
+                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
+            )
+            if python_exists:
+                break
+
+        self._python_cmd = python_cmd
+        self._python_use_sudo = use_sudo
+
+        return self._python_cmd, self._python_use_sudo
+
+    def _get_waagent_conf_path(self) -> str:
+        if self._waagent_conf_path is not None:
+            return self._waagent_conf_path
+
+        python_cmd, use_sudo = self.get_python_cmd()
+
+        # Try to use waagent code to detect
+        result = self.node.execute(
+            f'{python_cmd} -c "from azurelinuxagent.common.osutil import get_osutil;'
+            'print(get_osutil().agent_conf_file_path)"',
+            sudo=use_sudo,
+        )
+        if result.exit_code == 0:
+            waagent_path = result.stdout
+        else:
+            if isinstance(self.node.os, CoreOs):
+                waagent_path = "/usr/share/oem/waagent.conf"
+            elif isinstance(self.node.os, BSD):
+                waagent_path = "/usr/local/etc/waagent.conf"
+            else:
+                waagent_path = "/etc/waagent.conf"
+
+        self._waagent_conf_path = waagent_path
+
+        return self._waagent_conf_path
 
     def get_distro_version(self) -> str:
         """
@@ -130,13 +203,7 @@ class Waagent(Tool):
         if self._distro_version is not None:
             return self._distro_version
 
-        for python_cmd in self._python_candidates:
-            python_exists, use_sudo = self.command_exists(command=python_cmd)
-            self._log.debug(
-                f"{python_cmd} exists: {python_exists}, use sudo: {use_sudo}"
-            )
-            if python_exists:
-                break
+        python_cmd, use_sudo = self.get_python_cmd()
 
         # Try to use waagent code to detect
         result = self.node.execute(
@@ -287,6 +354,10 @@ class KvpClient(Tool):
     def command(self) -> str:
         return str(self.node.working_path / self._command_name)
 
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return KvpClientFreeBSD
+
     @property
     def can_install(self) -> bool:
         return True
@@ -412,3 +483,54 @@ class Azsecd(Tool):
     def install(self) -> bool:
         self.node.os.install_packages("azure-security")  # type: ignore
         return self._check_exists()
+
+
+class KvpClientFreeBSD(KvpClient):
+    _KVP_POOL_LOCATION = "/var/db/hyperv/pool"
+
+    # .kvp_pool_{pool_id}
+    _KVP_POOL_REGEX = re.compile(r"\.kvp_pool_(\d+)")
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def get_pool_count(self) -> int:
+        # Check the number of files with the pattern `.kvp_pool_{pool_id}`
+        output = (
+            self.node.tools[Ls]
+            .run(
+                f"{self._KVP_POOL_LOCATION}/.kvp_pool_*",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="No KVP pool found",
+            )
+            .stdout
+        )
+        return len(self._KVP_POOL_REGEX.findall(output))
+
+    def get_pool_records(self, pool_id: int, force_run: bool = False) -> Dict[str, str]:
+        # Read the content of the file with the pattern `.kvp_pool_{pool_id}`
+        # The file is seprated by delimiter `?`
+        content = self.node.tools[Cat].read(
+            f"{self._KVP_POOL_LOCATION}/.kvp_pool_{pool_id}",
+            sudo=True,
+        )
+
+        # Split by delimiter `?`
+        # Every even index is the key, and the odd index is the value
+        records: Dict[str, str] = {}
+        content_split = content.split("\x00")
+        content_split = [item for item in content_split if item != ""]
+        for i in range(0, len(content_split), 2):
+            records[content_split[i]] = content_split[i + 1]
+
+        return records

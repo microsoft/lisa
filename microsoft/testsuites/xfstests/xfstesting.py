@@ -155,7 +155,7 @@ class Xfstesting(TestSuite):
         use_new_environment=True,
         priority=3,
     )
-    def xfstesting_generic_standard_datadisk_validation(
+    def verify_generic_standard_datadisk(
         self, log_path: Path, result: TestResult
     ) -> None:
         environment = result.environment
@@ -190,9 +190,7 @@ class Xfstesting(TestSuite):
         use_new_environment=True,
         priority=3,
     )
-    def xfstesting_xfs_standard_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_xfs_standard_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -226,9 +224,7 @@ class Xfstesting(TestSuite):
         use_new_environment=True,
         priority=3,
     )
-    def xfstesting_ext4_standard_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_ext4_standard_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -263,7 +259,7 @@ class Xfstesting(TestSuite):
         use_new_environment=True,
         priority=3,
     )
-    def xfstesting_btrfs_standard_datadisk_validation(
+    def verify_btrfs_standard_datadisk(
         self, log_path: Path, result: TestResult
     ) -> None:
         environment = result.environment
@@ -297,9 +293,7 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_generic_nvme_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_generic_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -328,9 +322,7 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_xfs_nvme_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_xfs_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -360,9 +352,7 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_ext4_nvme_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_ext4_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -393,9 +383,7 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme],
         ),
     )
-    def xfstesting_btrfs_nvme_datadisk_validation(
-        self, log_path: Path, result: TestResult
-    ) -> None:
+    def verify_btrfs_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
@@ -428,7 +416,7 @@ class Xfstesting(TestSuite):
         use_new_environment=True,
         priority=3,
     )
-    def xfstesting_azure_file_share_validation(
+    def verify_azure_file_share(
         self, log: Logger, log_path: Path, result: TestResult
     ) -> None:
         environment = result.environment

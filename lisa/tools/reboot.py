@@ -16,6 +16,7 @@ from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
     TcpConnectionException,
+    constants,
 )
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
@@ -166,16 +167,23 @@ class WindowsReboot(Reboot):
             try:
                 # check that vm has accessible ssh port
                 connected, _ = wait_tcp_port_ready(
-                    address=remote_node.public_address,
-                    port=remote_node.public_port,
+                    address=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                    ],
+                    port=remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ],
                     log=self._log,
                     timeout=20,
                 )
 
                 if not connected:
+                    node_ssh_port = remote_node.connection_info[
+                        constants.ENVIRONMENTS_NODES_REMOTE_PORT
+                    ]
                     raise LisaException(
                         f"failed to connect to {remote_node.name} on port"
-                        f" {remote_node.public_port} after reboot"
+                        f" {node_ssh_port} after reboot"
                     )
 
                 self.node.close()

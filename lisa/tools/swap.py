@@ -1,9 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
+from typing import Optional, Type
 
 from lisa.executable import Tool
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.rm import Rm
+from lisa.util import find_patterns_in_lines
 
 
 class SwapOn(Tool):
@@ -28,6 +31,10 @@ class Swap(Tool):
     @property
     def command(self) -> str:
         raise NotImplementedError()
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return SwapInfoBSD
 
     def _check_exists(self) -> bool:
         return True
@@ -56,3 +63,24 @@ class Swap(Tool):
     def delete_swap(self, path: str = "/tmp/swap") -> None:
         self.node.tools[SwapOff].run(path, sudo=True, force_run=True)
         self.node.tools[Rm].remove_file(path, sudo=True)
+
+
+class SwapInfoBSD(Swap):
+    # Check the entries in the output of swapinfo -k
+    # example output:
+    # Device          1K-blocks     Used    Avail Capacity
+    # /dev/da1p2        2097152        0  2097152     0%
+    _SWAP_ENTRIES = re.compile(
+        r"(?P<device>\S+)\s+(?P<blocks>\d+)\s+(?P<used>\d+)\s+(?P<avail>\d+)\s+(?P<capacity>\S+)"  # noqa: E501
+    )
+
+    @property
+    def command(self) -> str:
+        return "swapinfo"
+
+    def is_swap_enabled(self) -> bool:
+        entries = find_patterns_in_lines(self.run("-k").stdout, [self._SWAP_ENTRIES])
+        if len(entries[0]) > 0:
+            return True
+
+        return False

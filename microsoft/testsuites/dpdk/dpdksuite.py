@@ -19,6 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from lisa.util.constants import SIGINT
@@ -58,6 +59,11 @@ class Dpdk(TestSuite):
     # grabbing the max latency of 99.999% of data in nanoseconds.
     # ex: percentile 99.999 = 12302
     _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""
@@ -332,9 +338,7 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, 0, "txonly", "failsafe"
-        )
+        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -392,14 +396,17 @@ class Dpdk(TestSuite):
         vpp.install()
 
         net = node.nics
-        nic = net.get_secondary_nic()
-
+        nics_dict = {key: value for key, value in net.nics.items() if key != "eth0"}
+        pci_slots = []
         # set devices to down and restart vpp service
         ip = node.tools[Ip]
-        for dev in [nic.lower, nic.upper]:
-            ip.down(dev)
-        for dev in [nic.lower, nic.upper]:
-            ip.addr_flush(dev)
+        start_up_conf = vpp.get_start_up_file_content()
+        for key, value in nics_dict.items():
+            ip.down(key)
+            if value.pci_slot not in start_up_conf:
+                pci_slots.append(f"dev {value.pci_slot}")
+        replace_str = "\n".join(pci_slots)
+        vpp.set_start_up_file(replace_str)
 
         vpp.start()
         vpp.run_test()
@@ -494,7 +501,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -521,7 +527,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -548,7 +553,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -573,7 +577,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_netvsc(
@@ -607,8 +610,8 @@ class Dpdk(TestSuite):
         lsmod = node.tools[Lsmod]
         modprobe = node.tools[Modprobe]
         nic = node.nics.get_secondary_nic()
-        node.nics.get_nic_driver(nic.upper)
-        if nic.bound_driver == "hv_netvsc":
+        node.nics.get_nic_driver(nic.name)
+        if nic.module_name == "hv_netvsc":
             enable_uio_hv_generic_for_nic(node, nic)
 
         original_driver = nic.driver_sysfs_path
@@ -629,12 +632,12 @@ class Dpdk(TestSuite):
 
         node.nics.unbind(nic)
         node.nics.bind(nic, str(original_driver))
-        nic.bound_driver = node.nics.get_nic_driver(nic.upper)
+        nic.module_name = node.nics.get_nic_driver(nic.name)
 
-        assert_that(nic.bound_driver).described_as(
+        assert_that(nic.module_name).described_as(
             (
                 "Driver after unbind/rebind was unexpected. "
-                f"Expected hv_netvsc, found {nic.bound_driver}"
+                f"Expected hv_netvsc, found {nic.module_name}"
             )
         ).is_equal_to("hv_netvsc")
 

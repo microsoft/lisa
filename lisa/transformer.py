@@ -93,18 +93,24 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     # sort by phase: init, expanded.
     init_transformers: List[schema.Transformer] = []
     expanded_transformers: List[schema.Transformer] = []
+    expanded_cleanup_transformers: List[schema.Transformer] = []
     cleanup_transformers: List[schema.Transformer] = []
     for transformer in sorted_transformers:
         if transformer.phase == constants.TRANSFORMER_PHASE_INIT:
             init_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
             expanded_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP:
+            expanded_cleanup_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_CLEANUP:
             cleanup_transformers.append(transformer)
         else:
             raise LisaException(f"unknown transformer phase: {transformer.phase}")
     sorted_transformers = (
-        init_transformers + expanded_transformers + cleanup_transformers
+        init_transformers
+        + expanded_transformers
+        + expanded_cleanup_transformers
+        + cleanup_transformers
     )
 
     # check cycle reference

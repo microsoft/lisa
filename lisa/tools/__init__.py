@@ -47,7 +47,7 @@ from .hostname import Hostname
 from .hwclock import Hwclock
 from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
-from .ip import Ip
+from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
 from .journalctl import Journalctl
 from .kdump import KdumpBase
@@ -93,6 +93,7 @@ from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .rm import Rm
 from .sar import Sar
+from .sockperf import Sockperf
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -150,6 +151,7 @@ __all__ = [
     "Gdb",
     "Git",
     "Ip",
+    "IpInfo",
     "Iperf3",
     "HibernationSetup",
     "Hostname",
@@ -212,6 +214,7 @@ __all__ = [
     "Sed",
     "Service",
     "ServiceInternal",
+    "Sockperf",
     "Ssh",
     "Sshpass",
     "StartConfiguration",

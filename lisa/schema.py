@@ -197,6 +197,7 @@ class Transformer(TypedSchema, ExtendableSchemaMixin):
                 [
                     constants.TRANSFORMER_PHASE_INIT,
                     constants.TRANSFORMER_PHASE_EXPANDED,
+                    constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP,
                     constants.TRANSFORMER_PHASE_CLEANUP,
                 ]
             ),
@@ -492,8 +493,14 @@ class DiskOptionSettings(FeatureSettings):
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
         ),
         metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_set_space_by_type, base_type=DiskControllerType
+            decoder=lambda input: (
+                search_space.decode_set_space_by_type(
+                    data=input, base_type=DiskControllerType
+                )
+                if str(input).strip()
+                else search_space.SetSpace(
+                    items=[DiskControllerType.SCSI, DiskControllerType.NVME]
+                )
             )
         ),
     )

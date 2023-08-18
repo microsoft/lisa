@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import re
+
 from retry import retry
 
 from lisa import (
@@ -29,6 +31,15 @@ from lisa.util import (
     """,
 )
 class Dns(TestSuite):
+    # unattended-upgrade -d -v
+    # Traceback (most recent call last):
+    # File "/usr/bin/unattended-upgrade", line 74, in <module>
+    #     import apt_inst
+    # ModuleNotFoundError: No module named 'apt_inst'
+    _fail_to_install_package_pattern = re.compile(
+        r"ModuleNotFoundError: No module named \'apt_inst\'", re.M
+    )
+
     @TestCaseMetadata(
         description="""
         This test case check DNS name resolution by ping bing.com.
@@ -102,11 +113,28 @@ class Dns(TestSuite):
                     node.os.install_packages(
                         ["debian-keyring", "debian-archive-keyring"]
                     )
-            node.execute(
+            result = node.execute(
                 "apt update && unattended-upgrade -d -v",
                 sudo=True,
                 shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="fail to run unattended-upgrade",
                 timeout=2400,
             )
+            if result.exit_code != 0 and self._fail_to_install_package_pattern.findall(
+                result.stdout
+            ):
+                node.execute(
+                    "apt install --reinstall python3 python python3-minimal "
+                    "--fix-broken",
+                    sudo=True,
+                    shell=True,
+                )
+                result = node.execute(
+                    "apt update && unattended-upgrade -d -v",
+                    sudo=True,
+                    shell=True,
+                    timeout=2400,
+                )
+            if result.exit_code != 0:
+                raise LisaException(
+                    "fail to run apt update && unattended-upgrade -d -v"
+                )

@@ -19,6 +19,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
+from lisa.operating_system import BSD, Windows
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
@@ -42,7 +43,11 @@ class XdpFunctional(TestSuite):
     _UNLOAD_XDP_STR_PATTERN = re.compile("unloading xdp program...")
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
         environment: Environment = kwargs.pop("environment")
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"XDP is not supported in {node.os.name} yet.")
+
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
 
@@ -133,7 +138,7 @@ class XdpFunctional(TestSuite):
         xdpdump = get_xdpdump(node)
         for i in range(3):
             nic_info = node.nics.get_nic_by_index(i)
-            output = xdpdump.test_by_ping(nic_name=nic_info.upper)
+            output = xdpdump.test_by_ping(nic_name=nic_info.name)
 
             self._verify_xdpdump_result(output)
 

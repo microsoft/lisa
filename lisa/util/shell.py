@@ -196,10 +196,12 @@ class SshShell(InitializableMixin):
     def __init__(self, connection_info: schema.ConnectionInfo) -> None:
         super().__init__()
         self.is_remote = True
-        self._connection_info = connection_info
+        self.connection_info = connection_info
         self._inner_shell: Optional[spur.SshShell] = None
         self._jump_boxes: List[Any] = []
         self._jump_box_sock: Any = None
+        self.is_sudo_required_password: bool = False
+        self.password_prompts: List[str] = []
         self.spawn_initialization_error_string = ""
 
         paramiko_logger = logging.getLogger("paramiko")
@@ -207,26 +209,26 @@ class SshShell(InitializableMixin):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         is_ready, tcp_error_code = wait_tcp_port_ready(
-            self._connection_info.address, self._connection_info.port
+            self.connection_info.address, self.connection_info.port
         )
         if not is_ready:
             raise TcpConnectionException(
-                self._connection_info.address,
-                self._connection_info.port,
+                self.connection_info.address,
+                self.connection_info.port,
                 tcp_error_code,
             )
 
         sock = self._establish_jump_boxes(
-            address=self._connection_info.address,
-            port=self._connection_info.port,
+            address=self.connection_info.address,
+            port=self.connection_info.port,
         )
 
         try:
-            stdout = try_connect(self._connection_info, sock=sock)
+            stdout = try_connect(self.connection_info, sock=sock)
         except Exception as identifier:
             raise LisaException(
                 f"failed to connect SSH "
-                f"[{self._connection_info.address}:{self._connection_info.port}], "
+                f"[{self.connection_info.address}:{self.connection_info.port}], "
                 f"{identifier.__class__.__name__}: {identifier}"
             )
 
@@ -245,16 +247,16 @@ class SshShell(InitializableMixin):
             shell_type = spur.ssh.ShellTypes.sh
 
         sock = self._establish_jump_boxes(
-            address=self._connection_info.address,
-            port=self._connection_info.port,
+            address=self.connection_info.address,
+            port=self.connection_info.port,
         )
 
         spur_kwargs = {
-            "hostname": self._connection_info.address,
-            "port": self._connection_info.port,
-            "username": self._connection_info.username,
-            "password": self._connection_info.password,
-            "private_key_file": self._connection_info.private_key_file,
+            "hostname": self.connection_info.address,
+            "port": self.connection_info.port,
+            "username": self.connection_info.username,
+            "password": self.connection_info.password,
+            "private_key_file": self.connection_info.private_key_file,
             "missing_host_key": spur.ssh.MissingHostKey.accept,
             # There are too many servers in cloud, and they may reuse the same
             # IP in different time. If so, there is host key conflict. So do not

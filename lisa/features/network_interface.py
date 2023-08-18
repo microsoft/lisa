@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from typing import Any, Type
+from typing import Any, List, Type
 
 from lisa import schema
 from lisa.feature import Feature
 from lisa.schema import NetworkInterfaceOptionSettings
+from lisa.tools import IpInfo
 
 
 class NetworkInterface(Feature):
@@ -41,6 +42,9 @@ class NetworkInterface(Feature):
         raise NotImplementedError
 
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
+        raise NotImplementedError
+
+    def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
         raise NotImplementedError
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

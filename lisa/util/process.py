@@ -23,9 +23,11 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell, SshShell
 
 # [sudo] password for lisatest: \r\nsudo: timed out reading password
-REQUIRE_INPUT_PASSWORD_PATTERN = re.compile(
-    r"\[sudo\] password for.+\r\nsudo: timed out reading password"
-)
+# Password: \r\nsudo: timed out reading password
+TIMEOUT_READING_PASSWORD_PATTERNS = [
+    re.compile(r"\[sudo\] password for.+\r\nsudo: timed out reading password"),
+    re.compile(r"Password: .+\r\nsudo: timed out reading password"),
+]
 
 
 @dataclass
@@ -221,6 +223,21 @@ class Process:
 
         return split_command
 
+    def check_and_input_password(self) -> None:
+        if (
+            self._sudo
+            and isinstance(self._shell, SshShell)
+            and self._shell.is_sudo_required_password
+        ):
+            if not self._shell.connection_info.password:
+                raise RequireUserPasswordException(
+                    "Running commands with sudo requires user's password,"
+                    " but no password is provided."
+                )
+            assert self._process
+            self._process.stdin_write(f"{self._shell.connection_info.password}\n")
+            self._log.debug("The user's password is input")
+
     def wait_result(
         self,
         timeout: float = 600,
@@ -229,9 +246,13 @@ class Process:
     ) -> ExecutableResult:
         timer = create_timer()
         is_timeout = False
+        has_checked_password = False
 
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
+            if timer.elapsed(False) > 0.5 and not has_checked_password:
+                self.check_and_input_password()
+                has_checked_password = True
 
         if timeout < timer.elapsed():
             if self._process is not None:
@@ -242,6 +263,9 @@ class Process:
         if self._result is None:
             assert self._process
             if is_timeout:
+                # LogWriter only flushes if "\n" is written, so we need to flush
+                # manually.
+                self._stdout_writer.flush()
                 process_result = spur.results.result(
                     return_code=1,
                     allow_error=True,
@@ -294,6 +318,10 @@ class Process:
         ):
             self._result.stdout = self._filter_profile_error(self._result.stdout)
         self._check_if_need_input_password(self._result.stdout)
+
+        self._result.stdout = self._filter_sudo_required_password_info(
+            self._result.stdout
+        )
 
         return self._result
 
@@ -372,7 +400,9 @@ class Process:
         # this warning message may break commands, so remove it from the first line
         # of standard output.
         if raw_input.startswith("sudo: unable to resolve host"):
-            lines = raw_input.splitlines(keepends=True)
+            lines = [
+                line for line in raw_input.splitlines(keepends=True) if line.strip()
+            ]
             raw_input = "".join(lines[1:])
             self._log.debug(f'found error message in sudo: "{lines[0]}"')
         return raw_input
@@ -405,11 +435,36 @@ class Process:
     def _check_if_need_input_password(self, raw_input: str) -> None:
         # Check if the stdout contains "[sudo] password for .*: " and
         # "sudo: timed out reading password" strings. If so, raise exception
-        if re.search(REQUIRE_INPUT_PASSWORD_PATTERN, raw_input):
-            raise RequireUserPasswordException(
-                "Running commands with sudo requires user's password,"
-                " which is not support in Lisa now"
-            )
+        for pattern in TIMEOUT_READING_PASSWORD_PATTERNS:
+            if re.search(pattern, raw_input):
+                raise RequireUserPasswordException(
+                    "Timed out reading password. "
+                    "Running commands with sudo requires user's password"
+                )
+
+    def _filter_sudo_required_password_info(self, raw_input: str) -> str:
+        # If system needs input of password when running commands with sudo, the output
+        # might have below lines:
+        # We trust you have received the usual lecture from the local System
+        # Administrator. It usually boils down to these three things:
+        #
+        #     #1) Respect the privacy of others.
+        #     #2) Think before you type.
+        #     #3) With great power comes great responsibility.
+        #
+        # [sudo] password for l****t:
+        # After inputting the right password, the output might have the following line
+        # when running commands with sudo next time.
+        # [sudo] password for l****t:
+        # Remove these lines
+        if (
+            self._sudo
+            and isinstance(self._shell, SshShell)
+            and self._shell.is_sudo_required_password
+        ):
+            for prompt in self._shell.password_prompts:
+                raw_input = raw_input.replace(prompt, "")
+        return raw_input
 
 
 def _create_exports(update_envs: Dict[str, str]) -> str:

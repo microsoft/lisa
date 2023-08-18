@@ -16,7 +16,7 @@ from lisa.features import Disk, NestedVirtualization
 from lisa.features.network_interface import Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
-from lisa.operating_system import Windows
+from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -32,6 +32,7 @@ from lisa.tools import (
     StartConfiguration,
     Sysctl,
 )
+from lisa.util import constants
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
 from microsoft.testsuites.nested.common import (
@@ -89,6 +90,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_count=search_space.IntRange(min=2),
             ),
             supported_features=[NestedVirtualization],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_nested_kvm_storage_singledisk(
@@ -114,6 +116,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_count=search_space.IntRange(min=7),
             ),
             supported_features=[NestedVirtualization],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_nested_kvm_storage_multidisk(
@@ -193,6 +196,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_size=search_space.IntRange(min=12),
             ),
             supported_features=[NestedVirtualization],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_nested_kvm_ntttcp_private_bridge(
@@ -299,6 +303,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_size=search_space.IntRange(min=12),
             ),
             supported_features=[NestedVirtualization],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_nested_kvm_ntttcp_different_l1_nat(
@@ -462,6 +467,7 @@ class KVMPerformance(TestSuite):  # noqa
                 data_disk_size=search_space.IntRange(min=12),
             ),
             supported_features=[NestedVirtualization],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_nested_kvm_netperf_pps_nat(
@@ -619,7 +625,9 @@ class KVMPerformance(TestSuite):  # noqa
         # wait till nested vm is up
         try_connect(
             schema.ConnectionInfo(
-                address=node.public_address,
+                address=node.connection_info[
+                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+                ],
                 port=guest_port,
                 username=guest_username,
                 password=guest_password,

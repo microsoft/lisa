@@ -10,14 +10,15 @@ from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, ca
 from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
-from lisa.nic import Nics
-from lisa.operating_system import OperatingSystem
-from lisa.tools import Echo, Lsblk, Mkfs, Mount, Reboot, Uname
+from lisa.nic import Nics, NicsBSD
+from lisa.operating_system import BSD, OperatingSystem
+from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
     InitializableMixin,
     LisaException,
+    RequireUserPasswordException,
     constants,
     fields_to_dict,
     get_datetime_path,
@@ -38,6 +39,13 @@ __local_node: Optional[Node] = None
 
 class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
     _factory: Optional[subclasses.Factory[Node]] = None
+
+    # [sudo] password for
+    # Password:
+    _sudo_passwrod_prompts: List[str] = [
+        "[sudo] password for",
+        "Password:",
+    ]
 
     def __init__(
         self,
@@ -105,6 +113,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             result = process.wait_result(10)
             if result.exit_code == 0:
                 self._support_sudo = True
+                self.check_sudo_password_required()
             else:
                 self._support_sudo = False
                 self.log.debug("node doesn't support sudo, may cause failure later.")
@@ -113,6 +122,58 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self._support_sudo = True
 
         return self._support_sudo
+
+    def check_sudo_password_required(self) -> None:
+        # check if password is required when running command with sudo
+        require_sudo_password = False
+        if self.is_remote and self.is_posix:
+            process = self._execute(
+                f"echo {constants.LISA_TEST_FOR_SUDO}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+            )
+            result = process.wait_result(10)
+            if result.exit_code != 0:
+                for prompt in self._sudo_passwrod_prompts:
+                    if prompt in result.stdout:
+                        require_sudo_password = True
+                        break
+            if require_sudo_password:
+                self.log.debug(
+                    "Running commands with sudo in this node needs input of password."
+                )
+                ssh_shell = cast(SshShell, self.shell)
+                ssh_shell.is_sudo_required_password = True
+                if not ssh_shell.connection_info.password:
+                    raise RequireUserPasswordException(
+                        "Running commands with sudo requires user's password,"
+                        " but no password is provided."
+                    )
+                # ssh_shell.is_sudo_required_password is true, so running sudo command
+                # will input password in process.wait_result. Check running sudo again
+                # and get password prompts. For most images, after inputting a password
+                # successfully, the prompt is changed when running sudo command again.
+                # So check twice to get two kinds of prompt
+                password_prompts = []
+                for i in range(1, 3):
+                    process = self._execute(
+                        f"echo {constants.LISA_TEST_FOR_SUDO}",
+                        shell=True,
+                        sudo=True,
+                        no_info_log=True,
+                    )
+                    result = process.wait_result(10)
+                    if result.exit_code != 0:
+                        raise RequireUserPasswordException(
+                            "The password might be invalid for running sudo command"
+                        )
+                    password_prompt = result.stdout.replace(
+                        f"{constants.LISA_TEST_FOR_SUDO}", ""
+                    )
+                    password_prompts.append(password_prompt)
+                    self.log.debug(f"password prompt {i}: {password_prompt}")
+                ssh_shell.password_prompts = password_prompts
 
     @property
     def is_connected(self) -> bool:
@@ -155,7 +216,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     @property
     def nics(self) -> Nics:
         if self._nics is None:
-            self._nics = Nics(self)
+            self._nics = create_nics(self)
             self._nics.initialize()
 
         return self._nics
@@ -287,7 +348,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         saved_path = self.local_log_path / f"{get_datetime_path()}_captured_{name}"
         saved_path.mkdir(parents=True, exist_ok=True)
         self.log.debug(f"capturing system information to {saved_path}.")
-        self.os.capture_system_information(saved_path)
+        try:
+            self.os.capture_system_information(saved_path)
+        except Exception as identifier:
+            # For some images like cisco, southrivertech1586314123192, they might raise
+            # exception when calling copy_back. This should not block the test, so add
+            # try-except.
+            self.log.debug(f"error on capturing system information: {identifier}")
 
     def find_partition_with_freespace(
         self, size_in_gb: int, use_os_drive: bool = True
@@ -302,10 +369,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         mount = self.tools[Mount]
         lsblk = self.tools[Lsblk]
-        disks = lsblk.get_disks()
+        disks = lsblk.get_disks(force_run=True)
+        df = self.tools[Df]
 
         # find a disk/partition with required space
         for disk in disks:
+            mountpoint = ""
             if disk.is_os_disk and not use_os_drive:
                 continue
 
@@ -316,28 +385,19 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     if disk.is_os_disk and partition.mountpoint != "/":
                         continue
 
-                    if not partition.size_in_gb >= size_in_gb:
-                        continue
-
                     # mount partition if it is not mounted
-                    partition_name = partition.name
+                    disk_name = partition_name = partition.name
                     if not partition.is_mounted:
                         mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
                         mount.mount(partition.device_name, mountpoint, format_=True)
                     else:
                         mountpoint = partition.mountpoint
-
-                    # some distro use absolute path wrt to the root, so we need to
-                    # requery the mount point after mounting
-                    return lsblk.find_mountpoint_by_volume_name(
-                        partition_name, force_run=True
-                    )
             else:
-                if not disk.size_in_gb >= size_in_gb:
-                    continue
-
                 # mount the disk if it isn't mounted
                 disk_name = disk.name
+                # skip floppy disk
+                if "fd" in disk_name:
+                    continue
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
@@ -345,6 +405,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 else:
                     mountpoint = disk.mountpoint
 
+            if (
+                mountpoint
+                and df.get_filesystem_available_space(mountpoint, True) >= size_in_gb
+            ):
                 # some distro use absolute path wrt to the root, so we need to requery
                 # the mount point after mounting
                 return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
@@ -352,6 +416,15 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         raise LisaException(
             f"No partition with Required disk space of {size_in_gb}GB found"
         )
+
+    def get_working_path_with_required_space(self, required_size_in_gb: int) -> str:
+        work_path = str(self.working_path)
+        df = self.tools[Df]
+        lisa_path_space = df.get_filesystem_available_space(work_path)
+        if lisa_path_space < required_size_in_gb:
+            work_path = self.find_partition_with_freespace(required_size_in_gb)
+            self.tools[Chmod].chmod(work_path, "777", sudo=True)
+        return work_path
 
     def get_working_path(self) -> PurePath:
         """
@@ -765,3 +838,13 @@ class NodeHookImpl:
 
 plugin_manager.add_hookspecs(NodeHookSpec)
 plugin_manager.register(NodeHookImpl())
+
+
+def create_nics(node: Node) -> Nics:
+    """
+    Returns a Nics object for the node based on the OS type.
+    """
+    if isinstance(node.os, BSD):
+        return NicsBSD(node)
+
+    return Nics(node)

@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, List, Set, Type
+from typing import Any, List, Type
 
 from dataclasses_json import dataclass_json
 
@@ -15,7 +15,7 @@ from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
 from lisa.operating_system import Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Lsmod, Lspci, Lsvmbus, NvidiaSmi
+from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
 from lisa.util import LisaException, SkippedException, constants
 
@@ -102,12 +102,12 @@ class Gpu(Feature):
         raise NotImplementedError
 
     def is_module_loaded(self) -> bool:
-        lsmod_tool = self._node.tools[Lsmod]
-        if (len(self.gpu_vendor) > 0) and all(
-            lsmod_tool.module_exists(vendor) for vendor in self.gpu_vendor
-        ):
-            return True
-
+        lspci_tool = self._node.tools[Lspci]
+        pci_devices = self._get_gpu_from_lspci()
+        for device in pci_devices:
+            used_module = lspci_tool.get_used_module(device.slot)
+            if used_module:
+                return True
         return False
 
     def install_compute_sdk(self, version: str = "") -> None:
@@ -128,7 +128,6 @@ class Gpu(Feature):
                 if not version:
                     version = DEFAULT_GRID_DRIVER_URL
                     self._install_grid_driver(version)
-                    self.gpu_vendor.add("nvidia")
             elif driver == ComputeSDK.CUDA:
                 if not version:
                     version = DEFAULT_CUDA_DRIVER_VERSION
@@ -136,12 +135,8 @@ class Gpu(Feature):
                         self._install_cuda_driver(version)
                     except Exception as e:
                         raise LisaException(f"Failed to install CUDA Driver {str(e)}")
-                    self.gpu_vendor.add("nvidia")
             else:
                 raise LisaException(f"{driver} is not a valid value of ComputeSDK")
-
-        if not self.gpu_vendor:
-            raise LisaException("No supported gpu driver/vendor found for this node.")
 
     def get_gpu_count_with_lsvmbus(self) -> int:
         lsvmbus_device_count = 0
@@ -160,14 +155,7 @@ class Gpu(Feature):
         return lsvmbus_device_count - bridge_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
-        lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_devices_by_type(
-            constants.DEVICE_TYPE_GPU, force_run=True
-        )
-        # Remove Microsoft Virtual one. It presents with GRID driver.
-        device_list = self.remove_virtual_gpus(device_list)
-
-        return len(device_list)
+        return len(self._get_gpu_from_lspci())
 
     def get_gpu_count_with_vendor_cmd(self) -> int:
         nvidiasmi = self._node.tools[NvidiaSmi]
@@ -176,11 +164,16 @@ class Gpu(Feature):
     def get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self.gpu_vendor: Set[str] = set()
-
     def _install_driver_using_platform_feature(self) -> None:
         raise NotImplementedError()
+
+    def _get_gpu_from_lspci(self) -> List[PciDevice]:
+        lspci_tool = self._node.tools[Lspci]
+        device_list = lspci_tool.get_devices_by_type(
+            constants.DEVICE_TYPE_GPU, force_run=True
+        )
+        # Remove Microsoft Virtual one. It presents with GRID driver.
+        return self.remove_virtual_gpus(device_list)
 
     # download and install NVIDIA grid driver
     def _install_grid_driver(self, driver_url: str) -> None:
@@ -194,7 +187,8 @@ class Gpu(Feature):
             executable=True,
         )
         result = self._node.execute(
-            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check"
+            f"{grid_file_path} --no-nouveau-check --silent --no-cc-version-check",
+            sudo=True,
         )
         result.assert_exit_code(
             0,
@@ -211,25 +205,14 @@ class Gpu(Feature):
 
         if isinstance(self._node.os, Redhat):
             release = os_information.release.split(".")[0]
-            if release == "9":
-                self._node.os.add_repository(
-                    "http://developer.download.nvidia.com/compute/cuda/"
-                    "repos/rhel9/x86_64/cuda-rhel9.repo"
-                )
-            else:
-                cuda_repo_pkg = f"cuda-repo-rhel{release}-{version}.x86_64.rpm"
-                cuda_repo = (
-                    "http://developer.download.nvidia.com/"
-                    f"compute/cuda/repos/rhel{release}/x86_64/{cuda_repo_pkg}"
-                )
-                try:
-                    # download and install the cuda driver package from the repo
-                    self._node.os._install_package_from_url(cuda_repo)
-                except Exception as e:
-                    raise LisaException(
-                        f"Failed to install driver from source, {str(e)}"
-                    )
-            self._node.os.install_packages("cuda-drivers", signed=False)
+            self._node.os.add_repository(
+                "http://developer.download.nvidia.com/compute/cuda/"
+                f"repos/rhel{release}/x86_64/cuda-rhel{release}.repo"
+            )
+            install_packages = ["cuda-drivers"]
+            if release == "7":
+                install_packages.append("nvidia-driver-latest-dkms")
+            self._node.os.install_packages(install_packages, signed=False)
 
         elif isinstance(self._node.os, Ubuntu):
             release = re.sub("[^0-9]+", "", os_information.release)

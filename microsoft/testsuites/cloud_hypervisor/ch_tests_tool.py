@@ -32,7 +32,12 @@ class CloudHypervisorTests(Tool):
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
     PERF_CMD_TIME_OUT = 900
 
-    repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
+    upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
+
+    ms_clh_repo = ""
+    ms_igvm_parser_repo = ""
+    use_ms_clh_repo = False
+    ms_access_token = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -208,7 +213,21 @@ class CloudHypervisorTests(Tool):
 
     def _install(self) -> bool:
         git = self.node.tools[Git]
-        git.clone(self.repo, self.get_tool_path(use_global=True))
+        clone_path = self.get_tool_path(use_global=True)
+        if self.use_ms_clh_repo:
+            git.clone(
+                self.ms_clh_repo,
+                clone_path,
+                auth_token=self.ms_access_token,
+            )
+            git.clone(
+                self.ms_igvm_parser_repo,
+                clone_path,
+                auth_token=self.ms_access_token,
+            )
+        else:
+            git.clone(self.upstream_repo, clone_path)
+
         if isinstance(self.node.os, CBLMariner):
             daemon_json_file = PurePath("/etc/docker/daemon.json")
             daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
@@ -222,7 +241,7 @@ class CloudHypervisorTests(Tool):
         if username not in res.stdout:  # if current user is not in docker group
             self.node.execute(f"usermod -a -G docker {username}", sudo=True)
             # reboot for group membership change to take effect
-            self.node.reboot()
+            self.node.reboot(time_out=900)
 
         self.node.tools[Docker].start()
 

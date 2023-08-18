@@ -22,6 +22,7 @@ from lisa import (
 from lisa.executable import Tool
 from lisa.features import Sriov, Synthetic
 from lisa.nic import NicInfo
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Kill, Lagscope, Lscpu, Ntttcp
 from lisa.util.parallel import run_in_parallel
@@ -55,6 +56,10 @@ _default_latency_threshold = 1.4
 class XdpPerformance(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
+
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
 
@@ -261,7 +266,7 @@ class XdpPerformance(TestSuite):
             )
 
             try:
-                server_xdpdump.start_async(nic_name=server_nic.upper, timeout=0)
+                server_xdpdump.start_async(nic_name=server_nic.name, timeout=0)
                 latency_with_xdp.append(
                     self._send_packets_for_latency(
                         server, client, test_result, tool_type
@@ -384,7 +389,7 @@ class XdpPerformance(TestSuite):
             log=log,
         )
         try:
-            xdpdump.start_async(nic_name=receiver_nic.upper, timeout=0)
+            xdpdump.start_async(nic_name=receiver_nic.name, timeout=0)
 
             pktgen_result = self._send_packets(
                 is_multi_thread, sender, pktgen, sender_nic, receiver_nic
@@ -476,8 +481,8 @@ class XdpPerformance(TestSuite):
 
         try:
             # start xdpdump
-            forwarder_xdpdump.start_async(nic_name=forwarder_nic.upper, timeout=0)
-            receiver_xdpdump.start_async(nic_name=receiver_nic.upper, timeout=0)
+            forwarder_xdpdump.start_async(nic_name=forwarder_nic.name, timeout=0)
+            receiver_xdpdump.start_async(nic_name=receiver_nic.name, timeout=0)
 
             pktgen_result = self._send_packets(
                 is_multi_threads, sender, pktgen, sender_nic, forwarder_nic
@@ -580,7 +585,7 @@ class XdpPerformance(TestSuite):
             result = pktgen.send_packets(
                 destination_ip=forwarder_ip,
                 destination_mac=forwarder_mac,
-                nic_name=sender_nic.upper,
+                nic_name=sender_nic.name,
                 thread_count=thread_count,
             )
         finally:

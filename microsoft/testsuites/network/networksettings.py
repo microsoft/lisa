@@ -23,7 +23,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Uname
-from lisa.operating_system import Debian, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
@@ -55,7 +55,7 @@ class NetworkSettings(TestSuite):
     #  {'name': 'rx_queue_1_packets', 'value': '1108'},
     #  {'name': 'rx_queue_1_bytes', 'value': '1415269'},
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
-    _vf_queue_stats_regex = re.compile(r"[tr]x(?P<name>[\d]+)_packets")
+    _vf_queue_stats_regex = re.compile(r"[tr]x[_]?(?P<name>[\d]+)_packets")
 
     # This will match different tx queues like -
     # {'name': 'tx_queue_0_packets', 'value': '0'}
@@ -68,11 +68,15 @@ class NetworkSettings(TestSuite):
     # This will match different vf tx queues like -
     # {'name': 'tx0_packets', 'value': '966'}
     # {'name': 'tx1_packets', 'value': '820'}
-    _vf_tx_stats_regex = re.compile(r"tx(?P<name>[\d]+)_packets")
+    # {'name': 'tx_0_packets', 'value': '2773'}
+    # {'name': 'tx_1_packets', 'value': '2605'}
+    _vf_tx_stats_regex = re.compile(r"tx[_]?(?P<name>[\d]+)_packets")
     # This will match different vf rx queues like -
     # {'name': 'rx0_packets', 'value': '283'}
     # {'name': 'rx1_packets', 'value': '158'}
-    _vf_rx_stats_regex = re.compile(r"rx(?P<name>[\d]+)_packets")
+    # {'name': 'rx_0_packets', 'value': '2500'}
+    # {'name': 'rx_1_packets', 'value': '3113'}
+    _vf_rx_stats_regex = re.compile(r"rx[_]?(?P<name>[\d]+)_packets")
 
     @TestCaseMetadata(
         description="""
@@ -88,7 +92,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=1,
     )
-    def validate_ringbuffer_settings_change(self, node: Node) -> None:
+    def verify_ringbuffer_settings_change(self, node: Node) -> None:
         ethtool = node.tools[Ethtool]
         try:
             devices_settings = ethtool.get_all_device_ring_buffer_settings()
@@ -174,7 +178,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=1,
     )
-    def validate_device_channels_change(self, node: Node, log: Logger) -> None:
+    def verify_device_channels_change(self, node: Node, log: Logger) -> None:
         kernel_ver = node.tools[Uname].get_linux_information().kernel_version
         if (
             isinstance(node.os, Ubuntu)
@@ -244,13 +248,16 @@ class NetworkSettings(TestSuite):
         """,
         priority=1,
     )
-    def validate_device_enabled_features(self, node: Node) -> None:
+    def verify_device_enabled_features(self, node: Node) -> None:
         required_features = [
             "rx-checksumming",
             "tx-checksumming",
-            "scatter-gather",
             "tcp-segmentation-offload",
         ]
+
+        if not isinstance(node.os, BSD):
+            required_features.append("scatter-gather")
+
         ethtool = node.tools[Ethtool]
         devices_features = ethtool.get_all_device_enabled_features()
 
@@ -279,8 +286,9 @@ class NetworkSettings(TestSuite):
             4. Revert back the settings to original values.
         """,
         priority=1,
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
-    def validate_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
+    def verify_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
         ethtool = node.tools[Ethtool]
 
         skip_test = True
@@ -350,7 +358,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=2,
     )
-    def validate_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
+    def verify_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
 
@@ -419,7 +427,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=2,
     )
-    def validate_device_rx_hash_level_change(self, node: Node, log: Logger) -> None:
+    def verify_device_rx_hash_level_change(self, node: Node, log: Logger) -> None:
         ethtool = node.tools[Ethtool]
 
         # Run the test for both TCP and UDP
@@ -472,7 +480,7 @@ class NetworkSettings(TestSuite):
         """,
         priority=2,
     )
-    def validate_device_msg_level_change(self, node: Node, log: Logger) -> None:
+    def verify_device_msg_level_change(self, node: Node, log: Logger) -> None:
         # Check if feature is supported by the kernel
         self._check_msg_level_change_supported(node)
 
@@ -581,7 +589,7 @@ class NetworkSettings(TestSuite):
             min_core_count=4,
         ),
     )
-    def validate_device_statistics(self, environment: Environment, log: Logger) -> None:
+    def verify_device_statistics(self, environment: Environment, log: Logger) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         ethtool = client_node.tools[Ethtool]

@@ -37,14 +37,19 @@ from marshmallow import validate
 from retry import retry
 
 from lisa import Logger, features, schema, search_space
+from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
-from lisa.features.security_profile import SecurityProfileType
+from lisa.features.security_profile import (
+    FEATURE_NAME_SECURITY_PROFILE,
+    SecurityProfileType,
+)
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
-from lisa.tools import Curl, Dmesg, Ls, Lspci, Modprobe, Rm
+from lisa.secret import add_secret
+from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -224,12 +229,10 @@ class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
         response = pipeline_response.http_response
 
         if response.status_code not in [200]:
-            map_error(  # type: ignore
+            map_error(
                 status_code=response.status_code, response=response, error_map=error_map
             )
-            raise HttpResponseError(
-                response=response, error_format=ARMErrorFormat
-            )  # type: ignore
+            raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         deserialized = self._deserialize("SerialPortConnectResult", pipeline_response)
 
@@ -435,8 +438,19 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
 
 class Gpu(AzureFeatureMixin, features.Gpu):
-    _grid_supported_skus = re.compile(r"^Standard_[^_]+(_v3)?$", re.I)
-    _amd_supported_skus = re.compile(r"^Standard_[^_]+_v4$", re.I)
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501
+    # grid vm sizes NV, NVv3, NCasT4v3, NVadsA10 v5
+    _grid_supported_skus = re.compile(
+        r"^(Standard_NV[\d]+(s_v3)?$|Standard_NC[\d]+as_T4_v3|"
+        r"Standard_NV[\d]+ad(ms|s)_A10_v5)",
+        re.I,
+    )
+    # refer https://learn.microsoft.com/en-us/azure/virtual-machines/windows/n-series-amd-driver-setup # noqa: E501
+    # - NGads V620 Series: Standard_NG[^_]+_V620_v[0-9]+
+    # - NVv4 Series: Standard_NV[^_]+_v4
+    _amd_supported_skus = re.compile(
+        r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
+    )
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
@@ -504,11 +518,14 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
         node_space = kwargs.get("node_space")
+        resource_sku: Any = kwargs.get("resource_sku")
 
         assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
 
         value = raw_capabilities.get("GPUs", None)
-        if value:
+        # refer https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu
+        # NVv4 VMs currently support only Windows guest operating system.
+        if value and resource_sku.family not in ["standardNVSv4Family"]:
             node_space.gpu_count = int(value)
             return schema.FeatureSettings.create(cls.name())
 
@@ -573,6 +590,32 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         dmesg = self._node.tools[Dmesg]
         return "hvnd_try_bind_nic" in dmesg.get_output()
 
+    def setup_rdma(self) -> None:
+        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            self.is_hpc_image = True
+        super().setup_rdma()
+        waagent = self._node.tools[Waagent]
+        devices = self._get_ib_device_names()
+        if len(devices) > 1:
+            # upgrade waagent to latest version to resolve
+            # multiple ib devices not getting ip address issue
+            waagent.upgrade_from_source()
+        # Update waagent.conf
+        sed = self._node.tools[Sed]
+        sed.substitute(
+            regexp="# OS.EnableRDMA=y",
+            replacement="OS.EnableRDMA=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="# AutoUpdate.Enabled=y",
+            replacement="AutoUpdate.Enabled=y",
+            file="/etc/waagent.conf",
+            sudo=True,
+        )
+        waagent.restart()
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
@@ -613,6 +656,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
+        status_changed = False
         for nic in vm.network_profile.network_interfaces:
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
@@ -644,9 +688,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
+                status_changed = True
 
         # wait settings effective
-        if wait:
+        if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
@@ -787,16 +832,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        self._node.nics.reload()
-        default_nic = self._node.nics.get_primary_nic()
-
-        if enabled and not default_nic.lower:
-            raise LisaException("SRIOV is enabled, but VF is not found.")
-        elif not enabled and default_nic.lower:
-            raise LisaException("SRIOV is disabled, but VF exists.")
-        else:
-            # the enabled flag is consistent with VF presents.
-            ...
+        self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
         self, nics: List[NetworkInterfaceReference]
@@ -823,6 +859,22 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 )
             )
         return all_nics
+
+    def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
+        interfaces_info_list: List[IpInfo] = []
+        for interface in self._get_all_nics():
+            interfaces_info_list.append(
+                IpInfo(
+                    interface.name,
+                    ":".join(interface.mac_address.lower().split("-")),
+                    [
+                        x.private_ip_address
+                        for x in interface.ip_configurations
+                        if x.primary
+                    ][0],
+                )
+            )
+        return interfaces_info_list
 
 
 # Tuple: (IOPS, Disk Size)
@@ -1125,6 +1177,15 @@ class Disk(AzureFeatureMixin, features.Disk):
     SCSI_PATTERN = re.compile(r"/dev/disk/azure/scsi[0-9]/lun[0-9][0-9]?$", re.M)
     UN_SUPPORT_SETTLE = re.compile(r"trigger: unrecognized option '--settle'", re.M)
 
+    # /sys/block/sda = > sda
+    # /sys/block/sdb = > sdb
+    DISK_LABEL_PATTERN = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
+
+    # =>       40  369098672  da1  GPT  (176G)
+    DISK_LABEL_PATTERN_BSD = re.compile(
+        r"^=>\s+\d+\s+\d+\s+(?P<label>\w*)\s+\w+\s+\(\w+\)", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1134,6 +1195,16 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
+        if (
+            self._node.capability.disk
+            and self._node.capability.disk.disk_controller_type
+            == schema.DiskControllerType.NVME
+        ):
+            nvme = self._node.features[Nvme]
+            # Skip OS disk which is '[0]' in namespaces list
+            disk_array = nvme.get_namespaces()[1:]
+            return disk_array
+        # disk_controller_type == SCSI
         # refer here to get data disks from folder /dev/disk/azure/scsi1
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
         # /dev/disk/azure/scsi1/lun0
@@ -1148,8 +1219,8 @@ class Disk(AzureFeatureMixin, features.Disk):
                 isinstance(os, Redhat) and os.information.release >= "9.0"
             ):
                 self._log.debug(
-                    "download udev rules to construct a set of symbolic links "
-                    "under the /dev/disk/azure path"
+                    "download udev rules to construct a set of "
+                    "symbolic links under the /dev/disk/azure path"
                 )
                 if ls_tools.is_file(
                     self._node.get_pure_path("/dev/disk/azure"), sudo=True
@@ -1181,7 +1252,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
         assert matched, "not find data disks"
-        disk_array: List[str] = [""] * len(matched)
+        disk_array = [""] * len(matched)
         for disk in matched:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
@@ -1192,10 +1263,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         return disk_array
 
     def get_all_disks(self) -> List[str]:
-        # /sys/block/sda = > sda
-        # /sys/block/sdb = > sdb
-        disk_label_pattern = re.compile(r"/sys/block/(?P<label>sd\w*)", re.M)
-        cmd_result = self._node.execute("ls -d /sys/block/sd*", shell=True, sudo=True)
+        if isinstance(self._node.os, BSD):
+            disk_label_pattern = self.DISK_LABEL_PATTERN_BSD
+            cmd_result = self._node.execute("gpart show", shell=True, sudo=True)
+        else:
+            disk_label_pattern = self.DISK_LABEL_PATTERN
+            cmd_result = self._node.execute(
+                "ls -d /sys/block/sd*", shell=True, sudo=True
+            )
         matched = find_patterns_in_lines(cmd_result.stdout, [disk_label_pattern])
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
@@ -1411,14 +1486,15 @@ class Resize(AzureFeatureMixin, features.Resize):
         # current location and that are available for the current vm size to resize to
         for size in available_sizes:
             vm_size_name = size.as_dict()["name"]
-            # Getting eligible vm sizes and their capability data
-            new_vm_size = next(
-                (x for x in sorted_sizes if x.vm_size == vm_size_name), None
-            )
-            if not new_vm_size:
-                continue
+            if vm_size_name.startswith(("Standard_", "Basic_")):
+                # Getting eligible vm sizes and their capability data
+                new_vm_size = next(
+                    (x for x in sorted_sizes if x.vm_size == vm_size_name), None
+                )
+                if not new_vm_size:
+                    continue
 
-            avail_eligible_intersect.append(new_vm_size)
+                avail_eligible_intersect.append(new_vm_size)
 
         current_network_interface = current_vm_size.capability.network_interface
         assert_that(current_network_interface).described_as(
@@ -1601,17 +1677,12 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
 
 
 class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
-    _both_enabled_properties = """
-        {
-            "securityProfile": {
-                "uefiSettings": {
-                    "secureBootEnabled": "true",
-                    "vTpmEnabled": "true"
-                },
-                "securityType": "%s"
-            }
-        }
-        """
+    # Convert Security Profile Setting to Arm Parameter Value
+    _security_profile_mapping = {
+        SecurityProfileType.Standard: "",
+        SecurityProfileType.SecureBoot: "TrustedLaunch",
+        SecurityProfileType.CVM: "ConfidentialVM",
+    }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -1660,68 +1731,40 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        settings = cast(SecurityProfileSettings, kwargs.get("settings"))
-        if SecurityProfileType.Standard != settings.security_profile:
-            parameters: Any = kwargs.get("arm_parameters")
-            if 1 == parameters.nodes[0].hyperv_generation:
-                raise SkippedException(
-                    f"{settings.security_profile} can only be set on gen2 image/vhd."
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+
+        assert len(environment.nodes._list) == len(arm_parameters.nodes)
+        for node, node_parameters in zip(environment.nodes._list, arm_parameters.nodes):
+            assert node.capability.features
+            security_profile = [
+                feature_setting
+                for feature_setting in node.capability.features.items
+                if feature_setting.type == FEATURE_NAME_SECURITY_PROFILE
+            ]
+            if security_profile:
+                settings = security_profile[0]
+                assert isinstance(settings, SecurityProfileSettings)
+                assert isinstance(settings.security_profile, SecurityProfileType)
+                node_parameters.security_profile[
+                    "security_type"
+                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["encryption_type"] = (
+                    "DiskWithVMGuestState"
+                    if settings.encrypt_disk
+                    else "VMGuestStateOnly"
                 )
-            cls._enable_secure_boot(*args, **kwargs)
+                node_parameters.security_profile[
+                    "disk_encryption_set_id"
+                ] = settings.disk_encryption_set_id
 
-    @classmethod
-    def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
-        settings: Any = kwargs.get("settings")
-        template: Any = kwargs.get("template")
-        log = cast(Logger, kwargs.get("log"))
-        resources = template["resources"]
-        virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
-        if SecurityProfileType.Standard == settings.security_profile:
-            log.debug("Security profile set to none. Arm template will not be updated.")
-            return
-        elif SecurityProfileType.SecureBoot == settings.security_profile:
-            log.debug("Security Profile set to secure boot. Updating arm template.")
-            security_type = "TrustedLaunch"
-        elif SecurityProfileType.CVM == settings.security_profile:
-            log.debug("Security Profile set to CVM. Updating arm template.")
-            security_type = "ConfidentialVM"
-
-            security_encryption_type = (
-                "DiskWithVMGuestState" if settings.encrypt_disk else "VMGuestStateOnly"
-            )
-
-            if settings.disk_encryption_set_id:
-                disk_encryption_set = (
-                    ',"diskEncryptionSet":{"id":"'
-                    f"{settings.disk_encryption_set_id}"
-                    '"}'
-                )
-            else:
-                disk_encryption_set = ""
-
-            template["functions"][0]["members"]["getOSImage"]["output"]["value"][
-                "managedDisk"
-            ] = (
-                "[if(not(equals(parameters('node')['disk_type'], 'Ephemeral')), "
-                'json(concat(\'{"storageAccountType": "\','
-                "parameters('node')['disk_type'],"
-                '\'","securityProfile":{"securityEncryptionType": "'
-                f'{security_encryption_type}"'
-                f"{disk_encryption_set}"
-                "}}')), json('null'))]"
-            )
-        else:
-            raise LisaException(
-                "Security profile: not all requirements could be met. "
-                "Please check VM SKU capabilities, test requirements, "
-                "and runbook requirements."
-            )
-
-        virtual_machines["properties"].update(
-            json.loads(
-                cls._both_enabled_properties % security_type,
-            )
-        )
+                if node_parameters.security_profile["security_type"] == "":
+                    node_parameters.security_profile.clear()
+                elif 1 == node_parameters.hyperv_generation:
+                    raise SkippedException(
+                        f"{settings.security_profile} "
+                        "can only be set on gen2 image/vhd."
+                    )
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
@@ -1972,6 +2015,20 @@ class AzureExtension(AzureFeatureMixin, Feature):
     ) -> Optional[schema.FeatureSettings]:
         return schema.FeatureSettings.create(cls.name())
 
+    def get(
+        self,
+        name: str = "",
+    ) -> Any:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        extension = compute_client.virtual_machine_extensions.get(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+            expand="instanceView",
+        )
+        return extension
+
     def create_or_update(
         self,
         type_: str,
@@ -2006,6 +2063,12 @@ class AzureExtension(AzureFeatureMixin, Feature):
             protected_settings=protected_settings,
             suppress_failures=suppress_failures,
         )
+
+        if protected_settings:
+            add_secret(
+                str(extension_parameters.as_dict()["protected_settings"]),
+                sub="***REDACTED***",
+            )
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 

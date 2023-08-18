@@ -47,7 +47,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 search_space.decode_set_space_by_type(
                     data=input, base_type=SecurityProfileType
                 )
-                if input
+                if str(input).strip()
                 else search_space.SetSpace(
                     items=[
                         SecurityProfileType.Standard,
@@ -110,10 +110,6 @@ class SecurityProfile(Feature):
     @classmethod
     def can_disable(cls) -> bool:
         return True
-
-    @classmethod
-    def _enable_secure_boot(cls, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError()
 
     def enabled(self) -> bool:
         return True

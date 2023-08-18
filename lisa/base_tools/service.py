@@ -55,6 +55,9 @@ class Service(Tool):
     def is_service_inactive(self, name: str) -> bool:
         return self._internal_tool._is_service_inactive(name)  # type: ignore
 
+    def is_service_running(self, name: str) -> bool:
+        return self._internal_tool._check_service_running(name)  # type: ignore
+
 
 class ServiceInternal(Tool):
     @property
@@ -95,6 +98,10 @@ class ServiceInternal(Tool):
         # optionally ignore exit code if it matches our expected non-zero value
 
         _check_error_codes(cmd_result, ignore_exit_code)
+
+    def is_service_running(self, name: str) -> bool:
+        cmd_result = self.run(f"{name} status", shell=True, sudo=True, force_run=True)
+        return "Active: active" in cmd_result.stdout
 
 
 class Systemctl(Tool):
@@ -140,6 +147,12 @@ class Systemctl(Tool):
             filter_ansi_escape(cmd_result.stdout), self.__STATE_PATTERN
         )
         return group["state"]
+
+    def is_service_running(self, name: str) -> bool:
+        cmd_result = self.run(
+            f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
+        )
+        return "Active: active" in cmd_result.stdout
 
     def _check_exists(self) -> bool:
         return True

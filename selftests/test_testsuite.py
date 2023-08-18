@@ -222,7 +222,7 @@ class TestSuiteTestCase(TestCase):
             self.assertEqual(TestStatus.PASSED, result.status)
             self.assertEqual("", result.message)
 
-    def test_skip_before_case_failed(self) -> None:
+    def test_failed_before_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite.set_fail_phase(fail_on_before_case=True)
         test_suite.start(
@@ -231,8 +231,10 @@ class TestSuiteTestCase(TestCase):
             case_variables={},
         )
         for result in self.case_results:
-            self.assertEqual(TestStatus.SKIPPED, result.status)
-            self.assertEqual("before_case: failed", result.message)
+            self.assertEqual(TestStatus.FAILED, result.status)
+            self.assertEqual(
+                "before_case failed. LisaException: failed", result.message
+            )
 
     def test_pass_after_case_failed(self) -> None:
         test_suite = self.generate_suite_instance()

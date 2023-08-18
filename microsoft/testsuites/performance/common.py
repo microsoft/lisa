@@ -2,12 +2,20 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
 from assertpy import assert_that
 from retry import retry
 
-from lisa import Environment, Node, RemoteNode, notifier, run_in_parallel
+from lisa import (
+    Environment,
+    Node,
+    RemoteNode,
+    SkippedException,
+    notifier,
+    run_in_parallel,
+)
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -16,7 +24,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
-from lisa.nic import Nics
+from lisa.operating_system import Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -32,7 +40,9 @@ from lisa.tools import (
     Netperf,
     Ntttcp,
     Sar,
+    Sockperf,
     Ssh,
+    Sysctl,
 )
 from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
 from lisa.util import LisaException
@@ -114,9 +124,14 @@ def get_nic_datapath(node: Node) -> str:
 
 
 def cleanup_process(environment: Environment, process_name: str) -> None:
-    for node in environment.nodes.list():
-        kill = node.tools[Kill]
-        kill.by_name(process_name)
+    nodes = environment.nodes.list()
+
+    # use cleanup function
+    def do_cleanup(node: Node) -> None:
+        node.tools[Kill].by_name(process_name)
+
+    # to run parallel cleanup for processes
+    run_in_parallel([partial(do_cleanup, node) for node in nodes])
 
 
 def reset_partitions(
@@ -282,10 +297,15 @@ def perf_ntttcp(  # noqa: C901
                 check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
             server_nic_name = (
-                server_nic_name if server_nic_name else server.nics.get_lower_nics()[0]
+                server_nic_name
+                if server_nic_name
+                else server.nics.get_primary_nic().pci_device_name
             )
+
             client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.get_lower_nics()[0]
+                client_nic_name
+                if client_nic_name
+                else client.nics.get_primary_nic().pci_device_name
             )
             dev_differentiator = "mlx"
         else:
@@ -489,6 +509,49 @@ def perf_iperf(
         notifier.notify(iperf3_message)
 
 
+def perf_sockperf(
+    test_result: TestResult, mode: str, test_case_name: str, set_busy_poll: bool = False
+) -> None:
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+
+    client = cast(RemoteNode, environment.nodes[0])
+    server = cast(RemoteNode, environment.nodes[1])
+    sysctls: List[Sysctl] = []
+    if isinstance(client.os, Ubuntu) and (client.os.information.version < "18.4.0"):
+        raise SkippedException(
+            f"Sockperf tests don't support EOL Ubuntu {client.os.information.release}"
+        )
+    if set_busy_poll:
+        sysctls = run_in_parallel(
+            [lambda: client.tools[Sysctl], lambda: server.tools[Sysctl]]
+        )
+        for sysctl in sysctls:
+            sysctl.enable_busy_polling("50")
+
+    run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
+
+    server_proc = server.tools[Sockperf].start_server(mode)
+    # wait for sockperf to start, fail if it doesn't.
+    try:
+        server_proc.wait_output(
+            "sockperf: Warmup stage",
+            timeout=30,
+        )
+        client_output = client.tools[Sockperf].run_client(
+            mode, server.nics.get_primary_nic().ip_addr
+        )
+        client.tools[Sockperf].create_latency_performance_message(
+            client_output, test_case_name, test_result
+        )
+    finally:
+        if server_proc.is_running():
+            server_proc.kill()
+
+        for sysctl in sysctls:
+            sysctl.reset()
+
+
 def calculate_middle_average(values: List[Union[float, int]]) -> float:
     """
     This method is used to calculate an average indicator. It discard the max
@@ -501,8 +564,8 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
-    node_nic_info = Nics(node)
-    node_nic_info.initialize()
+    node_nic_info = node.nics
+    node_nic_info.reload()
 
     assert_that(len(node_nic_info.get_lower_nics())).described_as(
         f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"

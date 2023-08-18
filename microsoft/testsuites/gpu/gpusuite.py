@@ -21,21 +21,9 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import AlmaLinux, Debian, Oracle, Suse, Ubuntu
+from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import (
-    Chmod,
-    Df,
-    Lspci,
-    Mkdir,
-    NvidiaSmi,
-    Pip,
-    Python,
-    Reboot,
-    Service,
-    Tar,
-    Wget,
-)
+from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
 from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
@@ -57,6 +45,15 @@ class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
 
     _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
+    _numpy_error_pattern = re.compile(
+        "Otherwise reinstall numpy",
+        re.M,
+    )
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+            raise SkippedException(f"{node.os} is not supported.")
 
     @TestCaseMetadata(
         description="""
@@ -230,7 +227,13 @@ class GpuTestSuite(TestSuite):
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
         # stop the service which uses nvidia module
         service = node.tools[Service]
-        service.stop_service("nvidia-persistenced")
+        service_name_list = [
+            "nvidia-persistenced",
+            "nvidia-dcgm",
+            "nvidia-fabricmanager",
+        ]
+        for service_name in service_name_list:
+            service.stop_service(service_name)
 
         for device in gpu_devices:
             lspci.disable_device(device)
@@ -260,24 +263,19 @@ class GpuTestSuite(TestSuite):
         _install_driver(node, log_path, log)
         _check_driver_installed(node, log)
 
-        # Step 1, pytorch and CUDA needs 4GB space to download and install
-        torch_required_space = 5
-
-        work_path = str(node.working_path)
-        lisa_path_space = node.tools[Df].get_filesystem_available_space(work_path)
-        if lisa_path_space < torch_required_space:
-            work_path = node.find_partition_with_freespace(torch_required_space)
+        # Step 1, pytorch and CUDA needs 8GB space to download and install
+        torch_required_space = 8
+        work_path = node.get_working_path_with_required_space(torch_required_space)
+        use_new_path = work_path != str(node.working_path)
 
         # Step 2, Install cudnn and pyTorch
         _install_cudnn(node, log, work_path)
 
         pip = node.tools[Pip]
         if not pip.exists_package("torch"):
-            if lisa_path_space < torch_required_space:
-                # pip install to target work_path
+            if use_new_path:
                 pip.install_packages("torch", work_path)
             else:
-                # using default parameter for pip install
                 pip.install_packages("torch")
 
         # Step 3, verification
@@ -286,7 +284,7 @@ class GpuTestSuite(TestSuite):
         python = node.tools[Python]
         expected_count = gpu.get_gpu_count_with_lspci()
 
-        if lisa_path_space < torch_required_space:
+        if use_new_path:
             python_path = os.environ.get("PYTHONPATH", "")
             python_path += f":{work_path}/python_packages"
             python_envs = {"PYTHONPATH": python_path}
@@ -298,6 +296,18 @@ class GpuTestSuite(TestSuite):
             force_run=True,
             update_envs=python_envs,
         )
+
+        if script_result.exit_code != 0 and self._numpy_error_pattern.findall(
+            script_result.stdout
+        ):
+            if pip.uninstall_package("numpy"):
+                pip.install_packages("numpy")
+            script_result = python.run(
+                f'-c "{gpu_script}"',
+                force_run=True,
+                update_envs=python_envs,
+            )
+
         gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)
         script_result.assert_exit_code(
             message=f"failed on run gpu script: {gpu_script}, "
@@ -354,8 +364,7 @@ def _install_cudnn(node: Node, log: Logger, install_path: str) -> None:
         return
 
     work_path = install_path + "/cudnn"
-    node.tools[Mkdir].create_directory(work_path, sudo=True)
-    node.tools[Chmod].chmod(work_path, "777", sudo=True)
+    node.tools[Mkdir].create_directory(work_path)
 
     log.debug(f"CUDNN Extracted path is: {work_path}  ")
     download_path = wget.get(

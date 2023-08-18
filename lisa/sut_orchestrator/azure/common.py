@@ -13,6 +13,7 @@ from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
+from assertpy import assert_that
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
@@ -60,7 +61,7 @@ from lisa import schema
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
-from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret
+from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -141,6 +142,8 @@ class NodeContext:
     use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
+    location: str = ""
+    subscription_id: str = ""
 
 
 @dataclass_json()
@@ -447,6 +450,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     enable_sriov: bool = False
     disk_type: str = ""
     disk_controller_type: str = ""
+    security_profile: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
@@ -1443,6 +1447,12 @@ def load_environment(
     for node in environment.nodes.list():
         assert isinstance(node, RemoteNode)
 
+        vm = vms_map.get(node.name)
+        assert_that(vm).described_as(
+            f"Cannot find vm with name {node.name}. Make sure the VM exists in "
+            f"resource group {resource_group_name}"
+        ).is_not_none()
+
         node_context = get_node_context(node)
         node_context.vm_name = node.name
         node_context.resource_group_name = resource_group_name
@@ -1450,6 +1460,9 @@ def load_environment(
         node_context.username = platform_runbook.admin_username
         node_context.password = platform_runbook.admin_password
         node_context.private_key_file = platform_runbook.admin_private_key_file
+        node_context.location = vm.location
+        node_context.subscription_id = platform.subscription_id
+
         (
             node_context.public_ip_address,
             node_context.private_ip_address,
@@ -1629,6 +1642,31 @@ def get_deployable_vhd_path(
     full_vhd_path = copy_vhd_to_storage(
         platform, storage_name, original_vhd_path, vhd_path, log
     )
+    log.debug(
+        f"deployable vhd is cached at: {full_vhd_path}. "
+        f"original vhd url: {original_vhd_path}"
+    )
+
+    # Add substitutes for these normalized vhd names. Replace them with the original
+    # vhd name without SAS when printing
+    # e.g.
+    # full_vhd_path: https://lisatwestus3xx.blob.core.windows.net/lisa-sas-copied/99990101/https---userstorageaccount-blob-core-windows-net-vhds-fortinet-blob-6-7-4-vhd-sv-2019-xx.vhd  # noqa: E501
+    # replace it with: https://userstorageaccount.blob.core.windows.net/vhds/fortinet/blob-6.7.4.vhd?***  # noqa: E501
+    # vhd_path: 99990101/https---userstorageaccount-blob-core-windows-net-vhds-fortinet-blob-6-7-4-vhd-sv-2019-xx.vhd  # noqa: E501
+    # replace it with: fortinet/blob-6.7.4.vhd
+    original_vhd_path_without_sas = replace(original_vhd_path, mask=PATTERN_URL)
+    add_secret(
+        vhd_path,
+        sub="/".join(original_vhd_path_without_sas.split("/")[4:]).rstrip("?*"),
+    )
+    add_secret(full_vhd_path, sub=original_vhd_path_without_sas)
+    # In the returned message from Azure when creating VM, the blob url might contain
+    # the default blob port 8443, so also add substitute for the vhd path with 8443 port
+    full_vhd_path_with_port = "/".join(
+        x + ":8443" if i == 2 else x for i, x in enumerate(full_vhd_path.split("/"))
+    )
+    add_secret(full_vhd_path_with_port, sub=original_vhd_path_without_sas)
+
     return full_vhd_path
 
 
