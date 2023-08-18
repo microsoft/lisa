@@ -108,7 +108,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     pass
                 else:
                     raise e
-            time.sleep(5)
+            time.sleep(1)
             count = count + 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
 
@@ -125,7 +125,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         assert isinstance(platform, AzurePlatform)
         client = get_compute_client(platform)
         attempts = 0
-        max_attempts = 15
+        max_attempts = 450
         while attempts < max_attempts:
             response = client.restore_points.get(
                 resource_group_name=resource_group_name,
@@ -151,7 +151,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 log.info(f"rp status is {response.provisioning_state}")
                 attempts += 1
                 if attempts < max_attempts:
-                    time.sleep(60)
+                    time.sleep(2)
         raise ValueError(
             "Restore point provisioning status not Succeeded "
             "after multiple attempts."
