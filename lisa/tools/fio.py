@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_perf_message
-from lisa.operating_system import CBLMariner, CentOs, Debian, Posix, Redhat, Suse
+from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, RepoNotExistException, constants
 from lisa.util.process import Process
 
@@ -85,7 +85,6 @@ class Fio(Tool):
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
@@ -102,7 +101,6 @@ class Fio(Tool):
             size_gb,
             direct,
             gtod_reduce,
-            ioengine,
             group_reporting,
             overwrite,
             time_based,
@@ -133,7 +131,6 @@ class Fio(Tool):
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
@@ -150,7 +147,6 @@ class Fio(Tool):
             size_gb,
             direct,
             gtod_reduce,
-            ioengine,
             group_reporting,
             overwrite,
             time_based,
@@ -240,11 +236,11 @@ class Fio(Tool):
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
     ) -> str:
+        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
         cmd = (
             f"--ioengine={ioengine} --bs={block_size} --filename={filename} "
             f"--readwrite={mode} --runtime={time} --iodepth={iodepth} "

@@ -49,7 +49,8 @@ from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
+from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lsblk, Lspci, Modprobe, Rm, Sed
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -1195,6 +1196,10 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
+        # Handle BSD case
+        if isinstance(self._node.os, BSD):
+            return self._get_raw_data_disks_bsd()
+
         if (
             self._node.capability.disk
             and self._node.capability.disk.disk_controller_type
@@ -1392,6 +1397,27 @@ class Disk(AzureFeatureMixin, features.Disk):
             self._log.debug("Disk handled by waagent.")
             mount_point = self._node.tools[Waagent].get_resource_disk_mount_point()
         return mount_point
+
+    def _is_resource_disk(self, disk: DiskInfo) -> bool:
+        # check if the disk is a resource disk
+        if disk.mountpoint == "/mnt/resource":
+            return True
+
+        return any(
+            partition.mountpoint == "/mnt/resource" for partition in disk.partitions
+        )
+
+    def _get_raw_data_disks_bsd(self) -> List[str]:
+        disks = self._node.tools[Lsblk].get_disks()
+
+        # Remove os disk and resource disk
+        data_disks = [
+            disk.device_name
+            for disk in disks
+            if not disk.is_os_disk and not self._is_resource_disk(disk)
+        ]
+
+        return data_disks
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
