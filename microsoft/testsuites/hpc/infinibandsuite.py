@@ -1,5 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from pathlib import PurePosixPath
+from typing import Any
+
 from assertpy import assert_that
 
 from lisa import (
@@ -12,6 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Infiniband, Sriov
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Modprobe, Ssh
 from lisa.util import (
@@ -22,6 +26,8 @@ from lisa.util import (
 )
 from lisa.util.parallel import run_in_parallel
 
+AZURE_HPC_VERSION_FILENAME = "/opt/azurehpc/component_versions.txt"
+
 
 @TestSuiteMetadata(
     area="hpc",
@@ -31,6 +37,21 @@ from lisa.util.parallel import run_in_parallel
     """,
 )
 class InfinibandSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment = kwargs["environment"]
+        platform = environment.platform
+        # HPC is a specialized SKU in Azure, hence it has to run only on
+        # Images specialized for HPC.
+        # "/opt/azurehpc/component_versions.txt" is a file that is present
+        # in Azure HPC images, even though it is not publicly  documented.
+        # At present there is no other way to identify if the image is an
+        # Azure HPC image.
+        if isinstance(platform, AzurePlatform):
+            node: Node = kwargs["node"]
+            file_exists = node.shell.exists(PurePosixPath(AZURE_HPC_VERSION_FILENAME))
+            if not file_exists:
+                raise SkippedException("Image is not an Azure HPC image.")
+
     @TestCaseMetadata(
         description="""
         This test case will
