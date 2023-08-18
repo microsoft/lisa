@@ -150,8 +150,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             else:
                 log.info(f"rp status is {response.provisioning_state}")
                 attempts += 1
-                if attempts < max_attempts:
-                    time.sleep(2)
+                time.sleep(2)
         raise ValueError(
             "Restore point provisioning status not Succeeded "
             "after multiple attempts."
