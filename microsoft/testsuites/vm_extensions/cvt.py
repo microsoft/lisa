@@ -99,9 +99,8 @@ class CVTTest(TestSuite):
                 and component_status.find("osidentifier") != -1
             ):
                 log.info(f"Component status : '{component_status}'")
-                os = base64.b64decode(
-                    re.split(":", component_status)[-1]
-                ).decode()
+                os_encoded = re.split(":", component_status)[-1]
+                os = base64.b64decode(os_encoded)
 
         log.info(f"os : '{os}'")
         return os
