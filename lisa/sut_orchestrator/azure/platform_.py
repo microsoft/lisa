@@ -448,6 +448,7 @@ class AzurePlatform(Platform):
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,
+            features.CVMNestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
             features.Resize,
