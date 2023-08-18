@@ -13,11 +13,19 @@ from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
+from assertpy import assert_that
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.certificates import (
+    CertificateClient,
+    CertificatePolicy,
+    KeyVaultCertificate,
+)
+from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
-from azure.mgmt.keyvault import KeyVaultManagementClient  # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku
 from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
@@ -37,7 +45,8 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient  # type: ignore
+from azure.mgmt.resource import ResourceManagementClient  # type: ignore
+from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -123,10 +132,9 @@ _global_sas_vhd_copy_lock = Lock()
 # to prevent it happens.
 global_credential_access_lock = Lock()
 # if user uses lisa for the first time in parallel, there will be a possiblilty
-# to create the same stroage account or keyvault at the same time.
-# add a lock to prevent it from happening.
+# to create the same stroage account at the same time.
+# add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
-_global_key_vault_check_create_lock = Lock()
 
 
 @dataclass
@@ -146,6 +154,8 @@ class NodeContext:
     use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
+    location: str = ""
+    subscription_id: str = ""
 
 
 @dataclass_json()
@@ -894,19 +904,6 @@ def get_storage_client(
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
-def get_tenant_id(
-    credential: Any
-) -> str:
-    # Initialize the Subscription client
-    subscription_client = SubscriptionClient(credential)
-    # Get the subscription
-    subscription = next(subscription_client.subscriptions.list())
-    return subscription.tenant_id
-
-def get_key_vault_management_client(
-    platform: "AzurePlatform",
-) -> KeyVaultManagementClient:
-    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
 
 def get_resource_management_client(
     credential: Any, subscription_id: str, cloud: Cloud
@@ -1096,22 +1093,6 @@ def get_or_create_storage_container(
         container_client.create_container()
     return container_client
 
-def create_keyvault(
-    platform: "AzurePlatform",
-    resource_group_name: str,
-    location: str,
-    vault_name: str,
-    vault_properties: VaultProperties
-) -> Any:
-    keyvault_client = get_key_vault_management_client(platform)
-    with _global_key_vault_check_create_lock:
-        parameters = VaultCreateOrUpdateParameters(
-            location=location, properties=vault_properties
-        )
-        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
-            resource_group_name, vault_name, parameters
-        )
-        return keyvault_poller.result()
 
 def check_or_create_storage_account(
     credential: Any,
@@ -1478,6 +1459,9 @@ def load_environment(
     for node in environment.nodes.list():
         assert isinstance(node, RemoteNode)
 
+        vm = vms_map.get(node.name)
+        assert_that(vm).is_not_none()
+
         node_context = get_node_context(node)
         node_context.vm_name = node.name
         node_context.resource_group_name = resource_group_name
@@ -1485,6 +1469,9 @@ def load_environment(
         node_context.username = platform_runbook.admin_username
         node_context.password = platform_runbook.admin_password
         node_context.private_key_file = platform_runbook.admin_private_key_file
+        node_context.location = vm.location
+        node_context.subscription_id = platform.subscription_id
+
         (
             node_context.public_ip_address,
             node_context.private_ip_address,
@@ -1929,3 +1916,271 @@ class DataDisk:
             return iops_dict[min_iops]
         else:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
+
+
+def get_certificate_client(
+    vault_url: str, platform: "AzurePlatform"
+) -> CertificateClient:
+    return CertificateClient(vault_url, platform.credential)
+
+
+def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
+    return SecretClient(vault_url, platform.credential)
+
+
+def get_key_vault_management_client(
+    platform: "AzurePlatform",
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
+
+
+def get_tenant_id(credential: Any) -> Any:
+    # Initialize the Subscription client
+    subscription_client = SubscriptionClient(credential)
+    # Get the subscription
+    subscription = next(subscription_client.subscriptions.list())
+    return subscription.tenant_id
+
+
+def get_identity_id() -> Any:
+    # Define constants
+    graph_api_url = "https://graph.microsoft.com/.default"
+    request_url = "https://graph.microsoft.com/v1.0/me"
+
+    # Get a token for the Microsoft Graph API
+    token_credential = DefaultAzureCredential()
+    token = token_credential.get_token(graph_api_url)
+
+    # Set up the API call headers
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type": "application/json",
+    }
+
+    # Set a timeout of 10 seconds for the request
+    response = requests.get(request_url, headers=headers, timeout=10)
+
+    if response.status_code != 200:
+        raise LisaException(
+            f"Failed to retrieve user object ID. "
+            f"Status code: {response.status_code}. "
+            f"Response: {response.text}"
+        )
+    return response.json().get("id")
+
+
+def add_system_assign_identity(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    vm_name: str,
+    location: str,
+    log: Logger,
+) -> Any:
+    compute_client = ComputeManagementClient(
+        platform.credential, platform.subscription_id
+    )
+    params_identity = {"type": "SystemAssigned"}
+    params_create = {"location": location, "identity": params_identity}
+
+    vm_poller = compute_client.virtual_machines.begin_update(
+        resource_group_name,
+        vm_name,
+        params_create,
+    )
+    vm_result = vm_poller.result()
+    object_id_vm = vm_result.identity.principal_id
+    log.debug(f"VM object ID assigned: {object_id_vm}")
+
+    if not object_id_vm:
+        raise ValueError(
+            "Cannot retrieve managed identity after set system assigned identity on vm"
+        )
+
+    return object_id_vm
+
+
+def create_keyvault(
+    platform: "AzurePlatform",
+    tenant_id: str,
+    object_id: str,
+    location: str,
+    vault_name: str,
+    resource_group_name: str,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+
+    vault_properties = VaultProperties(
+        tenant_id=tenant_id,
+        sku=KeyVaultSku(name="standard"),
+        access_policies=[
+            AccessPolicyEntry(
+                tenant_id=tenant_id,
+                object_id=object_id,
+                permissions=Permissions(
+                    keys=["all"], secrets=["all"], certificates=["all"]
+                ),
+            ),
+        ],
+    )
+
+    parameters = VaultCreateOrUpdateParameters(
+        location=location, properties=vault_properties
+    )
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name, parameters
+    )
+
+    return keyvault_poller.result()
+
+
+def assign_access_policy_to_vm(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    tenant_id: str,
+    object_id_vm: str,
+    vault_name: str,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+
+    # Fetch the current policies and add the VM's policy
+    vault = keyvault_client.vaults.get(resource_group_name, vault_name)
+    current_policies = vault.properties.access_policies
+    new_policy = AccessPolicyEntry(
+        tenant_id=tenant_id,
+        object_id=object_id_vm,
+        permissions=Permissions(keys=["all"], secrets=["all"], certificates=["all"]),
+    )
+    current_policies.append(new_policy)
+
+    # Update the vault with the new policies
+    vault.properties.access_policies = current_policies
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name, vault
+    )
+
+    return keyvault_poller.result()
+
+
+@retry(tries=5, delay=1)
+def create_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> str:
+    certificate_client = get_certificate_client(vault_url, platform)
+    secret_client = get_secret_client(vault_url, platform)
+
+    cert_policy = CertificatePolicy.get_default()
+
+    # Create certificate
+    create_certificate_result = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    log.debug(
+        f"Certificate '{cert_name}' has been created. "
+        f"Result: {create_certificate_result}"
+    )
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )
+
+    secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+    if secret_id:
+        # Example: "https://example.vault.azure.net/secrets/Cert-123/SomeVersion"
+        # Expected match for 'cert_url':
+        # "https://example.vault.azure.net/secrets/Cert-123"
+        match = re.match(
+            r"(?P<cert_url>https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id
+        )
+        if match:
+            secret_url_without_version = match.group("cert_url")
+            return secret_url_without_version
+        else:
+            raise LisaException(
+                f"Failed to parse the URL pattern of secret ID: '{secret_id}'."
+            )
+    else:
+        raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
+
+
+def check_certificate_existence(
+    vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
+) -> bool:
+    certificate_client = CertificateClient(
+        vault_url=vault_url, credential=platform.credential
+    )
+
+    try:
+        certificate = certificate_client.get_certificate(cert_name)
+        log.debug(f"Cert found '{certificate.name}'")
+        return True
+    except Exception as e:
+        if "not found" in str(e).lower():
+            log.debug(f"Certificate '{cert_name}' does not exist.")
+            return False
+        else:
+            # Directly raise an exception without logging an error
+            raise LisaException(
+                f"Unexpected error checking certificate '{cert_name}': {e}"
+            )
+
+
+@retry(tries=10, delay=1)
+def rotate_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> None:
+    certificate_client = get_certificate_client(vault_url, platform)
+
+    # Retrieve the old version of the certificate
+    if not certificate_client.get_certificate(cert_name):
+        error_message = f"Failed to retrieve old version of certificate: {cert_name}"
+        raise LisaException(error_message)
+
+    cert_policy = CertificatePolicy.get_default()
+
+    # Create only the specified certificate
+    # Create certificate
+    create_certificate_poller = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    create_certificate_result = create_certificate_poller.result()
+
+    # Handle possible None value
+    if (
+        isinstance(create_certificate_result, KeyVaultCertificate)
+        and hasattr(create_certificate_result, "properties")
+        and create_certificate_result.properties
+    ):
+        new_certificate_version = create_certificate_result.properties.version
+        log.debug(
+            f"New version of certificate '{cert_name}': {new_certificate_version}. "
+            "Certificate rotated."
+        )
+    else:
+        error_message = "Failed to retrieve properties from create certificate result."
+        raise LisaException(error_message)
+
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )
+
+
+@retry(tries=10, delay=1)
+def delete_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> bool:
+    certificate_client = get_certificate_client(vault_url, platform)
+
+    try:
+        certificate_client.begin_delete_certificate(cert_name)
+        log.debug(f"Certificate {cert_name} deleted successfully.")
+        return True
+    except Exception:
+        raise LisaException
