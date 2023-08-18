@@ -190,7 +190,6 @@ run_tests()
             log_dmesg
             failed_logs="$tdir/$testcase.log /tmp/dmesg.log"
             exit_with_logs $FAILED_TEST "$failed_logs"
-            break
         fi
 
         sleep $stime

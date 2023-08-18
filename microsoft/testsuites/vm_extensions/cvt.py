@@ -241,7 +241,7 @@ class CVTTest(TestSuite):
         this test validate the functionality of ASR driver by verifying
         integrity of a source disk with respect to a target disk
         """,
-        priority=0,
+        priority=1,
         use_new_environment=True,
         timeout=TIMEOUT,
     )
