@@ -1811,6 +1811,24 @@ class ACC(AzureFeatureMixin, features.ACC):
         return None
 
 
+class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualization):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        # add vm which support nested confidential virtualization
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/dcasccv5-dcadsccv5-series
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/ecasccv5-ecadsccv5-series
+        if resource_sku.family in [
+            "standardDCACCV5Family",
+            "standardECACCV5Family",
+        ]:
+            return schema.FeatureSettings.create(cls.name())
+        return None
+
+
 class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
     @classmethod
     def create_setting(
