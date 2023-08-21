@@ -19,8 +19,9 @@ class Docker(Tool):
 
     @retry(tries=10, delay=5)
     def build_image(self, image_name: str, dockerfile: str) -> None:
+        # alpine image build need to specify '--network host'
         self.run(
-            f"build -t {image_name} -f {dockerfile} .",
+            f"build -t {image_name} -f {dockerfile} . --network host",
             shell=True,
             sudo=True,
             cwd=self.node.working_path,
