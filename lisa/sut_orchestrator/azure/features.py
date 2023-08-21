@@ -1196,7 +1196,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
-    def get_disk_controller_type(self) -> Any:
+    def get_hardware_disk_controller_type(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         vm = get_vm(azure_platform, self._node)
         return vm.storage_profile.disk_controller_type

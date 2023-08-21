@@ -247,7 +247,7 @@ class Storage(TestSuite):
         node_disk = node.features[Disk]
 
         # Get VM's 'disk controller type' with azure api
-        vm_disk_controller_type = node_disk.get_disk_controller_type()
+        vm_disk_controller_type = node_disk.get_hardware_disk_controller_type()
 
         # Get 'disk controller type' from within VM.
         os_disk_controller_type = node_disk.get_os_disk_controller_type()
@@ -255,13 +255,13 @@ class Storage(TestSuite):
         # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
         if not vm_disk_controller_type:
             raise SkippedException(
-                f"VM disk_controller_type is '{vm_disk_controller_type}'."
-                f"Few SKUs& gen1 images doesn't support 'disk_controller_type'"
+                "The VM size doesn't have disk controller type information."
+                "Few SKUs & gen1 images doesn't support 'disk_controller_type'"
             )
 
         assert_that(
             os_disk_controller_type,
-            "VM and OS disk_controller_types are different"
+            "The disk controller types of VM and OS should be the same."
         ).is_equal_to(vm_disk_controller_type)
 
     @TestCaseMetadata(
