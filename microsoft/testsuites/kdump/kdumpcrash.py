@@ -23,7 +23,7 @@ from lisa import (
 )
 from lisa.features import Disk, SerialConsole
 from lisa.operating_system import BSD, Redhat, Windows
-from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat, Lsmod, Reboot
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
@@ -58,6 +58,22 @@ class KdumpCrash(TestSuite):
         node: Node = kwargs["node"]
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
+
+        lsmod = node.tools[Lsmod]
+        # hyperv_fb takes priority over hyperv_drm, so blacklist it
+
+        echo = node.tools[Echo]
+        echo.write_to_file(
+            "blacklist hyperv_fb",
+            node.get_pure_path("/etc/modprobe.d/blacklist-fb.conf"),
+            sudo=True,
+        )
+        echo.write_to_file(
+            "blacklist hyperv_drm",
+            node.get_pure_path("/etc/modprobe.d/blacklist-drm.conf"),
+            sudo=True,
+        )
+        node.tools[Reboot].reboot()
 
     @TestCaseMetadata(
         description="""
