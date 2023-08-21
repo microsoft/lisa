@@ -211,6 +211,11 @@ class LisaRunner(BaseRunner):
         # run on connected environment
         can_run_results = [x for x in can_run_results if x.can_run]
         if environment.status == EnvironmentStatus.Connected and can_run_results:
+            transformer.run(
+                self._runbook_builder,
+                phase=constants.TRANSFORMER_PHASE_DEPLOYED,
+                environment=environment,
+            )
             selected_test_results = self._get_test_results_to_run(
                 test_results=test_results, environment=environment
             )
@@ -279,9 +284,6 @@ class LisaRunner(BaseRunner):
                     environment.status == EnvironmentStatus.Deployed
                 ), f"actual: {environment.status}"
                 self._reset_awaitable_timer("deploy")
-                transformer.run(
-                    self._runbook_builder, phase=constants.TRANSFORMER_PHASE_DEPLOYED
-                )
             except ResourceAwaitableException as identifier:
                 if self._is_awaitable_timeout("deploy"):
                     self._log.info(

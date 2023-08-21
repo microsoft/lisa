@@ -4,10 +4,13 @@ from typing import Any, Dict, List, Optional, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.node import Node, quick_connect
+from lisa.node import Node
 from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import Sed, Uname
-from lisa.transformer import Transformer
+from lisa.transformers.deployment_transformer import (
+    DeploymentTransformer,
+    DeploymentTransformerSchema,
+)
 from lisa.util import field_metadata, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -22,11 +25,7 @@ class UpgradeInstallerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
 @dataclass_json
 @dataclass
-class UpgradeTransformerSchema(schema.Transformer):
-    # SSH connection information to the node
-    connection: Optional[schema.RemoteNode] = field(
-        default=None, metadata=field_metadata(required=True)
-    )
+class UpgradeTransformerSchema(DeploymentTransformerSchema):
     installer: Optional[UpgradeInstallerSchema] = field(
         default=None, metadata=field_metadata(required=True)
     )
@@ -56,7 +55,7 @@ class UpgradeInstaller(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
 
-class UpgradeTransformer(Transformer):
+class UpgradeTransformer(DeploymentTransformer):
     @classmethod
     def type_name(cls) -> str:
         return "upgrade"
@@ -71,10 +70,9 @@ class UpgradeTransformer(Transformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: UpgradeTransformerSchema = self.runbook
-        assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
-        node = quick_connect(runbook.connection, "installer_node")
+        node = self.node
 
         uname = node.tools[Uname]
         self._log.info(
