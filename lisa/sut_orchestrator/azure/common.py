@@ -2006,26 +2006,15 @@ def create_keyvault(
     location: str,
     vault_name: str,
     resource_group_name: str,
+    vault_properties: VaultProperties,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(platform)
-
-    vault_properties = VaultProperties(
-        tenant_id=tenant_id,
-        sku=KeyVaultSku(name="standard"),
-        access_policies=[
-            AccessPolicyEntry(
-                tenant_id=tenant_id,
-                object_id=object_id,
-                permissions=Permissions(
-                    keys=["all"], secrets=["all"], certificates=["all"]
-                ),
-            ),
-        ],
-    )
 
     parameters = VaultCreateOrUpdateParameters(
         location=location, properties=vault_properties
     )
+    # This will check if the vault exists in the resource group, and if not, it will create one.
+    # If the vault exists, it will update the vault properties to the provided properties
     keyvault_poller = keyvault_client.vaults.begin_create_or_update(
         resource_group_name, vault_name, parameters
     )
