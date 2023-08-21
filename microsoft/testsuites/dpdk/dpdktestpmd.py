@@ -281,12 +281,12 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 cores, recommended more than 8 cores"
         ).is_greater_than(4)
 
-        queues_and_servicing_core = (queues) + service_cores
+        queues_and_servicing_core = queues + service_cores
 
         while queues_and_servicing_core > (cores_available - 2):
             # if less, split the number of queues
-            queues_and_servicing_core = queues + service_cores
             queues = queues // 2
+            queues_and_servicing_core = queues + service_cores
             txd = 64  # txd has to be >= 64 for MANA.
             assert_that(queues).described_as(
                 "txq value must be greater than 1"
