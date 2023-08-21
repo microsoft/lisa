@@ -12,6 +12,7 @@ from lisa import (
     notifier,
     schema,
     search_space,
+    transformer,
 )
 from lisa.action import ActionStatus
 from lisa.environment import (
@@ -278,6 +279,9 @@ class LisaRunner(BaseRunner):
                     environment.status == EnvironmentStatus.Deployed
                 ), f"actual: {environment.status}"
                 self._reset_awaitable_timer("deploy")
+                transformer.run(
+                    self._runbook_builder, phase=constants.TRANSFORMER_PHASE_DEPLOYED
+                )
             except ResourceAwaitableException as identifier:
                 if self._is_awaitable_timeout("deploy"):
                     self._log.info(

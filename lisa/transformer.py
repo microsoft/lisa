@@ -93,6 +93,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     # sort by phase: init, expanded.
     init_transformers: List[schema.Transformer] = []
     expanded_transformers: List[schema.Transformer] = []
+    deployed_transformers: List[schema.Transformer] = []
     expanded_cleanup_transformers: List[schema.Transformer] = []
     cleanup_transformers: List[schema.Transformer] = []
     for transformer in sorted_transformers:
@@ -100,6 +101,8 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
             init_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
             expanded_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_DEPLOYED:
+            deployed_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP:
             expanded_cleanup_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_CLEANUP:
@@ -109,6 +112,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     sorted_transformers = (
         init_transformers
         + expanded_transformers
+        + deployed_transformers
         + expanded_cleanup_transformers
         + cleanup_transformers
     )
@@ -203,7 +207,7 @@ def run(
     log = _get_init_logger()
 
     root_runbook_data = runbook_builder.raw_data
-    if constants.TRANSFORMER not in root_runbook_data:
+    if not root_runbook_data or constants.TRANSFORMER not in root_runbook_data:
         log.debug("no transformer found, skipped")
         return
 
