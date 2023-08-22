@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -1942,17 +1941,14 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
-def get_identity_id() -> Any:
-    # Define constants
-    graph_api_url = "https://graph.microsoft.com/v1.0/serviceprincipals"
-
-    # Get a token for the Microsoft Graph API
-    token_credential = DefaultAzureCredential()
-    token = token_credential.get_token(graph_api_url)
-
+def get_identity_id(platform: "AzurePlatform", application_id: str) -> Any:
+    graph_api_url = (
+        f"https://graph.microsoft.com/v1.0/servicePrincipals(appId='{application_id}')"
+    )
+    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
-        "Authorization": f"Bearer {token.token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
@@ -2032,22 +2028,23 @@ def create_keyvault(
     return keyvault_poller.result()
 
 
-def assign_access_policy_to_vm(
+def assign_access_policy(
     platform: "AzurePlatform",
     resource_group_name: str,
     tenant_id: str,
-    object_id_vm: str,
+    object_id: str,
     vault_name: str,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(platform)
 
-    # Fetch the current policies and add the VM's policy
+    permissions = Permissions(keys=["all"], secrets=["all"], certificates=["all"])
+    # Fetch the current policies and add the new policy
     vault = keyvault_client.vaults.get(resource_group_name, vault_name)
     current_policies = vault.properties.access_policies
     new_policy = AccessPolicyEntry(
         tenant_id=tenant_id,
-        object_id=object_id_vm,
-        permissions=Permissions(keys=["all"], secrets=["all"], certificates=["all"]),
+        object_id=object_id,
+        permissions=permissions,
     )
     current_policies.append(new_policy)
 
