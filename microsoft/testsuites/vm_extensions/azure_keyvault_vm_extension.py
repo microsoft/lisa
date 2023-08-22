@@ -6,6 +6,9 @@ import re
 from typing import List
 
 from assertpy import assert_that
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import VaultProperties
 
 from lisa import (
     Logger,
@@ -34,9 +37,6 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSc
 from lisa.testsuite import TestResult
 from lisa.tools.ls import Ls
 from lisa.util import LisaException
-from azure.mgmt.keyvault.models import VaultProperties
-from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
 
 
 def _check_system_status(node: Node, log: Logger) -> None:
@@ -131,7 +131,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             object_id=object_id,
             location=node_context.location,
             vault_name=vault_name,
-            vault_properties=vault_properties
+            vault_properties=vault_properties,
         )
 
         # Check if KeyVault is successfully created before proceeding

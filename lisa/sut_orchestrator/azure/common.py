@@ -1942,6 +1942,38 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
+def get_sp_object_id(app_id: str) -> Any:
+    # Define constants
+    graph_api_url = "https://graph.microsoft.com/.default"
+    request_url = f"https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '{app_id}'"
+
+    # Get a token for the Microsoft Graph API
+    token_credential = DefaultAzureCredential()
+    token = token_credential.get_token(graph_api_url)
+
+    # Set up the API call headers
+    headers = {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type": "application/json",
+    }
+
+    # Set a timeout of 10 seconds for the request
+    response = requests.get(request_url, headers=headers, timeout=10)
+
+    if response.status_code != 200:
+        raise LisaException(
+            f"Failed to retrieve service principal object ID. "
+            f"Status code: {response.status_code}. "
+            f"Response: {response.text}"
+        )
+
+    data = response.json()
+    if not data["value"]:
+        raise LisaException(f"Service Principal with appId {app_id} not found.")
+
+    return data["value"][0].get("id")
+
+
 def get_identity_id() -> Any:
     # Define constants
     graph_api_url = "https://graph.microsoft.com/.default"
