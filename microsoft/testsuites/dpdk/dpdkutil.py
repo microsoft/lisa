@@ -276,6 +276,10 @@ def _set_force_linux_next_for_mana(node: Node, variables: Dict[str, Any]) -> Non
     #  accounting for backports to 5.15 (5.4 not available)
     is_mana = node.nics.is_mana_present()
     if is_mana and isinstance(distro, Ubuntu) and distro.information.version < "23.4.0":
+        if distro.information.version < "20.4.0":
+            raise SkippedException(
+                UnsupportedDistroException(distro, "MANA+DPDK requires Ubuntu >= 20.04")
+            )
         # if kernel is below minimum, try to update to stable latest
         if distro.get_kernel_information().version < UBUNTU_DPDK_MINIMUM_KERNEL:
             distro.update_packages("linux-azure")
@@ -308,8 +312,8 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
     _set_force_linux_next_for_mana(node, variables)
+    _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
