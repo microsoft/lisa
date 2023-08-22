@@ -6,6 +6,7 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
 from assertpy import assert_that
+from lisa.tools.ip import Ip
 from retry import retry
 
 from lisa import (
@@ -253,6 +254,17 @@ def perf_ntttcp(  # noqa: C901
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
 
+    server_nic = server.nics.get_lower_nics()
+    client_nic = client.nics.get_lower_nics()
+
+    server_nic_ip = server.tools[Ip]
+    client_nic_ip = client.tools[Ip]
+
+    for nic in server_nic:
+        server_nic_ip.set_mtu(nic, 4000)
+    for nic in client_nic:
+        client_nic_ip.set_mtu(nic, 4000)
+
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
@@ -325,6 +337,17 @@ def perf_ntttcp(  # noqa: C901
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+        server_nic = server.nics.get_lower_nics()
+        client_nic = client.nics.get_lower_nics()
+
+        server_nic_ip = server.tools[Ip]
+        client_nic_ip = client.tools[Ip]
+
+        for nic in server_nic:
+            server_nic_ip.set_mtu(nic, 4000)
+        for nic in client_nic:
+            client_nic_ip.set_mtu(nic, 4000)
+
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
