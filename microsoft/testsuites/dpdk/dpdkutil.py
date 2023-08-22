@@ -267,6 +267,40 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
         )
 
 
+UBUNTU_DPDK_MINIMUM_KERNEL = "5.15.0-1045"
+
+
+def _set_force_linux_next_for_mana(node: Node, variables: Dict[str, Any]) -> None:
+    distro = node.os
+    # Handle mana minimum ubuntu kernel,
+    #  accounting for backports to 5.15 (5.4 not available)
+    is_mana = node.nics.is_mana_present()
+    if is_mana and isinstance(distro, Ubuntu) and distro.information.version < "23.4.0":
+        # if kernel is below minimum, try to update to stable latest
+        if distro.get_kernel_information().version < UBUNTU_DPDK_MINIMUM_KERNEL:
+            distro.update_packages("linux-azure")
+            node.reboot()
+        # if kernel is still too old, try to update to azure-edge
+        if (
+            distro.get_kernel_information(force_run=True).version
+            < UBUNTU_DPDK_MINIMUM_KERNEL
+        ):
+            distro.install_packages("linux-azure-edge")
+            node.reboot()
+        # if kernel is still to old, skip this ubuntu release.
+        if (
+            distro.get_kernel_information(force_run=True).version
+            < UBUNTU_DPDK_MINIMUM_KERNEL
+        ):
+            raise SkippedException(
+                UnsupportedKernelException(
+                    distro,
+                    f"DPDK on MANA needs Ubuntu kernel > {UBUNTU_DPDK_MINIMUM_KERNEL}",
+                )
+            )
+        node.reboot()
+
+
 def initialize_node_resources(
     node: Node,
     log: Logger,
@@ -275,6 +309,7 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
+    _set_force_linux_next_for_mana(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
