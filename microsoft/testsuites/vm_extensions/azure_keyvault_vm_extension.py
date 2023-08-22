@@ -19,6 +19,7 @@ from lisa.base_tools.service import Service
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
+    assign_access_policy,
     check_certificate_existence,
     create_certificate,
     create_keyvault,
@@ -27,7 +28,6 @@ from lisa.sut_orchestrator.azure.common import (
     get_node_context,
     get_tenant_id,
     rotate_certificate,
-    assign_access_policy,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema

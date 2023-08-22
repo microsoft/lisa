@@ -1941,14 +1941,20 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
-def get_identity_id(platform: "AzurePlatform", application_id: str = None) -> Any:
+def get_identity_id(
+    platform: "AzurePlatform", application_id: Optional[str] = None
+) -> Any:
     # If application_id is not provided or is None, use /me endpoint
     if not application_id:
-        graph_api_url = "https://graph.microsoft.com/v1.0/me"
+        base_url = "https://graph.microsoft.com/"
+        api_version = "v1.0"
+        endpoint = "me"
+        graph_api_url = f"{base_url}{api_version}/{endpoint}"
     else:
-        graph_api_url = (
-            f"https://graph.microsoft.com/v1.0/servicePrincipals(appId='{application_id}')"
-        )
+        base_url = "https://graph.microsoft.com/"
+        api_version = "v1.0"
+        endpoint = f"servicePrincipals(appId='{application_id}')"
+        graph_api_url = f"{base_url}{api_version}/{endpoint}"
     token = platform.credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
