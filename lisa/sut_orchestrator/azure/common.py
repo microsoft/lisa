@@ -1944,8 +1944,7 @@ def get_tenant_id(credential: Any) -> Any:
 
 def get_identity_id() -> Any:
     # Define constants
-    graph_api_url = "https://graph.microsoft.com/.default"
-    request_url = "https://graph.microsoft.com/v1.0/me"
+    graph_api_url = "https://graph.microsoft.com/v1.0/serviceprincipals"
 
     # Get a token for the Microsoft Graph API
     token_credential = DefaultAzureCredential()
@@ -1958,7 +1957,7 @@ def get_identity_id() -> Any:
     }
 
     # Set a timeout of 10 seconds for the request
-    response = requests.get(request_url, headers=headers, timeout=10)
+    response = requests.get(graph_api_url, headers=headers, timeout=10)
 
     if response.status_code != 200:
         raise LisaException(
