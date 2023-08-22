@@ -623,9 +623,12 @@ class Dpdk(TestSuite):
         server_app_name = "dpdk-l3fwd"
 
         # initialize DPDK with sample applications selected for build
-        test_kit = initialize_node_resources(
-            forwarder, log, variables, pmd, sample_apps=["l3fwd"]
+        test_kits = init_nodes_concurrent(
+            environment, log, variables, pmd, sample_apps=["l3fwd"]
         )
+        fwd_kit, snd_kit = test_kits
+        sender = snd_kit.node
+        forwarder = fwd_kit.node
         port = 0xD007
         # enable hugepages needed for dpdk EAL
         for node in environment.nodes.list():
@@ -669,7 +672,7 @@ class Dpdk(TestSuite):
         )
 
         # get binary path and start the forwarder
-        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
+        examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
 
         include_devices = f'-a "{forwarder_devices}"'
@@ -711,6 +714,14 @@ class Dpdk(TestSuite):
         time.sleep(10)  # give it a few seconds to start
         # start the listener and start sending data to the forwarder
         content_file = sender.working_path.joinpath("content")
+        snd_kit.testpmd.generate_testpmd_command(
+            snd_kit.node.nics.get_primary(),
+            0,
+            "txonly",
+            extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+            multiple_queues=multiple_queues,
+            service_cores=use_service_cores,
+        )
         listener = sender.execute_async(
             f"tcpdump -i eth1 > {content_file.as_posix()}", shell=True
         )
