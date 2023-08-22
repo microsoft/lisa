@@ -264,10 +264,10 @@ def perf_ntttcp(  # noqa: C901
     server_nic_ip = server.tools[Ip]
     client_nic_ip = client.tools[Ip]
 
-    for nic in server_nic:
-        server_nic_ip.set_mtu(nic, 4000)
-    for nic in client_nic:
-        client_nic_ip.set_mtu(nic, 4000)
+    # for nic in server_nic:
+    #     server_nic_ip.set_mtu(nic, 4000)
+    # for nic in client_nic:
+    #     client_nic_ip.set_mtu(nic, 4000)
 
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
@@ -350,10 +350,10 @@ def perf_ntttcp(  # noqa: C901
         server_nic_ip = server.tools[Ip]
         client_nic_ip = client.tools[Ip]
 
-        for nic in server_nic:
-            server_nic_ip.set_mtu(nic, 4000)
-        for nic in client_nic:
-            client_nic_ip.set_mtu(nic, 4000)
+        # for nic in server_nic:
+        #     server_nic_ip.set_mtu(nic, 4000)
+        # for nic in client_nic:
+        #     client_nic_ip.set_mtu(nic, 4000)
 
         server_nic_ip.get_info()
         client_nic_ip.get_info()
