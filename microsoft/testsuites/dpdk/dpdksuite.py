@@ -608,7 +608,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             min_count=2,
-            min_nic_count=2,
+            min_nic_count=3,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
@@ -678,11 +678,7 @@ class Dpdk(TestSuite):
         include_devices = f'-a "{forwarder_devices}"'
 
         # cores_available = forwarder.tools[Lscpu].get_core_count() - 1
-        # FIXME: force using 4 cores
-        use_cores = range(1, 9)
-        core_list = ",".join(
-            map(str, use_cores)
-        )  # cores_available))  # use all cores except 0
+
         # queues = range(0, 1)
         # ports = [0] * (len(use_cores) // 2) + [1] * (len(use_cores) // 2)
         # FIXME: use 8 queues
@@ -697,7 +693,7 @@ class Dpdk(TestSuite):
         #     "dpdk/examples/l3fwd/em_default_v6.cfg"
         # )
         fwd_cmd = (
-            f"{server_app_path} {include_devices} -l {core_list}  -- "
+            f"{server_app_path} {include_devices} -l 1-5  -- "
             f" -P -p 0x3  --lookup=lpm "
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
@@ -714,20 +710,16 @@ class Dpdk(TestSuite):
         time.sleep(10)  # give it a few seconds to start
         # start the listener and start sending data to the forwarder
         content_file = sender.working_path.joinpath("content")
-        snd_kit.testpmd.generate_testpmd_command(
-            snd_kit.node.nics.get_primary(),
+        snd_nic = snd_kit.node.nics.get_nic_by_index(1)
+        snd_cmd = snd_kit.testpmd.generate_testpmd_command(
+            snd_nic,
             0,
             "txonly",
-            extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-            multiple_queues=multiple_queues,
-            service_cores=use_service_cores,
+            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_ip}",
+            multiple_queues=True,
         )
-        listener = sender.execute_async(
-            f"tcpdump -i eth1 > {content_file.as_posix()}", shell=True
-        )
-        # FIXME: switch to using testpmd for send/rcv
         sender.tools[Timeout].run_with_timeout(
-            f"echo ABCDEFG | nc {forwarder_ip} {port}",
+            snd_cmd,
             timeout=60,
             kill_timeout=70,
         )
@@ -736,7 +728,6 @@ class Dpdk(TestSuite):
         forwarder.tools[Kill].by_name(
             server_app_name, signum=SIGINT, ignore_not_exist=True
         )
-        listener.kill()
 
         sender.execute(f"cat {content_file.as_posix()}")
 
