@@ -355,6 +355,9 @@ def perf_ntttcp(  # noqa: C901
         for nic in client_nic:
             client_nic_ip.set_mtu(nic, 4000)
 
+        server_nic_ip.get_info()
+        client_nic_ip.get_info()
+
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -399,6 +402,8 @@ def perf_ntttcp(  # noqa: C901
             )
             server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
+            server_nic_ip.get_info()
+            client_nic_ip.get_info()
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
             )
@@ -429,6 +434,8 @@ def perf_ntttcp(  # noqa: C901
                     test_result,
                 )
             notifier.notify(ntttcp_message)
+            server_nic_ip.get_info()
+            client_nic_ip.get_info()
             perf_ntttcp_message_list.append(ntttcp_message)
     finally:
         error_msg = ""
