@@ -1944,17 +1944,14 @@ def get_tenant_id(credential: Any) -> Any:
 def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
 ) -> Any:
+    base_url = "https://graph.microsoft.com/"
+    api_version = "v1.0"
     # If application_id is not provided or is None, use /me endpoint
-    if not application_id:
-        base_url = "https://graph.microsoft.com/"
-        api_version = "v1.0"
-        endpoint = "me"
-        graph_api_url = f"{base_url}{api_version}/{endpoint}"
-    else:
-        base_url = "https://graph.microsoft.com/"
-        api_version = "v1.0"
+    if application_id:
         endpoint = f"servicePrincipals(appId='{application_id}')"
-        graph_api_url = f"{base_url}{api_version}/{endpoint}"
+    else:
+        endpoint = "me"
+    graph_api_url = f"{base_url}{api_version}/{endpoint}"
     token = platform.credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
@@ -1981,9 +1978,7 @@ def add_system_assign_identity(
     location: str,
     log: Logger,
 ) -> Any:
-    compute_client = ComputeManagementClient(
-        platform.credential, platform.subscription_id
-    )
+    compute_client = get_compute_client(platform)
     params_identity = {"type": "SystemAssigned"}
     params_create = {"location": location, "identity": params_identity}
 
@@ -2189,4 +2184,5 @@ def delete_certificate(
         log.debug(f"Certificate {cert_name} deleted successfully.")
         return True
     except Exception:
-        raise LisaException
+        error_message = f"Failed to delete certificate: {cert_name}"
+        raise LisaException(error_message)
