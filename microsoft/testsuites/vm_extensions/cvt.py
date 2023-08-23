@@ -230,7 +230,7 @@ def _run_cvt_tests(
     _copy_cvt_logs(
         node=node,
         log=log,
-        test_dir=Path(node.working_path.parent.parent),
+        test_dir=Path(node.working_path),
         log_path=log_path,
     )
     return result.exit_code
