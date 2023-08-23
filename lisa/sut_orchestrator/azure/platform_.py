@@ -1147,6 +1147,8 @@ class AzurePlatform(Platform):
             # it's Windows, fill in the password always. If it's Linux, the
             # private key has higher priority.
             node_context.username = arm_parameters.admin_username
+            node_context.location = arm_parameters.location
+            node_context.subscription_id = self.subscription_id
             if azure_node_runbook.is_linux:
                 node_context.password = arm_parameters.admin_password
             else:
@@ -1395,9 +1397,13 @@ class AzurePlatform(Platform):
 
         # Set disk type
         assert capability.disk, "node space must have disk defined."
-        assert isinstance(capability.disk.disk_type, schema.DiskType)
-        arm_parameters.disk_type = features.get_azure_disk_type(
-            capability.disk.disk_type
+        assert isinstance(capability.disk.os_disk_type, schema.DiskType)
+        arm_parameters.os_disk_type = features.get_azure_disk_type(
+            capability.disk.os_disk_type
+        )
+        assert isinstance(capability.disk.data_disk_type, schema.DiskType)
+        arm_parameters.data_disk_type = features.get_azure_disk_type(
+            capability.disk.data_disk_type
         )
         assert isinstance(
             capability.disk.disk_controller_type, schema.DiskControllerType
@@ -1628,13 +1634,17 @@ class AzurePlatform(Platform):
             is_allow_set=True
         )
         node_space.disk = features.AzureDiskOptionSettings()
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.os_disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
         node_space.disk.disk_controller_type = search_space.SetSpace[
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
+        node_space.disk.data_disk_throughput = search_space.IntRange(min=0)
         node_space.disk.data_disk_size = search_space.IntRange(min=0)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
@@ -1643,6 +1653,13 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
+        for location_info in resource_sku.location_info:
+            for zone_details in location_info.zone_details:
+                for location_capability in zone_details.capabilities:
+                    azure_raw_capabilities[
+                        location_capability.name
+                    ] = location_capability.value
+
         for sku_capability in resource_sku.capabilities:
             # prevent to loop in every feature
             azure_raw_capabilities[sku_capability.name] = sku_capability.value
@@ -1679,7 +1696,11 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = sku_nic_count
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
-            node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+
+        if azure_raw_capabilities.get("UltraSSDAvailable", None) == "True":
+            node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
 
         disk_controller_types = azure_raw_capabilities.get("DiskControllerTypes", None)
         if disk_controller_types:
@@ -1702,7 +1723,7 @@ class AzurePlatform(Platform):
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
             cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
             if cached_disk_bytes_gb >= 30:
-                node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+                node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -1801,8 +1822,10 @@ class AzurePlatform(Platform):
             if feature_setting:
                 node_space.features.add(feature_setting)
 
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
 
         return node_space
@@ -1970,13 +1993,20 @@ class AzurePlatform(Platform):
         )
         node_space.disk = features.AzureDiskOptionSettings()
         node_space.disk.data_disk_count = search_space.IntRange(min=0)
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.os_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
-        node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
+        node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.disk.disk_controller_type = search_space.SetSpace[
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
@@ -2063,7 +2093,9 @@ class AzurePlatform(Platform):
                             _get_disk_size_in_gb(
                                 default_data_disk.additional_properties
                             ),
-                            azure_node_runbook.disk_type,
+                            0,
+                            0,
+                            azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                         )
                     )
@@ -2071,12 +2103,22 @@ class AzurePlatform(Platform):
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
         for _ in range(node.capability.disk.data_disk_count):
-            assert isinstance(node.capability.disk.data_disk_size, int)
+            assert isinstance(
+                node.capability.disk.data_disk_size, int
+            ), f"actual: {type(node.capability.disk.data_disk_size)}"
+            assert isinstance(
+                node.capability.disk.data_disk_iops, int
+            ), f"actual: {type(node.capability.disk.data_disk_iops)}"
+            assert isinstance(
+                node.capability.disk.data_disk_throughput, int
+            ), f"actual: {type(node.capability.disk.data_disk_throughput)}"
             data_disks.append(
                 DataDiskSchema(
                     node.capability.disk.data_disk_caching_type,
                     node.capability.disk.data_disk_size,
-                    azure_node_runbook.disk_type,
+                    node.capability.disk.data_disk_iops,
+                    node.capability.disk.data_disk_throughput,
+                    azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
             )

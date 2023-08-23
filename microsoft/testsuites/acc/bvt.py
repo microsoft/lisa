@@ -9,7 +9,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import acc
-from lisa.operating_system import Debian
+from lisa.operating_system import Ubuntu
 from lisa.tools import Dmesg, Make, Wget, Whoami
 from lisa.util import SkippedException, UnsupportedDistroException
 
@@ -42,19 +42,17 @@ class ACCBasicTest(TestSuite):
         ),
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:
-        if isinstance(node.os, Debian) & (node.os.information.version == "18.4.0"):
-            os_version = "18.04"
-        elif isinstance(node.os, Debian) & (node.os.information.version == "20.4.0"):
-            os_version = "20.04"
+        if isinstance(node.os, Ubuntu) and (node.os.information.version >= "18.4.0"):
+            os_version = node.os.information.release
         else:
             raise SkippedException(
                 UnsupportedDistroException(
-                    node.os, f"os version: {node.os} is not supported"
+                    node.os,
+                    "os version: "
+                    f"{str(node.os.information.version)} is not supported",
                 )
             )
-
-        assert isinstance(node.os, Debian), f"unsupported distro {node.os}"
-
+        node.log.debug(f"SGX test running for release {os_version}...")
         # INSTALL 3 PREREQUISITES
         # 1.  Get Intel SGX Repo for Ubuntu
         #
@@ -167,9 +165,9 @@ class ACCBasicTest(TestSuite):
             expected_exit_code_failure_message=fail_msg,
         )
 
-        assert_that(result.stdout).described_as("error message").contains(
-            "Enclave called into host to print: Hello World!"
-        )
+        assert_that(result.stdout).described_as(
+            "Enclave call into host failed."
+        ).contains("Enclave called into host to print: Hello World!")
 
         fail_msg = "REMOTE ATTESTATION HAS FAILED"
         username = node.tools[Whoami].get_username()
@@ -183,7 +181,14 @@ class ACCBasicTest(TestSuite):
             expected_exit_code_failure_message=fail_msg,
             sudo=True,
         )
-        assert_that(
-            "Decrypted data matches with the enclave internal secret data"
-            in result.stdout
-        ).described_as("some message").is_true()
+        trace_msg = "Decrypted data matches with the enclave internal secret data"
+        if result.stderr:
+            log.info(f"sgx tool stderr had data: {result.stderr}")
+        assert_that(result.stdout).described_as(
+            "Decrypted data did not match the enclave internal secret data"
+        ).contains(trace_msg)
+        validation_count = result.stdout.count(trace_msg)
+        assert_that(validation_count).described_as(
+            "Both enclaves in test validate two messages. "
+            f"Only found {validation_count} success messages."
+        ).is_equal_to(4)

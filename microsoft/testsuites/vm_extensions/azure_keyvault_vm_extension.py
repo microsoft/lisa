@@ -22,7 +22,7 @@ from lisa.base_tools.service import Service
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
-    assign_access_policy_to_vm,
+    assign_access_policy,
     check_certificate_existence,
     create_certificate,
     create_keyvault,
@@ -92,12 +92,13 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         assert isinstance(platform, AzurePlatform)
         runbook = platform.runbook.get_extended_runbook(AzurePlatformSchema)
         resource_group_name = runbook.shared_resource_group_name
-        vault_name = f"kve-{platform.subscription_id[-6:]}"
+        application_id = runbook.service_principal_client_id
+        vault_name = f"kve-{platform.subscription_id[-5:]}"
         node_context = get_node_context(node)
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
-        object_id = get_identity_id()
+        object_id = get_identity_id(platform=platform, application_id=application_id)
         if object_id is None:
             raise ValueError("Environment variable 'object_id' is not set.")
 
@@ -137,12 +138,12 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         # Check if KeyVault is successfully created before proceeding
         assert keyvault_result, f"Failed to create KeyVault with name: {vault_name}"
 
-        # Acces policies for VM
-        assign_access_policy_to_vm(
+        # Access policies for VM
+        assign_access_policy(
             platform=platform,
             resource_group_name=resource_group_name,
             tenant_id=tenant_id,
-            object_id_vm=object_id_vm,
+            object_id=object_id_vm,
             vault_name=vault_name,
         )
 
@@ -150,7 +151,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
 
         certificates_secret_id: List[str] = []
         # Providing a random Cert name format is: Cert-xxx
-        for cert_name in [f"Cert-{random.randint(1, 1000):03}" for _ in range(2)]:
+        for cert_name in [f"Cert-{random.randint(1, 10000):04}" for _ in range(2)]:
             certificate_secret_id = create_certificate(
                 platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,

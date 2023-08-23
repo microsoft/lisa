@@ -409,6 +409,7 @@ class DiskType(str, Enum):
     Ephemeral = "Ephemeral"
     StandardHDDLRS = "StandardHDDLRS"
     StandardSSDLRS = "StandardSSDLRS"
+    UltraSSDLRS = "UltraSSDLRS"
 
 
 # disk types are ordered by commonly and cost. The earlier is lower cost.
@@ -417,6 +418,7 @@ disk_type_priority: List[DiskType] = [
     DiskType.StandardSSDLRS,
     DiskType.Ephemeral,
     DiskType.PremiumSSDLRS,
+    DiskType.UltraSSDLRS,
 ]
 
 
@@ -435,7 +437,7 @@ disk_controller_type_priority: List[DiskControllerType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    disk_type: Optional[
+    os_disk_type: Optional[
         Union[search_space.SetSpace[DiskType], DiskType]
     ] = field(  # type:ignore
         default_factory=partial(
@@ -445,6 +447,22 @@ class DiskOptionSettings(FeatureSettings):
                 DiskType.StandardSSDLRS,
                 DiskType.Ephemeral,
                 DiskType.PremiumSSDLRS,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
+        ),
+    )
+    data_disk_type: Optional[
+        Union[search_space.SetSpace[DiskType], DiskType]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                DiskType.StandardHDDLRS,
+                DiskType.StandardSSDLRS,
+                DiskType.PremiumSSDLRS,
+                DiskType.UltraSSDLRS,
             ],
         ),
         metadata=field_metadata(
@@ -468,6 +486,12 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     data_disk_iops: search_space.CountSpace = field(
+        default_factory=partial(search_space.IntRange, min=0),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
+    data_disk_throughput: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
@@ -512,10 +536,12 @@ class DiskOptionSettings(FeatureSettings):
         assert isinstance(o, DiskOptionSettings), f"actual: {type(o)}"
         return (
             self.type == o.type
-            and self.disk_type == o.disk_type
+            and self.os_disk_type == o.os_disk_type
+            and self.data_disk_type == o.data_disk_type
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
             and self.data_disk_iops == o.data_disk_iops
+            and self.data_disk_throughput == o.data_disk_throughput
             and self.data_disk_size == o.data_disk_size
             and self.max_data_disk_count == o.max_data_disk_count
             and self.disk_controller_type == o.disk_controller_type
@@ -523,10 +549,12 @@ class DiskOptionSettings(FeatureSettings):
 
     def __repr__(self) -> str:
         return (
-            f"disk_type: {self.disk_type},"
+            f"os_disk_type: {self.os_disk_type},"
+            f"data_disk_type: {self.data_disk_type},"
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
             f"iops: {self.data_disk_iops},"
+            f"throughput: {self.data_disk_throughput},"
             f"size: {self.data_disk_size},"
             f"max_data_disk_count: {self.max_data_disk_count},"
             f"disk_controller_type: {self.disk_controller_type}"
@@ -559,14 +587,20 @@ class DiskOptionSettings(FeatureSettings):
             ),
             "data_disk_iops",
         )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
+            ),
+            "data_disk_throughput",
+        )
         return result
 
     def _get_key(self) -> str:
         return (
-            f"{super()._get_key()}/{self.disk_type}/"
+            f"{super()._get_key()}/{self.os_disk_type}/{self.data_disk_type}/"
             f"{self.data_disk_count}/{self.data_disk_caching_type}/"
-            f"{self.data_disk_iops}/{self.data_disk_size}/"
-            f"{self.disk_controller_type}"
+            f"{self.data_disk_iops}/{self.data_disk_throughput}/"
+            f"{self.data_disk_size}/{self.disk_controller_type}"
         )
 
     def _call_requirement_method(
@@ -582,10 +616,14 @@ class DiskOptionSettings(FeatureSettings):
         search_space_countspace_method = getattr(
             search_space, f"{method.value}_countspace"
         )
-        if self.disk_type or capability.disk_type:
-            value.disk_type = getattr(
+        if self.os_disk_type or capability.os_disk_type:
+            value.os_disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
-            )(self.disk_type, capability.disk_type, disk_type_priority)
+            )(self.os_disk_type, capability.os_disk_type, disk_type_priority)
+        if self.data_disk_type or capability.data_disk_type:
+            value.data_disk_type = getattr(
+                search_space, f"{method.value}_setspace_by_priority"
+            )(self.data_disk_type, capability.data_disk_type, disk_type_priority)
         if self.data_disk_count or capability.data_disk_count:
             value.data_disk_count = search_space_countspace_method(
                 self.data_disk_count, capability.data_disk_count
@@ -593,6 +631,10 @@ class DiskOptionSettings(FeatureSettings):
         if self.data_disk_iops or capability.data_disk_iops:
             value.data_disk_iops = search_space_countspace_method(
                 self.data_disk_iops, capability.data_disk_iops
+            )
+        if self.data_disk_throughput or capability.data_disk_throughput:
+            value.data_disk_throughput = search_space_countspace_method(
+                self.data_disk_throughput, capability.data_disk_throughput
             )
         if self.data_disk_size or capability.data_disk_size:
             value.data_disk_size = search_space_countspace_method(

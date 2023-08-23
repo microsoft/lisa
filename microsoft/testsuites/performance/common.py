@@ -8,7 +8,14 @@ from typing import Any, Dict, List, Optional, Union, cast
 from assertpy import assert_that
 from retry import retry
 
-from lisa import Environment, Node, RemoteNode, notifier, run_in_parallel
+from lisa import (
+    Environment,
+    Node,
+    RemoteNode,
+    SkippedException,
+    notifier,
+    run_in_parallel,
+)
 from lisa.messages import (
     DiskPerformanceMessage,
     DiskSetupType,
@@ -17,6 +24,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
+from lisa.operating_system import Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -510,6 +518,10 @@ def perf_sockperf(
     client = cast(RemoteNode, environment.nodes[0])
     server = cast(RemoteNode, environment.nodes[1])
     sysctls: List[Sysctl] = []
+    if isinstance(client.os, Ubuntu) and (client.os.information.version < "18.4.0"):
+        raise SkippedException(
+            f"Sockperf tests don't support EOL Ubuntu {client.os.information.release}"
+        )
     if set_busy_poll:
         sysctls = run_in_parallel(
             [lambda: client.tools[Sysctl], lambda: server.tools[Sysctl]]
@@ -523,7 +535,7 @@ def perf_sockperf(
     # wait for sockperf to start, fail if it doesn't.
     try:
         server_proc.wait_output(
-            "sockperf: Warmup stage (sending a few dummy messages)...",
+            "sockperf: Warmup stage",
             timeout=30,
         )
         client_output = client.tools[Sockperf].run_client(

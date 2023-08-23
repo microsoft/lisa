@@ -614,9 +614,9 @@ class AwsPlatform(Platform):
 
         # Set disk type
         assert node_space.disk, "node space must have disk defined."
-        assert isinstance(node_space.disk.disk_type, schema.DiskType)
+        assert isinstance(node_space.disk.data_disk_type, schema.DiskType)
         aws_node_runbook.disk_type = features.get_aws_disk_type(
-            node_space.disk.disk_type
+            node_space.disk.data_disk_type
         )
         aws_node_runbook.data_disk_caching_type = node_space.disk.data_disk_caching_type
         assert isinstance(
@@ -1021,7 +1021,7 @@ class AwsPlatform(Platform):
             is_allow_set=True
         )
         node_space.disk = features.AwsDiskOptionSettings()
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
@@ -1060,9 +1060,9 @@ class AwsPlatform(Platform):
                 schema.FeatureSettings.create(features.SerialConsole.name()),
             ]
         )
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
 
         return node_space

@@ -264,7 +264,8 @@ class AzureNodeSchema:
                 "shared_gallery_raw",
                 "vhd_raw",
                 "data_disk_caching_type",
-                "disk_type",
+                "os_disk_type",
+                "data_disk_type",
             ],
         )
         # If vhd contains sas token, need add mask
@@ -460,7 +461,8 @@ class AzureNodeSchema:
 class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
-    disk_type: str = ""
+    os_disk_type: str = ""
+    data_disk_type: str = ""
     disk_controller_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 
@@ -512,6 +514,8 @@ class DataDiskSchema:
         ),
     )
     size: int = 32
+    iops: int = 0
+    throughput: int = 0  # MB/s
     type: str = field(
         default=schema.DiskType.StandardHDDLRS,
         metadata=field_metadata(
@@ -520,6 +524,7 @@ class DataDiskSchema:
                     schema.DiskType.StandardHDDLRS,
                     schema.DiskType.StandardSSDLRS,
                     schema.DiskType.PremiumSSDLRS,
+                    schema.DiskType.UltraSSDLRS,
                     schema.DiskType.Ephemeral,
                 ]
             )
@@ -1460,7 +1465,10 @@ def load_environment(
         assert isinstance(node, RemoteNode)
 
         vm = vms_map.get(node.name)
-        assert_that(vm).is_not_none()
+        assert_that(vm).described_as(
+            f"Cannot find vm with name {node.name}. Make sure the VM exists in "
+            f"resource group {resource_group_name}"
+        ).is_not_none()
 
         node_context = get_node_context(node)
         node_context.vm_name = node.name
@@ -1942,55 +1950,26 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
-def get_sp_object_id(app_id: str) -> Any:
-    # Define constants
-    graph_api_url = "https://graph.microsoft.com/.default"
-    request_url = f"https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '{app_id}'"
-
-    # Get a token for the Microsoft Graph API
-    token_credential = DefaultAzureCredential()
-    token = token_credential.get_token(graph_api_url)
-
+def get_identity_id(
+    platform: "AzurePlatform", application_id: Optional[str] = None
+) -> Any:
+    base_url = "https://graph.microsoft.com/"
+    api_version = "v1.0"
+    # If application_id is not provided or is None, use /me endpoint
+    if application_id:
+        endpoint = f"servicePrincipals(appId='{application_id}')"
+    else:
+        endpoint = "me"
+    graph_api_url = f"{base_url}{api_version}/{endpoint}"
+    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
-        "Authorization": f"Bearer {token.token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
     # Set a timeout of 10 seconds for the request
-    response = requests.get(request_url, headers=headers, timeout=10)
-
-    if response.status_code != 200:
-        raise LisaException(
-            f"Failed to retrieve service principal object ID. "
-            f"Status code: {response.status_code}. "
-            f"Response: {response.text}"
-        )
-
-    data = response.json()
-    if not data["value"]:
-        raise LisaException(f"Service Principal with appId {app_id} not found.")
-
-    return data["value"][0].get("id")
-
-
-def get_identity_id() -> Any:
-    # Define constants
-    graph_api_url = "https://graph.microsoft.com/.default"
-    request_url = "https://graph.microsoft.com/v1.0/me"
-
-    # Get a token for the Microsoft Graph API
-    token_credential = DefaultAzureCredential()
-    token = token_credential.get_token(graph_api_url)
-
-    # Set up the API call headers
-    headers = {
-        "Authorization": f"Bearer {token.token}",
-        "Content-Type": "application/json",
-    }
-
-    # Set a timeout of 10 seconds for the request
-    response = requests.get(request_url, headers=headers, timeout=10)
+    response = requests.get(graph_api_url, headers=headers, timeout=10)
 
     if response.status_code != 200:
         raise LisaException(
@@ -2008,9 +1987,7 @@ def add_system_assign_identity(
     location: str,
     log: Logger,
 ) -> Any:
-    compute_client = ComputeManagementClient(
-        platform.credential, platform.subscription_id
-    )
+    compute_client = get_compute_client(platform)
     params_identity = {"type": "SystemAssigned"}
     params_create = {"location": location, "identity": params_identity}
 
@@ -2054,22 +2031,23 @@ def create_keyvault(
     return keyvault_poller.result()
 
 
-def assign_access_policy_to_vm(
+def assign_access_policy(
     platform: "AzurePlatform",
     resource_group_name: str,
     tenant_id: str,
-    object_id_vm: str,
+    object_id: str,
     vault_name: str,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(platform)
 
-    # Fetch the current policies and add the VM's policy
+    permissions = Permissions(keys=["all"], secrets=["all"], certificates=["all"])
+    # Fetch the current policies and add the new policy
     vault = keyvault_client.vaults.get(resource_group_name, vault_name)
     current_policies = vault.properties.access_policies
     new_policy = AccessPolicyEntry(
         tenant_id=tenant_id,
-        object_id=object_id_vm,
-        permissions=Permissions(keys=["all"], secrets=["all"], certificates=["all"]),
+        object_id=object_id,
+        permissions=permissions,
     )
     current_policies.append(new_policy)
 
@@ -2204,4 +2182,5 @@ def delete_certificate(
         log.debug(f"Certificate {cert_name} deleted successfully.")
         return True
     except Exception:
-        raise LisaException
+        error_message = f"Failed to delete certificate: {cert_name}"
+        raise LisaException(error_message)
