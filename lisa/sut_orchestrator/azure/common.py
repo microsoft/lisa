@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
-from azure.identity import DefaultAzureCredential
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -2022,8 +2021,6 @@ def create_keyvault(
     parameters = VaultCreateOrUpdateParameters(
         location=location, properties=vault_properties
     )
-    # This will check if the vault exists in the resource group, and if not, it will create one.
-    # If the vault exists, it will update the vault properties to the provided properties
     keyvault_poller = keyvault_client.vaults.begin_create_or_update(
         resource_group_name, vault_name, parameters
     )
