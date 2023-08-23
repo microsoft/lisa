@@ -345,7 +345,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=4,
+            min_nic_count=8,
             network_interface=features.Sriov(),
         ),
     )
@@ -365,7 +365,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=4,
+            min_nic_count=8,
             network_interface=features.Sriov(),
         ),
     )
@@ -391,7 +391,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=4,
+            min_nic_count=8,
             network_interface=features.Sriov(),
         ),
     )
@@ -418,7 +418,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=4,
+            min_nic_count=8,
             network_interface=features.Sriov(),
         ),
     )
@@ -447,7 +447,7 @@ class Sriov(TestSuite):
         priority=2,
         requirement=simple_requirement(
             min_count=2,
-            min_nic_count=4,
+            min_nic_count=8,
             network_interface=features.Sriov(),
         ),
     )
