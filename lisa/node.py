@@ -401,12 +401,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 if "fd" in disk_name:
                     continue
                 if not disk.is_mounted:
-                    try:
-                        mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
-                        self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
-                        mount.mount(disk.device_name, mountpoint, format_=True)
-                    except Exception:
-                        continue
+                    mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
+                    self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
+                    mount.mount(disk.device_name, mountpoint, format_=True)
                 else:
                     mountpoint = disk.mountpoint
 
