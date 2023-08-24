@@ -11,11 +11,53 @@ from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
 from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
 from lisa.node import Node
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Git, Ls, Make, RemoteCopy, Tar
+from lisa.tools.chmod import Chmod
+from lisa.tools.mkdir import Mkdir
 from lisa.tools.whoami import Whoami
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
+
+_UBUNTU_OS_PACKAGES = [
+    "git",
+    "build-essential",
+    "bison",
+    "flex",
+    "libelf-dev",
+    "xz-utils",
+    "libssl-dev",
+    "bc",
+    "ccache",
+    "libncurses-dev",
+    "gcc-multilib",
+    "libc6-i386",
+    "libc6-dev-i386",
+]
+
+_MARINER_OS_PACKAGES = [
+    "bison",
+    "flex",
+    "build-essential",
+    "openssl-devel",
+    "bc",
+    "dwarves",
+    "rsync",
+    "libcap-devel",
+    "libcap-ng-devel",
+    "fuse",
+    "fuse-devel",
+    "popt-devel",
+    "numactl-devel",
+    "libmnl-devel",
+    "libinput",
+    "mesa-libgbm-devel",
+    "glibc-static",
+    "clang",
+    "glibc-devel",
+    "binutils",
+    "kernel-headers",
+]
 
 
 @dataclass
@@ -26,10 +68,8 @@ class KselftestResult:
 
 
 class Kselftest(Tool):
-    _MARINER_KERNEL_SRC_REPO = "https://github.com/microsoft/CBL-Mariner-Linux-Kernel"
-    _KERNEL_REPO_NAME = "CBL-Mariner-Linux-Kernel"
-    _KSELFTEST_TAR_PATH = (
-        "/build/kselftest/kselftest_install/kselftest-packages/kselftest.tar.gz"
+    _KSELF_TEST_SRC_REPO = (
+        "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
     )
 
     # kselftest result log has "ok" and "not ok" prefixes, use regex to filter them
@@ -51,7 +91,9 @@ class Kselftest(Tool):
         return True
 
     def _check_exists(self) -> bool:
-        return self.node.tools[Ls].path_exists(str(self._remote_tar_path), sudo=True)
+        return (
+            len(self.node.tools[Ls].list(str(self._kself_installed_dir), sudo=True)) > 0
+        )
 
     def __init__(
         self, node: Node, kselftest_file_path: str, *args: Any, **kwargs: Any
@@ -64,66 +106,49 @@ class Kselftest(Tool):
             self._remote_tar_path = self.get_tool_path(
                 use_global=True
             ) / os.path.basename(self._tar_file_path)
-        else:
-            self._remote_tar_path = (
-                self.get_tool_path(use_global=True)
-                / f"{self._KERNEL_REPO_NAME}{self._KSELFTEST_TAR_PATH}"
-            )
 
         # command to run kselftests
-        if not self._tar_file_path:
-            self._command = self.get_tool_path(use_global=True) / "run_kselftest.sh"
-        else:
-            self._command = (
-                self.get_tool_path(use_global=True)
-                / "kselftest-packages/run_kselftest.sh"
-            )
+        self._kself_installed_dir = (
+            self.get_tool_path(use_global=True) / "kselftest-packages"
+        )
+
+        self._command = self._kself_installed_dir / "run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
-        if not isinstance(self.node.os, CBLMariner):
+        if not (
+            (
+                isinstance(self.node.os, Ubuntu)
+                and self.node.os.information.version >= "18.4.0"
+            )
+            or isinstance(self.node.os, CBLMariner)
+        ):
             raise UnsupportedDistroException(
-                self.node.os, "kselftests are supported on Mariner VMs only."
+                self.node.os, "kselftests in LISA does not support this os"
             )
 
         if self._tar_file_path:
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
-        else:
-            # clone kernel, build kernel, then build kselftests
-            self.node.os.install_packages(
-                [
-                    "bison",
-                    "flex",
-                    "build-essential",
-                    "openssl-devel",
-                    "bc",
-                    "dwarves",
-                    "rsync",
-                    "libcap-devel",
-                    "libcap-ng-devel",
-                    "fuse",
-                    "fuse-devel",
-                    "popt-devel",
-                    "numactl-devel",
-                    "libmnl-devel",
-                    "libinput",
-                    "mesa-libgbm-devel",
-                    "glibc-static",
-                    "clang",
-                ]
+            self.node.tools[Tar].extract(
+                str(self._remote_tar_path), str(self._kself_installed_dir), sudo=True
             )
+            self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
+        else:
+            mkdir = self.node.tools[Mkdir]
+            mkdir.create_directory(str(self._kself_installed_dir))
+            if isinstance(self.node.os, Ubuntu):
+                # cache is used to speed up recompilation
+                self.node.os.install_packages(_UBUNTU_OS_PACKAGES)
+            elif isinstance(self.node.os, CBLMariner):
+                # clone kernel, build kernel, then build kselftests
+                self.node.os.install_packages(_MARINER_OS_PACKAGES)
 
             uname = self.node.tools[Uname]
             uname_result = uname.get_linux_information(force_run=False)
-            version = uname_result.kernel_version
             git = self.node.tools[Git]
 
-            # If version.patch is zero, clone major.minor kernel from
-            # upstream stable kernel. If version.patch is non-zero, clone
-            # major.minor.patch kernel corresponding to the distro in use
-            branch = "rolling-lts/mariner-2/"
-            branch += f"{version.major}.{version.minor}.{version.patch}.1"
-            branch_to_clone = f"{self._MARINER_KERNEL_SRC_REPO} -b {branch} --depth 1"
+            branch = "master"
+            branch_to_clone = f"{self._KSELF_TEST_SRC_REPO} -b {branch} --depth 1"
             kernel_path = git.clone(
                 branch_to_clone,
                 self.get_tool_path(use_global=True),
@@ -138,32 +163,46 @@ class Kselftest(Tool):
                 sudo=True,
             )
 
-            # build kselftests
             self.node.tools[Make].run(
-                "KBUILD_OUTPUT=build -C tools/testing/selftests gen_tar",
+                "headers",
                 cwd=kernel_path,
                 sudo=True,
                 expected_exit_code=0,
-                expected_exit_code_failure_message="could not generate kselftest tar.",
+                expected_exit_code_failure_message="failed to build kernel headers.",
             ).assert_exit_code()
 
-        tool_path = self.get_tool_path(use_global=True)
-        self.node.tools[Tar].extract(
-            str(self._remote_tar_path), str(tool_path), sudo=True
-        )
-        self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
+            # build and install kselftests
+            self.node.execute(
+                cmd=f"./kselftest_install.sh {self._kself_installed_dir}",
+                shell=True,
+                cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to build & install kselftest",
+            ).assert_exit_code()
+            # change permissions of kselftest-packages directory
+            # to run test as non root user.
+            chmod = self.node.tools[Chmod]
+            chmod.update_folder("{self._kself_installed_dir}", "777", sudo=True)
 
         return self._check_exists()
 
     def run_all(
-        self, test_result: TestResult, environment: Environment, log_path: str
+        self,
+        test_result: TestResult,
+        environment: Environment,
+        log_path: str,
+        timeout: int = 5000,
+        run_test_as_root: bool = False,
     ) -> List[KselftestResult]:
+        # Executing kselftest as root may cause
+        # VM to hang
         self.run(
             " 2>&1 | tee kselftest-results.txt",
+            sudo=run_test_as_root,
             force_run=True,
-            sudo=True,
             shell=True,
-            timeout=5000,
+            timeout=timeout,
         )
 
         # get username
@@ -171,9 +210,8 @@ class Kselftest(Tool):
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
-        self.node.execute(
-            f"chmod 644 /home/{username}/kselftest-results.txt", sudo=True
-        )
+        chmod = self.node.tools[Chmod]
+        chmod.update_folder("/home/{username}/kselftest-results.txt", "644", sudo=True)
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]
