@@ -25,6 +25,7 @@ from lisa.executable import ExecutableResult
 from lisa.features import Disk
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Find, Mkdir, Wget
+from lisa.util import SkippedException
 
 
 def _init_disk(log: Logger, node: Node) -> None:
@@ -202,7 +203,7 @@ def _run_cvt_tests(
     container_sas_uri = variables.get("cvtbinaries_sasuri", "")
     if not container_sas_uri:
         log.error("sas uri for cvt binary is empty.")
-        return 1
+        raise SkippedException("sas uri for cvt binary is empty.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
@@ -253,7 +254,6 @@ class CVTTest(TestSuite):
         integrity of a source disk with respect to a target disk
         """,
         priority=1,
-        use_new_environment=True,
         timeout=TIMEOUT,
     )
     def verify_asr_by_cvt(
