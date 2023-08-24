@@ -203,7 +203,7 @@ def _run_cvt_tests(
     container_sas_uri = variables.get("cvtbinaries_sasuri", "")
     if not container_sas_uri:
         log.error("sas uri for cvt binary is empty.")
-        raise SkippedException("sas uri for cvt binary is empty.")
+        raise SkippedException("cvt binary is not provided.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
