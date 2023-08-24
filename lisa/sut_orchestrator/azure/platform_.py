@@ -1661,7 +1661,7 @@ class AzurePlatform(Platform):
         if memory_value:
             node_space.memory_mb = int(float(memory_value) * 1024)
 
-        max_disk_count = 16
+        max_disk_count = 64
         if max_disk_count:
             node_space.disk.max_data_disk_count = int(max_disk_count)
             node_space.disk.data_disk_count = search_space.IntRange(
