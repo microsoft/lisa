@@ -36,7 +36,18 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
-from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
+from lisa.tools import (
+    Cat,
+    Dmesg,
+    Journalctl,
+    KernelConfig,
+    Ls,
+    Lsblk,
+    Lscpu,
+    Modprobe,
+    Pgrep,
+    Ssh,
+)
 from lisa.util import (
     LisaException,
     PassedException,
@@ -1051,3 +1062,31 @@ class AzureImageStandard(TestSuite):
                 partition.fstype,
                 "Resource disk file system type should not equal to ntfs",
             ).is_not_equal_to("ntfs")
+
+    @TestCaseMetadata(
+        description="""
+       This test checks that images with linux kernel > 6.2 have included the mana_ib driver.
+       It checks both the kernel config and that the driver is present.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE], supported_os=[Posix], unsupported_os=[BSD]
+        ),
+    )
+    def verify_mana_ib_enabled(self, node: RemoteNode) -> None:
+        assert isinstance(node.os, Posix) and not isinstance(node.os, BSD)
+        if node.os.get_kernel_information().version >= "6.2.0":
+            mana_config = node.tools[KernelConfig].is_enabled("CONFIG_INFINIBAND_MANA")
+            mana_ib_present = node.tools[Modprobe].module_exists("mana_ib")
+            if not mana_config:
+                config_warning = (
+                    "CONFIG_INFINIBAND_MANA is not present in this kernel config! "
+                    "This indicates an issue with the config itself or "
+                    "a bug in the LISA::KernelConfig tool."
+                )
+                node.log.warn(config_warning)
+            assert_that(mana_ib_present).described_as(
+                "MANA DPDK support is likely broken on this image. "
+                "mana_ib should be present on azure linux kernels >= 6.2"
+                f"Note, check for CONFIG_INFINIBAND_MANA: {mana_config}"
+            ).is_true()
