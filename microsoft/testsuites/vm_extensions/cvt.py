@@ -24,7 +24,7 @@ from lisa import (
 from lisa.executable import ExecutableResult
 from lisa.features import Disk
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Find, Mkdir, Wget
+from lisa.tools import Find, Wget
 from lisa.util import SkippedException
 
 
@@ -195,25 +195,19 @@ def _run_cvt_tests(
     log: Logger,
     node: Node,
     log_path: Path,
-    variables: Dict[str, Any],
+    container_sas_uri: str,
     os: str,
     cvt_script: CustomScriptBuilder,
 ) -> Optional[int]:
     cvt_bin = "indskflt_ct"
-    container_sas_uri = variables.get("cvtbinaries_sasuri", "")
-    if not container_sas_uri:
-        raise SkippedException("cvt binary is not provided.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
 
-    cvt_root_dir = str(node.working_path) + "/LisaTest/"
-    cvt_download_dir = cvt_root_dir + "cvt_files/"
+    cvt_download_dir = str(node.working_path) + "cvt_files/"
 
-    mkdir = node.tools[Mkdir]
     wget = node.tools[Wget]
 
-    mkdir.create_directory(cvt_download_dir, sudo=True)
     download_path = wget.get(
         url=f"{cvt_binary_sas_uri}",
         filename=cvt_bin,
@@ -254,30 +248,39 @@ class CVTTest(TestSuite):
         """,
         priority=1,
         timeout=TIMEOUT,
+        requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_asr_by_cvt(
         self,
         node: Node,
         log: Logger,
         log_path: Path,
-        variables: Dict[str, Any],
     ) -> None:
         _init_disk(node=node, log=log)
         os = _get_os_info_from_extension(node=node, log=log)
+        if not os:
+            raise SkippedException("Failed to determine the OS.")
         _install_asr_extension_distro(node=node, log=log, os=os)
         result = _run_cvt_tests(
             node=node,
             log=log,
             log_path=log_path,
-            variables=variables,
+            container_sas_uri=self._container_sas_uri,
             os=os,
             cvt_script=self._cvt_script,
         )
         log.info(f"ASR CVT test completed with exit code '{result}'")
         assert_that(result).described_as("ASR CVT test failed").is_equal_to(0)
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
+    def before_case(
+        self,
+        log: Logger,
+        variables: Dict[str, Any],
+        **kwargs: Any,
+    ) -> None:
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
-        log.info("before test case")
+        self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
+        if not self._container_sas_uri:
+            raise SkippedException("cvt binary is not provided.")
