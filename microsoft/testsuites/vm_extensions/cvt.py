@@ -195,11 +195,14 @@ def _run_cvt_tests(
     log: Logger,
     node: Node,
     log_path: Path,
-    container_sas_uri: str,
+    variables: Dict[str, Any],
     os: str,
     cvt_script: CustomScriptBuilder,
 ) -> Optional[int]:
     cvt_bin = "indskflt_ct"
+    container_sas_uri = variables.get("cvtbinaries_sasuri", "")
+    if not container_sas_uri:
+        raise SkippedException("cvt binary is not provided.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
@@ -255,6 +258,7 @@ class CVTTest(TestSuite):
         node: Node,
         log: Logger,
         log_path: Path,
+        variables: Dict[str, Any],
     ) -> None:
         _init_disk(node=node, log=log)
         os = _get_os_info_from_extension(node=node, log=log)
@@ -265,22 +269,14 @@ class CVTTest(TestSuite):
             node=node,
             log=log,
             log_path=log_path,
-            container_sas_uri=self._container_sas_uri,
+            variables=variables,
             os=os,
             cvt_script=self._cvt_script,
         )
         log.info(f"ASR CVT test completed with exit code '{result}'")
         assert_that(result).described_as("ASR CVT test failed").is_equal_to(0)
 
-    def before_case(
-        self,
-        log: Logger,
-        variables: Dict[str, Any],
-        **kwargs: Any,
-    ) -> None:
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
-        self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
-        if not self._container_sas_uri:
-            raise SkippedException("cvt binary is not provided.")
