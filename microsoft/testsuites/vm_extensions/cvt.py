@@ -202,7 +202,7 @@ def _run_cvt_tests(
     cvt_bin = "indskflt_ct"
     container_sas_uri = variables.get("cvtbinaries_sasuri", "")
     if not container_sas_uri:
-        raise SkippedException("cvt binary is not provided.")
+        raise SkippedException("cvtbinaries_sasuri is not provided.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
@@ -224,6 +224,9 @@ def _run_cvt_tests(
     result = _run_script(
         node=node, log=log, test_dir=cvt_download_dir, cvt_script=cvt_script
     )
+    log.info(f"cvt script stdout : '{result.stdout}'")
+    log.info(f"cvt script stderr : '{result.stderr}'")
+    log.info(f"cvt script exit code : '{result.exit_code}'")
     _copy_cvt_logs(
         node=node,
         log=log,
