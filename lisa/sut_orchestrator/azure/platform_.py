@@ -1428,6 +1428,7 @@ class AzurePlatform(Platform):
 
         return arm_parameters
 
+    @retry(exceptions=ResourceNotFoundError, tries=5, delay=2)
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
@@ -1442,6 +1443,11 @@ class AzurePlatform(Platform):
             wait_operation(validate_operation, failure_identity="validation")
         except Exception as identifier:
             error_messages: List[str] = [str(identifier)]
+
+            # retry when encounter azure.core.exceptions.ResourceNotFoundError:
+            # (ResourceGroupNotFound) Resource group 'lisa-xxxx' could not be found.
+            if isinstance(identifier, ResourceNotFoundError) and identifier.error:
+                raise identifier
 
             if isinstance(identifier, HttpResponseError) and identifier.error:
                 # no validate_operation returned, the message may include
