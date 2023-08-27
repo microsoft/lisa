@@ -200,6 +200,7 @@ def _run_cvt_tests(
     cvt_script: CustomScriptBuilder,
 ) -> Optional[int]:
     cvt_bin = "indskflt_ct"
+    max_log_length = 200
     container_sas_uri = variables.get("cvtbinaries_sasuri", "")
     if not container_sas_uri:
         raise SkippedException("cvtbinaries_sasuri is not provided.")
@@ -224,8 +225,14 @@ def _run_cvt_tests(
     result = _run_script(
         node=node, log=log, test_dir=cvt_download_dir, cvt_script=cvt_script
     )
-    log.info(f"cvt script stdout : '{result.stdout}'")
-    log.info(f"cvt script stderr : '{result.stderr}'")
+    cvt_stdout = result.stdout
+    if len(cvt_stdout) > max_log_length:
+        cvt_stdout = cvt_stdout[:max_log_length]
+    cvt_stderr = result.stderr
+    if len(cvt_stderr) > max_log_length:
+        cvt_stderr = cvt_stderr[:max_log_length]
+    log.info(f"cvt script stdout : '{cvt_stdout}'")
+    log.info(f"cvt script stderr : '{cvt_stderr}'")
     log.info(f"cvt script exit code : '{result.exit_code}'")
     _copy_cvt_logs(
         node=node,
