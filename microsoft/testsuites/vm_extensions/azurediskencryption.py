@@ -43,12 +43,9 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
         raise ValueError("Environment variable 'tenant_id' is not set.")
     application_id = runbook.service_principal_client_id
     object_id = get_identity_id(platform=platform, application_id=application_id)
-    log.debug(f"Object ID: {object_id}")
-    log.debug(f"Runbook: {runbook}")
     if object_id is None:
         raise ValueError("Environment variable 'object_id' is not set.")
 
- 
     node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
     location = node_capability.location
     shared_resource_group = runbook.shared_resource_group_name
@@ -168,11 +165,11 @@ class AzureDiskEncryption(TestSuite):
 
             # Otherwise, sleep for 5 minutes before checking again
             if i < max_retries - 1:  # To avoid sleeping after the last iteration
-                time.sleep(retry_interval)
                 log.debug(
                     f"Sleeping for {retry_interval} seconds before checking again"
                 )
                 log.debug(f"Retry #{i+1} of {max_retries}")
+                time.sleep(retry_interval)
 
         assert_that(os_status).described_as(
             "Expected the OS status to be 'Encrypted'"
