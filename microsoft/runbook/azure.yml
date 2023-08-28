@@ -2,8 +2,6 @@ name: azure default
 include:
   - path: ./tiers/tier.yml
 variable:
-  - name : test_name
-    value : ""
   - name: location
     value: "westus3"
   - name: keep_environment
@@ -39,9 +37,6 @@ platform:
     keep_environment: $(keep_environment)
     azure:
       resource_group_name: $(resource_group_name)
-      service_principal_tenant_id: $(service_principal_tenant_id)
-      service_principal_client_id: $(service_principal_client_id)
-      service_principal_key: $(service_principal_key)
       deploy: $(deploy)
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)

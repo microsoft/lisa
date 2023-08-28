@@ -182,7 +182,7 @@ class AzureDiskEncryption(TestSuite):
         description="""
         Runs the ADE extension and verifies the extension provisioned successfully on the remote machine.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_azure_disk_encryption_provisioned(
