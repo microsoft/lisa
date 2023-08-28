@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import json
-import time
 import string
+import time
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -21,9 +21,9 @@ from lisa.operating_system import SLES, CBLMariner, CentOs, Oracle, Redhat, Suse
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
-    get_matching_key_vault_name,
     create_keyvault,
     get_identity_id,
+    get_matching_key_vault_name,
     get_tenant_id,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -50,8 +50,10 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
     location = node_capability.location
     shared_resource_group = runbook.shared_resource_group_name
 
-   # Create key vault if there is not available adelisa key vault for that region
-    existing_vault = get_matching_key_vault_name(platform, location, shared_resource_group, "adelisa-\w{5}")
+    # Create key vault if there is not available adelisa key vault for that region
+    existing_vault = get_matching_key_vault_name(
+        platform, location, shared_resource_group, "adelisa-\w{5}"
+    )
     if existing_vault:
         vault_name = existing_vault
     else:
@@ -81,7 +83,9 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
     )
 
     # Check if KeyVault is successfully created before proceeding
-    assert keyvault_result, f"Failed to create or update KeyVault with name: {vault_name}"
+    assert (
+        keyvault_result
+    ), f"Failed to create or update KeyVault with name: {vault_name}"
 
     # Run ADE Extension
     extension_name = "AzureDiskEncryptionForLinux"
