@@ -41,7 +41,10 @@ class Floppy(TestSuite):
         is_centos = isinstance(node.os, CentOs)
         if is_centos and os_version < "7.8.0":
             raise SkippedException(
-                "CentOS <= 7.7 are not receiving fixes for block listing the floppy module."
+                (
+                    "CentOS <= 7.7 are not receiving fixes"
+                    " for block listing the floppy module."
+                )
             )
         modprobe = node.tools[Modprobe]
 
