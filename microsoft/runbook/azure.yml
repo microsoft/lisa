@@ -48,4 +48,3 @@ platform:
         vhd: $(vhd)
         location: $(location)
         vm_size: $(vm_size)
-        
