@@ -3,7 +3,7 @@
 
 import random
 import re
-from typing import List
+from typing import List, Any
 
 from assertpy import assert_that
 
@@ -16,7 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, Ubuntu, CBLMariner
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
     assign_access_policy,
@@ -33,7 +33,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult
 from lisa.tools.ls import Ls
-from lisa.util import LisaException
+from lisa.util import LisaException, SkippedException
 
 
 def _check_system_status(node: Node, log: Logger) -> None:
@@ -60,6 +60,13 @@ def _check_system_status(node: Node, log: Logger) -> None:
     requirement=simple_requirement(unsupported_os=[]),
 )
 class AzureKeyVaultExtensionBvt(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        if not self._is_supported_linux_distro(node):
+            raise SkippedException(
+                f"{str(node.os.information.full_version)} is not supported."
+            )
+
     @TestCaseMetadata(
         description="""
         The following test case validates the Azure Key Vault Linux
@@ -230,3 +237,21 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         assert_that(extension.check_exist("KeyVaultForLinux")).described_as(
             "Found the VM Extension still exists on the VM after deletion"
         ).is_false()
+
+    def _is_supported_linux_distro(self, node: Node) -> bool:
+        supported_major_versions = {
+            Ubuntu: [20, 22],
+            CBLMariner: [2],
+        }
+
+        for distro in supported_major_versions:
+            if type(node.os) == distro:
+                version_list = supported_major_versions.get(distro)
+                if (
+                    version_list is not None
+                    and node.os.information.version.major in version_list
+                ):
+                    return True
+                else:
+                    return False
+        return False
