@@ -2006,11 +2006,28 @@ def add_system_assign_identity(
 
     return object_id_vm
 
+def get_matching_key_vault_name(
+        platform: "AzurePlatform",
+        location: str,
+        resource_group: str,
+        pattern: str = "adelisa-\w{5}"
+    ) -> str:
+    """
+    Get the name of a Key Vault that exists in a specific region and resource group
+    and matches the given pattern.
+    """
+    key_vault_client = get_key_vault_management_client(platform)
+     
+    key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
+
+    for vault in key_vaults:
+        if vault.location == location:
+            if re.fullmatch(pattern, vault.name):
+                return vault.name
+    return None
 
 def create_keyvault(
     platform: "AzurePlatform",
-    tenant_id: str,
-    object_id: str,
     location: str,
     vault_name: str,
     resource_group_name: str,

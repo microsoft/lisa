@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import json
 import time
+import string
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -20,13 +21,15 @@ from lisa.operating_system import SLES, CBLMariner, CentOs, Oracle, Redhat, Suse
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
+    get_matching_key_vault_name,
     create_keyvault,
-    get_sp_object_id,
+    get_identity_id,
     get_tenant_id,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult
+from lisa.util import generate_random_chars
 
 
 def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
@@ -38,17 +41,25 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
     tenant_id = get_tenant_id(platform.credential)
     if tenant_id is None:
         raise ValueError("Environment variable 'tenant_id' is not set.")
-    object_id = get_sp_object_id(runbook.service_principal_client_id)
+    application_id = runbook.service_principal_client_id
+    object_id = get_identity_id(platform=platform, application_id=application_id)
     log.debug(f"Object ID: {object_id}")
     log.debug(f"Runbook: {runbook}")
     if object_id is None:
         raise ValueError("Environment variable 'object_id' is not set.")
 
-    # Create key vault
+ 
     node_capability = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
     location = node_capability.location
-    vault_name = f"adelisakv-{location}"
     shared_resource_group = runbook.shared_resource_group_name
+
+   # Create key vault if there is not available adelisa key vault for that region
+    existing_vault = get_matching_key_vault_name(platform, location, shared_resource_group, "adelisa-\w{5}")
+    if existing_vault:
+        vault_name = existing_vault
+    else:
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 5)
+        vault_name = f"adelisa-{random_str}"
 
     vault_properties = VaultProperties(
         tenant_id=tenant_id,
@@ -66,16 +77,14 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
     )
     keyvault_result = create_keyvault(
         platform=platform,
-        resource_group_name=shared_resource_group,
-        tenant_id=tenant_id,
-        object_id=object_id,
         location=location,
         vault_name=vault_name,
+        resource_group_name=shared_resource_group,
         vault_properties=vault_properties,
     )
 
     # Check if KeyVault is successfully created before proceeding
-    assert keyvault_result, f"Failed to create KeyVault with name: {vault_name}"
+    assert keyvault_result, f"Failed to create or update KeyVault with name: {vault_name}"
 
     # Run ADE Extension
     extension_name = "AzureDiskEncryptionForLinux"

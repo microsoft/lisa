@@ -93,8 +93,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         runbook = platform.runbook.get_extended_runbook(AzurePlatformSchema)
         resource_group_name = runbook.shared_resource_group_name
         application_id = runbook.service_principal_client_id
-        vault_name = f"kve-{platform.subscription_id[-5:]}"
         node_context = get_node_context(node)
+        vault_name = f"kve-{platform.subscription_id[-5:]}-{node_context.location}"
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
@@ -127,11 +127,9 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         # Create Key Vault
         keyvault_result = create_keyvault(
             platform=platform,
-            resource_group_name=resource_group_name,
-            tenant_id=tenant_id,
-            object_id=object_id,
             location=node_context.location,
             vault_name=vault_name,
+            resource_group_name=resource_group_name,
             vault_properties=vault_properties,
         )
 
