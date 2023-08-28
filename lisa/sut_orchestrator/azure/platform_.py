@@ -448,6 +448,7 @@ class AzurePlatform(Platform):
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,
+            features.CVMNestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
             features.Resize,
@@ -487,7 +488,7 @@ class AzurePlatform(Platform):
 
         # covert to azure node space, so the azure extensions can be loaded.
         for req in nodes_requirement:
-            self._load_image_features(req)
+            self._set_image_features(req)
 
         is_success: bool = False
 
@@ -2591,12 +2592,24 @@ class AzurePlatform(Platform):
         else:
             ...
 
-    def _load_image_features(self, node_space: schema.NodeSpace) -> None:
+    def _check_image_capability(self, node_space: schema.NodeSpace) -> None:
+        azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
+        if azure_runbook.vhd:
+            if node_space.network_interface:
+                data_path = search_space.intersect_setspace_by_priority(  # type: ignore
+                    node_space.network_interface.data_path,
+                    azure_runbook.vhd.network_data_path,
+                    [],
+                )
+                node_space.network_interface.data_path = data_path
+
+    def _set_image_features(self, node_space: schema.NodeSpace) -> None:
         # This method does the same thing as _convert_to_azure_node_space
         # method, and attach the additional features. The additional features
         # need Azure platform, so it needs to be in Azure Platform.
         _convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
+        self._check_image_capability(node_space)
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
