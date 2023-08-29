@@ -74,6 +74,7 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
             ),
         ],
     )
+    # If the KV exists, this will just ensure the properties are correct for ADE
     keyvault_result = create_keyvault(
         platform=platform,
         location=location,
@@ -82,7 +83,7 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
         vault_properties=vault_properties,
     )
 
-    # Check if KeyVault is successfully created before proceeding
+    # Check if KeyVault is successfully created or updated before proceeding
     assert (
         keyvault_result
     ), f"Failed to create or update KeyVault with name: {vault_name}"
@@ -124,7 +125,7 @@ class AzureDiskEncryption(TestSuite):
         description="""
         Runs the ADE extension and verifies it enabled and fully encrypted the remote machine successfully.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_azure_disk_encryption_enabled(
@@ -141,19 +142,19 @@ class AzureDiskEncryption(TestSuite):
         max_retries = 24
         retry_interval = 300  # 5 minutes in seconds
         os_status = None
+        extension = node.features[AzureExtension]
+        extension_status = extension.get(name="AzureDiskEncryptionForLinux")
+        instance_view = extension_status.instance_view
+        substatuses = instance_view.substatuses
+        log.debug(f"Extension status: {extension_status}")
+        log.debug(f"Instance view: {instance_view}")
 
         for i in range(max_retries):
-            extension = node.features[AzureExtension]
             extension_status = extension.get(name="AzureDiskEncryptionForLinux")
             instance_view = extension_status.instance_view
             substatuses = instance_view.substatuses
-            log.debug(f"Extension status: {extension_status}")
-            log.debug(f"Instance view: {instance_view}")
-            log.debug(f"Substatuses: {substatuses}")
-
             for substatus in substatuses:
                 log.debug(f"Substatus: {substatus}")
-
                 try:
                     message_json = json.loads(substatus.message)
                     os_status = message_json.get("os")
