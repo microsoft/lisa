@@ -3,10 +3,11 @@
 import json
 import string
 import time
+from typing import Any
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku
 from azure.mgmt.keyvault.models import VaultProperties
 
 from lisa import (
@@ -32,7 +33,7 @@ from lisa.testsuite import TestResult
 from lisa.util import generate_random_chars
 
 
-def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
+def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> Any:
     environment = result.environment
     assert environment, "fail to get environment from testresult"
     platform = environment.platform
@@ -52,7 +53,7 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
 
     # Create key vault if there is not available adelisa key vault for that region
     existing_vault = get_matching_key_vault_name(
-        platform, location, shared_resource_group, "adelisa-\w{5}"
+        platform, location, shared_resource_group, r"adelisa-\w{5}"
     )
     if existing_vault:
         vault_name = existing_vault
@@ -123,7 +124,8 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> any:
 class AzureDiskEncryption(TestSuite):
     @TestCaseMetadata(
         description="""
-        Runs the ADE extension and verifies it enabled and fully encrypted the remote machine successfully.
+        Runs the ADE extension and verifies it
+        fully encrypted the remote machine successfully.
         """,
         priority=3,
         requirement=simple_requirement(supported_features=[AzureExtension]),
@@ -182,7 +184,8 @@ class AzureDiskEncryption(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the ADE extension and verifies the extension provisioned successfully on the remote machine.
+        Runs the ADE extension and verifies the extension
+        provisioned successfully on the remote machine.
         """,
         priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),

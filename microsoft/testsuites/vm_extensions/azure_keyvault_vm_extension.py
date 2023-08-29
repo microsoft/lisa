@@ -7,7 +7,7 @@ from typing import List
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku
 from azure.mgmt.keyvault.models import VaultProperties
 
 from lisa import (

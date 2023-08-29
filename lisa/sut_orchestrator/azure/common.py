@@ -23,9 +23,12 @@ from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.keyvault import KeyVaultManagementClient
-from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku
-from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
+from azure.mgmt.keyvault.models import (
+    AccessPolicyEntry,
+    Permissions,
+    VaultCreateOrUpdateParameters,
+    VaultProperties,
+)
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -2064,7 +2067,7 @@ def get_matching_key_vault_name(
     location: str,
     resource_group: str,
     pattern: str = ".*",
-) -> str:
+) -> Any:
     """
     Get the name of a Key Vault that exists in a specific region and resource group
     and matches the given pattern.
