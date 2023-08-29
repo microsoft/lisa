@@ -2070,7 +2070,6 @@ def get_matching_key_vault_name(
     and matches the given pattern.
     """
     key_vault_client = get_key_vault_management_client(platform)
-
     key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
 
     for vault in key_vaults:
