@@ -202,17 +202,17 @@ class AzureDiskEncryption(TestSuite):
         return extension_result
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
-        supported_major_versions = {
-            Redhat: [7, 8, 9],
-            CentOs: [7, 8],
-            Oracle: [8],
-            Ubuntu: [18, 20, 22],
-            CBLMariner: [2],
+        minimum_supported_major_versions = {
+            Redhat: 7,
+            CentOs: 7,
+            Oracle: 8,
+            Ubuntu: 18,
+            CBLMariner: 2,
         }
 
-        for distro, versions in supported_major_versions.items():
+        for distro, min_supported_version in minimum_supported_major_versions.items():
             if isinstance(node.os, distro):
-                min_supported_version = min(versions)
                 if node.os.information.version.major >= min_supported_version:
                     return True
+
         return False
