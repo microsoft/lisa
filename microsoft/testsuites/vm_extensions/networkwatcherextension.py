@@ -1,7 +1,4 @@
-import string
-from datetime import datetime, timezone
 from typing import Any
-
 from assertpy import assert_that
 
 from lisa import (
@@ -50,9 +47,7 @@ class NetworkWatcherExtension(TestSuite):
             supported_features=[AzureExtension],
         ),
     )
-    def verify_azure_network_watcher(
-        self, log: Logger, node: Node
-    ) -> None:
+    def verify_azure_network_watcher(self, log: Logger, node: Node) -> None:
 
         # Run VM Extension
         extension = node.features[AzureExtension]
@@ -83,11 +78,10 @@ class NetworkWatcherExtension(TestSuite):
             Redhat: [7, 8],
             CentOs: [6, 7],
             Oracle: [6, 7],
-            Debian: [8, 9, 10, 11],
-            Ubuntu: [14, 16, 18, 20],
+            Debian: [7, 8, 9, 10, 11],
+            Ubuntu: [16, 18, 20, 22],
             Suse: [12, 15],
             SLES: [12, 15],
-            AlmaLinux: [8],
             CBLMariner: [2],
         }
 
