@@ -16,6 +16,8 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
+    search_space,
     simple_requirement,
 )
 from lisa.operating_system import SLES, CBLMariner, CentOs, Oracle, Redhat, Suse, Ubuntu
@@ -29,7 +31,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
-from lisa.testsuite import TestResult
+from lisa.testsuite import TestResult, node_requirement
 from lisa.util import generate_random_chars
 
 
@@ -115,10 +117,12 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> Any:
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
-    requirement=simple_requirement(
-        supported_features=[AzureExtension],
+    requirement=node_requirement(
         supported_platform_type=[AZURE],
         supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
+        node=schema.NodeSpace(
+            core_count=1, memory_mb=search_space.IntRange(min=8 * 1024)
+        ),
     ),
 )
 class AzureDiskEncryption(TestSuite):
@@ -128,6 +132,7 @@ class AzureDiskEncryption(TestSuite):
         fully encrypted the remote machine successfully.
         """,
         priority=3,
+        timeout=3600 * 2,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_azure_disk_encryption_enabled(
