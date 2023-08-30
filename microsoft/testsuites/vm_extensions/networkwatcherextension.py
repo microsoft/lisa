@@ -1,4 +1,5 @@
 from typing import Any
+
 from assertpy import assert_that
 
 from lisa import (
@@ -11,7 +12,6 @@ from lisa import (
 )
 from lisa.operating_system import (
     SLES,
-    AlmaLinux,
     CBLMariner,
     CentOs,
     Debian,
@@ -48,7 +48,6 @@ class NetworkWatcherExtension(TestSuite):
         ),
     )
     def verify_azure_network_watcher(self, log: Logger, node: Node) -> None:
-
         # Run VM Extension
         extension = node.features[AzureExtension]
 
@@ -78,7 +77,7 @@ class NetworkWatcherExtension(TestSuite):
             Redhat: [7, 8],
             CentOs: [6, 7],
             Oracle: [6, 7],
-            Debian: [7, 8, 9, 10, 11],
+            Debian: [7, 8],
             Ubuntu: [16, 18, 20, 22],
             Suse: [12, 15],
             SLES: [12, 15],
@@ -91,21 +90,8 @@ class NetworkWatcherExtension(TestSuite):
                 if (
                     version_list is not None
                     and node.os.information.version.major in version_list
-                    and not self._is_unsupported_version(node)
                 ):
                     return True
                 else:
                     return False
         return False
-
-    def _is_unsupported_version(self, node: Node) -> bool:
-        """
-        These are specific Linux distro versions that are
-        not supported by Azure Network Watcher Extension,
-        even though the major version is generally supported
-        """
-        version = node.os.information.version
-        if type(node.os) and (version == "8.0.0" or version == "8.0.1"):
-            return True
-        else:
-            return False
