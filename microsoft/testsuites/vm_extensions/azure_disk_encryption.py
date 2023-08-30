@@ -10,16 +10,8 @@ from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
 from azure.mgmt.keyvault.models import Sku as KeyVaultSku
 from azure.mgmt.keyvault.models import VaultProperties
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    schema,
-    search_space,
-)
-from lisa.operating_system import SLES, CBLMariner, CentOs, Oracle, Redhat, Suse, Ubuntu
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -30,7 +22,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
-from lisa.testsuite import TestResult, node_requirement
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import generate_random_chars
 
 
@@ -116,6 +108,12 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> Any:
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
+    requirement=simple_requirement(
+        min_memory_mb=8 * 1024,
+        supported_features=[AzureExtension],
+        supported_platform_type=[AZURE],
+        supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat],
+    ),
 )
 class AzureDiskEncryption(TestSuite):
     @TestCaseMetadata(
@@ -125,14 +123,6 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=3,
         timeout=3600 * 2,
-        requirement=node_requirement(
-            node=schema.NodeSpace(
-                memory_mb=search_space.IntRange(min=8 * 1024), core_count=2
-            ),
-            supported_features=[AzureExtension],
-            supported_platform_type=[AZURE],
-            supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
-        ),
     )
     def verify_azure_disk_encryption_enabled(
         self, log: Logger, node: Node, result: TestResult
@@ -192,12 +182,6 @@ class AzureDiskEncryption(TestSuite):
         provisioned successfully on the remote machine.
         """,
         priority=1,
-        requirement=node_requirement(
-            node=schema.NodeSpace(memory_mb=search_space.IntRange(min=8 * 1024)),
-            supported_features=[AzureExtension],
-            supported_platform_type=[AZURE],
-            supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
-        ),
     )
     def verify_azure_disk_encryption_provisioned(
         self, log: Logger, node: Node, result: TestResult

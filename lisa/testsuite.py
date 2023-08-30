@@ -334,9 +334,6 @@ def node_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
-    supported_features: Optional[
-        List[Union[Type[Feature], schema.FeatureSettings, str]]
-    ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
@@ -345,7 +342,7 @@ def node_requirement(
         unsupported_platform_type,
         supported_os,
         unsupported_os,
-        supported_features,
+        None,
         None,
         environment_status,
     )
@@ -355,6 +352,7 @@ def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
     min_gpu_count: int = 0,
+    min_memory_mb: Optional[int] = None,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
@@ -378,6 +376,8 @@ def simple_requirement(
     node.node_count = search_space.IntRange(min=min_count)
     node.core_count = search_space.IntRange(min=min_core_count)
     node.gpu_count = search_space.IntRange(min=min_gpu_count)
+    if min_memory_mb:
+        node.memory_mb = search_space.IntRange(min=min_memory_mb)
 
     if min_data_disk_count or disk:
         if not disk:
