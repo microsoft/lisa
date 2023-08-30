@@ -23,7 +23,11 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.util import SkippedException, generate_random_chars
+from lisa.util import (
+    SkippedException,
+    UnsupportedDistroException,
+    generate_random_chars,
+)
 
 
 @TestSuiteMetadata(
@@ -40,9 +44,7 @@ class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not self._is_supported_linux_distro(node):
-            raise SkippedException(
-                f"{str(node.os.information.full_version)} is not supported."
-            )
+            raise SkippedException(UnsupportedDistroException(node.os))
 
     @TestCaseMetadata(
         description="""
@@ -208,14 +210,9 @@ class AzureDiskEncryption(TestSuite):
             CBLMariner: [2],
         }
 
-        for distro in supported_major_versions:
-            if type(node.os) == distro:
-                version_list = supported_major_versions.get(distro)
-                if (
-                    version_list is not None
-                    and node.os.information.version.major in version_list
-                ):
+        for distro, versions in supported_major_versions.items():
+            if isinstance(node.os, distro):
+                min_supported_version = min(versions)
+                if node.os.information.version.major >= min_supported_version:
                     return True
-                else:
-                    return False
         return False
