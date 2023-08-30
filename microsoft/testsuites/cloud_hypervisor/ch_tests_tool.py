@@ -33,11 +33,15 @@ class CloudHypervisorTests(Tool):
     PERF_CMD_TIME_OUT = 900
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
+    env_vars = {
+        "RUST_BACKTRACE": "full",
+    }
 
     ms_clh_repo = ""
     ms_igvm_parser_repo = ""
     use_ms_clh_repo = False
     ms_access_token = ""
+    clh_guest_vm_type = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -90,6 +94,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
             shell=True,
+            update_envs=self.env_vars,
         )
 
         # Report subtest results and collect logs before doing any
@@ -163,14 +168,17 @@ class CloudHypervisorTests(Tool):
             if subtest_timeout:
                 cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
             try:
+                cmd_timeout = self.PERF_CMD_TIME_OUT
+                if self.clh_guest_vm_type == "CVM":
+                    cmd_timeout = cmd_timeout + 300
                 result = self.run(
                     cmd_args,
-                    timeout=self.PERF_CMD_TIME_OUT,
+                    timeout=cmd_timeout,
                     force_run=True,
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
                     shell=True,
-                    update_envs={"RUST_BACKTRACE": "full"},
+                    update_envs=self.env_vars,
                 )
 
                 if result.exit_code == 0:
@@ -225,6 +233,7 @@ class CloudHypervisorTests(Tool):
                 clone_path,
                 auth_token=self.ms_access_token,
             )
+            self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
         else:
             git.clone(self.upstream_repo, clone_path)
 
