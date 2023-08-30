@@ -29,20 +29,21 @@ from lisa.util import (
     generate_random_chars,
 )
 
+TIME_LIMIT = 3600 * 2
+MIN_REQUIRED_MEMORY_MB = 8 * 1024
+
 
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
     requirement=simple_requirement(
-        min_memory_mb=8 * 1024,
+        min_memory_mb=MIN_REQUIRED_MEMORY_MB,
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
     ),
 )
 class AzureDiskEncryption(TestSuite):
-    TIME_LIMIT = 3600 * 2
-
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not self._is_supported_linux_distro(node):
