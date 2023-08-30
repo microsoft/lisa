@@ -41,6 +41,8 @@ from lisa.util import (
     ),
 )
 class AzureDiskEncryption(TestSuite):
+    TIME_LIMIT = 3600 * 2
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not self._is_supported_linux_distro(node):
@@ -52,7 +54,7 @@ class AzureDiskEncryption(TestSuite):
         fully encrypted the remote machine successfully.
         """,
         priority=3,
-        timeout=3600 * 2,
+        timeout=TIME_LIMIT,
     )
     def verify_azure_disk_encryption_enabled(
         self, log: Logger, node: Node, result: TestResult
