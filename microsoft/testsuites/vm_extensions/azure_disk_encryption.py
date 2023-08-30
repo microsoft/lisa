@@ -18,7 +18,6 @@ from lisa import (
     TestSuiteMetadata,
     schema,
     search_space,
-    simple_requirement,
 )
 from lisa.operating_system import SLES, CBLMariner, CentOs, Oracle, Redhat, Suse, Ubuntu
 from lisa.sut_orchestrator import AZURE
@@ -117,13 +116,6 @@ def _enable_ade_extension(node: Node, log: Logger, result: TestResult) -> Any:
     area="vm_extension",
     category="functional",
     description="Tests for the Azure Disk Encryption (ADE) extension",
-    requirement=node_requirement(
-        supported_platform_type=[AZURE],
-        supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
-        node=schema.NodeSpace(
-            core_count=1, memory_mb=search_space.IntRange(min=8 * 1024)
-        ),
-    ),
 )
 class AzureDiskEncryption(TestSuite):
     @TestCaseMetadata(
@@ -133,7 +125,14 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=3,
         timeout=3600 * 2,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                memory_mb=search_space.IntRange(min=8 * 1024), core_count=2
+            ),
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
+        ),
     )
     def verify_azure_disk_encryption_enabled(
         self, log: Logger, node: Node, result: TestResult
@@ -193,7 +192,12 @@ class AzureDiskEncryption(TestSuite):
         provisioned successfully on the remote machine.
         """,
         priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=node_requirement(
+            node=schema.NodeSpace(memory_mb=search_space.IntRange(min=8 * 1024)),
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            supported_os=[Ubuntu, CBLMariner, CentOs, Oracle, Redhat, SLES, Suse],
+        ),
     )
     def verify_azure_disk_encryption_provisioned(
         self, log: Logger, node: Node, result: TestResult

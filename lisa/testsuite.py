@@ -334,6 +334,9 @@ def node_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
@@ -342,7 +345,7 @@ def node_requirement(
         unsupported_platform_type,
         supported_os,
         unsupported_os,
-        None,
+        supported_features,
         None,
         environment_status,
     )
