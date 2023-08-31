@@ -22,6 +22,7 @@ class Cp(Tool):
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
         recur: bool = False,
+        timeout: int = 600,
     ) -> None:
         cmd = f"{src} {dest}"
         if recur:
@@ -32,6 +33,7 @@ class Cp(Tool):
             sudo=sudo,
             cwd=cwd,
             shell=True,
+            timeout=timeout,
         )
 
         # cp copies all the files except folders in the source
