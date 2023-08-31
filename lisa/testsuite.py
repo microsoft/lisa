@@ -12,6 +12,7 @@ from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from retry import retry
 from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
@@ -672,6 +673,7 @@ class TestSuite:
                 log_dir.mkdir(parents=True)
                 serial_console.get_console_log(log_dir, force_run=True)
 
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:
             path = (
