@@ -184,7 +184,12 @@ def _run_script(
     timer = create_timer()
     script: CustomScript = node.tools[cvt_script]
     params = test_dir + " /dev/" + data_disks[0] + " /dev/" + data_disks[1]
-    result = script.run(parameters=params, timeout=19800, sudo=True)
+    result = script.run(
+        parameters=params,
+        timeout=19800,
+        shell=True,
+        sudo=True,
+    )
     log.info(f"Script run with param {params} finished within {timer}")
     return result
 
