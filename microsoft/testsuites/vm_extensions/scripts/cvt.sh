@@ -167,8 +167,6 @@ run_tests()
     mkdir $mnt_path > /dev/null 2>&1
     mount "$diskname" "$mnt_path"
 
-    rm -rf $mnt_path/*
-
     testcases=('mixed' '16k_random' '16k_seq' '1mb_random' '1mb_seq' '4k_random' '4k_seq' '4mb_random' '4mb_seq' '512k_random' '512k_seq' '64k_random' '64k_seq' '8mb_random' '8mb_seq' '9mb_random' '9mb_seq')
     ntests=${#testcases[@]}
     log "Total Tests: $ntests"
