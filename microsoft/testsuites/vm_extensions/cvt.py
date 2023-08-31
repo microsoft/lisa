@@ -5,12 +5,11 @@ import datetime
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from assertpy import assert_that
 
 from lisa import (
-    CustomScript,
     CustomScriptBuilder,
     Logger,
     Node,
@@ -24,16 +23,44 @@ from lisa import (
 from lisa.executable import ExecutableResult
 from lisa.features import Disk
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Find, Wget
+from lisa.tools import Find, Lsblk, Wget
 from lisa.util import SkippedException
 
 
-def _init_disk(log: Logger, node: Node) -> None:
+def _add_data_disk(log: Logger, node: Node, size_in_gb: int) -> str:
     disk = node.features[Disk]
-    log.info("Adding 1st managed disk of size 1GB")
-    disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 1)
-    log.info("Adding 2nd managed disk of size 10GB")
-    disk.add_data_disk(1, schema.DiskType.PremiumSSDLRS, 10)
+    lsblk = node.tools[Lsblk]
+
+    # get partition info before adding data disk
+    partitions_before_adding_disk = lsblk.get_disks(force_run=True)
+    data_disk = disk.add_data_disk(
+        1,
+        schema.DiskType.PremiumSSDLRS,
+        size_in_gb
+    )
+    log.info(f"Added disk '{data_disk}' of size '{size_in_gb}'GB")
+    partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+    added_partitions = [
+        item
+        for item in partitons_after_adding_disk
+        if item not in partitions_before_adding_disk
+    ]
+    assert_that(added_partitions, "Data disk should be added").is_length(1)
+    disk_name = added_partitions[0].name
+    log.info(f"Disk name : '{disk_name}'")
+    return disk_name
+
+
+def _remove_data_disk(log: Logger, node: Node) -> None:
+    disk = node.features[Disk]
+    disk.remove_data_disk()
+    log.info("Detached all data disks")
+
+
+def _init_disk(log: Logger, node: Node) -> [str, str]:
+    data_disk1 = _add_data_disk(log=log, node=node, size_in_gb=1)
+    data_disk2 = _add_data_disk(log=log, node=node, size_in_gb=10)
+    return [data_disk1, data_disk2]
 
 
 def _get_extension_name(log: Logger, os: str) -> str:
@@ -147,12 +174,17 @@ def _install_asr_extension_distro(log: Logger, node: Node, os: str) -> None:
 
 
 def _run_script(
-    node: Node, log: Logger, test_dir: str, cvt_script: CustomScriptBuilder
+    node: Node,
+    log: Logger,
+    test_dir: str,
+    cvt_script: CustomScriptBuilder,
+    data_disks: [str, str],
 ) -> ExecutableResult:
     timer = create_timer()
-    script: CustomScript = node.tools[cvt_script]
-    result = script.run(parameters=test_dir, timeout=19800, sudo=True)
-    log.info(f"Script run with param {test_dir} finished within {timer}")
+    script = node.tools[cvt_script]
+    params = test_dir + " /dev/" + data_disks[0] + " /dev/" + data_disks[1]
+    result = script.run(parameters=params, timeout=19800, sudo=True)
+    log.info(f"Script run with param {params} finished within {timer}")
     return result
 
 
@@ -195,20 +227,18 @@ def _run_cvt_tests(
     log: Logger,
     node: Node,
     log_path: Path,
-    variables: Dict[str, Any],
+    container_sas_uri: str,
     os: str,
     cvt_script: CustomScriptBuilder,
+    data_disks: [str, str],
 ) -> Optional[int]:
     cvt_bin = "indskflt_ct"
     max_log_length = 200
-    container_sas_uri = variables.get("cvtbinaries_sasuri", "")
-    if not container_sas_uri:
-        raise SkippedException("cvtbinaries_sasuri is not provided.")
     cvt_binary_sas_uri = container_sas_uri.replace(
         "?", "/cvtbinaries/indskflt_ct_" + os + "?"
     )
 
-    cvt_download_dir = str(node.working_path) + "cvt_files/"
+    cvt_download_dir = str(node.working_path) + "/cvt_files/"
 
     wget = node.tools[Wget]
 
@@ -223,7 +253,11 @@ def _run_cvt_tests(
     log.info(f"md5sum '{download_path}' : '{cvt_md5sum}'")
 
     result = _run_script(
-        node=node, log=log, test_dir=cvt_download_dir, cvt_script=cvt_script
+        node=node,
+        log=log,
+        test_dir=cvt_download_dir,
+        cvt_script=cvt_script,
+        data_disks=data_disks,
     )
     cvt_stdout = result.stdout
     if len(cvt_stdout) > max_log_length:
@@ -268,9 +302,7 @@ class CVTTest(TestSuite):
         node: Node,
         log: Logger,
         log_path: Path,
-        variables: Dict[str, Any],
     ) -> None:
-        _init_disk(node=node, log=log)
         os = _get_os_info_from_extension(node=node, log=log)
         if not os:
             raise SkippedException("Failed to determine the OS.")
@@ -279,14 +311,25 @@ class CVTTest(TestSuite):
             node=node,
             log=log,
             log_path=log_path,
-            variables=variables,
+            container_sas_uri=self._container_sas_uri,
             os=os,
             cvt_script=self._cvt_script,
+            data_disks=self._data_disks
         )
         log.info(f"ASR CVT test completed with exit code '{result}'")
         assert_that(result).described_as("ASR CVT test failed").is_equal_to(0)
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        variables = kwargs["variables"]
+        node = kwargs["node"]
+        self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
+        if not self._container_sas_uri:
+            raise SkippedException("cvt binary is not provided.")
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
+        self._data_disks = _init_disk(node=node, log=log)
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        _remove_data_disk(node=node, log=log)

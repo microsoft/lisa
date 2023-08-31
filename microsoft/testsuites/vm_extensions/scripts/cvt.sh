@@ -1,6 +1,8 @@
 #!/bin/bash -x
 
 tdir=$1
+src_disk=$2
+tgt_disk=$3
 FAILED_TEST=1
 PASSED_TEST=0
 log()
@@ -156,16 +158,16 @@ run_tests()
     failed=0
     stime=10
     ctests=0
-
-    umount /data
-    diskname=$(fdisk -l 2>/dev/null | grep -o "/dev/sd[d-i]")
+    mnt_path="/data"
+    umount $mnt_path
+    diskname=$tgt_disk
     log "Formatting Disk"
     yes | mkfs "$diskname"
-    log "Mounting $diskname to /data"
-    mkdir /data > /dev/null 2>&1
-    mount "$diskname" /data
+    log "Mounting $diskname to $mnt_path"
+    mkdir $mnt_path > /dev/null 2>&1
+    mount "$diskname" "$mnt_path"
 
-    rm -rf /data/*
+    rm -rf $mnt_path/*
 
     testcases=('mixed' '16k_random' '16k_seq' '1mb_random' '1mb_seq' '4k_random' '4k_seq' '4mb_random' '4mb_seq' '512k_random' '512k_seq' '64k_random' '64k_seq' '8mb_random' '8mb_seq' '9mb_random' '9mb_seq')
     ntests=${#testcases[@]}
@@ -176,12 +178,12 @@ run_tests()
     for testcase in "${testcases[@]}"; do
         echo -e "$ctests/$ntests\r"
         log "Starting $testcase test"
-        startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
+        startcvt "$src_disk" "$mnt_path" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
         failed=$?
         if [[ $failed != 0 ]]; then
             sleep $stime
             # might have failed to take barrier, retry
-            startcvt "/dev/sdc" "/data" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
+            startcvt "$src_disk" "$mnt_path" "$testcase" "$TESTNAME" > "$tdir"/"$testcase".log 2>&1
             failed=$?
         fi
         ((ctests++))
