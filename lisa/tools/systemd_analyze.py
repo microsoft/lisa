@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from pathlib import PurePath
 
 from retry import retry
 
@@ -76,6 +77,9 @@ class SystemdAnalyze(Tool):
         )
         boot_time.provision_time = self.node.provision_time
         return boot_time
+
+    def plot(self, output_file: PurePath, sudo: bool = False) -> None:
+        self.run(f"plot > {output_file}", shell=True, sudo=sudo, expected_exit_code=0)
 
     def _convert_rawstr_into_value(self, raw_str: str) -> float:
         value_list = raw_str.strip().split()
