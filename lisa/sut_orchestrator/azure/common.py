@@ -23,9 +23,12 @@ from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
 from azure.mgmt.keyvault import KeyVaultManagementClient
-from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
-from azure.mgmt.keyvault.models import Sku as KeyVaultSku
-from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
+from azure.mgmt.keyvault.models import (
+    AccessPolicyEntry,
+    Permissions,
+    VaultCreateOrUpdateParameters,
+    VaultProperties,
+)
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -2059,29 +2062,34 @@ def add_system_assign_identity(
     return object_id_vm
 
 
+def get_matching_key_vault_name(
+    platform: "AzurePlatform",
+    location: str,
+    resource_group: str,
+    pattern: str = ".*",
+) -> Any:
+    """
+    Get the name of a Key Vault that exists in a specific region and resource group
+    and matches the given pattern.
+    """
+    key_vault_client = get_key_vault_management_client(platform)
+    key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
+
+    for vault in key_vaults:
+        if vault.location == location:
+            if re.fullmatch(pattern, vault.name):
+                return vault.name
+    return None
+
+
 def create_keyvault(
     platform: "AzurePlatform",
-    tenant_id: str,
-    object_id: str,
     location: str,
     vault_name: str,
     resource_group_name: str,
+    vault_properties: VaultProperties,
 ) -> Any:
     keyvault_client = get_key_vault_management_client(platform)
-
-    vault_properties = VaultProperties(
-        tenant_id=tenant_id,
-        sku=KeyVaultSku(name="standard"),
-        access_policies=[
-            AccessPolicyEntry(
-                tenant_id=tenant_id,
-                object_id=object_id,
-                permissions=Permissions(
-                    keys=["all"], secrets=["all"], certificates=["all"]
-                ),
-            ),
-        ],
-    )
 
     parameters = VaultCreateOrUpdateParameters(
         location=location, properties=vault_properties

@@ -6,6 +6,9 @@ import re
 from typing import Any, List
 
 from assertpy import assert_that
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku
+from azure.mgmt.keyvault.models import VaultProperties
 
 from lisa import (
     Logger,
@@ -114,15 +117,27 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             location=node_context.location,
             log=log,
         )
+        vault_properties = VaultProperties(
+            tenant_id=tenant_id,
+            sku=KeyVaultSku(name="standard"),
+            access_policies=[
+                AccessPolicyEntry(
+                    tenant_id=tenant_id,
+                    object_id=object_id,
+                    permissions=Permissions(
+                        keys=["all"], secrets=["all"], certificates=["all"]
+                    ),
+                ),
+            ],
+        )
 
         # Create Key Vault
         keyvault_result = create_keyvault(
             platform=platform,
-            resource_group_name=resource_group_name,
-            tenant_id=tenant_id,
-            object_id=object_id,
             location=node_context.location,
             vault_name=vault_name,
+            resource_group_name=resource_group_name,
+            vault_properties=vault_properties,
         )
 
         # Check if KeyVault is successfully created before proceeding
