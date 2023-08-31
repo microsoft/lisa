@@ -5,11 +5,12 @@ import datetime
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from assertpy import assert_that
 
 from lisa import (
+    CustomScript,
     CustomScriptBuilder,
     Logger,
     Node,
@@ -34,7 +35,9 @@ def _add_data_disk(log: Logger, node: Node, size_in_gb: int) -> str:
     # get partition info before adding data disk
     partitions_before_adding_disk = lsblk.get_disks(force_run=True)
     data_disk = disk.add_data_disk(
-        1, schema.DiskType.PremiumSSDLRS, size_in_gb
+        count=1,
+        disk_type=schema.DiskType.PremiumSSDLRS,
+        size_in_gb=size_in_gb,
     )
     log.info(f"Added disk '{data_disk}' of size '{size_in_gb}'GB")
     partitons_after_adding_disk = lsblk.get_disks(force_run=True)
@@ -55,7 +58,7 @@ def _remove_data_disk(log: Logger, node: Node) -> None:
     log.info("Detached all data disks")
 
 
-def _init_disk(log: Logger, node: Node) -> [str, str]:
+def _init_disk(log: Logger, node: Node) -> List[str]:
     data_disk1 = _add_data_disk(log=log, node=node, size_in_gb=1)
     data_disk2 = _add_data_disk(log=log, node=node, size_in_gb=10)
     return [data_disk1, data_disk2]
@@ -176,10 +179,10 @@ def _run_script(
     log: Logger,
     test_dir: str,
     cvt_script: CustomScriptBuilder,
-    data_disks: [str, str],
+    data_disks: List[str],
 ) -> ExecutableResult:
     timer = create_timer()
-    script = node.tools[cvt_script]
+    script: CustomScript = node.tools[cvt_script]
     params = test_dir + " /dev/" + data_disks[0] + " /dev/" + data_disks[1]
     result = script.run(parameters=params, timeout=19800, sudo=True)
     log.info(f"Script run with param {params} finished within {timer}")
@@ -228,7 +231,7 @@ def _run_cvt_tests(
     container_sas_uri: str,
     os: str,
     cvt_script: CustomScriptBuilder,
-    data_disks: [str, str],
+    data_disks: List[str],
 ) -> Optional[int]:
     cvt_bin = "indskflt_ct"
     max_log_length = 200
