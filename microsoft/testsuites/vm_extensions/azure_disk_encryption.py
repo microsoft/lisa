@@ -231,7 +231,7 @@ class AzureDiskEncryption(TestSuite):
         unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
             Oracle: {"major": 8, "minor": 5},
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
-            Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+            Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 3}],
         }
 
         version_info = node.os.information.version
