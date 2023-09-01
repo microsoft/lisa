@@ -30,6 +30,19 @@ try:
 except ModuleNotFoundError as e:
     print(f"azure package is not installed. [{e}]")
 
+# Baremetal modules
+try:
+    import lisa.sut_orchestrator.baremetal.build  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.cluster  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.idrac  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.rackmanager  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.ip_getter  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.platform_  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.readychecker  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.source  # noqa: F401
+except ModuleNotFoundError as e:
+    print(f"baremetal package is not installed. [{e}]")
+
 # Aws modules
 try:
     import lisa.sut_orchestrator.aws.platform_  # noqa: F401

@@ -126,6 +126,7 @@ class OperatingSystem:
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
+    __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
@@ -208,6 +209,9 @@ class OperatingSystem:
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
+        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
+
         cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
 
@@ -661,6 +665,12 @@ class Posix(OperatingSystem, BaseClassMixin):
 
 class BSD(Posix):
     ...
+
+
+class BMC(Posix):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^wcscli$")
 
 
 class MacOS(Posix):

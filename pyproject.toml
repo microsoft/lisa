@@ -94,6 +94,12 @@ libvirt = [
     "pycdlib ~= 1.12.0; platform_system != 'Windows'",
 ]
 
+baremetal = [
+    "azure-devops ~= 7.1.0b3",
+    "pysmb ~= 1.2.9.1",
+    "redfish ~= 3.2.1",
+]
+
 mypy = [
     "mypy == 0.942",
 ]
