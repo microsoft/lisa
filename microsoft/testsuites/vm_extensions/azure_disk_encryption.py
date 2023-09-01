@@ -213,9 +213,21 @@ class AzureDiskEncryption(TestSuite):
             CBLMariner: 2,
         }
 
+        if self._is_unsupported_version(node):
+            return False
+
         for distro, min_supported_version in minimum_supported_major_versions.items():
             if isinstance(node.os, distro):
                 if node.os.information.version.major >= min_supported_version:
                     return True
 
+        return False
+
+    def _is_unsupported_version(self, node: Node) -> bool:
+        if isinstance(node.os, Oracle):
+            version_info = node.os.information.version
+            major_version = version_info.major
+            minor_version = version_info.minor
+            if major_version == 8 and minor_version < 5:
+                return True
         return False
