@@ -3,7 +3,7 @@
 import json
 import string
 import time
-from typing import Any
+from typing import Any, Dict, List, Union
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -31,6 +31,10 @@ from lisa.util import (
 
 TIME_LIMIT = 3600 * 2
 MIN_REQUIRED_MEMORY_MB = 8 * 1024
+
+# Define a type alias for readability
+# It will either be a single dictionary or a list of dictionaries.
+UnsupportedVersionInfo = Union[Dict[str, int], List[Dict[str, int]]]
 
 
 @TestSuiteMetadata(
@@ -224,26 +228,29 @@ class AzureDiskEncryption(TestSuite):
         return False
 
     def _is_unsupported_version(self, node: Node) -> bool:
-        if isinstance(node.os, Oracle):
-            version_info = node.os.information.version
-            major_version = version_info.major
-            minor_version = version_info.minor
-            if major_version == 8 and minor_version < 5:
-                return True
-        if isinstance(node.os, CentOs):
-            version_info = node.os.information.version
-            major_version = version_info.major
-            minor_version = version_info.minor
-            if major_version == 8 and minor_version < 1:
-                return True
-            if major_version == 7 and minor_version < 4:
-                return True
-        if isinstance(node.os, Redhat):
-            version_info = node.os.information.version
-            major_version = version_info.major
-            minor_version = version_info.minor
-            if major_version == 8 and minor_version < 1:
-                return True
-            if major_version == 7 and minor_version < 4:
-                return True
+        unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
+            Oracle: {"major": 8, "minor": 5},
+            CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+            Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+        }
+
+        version_info = node.os.information.version
+        major_version = version_info.major
+        minor_version = version_info.minor
+
+        for distro, versions in unsupported_versions.items():
+            if isinstance(node.os, distro):
+                if isinstance(versions, list):  # List[Dict[str, int]]
+                    for version in versions:
+                        if (
+                            major_version == version["major"]
+                            and minor_version < version["minor"]
+                        ):
+                            return True
+                else:  # Dict[str, int]
+                    if (
+                        major_version == versions["major"]
+                        and minor_version < versions["minor"]
+                    ):
+                        return True
         return False
