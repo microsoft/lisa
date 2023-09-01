@@ -228,50 +228,29 @@ class AzureDiskEncryption(TestSuite):
         return False
 
     def _is_unsupported_version(self, node: Node) -> bool:
-        # Define unsupported versions for each distribution
         unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
-            Oracle: {"major": 8, "minor": 5, "patch": 0},
-            Ubuntu: {"major": 18, "minor": 4, "patch": 202101120},
-            CentOs: [
-                {"major": 8, "minor": 1, "patch": 0},
-                {"major": 7, "minor": 4, "patch": 0},
-            ],
-            Redhat: [
-                {"major": 8, "minor": 1, "patch": 0},
-                {"major": 7, "minor": 4, "patch": 0},
-            ],
+            Oracle: {"major": 8, "minor": 5},
+            CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+            Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
         }
 
-        # Extract version information from the node
         version_info = node.os.information.version
         major_version = version_info.major
         minor_version = version_info.minor
-        patch_version = version_info.patch
 
-        # Check each distribution in the unsupported_versions dict
         for distro, versions in unsupported_versions.items():
             if isinstance(node.os, distro):
-                # Handle multiple unsupported versions for the same distro
-                if isinstance(versions, list):
+                if isinstance(versions, list):  # List[Dict[str, int]]
                     for version in versions:
-                        if major_version < version["major"]:
+                        if (
+                            major_version == version["major"]
+                            and minor_version < version["minor"]
+                        ):
                             return True
-                        elif major_version == version["major"]:
-                            if minor_version < version["minor"]:
-                                return True
-                            elif minor_version == version["minor"]:
-                                if patch_version < version["patch"]:
-                                    return True
-                # Handle a single unsupported version for the distro
-                else:
-                    if major_version < versions["major"]:
+                else:  # Dict[str, int]
+                    if (
+                        major_version == versions["major"]
+                        and minor_version < versions["minor"]
+                    ):
                         return True
-                    elif major_version == versions["major"]:
-                        if minor_version < versions["minor"]:
-                            return True
-                        elif minor_version == versions["minor"]:
-                            if patch_version < versions["patch"]:
-                                return True
-
-        # Return False if no unsupported version is found
         return False
