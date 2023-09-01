@@ -230,4 +230,20 @@ class AzureDiskEncryption(TestSuite):
             minor_version = version_info.minor
             if major_version == 8 and minor_version < 5:
                 return True
+        if isinstance(node.os, CentOs):
+            version_info = node.os.information.version
+            major_version = version_info.major
+            minor_version = version_info.minor
+            if major_version == 8 and minor_version < 1:
+                return True
+            if major_version == 7 and minor_version < 4:
+                return True
+        if isinstance(node.os, Redhat):
+            version_info = node.os.information.version
+            major_version = version_info.major
+            minor_version = version_info.minor
+            if major_version == 8 and minor_version < 1:
+                return True
+            if major_version == 7 and minor_version < 4:
+                return True
         return False
