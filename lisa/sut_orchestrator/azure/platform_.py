@@ -1668,7 +1668,7 @@ class AzurePlatform(Platform):
                 max=node_space.disk.max_data_disk_count
             )
 
-        max_nic_count = 8
+        max_nic_count = 4
         # if max_nic_count is None:
         #     max_nic_count = 8
         if max_nic_count:
