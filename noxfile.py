@@ -101,6 +101,7 @@ def pylint(session: nox.Session) -> None:
         *NOX_DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["aws"],
         *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["baremetal"],
         *OPTIONAL_DEPENDENCIES["libvirt"],
         *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
