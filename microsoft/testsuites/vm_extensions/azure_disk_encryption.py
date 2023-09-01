@@ -3,7 +3,7 @@
 import json
 import string
 import time
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -33,8 +33,7 @@ TIME_LIMIT = 3600 * 2
 MIN_REQUIRED_MEMORY_MB = 8 * 1024
 
 # Define a type alias for readability
-# It will either be a single dictionary or a list of dictionaries.
-UnsupportedVersionInfo = Union[Dict[str, int], List[Dict[str, int]]]
+UnsupportedVersionInfo = List[Dict[str, int]]
 
 
 @TestSuiteMetadata(
@@ -229,7 +228,7 @@ class AzureDiskEncryption(TestSuite):
 
     def _is_unsupported_version(self, node: Node) -> bool:
         unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
-            Oracle: {"major": 8, "minor": 5},
+            Oracle: [{"major": 8, "minor": 5}],
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
             Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 3}],
         }
@@ -240,17 +239,11 @@ class AzureDiskEncryption(TestSuite):
 
         for distro, versions in unsupported_versions.items():
             if isinstance(node.os, distro):
-                if isinstance(versions, list):  # List[Dict[str, int]]
-                    for version in versions:
-                        if (
-                            major_version == version["major"]
-                            and minor_version < version["minor"]
-                        ):
-                            return True
-                else:  # Dict[str, int]
+                for version in versions:
                     if (
-                        major_version == versions["major"]
-                        and minor_version < versions["minor"]
+                        major_version == version["major"]
+                        and minor_version < version["minor"]
                     ):
                         return True
+
         return False
