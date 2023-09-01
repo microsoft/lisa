@@ -35,6 +35,8 @@ class SourceInstallerSchema(BaseInstallerSchema):
     # source code repo
     repo: str = ""
     ref: str = ""
+    auth_token: str = ""
+    igvm_repo: str = ""
 
 
 @dataclass_json
@@ -378,6 +380,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
         Ubuntu.__name__: ["gcc"],
         CBLMariner.__name__: ["gcc", "binutils", "glibc-devel"],
     }
+    _build_cmd: str = "cargo build --release"
 
     @classmethod
     def type_name(cls) -> str:
@@ -389,7 +392,7 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
 
     def _build_and_install(self, code_path: PurePath) -> None:
         self._node.execute(
-            "cargo build --release",
+            self._build_cmd,
             shell=True,
             sudo=False,
             cwd=code_path,
@@ -443,6 +446,37 @@ class CloudHypervisorSourceInstaller(CloudHypervisorInstaller):
         self._log.info("Cloning source code of Cloudhypervisor ...")
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
         self._log.info("Building source code of Cloudhypervisor...")
+        self._build_and_install(code_path)
+        return self._get_version()
+
+
+class CloudHypervisorMsftSourceInstaller(CloudHypervisorSourceInstaller):
+    @classmethod
+    def type_name(cls) -> str:
+        return "ms_clh_source"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return SourceInstallerSchema
+
+    def install(self) -> str:
+        runbook: SourceInstallerSchema = self.runbook
+        self._log.debug("Installing dependencies for Cloudhypervisor...")
+        self._install_dependencies()
+
+        self._log.debug("Cloning source code of IGVM parser ...")
+        git = self._node.tools[Git]
+        git.clone(
+            runbook.igvm_repo,
+            self._node.working_path,
+            auth_token=runbook.auth_token,
+        )
+
+        self._log.debug("Cloning Internal Cloudhypervisor ...")
+        code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
+
+        self._log.info("Building source code of Cloudhypervisor...")
+        self._build_cmd = "cargo build --release --features=kvm,mshv,igvm,snp"
         self._build_and_install(code_path)
         return self._get_version()
 
@@ -501,7 +535,12 @@ def _get_source_code(
     code_path = node.working_path
     log.debug(f"cloning code from {runbook.repo} to {code_path}...")
     git = node.tools[Git]
-    code_path = git.clone(url=runbook.repo, cwd=code_path, ref=runbook.ref)
+    code_path = git.clone(
+        url=runbook.repo,
+        cwd=code_path,
+        ref=runbook.ref,
+        auth_token=runbook.auth_token,
+    )
     return code_path
 
 
