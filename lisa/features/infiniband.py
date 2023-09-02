@@ -109,7 +109,7 @@ class Infiniband(Feature):
                     if mpat in result.stdout and "ib" in nic_name:
                         assert_that(nic_info.ip_addr).described_as(
                             f"NIC {nic_name} does not have an ip address."
-                        ).is_not_empty()
+                        ).is_not_none()
                         ib_devices.append(
                             IBDevice(device_name, nic_name, nic_info.ip_addr)
                         )
