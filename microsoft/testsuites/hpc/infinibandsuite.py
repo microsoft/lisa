@@ -12,6 +12,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Infiniband, Sriov
+from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Modprobe, Ssh
 from lisa.util import (
@@ -39,7 +40,10 @@ class InfinibandSuite(TestSuite):
         3. Ensure the first InfiniBand card is named starting with "ib0"
         """,
         priority=2,
-        requirement=simple_requirement(supported_features=[Infiniband]),
+        requirement=simple_requirement(
+            supported_features=[Infiniband],
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_ib_naming(self, log: Logger, node: Node) -> None:
         ib_interfaces = node.features[Infiniband].get_ib_interfaces()
@@ -60,7 +64,9 @@ class InfinibandSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=Sriov(), supported_features=[Infiniband]
+            network_interface=Sriov(),
+            supported_features=[Infiniband],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_hpc_over_sriov(self, log: Logger, node: Node) -> None:
@@ -106,7 +112,10 @@ class InfinibandSuite(TestSuite):
         3. Check that appropriate drivers are present
         """,
         priority=2,
-        requirement=simple_requirement(supported_features=[Infiniband]),
+        requirement=simple_requirement(
+            supported_features=[Infiniband],
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_hpc_over_nd(self, log: Logger, node: Node) -> None:
         try:
@@ -147,6 +156,7 @@ class InfinibandSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[Infiniband],
             min_count=2,
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_ping_pong(self, environment: Environment, log: Logger) -> None:
@@ -211,6 +221,7 @@ class InfinibandSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[Infiniband],
             min_count=2,
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_intel_mpi(self, environment: Environment, log: Logger) -> None:
@@ -300,6 +311,7 @@ class InfinibandSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[Infiniband],
             min_count=2,
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_open_mpi(self, environment: Environment, log: Logger) -> None:
@@ -395,6 +407,7 @@ class InfinibandSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[Infiniband],
             min_count=2,
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_ibm_mpi(self, environment: Environment, log: Logger) -> None:
@@ -489,6 +502,7 @@ class InfinibandSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[Infiniband],
             min_count=2,
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_mvapich_mpi(self, environment: Environment, log: Logger) -> None:
