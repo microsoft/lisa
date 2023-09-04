@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
-from lisa.util import LisaException
+from lisa.util import LisaException, find_groups_in_lines
 
 CpuType = Enum(
     "CpuType",
@@ -307,11 +307,73 @@ class WindowsLscpu(Lscpu):
 
 
 class BSDLscpu(Lscpu):
+    __architecture_dict = {
+        "x86_64": "x86_64",
+        "aarch64": "aarch64",
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+    }
+
+    # FreeBSD/SMP: 1 package(s) x 4 core(s) x 2 hardware threads
+    __cpu_info = re.compile(r"FreeBSD/SMP: (?P<package_count>\d+) package\(s\) .*")
+
     @property
     def command(self) -> str:
         return "sysctl"
 
     def get_core_count(self, force_run: bool = False) -> int:
-        output = self.run("-n hw.ncpu", force_run=force_run)
+        output = self.run("-n kern.smp.cpus", force_run=force_run)
         core_count = int(output.stdout.strip())
         return core_count
+
+    def get_architecture(self, force_run: bool = False) -> str:
+        architecture = self.run(
+            "-n hw.machine_arch", force_run=force_run
+        ).stdout.strip()
+        assert_that(
+            [architecture],
+            f"architecture {architecture} must be one of "
+            f"{self.__architecture_dict.keys()}.",
+        ).is_subset_of(self.__architecture_dict.keys())
+        return self.__architecture_dict[architecture]
+
+    def get_cluster_count(self, force_run: bool = False) -> int:
+        output = self.run(
+            "-a | grep -i 'package(s)'",
+            force_run=force_run,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="kern.smp.core_per_cluster is not set",
+        ).stdout.strip()
+
+        matched = find_groups_in_lines(output, self.__cpu_info)
+        assert matched[0], "core_per_cluster_count is not set"
+
+        return int(matched[0]["package_count"])
+
+    def get_core_per_cluster_count(self, force_run: bool = False) -> int:
+        output = self.run(
+            "-n kern.smp.cores",
+            force_run=force_run,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="kern.smp.cores is not set",
+        ).stdout.strip()
+
+        return int(output)
+
+    def get_thread_per_core_count(self, force_run: bool = False) -> int:
+        threads_per_core = self.run(
+            "-n kern.smp.threads_per_core",
+            force_run=force_run,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="kern.smp.threads_per_core is not set",
+        ).stdout.strip()
+
+        return int(threads_per_core)
+
+    def calculate_vcpu_count(self, force_run: bool = False) -> int:
+        return (
+            self.get_core_per_cluster_count()
+            * self.get_cluster_count()
+            * self.get_thread_per_core_count()
+        )

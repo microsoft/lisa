@@ -6,15 +6,29 @@ import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from threading import Lock
 from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
+from assertpy import assert_that
+from azure.keyvault.certificates import (
+    CertificateClient,
+    CertificatePolicy,
+    KeyVaultCertificate,
+)
+from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient
+from azure.mgmt.keyvault.models import (
+    AccessPolicyEntry,
+    Permissions,
+    VaultCreateOrUpdateParameters,
+    VaultProperties,
+)
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -34,6 +48,7 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     VirtualNetworkLink,
 )
 from azure.mgmt.resource import ResourceManagementClient  # type: ignore
+from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -56,7 +71,7 @@ from msrestazure.azure_cloud import Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
 from retry import retry
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
@@ -123,6 +138,15 @@ global_credential_access_lock = Lock()
 # add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
 
+MARKETPLACE_IMAGE_KEYS = ["publisher", "offer", "sku", "version"]
+SIG_IMAGE_KEYS = [
+    "subscription_id",
+    "resource_group_name",
+    "image_gallery",
+    "image_definition",
+    "image_version",
+]
+
 
 @dataclass
 class EnvironmentContext:
@@ -141,6 +165,8 @@ class NodeContext:
     use_public_address: bool = True
     public_ip_address: str = ""
     private_ip_address: str = ""
+    location: str = ""
+    subscription_id: str = ""
 
 
 @dataclass_json()
@@ -151,9 +177,30 @@ class AzureVmPurchasePlanSchema:
     publisher: str
 
 
+@dataclass_json
+@dataclass
+class AzureImageSchema:
+    network_data_path: Optional[
+        Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                schema.NetworkDataPath.Synthetic,
+                schema.NetworkDataPath.Sriov,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_set_space_by_type, base_type=schema.NetworkDataPath
+            )
+        ),
+    )
+
+
 @dataclass_json()
 @dataclass
-class AzureVmMarketplaceSchema:
+class AzureVmMarketplaceSchema(AzureImageSchema):
     publisher: str = "Canonical"
     offer: str = "0001-com-ubuntu-server-jammy"
     sku: str = "22_04-lts"
@@ -165,7 +212,7 @@ class AzureVmMarketplaceSchema:
 
 @dataclass_json()
 @dataclass
-class SharedImageGallerySchema:
+class SharedImageGallerySchema(AzureImageSchema):
     subscription_id: str = ""
     resource_group_name: Optional[str] = None
     image_gallery: str = ""
@@ -183,7 +230,7 @@ class SharedImageGallerySchema:
 
 @dataclass_json()
 @dataclass
-class VhdSchema:
+class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     vmgs_path: Optional[str] = None
 
@@ -249,7 +296,8 @@ class AzureNodeSchema:
                 "shared_gallery_raw",
                 "vhd_raw",
                 "data_disk_caching_type",
-                "disk_type",
+                "os_disk_type",
+                "data_disk_type",
             ],
         )
         # If vhd contains sas token, need add mask
@@ -269,7 +317,10 @@ class AzureNodeSchema:
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
                 self.marketplace_raw = dict(
-                    (k, v.lower()) for k, v in self.marketplace_raw.items()
+                    (k, v.lower())
+                    if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
+                    else (k, v)
+                    for k, v in self.marketplace_raw.items()
                 )
                 marketplace = schema.load_by_type(
                     AzureVmMarketplaceSchema, self.marketplace_raw
@@ -294,7 +345,12 @@ class AzureNodeSchema:
                     )
 
                     if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(*marketplace_strings)
+                        marketplace = AzureVmMarketplaceSchema(
+                            publisher=marketplace_strings[0],
+                            offer=marketplace_strings[1],
+                            sku=marketplace_strings[2],
+                            version=marketplace_strings[3],
+                        )
                         # marketplace_raw is used
                         self.marketplace_raw = marketplace.to_dict()  # type: ignore
                     else:
@@ -330,7 +386,8 @@ class AzureNodeSchema:
             # The lower() normalizes the image names,
             #  it has no impact on deployment.
             self.shared_gallery_raw = dict(
-                (k, v.lower()) for k, v in self.shared_gallery_raw.items()
+                (k, v.lower()) if isinstance(v, str) and k in SIG_IMAGE_KEYS else (k, v)
+                for k, v in self.shared_gallery_raw.items()
             )
             shared_gallery = schema.load_by_type(
                 SharedImageGallerySchema, self.shared_gallery_raw
@@ -352,12 +409,21 @@ class AzureNodeSchema:
                 r"[/]+", self.shared_gallery_raw.strip().lower()
             )
             if len(shared_gallery_strings) == 5:
-                shared_gallery = SharedImageGallerySchema(*shared_gallery_strings)
+                shared_gallery = SharedImageGallerySchema(
+                    subscription_id=shared_gallery_strings[0],
+                    resource_group_name=shared_gallery_strings[1],
+                    image_gallery=shared_gallery_strings[2],
+                    image_definition=shared_gallery_strings[3],
+                    image_version=shared_gallery_strings[4],
+                )
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
             elif len(shared_gallery_strings) == 3:
                 shared_gallery = SharedImageGallerySchema(
-                    self.subscription_id, None, *shared_gallery_strings
+                    subscription_id=self.subscription_id,
+                    image_gallery=shared_gallery_strings[0],
+                    image_definition=shared_gallery_strings[1],
+                    image_version=shared_gallery_strings[2],
                 )
                 # shared_gallery_raw is used
                 self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
@@ -399,7 +465,7 @@ class AzureNodeSchema:
             self.vhd_raw = vhd.to_dict()  # type: ignore
         elif self.vhd_raw is not None:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
-            vhd = VhdSchema(self.vhd_raw)
+            vhd = VhdSchema(vhd_path=self.vhd_raw)
             add_secret(vhd.vhd_path, PATTERN_URL)
             self.vhd_raw = vhd.to_dict()  # type: ignore
         self._vhd = vhd
@@ -425,7 +491,9 @@ class AzureNodeSchema:
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
             if self.shared_gallery.resource_group_name:
-                result = "/".join([x for x in self.shared_gallery_raw.values()])
+                result = "/".join(
+                    [self.shared_gallery_raw.get(k, "") for k in SIG_IMAGE_KEYS]
+                )
             else:
                 result = (
                     f"{self.shared_gallery.image_gallery}/"
@@ -436,7 +504,9 @@ class AzureNodeSchema:
             assert isinstance(
                 self.marketplace_raw, dict
             ), f"actual type: {type(self.marketplace_raw)}"
-            result = " ".join([x for x in self.marketplace_raw.values()])
+            result = " ".join(
+                [self.marketplace_raw.get(k, "") for k in MARKETPLACE_IMAGE_KEYS]
+            )
         return result
 
 
@@ -445,7 +515,8 @@ class AzureNodeSchema:
 class AzureNodeArmParameter(AzureNodeSchema):
     nic_count: int = 1
     enable_sriov: bool = False
-    disk_type: str = ""
+    os_disk_type: str = ""
+    data_disk_type: str = ""
     disk_controller_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 
@@ -497,6 +568,8 @@ class DataDiskSchema:
         ),
     )
     size: int = 32
+    iops: int = 0
+    throughput: int = 0  # MB/s
     type: str = field(
         default=schema.DiskType.StandardHDDLRS,
         metadata=field_metadata(
@@ -505,6 +578,7 @@ class DataDiskSchema:
                     schema.DiskType.StandardHDDLRS,
                     schema.DiskType.StandardSSDLRS,
                     schema.DiskType.PremiumSSDLRS,
+                    schema.DiskType.UltraSSDLRS,
                     schema.DiskType.Ephemeral,
                 ]
             )
@@ -1444,6 +1518,12 @@ def load_environment(
     for node in environment.nodes.list():
         assert isinstance(node, RemoteNode)
 
+        vm = vms_map.get(node.name)
+        assert_that(vm).described_as(
+            f"Cannot find vm with name {node.name}. Make sure the VM exists in "
+            f"resource group {resource_group_name}"
+        ).is_not_none()
+
         node_context = get_node_context(node)
         node_context.vm_name = node.name
         node_context.resource_group_name = resource_group_name
@@ -1451,6 +1531,9 @@ def load_environment(
         node_context.username = platform_runbook.admin_username
         node_context.password = platform_runbook.admin_password
         node_context.private_key_file = platform_runbook.admin_private_key_file
+        node_context.location = vm.location
+        node_context.subscription_id = platform.subscription_id
+
         (
             node_context.public_ip_address,
             node_context.private_ip_address,
@@ -1895,3 +1978,279 @@ class DataDisk:
             return iops_dict[min_iops]
         else:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
+
+
+def get_certificate_client(
+    vault_url: str, platform: "AzurePlatform"
+) -> CertificateClient:
+    return CertificateClient(vault_url, platform.credential)
+
+
+def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
+    return SecretClient(vault_url, platform.credential)
+
+
+def get_key_vault_management_client(
+    platform: "AzurePlatform",
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
+
+
+def get_tenant_id(credential: Any) -> Any:
+    # Initialize the Subscription client
+    subscription_client = SubscriptionClient(credential)
+    # Get the subscription
+    subscription = next(subscription_client.subscriptions.list())
+    return subscription.tenant_id
+
+
+def get_identity_id(
+    platform: "AzurePlatform", application_id: Optional[str] = None
+) -> Any:
+    base_url = "https://graph.microsoft.com/"
+    api_version = "v1.0"
+    # If application_id is not provided or is None, use /me endpoint
+    if application_id:
+        endpoint = f"servicePrincipals(appId='{application_id}')"
+    else:
+        endpoint = "me"
+    graph_api_url = f"{base_url}{api_version}/{endpoint}"
+    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
+    # Set up the API call headers
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    # Set a timeout of 10 seconds for the request
+    response = requests.get(graph_api_url, headers=headers, timeout=10)
+
+    if response.status_code != 200:
+        raise LisaException(
+            f"Failed to retrieve user object ID. "
+            f"Status code: {response.status_code}. "
+            f"Response: {response.text}"
+        )
+    return response.json().get("id")
+
+
+def add_system_assign_identity(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    vm_name: str,
+    location: str,
+    log: Logger,
+) -> Any:
+    compute_client = get_compute_client(platform)
+    params_identity = {"type": "SystemAssigned"}
+    params_create = {"location": location, "identity": params_identity}
+
+    vm_poller = compute_client.virtual_machines.begin_update(
+        resource_group_name,
+        vm_name,
+        params_create,
+    )
+    vm_result = vm_poller.result()
+    object_id_vm = vm_result.identity.principal_id
+    log.debug(f"VM object ID assigned: {object_id_vm}")
+
+    if not object_id_vm:
+        raise ValueError(
+            "Cannot retrieve managed identity after set system assigned identity on vm"
+        )
+
+    return object_id_vm
+
+
+def get_matching_key_vault_name(
+    platform: "AzurePlatform",
+    location: str,
+    resource_group: str,
+    pattern: str = ".*",
+) -> Any:
+    """
+    Get the name of a Key Vault that exists in a specific region and resource group
+    and matches the given pattern.
+    """
+    key_vault_client = get_key_vault_management_client(platform)
+    key_vaults = key_vault_client.vaults.list_by_resource_group(resource_group)
+
+    for vault in key_vaults:
+        if vault.location == location:
+            if re.fullmatch(pattern, vault.name):
+                return vault.name
+    return None
+
+
+def create_keyvault(
+    platform: "AzurePlatform",
+    location: str,
+    vault_name: str,
+    resource_group_name: str,
+    vault_properties: VaultProperties,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+
+    parameters = VaultCreateOrUpdateParameters(
+        location=location, properties=vault_properties
+    )
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name, parameters
+    )
+
+    return keyvault_poller.result()
+
+
+def assign_access_policy(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    tenant_id: str,
+    object_id: str,
+    vault_name: str,
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+
+    permissions = Permissions(keys=["all"], secrets=["all"], certificates=["all"])
+    # Fetch the current policies and add the new policy
+    vault = keyvault_client.vaults.get(resource_group_name, vault_name)
+    current_policies = vault.properties.access_policies
+    new_policy = AccessPolicyEntry(
+        tenant_id=tenant_id,
+        object_id=object_id,
+        permissions=permissions,
+    )
+    current_policies.append(new_policy)
+
+    # Update the vault with the new policies
+    vault.properties.access_policies = current_policies
+    keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+        resource_group_name, vault_name, vault
+    )
+
+    return keyvault_poller.result()
+
+
+@retry(tries=5, delay=1)
+def create_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> str:
+    certificate_client = get_certificate_client(vault_url, platform)
+    secret_client = get_secret_client(vault_url, platform)
+
+    cert_policy = CertificatePolicy.get_default()
+
+    # Create certificate
+    create_certificate_result = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    log.debug(
+        f"Certificate '{cert_name}' has been created. "
+        f"Result: {create_certificate_result}"
+    )
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )
+
+    secret_id: Optional[str] = secret_client.get_secret(name=cert_name).id
+    if secret_id:
+        # Example: "https://example.vault.azure.net/secrets/Cert-123/SomeVersion"
+        # Expected match for 'cert_url':
+        # "https://example.vault.azure.net/secrets/Cert-123"
+        match = re.match(
+            r"(?P<cert_url>https://.+?/secrets/.+?)(?:/[^/]+)?$", secret_id
+        )
+        if match:
+            secret_url_without_version = match.group("cert_url")
+            return secret_url_without_version
+        else:
+            raise LisaException(
+                f"Failed to parse the URL pattern of secret ID: '{secret_id}'."
+            )
+    else:
+        raise LisaException(f"Failed to retrieve secret ID:'{cert_name}'.")
+
+
+def check_certificate_existence(
+    vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
+) -> bool:
+    certificate_client = CertificateClient(
+        vault_url=vault_url, credential=platform.credential
+    )
+
+    try:
+        certificate = certificate_client.get_certificate(cert_name)
+        log.debug(f"Cert found '{certificate.name}'")
+        return True
+    except Exception as e:
+        if "not found" in str(e).lower():
+            log.debug(f"Certificate '{cert_name}' does not exist.")
+            return False
+        else:
+            # Directly raise an exception without logging an error
+            raise LisaException(
+                f"Unexpected error checking certificate '{cert_name}': {e}"
+            )
+
+
+@retry(tries=10, delay=1)
+def rotate_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> None:
+    certificate_client = get_certificate_client(vault_url, platform)
+
+    # Retrieve the old version of the certificate
+    if not certificate_client.get_certificate(cert_name):
+        error_message = f"Failed to retrieve old version of certificate: {cert_name}"
+        raise LisaException(error_message)
+
+    cert_policy = CertificatePolicy.get_default()
+
+    # Create only the specified certificate
+    # Create certificate
+    create_certificate_poller = certificate_client.begin_create_certificate(
+        cert_name, policy=cert_policy
+    )
+    create_certificate_result = create_certificate_poller.result()
+
+    # Handle possible None value
+    if (
+        isinstance(create_certificate_result, KeyVaultCertificate)
+        and hasattr(create_certificate_result, "properties")
+        and create_certificate_result.properties
+    ):
+        new_certificate_version = create_certificate_result.properties.version
+        log.debug(
+            f"New version of certificate '{cert_name}': {new_certificate_version}. "
+            "Certificate rotated."
+        )
+    else:
+        error_message = "Failed to retrieve properties from create certificate result."
+        raise LisaException(error_message)
+
+    certificate_client.update_certificate_properties(
+        certificate_name=cert_name, enabled=True
+    )
+
+
+@retry(tries=10, delay=1)
+def delete_certificate(
+    platform: "AzurePlatform",
+    vault_url: str,
+    cert_name: str,
+    log: Logger,
+) -> bool:
+    certificate_client = get_certificate_client(vault_url, platform)
+
+    try:
+        certificate_client.begin_delete_certificate(cert_name)
+        log.debug(f"Certificate {cert_name} deleted successfully.")
+        return True
+    except Exception:
+        error_message = f"Failed to delete certificate: {cert_name}"
+        raise LisaException(error_message)

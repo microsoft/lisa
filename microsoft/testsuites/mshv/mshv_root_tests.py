@@ -31,10 +31,12 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
     """,
 )
 class MshvHostTestSuite(TestSuite):
+    IGVM_PATH_VARIABLE = "igvm_path"
     CONFIG_VARIABLE = "mshv_vm_create_stress_configs"
     DEFAULT_ITERS = 15
     DEFAULT_CPUS_PER_VM = 1
     DEFAULT_MEM_PER_VM_MB = 1024
+    DEFAULT_GUEST_VM_TYPE = "NON-CVM"
 
     HYPERVISOR_FW_NAME = "hypervisor-fw"
     DISK_IMG_NAME = "vm_disk_img.raw"
@@ -86,11 +88,8 @@ class MshvHostTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
-        if self.CONFIG_VARIABLE in variables:
-            configs = variables[self.CONFIG_VARIABLE]
-        else:
-            # fall back to defaults
-            configs = [{}]
+        configs = variables.get(self.CONFIG_VARIABLE, [{}])
+        igvm_path = variables.get(self.IGVM_PATH_VARIABLE, "")
 
         # This test can end up creating and a lot of ssh sessions and these kept active
         # at the same time.
@@ -103,15 +102,18 @@ class MshvHostTestSuite(TestSuite):
             times = config.get("iterations", self.DEFAULT_ITERS)
             cpus_per_vm = config.get("cpus_per_vm", self.DEFAULT_CPUS_PER_VM)
             mem_per_vm_mb = config.get("mem_per_vm_mb", self.DEFAULT_MEM_PER_VM_MB)
-            test_name = f"mhsv_stress_vm_create_{times}times_{cpus_per_vm}cpu_{mem_per_vm_mb}MB"  # noqa: E501
+            guest_vm_type = config.get("guest_vm_type", self.DEFAULT_GUEST_VM_TYPE)
+            test_name = f"mshv_stress_vm_create_{times}times_{cpus_per_vm}cpu_{mem_per_vm_mb}MB"  # noqa: E501
             try:
                 self._mshv_stress_vm_create(
-                    times,
-                    cpus_per_vm,
-                    mem_per_vm_mb,
-                    log,
-                    node,
-                    log_path,
+                    times=times,
+                    cpus_per_vm=cpus_per_vm,
+                    mem_per_vm_mb=mem_per_vm_mb,
+                    log=log,
+                    node=node,
+                    log_path=log_path,
+                    guest_vm_type=guest_vm_type,
+                    igvm_path=igvm_path,
                 )
                 self._send_subtest_msg(
                     result,
@@ -121,6 +123,7 @@ class MshvHostTestSuite(TestSuite):
                 )
             except Exception as e:
                 failures += 1
+                log.error(f"{test_name} FAILED: {e}")
                 self._send_subtest_msg(
                     result, environment, test_name, TestStatus.FAILED, repr(e)
                 )
@@ -136,6 +139,8 @@ class MshvHostTestSuite(TestSuite):
         log: Logger,
         node: Node,
         log_path: Path,
+        guest_vm_type: str = "NON-CVM",
+        igvm_path: str = "",
     ) -> None:
         log.info(
             f"MSHV stress VM create: times={times}, cpus_per_vm={cpus_per_vm}, mem_per_vm_mb={mem_per_vm_mb}"  # noqa: E501
@@ -152,7 +157,14 @@ class MshvHostTestSuite(TestSuite):
             procs = []
             for i in range(vm_count):
                 vm_disk_img_path = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
-                node.tools[Cp].copy(disk_img_path, vm_disk_img_path, sudo=True)
+                is_os_disk_present = node.tools[Ls].path_exists(str(vm_disk_img_path))
+                if not is_os_disk_present:
+                    node.tools[Cp].copy(
+                        disk_img_path,
+                        vm_disk_img_path,
+                        sudo=True,
+                        timeout=1200,
+                    )
                 log.info(f"Starting VM {i}")
                 p = node.tools[CloudHypervisor].start_vm_async(
                     kernel=hypervisor_fw_path,
@@ -160,6 +172,8 @@ class MshvHostTestSuite(TestSuite):
                     memory_mb=mem_per_vm_mb,
                     disk_path=str(vm_disk_img_path),
                     sudo=True,
+                    guest_vm_type=guest_vm_type,
+                    igvm_path=igvm_path,
                 )
                 assert_that(p).described_as(f"Failed to create VM {i}").is_not_none()
                 procs.append(p)
@@ -169,7 +183,11 @@ class MshvHostTestSuite(TestSuite):
                 ).is_true()
 
             # keep the VMs running for a while
-            time.sleep(10)
+            sleep_time = 10
+            if guest_vm_type == "CVM":
+                # CVM guest take little more time to boot
+                sleep_time = 100
+            time.sleep(sleep_time)
 
             for i in range(len(procs)):
                 p = procs[i]

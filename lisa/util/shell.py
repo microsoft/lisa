@@ -35,6 +35,21 @@ _spawn_initialization_error_pattern = re.compile(
 )
 
 
+def minimal_escape_sh(value: str) -> str:
+    return value.replace("'", "'\\''")
+
+
+def minimal_generate_run_command(  # type: ignore
+    self,
+    command_args: str,
+    store_pid: bool,
+    cwd: Optional[str] = None,
+    update_env: Optional[Dict[str, str]] = None,
+    new_process_group: bool = False,
+) -> str:
+    return " ".join(map(minimal_escape_sh, command_args))
+
+
 def wait_tcp_port_ready(
     address: str, port: int, log: Optional[Logger] = None, timeout: int = 300
 ) -> Tuple[bool, int]:
@@ -340,6 +355,20 @@ class SshShell(InitializableMixin):
                 # Except CommandInitializationError then use minimal shell type.
                 if not have_tried_minimal_type:
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
+
+                    # Dynamically override that object's method. Here,
+                    # we don't enclose every shell token under single
+                    # quotes anymore. That's an assumption from spur
+                    # that minimal shells will still be POSIX
+                    # compliant--not true for some cases for LISA
+                    # users.
+                    func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
+                    self._inner_shell._spur._shell_type.generate_run_command = (
+                        func_type(
+                            minimal_generate_run_command,
+                            self._inner_shell._spur._shell_type,
+                        )
+                    )
                     have_tried_minimal_type = True
                     matched = _spawn_initialization_error_pattern.search(
                         str(identifier)

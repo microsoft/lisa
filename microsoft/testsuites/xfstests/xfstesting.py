@@ -146,7 +146,8 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
@@ -181,7 +182,8 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
@@ -215,7 +217,8 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
@@ -250,7 +253,8 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),

@@ -39,6 +39,11 @@ class CloudHypervisorTestSuite(TestSuite):
         node.tools[Modprobe].load("openvswitch")
         self._ensure_virtualization_enabled(node)
 
+        variables: Dict[str, Any] = kwargs["variables"]
+        use_ms_clh_repo = variables.get("use_ms_clh_repo", None)
+        if use_ms_clh_repo == "yes":
+            self._set_ms_clh_param(variables)
+
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         node.tools[Modprobe].remove(["openvswitch"])
@@ -176,6 +181,32 @@ class CloudHypervisorTestSuite(TestSuite):
         if mshv_exists:
             return "mshv"
         return ""
+
+    def _set_ms_clh_param(self, variables: Dict[str, Any]) -> None:
+        # Get access token from testing infra to clone the repo
+        ms_access_token = variables.get("ms_access_token", None)
+
+        # Get URL for MS CLH repo
+        ms_clh_repo = variables.get("ms_clh_repo", None)
+
+        # Get URL for igvm-parser repo
+        ms_igvm_parser_repo = variables.get("ms_igvm_parser_repo", None)
+
+        # Get GUEST VM type, set default to NON-CVM
+        clh_guest_vm_type = variables.get("clh_guest_vm_type", "NON-CVM")
+
+        if not ms_access_token:
+            raise SkippedException("Access Token is needed while using MS-CLH")
+        if not ms_clh_repo:
+            raise SkippedException("CLH URL is needed while using MS-CLH")
+        if not ms_igvm_parser_repo:
+            raise SkippedException("IGVM-Parser URL is needed while using MS-CLH")
+
+        CloudHypervisorTests.use_ms_clh_repo = True
+        CloudHypervisorTests.ms_access_token = ms_access_token
+        CloudHypervisorTests.ms_clh_repo = ms_clh_repo
+        CloudHypervisorTests.ms_igvm_parser_repo = ms_igvm_parser_repo
+        CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:

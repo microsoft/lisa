@@ -36,7 +36,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
-from lisa.tools import Cat, Dmesg, Ls, Lsblk, Lscpu, Pgrep, Ssh
+from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
     LisaException,
     PassedException,
@@ -320,7 +320,7 @@ class AzureImageStandard(TestSuite):
         1. Get the output of command `rpm -q NetworkManager` and verify that
         network manager is not installed.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
@@ -482,7 +482,7 @@ class AzureImageStandard(TestSuite):
         1. Read the `yum.conf` file and verify that "http_caching=packages" is
         present in the file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_yum_conf(self, node: Node) -> None:
@@ -506,7 +506,7 @@ class AzureImageStandard(TestSuite):
         1. Verify that list of running process matching name of kvp daemon
         has length greater than zero.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
@@ -763,17 +763,25 @@ class AzureImageStandard(TestSuite):
             isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
         ):
             log_output = node.tools[Dmesg].get_output()
+            log_file = "dmesg"
         else:
+            cat = node.tools[Cat]
             if node.shell.exists(node.get_pure_path("/var/log/messages")):
                 log_file = "/var/log/messages"
+                log_output = cat.read(log_file, force_run=True, sudo=True)
             elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
                 log_file = "/var/log/syslog"
+                log_output = cat.read(log_file, force_run=True, sudo=True)
             else:
+                log_file = "journalctl"
+                journalctl = node.tools[Journalctl]
+                log_output = journalctl.first_n_logs_from_boot()
+            if not log_output:
                 raise LisaException(
-                    "Neither /var/log/messages nor /var/log/syslog found"
+                    "Neither /var/log/messages nor /var/log/syslog found."
+                    "and journal ctl log is empty."
                 )
-            cat = node.tools[Cat]
-            log_output = cat.read(log_file, force_run=True, sudo=True)
+
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[CpuArchitecture(arch)]
@@ -874,7 +882,7 @@ class AzureImageStandard(TestSuite):
         2. Pass with warning if not find it.
         3. Pass with warning if the value is not between 0 and 180.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
@@ -981,7 +989,7 @@ class AzureImageStandard(TestSuite):
         5. Verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
         DATALOSS_WARNING_README.txt file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(
             disk=AzureDiskOptionSettings(has_resource_disk=True),
             supported_platform_type=[AZURE],

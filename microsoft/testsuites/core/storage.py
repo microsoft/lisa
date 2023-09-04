@@ -27,6 +27,8 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools.blkid import PartitionInfo
+from lisa.tools.journalctl import Journalctl
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
@@ -63,7 +65,7 @@ class Storage(TestSuite):
         2. Verify the timeout value for disk in
         `/sys/block/<disk>/device/timeout` file is set to 300.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE]),
     )
     def verify_disks_device_timeout_setting(
@@ -250,30 +252,21 @@ class Storage(TestSuite):
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
         # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
-        # present in dmesg
+        # present in dmesg or journalctl logs
         dmesg = node.tools[Dmesg].run(sudo=True).stdout
-        if (
-            not get_matched_str(
-                dmesg,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
-                ),
+        dmesg_root_present = self._check_root_partition_in_log(dmesg, os_partition_info)
+
+        if not dmesg_root_present:
+            journalctl_out = node.tools[Journalctl].first_n_logs_from_boot()
+            journal_root_present = self._check_root_partition_in_log(
+                journalctl_out, os_partition_info
             )
-            and not get_matched_str(
-                dmesg, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
-            )
-            and not get_matched_str(
-                dmesg,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
-                ),
-            )
-        ):
+        if not (dmesg_root_present or journal_root_present):
             raise LisaException(
                 f"One of root={os_partition_info.name} or "
                 f"root=UUID={os_partition_info.uuid} or "
                 f"root=PARTUUID={os_partition_info.part_uuid} "
-                "should be present in dmesg output"
+                "should be present in dmesg/journalctl output"
             )
 
         # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
@@ -570,3 +563,26 @@ class Storage(TestSuite):
     def _get_mtab_mount_point_regex(self, mount_point: str) -> Pattern[str]:
         regex = re.compile(rf".*\s+\/dev\/(?P<partition>\D+).*\s+{mount_point}.*")
         return regex
+
+    def _check_root_partition_in_log(
+        self, log: str, os_partition_info: PartitionInfo
+    ) -> bool:
+        if (
+            not get_matched_str(
+                log,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
+                ),
+            )
+            and not get_matched_str(
+                log, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
+            )
+            and not get_matched_str(
+                log,
+                re.compile(
+                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
+                ),
+            )
+        ):
+            return False
+        return True

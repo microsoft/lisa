@@ -27,6 +27,7 @@ from lisa.tools import (
     Echo,
     Firewall,
     Free,
+    Ip,
     KernelConfig,
     Lscpu,
     Lsmod,
@@ -276,6 +277,7 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
@@ -311,6 +313,7 @@ def initialize_node_resources(
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
+        force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
 
     # init and enable hugepages (required by dpdk)
@@ -335,11 +338,17 @@ def initialize_node_resources(
         # this code makes changes to interfaces that will cause later tests to fail.
         # Therefore we mark the node dirty to prevent future testing on this environment
         node.mark_dirty()
+        # setup system for netvsc pmd
+        # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic_for_nic(node, test_nic)
-        # if this device is paired, set the upper device 'down'
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # if mana is present, set VF interface down.
+    # FIXME: add mana dpdk docs link when it's available.
+    if testpmd.is_mana:
         if test_nic.lower:
-            node.nics.unbind(test_nic)
-            node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+            node.tools[Ip].down(test_nic.lower)
 
     return DpdkTestResources(node, testpmd)
 
@@ -445,7 +454,8 @@ def verify_dpdk_build(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-) -> None:
+    multiple_queues: bool = False,
+) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(node, log, variables, pmd)
     testpmd = test_kit.testpmd
@@ -454,9 +464,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        test_nic,
-        0,
-        "txonly",
+        test_nic, 0, "txonly", multiple_queues=multiple_queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -467,6 +475,7 @@ def verify_dpdk_build(
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
+    return DpdkTestResources(node, testpmd)
 
 
 def verify_dpdk_send_receive(

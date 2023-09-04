@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from functools import partial
 from typing import Any
 
 from lisa import (
@@ -12,19 +13,23 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.environment import Environment
+from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
 from lisa.testsuite import TestResult
+from lisa.tools import Sysctl
 from lisa.tools.iperf3 import (
     IPERF_TCP_BUFFER_LENGTHS,
     IPERF_TCP_CONCURRENCY,
     IPERF_UDP_BUFFER_LENGTHS,
     IPERF_UDP_CONCURRENCY,
 )
+from lisa.tools.sockperf import SOCKPERF_TCP, SOCKPERF_UDP
+from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.performance.common import (
     cleanup_process,
     perf_iperf,
     perf_ntttcp,
+    perf_sockperf,
     perf_tcp_latency,
     perf_tcp_pps,
 )
@@ -278,7 +283,153 @@ class NetworkPerformace(TestSuite):
             udp_mode=True,
         )
 
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test sriov network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def perf_sockperf_latency_tcp_sriov(self, result: TestResult) -> None:
+        perf_sockperf(result, SOCKPERF_TCP, "perf_sockperf_latency_tcp_sriov")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test sriov network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def perf_sockperf_latency_udp_sriov(self, result: TestResult) -> None:
+        perf_sockperf(result, SOCKPERF_UDP, "perf_sockperf_latency_udp_sriov")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test synthetic network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Synthetic(),
+        ),
+    )
+    def perf_sockperf_latency_udp_synthetic(self, result: TestResult) -> None:
+        perf_sockperf(result, SOCKPERF_UDP, "perf_sockperf_latency_udp_synthetic")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test synthetic network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Synthetic(),
+        ),
+    )
+    def perf_sockperf_latency_tcp_synthetic(self, result: TestResult) -> None:
+        perf_sockperf(result, SOCKPERF_TCP, "perf_sockperf_latency_tcp_synthetic")
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test sriov network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def perf_sockperf_latency_tcp_sriov_busy_poll(self, result: TestResult) -> None:
+        perf_sockperf(
+            result,
+            SOCKPERF_TCP,
+            "perf_sockperf_latency_tcp_sriov_busy_poll",
+            set_busy_poll=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test sriov network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Sriov(),
+        ),
+    )
+    def perf_sockperf_latency_udp_sriov_busy_poll(self, result: TestResult) -> None:
+        perf_sockperf(
+            result,
+            SOCKPERF_UDP,
+            "perf_sockperf_latency_udp_sriov_busy_poll",
+            set_busy_poll=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test synthetic network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Synthetic(),
+        ),
+    )
+    def perf_sockperf_latency_udp_synthetic_busy_poll(self, result: TestResult) -> None:
+        perf_sockperf(
+            result,
+            SOCKPERF_UDP,
+            "perf_sockperf_latency_udp_synthetic_busy_poll",
+            set_busy_poll=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses sockperf to test synthetic network latency.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=Synthetic(),
+        ),
+    )
+    def perf_sockperf_latency_tcp_synthetic_busy_poll(self, result: TestResult) -> None:
+        perf_sockperf(
+            result,
+            SOCKPERF_TCP,
+            "perf_sockperf_latency_tcp_synthetic_busy_poll",
+            set_busy_poll=True,
+        )
+
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        for process in ["lagscope", "netperf", "netserver", "ntttcp", "iperf3"]:
+
+        # use these cleanup functions
+        def do_process_cleanup(process: str) -> None:
             cleanup_process(environment, process)
+
+        def do_sysctl_cleanup(node: Node) -> None:
+            node.tools[Sysctl].reset()
+
+        # to run parallel cleanup of processes and sysctl settings
+        run_in_parallel(
+            [
+                partial(do_process_cleanup, x)
+                for x in [
+                    "lagscope",
+                    "netperf",
+                    "netserver",
+                    "ntttcp",
+                    "iperf3",
+                ]
+            ]
+        )
+        run_in_parallel(
+            [partial(do_sysctl_cleanup, x) for x in environment.nodes.list()]
+        )

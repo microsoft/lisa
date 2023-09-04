@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
+from .cvm_nested_virtualization import CVMNestedVirtualization
 from .disks import (
     Disk,
     DiskEphemeral,
@@ -29,6 +30,7 @@ from .startstop import StartStop, StopState
 
 __all__ = [
     "ACC",
+    "CVMNestedVirtualization",
     "Disk",
     "DiskEphemeral",
     "DiskPremiumSSDLRS",

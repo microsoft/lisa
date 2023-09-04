@@ -255,13 +255,18 @@ class BSDLsblk(Lsblk):
 
     # Example:
     # da1
-    _DISK_NAME_REGEX_MATCH = re.compile(r"^\D+\d*$")
+    # nvd0
+    _DISK_NAME_REGEX_MATCH = re.compile(r"^(da|nvd)\d+$")
 
     # Example:
     # da1p1
-    _PARTITION_NAME_REGEX_MATCH = re.compile(r"^\D+\d+\D*\d+$")
+    # nvd0p1
+    _PARTITION_NAME_REGEX_MATCH = re.compile(r"^(da|nvd)\d+p\d+$")
 
-    _PARTITION_DISK_NAME_REGEX = re.compile(r"^(?P<disk_name>\D+\d+)\D+\d+$")
+    # Example:
+    # da1p1 -> da1
+    # nvd0p1 -> nvd0
+    _PARTITION_DISK_NAME_REGEX = re.compile(r"^(?P<disk_name>(da|nvd)\d+)p\d+$")
 
     @property
     def command(self) -> str:
@@ -321,7 +326,7 @@ class BSDLsblk(Lsblk):
                 continue
 
             # convert size to bytes and create disk info
-            size_in_bytes = _get_size_in_bytes(int(entry["size"]), entry["size_unit"])
+            size_in_bytes = _get_size_in_bytes(float(entry["size"]), entry["size_unit"])
             disks.append(
                 DiskInfo(
                     name=entry["name"],

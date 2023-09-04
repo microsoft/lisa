@@ -14,9 +14,7 @@ from lisa import (
 from lisa.testsuite import TestResult
 from lisa.tools import Ls
 from lisa.util import SkippedException
-from microsoft.testsuites.cvm_attestation.cvm_attestation_tool import (
-    CVMAttestationTests,
-)
+from microsoft.testsuites.cvm.cvm_attestation_tool import CVMAttestationTests
 
 
 @TestSuiteMetadata(

@@ -338,9 +338,7 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command(
-            test_nic, 0, "txonly", "failsafe"
-        )
+        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -503,7 +501,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -530,7 +527,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -557,7 +553,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -582,7 +577,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_send_receive_netvsc(

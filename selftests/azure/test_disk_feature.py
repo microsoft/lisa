@@ -23,7 +23,7 @@ class AzureDiskFeatureTestCase(TestCase):
     def test_disk_type_overlap(self) -> None:
         # req and cap both have DiskPremiumSSDLRS, so it's selected
         req = features.AzureDiskOptionSettings(
-            disk_type=search_space.SetSpace[schema.DiskType](
+            data_disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.PremiumSSDLRS, schema.DiskType.StandardSSDLRS]
             )
         )
@@ -40,7 +40,7 @@ class AzureDiskFeatureTestCase(TestCase):
     def test_disk_type_no_common(self) -> None:
         # req and cap has no common disk type
         req = features.AzureDiskOptionSettings(
-            disk_type=search_space.SetSpace[schema.DiskType](
+            data_disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.StandardSSDLRS]
             )
         )
@@ -90,7 +90,8 @@ class AzureDiskFeatureTestCase(TestCase):
         # given a range of iops, match min one in range
         req = features.AzureDiskOptionSettings(
             data_disk_count=1,
-            disk_type=schema.DiskType.PremiumSSDLRS,
+            data_disk_type=schema.DiskType.PremiumSSDLRS,
+            os_disk_type=schema.DiskType.PremiumSSDLRS,
             data_disk_iops=search_space.IntRange(min=1800, max=8000),
         )
         cap = self._get_default_cap()
@@ -106,7 +107,8 @@ class AzureDiskFeatureTestCase(TestCase):
         # given a range of iops on req and cap, match min one in range
         req = features.AzureDiskOptionSettings(
             data_disk_count=1,
-            disk_type=schema.DiskType.PremiumSSDLRS,
+            data_disk_type=schema.DiskType.PremiumSSDLRS,
+            os_disk_type=schema.DiskType.PremiumSSDLRS,
             data_disk_iops=search_space.IntRange(min=1800, max=8000),
         )
         cap = self._get_default_cap()
@@ -122,7 +124,7 @@ class AzureDiskFeatureTestCase(TestCase):
     def test_disk_specify_iops_use_premium(self) -> None:
         # given premium disk type
         req = features.AzureDiskOptionSettings(
-            disk_type=search_space.SetSpace[schema.DiskType](
+            data_disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.PremiumSSDLRS]
             ),
             data_disk_count=1,
@@ -154,7 +156,7 @@ class AzureDiskFeatureTestCase(TestCase):
     def test_disk_specify_disk_size_a_range(self) -> None:
         # given a range to disk size, match the min one in range
         req = features.AzureDiskOptionSettings(
-            disk_type=search_space.SetSpace[schema.DiskType](
+            data_disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.PremiumSSDLRS]
             ),
             data_disk_count=1,
@@ -182,7 +184,7 @@ class AzureDiskFeatureTestCase(TestCase):
         reason = req.check(cap)
         self.assertTrue(reason.result, f"check reasons: {reason.reasons}")
         min_value: features.AzureDiskOptionSettings = req.generate_min_capability(cap)
-        self.assertEqual(disk_type, min_value.disk_type)
+        self.assertEqual(disk_type, min_value.data_disk_type)
         self.assertEqual(data_disk_count, min_value.data_disk_count)
         self.assertEqual(data_disk_caching_type, min_value.data_disk_caching_type)
         self.assertEqual(data_disk_iops, min_value.data_disk_iops)
@@ -190,7 +192,7 @@ class AzureDiskFeatureTestCase(TestCase):
 
     def _get_default_cap(self) -> features.AzureDiskOptionSettings:
         return features.AzureDiskOptionSettings(
-            disk_type=search_space.SetSpace[schema.DiskType](
+            data_disk_type=search_space.SetSpace[schema.DiskType](
                 items=[schema.DiskType.PremiumSSDLRS, schema.DiskType.StandardHDDLRS]
             ),
             data_disk_iops=search_space.IntRange(max=sys.maxsize),

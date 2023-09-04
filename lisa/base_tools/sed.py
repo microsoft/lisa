@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
+from typing import Optional, Type
 
 from lisa.executable import Tool
 
@@ -10,6 +11,10 @@ class Sed(Tool):
     @property
     def command(self) -> str:
         return "sed"
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return SedBSD
 
     def substitute(
         self,
@@ -68,3 +73,17 @@ class Sed(Tool):
             shell=True,
         )
         result.assert_exit_code(message=result.stdout)
+
+
+class SedBSD(Sed):
+    @property
+    def command(self) -> str:
+        return "gsed"
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    def _install(self) -> bool:
+        self.node.os.install_packages("gsed")  # type: ignore
+        return self._check_exists()

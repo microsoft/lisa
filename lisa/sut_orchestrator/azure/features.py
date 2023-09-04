@@ -49,7 +49,8 @@ from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
+from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lsblk, Lspci, Modprobe, Rm, Sed
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -229,12 +230,10 @@ class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
         response = pipeline_response.http_response
 
         if response.status_code not in [200]:
-            map_error(  # type: ignore
+            map_error(
                 status_code=response.status_code, response=response, error_map=error_map
             )
-            raise HttpResponseError(
-                response=response, error_format=ARMErrorFormat
-            )  # type: ignore
+            raise HttpResponseError(response=response, error_format=ARMErrorFormat)
 
         deserialized = self._deserialize("SerialPortConnectResult", pipeline_response)
 
@@ -879,30 +878,41 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         return interfaces_info_list
 
 
-# Tuple: (IOPS, Disk Size)
-_disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
+# Tuple: (Disk Size, IOPS, Throughput)
+_disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = {
     schema.DiskType.PremiumSSDLRS: [
-        (120, 4),
-        (240, 64),
-        (500, 128),
-        (1100, 256),
-        (2300, 512),
-        (5000, 1024),
-        (7500, 2048),
-        (16000, 8192),
-        (18000, 16384),
-        (20000, 32767),
+        (4, 120, 25),
+        (64, 240, 50),
+        (128, 500, 100),
+        (256, 1100, 125),
+        (512, 2300, 150),
+        (1024, 5000, 200),
+        (2048, 7500, 250),
+        (8192, 16000, 500),
+        (16384, 18000, 750),
+        (32767, 20000, 900),
     ],
     schema.DiskType.StandardHDDLRS: [
-        (500, 32),
-        (1300, 8192),
-        (2000, 16384),
+        (32, 500, 60),
+        (8192, 1300, 300),
+        (16384, 2000, 500),
     ],
     schema.DiskType.StandardSSDLRS: [
-        (500, 4),
-        (2000, 8192),
-        (4000, 16384),
-        (6000, 32767),
+        (4, 500, 60),
+        (8192, 2000, 400),
+        (16384, 4000, 600),
+        (32767, 6000, 750),
+    ],
+    schema.DiskType.UltraSSDLRS: [
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
     ],
 }
 
@@ -936,7 +946,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         result = super().check(capability)
 
         result.merge(
-            search_space.check_setspace(self.disk_type, capability.disk_type),
+            search_space.check_setspace(self.os_disk_type, capability.os_disk_type),
+            "os_disk_type",
+        )
+        result.merge(
+            search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
             "disk_type",
         )
         result.merge(
@@ -950,6 +964,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_iops, capability.data_disk_iops
             ),
             "data_disk_iops",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
+            ),
+            "data_disk_throughput",
         )
         result.merge(
             search_space.check_countspace(
@@ -986,7 +1006,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         ), f"actual: {type(capability)}"
 
         assert (
-            capability.disk_type
+            capability.os_disk_type
+        ), "capability should have at least one OS disk type, but it's None"
+        assert (
+            capability.data_disk_type
         ), "capability should have at least one disk type, but it's None"
         assert (
             capability.disk_controller_type
@@ -997,7 +1020,25 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         )
         set_filtered_fields(super_value, value, ["data_disk_count"])
 
-        cap_disk_type = capability.disk_type
+        cap_os_disk_type = capability.os_disk_type
+        if isinstance(cap_os_disk_type, search_space.SetSpace):
+            assert (
+                len(cap_os_disk_type) > 0
+            ), "capability should have at least one disk type, but it's empty"
+        elif isinstance(cap_os_disk_type, schema.DiskType):
+            cap_os_disk_type = search_space.SetSpace[schema.DiskType](
+                is_allow_set=True, items=[cap_os_disk_type]
+            )
+        else:
+            raise LisaException(
+                f"unknown OS disk type on capability, type: {cap_os_disk_type}"
+            )
+
+        value.os_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.os_disk_type, capability.os_disk_type, schema.disk_type_priority)
+
+        cap_disk_type = capability.data_disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
             assert (
                 len(cap_disk_type) > 0
@@ -1011,9 +1052,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        value.disk_type = getattr(search_space, f"{method.value}_setspace_by_priority")(
-            self.disk_type, capability.disk_type, schema.disk_type_priority
-        )
+        value.data_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.data_disk_type, capability.data_disk_type, schema.disk_type_priority)
 
         cap_disk_controller_type = capability.disk_controller_type
         if isinstance(cap_disk_controller_type, search_space.SetSpace):
@@ -1056,70 +1097,70 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         # The Ephemeral doesn't support data disk, but it needs a value. And it
         # doesn't need to calculate on intersect
         value.data_disk_iops = 0
+        value.data_disk_throughput = 0
         value.data_disk_size = 0
 
         if method == RequirementMethod.generate_min_capability:
             assert isinstance(
-                value.disk_type, schema.DiskType
-            ), f"actual: {type(value.disk_type)}"
-            disk_type_iops = _disk_size_iops_map.get(value.disk_type, None)
+                value.data_disk_type, schema.DiskType
+            ), f"actual: {type(value.data_disk_type)}"
+            disk_type_performance = _disk_size_performance_map.get(
+                value.data_disk_type, None
+            )
             # ignore unsupported disk type like Ephemeral. It supports only os
             # disk. Calculate for iops, if it has value. If not, try disk size
-            if disk_type_iops:
-                if isinstance(self.data_disk_iops, int) or (
-                    self.data_disk_iops != search_space.IntRange(min=0)
-                ):
-                    req_disk_iops = search_space.count_space_to_int_range(
-                        self.data_disk_iops
-                    )
-                    cap_disk_iops = search_space.count_space_to_int_range(
-                        capability.data_disk_iops
-                    )
-                    min_iops = max(req_disk_iops.min, cap_disk_iops.min)
-                    max_iops = min(req_disk_iops.max, cap_disk_iops.max)
+            if disk_type_performance:
+                req_disk_iops = search_space.count_space_to_int_range(
+                    self.data_disk_iops
+                )
+                cap_disk_iops = search_space.count_space_to_int_range(
+                    capability.data_disk_iops
+                )
+                min_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                max_iops = min(req_disk_iops.max, cap_disk_iops.max)
 
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= min_iops and iops <= max_iops
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                elif self.data_disk_size:
-                    req_disk_size = search_space.count_space_to_int_range(
-                        self.data_disk_size
-                    )
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    min_size = max(req_disk_size.min, cap_disk_size.min)
-                    max_size = min(req_disk_size.max, cap_disk_size.max)
+                req_disk_throughput = search_space.count_space_to_int_range(
+                    self.data_disk_throughput
+                )
+                cap_disk_throughput = search_space.count_space_to_int_range(
+                    capability.data_disk_throughput
+                )
+                min_throughput = max(req_disk_throughput.min, cap_disk_throughput.min)
+                max_throughput = min(req_disk_throughput.max, cap_disk_throughput.max)
 
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, disk_size in disk_type_iops
-                        if disk_size >= min_size and disk_size <= max_size
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                else:
-                    # if req is not specified, query minimum value.
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= cap_disk_size.min and iops <= cap_disk_size.max
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
+                req_disk_size = search_space.count_space_to_int_range(
+                    self.data_disk_size
+                )
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                min_size = max(req_disk_size.min, cap_disk_size.min)
+                max_size = min(req_disk_size.max, cap_disk_size.max)
+
+                value.data_disk_size = min(
+                    size
+                    for size, iops, throughput in disk_type_performance
+                    if iops >= min_iops
+                    and iops <= max_iops
+                    and throughput >= min_throughput
+                    and throughput <= max_throughput
+                    and size >= min_size
+                    and size <= max_size
+                )
+
+                (
+                    value.data_disk_iops,
+                    value.data_disk_throughput,
+                ) = self._get_disk_performance_from_size(
+                    value.data_disk_size, disk_type_performance
+                )
+
         elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
                 self.data_disk_iops, capability.data_disk_iops
+            )
+            value.data_disk_throughput = search_space.intersect_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
             )
             value.data_disk_size = search_space.intersect_countspace(
                 self.data_disk_size, capability.data_disk_size
@@ -1137,11 +1178,13 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return value
 
-    def _get_disk_size_from_iops(
-        self, data_disk_iops: int, disk_type_iops: List[Tuple[int, int]]
-    ) -> int:
+    def _get_disk_performance_from_size(
+        self, data_disk_size: int, disk_type_performance: List[Tuple[int, int, int]]
+    ) -> Tuple[int, int]:
         return next(
-            disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
+            (iops, throughput)
+            for size, iops, throughput in disk_type_performance
+            if size == data_disk_size
         )
 
     def _check_has_resource_disk(
@@ -1197,6 +1240,10 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._initialize_information(self._node)
 
     def get_raw_data_disks(self) -> List[str]:
+        # Handle BSD case
+        if isinstance(self._node.os, BSD):
+            return self._get_raw_data_disks_bsd()
+
         if (
             self._node.capability.disk
             and self._node.capability.disk.disk_controller_type
@@ -1395,6 +1442,27 @@ class Disk(AzureFeatureMixin, features.Disk):
             mount_point = self._node.tools[Waagent].get_resource_disk_mount_point()
         return mount_point
 
+    def _is_resource_disk(self, disk: DiskInfo) -> bool:
+        # check if the disk is a resource disk
+        if disk.mountpoint == "/mnt/resource":
+            return True
+
+        return any(
+            partition.mountpoint == "/mnt/resource" for partition in disk.partitions
+        )
+
+    def _get_raw_data_disks_bsd(self) -> List[str]:
+        disks = self._node.tools[Lsblk].get_disks()
+
+        # Remove os disk and resource disk
+        data_disks = [
+            disk.device_name
+            for disk in disks
+            if not disk.is_os_disk and not self._is_resource_disk(disk)
+        ]
+
+        return data_disks
+
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
     assert isinstance(disk_type, schema.DiskType), (
@@ -1409,10 +1477,11 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
 
 
 _disk_type_mapping: Dict[schema.DiskType, str] = {
-    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.Ephemeral: "Ephemeral",
+    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
+    schema.DiskType.UltraSSDLRS: "UltraSSD_LRS",
 }
 
 
@@ -1809,6 +1878,24 @@ class ACC(AzureFeatureMixin, features.ACC):
         resource_sku: Any = kwargs.get("resource_sku")
 
         if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
+            return schema.FeatureSettings.create(cls.name())
+        return None
+
+
+class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualization):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        # add vm which support nested confidential virtualization
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/dcasccv5-dcadsccv5-series
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/ecasccv5-ecadsccv5-series
+        if resource_sku.family in [
+            "standardDCACCV5Family",
+            "standardECACCV5Family",
+        ]:
             return schema.FeatureSettings.create(cls.name())
         return None
 

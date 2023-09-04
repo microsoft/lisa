@@ -12,6 +12,7 @@ from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from retry import retry
 from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
@@ -352,6 +353,7 @@ def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
     min_gpu_count: int = 0,
+    min_memory_mb: Optional[int] = None,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
@@ -375,6 +377,8 @@ def simple_requirement(
     node.node_count = search_space.IntRange(min=min_count)
     node.core_count = search_space.IntRange(min=min_core_count)
     node.gpu_count = search_space.IntRange(min=min_gpu_count)
+    if min_memory_mb:
+        node.memory_mb = search_space.IntRange(min=min_memory_mb)
 
     if min_data_disk_count or disk:
         if not disk:
@@ -672,6 +676,7 @@ class TestSuite:
                 log_dir.mkdir(parents=True)
                 serial_console.get_console_log(log_dir, force_run=True)
 
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:
             path = (

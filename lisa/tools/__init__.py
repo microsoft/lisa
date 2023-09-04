@@ -85,6 +85,7 @@ from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
 from .pidof import Pidof
 from .ping import Ping
+from .pkgconfig import Pkgconfig
 from .powershell import PowerShell
 from .python import Pip, Python
 from .qemu import Qemu
@@ -93,6 +94,7 @@ from .reboot import Reboot
 from .remote_copy import RemoteCopy
 from .rm import Rm
 from .sar import Sar
+from .sockperf import Sockperf
 from .ssh import Ssh
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
@@ -200,6 +202,7 @@ __all__ = [
     "Pgrep",
     "Ping",
     "Pip",
+    "Pkgconfig",
     "PowerShell",
     "ProcessInfo",
     "Python",
@@ -213,6 +216,7 @@ __all__ = [
     "Sed",
     "Service",
     "ServiceInternal",
+    "Sockperf",
     "Ssh",
     "Sshpass",
     "StartConfiguration",

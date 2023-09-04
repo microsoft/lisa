@@ -111,13 +111,25 @@ class KLDStat(Tool):
     ) -> bool:
         if name in self._MODULE_DRIVER_MAPPING:
             name = self._MODULE_DRIVER_MAPPING[name]
+
         output = self.run(
             f"-n {name}",
             sudo=True,
+            force_run=True,
         ).stdout
         matched = find_groups_in_lines(output, self._LOADED_MODULES, False)
-        if len(matched) == 0:
-            return False
+        if len(matched) > 0:
+            assert_that(len(matched)).is_equal_to(1)
+            return matched[0]["name"] == name and int(matched[0]["refs"]) > 0
 
-        assert_that(len(matched)).is_equal_to(1)
-        return matched[0]["name"] == name and int(matched[0]["refs"]) > 0
+        # Check if module is loaded in kernel
+        output = self.node.execute(
+            f"kldload {name}",
+            sudo=True,
+            shell=True,
+        ).stdout
+
+        if "module already loaded or in kernel" in output:
+            return True
+
+        return False
