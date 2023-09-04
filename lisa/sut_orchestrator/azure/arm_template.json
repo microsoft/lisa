@@ -2,6 +2,12 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "tipCluster": {
+            "type": "IAD20PrdApp39"
+        },
+        "tipSessionId": {
+            "type": "d8f57975-9bb6-4f56-91ed-02a3c068fdc6"
+        },
         "storage_name": {
             "type": "string",
             "metadata": {
@@ -361,9 +367,12 @@
                 "name": "vmCopy",
                 "count": "[variables('node_count')]"
             },
+            "tags": {
+                "TipNode.SessionId": "[parameters('tipSessionId')]",
+                "pinnedFabricCluster": "[parameters('tipSessionId')]"
+            },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
-            "tags": "[parameters('vm_tags')]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
                 "ultraDisks",
