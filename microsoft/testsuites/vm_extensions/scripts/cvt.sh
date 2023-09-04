@@ -5,14 +5,23 @@ src_disk=$2
 tgt_disk=$3
 FAILED_TEST=1
 PASSED_TEST=0
+dmesg_log_file="$tdir/dmesg.log"
 log()
 {
     echo "$(date):[cvt] -> $*" | tee -a "$tdir/cvt.log"
 }
 
-exit_with_logs()
+log_dmesg()
 {
-    echo "TEST_STATUS:$1:$2"
+    dmesg -c > "$dmesg_log_file"
+    if [ -z "$dmesg_log_file" ]; then
+        echo "<This file is intentionally empty>" > "$dmesg_log_file"
+    fi
+}
+
+exit_with_retcode()
+{
+    echo "TEST_STATUS:$1"
     exit "$1"
 }
 
@@ -52,12 +61,12 @@ set_test_params()
 
     /usr/local/ASR/Vx/bin/inm_dmit --set_attr VacpIObarrierTimeout $timeout || {
         log_dmesg
-        exit_with_logs $FAILED_TEST /tmp/dmesg.log
+        exit_with_retcode $FAILED_TEST
     }
 
     /usr/local/ASR/Vx/bin/inm_dmit --set_attr DirtyBlockHighWaterMarkServiceRunning 30000 || {
         log_dmesg
-        exit_with_logs $FAILED_TEST /tmp/dmesg.log
+        exit_with_retcode $FAILED_TEST
     }
 
     return 0
@@ -172,7 +181,7 @@ run_tests()
     log "Total Tests: $ntests"
 
     curdir=$(pwd)
-    cd "$tdir" || exit_with_logs "$FAILED_TEST"
+    cd "$tdir" || exit_with_retcode "$FAILED_TEST"
     for testcase in "${testcases[@]}"; do
         echo -e "$ctests/$ntests\r"
         log "Starting $testcase test"
@@ -188,17 +197,16 @@ run_tests()
 
         if [ $failed -eq 1 ]; then
             log_dmesg
-            failed_logs="$tdir/$testcase.log /tmp/dmesg.log"
-            exit_with_logs $FAILED_TEST "$failed_logs"
+            exit_with_retcode "$FAILED_TEST"
         fi
 
         sleep $stime
     done
 
-    cd "$curdir" || exit_with_logs "$FAILED_TEST"
+    cd "$curdir" || exit_with_retcode "$FAILED_TEST"
     return "$failed"
 }
 
 set_test_params
 run_tests
-exit_with_logs $?
+exit_with_retcode $?

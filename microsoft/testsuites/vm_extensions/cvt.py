@@ -5,7 +5,7 @@ import datetime
 import re
 import uuid
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 from assertpy import assert_that
 
@@ -23,6 +23,7 @@ from lisa import (
 )
 from lisa.executable import ExecutableResult
 from lisa.features import Disk
+from lisa.operating_system import Posix
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Find, Lsblk, Wget
 from lisa.util import SkippedException
@@ -183,6 +184,17 @@ def _run_script(
 ) -> ExecutableResult:
     timer = create_timer()
     script: CustomScript = node.tools[cvt_script]
+    # Convert script to unix line endings
+    dos2unix_result = node.execute(
+        f"dos2unix '{script._command}'",
+        cwd=script._cwd,
+        shell=True,
+        sudo=True,
+    )
+    assert_that(dos2unix_result.exit_code).described_as(
+        "Failed to modify shell script to unix format"
+    ).is_equal_to(0)
+
     params = test_dir + " /dev/" + data_disks[0] + " /dev/" + data_disks[1]
     result = script.run(
         parameters=params,
@@ -328,9 +340,12 @@ class CVTTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         variables = kwargs["variables"]
         node = kwargs["node"]
+        posix_os: Posix = cast(Posix, node.os)
         self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
         if not self._container_sas_uri:
             raise SkippedException("cvt binary is not provided.")
+
+        posix_os.install_packages("dos2unix")
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
