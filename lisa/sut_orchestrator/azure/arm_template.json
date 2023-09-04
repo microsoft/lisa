@@ -2,12 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "tipCluster": {
-            "type": "IAD20PrdApp39"
-        },
-        "tipSessionId": {
-            "type": "d8f57975-9bb6-4f56-91ed-02a3c068fdc6"
-        },
         "storage_name": {
             "type": "string",
             "metadata": {
@@ -120,18 +114,6 @@
         "existing_subnet_ref": "[if(not(empty(parameters('virtual_network_resource_group'))), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
     },
     "resources": [
-        {
-            "apiVersion": "2019-07-01",
-            "type": "Microsoft.Compute/availabilitySets",
-            "condition": "[parameters('use_availability_sets')]",
-            "name": "[variables('availability_set_name')]",
-            "location": "[parameters('location')]",
-            "tags": "[parameters('availability_set_tags')]",
-            "sku": {
-                "name": "Aligned"
-            },
-            "properties": "[parameters('availability_set_properties')]"
-        },
         {
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/publicIPAddresses",
@@ -368,20 +350,18 @@
                 "count": "[variables('node_count')]"
             },
             "tags": {
-                "TipNode.SessionId": "[parameters('tipSessionId')]",
-                "pinnedFabricCluster": "[parameters('tipSessionId')]"
+                "TipNode.SessionId": "fb5987e4-c748-4cb7-85a0-1cab93f9712b",
+                "pinnedFabricCluster": "IAD20PrdApp39"
             },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
                 "ultraDisks",
-                "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name'))]",
                 "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk'), resourceId('Microsoft.Compute/images',concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-image')))]",
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
             "properties": {
-                "availabilitySet": "[if(parameters('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
                 "hardwareProfile": {
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
