@@ -41,7 +41,7 @@ class XdpTool(Tool):
     """
 
     _xdp_tools_repo = "https://github.com/xdp-project/xdp-tools.git"
-    _xdp_tools_tag = "v1.2.0"
+    _xdp_tools_tag = "v1.4.0"
     _default_command = "xdptool"
 
     #     [test_ether_deny]             PASS
