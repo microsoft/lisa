@@ -15,6 +15,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lsblk, Swap
 from microsoft.testsuites.ltp.ltp import Ltp
@@ -44,6 +45,7 @@ class LtpTestsuite(TestSuite):
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
             ),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_ltp_lite(
