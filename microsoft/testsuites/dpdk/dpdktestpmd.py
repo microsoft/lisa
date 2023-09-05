@@ -15,6 +15,7 @@ from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
+    KernelConfig,
     Kill,
     Lscpu,
     Lspci,
@@ -672,13 +673,21 @@ class DpdkTestpmd(Tool):
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
-            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+            network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
-            mellanox_drivers = ["mana"]
-            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
-                mellanox_drivers.append("mana_ib")
+            network_drivers = []
+            mana_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MICROSOFT_MANA"
+            )
+            if not mana_builtin:
+                network_drivers += ["mana"]
+            mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MANA_INFINIBAND"
+            )
+            if not mana_ib_builtin:
+                network_drivers.append("mana_ib")
         else:
-            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
+            network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
         if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
@@ -704,14 +713,15 @@ class DpdkTestpmd(Tool):
                 self.node.reboot()
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
-                self.node.execute(
-                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Issue loading mlx and ib_uverb drivers into ramdisk."
-                    ),
-                    sudo=True,
-                )
+                if network_drivers:
+                    self.node.execute(
+                        f"dracut --add-drivers '{' '.join(network_drivers)} ib_uverbs' -f",
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "Issue loading mlx and ib_uverb drivers into ramdisk."
+                        ),
+                        sudo=True,
+                    )
         else:
             raise UnsupportedDistroException(self.node.os)
         rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
@@ -723,7 +733,8 @@ class DpdkTestpmd(Tool):
                 rmda_drivers.append(module)
 
         modprobe.load(rmda_drivers)
-        modprobe.load(mellanox_drivers)
+        if network_drivers:
+            modprobe.load(network_drivers)
 
     def _install_dependencies(self) -> None:
         node = self.node
