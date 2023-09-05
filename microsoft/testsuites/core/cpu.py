@@ -15,7 +15,11 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
+from lisa.environment import Environment
 from lisa.operating_system import CpuArchitecture
+from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
 
 hyperv_interrupt_substr = ["hyperv", "Hypervisor", "Hyper-V"]
@@ -60,7 +64,9 @@ class CPU(TestSuite):
         """,
         priority=1,
     )
-    def verify_l3_cache(self, node: Node, log: Logger) -> None:
+    def verify_l3_cache(
+        self, environment: Environment, node: Node, log: Logger
+    ) -> None:
         cmdline = node.tools[Cat].run("/proc/cmdline").stdout
         if "numa=off" in cmdline:
             uname_result = node.tools[Uname].get_linux_information()
@@ -75,6 +81,22 @@ class CPU(TestSuite):
         lscpu = node.tools[Lscpu]
         threads_per_core = lscpu.get_thread_per_core_count()
         processor_name = lscpu.get_cpu_model_name()
+
+        # Standard_NC8as_T4_v3 and Standard_NC16as_T4_v3 has all the cores
+        # mapped to a single L3 cache. This a known Host Bug and we do not
+        # have an ETA on when the fix will be released.
+        # This is a temporary exception for this VM size and needs to be
+        # reverted when the Host fix is released.
+        if isinstance(environment.platform, AzurePlatform):
+            node_capability = node.capability.get_extended_runbook(
+                AzureNodeSchema, AZURE
+            )
+            if node_capability.vm_size in [
+                "Standard_NC8as_T4_v3",
+                "Standard_NC16as_T4_v3",
+            ]:
+                self._verify_node_mapping(node, 16)
+                return
 
         if processor_name:
             # ND A100 v4-series and NDm A100 v4-series
