@@ -344,7 +344,7 @@ class CVTTest(TestSuite):
         node = kwargs["node"]
         self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
         if not self._container_sas_uri:
-            raise SkippedException("cvt binary is not provided.")
+            raise SkippedException("cvtbinaries_sasuri is not provided.")
 
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
