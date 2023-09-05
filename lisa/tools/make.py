@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Dict, Optional, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import BSD, Posix
@@ -20,6 +20,10 @@ class Make(Tool):
         self._thread_count = 0
 
     @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Gcc]
+
+    @property
     def command(self) -> str:
         if isinstance(self.node.os, BSD):
             return "gmake"
@@ -32,7 +36,7 @@ class Make(Tool):
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.install_packages([self, Gcc])
+        posix_os.install_packages([self])
         return self._check_exists()
 
     def make_install(
