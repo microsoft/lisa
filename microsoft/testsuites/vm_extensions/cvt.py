@@ -185,6 +185,8 @@ def _run_script(
     timer = create_timer()
     script: CustomScript = node.tools[cvt_script]
     # Convert script to unix line endings
+    posix_os: Posix = cast(Posix, node.os)
+    posix_os.install_packages("dos2unix")
     dos2unix_result = node.execute(
         f"dos2unix '{script._command}'",
         cwd=script._cwd,
@@ -311,7 +313,7 @@ class CVTTest(TestSuite):
         this test validate the functionality of ASR driver by verifying
         integrity of a source disk with respect to a target disk
         """,
-        priority=1,
+        priority=3,
         timeout=TIMEOUT,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
@@ -340,12 +342,10 @@ class CVTTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         variables = kwargs["variables"]
         node = kwargs["node"]
-        posix_os: Posix = cast(Posix, node.os)
         self._container_sas_uri = variables.get("cvtbinaries_sasuri", "")
         if not self._container_sas_uri:
             raise SkippedException("cvt binary is not provided.")
 
-        posix_os.install_packages("dos2unix")
         self._cvt_script = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["cvt.sh"]
         )
