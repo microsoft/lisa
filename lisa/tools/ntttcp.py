@@ -2,8 +2,9 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.messages import (
@@ -12,9 +13,9 @@ from lisa.messages import (
     TransportProtocol,
     create_perf_message,
 )
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import BSD, CBLMariner
 from lisa.tools import Firewall, Gcc, Git, Make, Sed
-from lisa.util import constants
+from lisa.util import LisaException, constants
 from lisa.util.process import ExecutableResult, Process
 
 from .sysctl import Sysctl
@@ -40,6 +41,20 @@ NTTTCP_TCP_CONCURRENCY = [
     8192,
     10240,
     20480,
+]
+# Running NTTTCP in BSD results in error:
+# ERR : error happened when select()
+NTTTCP_TCP_CONCURRENCY_BSD = [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
 ]
 NTTTCP_UDP_CONCURRENCY = [
     1,
@@ -125,6 +140,7 @@ class Ntttcp(Tool):
         {"net.core.wmem_default": "67108864"},
         {"net.core.wmem_max": "67108864"},
     ]
+    tool_path_folder = "ntttcp-for-linux/src"
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -137,6 +153,10 @@ class Ntttcp(Tool):
     @property
     def can_install(self) -> bool:
         return True
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return BSDNtttcp
 
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
@@ -340,8 +360,10 @@ class Ntttcp(Tool):
             )
         if matched_results.group("retrans_segs"):
             ntttcp_result.retrans_segs = Decimal(matched_results.group("retrans_segs"))
-        ntttcp_result.rx_packets = Decimal(matched_results.group("rx_packets"))
-        ntttcp_result.tx_packets = Decimal(matched_results.group("tx_packets"))
+        if matched_results.group("rx_packets"):
+            ntttcp_result.rx_packets = Decimal(matched_results.group("rx_packets"))
+        if matched_results.group("tx_packets"):
+            ntttcp_result.tx_packets = Decimal(matched_results.group("tx_packets"))
         ntttcp_result.cycles_per_byte = Decimal(
             matched_results.group("cycles_per_byte")
         )
@@ -442,11 +464,12 @@ class Ntttcp(Tool):
         git = self.node.tools[Git]
         git.clone(self.repo, tool_path)
         make = self.node.tools[Make]
-        code_path = tool_path.joinpath("ntttcp-for-linux/src")
+        code_path = tool_path.joinpath(self.tool_path_folder)
         make.make_install(cwd=code_path)
-        self.node.execute(
-            "ln -s /usr/local/bin/ntttcp /usr/bin/ntttcp", sudo=True, cwd=code_path
-        ).assert_exit_code()
+        if not isinstance(self.node.os, BSD):
+            self.node.execute(
+                "ln -s /usr/local/bin/ntttcp /usr/bin/ntttcp", sudo=True, cwd=code_path
+            ).assert_exit_code()
         return self._check_exists()
 
     def _set_tasks_max(self) -> None:
@@ -478,3 +501,131 @@ class Ntttcp(Tool):
         if need_reboot:
             self._log.debug("reboot vm to make sure TasksMax change take effect")
             self.node.reboot()
+
+
+class BSDNtttcp(Ntttcp):
+    repo = "https://github.com/dcui/ntttcp-for-freebsd.git"
+    tool_path_folder = "ntttcp-for-freebsd/src"
+    # sample output:
+    # 15:19:57 INFO: Network activity progressing...
+    # 15:20:07 INFO:  Thread  Time(s) Throughput
+    # 15:20:07 INFO:  ======  ======= ==========
+    # 15:20:07 INFO:  0        10.07   28.91Gbps
+    # 15:20:07 INFO: #####  Totals:  #####
+    # 15:20:07 INFO: test duration    :10.07 seconds
+    # 15:20:07 INFO: total bytes      :36380606464
+    # 15:20:07 INFO:   throughput     :28.91Gbps
+    # 15:20:07 INFO: total cpu time   :73.64%
+    # 15:20:07 INFO:   user time      :36.69%
+    # 15:20:07 INFO:   system time    :37.05%
+    # 15:20:07 INFO:   cpu cycles     :28123249363
+    # 15:20:07 INFO: cycles/byte      :0.77
+    output_pattern = re.compile(
+        r"([\w\W]*?)Totals:([\w\W]*?)throughput.*:(?P<throughput>.+)(?P<unit>Mbps|Gbps)"
+        r"([\w\W]*?)cycles/byte.*:(?P<cycles_per_byte>.+)\r",
+        re.MULTILINE,
+    )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
+
+    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+        # No additional setup is needed for FreeBSD
+        return
+
+    def restore_system(self, udp_mode: bool = False) -> None:
+        # No additional restore is needed for FreeBSD
+        return
+
+    def run_as_server_async(
+        self,
+        nic_name: str,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        use_epoll: bool = True,
+        server_ip: str = "",
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+    ) -> Process:
+        assert server_ip, "server ip is required for ntttcp server"
+        self._log.debug(
+            "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in FreeBSD"
+        )
+
+        # Setup command
+        cmd = (
+            f" -r{server_ip} -P {ports_count} -t {run_time_seconds} -b {buffer_size}k "
+        )
+        if run_as_daemon:
+            cmd += " -D "
+        if udp_mode:
+            raise LisaException("UDP mode is not supported in FreeBSD")
+
+        # Start the server and wait for the threads to be created
+        process = self.node.execute_async(
+            f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
+        )
+        time.sleep(5)
+
+        return process
+
+    def run_as_client(
+        self,
+        nic_name: str,
+        server_ip: str,
+        threads_count: int,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+    ) -> ExecutableResult:
+        self._log.debug(
+            "Paramers nic_name, cool_down_time_seconds, warm_up_time_seconds, "
+            "use_epoll and dev_differentiator are not supported in FreeBSD"
+        )
+        cmd = (
+            f" -s{server_ip} -P {ports_count} -n {threads_count}"
+            f" -t {run_time_seconds}  -b {buffer_size}k "
+        )
+        if udp_mode:
+            raise LisaException("UDP mode is not supported in FreeBSD")
+        if run_as_daemon:
+            cmd += " -D "
+        result = self.node.execute(
+            f"ulimit -n 204800 && {self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+        )
+        return result
+
+    def create_ntttcp_result(
+        self, result: ExecutableResult, role: str = "server"
+    ) -> NtttcpResult:
+        matched_results = self.output_pattern.match(result.stdout)
+        assert matched_results, "not found matched ntttcp results."
+        ntttcp_result = NtttcpResult()
+        ntttcp_result.role = role
+        if "Mbps" == matched_results.group("unit"):
+            ntttcp_result.throughput_in_gbps = Decimal(
+                Decimal(matched_results.group("throughput")) / 1000
+            )
+        else:
+            ntttcp_result.throughput_in_gbps = Decimal(
+                matched_results.group("throughput")
+            )
+        ntttcp_result.cycles_per_byte = Decimal(
+            matched_results.group("cycles_per_byte")
+        )
+        return ntttcp_result

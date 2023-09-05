@@ -12,9 +12,13 @@ from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
 from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
-from lisa.tools import Firewall, Gcc, Git, Make
 from lisa.util import constants
 from lisa.util.process import Process
+
+from .firewall import Firewall
+from .gcc import Gcc
+from .git import Git
+from .make import Make
 
 if TYPE_CHECKING:
     from lisa.testsuite import TestResult
@@ -60,6 +64,9 @@ class Sockperf(Tool):
         r"sockperf: ---> <MIN> observation "
         r"=\s+(?P<min_latency_us>[0-9]+\.[0-9]+)"
     )
+
+    # ====> avg-rtt=3770.433 (std-dev=4585.840, mean-ad=4427.419, median-ad=171.194, siqr=4674.992, cv=1.216, std-error=369.538, 99.0% ci=[2818.566, 4722.300]) # noqa: E501
+    sockperf_average_latency = re.compile(r"avg-rtt=(?P<avg_latency_us>[0-9]+\.[0-9]+)")
 
     def _get_protocol_flag(self, mode: str) -> str:
         assert_that(mode).described_as(
@@ -147,20 +154,22 @@ class Sockperf(Tool):
 
         make.make_install(cwd=code_path, sudo=True)
 
-    def get(self, command: str) -> str:
-        return self.run(command, shell=True, force_run=True).stdout
-
     def start(self, command: str) -> Process:
         return self.run_async(command, shell=True, force_run=True)
 
-    def start_server(self, mode: str, timeout: int = 30) -> Process:
+    def start_server_async(self, mode: str, timeout: int = 30) -> Process:
         self_ip = self.node.nics.get_primary_nic().ip_addr
         protocol_flag = self._get_protocol_flag(mode)
         return self.start(command=f"server {protocol_flag} -i {self_ip}")
 
-    def run_client(self, mode: str, server_ip: str) -> str:
+    def run_client_async(self, mode: str, server_ip: str) -> Process:
         protocol_flag = self._get_protocol_flag(mode)
-        return self.get(f"ping-pong {protocol_flag} --full-rtt -i {server_ip}")
+        return self.start(
+            command=f"ping-pong {protocol_flag} --full-rtt -i {server_ip}"
+        )
+
+    def run_client(self, mode: str, server_ip: str) -> str:
+        return self.run_client_async(mode, server_ip).wait_result().stdout
 
     def create_latency_performance_message(
         self,
@@ -204,3 +213,8 @@ class Sockperf(Tool):
             other_fields,
         )
         notifier.notify(message)
+
+    def get_average_latency(self, sockperf_output: str) -> Decimal:
+        matched_results = self.sockperf_average_latency.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return Decimal(matched_results.group("avg_latency_us"))

@@ -24,7 +24,7 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import BSD, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -44,7 +44,11 @@ from lisa.tools import (
     Ssh,
     Sysctl,
 )
-from lisa.tools.ntttcp import NTTTCP_TCP_CONCURRENCY, NTTTCP_UDP_CONCURRENCY
+from lisa.tools.ntttcp import (
+    NTTTCP_TCP_CONCURRENCY,
+    NTTTCP_TCP_CONCURRENCY_BSD,
+    NTTTCP_UDP_CONCURRENCY,
+)
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult, Process
 
@@ -261,7 +265,10 @@ def perf_ntttcp(  # noqa: C901
         if udp_mode:
             connections = NTTTCP_UDP_CONCURRENCY
         else:
-            connections = NTTTCP_TCP_CONCURRENCY
+            if isinstance(server.os, BSD):
+                connections = NTTTCP_TCP_CONCURRENCY_BSD
+            else:
+                connections = NTTTCP_TCP_CONCURRENCY
 
     client_ntttcp, server_ntttcp = run_in_parallel(
         [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
@@ -274,7 +281,7 @@ def perf_ntttcp(  # noqa: C901
             ]
         )
         # no need to set task max and reboot VM when connection less than 20480
-        if max(connections) >= 20480:
+        if max(connections) >= 20480 and not isinstance(server.os, BSD):
             set_task_max = True
         else:
             set_task_max = False
@@ -338,8 +345,10 @@ def perf_ntttcp(  # noqa: C901
                 buffer_size = int(65536 / 1024)
             if udp_mode:
                 buffer_size = int(1024 / 1024)
+
             server_result = server_ntttcp.run_as_server_async(
                 server_nic_name,
+                server_ip=server.internal_address if isinstance(server.os, BSD) else "",
                 ports_count=num_threads_p,
                 buffer_size=buffer_size,
                 dev_differentiator=dev_differentiator,
@@ -365,6 +374,7 @@ def perf_ntttcp(  # noqa: C901
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
             )
+            server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
@@ -396,7 +406,6 @@ def perf_ntttcp(  # noqa: C901
                     test_result,
                 )
             notifier.notify(ntttcp_message)
-
             perf_ntttcp_message_list.append(ntttcp_message)
     finally:
         error_msg = ""
@@ -531,7 +540,7 @@ def perf_sockperf(
 
     run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
 
-    server_proc = server.tools[Sockperf].start_server(mode)
+    server_proc = server.tools[Sockperf].start_server_async(mode)
     # wait for sockperf to start, fail if it doesn't.
     try:
         server_proc.wait_output(

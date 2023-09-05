@@ -15,6 +15,7 @@ from lisa import (
 )
 from lisa.environment import Environment, Node
 from lisa.features import Sriov, Synthetic
+from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Sysctl
 from lisa.tools.iperf3 import (
@@ -190,6 +191,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_udp_1k_ntttcp_synthetic(self, result: TestResult) -> None:
@@ -204,6 +206,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_udp_1k_ntttcp_sriov(self, result: TestResult) -> None:

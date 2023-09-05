@@ -3,7 +3,7 @@
 
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from lisa import notifier
 from lisa.executable import Tool
@@ -18,6 +18,7 @@ from .git import Git
 from .lsof import Lsof
 from .make import Make
 from .mixins import KillableMixin
+from .sockperf import Sockperf
 from .sysctl import Sysctl
 
 if TYPE_CHECKING:
@@ -109,6 +110,10 @@ class Lagscope(Tool, KillableMixin):
     @property
     def can_install(self) -> bool:
         return True
+
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return BSDLagscope
 
     def set_busy_poll(self) -> None:
         # Busy polling helps reduce latency in the network receive path by
@@ -361,3 +366,46 @@ class Lagscope(Tool, KillableMixin):
         for package in list(package_list):
             if posix_os.is_package_in_repo(package):
                 posix_os.install_packages(package)
+
+
+class BSDLagscope(Lagscope):
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        firewall = self.node.tools[Firewall]
+        firewall.stop()
+
+    def get_average(self, result: ExecutableResult) -> Decimal:
+        return self.node.tools[Sockperf].get_average_latency(result.stdout)
+
+    def set_busy_poll(self) -> None:
+        # This is not supported on FreeBSD.
+        return
+
+    def restore_busy_poll(self) -> None:
+        # This is not supported on FreeBSD.
+        return
+
+    def run_as_server_async(self, ip: str = "") -> Process:
+        return self.node.tools[Sockperf].start_server_async("tcp")
+
+    def run_as_client_async(
+        self,
+        server_ip: str,
+        test_interval: int = 0,
+        run_time_seconds: int = 10,
+        ping_count: int = 0,
+        print_histogram: bool = True,
+        print_percentile: bool = True,
+        histogram_1st_interval_start_value: int = 30,
+        length_of_histogram_intervals: int = 15,
+        count_of_histogram_intervals: int = 30,
+        dump_csv: bool = True,
+        daemon: bool = False,
+    ) -> Process:
+        return self.node.tools[Sockperf].run_client_async("tcp", server_ip)
