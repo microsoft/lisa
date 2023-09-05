@@ -17,6 +17,7 @@ from lisa.tools import (
     Echo,
     Git,
     Ip,
+    KernelConfig,
     Kill,
     Lscpu,
     Lspci,
@@ -676,8 +677,16 @@ class DpdkTestpmd(Tool):
         if self.is_connect_x3:
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
-            network_drivers = ["mana"]
-            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
+            network_drivers = []
+            mana_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MICROSOFT_MANA"
+            )
+            if not mana_builtin:
+                network_drivers += ["mana"]
+            mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MANA_INFINIBAND"
+            )
+            if not mana_ib_builtin:
                 network_drivers.append("mana_ib")
         else:
             network_drivers = ["mlx5_core", "mlx5_ib"]
@@ -706,14 +715,15 @@ class DpdkTestpmd(Tool):
                 self.node.reboot()
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
-                self.node.execute(
-                    f"dracut --add-drivers '{' '.join(network_drivers)} ib_uverbs' -f",
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Issue loading mlx and ib_uverb drivers into ramdisk."
-                    ),
-                    sudo=True,
-                )
+                if network_drivers:
+                    self.node.execute(
+                        f"dracut --add-drivers '{' '.join(network_drivers)} ib_uverbs' -f",
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "Issue loading mlx and ib_uverb drivers into ramdisk."
+                        ),
+                        sudo=True,
+                    )
         else:
             raise UnsupportedDistroException(self.node.os)
         if self.is_mana:
@@ -727,8 +737,9 @@ class DpdkTestpmd(Tool):
                 if modprobe.module_exists(module):
                     rdma_drivers.append(module)
 
-        modprobe.load(rdma_drivers)
-        modprobe.load(network_drivers)
+        modprobe.load(rmda_drivers)
+        if network_drivers:
+            modprobe.load(network_drivers)
 
     def _install_dependencies(self) -> None:
         node = self.node
