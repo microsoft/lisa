@@ -350,14 +350,12 @@
                 "count": "[variables('node_count')]"
             },
             "tags": {
-                "TipNode.SessionId": "fb5987e4-c748-4cb7-85a0-1cab93f9712b",
-                "pinnedFabricCluster": "IAD20PrdApp39"
+                "TipNode.SessionId": "fb5987e4-c748-4cb7-85a0-1cab93f9712b"
             },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
-                "ultraDisks",
                 "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk'), resourceId('Microsoft.Compute/images',concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-image')))]",
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
