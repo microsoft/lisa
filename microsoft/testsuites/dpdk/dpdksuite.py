@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
 from lisa.util.constants import SIGINT
@@ -392,6 +392,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_vpp(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        if isinstance(node.os, CBLMariner):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "VPP test does not support Mariner installation."
+                )
+            )
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
