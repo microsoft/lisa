@@ -77,13 +77,10 @@ class DpdkTestpmd(Tool):
         return self._testpmd_install_path
 
     _ubuntu_packages_1804 = [
-        "librdmacm-dev",
         "build-essential",
         "libmnl-dev",
         "libelf-dev",
         "meson",
-        "rdma-core",
-        "librdmacm1",
         "libnuma-dev",
         "dpkg-dev",
         "pkg-config",
@@ -94,16 +91,12 @@ class DpdkTestpmd(Tool):
 
     _ubuntu_packages_2004 = [
         "build-essential",
-        "librdmacm-dev",
         "libnuma-dev",
         "libmnl-dev",
-        "librdmacm1",
         "meson",
         "ninja-build",
         "python3-pyelftools",
         "libelf-dev",
-        "rdma-core",
-        "ibverbs-providers",
         "pkg-config",
     ]
 
@@ -113,7 +106,6 @@ class DpdkTestpmd(Tool):
     _fedora_packages = [
         "psmisc",
         "numactl-devel",
-        "librdmacm-devel",
         "pkgconfig",
         "elfutils-libelf-devel",
         "python3-pip",
@@ -125,8 +117,6 @@ class DpdkTestpmd(Tool):
         "psmisc",
         "libnuma-devel",
         "numactl",
-        "librdmacm1",
-        "rdma-core-devel",
         "libmnl-devel meson",
         "gcc-c++",
     ]
@@ -140,6 +130,25 @@ class DpdkTestpmd(Tool):
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
+
+    def get_rdma_core_package_name(self) -> str:
+        distro = self.node.os
+        package = ""
+        # check if rdma-core is installed already...
+        if self.node.tools[Pkgconfig].package_info_exists("libibuverbs"):
+            return package
+        if isinstance(distro, Debian):
+            package = "rdma-core ibverbs-providers libibverbs-dev"
+        elif isinstance(distro, Suse):
+            package = "rdma-core-devel librdmacm1"
+        elif isinstance(distro, Fedora):
+            return "librdmacm-devel"
+            # fedora installs a group install later
+            # can skip this package
+            ...
+        else:
+            fail("Invalid OS")
+        return package
 
     @property
     def can_install(self) -> bool:
@@ -776,6 +785,9 @@ class DpdkTestpmd(Tool):
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
+            rdma_core_packages = self.get_rdma_core_package_name()
+            if rdma_core_packages:
+                suse.install_packages(rdma_core_packages.split())
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
@@ -803,6 +815,9 @@ class DpdkTestpmd(Tool):
                 self._ubuntu_packages_2004,
                 extra_args=self._debian_backports_args,
             )
+        rdma_core_packages = self.get_rdma_core_package_name()
+        if rdma_core_packages:
+            ubuntu.install_packages(rdma_core_packages.split())
 
     def _install_fedora_dependencies(self) -> None:
         node = self.node
@@ -831,9 +846,12 @@ class DpdkTestpmd(Tool):
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
+        rdma_core_packages = self.get_rdma_core_package_name()
+        if rdma_core_packages:
+            self._fedora_packages += rdma_core_packages.split()
+            rhel.group_install_packages("Infiniband Support")
 
         rhel.group_install_packages("Development Tools")
-        rhel.group_install_packages("Infiniband Support")
         rhel.install_packages(self._fedora_packages)
 
         # ensure RDMA service is started if present.
