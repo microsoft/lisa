@@ -103,7 +103,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
             init_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
             expanded_transformers.append(transformer)
-        elif transformer.phase == constants.TRANSFORMER_PHASE_DEPLOYED:
+        elif transformer.phase == constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED:
             deployed_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP:
             expanded_cleanup_transformers.append(transformer)

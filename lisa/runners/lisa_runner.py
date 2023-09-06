@@ -211,11 +211,6 @@ class LisaRunner(BaseRunner):
         # run on connected environment
         can_run_results = [x for x in can_run_results if x.can_run]
         if environment.status == EnvironmentStatus.Connected and can_run_results:
-            transformer.run(
-                self._runbook_builder,
-                phase=constants.TRANSFORMER_PHASE_DEPLOYED,
-                environment=environment,
-            )
             selected_test_results = self._get_test_results_to_run(
                 test_results=test_results, environment=environment
             )
@@ -312,6 +307,11 @@ class LisaRunner(BaseRunner):
             assert (
                 environment.status == EnvironmentStatus.Connected
             ), f"actual: {environment.status}"
+            transformer.run(
+                self._runbook_builder,
+                phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED,
+                environment=environment,
+            )
         except Exception as identifier:
             self._attach_failed_environment_to_result(
                 environment=environment,
