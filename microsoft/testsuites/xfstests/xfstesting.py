@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import Redhat
+from lisa.operating_system import BSD, Redhat, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
@@ -151,6 +151,7 @@ class Xfstesting(TestSuite):
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
+            unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
@@ -187,6 +188,7 @@ class Xfstesting(TestSuite):
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
+            unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
@@ -222,6 +224,7 @@ class Xfstesting(TestSuite):
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
+            unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
@@ -258,6 +261,7 @@ class Xfstesting(TestSuite):
                 data_disk_iops=500,
                 data_disk_count=search_space.IntRange(min=1),
             ),
+            unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
@@ -294,7 +298,7 @@ class Xfstesting(TestSuite):
         priority=3,
         use_new_environment=True,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            supported_features=[Nvme], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_generic_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
@@ -323,7 +327,7 @@ class Xfstesting(TestSuite):
         priority=3,
         use_new_environment=True,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            supported_features=[Nvme], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_xfs_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
@@ -353,7 +357,7 @@ class Xfstesting(TestSuite):
         priority=3,
         use_new_environment=True,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            supported_features=[Nvme], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_ext4_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
@@ -384,7 +388,7 @@ class Xfstesting(TestSuite):
         priority=3,
         use_new_environment=True,
         requirement=simple_requirement(
-            supported_features=[Nvme],
+            supported_features=[Nvme], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_btrfs_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
@@ -415,6 +419,7 @@ class Xfstesting(TestSuite):
         requirement=simple_requirement(
             min_core_count=16,
             supported_platform_type=[AZURE],
+            unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
