@@ -624,37 +624,60 @@ class Dpdk(TestSuite):
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # multiprocess test requires dpdk source.
-        forwarder, sender = environment.nodes.list()
-        self._force_dpdk_default_source(variables)
-        for node in [forwarder, sender]:
-            node.tools[KernelPackage].install_kernel_package_lts()
         pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
+        l3_port = 0xD007
+        dpdk_port_snd_fwd = 1
+        # dpdk_port_recv = 2
+
+        ## FIXME: Cursed ubuntu 22.04 backport install hacks
+        self._force_dpdk_default_source(variables)
+        for node in environment.nodes.list():
+            # install ubuntu backport kernel packages
+            node.tools[KernelPackage].install_kernel_package_lts()
+
+        # install rdma-core source build with shitty backport hack
+        for node in environment.nodes.list():
+            # cursed hack for testing
+            node.execute(
+                (
+                    "wget https://raw.githubusercontent.com/mcgov/"
+                    "az_scripts/main/mana_dpdk_test_setup.sh "
+                    "&& sudo bash ./mana_dpdk_test_setup.sh"
+                ),
+                shell=True,
+                timeout=600,
+                update_envs={
+                    "SKIP_LINUX_KERNEL_INSTALL": "1",
+                    "SKIP_DPDK_INSTALL": "1",
+                    "APPLY_UBUNTU_BACKPORT_KERNEL_HACK": "1",
+                },
+            )
+        ## FIXME: end cursed code
 
         # initialize DPDK with sample applications selected for build
         test_kits = init_nodes_concurrent(
             environment, log, variables, pmd, sample_apps=["l3fwd"]
         )
-        fwd_kit, snd_kit = test_kits
-        sender = snd_kit.node
-        forwarder = fwd_kit.node
+
         # enable hugepages needed for dpdk EAL
         for node in environment.nodes.list():
             init_hugepages(node)
 
-        # get test basic info
+        # pick which node will be forwarder and sender arbitrarily
+        fwd_kit, snd_kit = test_kits
+        sender = snd_kit.node
+        forwarder = fwd_kit.node
 
+        # get some basic node info
         forwarder_nic = forwarder.nics.get_secondary_nic()
         forwarder_ip = forwarder_nic.ip_addr
-
         sender_mac = sender.nics.get_secondary_nic().mac_addr
-
         sender_ip = sender.nics.get_secondary_nic().ip_addr
-        l3_port = 0xD007
-        dpdk_port = 1
-        # setup forwarding rules
+
+        ### setup forwarding rules
         sample_rules_v4 = (
-            f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} 0x6 {dpdk_port}"
+            f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} 0x6 {dpdk_port_snd_fwd}"
         )
 
         def ipv4_to_ipv6(addr: str) -> str:
@@ -670,7 +693,7 @@ class Dpdk(TestSuite):
 
         ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_ip)
         ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
-        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} 0x6 {dpdk_port}"
+        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} 0x6 {dpdk_port_snd_fwd}"
         rules_paths = [
             forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
         ]
@@ -690,28 +713,29 @@ class Dpdk(TestSuite):
         server_app_path = examples_path.joinpath(server_app_name)
 
         include_devices = fwd_kit.testpmd.generate_testpmd_include(
-            forwarder_nic, dpdk_port
+            forwarder_nic, dpdk_port_snd_fwd
         )
 
+        # Generate port,queue,core mappings for forwarder
         # FIXME: use 8 queues
         config_tups = [  # map some queues to cores idk
-            (dpdk_port, 0, 1),
-            (dpdk_port, 1, 2),
-            (dpdk_port, 2, 3),
-            (dpdk_port, 3, 4),
+            (dpdk_port_snd_fwd, 0, 1),
+            (dpdk_port_snd_fwd, 1, 2),
+            (dpdk_port_snd_fwd, 2, 3),
+            (dpdk_port_snd_fwd, 3, 4),
         ]  # zip(ports, queues, use_cores)
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+
         # mana doesn't support promiscuous mode
         if fwd_kit.testpmd.is_mana:
             promiscuous = ""
         else:
             promiscuous = "-P"
-        # ipv6_rules = forwarder.get_working_path().joinpath(
-        #     "dpdk/examples/l3fwd/em_default_v6.cfg"
-        # )
+
+        # start forwarder
         fwd_cmd = (
             f"{server_app_path} {include_devices} -l 1-5  -- "
-            f" {promiscuous} -p 0x2  --lookup=em "  # FIXME: port mask needs to be dynamic
+            f" {promiscuous} -p 0x2  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
             f"--eth-dest=1,{sender_mac} --parse-ptype"
@@ -723,9 +747,10 @@ class Dpdk(TestSuite):
             shell=True,
         )
 
+        # FIXME: wait for output instead of dumb sleep
         time.sleep(10)  # give it a few seconds to start
+
         # start the listener and start sending data to the forwarder
-        content_file = sender.working_path.joinpath("content")
         snd_nic = snd_kit.node.nics.get_nic_by_index(1)
         snd_cmd = snd_kit.testpmd.generate_testpmd_command(
             snd_nic,
@@ -740,12 +765,12 @@ class Dpdk(TestSuite):
             kill_timeout=70,
         )
 
-        # kill everything
+        # FIXME: receive traffic and confirm forwarding worked
+
+        # kill l2fwd on forwarder
         forwarder.tools[Kill].by_name(
             server_app_name, signum=SIGINT, ignore_not_exist=True
         )
-
-        sender.execute(f"cat {content_file.as_posix()}")
 
     @TestCaseMetadata(
         description="""
