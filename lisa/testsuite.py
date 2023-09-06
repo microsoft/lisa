@@ -83,7 +83,12 @@ def _call_with_retry_and_timeout(
     except FunctionTimedOut:
         # FunctionTimedOut is a special exception. If it's not captured
         # explicitly, it will make the whole program exit.
-        raise TimeoutError(f"time out in {timeout} seconds.")
+        name = ""
+        # Display casename if it is timedout.
+        test_result: TestResult = test_kwargs.get("result", None)
+        if test_result:
+            name = test_result.name
+        raise TimeoutError(f"{name} time out in {timeout} seconds.")
 
 
 @dataclass
