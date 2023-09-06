@@ -409,3 +409,62 @@ class BSDLagscope(Lagscope):
         daemon: bool = False,
     ) -> Process:
         return self.node.tools[Sockperf].run_client_async("tcp", server_ip)
+
+    def run_as_client(
+        self,
+        server_ip: str,
+        test_interval: int = 0,
+        run_time_seconds: int = 10,
+        ping_count: int = 0,
+        print_histogram: bool = True,
+        print_percentile: bool = True,
+        histogram_1st_interval_start_value: int = 30,
+        length_of_histogram_intervals: int = 15,
+        count_of_histogram_intervals: int = 30,
+        dump_csv: bool = True,
+        daemon: bool = False,
+    ) -> ExecutableResult:
+        process = self.run_as_client_async(
+            server_ip,
+            test_interval,
+            run_time_seconds,
+            ping_count,
+            print_histogram,
+            print_percentile,
+            histogram_1st_interval_start_value,
+            length_of_histogram_intervals,
+            count_of_histogram_intervals,
+            dump_csv,
+            daemon,
+        )
+        result = process.wait_result()
+        return result
+
+    def create_latency_performance_messages(
+        self, result: ExecutableResult, test_case_name: str, test_result: "TestResult"
+    ) -> List[NetworkLatencyPerformanceMessage]:
+        stats = self.node.tools[Sockperf].get_statistics(result.stdout)
+
+        perf_message_list: List[NetworkLatencyPerformanceMessage] = []
+        other_fields: Dict[str, Any] = {}
+        other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_LAGSCOPE
+        other_fields["min_latency_us"] = stats["min_latency_us"]
+        other_fields["max_latency_us"] = stats["max_latency_us"]
+        other_fields["average_latency_us"] = stats["average_latency_us"]
+        other_fields["latency99_percentile_us"] = stats["latency99_percentile_us"]
+        other_fields["frequency"] = (
+            stats["total_observations"] / stats["run_time_seconds"]
+        )
+        other_fields["interval_us"] = stats["run_time_seconds"] * 1000000
+
+        message = create_perf_message(
+            NetworkLatencyPerformanceMessage,
+            self.node,
+            test_result,
+            test_case_name,
+            other_fields,
+        )
+        perf_message_list.append(message)
+        notifier.notify(message)
+
+        return perf_message_list
