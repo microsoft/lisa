@@ -26,6 +26,7 @@ from lisa.tools import (
     Echo,
     Git,
     Ip,
+    KernelPackage,
     Kill,
     Lscpu,
     Lsmod,
@@ -625,7 +626,9 @@ class Dpdk(TestSuite):
         # multiprocess test requires dpdk source.
         forwarder, sender = environment.nodes.list()
         self._force_dpdk_default_source(variables)
-        pmd = "failsafe"
+        for node in [forwarder, sender]:
+            node.tools[KernelPackage].install_kernel_package_lts()
+        pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
 
         # initialize DPDK with sample applications selected for build
@@ -641,15 +644,20 @@ class Dpdk(TestSuite):
 
         # get test basic info
 
-        forwarder_nic = forwarder.nics.get_nic_by_index(1)
+        forwarder_nic = forwarder.nics.get_secondary_nic()
         forwarder_ip = forwarder_nic.ip_addr
-        forwarder_devices = forwarder_nic.pci_slot
-        sender_mac = sender.nics.get_nic_by_index().mac_addr
 
+        sender_mac = sender.nics.get_secondary_nic().mac_addr
+
+        sender_ip = sender.nics.get_secondary_nic().ip_addr
+        l3_port = 0xD007
+        dpdk_port = 1
         # setup forwarding rules
-        sample_rules_v4 = f"R{forwarder_ip}/24 0"
+        sample_rules_v4 = (
+            f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} 0x6 {dpdk_port}"
+        )
 
-        def ipv4_to_ipv6_cidr(addr: str) -> str:
+        def ipv4_to_ipv6(addr: str) -> str:
             # format to 0 prefixed 2 char hex
             parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
             assert_that(parts).described_as(
@@ -657,11 +665,12 @@ class Dpdk(TestSuite):
             ).is_length(4)
             return (
                 "0000:0000:0000:0000:0000:FFFF:"
-                f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}/124"
+                f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}"
             )
 
-        ipv6_mapped_ips = ipv4_to_ipv6_cidr(forwarder_ip)
-        sample_rules_v6 = f"R{ipv6_mapped_ips} 0"
+        ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_ip)
+        ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
+        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} 0x6 {dpdk_port}"
         rules_paths = [
             forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
         ]
@@ -680,32 +689,34 @@ class Dpdk(TestSuite):
         examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
 
-        include_devices = f'-a "{forwarder_devices}"'
+        include_devices = fwd_kit.testpmd.generate_testpmd_include(
+            forwarder_nic, dpdk_port
+        )
 
-        # cores_available = forwarder.tools[Lscpu].get_core_count() - 1
-
-        # queues = range(0, 1)
-        # ports = [0] * (len(use_cores) // 2) + [1] * (len(use_cores) // 2)
         # FIXME: use 8 queues
         config_tups = [  # map some queues to cores idk
-            (0, 0, 1),
-            (0, 1, 2),
-            (0, 2, 3),
-            (0, 3, 4),
+            (dpdk_port, 0, 1),
+            (dpdk_port, 1, 2),
+            (dpdk_port, 2, 3),
+            (dpdk_port, 3, 4),
         ]  # zip(ports, queues, use_cores)
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+        # mana doesn't support promiscuous mode
+        if fwd_kit.testpmd.is_mana:
+            promiscuous = ""
+        else:
+            promiscuous = "-P"
         # ipv6_rules = forwarder.get_working_path().joinpath(
         #     "dpdk/examples/l3fwd/em_default_v6.cfg"
         # )
         fwd_cmd = (
             f"{server_app_path} {include_devices} -l 1-5  -- "
-            f" -P -p 0x3  --lookup=lpm "
+            f" {promiscuous} -p 0x2  --lookup=em "  # FIXME: port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
-            f"--eth-dest=0,{sender_mac}"
+            f"--eth-dest=1,{sender_mac} --parse-ptype"
             # {ipv6_rules.as_posix()}"
         )
-
         forwarder.execute_async(
             fwd_cmd,
             sudo=True,
@@ -720,7 +731,7 @@ class Dpdk(TestSuite):
             snd_nic,
             0,
             "txonly",
-            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_ip}",
+            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_ip} --tx-udp={l3_port},{l3_port}",
             multiple_queues=True,
         )
         sender.tools[Timeout].run_with_timeout(

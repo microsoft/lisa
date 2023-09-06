@@ -737,7 +737,7 @@ class DpdkTestpmd(Tool):
                 if modprobe.module_exists(module):
                     rdma_drivers.append(module)
 
-        modprobe.load(rmda_drivers)
+        modprobe.load(rdma_drivers)
         if network_drivers:
             modprobe.load(network_drivers)
 

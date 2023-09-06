@@ -29,6 +29,7 @@ from lisa.tools import (
     Free,
     Ip,
     KernelConfig,
+    KernelPackage,
     Lscpu,
     Lsmod,
     Lspci,
@@ -282,7 +283,6 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
