@@ -157,6 +157,7 @@ class MshvHostTestSuite(TestSuite):
             procs = []
             for i in range(vm_count):
                 vm_disk_img_path = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
+                vm_log_file_path = disk_img_copy_path / f"CH_VM{i}.log"
                 is_os_disk_present = node.tools[Ls].path_exists(str(vm_disk_img_path))
                 if not is_os_disk_present:
                     node.tools[Cp].copy(
@@ -174,7 +175,13 @@ class MshvHostTestSuite(TestSuite):
                     sudo=True,
                     guest_vm_type=guest_vm_type,
                     igvm_path=igvm_path,
+                    log_file=str(vm_log_file_path),
                 )
+                if not p:
+                    node.shell.copy_back(
+                        vm_log_file_path,
+                        log_path / vm_log_file_path,
+                    )
                 assert_that(p).described_as(f"Failed to create VM {i}").is_not_none()
                 procs.append(p)
                 node.tools[Free].log_memory_stats_mb()
@@ -203,6 +210,8 @@ class MshvHostTestSuite(TestSuite):
         for i in range(vm_count):
             disk_img_file = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
             node.tools[Rm].remove_file(str(disk_img_file), sudo=True)
+            vm_log_file = disk_img_copy_path / f"CH_VM{i}.log"
+            node.tools[Rm].remove_file(str(vm_log_file), sudo=True)
 
         assert_that(failures).is_equal_to(0)
 
