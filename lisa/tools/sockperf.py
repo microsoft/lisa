@@ -65,8 +65,18 @@ class Sockperf(Tool):
         r"=\s+(?P<min_latency_us>[0-9]+\.[0-9]+)"
     )
 
-    # ====> avg-rtt=3770.433 (std-dev=4585.840, mean-ad=4427.419, median-ad=171.194, siqr=4674.992, cv=1.216, std-error=369.538, 99.0% ci=[2818.566, 4722.300]) # noqa: E501
-    sockperf_average_latency = re.compile(r"avg-rtt=(?P<avg_latency_us>[0-9]+\.[0-9]+)")
+    # Summary: Round trip is 297.328 usec
+    sockperf_average_latency = re.compile(
+        r"Summary: Round trip is (?P<avg_latency_us>[0-9]+\.[0-9]+) usec"
+    )  # noqa: E501
+
+    # Total 1283 observations;
+    sockperf_total_observations = re.compile(
+        r"Total (?P<total_observations>[0-9]+) observations"
+    )  # noqa: E501
+
+    # [Valid Duration] RunTime=0.546 sec; SentMessages=1283; ReceivedMessages=1283
+    sockperf_run_time = re.compile(r"RunTime=(?P<run_time>[0-9]+\.[0-9]+) sec")
 
     def _get_protocol_flag(self, mode: str) -> str:
         assert_that(mode).described_as(
@@ -218,3 +228,27 @@ class Sockperf(Tool):
         matched_results = self.sockperf_average_latency.search(sockperf_output)
         assert matched_results, "Could not find sockperf latency results in output."
         return Decimal(matched_results.group("avg_latency_us"))
+
+    def get_total_observations(self, sockperf_output: str) -> int:
+        matched_results = self.sockperf_total_observations.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return int(matched_results.group("total_observations"))
+
+    def get_run_time(self, sockperf_output: str) -> Decimal:
+        matched_results = self.sockperf_run_time.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return Decimal(matched_results.group("run_time"))
+
+    def get_statistics(self, sockperf_output: str) -> Dict[str, Any]:
+        matched_results = self.sockperf_result_regex.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        stats: Dict[str, Any] = {}
+        stats["min_latency_us"] = Decimal(matched_results.group("min_latency_us"))
+        stats["max_latency_us"] = Decimal(matched_results.group("max_latency_us"))
+        stats["average_latency_us"] = self.get_average_latency(sockperf_output)
+        stats["latency99_percentile_us"] = Decimal(
+            matched_results.group("latency99_percentile_us")
+        )
+        stats["total_observations"] = self.get_total_observations(sockperf_output)
+        stats["run_time_seconds"] = self.get_run_time(sockperf_output)
+        return stats
