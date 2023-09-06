@@ -15,9 +15,11 @@ from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
+    KernelConfig,
     Kill,
     Lscpu,
     Lspci,
+    Make,
     Modprobe,
     Pidof,
     Pkgconfig,
@@ -74,34 +76,29 @@ class DpdkTestpmd(Tool):
         return self._testpmd_install_path
 
     _ubuntu_packages_1804 = [
-        "librdmacm-dev",
         "build-essential",
         "libmnl-dev",
         "libelf-dev",
         "meson",
-        "rdma-core",
-        "librdmacm1",
         "libnuma-dev",
         "dpkg-dev",
         "pkg-config",
         "python3-pip",
         "python3-pyelftools",
         "python-pyelftools",
+        "linux-modules-extra-azure",
     ]
 
     _ubuntu_packages_2004 = [
         "build-essential",
-        "librdmacm-dev",
         "libnuma-dev",
         "libmnl-dev",
-        "librdmacm1",
         "meson",
         "ninja-build",
         "python3-pyelftools",
         "libelf-dev",
-        "rdma-core",
-        "ibverbs-providers",
         "pkg-config",
+        "linux-modules-extra-azure",
     ]
 
     # these are the same at the moment but might need tweaking later
@@ -110,7 +107,6 @@ class DpdkTestpmd(Tool):
     _fedora_packages = [
         "psmisc",
         "numactl-devel",
-        "librdmacm-devel",
         "pkgconfig",
         "elfutils-libelf-devel",
         "python3-pip",
@@ -122,8 +118,6 @@ class DpdkTestpmd(Tool):
         "psmisc",
         "libnuma-devel",
         "numactl",
-        "librdmacm1",
-        "rdma-core-devel",
         "libmnl-devel meson",
         "gcc-c++",
     ]
@@ -137,6 +131,24 @@ class DpdkTestpmd(Tool):
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
+
+    def get_rdma_core_package_name(self) -> str:
+        distro = self.node.os
+        # check if rdma-core is installed already...
+        if self.is_mana:
+            return ""
+        elif isinstance(distro, Debian):
+            return "rdma-core ibverbs-providers libibverbs-dev"
+        elif isinstance(distro, Suse):
+            return "rdma-core-devel librdmacm1"
+        elif isinstance(distro, Fedora):
+            return "librdmacm-devel"
+            ...
+        else:
+            raise UnsupportedDistroException(
+                distro,
+                "DPDK: rdma-core dependency information missing for this OS.",
+            )
 
     @property
     def can_install(self) -> bool:
@@ -507,12 +519,63 @@ class DpdkTestpmd(Tool):
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
+    def _install_upstream_rdma_core_for_mana(self) -> None:
+        node = self.node
+        wget = node.tools[Wget]
+        make = node.tools[Make]
+        tar = node.tools[Tar]
+        distro = node.os
+
+        if isinstance(distro, Debian):
+            distro.install_packages(
+                "cmake libudev-dev "
+                "libnl-3-dev libnl-route-3-dev  "
+                "valgrind python3-dev cython3 python3-docutils pandoc "
+                "libssl-dev libelf-dev python3-pip libnuma-dev"
+            )
+        elif isinstance(distro, Fedora):
+            distro.group_install_packages("Development Tools")
+            distro.install_packages(
+                "cmake gcc libudev-devel "
+                "libnl3-devel valgrind python3-devel python3-docutils "
+                "openssl-devel unzip elfutils-devel python3-pip "
+                "libpcap-devel psmisc kernel-devel libmnl-devel numactl-devel "
+                "kernel-headers elfutils-libelf-devel libbpf-devel"
+            )
+        else:
+            raise UnsupportedDistroException(
+                distro, "Unsupported OS for rdma core build"
+            )
+
+        rdma_core_version = "46.0"
+        tar_path = wget.get(
+            "https://github.com/linux-rdma/rdma-core/releases"
+            f"/download/v{rdma_core_version}/rdma-core-{rdma_core_version}.tar.gz",
+            file_path=str(node.working_path),
+        )
+        tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
+        source_path = node.working_path.joinpath(f"rdma-core-{rdma_core_version}")
+        node.execute(
+            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+            shell=True,
+            cwd=source_path,
+            sudo=True,
+        )
+        make.make_install(source_path)
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         node = self.node
+
+        if self.is_mana and not (
+            isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
+        ):
+            # Fast skip if we are running an unsupported image for MANA
+            raise SkippedException("MANA DPDK test is not supported on this OS")
+
         if isinstance(node.os, Debian):
             repos = node.os.get_repositories()
             backport_repo = f"{node.os.information.codename}-backports"
@@ -529,7 +592,17 @@ class DpdkTestpmd(Tool):
             return True
 
         # otherwise, install from package manager, git, or tar
+
         self._install_dependencies()
+
+        # if this is mana VM, we need an upstream rdma-core package (for now)
+        if self.is_mana and (
+            isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
+        ):
+            # ensure no older package is installed
+            node.os.uninstall_packages("rdma-core")
+            self._install_upstream_rdma_core_for_mana()
+
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
@@ -672,13 +745,21 @@ class DpdkTestpmd(Tool):
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
-            mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+            network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
-            mellanox_drivers = ["mana"]
-            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
-                mellanox_drivers.append("mana_ib")
+            network_drivers = []
+            mana_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MICROSOFT_MANA"
+            )
+            if not mana_builtin:
+                network_drivers += ["mana"]
+            mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
+                "CONFIG_MANA_INFINIBAND"
+            )
+            if not mana_ib_builtin:
+                network_drivers.append("mana_ib")
         else:
-            mellanox_drivers = ["mlx5_core", "mlx5_ib"]
+            network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
         if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
@@ -704,14 +785,18 @@ class DpdkTestpmd(Tool):
                 self.node.reboot()
         elif isinstance(self.node.os, Fedora):
             if not self.is_connect_x3:
-                self.node.execute(
-                    f"dracut --add-drivers '{' '.join(mellanox_drivers)} ib_uverbs' -f",
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "Issue loading mlx and ib_uverb drivers into ramdisk."
-                    ),
-                    sudo=True,
-                )
+                if network_drivers:
+                    self.node.execute(
+                        (
+                            "dracut --add-drivers "
+                            f"'{' '.join(network_drivers)} ib_uverbs' -f"
+                        ),
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "Issue loading mlx and ib_uverb drivers into ramdisk."
+                        ),
+                        sudo=True,
+                    )
         else:
             raise UnsupportedDistroException(self.node.os)
         rmda_drivers = ["ib_core", "ib_uverbs", "rdma_ucm"]
@@ -723,7 +808,8 @@ class DpdkTestpmd(Tool):
                 rmda_drivers.append(module)
 
         modprobe.load(rmda_drivers)
-        modprobe.load(mellanox_drivers)
+        if network_drivers:
+            modprobe.load(network_drivers)
 
     def _install_dependencies(self) -> None:
         node = self.node
@@ -760,6 +846,9 @@ class DpdkTestpmd(Tool):
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
+            rdma_core_packages = self.get_rdma_core_package_name()
+            if rdma_core_packages:
+                suse.install_packages(rdma_core_packages.split())
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
@@ -770,6 +859,10 @@ class DpdkTestpmd(Tool):
                 f"which was not Ubuntu: {node.os.information.full_version}"
             )
             return  # appease the type checker
+
+        # apply update to latest first
+        ubuntu.update_packages("linux-azure")
+        node.reboot()
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
                 f"Ubuntu {str(ubuntu.information.version)} is not supported. "
@@ -787,6 +880,9 @@ class DpdkTestpmd(Tool):
                 self._ubuntu_packages_2004,
                 extra_args=self._debian_backports_args,
             )
+        rdma_core_packages = self.get_rdma_core_package_name()
+        if rdma_core_packages:
+            ubuntu.install_packages(rdma_core_packages.split())
 
     def _install_fedora_dependencies(self) -> None:
         node = self.node
@@ -815,9 +911,12 @@ class DpdkTestpmd(Tool):
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
+        rdma_core_packages = self.get_rdma_core_package_name()
+        if rdma_core_packages:
+            self._fedora_packages += rdma_core_packages.split()
+            rhel.group_install_packages("Infiniband Support")
 
         rhel.group_install_packages("Development Tools")
-        rhel.group_install_packages("Infiniband Support")
         rhel.install_packages(self._fedora_packages)
 
         # ensure RDMA service is started if present.
