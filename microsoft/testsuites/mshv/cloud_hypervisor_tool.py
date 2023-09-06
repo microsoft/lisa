@@ -27,9 +27,11 @@ class CloudHypervisor(Tool):
         sudo: bool = False,
         guest_vm_type: str = "NON-CVM",
         igvm_path: str = "",
+        log_file: str = "",
     ) -> Process:
         opt_disk_readonly = "on" if disk_readonly else "off"
-        args: str = f'--cpus boot={cpus} --memory size={memory_mb}M --disk "path={disk_path},readonly={opt_disk_readonly}" --net "tap=,mac=,ip=,mask="'  # noqa: E501
+        log_file_arg = f"--log-file {log_file}" if log_file else ""
+        args: str = f'--cpus boot={cpus} --memory size={memory_mb}M --disk "path={disk_path},readonly={opt_disk_readonly}" {log_file_arg} --net "tap=,mac=,ip=,mask="'  # noqa: E501
 
         if guest_vm_type == "CVM":
             host_data = secrets.token_hex(32)
