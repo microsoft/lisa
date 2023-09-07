@@ -21,6 +21,7 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Lspci,
+    Make,
     Modprobe,
     Pidof,
     Pkgconfig,
@@ -521,6 +522,50 @@ class DpdkTestpmd(Tool):
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
+    def _install_upstream_rdma_core_for_mana(self) -> None:
+        node = self.node
+        wget = node.tools[Wget]
+        make = node.tools[Make]
+        tar = node.tools[Tar]
+        distro = node.os
+
+        if isinstance(distro, Debian):
+            distro.install_packages(
+                "cmake libudev-dev "
+                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
+                "valgrind python3-dev cython3 python3-docutils pandoc "
+                "libssl-dev libelf-dev python3-pip libnuma-dev"
+            )
+        elif isinstance(distro, Fedora):
+            distro.group_install_packages("Development Tools")
+            distro.install_packages(
+                "cmake gcc libudev-devel "
+                "libnl3-devel pkg-config "
+                "valgrind python3-devel python3-docutils  "
+                "openssl-devel unzip "
+                "elfutils-devel python3-pip libpcap-devel  "
+                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
+                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
+                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
+            )
+        else:
+            # check occcurs before this function
+            return
+
+        tar_path = wget.get(
+            "https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
+            file_path=str(node.working_path),
+        )
+        tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
+        source_path = node.working_path.joinpath("rdma-core-46.0")
+        node.execute(
+            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+            shell=True,
+            cwd=source_path,
+            sudo=True,
+        )
+        make.make_install(source_path)
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
@@ -543,7 +588,18 @@ class DpdkTestpmd(Tool):
             return True
 
         # otherwise, install from package manager, git, or tar
+
         self._install_dependencies()
+
+        # if this is mana VM, we need an upstream rdma-core package (for now)
+        if self.is_mana:
+            if not (isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)):
+                raise SkippedException("MANA DPDK test is not supported on this OS")
+
+            # ensure no older dependency is installed
+            node.os.uninstall_packages("rdma-core")
+            self._install_upstream_rdma_core_for_mana()
+
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
@@ -800,6 +856,10 @@ class DpdkTestpmd(Tool):
                 f"which was not Ubuntu: {node.os.information.full_version}"
             )
             return  # appease the type checker
+
+        # apply update to latest first
+        ubuntu.update_packages("linux-azure")
+        node.reboot()
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
                 f"Ubuntu {str(ubuntu.information.version)} is not supported. "

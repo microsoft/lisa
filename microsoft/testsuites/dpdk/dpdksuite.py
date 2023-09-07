@@ -22,18 +22,7 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import (
-    Echo,
-    Git,
-    Ip,
-    KernelPackage,
-    Kill,
-    Lsmod,
-    Make,
-    Modprobe,
-    Service,
-    Timeout,
-)
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service, Timeout
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -633,9 +622,8 @@ class Dpdk(TestSuite):
         self._force_dpdk_default_source(variables)
 
         for node in environment.nodes.list():
-            node.tools[NetworkInterface].switch_ip_forwarding_for_secondary_nics()
-            # install ubuntu backport kernel packages
-            node.tools[KernelPackage].install_kernel_package_lts()
+            interfaces = node.tools[NetworkInterface]
+            interfaces.switch_ip_forwarding_for_secondary_nics()
 
         # initialize DPDK with sample applications selected for build
         test_kits = init_nodes_concurrent(

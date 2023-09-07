@@ -21,7 +21,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Debian, Fedora, OperatingSystem, Suse, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -29,14 +29,16 @@ from lisa.tools import (
     Free,
     Ip,
     KernelConfig,
-    KernelPackage,
     Lscpu,
     Lsmod,
     Lspci,
+    Make,
     Modprobe,
     Mount,
     Ping,
+    Tar,
     Timeout,
+    Wget,
 )
 from lisa.tools.mkfs import FileSystem
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
@@ -575,3 +577,46 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
+
+
+def install_upstream_rdma_core_for_mana(node: Node) -> None:
+    wget = node.tools[Wget]
+    make = node.tools[Make]
+    tar = node.tools[Tar]
+    distro = node.os
+
+    if isinstance(distro, Debian):
+        distro.install_packages(
+            "cmake libudev-dev "
+            "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
+            "valgrind python3-dev cython3 python3-docutils pandoc "
+            "libssl-dev libelf-dev python3-pip libnuma-dev"
+        )
+    elif isinstance(distro, Fedora):
+        distro.group_install_packages("Development Tools")
+        distro.install_packages(
+            "cmake gcc libudev-devel "
+            "libnl3-devel pkg-config "
+            "valgrind python3-devel python3-docutils  "
+            "openssl-devel unzip "
+            "elfutils-devel python3-pip libpcap-devel  "
+            "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
+            "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
+            "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
+        )
+    else:
+        raise SkippedException("MANA DPDK test is not supported on this OS")
+
+    tar_path = wget.get(
+        "https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
+        file_path=str(node.working_path),
+    )
+    tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
+    source_path = node.working_path.joinpath("rdma-core-46.0")
+    node.execute(
+        "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+        shell=True,
+        cwd=source_path,
+        sudo=True,
+    )
+    make.make_install(source_path)
