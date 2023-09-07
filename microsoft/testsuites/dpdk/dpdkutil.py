@@ -87,19 +87,21 @@ class DpdkTestResources:
         self.switch_sriov = True
 
 
-def init_hugepages(node: Node) -> None:
+def init_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
     mount = node.tools[Mount]
-    mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
-    mount.mount(
-        name="nodev",
-        point="/mnt/huge-1G",
-        fs_type=FileSystem.hugetlbfs,
-        options="pagesize=1G",
-    )
-    _enable_hugepages(node)
+    if enable_gibibyte_hugepages:
+        mount.mount(
+            name="nodev",
+            point="/mnt/huge-1G",
+            fs_type=FileSystem.hugetlbfs,
+            options="pagesize=1G",
+        )
+    else:
+        mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
+    _enable_hugepages(node, enable_gibibyte_hugepages)
 
 
-def _enable_hugepages(node: Node) -> None:
+def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
     echo = node.tools[Echo]
 
     meminfo = node.tools[Free]
@@ -116,40 +118,44 @@ def _enable_hugepages(node: Node) -> None:
     # default to enough for one nic if not enough is available
     # this should be fine for tests on smaller SKUs
 
-    if memfree_2mb < request_pages_2mb:
-        node.log.debug(
-            "WARNING: Not enough 2MB pages available for DPDK! "
-            f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
-        request_pages_2mb = 1024
-
-    if memfree_1mb < (request_pages_1gb * 2):  # account for 2MB pages by doubling ask
-        node.log.debug(
-            "WARNING: Not enough 1GB pages available for DPDK! "
-            f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
+    if enable_gibibyte_hugepages:
+        if memfree_1mb < (
+            request_pages_1gb * 2
+        ):  # account for 2MB pages by doubling ask
+            node.log.debug(
+                "WARNING: Not enough 1GB pages available for DPDK! "
+                f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
+                "Test may fail if it cannot allocate memory."
+            )
         request_pages_1gb = 1
+    else:
+        if memfree_2mb < request_pages_2mb:
+            node.log.debug(
+                "WARNING: Not enough 2MB pages available for DPDK! "
+                f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
+                "Test may fail if it cannot allocate memory."
+            )
+            request_pages_2mb = 1024
 
     for i in range(numa_nodes):
-        echo.write_to_file(
-            f"{request_pages_2mb}",
-            node.get_pure_path(
-                f"/sys/devices/system/node/node{i}/hugepages/"
-                "hugepages-2048kB/nr_hugepages"
-            ),
-            sudo=True,
-        )
-
-        echo.write_to_file(
-            f"{request_pages_1gb}",
-            node.get_pure_path(
-                f"/sys/devices/system/node/node{i}/hugepages/"
-                "hugepages-1048576kB/nr_hugepages"
-            ),
-            sudo=True,
-        )
+        if enable_gibibyte_hugepages:
+            echo.write_to_file(
+                f"{request_pages_1gb}",
+                node.get_pure_path(
+                    f"/sys/devices/system/node/node{i}/hugepages/"
+                    "hugepages-1048576kB/nr_hugepages"
+                ),
+                sudo=True,
+            )
+        else:
+            echo.write_to_file(
+                f"{request_pages_2mb}",
+                node.get_pure_path(
+                    f"/sys/devices/system/node/node{i}/hugepages/"
+                    "hugepages-2048kB/nr_hugepages"
+                ),
+                sudo=True,
+            )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -273,6 +279,7 @@ def initialize_node_resources(
     variables: Dict[str, Any],
     pmd: str,
     sample_apps: Union[List[str], None] = None,
+    enable_gibibyte_hugepages: bool = False,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -317,7 +324,7 @@ def initialize_node_resources(
     )
 
     # init and enable hugepages (required by dpdk)
-    init_hugepages(node)
+    init_hugepages(node, enable_gibibyte_hugepages)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
