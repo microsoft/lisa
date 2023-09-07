@@ -52,7 +52,6 @@ from .iperf3 import Iperf3
 from .journalctl import Journalctl
 from .kdump import KdumpBase
 from .kernel_config import KernelConfig
-from .kernel_package import KernelPackage
 from .kill import Kill
 from .lagscope import Lagscope
 from .ln import Ln
@@ -166,7 +165,6 @@ __all__ = [
     "Journalctl",
     "KdumpBase",
     "KernelConfig",
-    "KernelPackage",
     "Kill",
     "Lagscope",
     "Ln",
