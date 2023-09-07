@@ -28,7 +28,6 @@ from lisa.tools import (
     Ip,
     KernelPackage,
     Kill,
-    Lscpu,
     Lsmod,
     Make,
     Modprobe,
@@ -628,32 +627,15 @@ class Dpdk(TestSuite):
         server_app_name = "dpdk-l3fwd"
         l3_port = 0xD007
         dpdk_port_snd_fwd = 1
+        ip_protocol = 0x11  # UDP
         # dpdk_port_recv = 2
 
         ## FIXME: Cursed ubuntu 22.04 backport install hacks
         self._force_dpdk_default_source(variables)
+
         for node in environment.nodes.list():
             # install ubuntu backport kernel packages
             node.tools[KernelPackage].install_kernel_package_lts()
-
-        # install rdma-core source build with shitty backport hack
-        for node in environment.nodes.list():
-            # cursed hack for testing
-            node.execute(
-                (
-                    "wget https://raw.githubusercontent.com/mcgov/"
-                    "az_scripts/main/mana_dpdk_test_setup.sh "
-                    "&& sudo bash ./mana_dpdk_test_setup.sh"
-                ),
-                shell=True,
-                timeout=600,
-                update_envs={
-                    "SKIP_LINUX_KERNEL_INSTALL": "1",
-                    "SKIP_DPDK_INSTALL": "1",
-                    "APPLY_UBUNTU_BACKPORT_KERNEL_HACK": "1",
-                },
-            )
-        ## FIXME: end cursed code
 
         # initialize DPDK with sample applications selected for build
         test_kits = init_nodes_concurrent(
@@ -676,9 +658,7 @@ class Dpdk(TestSuite):
         sender_ip = sender.nics.get_secondary_nic().ip_addr
 
         ### setup forwarding rules
-        sample_rules_v4 = (
-            f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} 0x6 {dpdk_port_snd_fwd}"
-        )
+        sample_rules_v4 = f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
 
         def ipv4_to_ipv6(addr: str) -> str:
             # format to 0 prefixed 2 char hex
@@ -693,7 +673,7 @@ class Dpdk(TestSuite):
 
         ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_ip)
         ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
-        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} 0x6 {dpdk_port_snd_fwd}"
+        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
         rules_paths = [
             forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
         ]
