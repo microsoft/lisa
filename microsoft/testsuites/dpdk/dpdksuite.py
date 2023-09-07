@@ -630,10 +630,10 @@ class Dpdk(TestSuite):
         ip_protocol = 0x11  # UDP
         # dpdk_port_recv = 2
 
-        ## FIXME: Cursed ubuntu 22.04 backport install hacks
         self._force_dpdk_default_source(variables)
 
         for node in environment.nodes.list():
+            node.tools[NetworkInterface].switch_ip_forwarding_for_secondary_nics()
             # install ubuntu backport kernel packages
             node.tools[KernelPackage].install_kernel_package_lts()
 
