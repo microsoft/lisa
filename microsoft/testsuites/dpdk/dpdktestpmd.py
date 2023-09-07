@@ -87,6 +87,7 @@ class DpdkTestpmd(Tool):
         "python3-pip",
         "python3-pyelftools",
         "python-pyelftools",
+        "linux-modules-extra-azure",
     ]
 
     _ubuntu_packages_2004 = [
@@ -98,6 +99,7 @@ class DpdkTestpmd(Tool):
         "python3-pyelftools",
         "libelf-dev",
         "pkg-config",
+        "linux-modules-extra-azure",
     ]
 
     # these are the same at the moment but might need tweaking later
