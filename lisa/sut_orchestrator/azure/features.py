@@ -651,7 +651,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
-    def switch_ip_forwarding_for_secondary_nics(self, enable: bool) -> None:
+    def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
@@ -660,9 +660,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
             # /Microsoft.Network/networkInterfaces/[nicname]
             nic_name = nic.id.split("/")[-1]
-            # skip enabling on primary interface
-            # FIXME: hack, how do we avoid using the LISA naming convention
-            if str(nic_name).endswith("nic-0"):
+            # Since the VM nic and the Azure NIC names won't always match,
+            # allow selection by private_ip_address to resolve a NIC in the VM
+            # to an azure network interface resource.
+            if private_ip_addr and nic.private_ip_address != private_ip_addr:
+                # if ip is provided, skip resource which don't match.
                 continue
             updated_nic = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name

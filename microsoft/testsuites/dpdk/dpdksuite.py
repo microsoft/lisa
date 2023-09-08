@@ -622,8 +622,10 @@ class Dpdk(TestSuite):
         self._force_dpdk_default_source(variables)
 
         for node in environment.nodes.list():
-            interfaces = node.tools[NetworkInterface]
-            interfaces.switch_ip_forwarding_for_secondary_nics()
+            fwd_nic_private_ip = node.nics.get_secondary_nic().ip_addr
+            node.tools[NetworkInterface].switch_ip_forwarding(  # type: ignore
+                enable=True, private_ip_addr=fwd_nic_private_ip
+            )
 
         # initialize DPDK with sample applications selected for build
         test_kits = init_nodes_concurrent(
