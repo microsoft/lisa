@@ -91,15 +91,16 @@ class DpdkTestResources:
 
 
 def init_hugepages(node: Node, enable_1G_hugepages: bool = False) -> None:
+    mount = node.tools[Mount]
     if enable_1G_hugepages:
-        mount = node.tools[Mount]
-        mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
         mount.mount(
             name="nodev",
             point="/mnt/huge-1G",
             fs_type=FileSystem.hugetlbfs,
             options="pagesize=1G",
         )
+    else:
+        mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
     _enable_hugepages(node, enable_1G_hugepages)
 
 
@@ -120,21 +121,24 @@ def _enable_hugepages(node: Node, enable_1G_hugepages: bool = False) -> None:
     # default to enough for one nic if not enough is available
     # this should be fine for tests on smaller SKUs
 
-    if memfree_2mb < request_pages_2mb:
-        node.log.debug(
-            "WARNING: Not enough 2MB pages available for DPDK! "
-            f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
-        request_pages_2mb = 1024
-
-    if memfree_1mb < (request_pages_1gb * 2):  # account for 2MB pages by doubling ask
-        node.log.debug(
-            "WARNING: Not enough 1GB pages available for DPDK! "
-            f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-            "Test may fail if it cannot allocate memory."
-        )
+    if enable_1G_hugepages:
+        if memfree_1mb < (
+            request_pages_1gb * 2
+        ):  # account for 2MB pages by doubling ask
+            node.log.debug(
+                "WARNING: Not enough 1GB pages available for DPDK! "
+                f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
+                "Test may fail if it cannot allocate memory."
+            )
         request_pages_1gb = 1
+    else:
+        if memfree_2mb < request_pages_2mb:
+            node.log.debug(
+                "WARNING: Not enough 2MB pages available for DPDK! "
+                f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
+                "Test may fail if it cannot allocate memory."
+            )
+            request_pages_2mb = 1024
 
     for i in range(numa_nodes):
         if enable_1G_hugepages:
@@ -577,46 +581,3 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
-
-
-def install_upstream_rdma_core_for_mana(node: Node) -> None:
-    wget = node.tools[Wget]
-    make = node.tools[Make]
-    tar = node.tools[Tar]
-    distro = node.os
-
-    if isinstance(distro, Debian):
-        distro.install_packages(
-            "cmake libudev-dev "
-            "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-            "valgrind python3-dev cython3 python3-docutils pandoc "
-            "libssl-dev libelf-dev python3-pip libnuma-dev"
-        )
-    elif isinstance(distro, Fedora):
-        distro.group_install_packages("Development Tools")
-        distro.install_packages(
-            "cmake gcc libudev-devel "
-            "libnl3-devel pkg-config "
-            "valgrind python3-devel python3-docutils  "
-            "openssl-devel unzip "
-            "elfutils-devel python3-pip libpcap-devel  "
-            "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-            "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-            "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
-        )
-    else:
-        raise SkippedException("MANA DPDK test is not supported on this OS")
-
-    tar_path = wget.get(
-        "https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
-        file_path=str(node.working_path),
-    )
-    tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-    source_path = node.working_path.joinpath("rdma-core-46.0")
-    node.execute(
-        "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
-        shell=True,
-        cwd=source_path,
-        sudo=True,
-    )
-    make.make_install(source_path)
