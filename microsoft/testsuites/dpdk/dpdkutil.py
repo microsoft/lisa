@@ -438,7 +438,11 @@ def start_testpmd_concurrent(
 
 
 def init_nodes_concurrent(
-    environment: Environment, log: Logger, variables: Dict[str, Any], pmd: str
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: str,
+    enable_gibibyte_hugepages: bool = False,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -448,7 +452,14 @@ def init_nodes_concurrent(
     # Use threading module to parallelize the IO-bound node init.
     test_kits = run_in_parallel(
         [
-            partial(initialize_node_resources, node, log, variables, pmd)
+            partial(
+                initialize_node_resources,
+                node,
+                log,
+                variables,
+                pmd,
+                enable_gibibyte_hugepages=enable_gibibyte_hugepages,
+            )
             for node in environment.nodes.list()
         ],
         log,
@@ -462,9 +473,12 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: str,
     multiple_queues: bool = False,
+    gibibyte_hugepages: bool = False,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
-    test_kit = initialize_node_resources(node, log, variables, pmd)
+    test_kit = initialize_node_resources(
+        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+    )
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
@@ -492,6 +506,7 @@ def verify_dpdk_send_receive(
     pmd: str,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
+    gibibyte_hugepages: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -508,7 +523,9 @@ def verify_dpdk_send_receive(
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
-    test_kits = init_nodes_concurrent(environment, log, variables, pmd)
+    test_kits = init_nodes_concurrent(
+        environment, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+    )
 
     check_send_receive_compatibility(test_kits)
 

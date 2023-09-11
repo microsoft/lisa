@@ -67,7 +67,7 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            netvsc direct pmd version.
+            netvsc pmd version.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
@@ -89,7 +89,29 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            failsafe (azure default, recommended) version.
+            netvsc pmd version with 1GiB hugepages
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_gb_hugepages_netvsc(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        verify_dpdk_build(node, log, variables, "netvsc", gibibyte_hugepages=True)
+
+    @TestCaseMetadata(
+        description="""
+            failsafe version with 1GiB hugepages.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
@@ -108,6 +130,28 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         verify_dpdk_build(node, log, variables, "failsafe")
+
+    @TestCaseMetadata(
+        description="""
+            failsafe version with 2MB hugepages
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+            with one interface for management.
+            More details: https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_gb_hugepages_failsafe(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        verify_dpdk_build(node, log, variables, "failsafe", gibibyte_hugepages=True)
 
     @TestCaseMetadata(
         description="""
@@ -571,6 +615,33 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+            Test uses 1GB hugepages.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_gb_hugepages_failsafe(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment, log, variables, "failsafe", gibibyte_hugepages=True
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
             Tests a basic sender/receiver setup for direct netvsc pmd setup.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
@@ -590,6 +661,33 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive(environment, log, variables, "netvsc")
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for direct netvsc pmd setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+            Test uses 1GB hugepages.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_gb_hugepages_netvsc(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment, log, variables, "netvsc", gibibyte_hugepages=True
+            )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
