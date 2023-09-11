@@ -660,15 +660,22 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
             # /Microsoft.Network/networkInterfaces/[nicname]
             nic_name = nic.id.split("/")[-1]
-            # Since the VM nic and the Azure NIC names won't always match,
-            # allow selection by private_ip_address to resolve a NIC in the VM
-            # to an azure network interface resource.
-            if private_ip_addr and nic.private_ip_address != private_ip_addr:
-                # if ip is provided, skip resource which don't match.
-                continue
             updated_nic = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
             )
+            # Since the VM nic and the Azure NIC names won't always match,
+            # allow selection by private_ip_address to resolve a NIC in the VM
+            # to an azure network interface resource.
+            if private_ip_addr and not any(
+                [
+                    x.private_ip_address == private_ip_addr
+                    for x in updated_nic.ip_configurations
+                ]
+            ):
+                # if ip is provided, skip resource which don't match.
+                self._log.debug(f"Skipping enable ip forwarding on nic {nic_name}...")
+                continue
+
             if updated_nic.enable_ip_forwarding == enable:
                 self._log.debug(
                     f"network interface {nic_name}'s ip forwarding default "
@@ -689,8 +696,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     self._resource_group_name, nic_name
                 )
                 assert_that(updated_nic.enable_ip_forwarding).described_as(
-                    f"fail to set network interface {nic_name}'s accelerated "
-                    f"networking into status [{enable}]"
+                    f"fail to set network interface {nic_name}'s ip forwarding "
+                    f"into status [{enable}]"
                 ).is_equal_to(enable)
 
     def switch_sriov(
