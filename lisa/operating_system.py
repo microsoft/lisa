@@ -1780,6 +1780,21 @@ class CBLMariner(RPMDistro):
         self._initialize_package_installation()
         return super()._package_exists(package)
 
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
+    ) -> None:
+        release = self.information.release
+        from lisa.tools import Curl
+
+        curl = self._node.tools[Curl]
+        curl.fetch(
+            arg="-o /etc/yum.repos.d/mariner-extras.repo",
+            execute_arg="",
+            url=f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/{release}"
+            "/SPECS/mariner-repos/mariner-extras.repo",
+            sudo=True,
+        )
+
 
 @dataclass
 # `zypper lr` repolist is of the form

@@ -12,7 +12,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Debian, Posix, Ubuntu
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Curl, Sed, Service
+from lisa.tools import Sed, Service
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
@@ -39,18 +39,7 @@ class MetricsExtension(TestSuite):
         self._is_supported(node)
 
         # Add repo
-        if isinstance(posix_os, CBLMariner):
-            release = posix_os.information.release
-            curl = node.tools[Curl]
-            curl.fetch(
-                arg="-o /etc/yum.repos.d/mariner-extras.repo",
-                execute_arg="",
-                url=f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/{release}"
-                "/SPECS/mariner-repos/mariner-extras.repo",
-                sudo=True,
-            )
-        else:
-            posix_os.add_azure_core_repo()
+        posix_os.add_azure_core_repo()
 
         # Install metricsext2
         is_installed = posix_os.package_exists(package)
