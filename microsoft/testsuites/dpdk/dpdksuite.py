@@ -19,7 +19,7 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
+from lisa.features import Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service, Timeout
@@ -80,7 +80,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -102,7 +101,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_failsafe(
@@ -119,7 +117,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
@@ -168,7 +165,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -194,7 +190,6 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -291,7 +286,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -329,7 +323,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -386,7 +379,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_vpp(
@@ -433,7 +425,6 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -508,7 +499,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
@@ -534,7 +524,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
@@ -560,7 +549,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_failsafe(
@@ -584,7 +572,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_netvsc(
@@ -605,17 +592,28 @@ class Dpdk(TestSuite):
             min_count=2,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3_forward(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        # multiprocess test requires dpdk source.
+        # l3 forward is not intuitive, since Azure doesn't route the way you would expect.
+        #  Azure primarily considers IP and not ethernet addresses.
+        # The general setup would normally be something like this:
+        # [[nic0]  [nic1] 10.0.1.5  [nic2] 10.0.2.5 ]
+        #              ^                  |_ subnet2
+        #              | -subnet1         v
+        # [[nic0]  [nic1] 10.0.1.4  [nic2] 10.0.2.4 ]
+        # with subnet routing tables:
+        # subnet1: {route_rule, 10.0.1.0/24 -> 10.0.1.5 }
+        # subnet2: {route_rule, 10.0.2.0/24 -> 10.0.2.4 }
+        # where DPDK forwards from port 1 (10.0.1.5) to port 2 (10.0.2.5) for tx
+
         pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
         l3_port = 0xD007
-        dpdk_port_snd_fwd = 1
+        dpdk_port_rcv_fwd = 1
+        dpdk_port_snd_fwd = 2
         ip_protocol = 0x11  # UDP
         # dpdk_port_recv = 2
 
@@ -623,8 +621,12 @@ class Dpdk(TestSuite):
 
         for node in environment.nodes.list():
             fwd_nic_private_ip = node.nics.get_secondary_nic().ip_addr
-            node.tools[NetworkInterface].switch_ip_forwarding(  # type: ignore
+            node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
                 enable=True, private_ip_addr=fwd_nic_private_ip
+            )
+            rcv_nic_private_ip = node.nics.get_nic_by_index(2).ip_addr
+            node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
+                enable=True, private_ip_addr=rcv_nic_private_ip
             )
 
         # initialize DPDK with sample applications selected for build
@@ -635,6 +637,12 @@ class Dpdk(TestSuite):
         # enable hugepages needed for dpdk EAL
         for node in environment.nodes.list():
             init_hugepages(node)
+            node.features[NetworkInterface].switch_sriov(
+                enable=False,
+                wait=False,
+                reset_connections=False,
+                private_ip_addr=node.nics.get_primary_nic().ip_addr,
+            )  # type: ignore
 
         # pick which node will be forwarder and sender arbitrarily
         fwd_kit, snd_kit = test_kits
@@ -642,13 +650,23 @@ class Dpdk(TestSuite):
         forwarder = fwd_kit.node
 
         # get some basic node info
-        forwarder_nic = forwarder.nics.get_secondary_nic()
-        forwarder_ip = forwarder_nic.ip_addr
+        forwarder_recv_nic = forwarder.nics.get_secondary_nic()
+        forwarder_recv_ip = forwarder_recv_nic.ip_addr
+        forwarder_send_nic = forwarder.nics.get_nic_by_index(2)
+        forwarder_send_ip = forwarder_send_nic.ip_addr
         sender_mac = sender.nics.get_secondary_nic().mac_addr
         sender_ip = sender.nics.get_secondary_nic().ip_addr
+        receiver_ip = sender.nics.get_nic_by_index(2).ip_addr
+
+        node.features[NetworkInterface].create_route_table(  # type: ignore
+            forwarder_recv_nic.name, "fwd-rx", sender_ip, forwarder_recv_ip
+        )
+        node.features[NetworkInterface].create_route_table(  # type: ignore
+            forwarder_send_nic.name, "fwd-tx", forwarder_send_ip, receiver_ip
+        )
 
         ### setup forwarding rules
-        sample_rules_v4 = f"R {forwarder_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
+        sample_rules_v4 = f"R {forwarder_recv_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}\n"
 
         def ipv4_to_ipv6(addr: str) -> str:
             # format to 0 prefixed 2 char hex
@@ -661,7 +679,7 @@ class Dpdk(TestSuite):
                 f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}"
             )
 
-        ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_ip)
+        ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_recv_ip)
         ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
         sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
         rules_paths = [
@@ -682,15 +700,20 @@ class Dpdk(TestSuite):
         examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
 
-        include_devices = fwd_kit.testpmd.generate_testpmd_include(
-            forwarder_nic, dpdk_port_snd_fwd
-        )
+        include_devices = [
+            fwd_kit.testpmd.generate_testpmd_include(
+                forwarder_recv_nic, dpdk_port_rcv_fwd
+            ),
+            fwd_kit.testpmd.generate_testpmd_include(
+                forwarder_send_nic, dpdk_port_snd_fwd
+            ),
+        ]
 
         # Generate port,queue,core mappings for forwarder
         # FIXME: use 8 queues
         config_tups = [  # map some queues to cores idk
-            (dpdk_port_snd_fwd, 0, 1),
-            (dpdk_port_snd_fwd, 1, 2),
+            (dpdk_port_rcv_fwd, 0, 1),
+            (dpdk_port_rcv_fwd, 1, 2),
             (dpdk_port_snd_fwd, 2, 3),
             (dpdk_port_snd_fwd, 3, 4),
         ]  # zip(ports, queues, use_cores)
@@ -702,9 +725,10 @@ class Dpdk(TestSuite):
         else:
             promiscuous = "-P"
 
+        joined_include = " ".join(include_devices)
         # start forwarder
         fwd_cmd = (
-            f"{server_app_path} {include_devices} -l 1-5  -- "
+            f"{server_app_path} {joined_include} -l 1-5  -- "
             f" {promiscuous} -p 0x2  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
@@ -713,6 +737,11 @@ class Dpdk(TestSuite):
         )
         forwarder.execute_async(
             fwd_cmd,
+            sudo=True,
+            shell=True,
+        )
+        receiver_proc = sender.execute_async(
+            f"nc -l -u {receiver_ip}",
             sudo=True,
             shell=True,
         )
@@ -726,16 +755,20 @@ class Dpdk(TestSuite):
             snd_nic,
             0,
             "txonly",
-            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_ip} --tx-udp={l3_port},{l3_port}",
+            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_recv_ip} --tx-udp={l3_port},{l3_port}",
             multiple_queues=True,
         )
         sender.tools[Timeout].run_with_timeout(
             snd_cmd,
-            timeout=60,
-            kill_timeout=70,
+            timeout=10,
+            kill_timeout=15,
         )
 
         # FIXME: receive traffic and confirm forwarding worked
+
+        receiver_proc.kill()
+        result = receiver_proc.wait_result()
+        log.debug(f"result: {result.stdout}")
 
         # kill l2fwd on forwarder
         forwarder.tools[Kill].by_name(
@@ -755,7 +788,6 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
