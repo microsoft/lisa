@@ -551,11 +551,17 @@ class DpdkTestpmd(Tool):
         else:
             # check occcurs before this function
             return
-
-        tar_path = wget.get(
-            "https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
-            file_path=str(node.working_path),
-        )
+        retry = 4
+        while retry > 0:
+            try:
+                retry -= 1
+                tar_path = wget.get(
+                    url="https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
+                    file_path=str(node.working_path),
+                )
+            except LisaException as err:
+                if retry == 0:
+                    raise err
         tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
         source_path = node.working_path.joinpath("rdma-core-46.0")
         node.execute(
