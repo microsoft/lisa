@@ -651,6 +651,55 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
+    def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        vm = get_vm(azure_platform, self._node)
+        for nic in vm.network_profile.network_interfaces:
+            # get nic name from nic id
+            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+            # /Microsoft.Network/networkInterfaces/[nicname]
+            nic_name = nic.id.split("/")[-1]
+            updated_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            # Since the VM nic and the Azure NIC names won't always match,
+            # allow selection by private_ip_address to resolve a NIC in the VM
+            # to an azure network interface resource.
+            if private_ip_addr and not any(
+                [
+                    x.private_ip_address == private_ip_addr
+                    for x in updated_nic.ip_configurations
+                ]
+            ):
+                # if ip is provided, skip resource which don't match.
+                self._log.debug(f"Skipping enable ip forwarding on nic {nic_name}...")
+                continue
+
+            if updated_nic.enable_ip_forwarding == enable:
+                self._log.debug(
+                    f"network interface {nic_name}'s ip forwarding default "
+                    f"status [{updated_nic.enable_ip_forwarding}] is "
+                    f"consistent with set status [{enable}], no need to update."
+                )
+            else:
+                self._log.debug(
+                    f"network interface {nic_name}'s ip forwarding default "
+                    f"status [{updated_nic.enable_ip_forwarding}], "
+                    f"now set its status into [{enable}]."
+                )
+                updated_nic.enable_ip_forwarding = enable
+                network_client.network_interfaces.begin_create_or_update(
+                    self._resource_group_name, updated_nic.name, updated_nic
+                )
+                updated_nic = network_client.network_interfaces.get(
+                    self._resource_group_name, nic_name
+                )
+                assert_that(updated_nic.enable_ip_forwarding).described_as(
+                    f"fail to set network interface {nic_name}'s ip forwarding "
+                    f"into status [{enable}]"
+                ).is_equal_to(enable)
+
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
