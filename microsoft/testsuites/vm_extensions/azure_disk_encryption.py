@@ -49,8 +49,14 @@ UnsupportedVersionInfo = List[Dict[str, int]]
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        if not self._is_supported_linux_distro(node):
-            raise SkippedException(UnsupportedDistroException(node.os))
+        result = kwargs["result"]
+        image = result.information.get("image")
+        if not self._is_supported_linux_distro(node, image):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, f'OS or Image "{image}" is not compatible with ADE'
+                )
+            )
 
     @TestCaseMetadata(
         description="""
@@ -59,6 +65,12 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=3,
         timeout=TIME_LIMIT,
+        requirement=simple_requirement(
+            min_memory_mb=MIN_REQUIRED_MEMORY_MB,
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            min_core_count=4,
+        ),
     )
     def verify_azure_disk_encryption_enabled(
         self, log: Logger, node: Node, result: TestResult
@@ -69,9 +81,9 @@ class AzureDiskEncryption(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Get VM Extension status
-        # Maximum time to check is 2 hours, which is 120 minutes.
-        # We're checking every 5 minutes, so the loop will run 120/5 = 24 times.
-        max_retries = 24
+        # Maximum time to check is 3 hours, which is 180 minutes.
+        # We're checking every 5 minutes, so the loop will run 180/5 = 36 times.
+        max_retries = 36
         retry_interval = 300  # 5 minutes in seconds
         os_status = None
         extension = node.features[AzureExtension]
@@ -207,7 +219,7 @@ class AzureDiskEncryption(TestSuite):
         )
         return extension_result
 
-    def _is_supported_linux_distro(self, node: Node) -> bool:
+    def _is_supported_linux_distro(self, node: Node, image: str) -> bool:
         minimum_supported_major_versions = {
             Redhat: 7,
             CentOs: 7,
@@ -216,7 +228,7 @@ class AzureDiskEncryption(TestSuite):
             CBLMariner: 2,
         }
 
-        if self._is_unsupported_version(node):
+        if self._is_unsupported_version(node, image):
             return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
@@ -226,7 +238,36 @@ class AzureDiskEncryption(TestSuite):
 
         return False
 
-    def _is_unsupported_version(self, node: Node) -> bool:
+    def _is_unsupported_version(self, node: Node, image: str) -> bool:
+        # List of known bad images that should be skipped
+        known_bad_images = [
+            "/KAMERONCARR-ASAP/kameroncarr_asap_sig/ubuntu2204-unified-image-20230906.vhd/1.0.0",
+            "canonical 0001-com-ubuntu-minimal-kinetic minimal-22_10 22.10.202307010",
+            "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",  # Missing packages
+            "canonical 0001-com-ubuntu-server-focal 20_04-lts-gen2 20.04.202308310",
+            "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202303220",
+            "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202306190",
+            "canonical 0001-com-ubuntu-server-lunar 23_04 23.04.202309050",  # Ubuntu 23 is not yet supported
+            "canonical 0001-com-ubuntu-server-lunar 23_04-arm64 23.04.202309050",
+            "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202307120",
+            "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202309050",
+            "canonical ubuntuserver 18.04-lts 18.04.202001210",  # Some older UB18 images are missing critical ADE packages
+            "canonical ubuntuserver 18.04-lts 18.04.202006101",
+            "canonical ubuntuserver 18.04-lts 18.04.202306070",
+            "canonical ubuntuserver 18_04-lts-gen2 18.04.202001210",
+            "canonical ubuntuserver 18_04-lts-gen2 18.04.202004290",
+            "canonical ubuntuserver 18_04-lts-gen2 18.04.202009220",
+            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/2023.09.07_14.37.46-bionic-linux-image-azure-lts-18.04-4.15.0.1169.137-gen1.vhd",
+            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/2023.09.08_10.25.55-lunar-proposed-azure-6.2.0.1012.12-gen1.vhd",
+            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20221122.01",  # Mariner is supported after may 2023
+            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230126.01",
+            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230303.02",
+            "microsoftcblmariner cbl-mariner cbl-mariner-2-arm64 2.20230126.01",
+        ]
+
+        if image in known_bad_images:
+            return True
+
         unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
             Oracle: [{"major": 8, "minor": 5}],
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
