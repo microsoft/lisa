@@ -241,6 +241,7 @@ class AzureDiskEncryption(TestSuite):
     def _is_unsupported_version(self, node: Node, image: str) -> bool:
         # List of known bad images that should be skipped
         known_bad_images = [
+            # Minimal not supported
             "canonical 0001-com-ubuntu-minimal-kinetic minimal-22_10 22.10.202307010",
             # Missing packages
             "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",
@@ -264,14 +265,6 @@ class AzureDiskEncryption(TestSuite):
             "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230126.01",
             "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230303.02",
             "microsoftcblmariner cbl-mariner cbl-mariner-2-arm64 2.20230126.01",
-            # unknown images
-            "/KAMERONCARR-ASAP/kameroncarr_asap_sig/"
-            + "ubuntu2204-unified-image-20230906.vhd/1.0.0",
-            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/"
-            + "2023.09.07_14.37.46-bionic-linux-image-azure-lts-"
-            + "18.04-4.15.0.1169.137-gen1.vhd",
-            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/"
-            + "2023.09.08_10.25.55-lunar-proposed-azure-6.2.0.1012.12-gen1.vhd",
         ]
 
         if image in known_bad_images:
