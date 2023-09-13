@@ -227,9 +227,19 @@ class AzureDiskEncryption(TestSuite):
             Ubuntu: 18,
             CBLMariner: 2,
         }
+        # Remove after automatic major version support is released to ADE
+        max_supported_major_versions = {
+            Oracle: 8,
+            Ubuntu: 22,
+        }
 
         if self._is_unsupported_version(node, image):
             return False
+
+        for distro, max_supported_version in max_supported_major_versions.items():
+            if isinstance(node.os, distro):
+                if node.os.information.version.major > max_supported_version:
+                    return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
             if isinstance(node.os, distro):
@@ -248,11 +258,6 @@ class AzureDiskEncryption(TestSuite):
             "canonical 0001-com-ubuntu-server-focal 20_04-lts-gen2 20.04.202308310",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202303220",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202306190",
-            # Ubuntu 23 is not yet supported
-            "canonical 0001-com-ubuntu-server-lunar 23_04 23.04.202309050",
-            "canonical 0001-com-ubuntu-server-lunar 23_04-arm64 23.04.202309050",
-            "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202307120",
-            "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202309050",
             # Some older UB18 images are missing critical ADE packages
             "canonical ubuntuserver 18.04-lts 18.04.202001210",
             "canonical ubuntuserver 18.04-lts 18.04.202006101",
@@ -270,7 +275,7 @@ class AzureDiskEncryption(TestSuite):
         if image in known_bad_images:
             return True
 
-        unsupported_versions: Dict[type, UnsupportedVersionInfo] = {
+        min_supported_versions: Dict[type, UnsupportedVersionInfo] = {
             Oracle: [{"major": 8, "minor": 5}],
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
             Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
@@ -280,7 +285,7 @@ class AzureDiskEncryption(TestSuite):
         major_version = version_info.major
         minor_version = version_info.minor
 
-        for distro, versions in unsupported_versions.items():
+        for distro, versions in min_supported_versions.items():
             if isinstance(node.os, distro):
                 for version in versions:
                     if (
