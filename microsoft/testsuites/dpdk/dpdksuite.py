@@ -659,14 +659,21 @@ class Dpdk(TestSuite):
         receiver_ip = sender.nics.get_nic_by_index(2).ip_addr
 
         node.features[NetworkInterface].create_route_table(  # type: ignore
-            forwarder_recv_nic.name, "fwd-rx", sender_ip, forwarder_recv_ip
+            forwarder_recv_nic.name, "fwd-rx", sender_ip, sender_ip, forwarder_recv_ip
         )
         node.features[NetworkInterface].create_route_table(  # type: ignore
-            forwarder_send_nic.name, "fwd-tx", forwarder_send_ip, receiver_ip
+            forwarder_send_nic.name,
+            "fwd-tx",
+            forwarder_send_ip,
+            forwarder_send_ip,
+            receiver_ip,
         )
 
         ### setup forwarding rules
-        sample_rules_v4 = f"R {forwarder_recv_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}\n"
+        sample_rules_v4 = (
+            f"R {forwarder_recv_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}"
+            # f"R {receiver_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
+        )
 
         def ipv4_to_ipv6(addr: str) -> str:
             # format to 0 prefixed 2 char hex
@@ -714,8 +721,8 @@ class Dpdk(TestSuite):
         config_tups = [  # map some queues to cores idk
             (dpdk_port_rcv_fwd, 0, 1),
             (dpdk_port_rcv_fwd, 1, 2),
-            (dpdk_port_snd_fwd, 2, 3),
-            (dpdk_port_snd_fwd, 3, 4),
+            (dpdk_port_snd_fwd, 0, 3),
+            (dpdk_port_snd_fwd, 1, 4),
         ]  # zip(ports, queues, use_cores)
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
 
@@ -729,7 +736,7 @@ class Dpdk(TestSuite):
         # start forwarder
         fwd_cmd = (
             f"{server_app_path} {joined_include} -l 1-5  -- "
-            f" {promiscuous} -p 0x2  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
+            f" {promiscuous} -p 0x6  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
             f"--eth-dest=1,{sender_mac} --parse-ptype"
@@ -741,7 +748,7 @@ class Dpdk(TestSuite):
             shell=True,
         )
         receiver_proc = sender.execute_async(
-            f"nc -l -u {receiver_ip}",
+            f"nc -l -u {receiver_ip} {l3_port}",
             sudo=True,
             shell=True,
         )
@@ -750,18 +757,24 @@ class Dpdk(TestSuite):
         time.sleep(10)  # give it a few seconds to start
 
         # start the listener and start sending data to the forwarder
-        snd_nic = snd_kit.node.nics.get_nic_by_index(1)
-        snd_cmd = snd_kit.testpmd.generate_testpmd_command(
-            snd_nic,
-            0,
-            "txonly",
-            extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_recv_ip} --tx-udp={l3_port},{l3_port}",
-            multiple_queues=True,
-        )
-        sender.tools[Timeout].run_with_timeout(
-            snd_cmd,
-            timeout=10,
-            kill_timeout=15,
+        # snd_cmd = snd_kit.testpmd.generate_testpmd_command(
+        #     snd_nic,
+        #     0,
+        #     "txonly",
+        #     extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_recv_ip} --tx-udp={l3_port},{l3_port}",
+        #     multiple_queues=True,
+        # )
+        # sender.tools[Timeout].run_with_timeout(
+        #     snd_cmd,
+        #     timeout=10,
+        #     kill_timeout=15,
+        # )
+        sender.execute(f"echo {'a'*4096} > ./data", shell=True, sudo=True)
+        sender.execute(
+            f" cat ./data | nc -u {forwarder_recv_ip} {l3_port} ",
+            sudo=True,
+            shell=True,
+            timeout=30,
         )
 
         # FIXME: receive traffic and confirm forwarding worked

@@ -651,12 +651,20 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
-    def create_route_table(self, nic_name: str, route_name:str, first_hop: str, dest_hop: str) -> None:
+    def create_route_table(
+        self,
+        nic_name: str,
+        route_name: str,
+        subnet_addr: str,
+        first_hop: str,
+        dest_hop: str,
+    ) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
 
         prefix = ".".join(first_hop.split(".")[:3] + ["0"])
+        subnet_prefix = ".".join(subnet_addr.split(".")[:3] + ["0"]) + "/24"
         routing_prefix = f"{prefix}/24"
         route_table_name = f"{nic_name}-{route_name}-route_table"
         route_table = network_client.route_tables.begin_create_or_update(
@@ -670,7 +678,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         {
                             "name": route_table_name,
                             "properties": {
-                                "addressPrefix": routing_prefix,
+                                "addressPrefix": "0.0.0.0/32",
                                 "nextHopType": "VirtualAppliance",
                                 "nextHopIpAddress": f"{dest_hop}",
                             },
@@ -701,7 +709,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 subnet_name=subnet_name,
             )
             self._log.debug(f"SUBNET: {subnet_az} \n PREFIX:{subnet_az.address_prefix}")
-            if subnet_az.address_prefix == routing_prefix:
+            if subnet_az.address_prefix == subnet_prefix:
                 subnet_az.route_table = route_table
                 result = network_client.subnets.begin_create_or_update(
                     resource_group_name=self._resource_group_name,
