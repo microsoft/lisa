@@ -256,12 +256,11 @@ class AzureDiskEncryption(TestSuite):
         known_bad_images = [
             # Minimal not supported
             "canonical 0001-com-ubuntu-minimal-kinetic minimal-22_10 22.10.202307010",
-            # Missing packages
+            # Some older Ubuntu images are missing critical ADE packages
             "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",
             "canonical 0001-com-ubuntu-server-focal 20_04-lts-gen2 20.04.202308310",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202303220",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202306190",
-            # Some older UB18 images are missing critical ADE packages
             "canonical ubuntuserver 18.04-lts 18.04.202001210",
             "canonical ubuntuserver 18.04-lts 18.04.202006101",
             "canonical ubuntuserver 18.04-lts 18.04.202306070",
