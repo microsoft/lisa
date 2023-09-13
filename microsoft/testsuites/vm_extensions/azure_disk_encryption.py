@@ -229,8 +229,11 @@ class AzureDiskEncryption(TestSuite):
         }
         # Remove after automatic major version support is released to ADE
         max_supported_major_versions = {
+            Redhat: 9,
+            CentOs: 8,
             Oracle: 8,
             Ubuntu: 22,
+            CBLMariner: 2,
         }
 
         if self._is_unsupported_version(node, image):
