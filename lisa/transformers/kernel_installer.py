@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
+from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
 from lisa import schema
@@ -122,8 +123,9 @@ class KernelInstallerTransformer(Transformer):
         node = quick_connect(runbook.connection, "installer_node")
 
         uname = node.tools[Uname]
+        kernel_version_before_install = uname.get_linux_information()
         self._log.info(
-            f"kernel version before install: {uname.get_linux_information()}"
+            f"kernel version before install: {kernel_version_before_install}"
         )
         factory = subclasses.Factory[BaseInstaller](BaseInstaller)
         installer = factory.create_by_runbook(
@@ -140,37 +142,14 @@ class KernelInstallerTransformer(Transformer):
             if installer.runbook.source != "linux-image-azure-fde":
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
-            else:
-                efi_files = node.execute(
-                    "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
-                    sudo=True,
-                    shell=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "fail to find kernel.efi file for kernel type "
-                        " linux-image-azure-fde"
-                    ),
-                )
-                efi_file = efi_files.stdout.splitlines()[0]
-                node.execute(
-                    (
-                        "cp /boot/efi/EFI/ubuntu/grubx64.efi "
-                        "/boot/efi/EFI/ubuntu/grubx64.efi.bak"
-                    ),
-                    sudo=True,
-                )
-                node.execute(
-                    f"cp {efi_file} /boot/efi/EFI/ubuntu/grubx64.efi",
-                    sudo=True,
-                    shell=True,
-                )
 
         self._log.info("rebooting")
         node.reboot()
-        self._log.info(
-            f"kernel version after install: "
-            f"{uname.get_linux_information(force_run=True)}"
-        )
+        kernel_version_after_install = uname.get_linux_information(force_run=True)
+        self._log.info(f"kernel version after install: {kernel_version_after_install}")
+        assert_that(
+            kernel_version_after_install, "Kernel installation Failed"
+        ).is_equal_to(kernel_version_before_install)
         return {self._information_output_name: self._information}
 
 
