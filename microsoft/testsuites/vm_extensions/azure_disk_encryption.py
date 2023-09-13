@@ -241,28 +241,37 @@ class AzureDiskEncryption(TestSuite):
     def _is_unsupported_version(self, node: Node, image: str) -> bool:
         # List of known bad images that should be skipped
         known_bad_images = [
-            "/KAMERONCARR-ASAP/kameroncarr_asap_sig/ubuntu2204-unified-image-20230906.vhd/1.0.0",
             "canonical 0001-com-ubuntu-minimal-kinetic minimal-22_10 22.10.202307010",
-            "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",  # Missing packages
+            # Missing packages
+            "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",
             "canonical 0001-com-ubuntu-server-focal 20_04-lts-gen2 20.04.202308310",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202303220",
             "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202306190",
-            "canonical 0001-com-ubuntu-server-lunar 23_04 23.04.202309050",  # Ubuntu 23 is not yet supported
+            # Ubuntu 23 is not yet supported
+            "canonical 0001-com-ubuntu-server-lunar 23_04 23.04.202309050",
             "canonical 0001-com-ubuntu-server-lunar 23_04-arm64 23.04.202309050",
             "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202307120",
             "canonical 0001-com-ubuntu-server-lunar 23_04-gen2 23.04.202309050",
-            "canonical ubuntuserver 18.04-lts 18.04.202001210",  # Some older UB18 images are missing critical ADE packages
+            # Some older UB18 images are missing critical ADE packages
+            "canonical ubuntuserver 18.04-lts 18.04.202001210",
             "canonical ubuntuserver 18.04-lts 18.04.202006101",
             "canonical ubuntuserver 18.04-lts 18.04.202306070",
             "canonical ubuntuserver 18_04-lts-gen2 18.04.202001210",
             "canonical ubuntuserver 18_04-lts-gen2 18.04.202004290",
             "canonical ubuntuserver 18_04-lts-gen2 18.04.202009220",
-            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/2023.09.07_14.37.46-bionic-linux-image-azure-lts-18.04-4.15.0.1169.137-gen1.vhd",
-            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/2023.09.08_10.25.55-lunar-proposed-azure-6.2.0.1012.12-gen1.vhd",
-            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20221122.01",  # Mariner is supported after may 2023
+            # Mariner is supported after may 2023
+            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20221122.01",
             "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230126.01",
             "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230303.02",
             "microsoftcblmariner cbl-mariner cbl-mariner-2-arm64 2.20230126.01",
+            # unknown images
+            "/KAMERONCARR-ASAP/kameroncarr_asap_sig/"
+            + "ubuntu2204-unified-image-20230906.vhd/1.0.0",
+            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/"
+            + "2023.09.07_14.37.46-bionic-linux-image-azure-lts-"
+            + "18.04-4.15.0.1169.137-gen1.vhd",
+            "https://lisatwestus26a28e896.blob.core.windows.net/lisa-vhd-exported/"
+            + "2023.09.08_10.25.55-lunar-proposed-azure-6.2.0.1012.12-gen1.vhd",
         ]
 
         if image in known_bad_images:
