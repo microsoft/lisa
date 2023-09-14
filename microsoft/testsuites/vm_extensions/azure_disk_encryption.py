@@ -234,7 +234,7 @@ class AzureDiskEncryption(TestSuite):
             CBLMariner: 2,
         }
 
-        if self._is_unsupported_version(node):
+        if self._is_unsupported_minor_version(node):
             return False
 
         for distro, max_supported_version in max_supported_major_versions.items():
@@ -249,7 +249,7 @@ class AzureDiskEncryption(TestSuite):
 
         return False
 
-    def _is_unsupported_version(self, node: Node) -> bool:
+    def _is_unsupported_minor_version(self, node: Node) -> bool:
         min_supported_versions: Dict[type, UnsupportedVersionInfo] = {
             Oracle: [{"major": 8, "minor": 5}],
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
