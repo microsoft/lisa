@@ -1,0 +1,29 @@
+{
+    "location": "westus3",
+    "properties": {
+        "jobTemplateInstance": {
+            "templateTags": [],
+            "selections": [
+                {
+                    "casePriority": [
+                        0,
+                        1,
+                        2
+                    ]
+                }
+            ],
+            "region": [],
+            "vmSize": [],
+            "concurrency": 4
+        },
+        "image": {
+            "type": "marketplace",
+            "offer": "0001-com-ubuntu-server-focal",
+            "publisher": "Canonical",
+            "sku": "20_04-lts-gen2",
+            "version": "latest",
+            "architecture": "x64",
+            "vhdGeneration": 2
+        }
+    }
+}
