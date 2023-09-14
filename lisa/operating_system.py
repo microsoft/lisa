@@ -1012,11 +1012,15 @@ class Debian(Linux):
     def _package_exists(self, package: str) -> bool:
         command = "dpkg --get-selections"
         result = self._node.execute(command, sudo=True, shell=True)
-        package_pattern = re.compile(f"{package}([ \t]+)install")
         # Not installed package not shown in the output
         # Uninstall package will show as deinstall
+        # The 'hold' status means that when the operating system is upgraded, the
+        # installer will not upgrade these packages,unless explicitly stated. If
+        # package is hold status, it means this package exists.
         # vim                                             deinstall
         # vim-common                                      install
+        # auoms                                           hold
+        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
             return True
         return False
@@ -1775,6 +1779,21 @@ class CBLMariner(RPMDistro):
     def _package_exists(self, package: str) -> bool:
         self._initialize_package_installation()
         return super()._package_exists(package)
+
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
+    ) -> None:
+        release = self.information.release
+        from lisa.tools import Curl
+
+        curl = self._node.tools[Curl]
+        curl.fetch(
+            arg="-o /etc/yum.repos.d/mariner-extras.repo",
+            execute_arg="",
+            url=f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/{release}"
+            "/SPECS/mariner-repos/mariner-extras.repo",
+            sudo=True,
+        )
 
 
 @dataclass

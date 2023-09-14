@@ -30,6 +30,7 @@ from azure.mgmt.keyvault.models import (
     VaultProperties,
 )
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
+from azure.mgmt.msi import ManagedServiceIdentityClient
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
     PrivateDnsZoneConfig,
@@ -972,6 +973,20 @@ def get_resource_management_client(
         subscription_id=subscription_id,
         base_url=cloud.endpoints.resource_manager,
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+    )
+
+
+def get_managed_service_identity_client(
+    platform: "AzurePlatform",
+    subscription_id: str = "",
+) -> ManagedServiceIdentityClient:
+    if not subscription_id:
+        subscription_id = platform.subscription_id
+    return ManagedServiceIdentityClient(
+        credential=platform.credential,
+        subscription_id=subscription_id,
+        base_url=platform.cloud.endpoints.resource_manager,
+        credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
 
 
@@ -2060,6 +2075,48 @@ def add_system_assign_identity(
         )
 
     return object_id_vm
+
+
+def add_user_assign_identity(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    vm_name: str,
+    identify_id: str,
+    log: Logger,
+) -> None:
+    compute_client = get_compute_client(platform)
+    identity: Dict[str, Any] = {identify_id: {}}
+    params_identity = {"type": "UserAssigned", "userAssignedIdentities": identity}
+    params_create = {"identity": params_identity}
+
+    operation = compute_client.virtual_machines.begin_update(
+        resource_group_name,
+        vm_name,
+        params_create,
+    )
+    wait_operation(operation)
+    log.debug(f"{identify_id} is assigned to vm {vm_name} successfully")
+
+
+def add_tag_for_vm(
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    vm_name: str,
+    tag: Dict[str, str],
+    log: Logger,
+) -> None:
+    compute_client = get_compute_client(platform)
+    vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
+    vm.tags.update(tag)
+    params = {"tags": vm.tags}
+
+    operation = compute_client.virtual_machines.begin_update(
+        resource_group_name,
+        vm_name,
+        params,
+    )
+    wait_operation(operation)
+    log.debug(f"tag: {tag} has been added in {vm_name} successfully")
 
 
 def get_matching_key_vault_name(
