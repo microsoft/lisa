@@ -152,10 +152,6 @@ class AzureDiskEncryption(TestSuite):
         location = node_capability.location
         shared_resource_group = runbook.shared_resource_group_name
 
-        log.debug(f"Node Version {node.os.information.version}\n\n")
-        log.debug(f"Node Full Version {node.os.information.full_version}\n\n")
-        log.debug(f"Node release {node.os.information.release}\n\n")
-
         # Create key vault if there is not available adelisa key vault for that region
         existing_vault = get_matching_key_vault_name(
             platform, location, shared_resource_group, r"adelisa-\w{5}"
