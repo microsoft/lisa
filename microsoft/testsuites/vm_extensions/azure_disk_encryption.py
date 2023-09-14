@@ -49,14 +49,8 @@ UnsupportedVersionInfo = List[Dict[str, int]]
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        result = kwargs["result"]
-        image = result.information.get("image")
-        if not self._is_supported_linux_distro(node, image):
-            raise SkippedException(
-                UnsupportedDistroException(
-                    node.os, f'OS or Image "{image}" is not compatible with ADE'
-                )
-            )
+        if not self._is_supported_linux_distro(node):
+            raise SkippedException(UnsupportedDistroException(node.os))
 
     @TestCaseMetadata(
         description="""
@@ -158,6 +152,10 @@ class AzureDiskEncryption(TestSuite):
         location = node_capability.location
         shared_resource_group = runbook.shared_resource_group_name
 
+        log.debug(f"Node Version {node.os.information.version}\n\n")
+        log.debug(f"Node Full Version {node.os.information.full_version}\n\n")
+        log.debug(f"Node release {node.os.information.release}\n\n")
+
         # Create key vault if there is not available adelisa key vault for that region
         existing_vault = get_matching_key_vault_name(
             platform, location, shared_resource_group, r"adelisa-\w{5}"
@@ -219,7 +217,7 @@ class AzureDiskEncryption(TestSuite):
         )
         return extension_result
 
-    def _is_supported_linux_distro(self, node: Node, image: str) -> bool:
+    def _is_supported_linux_distro(self, node: Node) -> bool:
         minimum_supported_major_versions = {
             Redhat: 7,
             CentOs: 7,
@@ -236,7 +234,7 @@ class AzureDiskEncryption(TestSuite):
             CBLMariner: 2,
         }
 
-        if self._is_unsupported_version(node, image):
+        if self._is_unsupported_version(node):
             return False
 
         for distro, max_supported_version in max_supported_major_versions.items():
@@ -251,32 +249,7 @@ class AzureDiskEncryption(TestSuite):
 
         return False
 
-    def _is_unsupported_version(self, node: Node, image: str) -> bool:
-        # List of known bad images that should be skipped
-        known_bad_images = [
-            # Minimal not supported
-            "canonical 0001-com-ubuntu-minimal-kinetic minimal-22_10 22.10.202307010",
-            # Some older Ubuntu images are missing critical ADE packages
-            "canonical 0001-com-ubuntu-server-focal 20_04-lts 20.04.202007080",
-            "canonical 0001-com-ubuntu-server-focal 20_04-lts-gen2 20.04.202308310",
-            "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202303220",
-            "canonical 0001-com-ubuntu-server-kinetic 22_10 22.10.202306190",
-            "canonical ubuntuserver 18.04-lts 18.04.202001210",
-            "canonical ubuntuserver 18.04-lts 18.04.202006101",
-            "canonical ubuntuserver 18.04-lts 18.04.202306070",
-            "canonical ubuntuserver 18_04-lts-gen2 18.04.202001210",
-            "canonical ubuntuserver 18_04-lts-gen2 18.04.202004290",
-            "canonical ubuntuserver 18_04-lts-gen2 18.04.202009220",
-            # Mariner is supported after may 2023
-            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20221122.01",
-            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230126.01",
-            "microsoftcblmariner cbl-mariner cbl-mariner-2 2.20230303.02",
-            "microsoftcblmariner cbl-mariner cbl-mariner-2-arm64 2.20230126.01",
-        ]
-
-        if image in known_bad_images:
-            return True
-
+    def _is_unsupported_version(self, node: Node) -> bool:
         min_supported_versions: Dict[type, UnsupportedVersionInfo] = {
             Oracle: [{"major": 8, "minor": 5}],
             CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
