@@ -663,9 +663,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
 
-        prefix = ".".join(first_hop.split(".")[:3] + ["0"])
         subnet_prefix = ".".join(subnet_addr.split(".")[:3] + ["0"]) + "/24"
-        routing_prefix = f"{prefix}/24"
+        exact_match_route = f"{first_hop}/32"
         route_table_name = f"{nic_name}-{route_name}-route_table"
         route_table = network_client.route_tables.begin_create_or_update(
             resource_group_name=self._resource_group_name,
@@ -678,7 +677,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         {
                             "name": route_table_name,
                             "properties": {
-                                "addressPrefix": "0.0.0.0/32",
+                                "addressPrefix": exact_match_route,  # 0.0.0.0/32 routes all traffic to dest
                                 "nextHopType": "VirtualAppliance",
                                 "nextHopIpAddress": f"{dest_hop}",
                             },
