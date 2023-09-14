@@ -31,6 +31,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
+    do_pmd_driver_setup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -589,7 +590,7 @@ class Dpdk(TestSuite):
         priority=4,
         requirement=simple_requirement(
             min_core_count=8,
-            min_count=2,
+            min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
         ),
@@ -614,8 +615,7 @@ class Dpdk(TestSuite):
         l3_port = 0xD007
         dpdk_port_rcv_fwd = 1
         dpdk_port_snd_fwd = 2
-        ip_protocol = 0x11  # UDP
-        # dpdk_port_recv = 2
+        ip_protocol = 0x6  # TCP
 
         self._force_dpdk_default_source(variables)
 
@@ -629,25 +629,27 @@ class Dpdk(TestSuite):
                 enable=True, private_ip_addr=rcv_nic_private_ip
             )
 
+        forwarder, sender, receiver = environment.nodes.list()
         # initialize DPDK with sample applications selected for build
-        test_kits = init_nodes_concurrent(
-            environment, log, variables, pmd, sample_apps=["l3fwd"]
+        test_kit = initialize_node_resources(
+            forwarder, log, variables, pmd, sample_apps=["l3fwd"]
+        )
+        do_pmd_driver_setup(
+            forwarder, forwarder.nics.get_nic_by_index(2), test_kit.testpmd, "netvsc"
         )
 
         # enable hugepages needed for dpdk EAL
         for node in environment.nodes.list():
             init_hugepages(node)
-            node.features[NetworkInterface].switch_sriov(
-                enable=False,
-                wait=False,
-                reset_connections=False,
-                private_ip_addr=node.nics.get_primary_nic().ip_addr,
-            )  # type: ignore
+            # node.features[NetworkInterface].switch_sriov(
+            #     enable=False,
+            #     wait=False,
+            #     reset_connections=False,
+            #     private_ip_addr=node.nics.get_primary_nic().ip_addr,
+            # )  # type: ignore
 
         # pick which node will be forwarder and sender arbitrarily
-        fwd_kit, snd_kit = test_kits
-        sender = snd_kit.node
-        forwarder = fwd_kit.node
+        fwd_kit = test_kit
 
         # get some basic node info
         forwarder_recv_nic = forwarder.nics.get_secondary_nic()
@@ -656,23 +658,33 @@ class Dpdk(TestSuite):
         forwarder_send_ip = forwarder_send_nic.ip_addr
         sender_mac = sender.nics.get_secondary_nic().mac_addr
         sender_ip = sender.nics.get_secondary_nic().ip_addr
-        receiver_ip = sender.nics.get_nic_by_index(2).ip_addr
+        # set sender third nic down
+        sender.tools[Ip].down(sender.nics.get_nic_by_index(2).name)
+        # set receiver second nic down
+        receiver.tools[Ip].down(receiver.nics.get_secondary_nic().name)
+
+        receiver_ip = receiver.nics.get_nic_by_index(2).ip_addr
+        receiver_mac = receiver.nics.get_nic_by_index(2).mac_addr
 
         node.features[NetworkInterface].create_route_table(  # type: ignore
-            forwarder_recv_nic.name, "fwd-rx", sender_ip, sender_ip, forwarder_recv_ip
+            forwarder_recv_nic.name,
+            "fwd-rx",
+            subnet_addr=sender_ip,
+            first_hop="0.0.0.0",
+            dest_hop=forwarder_recv_ip,
         )
         node.features[NetworkInterface].create_route_table(  # type: ignore
             forwarder_send_nic.name,
             "fwd-tx",
-            forwarder_send_ip,
-            forwarder_send_ip,
-            receiver_ip,
+            subnet_addr=receiver_ip,
+            first_hop="0.0.0.0",
+            dest_hop=forwarder_send_ip,
         )
 
         ### setup forwarding rules
         sample_rules_v4 = (
-            f"R {forwarder_recv_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}"
-            # f"R {receiver_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
+            f"R {receiver_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}\n"
+            f"R {sender_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
         )
 
         def ipv4_to_ipv6(addr: str) -> str:
@@ -686,9 +698,13 @@ class Dpdk(TestSuite):
                 f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}"
             )
 
-        ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_recv_ip)
+        # ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_recv_ip)
         ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
-        sample_rules_v6 = f"R {ipv6_mapped_forwarder} {ipv6_mapped_sender} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
+        ipv6_mapped_receiver = ipv4_to_ipv6(receiver_ip)
+        sample_rules_v6 = (
+            f"R {ipv6_mapped_receiver} {ipv6_mapped_receiver} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}\n"
+            f"R {ipv6_mapped_sender} {ipv6_mapped_sender} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
+        )
         rules_paths = [
             forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
         ]
@@ -739,16 +755,16 @@ class Dpdk(TestSuite):
             f" {promiscuous} -p 0x6  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
-            f"--eth-dest=1,{sender_mac} --parse-ptype"
-            # {ipv6_rules.as_posix()}"
+            f"--eth-dest=1,{sender_mac} --eth-dest=2,{receiver_mac} --parse-ptype "
+            f"--mode=poll"
         )
         forwarder.execute_async(
             fwd_cmd,
             sudo=True,
             shell=True,
         )
-        receiver_proc = sender.execute_async(
-            f"nc -l -u {receiver_ip} {l3_port}",
+        receiver_proc = receiver.execute_async(
+            f"nc -l {receiver_ip} {l3_port}",
             sudo=True,
             shell=True,
         )
@@ -771,7 +787,7 @@ class Dpdk(TestSuite):
         # )
         sender.execute(f"echo {'a'*4096} > ./data", shell=True, sudo=True)
         sender.execute(
-            f" cat ./data | nc -u {forwarder_recv_ip} {l3_port} ",
+            f" cat ./data | nc {receiver_ip} {l3_port} ",
             sudo=True,
             shell=True,
             timeout=30,
@@ -855,19 +871,19 @@ class Dpdk(TestSuite):
         if not variables.get("dpdk_source", None):
             variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        environment: Environment = kwargs.pop("environment")
-        for node in environment.nodes.list():
-            # reset SRIOV to enabled if left disabled
-            interface = node.features[NetworkInterface]
-            if not interface.is_enabled_sriov():
-                log.debug("DPDK detected SRIOV was left disabled during cleanup.")
-                interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+    # def after_case(self, log: Logger, **kwargs: Any) -> None:
+    #     environment: Environment = kwargs.pop("environment")
+    #     for node in environment.nodes.list():
+    #         # reset SRIOV to enabled if left disabled
+    #         interface = node.features[NetworkInterface]
+    #         if not interface.is_enabled_sriov():
+    #             log.debug("DPDK detected SRIOV was left disabled during cleanup.")
+    #             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
 
-            # cleanup driver changes
-            modprobe = node.tools[Modprobe]
-            if modprobe.module_exists("uio_hv_generic"):
-                node.tools[Service].stop_service("vpp")
-                modprobe.remove(["uio_hv_generic"])
-                node.close()
-                modprobe.reload(["hv_netvsc"])
+    #         # cleanup driver changes
+    #         modprobe = node.tools[Modprobe]
+    #         if modprobe.module_exists("uio_hv_generic"):
+    #             node.tools[Service].stop_service("vpp")
+    #             modprobe.remove(["uio_hv_generic"])
+    #             node.close()
+    #             modprobe.reload(["hv_netvsc"])

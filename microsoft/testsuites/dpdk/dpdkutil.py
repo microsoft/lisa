@@ -276,6 +276,26 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
         )
 
 
+def do_pmd_driver_setup(
+    node: Node, test_nic: NicInfo, testpmd: DpdkTestpmd, pmd: str = "failsafe"
+) -> None:
+    if pmd == "netvsc":
+        # this code makes changes to interfaces that will cause later tests to fail.
+        # Therefore we mark the node dirty to prevent future testing on this environment
+        node.mark_dirty()
+        # setup system for netvsc pmd
+        # https://doc.dpdk.org/guides/nics/netvsc.html
+        enable_uio_hv_generic_for_nic(node, test_nic)
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # if mana is present, set VF interface down.
+    # FIXME: add mana dpdk docs link when it's available.
+    if testpmd.is_mana:
+        if test_nic.lower:
+            node.tools[Ip].down(test_nic.lower)
+
+
 def initialize_node_resources(
     node: Node,
     log: Logger,
@@ -342,22 +362,7 @@ def initialize_node_resources(
         f"bound to hv_netvsc. Found {test_nic.module_name}."
     ).is_equal_to("hv_netvsc")
 
-    # netvsc pmd requires uio_hv_generic to be loaded before use
-    if pmd == "netvsc":
-        # this code makes changes to interfaces that will cause later tests to fail.
-        # Therefore we mark the node dirty to prevent future testing on this environment
-        node.mark_dirty()
-        # setup system for netvsc pmd
-        # https://doc.dpdk.org/guides/nics/netvsc.html
-        enable_uio_hv_generic_for_nic(node, test_nic)
-        node.nics.unbind(test_nic)
-        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
-
-    # if mana is present, set VF interface down.
-    # FIXME: add mana dpdk docs link when it's available.
-    if testpmd.is_mana:
-        if test_nic.lower:
-            node.tools[Ip].down(test_nic.lower)
+    do_pmd_driver_setup(node, test_nic, testpmd, pmd=pmd)
 
     return DpdkTestResources(node, testpmd)
 
