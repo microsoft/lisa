@@ -42,6 +42,7 @@ class CloudHypervisorTests(Tool):
     use_ms_clh_repo = False
     ms_access_token = ""
     clh_guest_vm_type = ""
+    use_ms_guest_kernel = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -234,6 +235,7 @@ class CloudHypervisorTests(Tool):
                 auth_token=self.ms_access_token,
             )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
+            self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
         else:
             git.clone(self.upstream_repo, clone_path)
 
