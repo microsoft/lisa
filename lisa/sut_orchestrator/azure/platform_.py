@@ -2608,6 +2608,14 @@ class AzurePlatform(Platform):
                     [],
                 )
                 node_space.network_interface.data_path = data_path
+        elif azure_runbook.marketplace:
+            if node_space.network_interface:
+                data_path = search_space.intersect_setspace_by_priority(  # type: ignore
+                    node_space.network_interface.data_path,
+                    azure_runbook.marketplace.network_data_path,
+                    [],
+                )
+                node_space.network_interface.data_path = data_path
 
     def _set_image_features(self, node_space: schema.NodeSpace) -> None:
         # This method does the same thing as _convert_to_azure_node_space
