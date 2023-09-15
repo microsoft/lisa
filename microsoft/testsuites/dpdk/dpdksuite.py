@@ -24,6 +24,7 @@ from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service, Timeout
 from lisa.util.constants import SIGINT
+from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
@@ -634,38 +635,44 @@ class Dpdk(TestSuite):
         test_kit = initialize_node_resources(
             forwarder, log, variables, pmd, sample_apps=["l3fwd"]
         )
-        do_pmd_driver_setup(
-            forwarder, forwarder.nics.get_nic_by_index(2), test_kit.testpmd, "netvsc"
-        )
-
         # enable hugepages needed for dpdk EAL
-        for node in environment.nodes.list():
-            init_hugepages(node)
-            # node.features[NetworkInterface].switch_sriov(
-            #     enable=False,
-            #     wait=False,
-            #     reset_connections=False,
-            #     private_ip_addr=node.nics.get_primary_nic().ip_addr,
-            # )  # type: ignore
-
-        # pick which node will be forwarder and sender arbitrarily
-        fwd_kit = test_kit
 
         # get some basic node info
+        sender_primary_nic = sender.nics.get_primary_nic()
+        forwarder_primary_ip = forwarder.nics.get_primary_nic().ip_addr
         forwarder_recv_nic = forwarder.nics.get_secondary_nic()
         forwarder_recv_ip = forwarder_recv_nic.ip_addr
         forwarder_send_nic = forwarder.nics.get_nic_by_index(2)
         forwarder_send_ip = forwarder_send_nic.ip_addr
-        sender_mac = sender.nics.get_secondary_nic().mac_addr
-        sender_ip = sender.nics.get_secondary_nic().ip_addr
-        # set sender third nic down
-        sender.tools[Ip].down(sender.nics.get_nic_by_index(2).name)
-        # set receiver second nic down
-        receiver.tools[Ip].down(receiver.nics.get_secondary_nic().name)
+        sender_nic = sender.nics.get_secondary_nic()
+        sender_disabled_nic = sender.nics.get_nic_by_index(2)
+        receiver_disabled_nic = receiver.nics.get_secondary_nic()
+        sender_mac = sender_nic.mac_addr
+        sender_ip = sender_nic.ip_addr
+        receiver_nic = receiver.nics.get_nic_by_index(2)
+        receiver_ip = receiver_nic.ip_addr
+        receiver_mac = receiver_nic.mac_addr
 
-        receiver_ip = receiver.nics.get_nic_by_index(2).ip_addr
-        receiver_mac = receiver.nics.get_nic_by_index(2).mac_addr
+        # for node in environment.nodes.list():
+        #     node.features[NetworkInterface].switch_sriov(
+        #         enable=False,
+        #         wait=False,
+        #         reset_connections=False,
+        #         private_ip_addr=node.nics.get_primary_nic().ip_addr,
+        #     )  # type: ignore
 
+        # drop traffic on primary subnet bound for the receiver.
+        # this is to catch when traffic is unintentionally routed over
+        # the primary interface.
+        node.features[NetworkInterface].create_route_table(  # type: ignore
+            sender_primary_nic.name,
+            "fwd-rx",
+            subnet_addr=sender_primary_nic.ip_addr,
+            first_hop=receiver_ip,
+            dest_hop="",
+        )
+        # create our forwarding rules, all traffic on sender and receiver nic
+        # subnets goes to the forwarder, our virtual appliance VM.
         node.features[NetworkInterface].create_route_table(  # type: ignore
             forwarder_recv_nic.name,
             "fwd-rx",
@@ -680,7 +687,16 @@ class Dpdk(TestSuite):
             first_hop="0.0.0.0",
             dest_hop=forwarder_send_ip,
         )
+        # reboot after setting these rules (also after changing the sriov settings)
+        run_in_parallel([_node.reboot for _node in environment.nodes.list()])
+        do_pmd_driver_setup(forwarder, forwarder_recv_nic, test_kit.testpmd, "netvsc")
+        do_pmd_driver_setup(forwarder, forwarder_send_nic, test_kit.testpmd, "netvsc")
+        init_hugepages(forwarder)
+        sender.tools[Ip].down(sender_disabled_nic.name)
+        receiver.tools[Ip].down(receiver_disabled_nic.nic_name)
 
+        # pick which node will be forwarder and sender arbitrarily
+        fwd_kit = test_kit
         ### setup forwarding rules
         sample_rules_v4 = (
             f"R {receiver_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}\n"
@@ -755,7 +771,7 @@ class Dpdk(TestSuite):
             f" {promiscuous} -p 0x6  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
             f'--config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
-            f"--eth-dest=1,{sender_mac} --eth-dest=2,{receiver_mac} --parse-ptype "
+            f" --parse-ptype "
             f"--mode=poll"
         )
         forwarder.execute_async(
@@ -787,7 +803,7 @@ class Dpdk(TestSuite):
         # )
         sender.execute(f"echo {'a'*4096} > ./data", shell=True, sudo=True)
         sender.execute(
-            f" cat ./data | nc {receiver_ip} {l3_port} ",
+            f" cat ./data | nc -s {sender_ip} -p {l3_port} {receiver_ip} {l3_port} ",
             sudo=True,
             shell=True,
             timeout=30,
@@ -799,10 +815,12 @@ class Dpdk(TestSuite):
         result = receiver_proc.wait_result()
         log.debug(f"result: {result.stdout}")
 
-        # kill l2fwd on forwarder
+        # kill l3fwd on forwarder
         forwarder.tools[Kill].by_name(
             server_app_name, signum=SIGINT, ignore_not_exist=True
         )
+        forwarder.log.info(f"Forwarder: {forwarder.name}")
+        forwarder.log.info(f"l3fwd cmd: {fwd_cmd}")
 
     @TestCaseMetadata(
         description="""
