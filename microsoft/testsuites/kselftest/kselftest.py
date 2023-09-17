@@ -30,9 +30,6 @@ _UBUNTU_OS_PACKAGES = [
     "bc",
     "ccache",
     "libncurses-dev",
-    "gcc-multilib",
-    "libc6-i386",
-    "libc6-dev-i386",
 ]
 
 _MARINER_OS_PACKAGES = [
@@ -137,6 +134,18 @@ class Kselftest(Tool):
             mkdir = self.node.tools[Mkdir]
             mkdir.create_directory(str(self._kself_installed_dir))
             if isinstance(self.node.os, Ubuntu):
+                arch = self.node.os.get_kernel_information().hardware_platform
+                if arch == "aarch64":
+                    for package in [
+                        "gobjc-arm-linux-gnueabihf",
+                        "gobjc-multilib-arm-linux-gnueabihf",
+                        "libc6-dev-i386-cross",
+                        "libc6-i386-cross",
+                    ]:
+                        if self.node.os.is_package_in_repo(package):
+                            _UBUNTU_OS_PACKAGES.append(package)
+                else:
+                    _UBUNTU_OS_PACKAGES.append("gcc-multilib libc6-i386 libc6-dev-i386")
                 # cache is used to speed up recompilation
                 self.node.os.install_packages(_UBUNTU_OS_PACKAGES)
             elif isinstance(self.node.os, CBLMariner):
@@ -183,7 +192,7 @@ class Kselftest(Tool):
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder("{self._kself_installed_dir}", "777", sudo=True)
+            chmod.update_folder(str(self._kself_installed_dir), "777", sudo=True)
 
         return self._check_exists()
 
@@ -211,7 +220,7 @@ class Kselftest(Tool):
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
-        chmod.update_folder("/home/{username}/kselftest-results.txt", "644", sudo=True)
+        chmod.update_folder(f"/home/{username}/kselftest-results.txt", "644", sudo=True)
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]
