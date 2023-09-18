@@ -14,7 +14,7 @@ from lisa import (
 from lisa.features import Infiniband, Sriov
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Find, KernelConfig, Modprobe, Ssh
+from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -46,14 +46,21 @@ class InfinibandSuite(TestSuite):
         ),
     )
     def verify_ib_naming(self, log: Logger, node: Node) -> None:
-        ib_interfaces = node.features[Infiniband].get_ib_interfaces()
-        ib_first_device_name = [x.nic_name for x in ib_interfaces]
+        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            ib_interfaces = node.features[Infiniband].get_ib_interfaces()
+            ib_first_device_name = [x.nic_name for x in ib_interfaces]
 
-        if not ib_first_device_name:
-            raise LisaException("This node has no IB devices available.")
-        if "ib0" not in ib_first_device_name:
-            raise LisaException("The first IB device on this node is not named ib0.")
-        log.info("IB device naming/ordering has been verified successfully!")
+            if not ib_first_device_name:
+                raise LisaException("This node has no IB devices available.")
+            if "ib0" not in ib_first_device_name:
+                raise LisaException(
+                    "The first IB device on this node is not named ib0."
+                )
+            log.info("IB device naming/ordering has been verified successfully!")
+        else:
+            raise SkippedException(
+                "We can't guarantee the IB device naming/ordering in non-HPC images."
+            )
 
     @TestCaseMetadata(
         description="""
