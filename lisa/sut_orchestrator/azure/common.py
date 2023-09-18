@@ -464,7 +464,7 @@ class AzureNodeSchema:
             # this step makes vhd_raw is validated, and
             # filter out any unwanted content.
             self.vhd_raw = vhd.to_dict()  # type: ignore
-        elif self.vhd_raw is not None:
+        elif self.vhd_raw:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
             vhd = VhdSchema(vhd_path=self.vhd_raw)
             add_secret(vhd.vhd_path, PATTERN_URL)
