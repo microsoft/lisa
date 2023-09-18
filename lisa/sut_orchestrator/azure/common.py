@@ -326,9 +326,19 @@ class AzureNodeSchema:
                 marketplace = schema.load_by_type(
                     AzureVmMarketplaceSchema, self.marketplace_raw
                 )
-                # this step makes marketplace_raw is validated, and
-                # filter out any unwanted content.
-                self.marketplace_raw = marketplace.to_dict()  # type: ignore
+                if not all(
+                    [
+                        marketplace.publisher,
+                        marketplace.offer,
+                        marketplace.sku,
+                        marketplace.version,
+                    ]
+                ):
+                    marketplace = None
+                else:
+                    # this step makes marketplace_raw is validated, and
+                    # filter out any unwanted content.
+                    self.marketplace_raw = marketplace.to_dict()  # type: ignore
             elif self.marketplace_raw:
                 assert isinstance(
                     self.marketplace_raw, str
@@ -393,11 +403,20 @@ class AzureNodeSchema:
             shared_gallery = schema.load_by_type(
                 SharedImageGallerySchema, self.shared_gallery_raw
             )
-            if not shared_gallery.subscription_id:
-                shared_gallery.subscription_id = self.subscription_id
-            # this step makes shared_gallery_raw is validated, and
-            # filter out any unwanted content.
-            self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
+            if not all(
+                [
+                    shared_gallery.image_definition,
+                    shared_gallery.image_version,
+                    shared_gallery.image_gallery,
+                ]
+            ):
+                shared_gallery = None
+            else:
+                if not shared_gallery.subscription_id:
+                    shared_gallery.subscription_id = self.subscription_id
+                # this step makes shared_gallery_raw is validated, and
+                # filter out any unwanted content.
+                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
         elif self.shared_gallery_raw:
             assert isinstance(
                 self.shared_gallery_raw, str
@@ -458,12 +477,15 @@ class AzureNodeSchema:
             return vhd
         if isinstance(self.vhd_raw, dict):
             vhd = schema.load_by_type(VhdSchema, self.vhd_raw)
-            add_secret(vhd.vhd_path, PATTERN_URL)
-            if vhd.vmgs_path:
-                add_secret(vhd.vmgs_path, PATTERN_URL)
-            # this step makes vhd_raw is validated, and
-            # filter out any unwanted content.
-            self.vhd_raw = vhd.to_dict()  # type: ignore
+            if not vhd.vhd_path:
+                vhd = None
+            else:
+                add_secret(vhd.vhd_path, PATTERN_URL)
+                if vhd.vmgs_path:
+                    add_secret(vhd.vmgs_path, PATTERN_URL)
+                # this step makes vhd_raw is validated, and
+                # filter out any unwanted content.
+                self.vhd_raw = vhd.to_dict()  # type: ignore
         elif self.vhd_raw:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
             vhd = VhdSchema(vhd_path=self.vhd_raw)
