@@ -18,6 +18,7 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     NotMeetRequirementException,
+    ReleaseEndOfLifeException,
     SkippedException,
     constants,
     hookimpl,
@@ -121,6 +122,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             information.update(
                 self._get_environment_information(environment=environment)
             )
+        except ReleaseEndOfLifeException:
+            raise
         except Exception as identifier:
             self._log.exception(
                 "failed to get environment information on platform", exc_info=identifier
