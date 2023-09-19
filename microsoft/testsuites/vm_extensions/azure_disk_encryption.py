@@ -256,6 +256,11 @@ class AzureDiskEncryption(TestSuite):
         major_version = version_info.major
         minor_version = version_info.minor
 
+        # ADE support only on Ubuntu LTS images
+        if isinstance(node.os, Ubuntu):
+            if minor_version != 4:
+                return True
+
         for distro, versions in min_supported_versions.items():
             if isinstance(node.os, distro):
                 for version in versions:
