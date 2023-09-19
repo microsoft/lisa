@@ -12,10 +12,18 @@ from lisa.util import field_metadata
 
 @dataclass_json()
 @dataclass
+class ClientCapabilities:
+    core_count: int = field(default=-1)
+    free_memory_mb: int = field(default=-1)
+
+
+@dataclass_json()
+@dataclass
 class ClientSchema:
     connection: Optional[schema.RemoteNode] = field(
         default=None, metadata=field_metadata(required=True)
     )
+    capabilities: Optional[ClientCapabilities] = None
 
 
 @dataclass_json()
