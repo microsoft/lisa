@@ -10,7 +10,7 @@ from assertpy import assert_that
 
 from lisa import features, schema
 from lisa.environment import Environment
-from lisa.util import LisaException
+from lisa.util import LisaException, check_till_timeout
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
@@ -41,7 +41,7 @@ class IdracStartStop(features.StartStop):
         if self.cluster.get_power_state() == "Off":
             self._log.debug("System is already off.")
             return
-        self.cluster.reset("GracefulShutdown")
+        self.cluster.reset("ForceOff")
         self._logout()
 
     def _start(self, wait: bool = True) -> None:
@@ -83,14 +83,22 @@ class Idrac(Cluster):
     def deploy(self, environment: Environment) -> Any:
         self.login()
         self._eject_virtual_media()
-        self._change_boot_order_once("VCD-DVD")
         assert self.client.iso_http_url, "iso_http_url is required for idrac client"
         if self.get_power_state() == "Off":
             self._log.debug("System is already off.")
         else:
-            self.reset("GracefulShutdown")
+            self.reset("ForceOff")
         self._insert_virtual_media(self.client.iso_http_url)
+        self._change_boot_order_once("VCD-DVD")
+        check_till_timeout(
+            lambda: self.get_power_state() == "Off",
+            timeout_message="wait for client into 'Off' state",
+        )
         self.reset("On")
+        check_till_timeout(
+            lambda: self.get_power_state() == "On",
+            timeout_message="wait for client into 'On' state",
+        )
         self.logout()
 
     def reset(self, operation: str) -> None:
