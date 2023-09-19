@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from typing import Any, Type
 
 from lisa import features, schema
@@ -9,7 +8,7 @@ from lisa.node import quick_connect
 from lisa.util.logger import get_logger
 
 from ..platform_ import BareMetalPlatform
-from ..schema import RackManagerSchema
+from ..schema import ClientCapabilities, RackManagerSchema
 from .cluster import Cluster
 
 
@@ -54,19 +53,32 @@ class RackManager(Cluster):
     def get_start_stop(self) -> Type[features.StartStop]:
         return RackManagerStartStop
 
+    def connect_to_rack_manager(self) -> None:
+        assert self.rm_runbook.connection, "connection is required for rackmanager"
+        self.rm_runbook.connection.name = "rackmanager"
+        self.rm_node = quick_connect(
+            self.rm_runbook.connection, logger_name="rackmanager"
+        )
+
     def deploy(self, environment: Environment) -> Any:
         self.reset("off")
         self.reset("on")
 
     def reset(self, operation: str) -> None:
-        assert self.rm_runbook.connection, "connection is required for rackmanager"
-        self.rm_runbook.connection.name = "rackmanager"
-        rm_node = quick_connect(self.rm_runbook.connection, logger_name="rackmanager")
+        self.connect_to_rack_manager()
         assert self.rm_runbook.client, "client is required for rackmanager"
         for client in self.rm_runbook.client:
             assert (
                 client.management_port
             ), "management_port is required for rackmanager client"
-            rm_node.execute(f"set system {operation} -i {client.management_port}")
-
+            self.rm_node.execute(f"set system {operation} -i {client.management_port}")
         self._log.debug(f"client has been {operation} successfully")
+
+    def get_client_capabilities(self) -> ClientCapabilities:
+        cluster_capabilities = ClientCapabilities()
+        cluster_capabilities.core_count = 0
+        cluster_capabilities.free_memory_mb = 0
+        return cluster_capabilities
+
+    def clean_up(self) -> None:
+        pass

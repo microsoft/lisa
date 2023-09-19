@@ -25,6 +25,7 @@ class ClusterFeature(Feature):
             *args,
             **kwargs,
         )
+        self._inner.initialize()
 
 
 class StartStop(ClusterFeature):

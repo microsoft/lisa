@@ -8,7 +8,7 @@ from lisa.environment import Environment
 from lisa.util import InitializableMixin, subclasses
 from lisa.util.logger import get_logger
 
-from ..schema import ClusterSchema
+from ..schema import ClientCapabilities, ClusterSchema
 
 
 class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
@@ -34,4 +34,10 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         raise NotImplementedError()
 
     def get_start_stop(self) -> Type[features.StartStop]:
+        raise NotImplementedError()
+
+    def get_client_capabilities(self) -> ClientCapabilities:
+        raise NotImplementedError()
+
+    def clean_up(self) -> None:
         raise NotImplementedError()

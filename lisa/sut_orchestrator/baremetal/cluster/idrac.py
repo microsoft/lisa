@@ -1,9 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import time
 import xml.etree.ElementTree as ETree
-from typing import Any, Type
+from pathlib import Path
+from typing import Any, Optional, Type
 
 import redfish  # type: ignore
 from assertpy import assert_that
@@ -15,7 +17,7 @@ from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
 from ..platform_ import BareMetalPlatform
-from ..schema import ClusterSchema, IdracSchema
+from ..schema import ClientCapabilities, ClusterSchema, IdracSchema
 from .cluster import Cluster
 
 
@@ -41,7 +43,11 @@ class IdracStartStop(features.StartStop):
         if self.cluster.get_power_state() == "Off":
             self._log.debug("System is already off.")
             return
-        self.cluster.reset("ForceOff")
+        self.cluster.reset("GracefulShutdown")
+        check_till_timeout(
+            lambda: self.cluster.get_power_state() == "Off",
+            timeout_message="wait for client into 'Off' state",
+        )
         self._logout()
 
     def _start(self, wait: bool = True) -> None:
@@ -50,12 +56,45 @@ class IdracStartStop(features.StartStop):
             self._log.debug("System is already powered on.")
             return
         self.cluster.reset("On")
+        check_till_timeout(
+            lambda: self.cluster.get_power_state() == "On",
+            timeout_message="wait for client into 'On' state",
+        )
         self._logout()
 
     def _restart(self, wait: bool = True) -> None:
         self._login()
         self.cluster.reset("ForceRestart")
+        check_till_timeout(
+            lambda: self.cluster.get_power_state() == "On",
+            timeout_message="wait for client into 'On' state",
+        )
         self._logout()
+
+
+class IdracSerialConsole(features.SerialConsole):
+    def _login(self) -> None:
+        platform: BareMetalPlatform = self._platform  # type: ignore
+        self.cluster: Idrac = platform.cluster  # type: ignore
+        self.cluster.login()
+
+    def _logout(self) -> None:
+        platform: BareMetalPlatform = self._platform  # type: ignore
+        self.cluster = platform.cluster  # type: ignore
+        self.cluster.logout()
+
+    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
+        self._login()
+        if saved_path:
+            screenshot_file_name: str = "serial_console"
+            decoded_data = base64.b64decode(self.cluster.get_server_screen_shot())
+            screenshot_raw_name = saved_path / f"{screenshot_file_name}.png"
+            img_file = open(screenshot_raw_name, "wb")
+            img_file.write(decoded_data)
+            img_file.close()
+        console_log = self.cluster.get_serial_console_log().encode("utf-8")
+        self._logout()
+        return console_log
 
 
 class Idrac(Cluster):
@@ -68,6 +107,7 @@ class Idrac(Cluster):
         ).is_equal_to(1)
 
         self.client = self.idrac_runbook.client[0]
+        self._enable_serial_console()
 
     @classmethod
     def type_name(cls) -> str:
@@ -80,26 +120,70 @@ class Idrac(Cluster):
     def get_start_stop(self) -> Type[features.StartStop]:
         return IdracStartStop
 
+    def get_serial_console(self) -> Type[features.SerialConsole]:
+        return IdracSerialConsole
+
     def deploy(self, environment: Environment) -> Any:
         self.login()
         self._eject_virtual_media()
         assert self.client.iso_http_url, "iso_http_url is required for idrac client"
+        self._change_boot_order_once("VCD-DVD")
         if self.get_power_state() == "Off":
             self._log.debug("System is already off.")
         else:
             self.reset("ForceOff")
-        self._insert_virtual_media(self.client.iso_http_url)
-        self._change_boot_order_once("VCD-DVD")
         check_till_timeout(
             lambda: self.get_power_state() == "Off",
             timeout_message="wait for client into 'Off' state",
         )
+        self._insert_virtual_media(self.client.iso_http_url)
         self.reset("On")
         check_till_timeout(
             lambda: self.get_power_state() == "On",
             timeout_message="wait for client into 'On' state",
         )
         self.logout()
+
+    def clean_up(self) -> None:
+        self.login()
+        self._clear_serial_console_log()
+        self.logout()
+
+    def get_client_capabilities(self) -> ClientCapabilities:
+        self.login()
+        response = self.redfish_instance.get(
+            "/redfish/v1/Systems/System.Embedded.1/",
+        )
+        cluster_capabilities = ClientCapabilities()
+        cluster_capabilities.core_count = int(
+            response.dict["ProcessorSummary"]["LogicalProcessorCount"]
+        )
+        cluster_capabilities.free_memory_mb = (
+            int(response.dict["MemorySummary"]["TotalSystemMemoryGiB"]) * 1024
+        )
+        self.logout()
+        return cluster_capabilities
+
+    def get_serial_console_log(self) -> str:
+        response = self.redfish_instance.post(
+            "/redfish/v1/Managers/iDRAC.Embedded.1/SerialInterfaces"
+            "/Serial.1/Actions/Oem/DellSerialInterface.SerialDataExport",
+            body={},
+        )
+        check_till_timeout(
+            lambda: int(response.status) == 200,
+            timeout_message="wait for response status 200",
+        )
+        return str(response.text)
+
+    def get_server_screen_shot(self, file_type: str = "ServerScreenShot") -> str:
+        response = self.redfish_instance.post(
+            "/redfish/v1/Dell/Managers/iDRAC.Embedded.1/DellLCService/Actions/"
+            "DellLCService.ExportServerScreenShot",
+            body={"FileType": file_type},
+        )
+        self._wait_for_completion(response)
+        return str(response.dict["ServerScreenShotFile"])
 
     def reset(self, operation: str) -> None:
         body = {"ResetType": operation}
@@ -192,3 +276,35 @@ class Idrac(Cluster):
         self._log.debug("Waiting for boot order override task to complete...")
         self._wait_for_completion(response)
         self._log.debug(f"Updating boot source to {boot_from} completed")
+
+    def _enable_serial_console(self) -> None:
+        self.login()
+        response = self.redfish_instance.get(
+            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        )
+        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Disabled":
+            response = self.redfish_instance.patch(
+                "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes",
+                body={"Attributes": {"SerialCapture.1.Enable": "Enabled"}},
+            )
+        response = self.redfish_instance.get(
+            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        )
+        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Enabled":
+            self._log.debug("Serial console enabled successfully.")
+        else:
+            raise LisaException("Failed to enable serial console.")
+        self.logout()
+
+    def _clear_serial_console_log(self) -> None:
+        response = self.redfish_instance.get(
+            "/redfish/v1/Managers/iDRAC.Embedded.1/Attributes"
+        )
+        if response.dict["Attributes"]["SerialCapture.1.Enable"] == "Disabled":
+            self._log.debug("Serial console is already disabled. No need to clear log.")
+        response = self.redfish_instance.post(
+            "/redfish/v1/Managers/iDRAC.Embedded.1/SerialInterfaces"
+            "/Serial.1/Actions/Oem/DellSerialInterface.SerialDataClear",
+            body={},
+        )
+        self._wait_for_completion(response)
