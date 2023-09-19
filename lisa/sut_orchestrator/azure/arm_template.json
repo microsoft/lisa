@@ -579,7 +579,7 @@
                             },
                             "caching": "[if(equals(parameters('node')['os_disk_type'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
                             "createOption": "FromImage",
-                            "diskSizeGB": "[parameters('node')['osdisk_size_in_gb']]"
+                            "diskSizeGB": 200
                         }
                     }
                 },
