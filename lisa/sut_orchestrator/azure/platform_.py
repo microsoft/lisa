@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import copy
 import json
 import logging
@@ -46,6 +45,7 @@ from msrestazure.azure_cloud import (  # type: ignore
     AZURE_US_GOV_CLOUD,
     Cloud,
 )
+from packaging.version import parse
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -1907,8 +1907,9 @@ class AzurePlatform(Platform):
                             f"{marketplace.offer} {marketplace.sku} in {location}"
                         )
                     else:
-                        # any one should be the same to get purchase plan
-                        new_marketplace.version = versioned_images[-1].name
+                        # use the same sort approach as Az CLI.
+                        versioned_images.sort(key=lambda x: parse(x.name), reverse=True)
+                        new_marketplace.version = versioned_images[0].name
                 except ResourceNotFoundError as e:
                     self._log.debug(
                         f"Cannot find any version of image {marketplace.publisher} "
