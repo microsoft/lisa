@@ -3,7 +3,7 @@
 import json
 import string
 import time
-from typing import Any
+from typing import Any, Dict, List
 
 from assertpy import assert_that
 from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
@@ -32,6 +32,9 @@ from lisa.util import (
 TIME_LIMIT = 3600 * 2
 MIN_REQUIRED_MEMORY_MB = 8 * 1024
 
+# Define a type alias for readability
+UnsupportedVersionInfo = List[Dict[str, int]]
+
 
 @TestSuiteMetadata(
     area="vm_extension",
@@ -56,6 +59,12 @@ class AzureDiskEncryption(TestSuite):
         """,
         priority=3,
         timeout=TIME_LIMIT,
+        requirement=simple_requirement(
+            min_memory_mb=MIN_REQUIRED_MEMORY_MB,
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            min_core_count=4,
+        ),
     )
     def verify_azure_disk_encryption_enabled(
         self, log: Logger, node: Node, result: TestResult
@@ -66,9 +75,9 @@ class AzureDiskEncryption(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Get VM Extension status
-        # Maximum time to check is 2 hours, which is 120 minutes.
-        # We're checking every 5 minutes, so the loop will run 120/5 = 24 times.
-        max_retries = 24
+        # Maximum time to check is 3 hours, which is 180 minutes.
+        # We're checking every 5 minutes, so the loop will run 180/5 = 36 times.
+        max_retries = 36
         retry_interval = 300  # 5 minutes in seconds
         os_status = None
         extension = node.features[AzureExtension]
@@ -212,10 +221,53 @@ class AzureDiskEncryption(TestSuite):
             Ubuntu: 18,
             CBLMariner: 2,
         }
+        # Remove after automatic major version support is released to ADE
+        max_supported_major_versions = {
+            Redhat: 9,
+            CentOs: 8,
+            Oracle: 8,
+            Ubuntu: 22,
+            CBLMariner: 2,
+        }
+
+        if self._is_unsupported_minor_version(node):
+            return False
+
+        for distro, max_supported_version in max_supported_major_versions.items():
+            if isinstance(node.os, distro):
+                if node.os.information.version.major > max_supported_version:
+                    return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
             if isinstance(node.os, distro):
                 if node.os.information.version.major >= min_supported_version:
                     return True
+
+        return False
+
+    def _is_unsupported_minor_version(self, node: Node) -> bool:
+        min_supported_versions: Dict[type, UnsupportedVersionInfo] = {
+            Oracle: [{"major": 8, "minor": 5}],
+            CentOs: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+            Redhat: [{"major": 8, "minor": 1}, {"major": 7, "minor": 4}],
+        }
+
+        version_info = node.os.information.version
+        major_version = version_info.major
+        minor_version = version_info.minor
+
+        # ADE support only on Ubuntu LTS images
+        if isinstance(node.os, Ubuntu):
+            if minor_version != 4:
+                return True
+
+        for distro, versions in min_supported_versions.items():
+            if isinstance(node.os, distro):
+                for version in versions:
+                    if (
+                        major_version == version["major"]
+                        and minor_version < version["minor"]
+                    ):
+                        return True
 
         return False
