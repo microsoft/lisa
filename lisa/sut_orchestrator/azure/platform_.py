@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute.models import (  # type: ignore
+from azure.mgmt.compute.models import (
     GalleryImage,
     GalleryImageVersion,
     PurchasePlan,
@@ -1341,6 +1341,8 @@ class AzurePlatform(Platform):
             if image_info:
                 azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
 
+            assert image_info
+            assert image_info.os_disk_image
             # retrieve the os type for arm template.
             if (
                 azure_node_runbook.is_linux is None
@@ -1398,6 +1400,7 @@ class AzurePlatform(Platform):
                 arm_parameters.location, arm_parameters.marketplace
             )
             if image_info:
+                assert image_info.os_disk_image
                 arm_parameters.osdisk_size_in_gb = max(
                     arm_parameters.osdisk_size_in_gb,
                     _get_disk_size_in_gb(
@@ -1410,7 +1413,7 @@ class AzurePlatform(Platform):
                     plan_product = image_info.plan.product
                     plan_publisher = image_info.plan.publisher
                     # accept the default purchase plan automatically.
-                    arm_parameters.purchase_plan = self._process_marketplace_image_plan(
+                    arm_parameters.purchase_plan = self._process_marketplace_image_plan(  # type: ignore # noqa E501
                         marketplace=arm_parameters.marketplace,
                         plan_name=plan_name,
                         plan_product=plan_product,
@@ -1681,6 +1684,7 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
+        assert resource_sku.location_info
         for location_info in resource_sku.location_info:
             for zone_details in location_info.zone_details:
                 for location_capability in zone_details.capabilities:
@@ -1688,6 +1692,7 @@ class AzurePlatform(Platform):
                         location_capability.name
                     ] = location_capability.value
 
+        assert resource_sku.capabilities
         for sku_capability in resource_sku.capabilities:
             # prevent to loop in every feature
             azure_raw_capabilities[sku_capability.name] = sku_capability.value
@@ -1763,6 +1768,7 @@ class AzurePlatform(Platform):
             # below VM size families don't support `Accelerated Networking` but
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
+            assert resource_sku.family
             if resource_sku.family not in [
                 "standardDCSv2Family",
                 "standardNCSv2Family",
@@ -1780,6 +1786,7 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        assert resource_sku.name
         # for below vm sizes, there are 2 nics
         # but the accelerated networking can only be applied to a single NIC
         # there is no API to expose this information
@@ -1943,7 +1950,7 @@ class AzurePlatform(Platform):
                     gallery_image_name=new_shared_image.image_definition,
                 )
             )
-            image: GalleryImageVersion = None
+            image: GalleryImageVersion = None  # type: ignore
             time: Optional[datetime] = None
             for image in gallery_images:
                 gallery_image = compute_client.gallery_image_versions.get(
@@ -1955,10 +1962,10 @@ class AzurePlatform(Platform):
                 )
                 if not time:
                     time = gallery_image.publishing_profile.published_date
-                    new_shared_image.image_version = image.name
+                    new_shared_image.image_version = image.name  # type: ignore
                 if gallery_image.publishing_profile.published_date > time:
                     time = gallery_image.publishing_profile.published_date
-                    new_shared_image.image_version = image.name
+                    new_shared_image.image_version = image.name  # type: ignore
         return new_shared_image
 
     @lru_cache(maxsize=10)  # noqa: B019
@@ -2008,7 +2015,7 @@ class AzurePlatform(Platform):
             publisher=plan_publisher,
         )
 
-        return plan
+        return plan  # type: ignore
 
     def _generate_max_capability(self, vm_size: str, location: str) -> AzureCapability:
         # some vm size cannot be queried from API, so use default capability to
@@ -2114,6 +2121,7 @@ class AzurePlatform(Platform):
             #  does not have required value(s) for image specified in
             #  storage profile.
             if marketplace:
+                assert marketplace.data_disk_images
                 for default_data_disk in marketplace.data_disk_images:
                     data_disks.append(
                         DataDiskSchema(
@@ -2250,13 +2258,13 @@ class AzurePlatform(Platform):
         assert properties.size, f"fail to get blob size of {blob_url}"
         # Azure requires only megabyte alignment of vhds, round size up
         # for cases where the size is megabyte aligned
-        return math.ceil(properties.size / 1024 / 1024 / 1024)
+        return math.ceil(properties.size / 1024 / 1024 / 1024)  # type: ignore
 
     def _get_sig_info(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_image_versions.get(
+        return compute_client.gallery_image_versions.get(  # type: ignore
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
@@ -2267,7 +2275,7 @@ class AzurePlatform(Platform):
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_detailed_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_images.get(
+        return compute_client.gallery_images.get(  # type: ignore
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
@@ -2275,6 +2283,8 @@ class AzurePlatform(Platform):
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
+        assert found_image.storage_profile
+        assert found_image.storage_profile.os_disk_image
         assert found_image.storage_profile.os_disk_image.size_in_gb
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
 
@@ -2599,9 +2609,10 @@ class AzurePlatform(Platform):
             if image_info:
                 generation = _get_vhd_generation(image_info)
                 node_space.features.add(features.VhdGenerationSettings(gen=generation))
-                node_space.features.add(
-                    features.ArchitectureSettings(arch=image_info.architecture)
-                )
+                if hasattr(image_info, "architecture"):
+                    node_space.features.add(
+                        features.ArchitectureSettings(arch=image_info.architecture)
+                    )
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_runbook.shared_gallery
@@ -2609,9 +2620,10 @@ class AzurePlatform(Platform):
             sig = self._get_detailed_sig(azure_runbook.shared_gallery)
             generation = _get_gallery_image_generation(sig)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
-            node_space.features.add(
-                features.ArchitectureSettings(arch=sig.architecture)
-            )
+            if hasattr(sig, "architecture"):
+                node_space.features.add(
+                    features.ArchitectureSettings(arch=sig.architecture)
+                )
         elif azure_runbook.vhd:
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
