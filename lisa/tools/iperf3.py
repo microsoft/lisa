@@ -317,6 +317,7 @@ class Iperf3(Tool):
         server_result: str,
         client_result: str,
         buffer_length: int,
+        connections_num: int,
         test_case_name: str,
         test_result: "TestResult",
     ) -> NetworkTCPPerformanceMessage:
@@ -338,6 +339,7 @@ class Iperf3(Tool):
         other_fields["congestion_windowsize_kb"] = (
             congestion_windowsize_kb_total / len(client_json["intervals"]) / 1024
         )
+        other_fields["connections_num"] = connections_num
         for client_stream in client_json["end"]["streams"]:
             other_fields["retransmitted_segments"] = client_stream["sender"][
                 "retransmits"
