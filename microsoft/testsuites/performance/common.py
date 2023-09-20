@@ -510,6 +510,7 @@ def perf_iperf(
                         server_result_list[0].stdout,
                         client_result_list[0].stdout,
                         buffer_length,
+                        connection,
                         test_case_name,
                         test_result,
                     )
