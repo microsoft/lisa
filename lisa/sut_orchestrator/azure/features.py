@@ -233,7 +233,7 @@ class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
             map_error(  # type: ignore
                 status_code=response.status_code, response=response, error_map=error_map
             )
-            raise HttpResponseError(response=response, error_format=ARMErrorFormat)  # type: ignore
+            raise HttpResponseError(response=response, error_format=ARMErrorFormat)  # type: ignore # noqa E501
 
         deserialized = self._deserialize("SerialPortConnectResult", pipeline_response)
 
@@ -2207,11 +2207,11 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
         if protected_settings:
             add_secret(
-                str(extension_parameters.as_dict()["protected_settings"]),  # type: ignore
+                str(extension_parameters.as_dict()["protected_settings"]),  # type: ignore # noqa E501
                 sub="***REDACTED***",
             )
 
-        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")  # type: ignore
+        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")  # type: ignore # noqa E501
 
         operation = compute_client.virtual_machine_extensions.begin_create_or_update(
             resource_group_name=self._resource_group_name,
