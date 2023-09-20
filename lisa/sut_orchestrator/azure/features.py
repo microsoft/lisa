@@ -12,7 +12,7 @@ from random import randint
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import websockets
-from assertpy import assert_that
+from assertpy import assert_that  # type: ignore
 from azure.core.exceptions import (
     ClientAuthenticationError,
     HttpResponseError,
@@ -230,10 +230,10 @@ class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
         response = pipeline_response.http_response
 
         if response.status_code not in [200]:
-            map_error(
+            map_error(  # type: ignore
                 status_code=response.status_code, response=response, error_map=error_map
             )
-            raise HttpResponseError(response=response, error_format=ARMErrorFormat)
+            raise HttpResponseError(response=response, error_format=ARMErrorFormat)  # type: ignore
 
         deserialized = self._deserialize("SerialPortConnectResult", pipeline_response)
 
@@ -750,6 +750,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         sriov_enabled: bool = False
         vm = get_vm(azure_platform, self._node)
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -784,6 +785,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 f" it exceeds the vm size's capability {node_capability_nic_count}."
             )
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -852,6 +854,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             self._log.debug("No existed extra nics can be disassociated.")
             return
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -2204,11 +2207,11 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
         if protected_settings:
             add_secret(
-                str(extension_parameters.as_dict()["protected_settings"]),
+                str(extension_parameters.as_dict()["protected_settings"]),  # type: ignore
                 sub="***REDACTED***",
             )
 
-        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
+        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")  # type: ignore
 
         operation = compute_client.virtual_machine_extensions.begin_create_or_update(
             resource_group_name=self._resource_group_name,
