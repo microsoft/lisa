@@ -1500,10 +1500,14 @@ class ConnectionInfo:
             # use password
             # spurplus doesn't process empty string correctly, use None
             self.private_key_file = None
+        elif not self.password:
+            self.password = None
         else:
+            # Password and private_key_file all exist
+            # Private key is attempted with high priority for authentication when
+            # connecting to a remote node using paramiko
             if not Path(self.private_key_file).exists():
                 raise FileNotFoundError(self.private_key_file)
-            self.password = None
 
         if not self.username:
             raise LisaException("username must be set")
