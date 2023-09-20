@@ -266,6 +266,9 @@ class SshShell(InitializableMixin):
             port=self.connection_info.port,
         )
 
+        # According to paramiko\client.py connect() function,
+        # when password and private_key_file all exist, private key is attempted
+        # with high priority for authentication when connecting to a remote node
         spur_kwargs = {
             "hostname": self.connection_info.address,
             "port": self.connection_info.port,
