@@ -149,7 +149,7 @@ class KernelInstallerTransformer(Transformer):
         self._log.info(f"kernel version after install: {kernel_version_after_install}")
         assert_that(
             kernel_version_after_install, "Kernel installation Failed"
-        ).is_equal_to(kernel_version_before_install)
+        ).is_not_equal_to(kernel_version_before_install)
         return {self._information_output_name: self._information}
 
 
