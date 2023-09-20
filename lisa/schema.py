@@ -1305,8 +1305,10 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
 
     # capture azure log or not
     capture_azure_information: bool = False
-    # capture boot time infor or not
+    # capture boot time info or not
     capture_boot_time: bool = False
+    # capture kernel config info or not
+    capture_kernel_config_information: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)

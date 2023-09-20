@@ -187,7 +187,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         for node in environment.nodes.list():
             node.features = Features(node, self)
             node.capture_azure_information = self.runbook.capture_azure_information
-            node.capture_boot_time = self.runbook.capture_azure_information
+            node.capture_boot_time = self.runbook.capture_boot_time
+            node.capture_kernel_config = self.runbook.capture_kernel_config_information
         log.info(f"deployed in {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
