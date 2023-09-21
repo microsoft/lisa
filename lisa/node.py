@@ -12,6 +12,7 @@ from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
 from lisa.operating_system import BSD, OperatingSystem
+from lisa.secret import add_secret
 from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
@@ -111,72 +112,22 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.initialize()
 
         # check if sudo supported
-        if self.is_posix and self._support_sudo is None:
-            process = self._execute("command -v sudo", shell=True, no_info_log=True)
-            result = process.wait_result(10)
-            if result.exit_code == 0:
-                self._support_sudo = True
-                self.check_sudo_password_required()
-            else:
-                self._support_sudo = False
-                self.log.debug("node doesn't support sudo, may cause failure later.")
         if self._support_sudo is None:
-            # set Windows to true to ignore sudo asks.
-            self._support_sudo = True
+            if self.is_posix:
+                process = self._execute("command -v sudo", shell=True, no_info_log=True)
+                result = process.wait_result(10)
+                if result.exit_code == 0:
+                    self._support_sudo = True
+                else:
+                    self._support_sudo = False
+                    self.log.debug(
+                        "node doesn't support sudo, may cause failure later."
+                    )
+            else:
+                # set Windows to true to ignore sudo asks.
+                self._support_sudo = True
 
         return self._support_sudo
-
-    def check_sudo_password_required(self) -> None:
-        # check if password is required when running command with sudo
-        require_sudo_password = False
-        if self.is_remote and self.is_posix:
-            process = self._execute(
-                f"echo {constants.LISA_TEST_FOR_SUDO}",
-                shell=True,
-                sudo=True,
-                no_info_log=True,
-            )
-            result = process.wait_result(10)
-            if result.exit_code != 0:
-                for prompt in self._sudo_passwrod_prompts:
-                    if prompt in result.stdout:
-                        require_sudo_password = True
-                        break
-            if require_sudo_password:
-                self.log.debug(
-                    "Running commands with sudo in this node needs input of password."
-                )
-                ssh_shell = cast(SshShell, self.shell)
-                ssh_shell.is_sudo_required_password = True
-                if not ssh_shell.connection_info.password:
-                    raise RequireUserPasswordException(
-                        "Running commands with sudo requires user's password,"
-                        " but no password is provided."
-                    )
-                # ssh_shell.is_sudo_required_password is true, so running sudo command
-                # will input password in process.wait_result. Check running sudo again
-                # and get password prompts. For most images, after inputting a password
-                # successfully, the prompt is changed when running sudo command again.
-                # So check twice to get two kinds of prompt
-                password_prompts = []
-                for i in range(1, 3):
-                    process = self._execute(
-                        f"echo {constants.LISA_TEST_FOR_SUDO}",
-                        shell=True,
-                        sudo=True,
-                        no_info_log=True,
-                    )
-                    result = process.wait_result(10)
-                    if result.exit_code != 0:
-                        raise RequireUserPasswordException(
-                            "The password might be invalid for running sudo command"
-                        )
-                    password_prompt = result.stdout.replace(
-                        f"{constants.LISA_TEST_FOR_SUDO}", ""
-                    )
-                    password_prompts.append(password_prompt)
-                    self.log.debug(f"password prompt {i}: {password_prompt}")
-                ssh_shell.password_prompts = password_prompts
 
     @property
     def is_connected(self) -> bool:
@@ -657,6 +608,91 @@ class RemoteNode(Node):
         result = echo.run(working_path, shell=True)
 
         return self.get_pure_path(result.stdout)
+
+    @property
+    def support_sudo(self) -> bool:
+        if self._support_sudo is None:
+            result = super().support_sudo
+            if result and self.is_posix:
+                self.check_sudo_password_required()
+            return result
+        return self._support_sudo
+
+    def check_sudo_password_required(self) -> None:
+        # check if password is required when running command with sudo
+        require_sudo_password = False
+        process = self._execute(
+            f"echo {constants.LISA_TEST_FOR_SUDO}",
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+        )
+        result = process.wait_result(10)
+        if result.exit_code != 0:
+            for prompt in self._sudo_passwrod_prompts:
+                if prompt in result.stdout:
+                    require_sudo_password = True
+                    break
+        if require_sudo_password:
+            self.log.debug(
+                "Running commands with sudo in this node needs input of password."
+            )
+            ssh_shell = cast(SshShell, self.shell)
+            ssh_shell.is_sudo_required_password = True
+            if not ssh_shell.connection_info.password:
+                self.log.info(
+                    "Running commands with sudo requires user's password,"
+                    " but no password is provided. Need reset a password"
+                )
+                if not self._reset_password():
+                    raise RequireUserPasswordException("Reset password failed")
+            self._check_password_and_store_prompt()
+
+    def _check_password_and_store_prompt(self) -> None:
+        # self.shell.is_sudo_required_password is true, so running sudo command
+        # will input password in process.wait_result. Check running sudo again
+        # and get password prompts. For most images, after inputting a password
+        # successfully, the prompt is changed when running sudo command again.
+        # So check twice to get two kinds of prompt
+        password_prompts = []
+        for i in range(1, 3):
+            process = self._execute(
+                f"echo {constants.LISA_TEST_FOR_SUDO}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+            )
+            result = process.wait_result(10)
+            if result.exit_code != 0:
+                raise RequireUserPasswordException(
+                    "The password might be invalid for running sudo command"
+                )
+            password_prompt = result.stdout.replace(
+                f"{constants.LISA_TEST_FOR_SUDO}", ""
+            )
+            password_prompts.append(password_prompt)
+            self.log.debug(f"password prompt {i}: {password_prompt}")
+        ssh_shell = cast(SshShell, self.shell)
+        ssh_shell.password_prompts = password_prompts
+
+    def _reset_password(self) -> bool:
+        from lisa.features import PasswordExtension
+
+        if not self.features.is_supported(PasswordExtension):
+            return False
+        password_extension = self.features[PasswordExtension]
+        username = self._connection_info.username
+        password = self._connection_info.password
+        try:
+            password_extension.reset_password(username, str(password))
+        except Exception as identifier:
+            self.log.debug(f"reset password failed: {identifier}")
+            return False
+        add_secret(password)
+        self._connection_info.password = password
+        ssh_shell = cast(SshShell, self.shell)
+        ssh_shell.connection_info.password = password
+        return True
 
 
 class LocalNode(Node):
