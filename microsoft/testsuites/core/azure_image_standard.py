@@ -222,6 +222,10 @@ class AzureImageStandard(TestSuite):
             re.M,
         ),
         re.compile(r"^(.*Internal error: Cannot find counter: swap.*)$", re.M),
+        re.compile(r"^(.*ACPI.*failed to evaluate _DSM \(0x1001\).*)$", re.M),
+        # refer https://access.redhat.com/solutions/6732061
+        re.compile(r"^(.*ib_srpt MAD registration failed for.*)$", re.M),
+        re.compile(r"^(.*ib_srpt srpt_add_one\(.*\) failed.*)$", re.M),
     ]
 
     @TestCaseMetadata(
