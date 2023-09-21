@@ -279,6 +279,7 @@ class AzurePlatformSchema:
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
         default=None
     )
+    use_availability_sets: Optional[bool] = field(default=None)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
@@ -1208,11 +1209,15 @@ class AzurePlatform(Platform):
             self.subscription_id, arm_parameters.location, "t"
         )
 
-        if (
-            self._azure_runbook.availability_set_properties
-            or self._azure_runbook.availability_set_tags
-        ):
-            arm_parameters.use_availability_sets = True
+        if self._azure_runbook.use_availability_sets is None:
+            arm_parameters.use_availability_sets = bool(
+                self._azure_runbook.availability_set_properties
+                or self._azure_runbook.availability_set_tags
+            )
+        else:
+            arm_parameters.use_availability_sets = (
+                self._azure_runbook.use_availability_sets
+            )
 
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
