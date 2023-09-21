@@ -279,6 +279,11 @@ class LisaRunner(BaseRunner):
                     environment.status == EnvironmentStatus.Deployed
                 ), f"actual: {environment.status}"
                 self._reset_awaitable_timer("deploy")
+                transformer.run(
+                    self._runbook_builder,
+                    phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED,
+                    environment=environment,
+                )
             except ResourceAwaitableException as identifier:
                 if self._is_awaitable_timeout("deploy"):
                     self._log.info(
