@@ -454,6 +454,7 @@ class AzurePlatform(Platform):
             features.CVMNestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
+            features.PasswordExtension,
             features.Resize,
             features.StartStop,
             features.IaaS,
