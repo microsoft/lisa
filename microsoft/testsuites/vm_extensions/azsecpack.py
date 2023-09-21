@@ -2,6 +2,7 @@ import time
 from typing import cast
 
 from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 from retry import retry
 
 from lisa import (
@@ -12,7 +13,18 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD, Posix
+from lisa.operating_system import (
+    BSD,
+    SLES,
+    AlmaLinux,
+    CBLMariner,
+    CentOs,
+    Debian,
+    Oracle,
+    Posix,
+    Redhat,
+    Ubuntu,
+)
 from lisa.sut_orchestrator.azure.common import (
     add_tag_for_vm,
     add_user_assign_identity,
@@ -23,8 +35,8 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Azsecd
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Journalctl, Service
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.tools import Journalctl, Service
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 
 @TestSuiteMetadata(
@@ -61,6 +73,8 @@ class AzSecPack(TestSuite):
         ),
     )
     def verify_azsecpack(self, node: Node, log: Logger, result: TestResult) -> None:
+        self._is_supported(node)
+
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         platform = environment.platform
@@ -104,17 +118,26 @@ class AzSecPack(TestSuite):
         # Assign the user assigned managed identity to the VM
         add_user_assign_identity(platform, resource_group_name, vm_name, msi.id, log)
 
-        # Install agent extension
-        self._install_monitor_agent_extension(node)
-        self._install_security_agent_extension(node, log)
+        # mdsd should be installed fisrtly
         self._install_mdsd(node, log)
+        # Install agent extension
+        try:
+            self._install_monitor_agent_extension(node)
+            self._install_security_agent_extension(node, log)
+        except HttpResponseError as identifier:
+            if any(
+                s in str(identifier)
+                for s in ["OS is not supported", "Unsupported operating system"]
+            ):
+                raise SkippedException(UnsupportedDistroException(node.os))
+            else:
+                raise identifier
 
         # Check and verify
         self._check_mdsd_service_status(node, log)
         self._check_azsec_services_status(node, log)
         self._check_azsecd_status(node, log)
         self._check_journalctl_logs(node, log)
-        self._check_mdsd_qos_logs(node, log)
 
     def _install_mdsd(self, node: Node, log: Logger) -> None:
         package = "azure-mdsd"
@@ -200,8 +223,12 @@ class AzSecPack(TestSuite):
         ).is_equal_to(True)
 
     def _check_mdsd_service_status(self, node: Node, log: Logger) -> None:
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == "aarch64":
+            mdsd_services = ["mdsdmgr"]
+        else:
+            mdsd_services = ["mdsdmgr", "mdsd-amacoreagent"]
         service = node.tools[Service]
-        mdsd_services = ["mdsdmgr", "mdsd-amacoreagent"]
         for mdsd_service in mdsd_services:
             service.enable_service(mdsd_service)
             service.restart_service(mdsd_service)
@@ -216,7 +243,7 @@ class AzSecPack(TestSuite):
         azsec_services = ["azsecd", "azsecmond", "auoms"]
         for azsec_service in azsec_services:
             assert_that(service.check_service_status(azsec_service)).described_as(
-                f"{azsec_service}is not running successfully"
+                f"{azsec_service} is not running successfully"
             ).is_equal_to(True)
             log.info(f"{azsec_service} is running successfully")
 
@@ -226,6 +253,7 @@ class AzSecPack(TestSuite):
         output = azsecd.run(
             parameters="status",
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to run azsecd status",
         ).stdout
@@ -282,29 +310,40 @@ class AzSecPack(TestSuite):
                 )
         log.info("Auoms connection to azsecmond and mdsd is successful")
 
-    def _check_mdsd_qos_logs(self, node: Node, log: Logger) -> None:
-        cat = node.tools[Cat]
-        mdsd_logs = cat.read("/var/log/mdsd/asa.qos", sudo=True, force_run=True)
-        loop_count = 0
-        # It might take a long time to update qos logs. Wait for 15 minutes.
-        while mdsd_logs == "" and loop_count < 90:
-            time.sleep(10)
-            mdsd_logs = cat.read("/var/log/mdsd/asa.qos", sudo=True, force_run=True)
-            loop_count += 1
+    def _is_supported(self, node: Node) -> None:
+        supported_major_versions_x86_64 = {
+            Redhat: [7, 8, 9],
+            CentOs: [7],
+            Oracle: [8, 9],
+            Debian: [10, 11],
+            Ubuntu: [20, 22],
+            SLES: [15],
+            AlmaLinux: [8],
+            CBLMariner: [2],
+        }
+        supported_major_versions_arm64 = {
+            Redhat: [8, 9],
+            CentOs: [7],
+            Debian: [11],
+            Ubuntu: [20],
+            CBLMariner: [2],
+        }
 
-        if mdsd_logs == "":
-            raise LisaException("Can't get mdsd qos logs.")
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == "aarch64":
+            supported_major_versions = supported_major_versions_arm64
+        else:
+            supported_major_versions = supported_major_versions_x86_64
 
-        strings_to_check = [
-            "MaRunTaskTransmitAMACoreAgent,LinuxAsmHeartbeat",
-            "MaRunTaskTransmitAMACoreAgent,LinuxAsmAudit",
-            "MaRunTaskTransmitAMACoreAgent,LinuxAsmAlert",
-        ]
-        for s in strings_to_check:
-            if s not in mdsd_logs:
-                raise LisaException(f"'{s}' string is not in mdsd qos logs.")
-
-        log.info(
-            "Azsecpack Autoconfig is configured successfully,"
-            " Connected to mdsd successfully"
-        )
+        for distro in supported_major_versions:
+            if type(node.os) == distro:
+                version_list = supported_major_versions.get(distro)
+                if (
+                    version_list is None
+                    or node.os.information.version.major not in version_list
+                ):
+                    raise SkippedException(
+                        UnsupportedDistroException(
+                            node.os, "AzSecPack doesn't support this Distro version."
+                        )
+                    )

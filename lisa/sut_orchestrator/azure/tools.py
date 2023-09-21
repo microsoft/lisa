@@ -474,7 +474,7 @@ class AzCmdlet(Tool):
 class Azsecd(Tool):
     @property
     def command(self) -> str:
-        return "azsecd"
+        return "/usr/local/bin/azsecd"
 
     @property
     def can_install(self) -> bool:
