@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from random import randint
+from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import websockets
@@ -98,6 +99,8 @@ from .common import (
     wait_operation,
 )
 from .tools import Waagent
+
+HTTP_TOO_MANY_REQUESTS = 429
 
 
 class AzureFeatureMixin:
@@ -664,28 +667,57 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         vm = get_vm(azure_platform, self._node)
 
         subnet_prefix = ".".join(subnet_addr.split(".")[:3] + ["0"]) + "/24"
-        exact_match_route = f"{first_hop}/32"
+        if first_hop == "0.0.0.0":
+            exact_match_route = (
+                first_hop + "/0"
+            )  # special default to direct all traffic
+        else:
+            exact_match_route = f"{first_hop}/32"
+        if not dest_hop:
+            next_hop_type = "None"
+        else:
+            # NOTE: there are otehr next hop types, see:
+            # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
+            next_hop_type = "VirtualAppliance"
         route_table_name = f"{nic_name}-{route_name}-route_table"
-        route_table = network_client.route_tables.begin_create_or_update(
-            resource_group_name=self._resource_group_name,
-            route_table_name=f"{nic_name}-{route_name}-route_table",
-            parameters={
-                "location": vm.location,
-                "properties": {
-                    "disableBgpRoutePropagation": True,
-                    "routes": [
-                        {
-                            "name": route_table_name,
-                            "properties": {
-                                "addressPrefix": exact_match_route,  # 0.0.0.0/32 routes all traffic to dest
-                                "nextHopType": "VirtualAppliance",
-                                "nextHopIpAddress": f"{dest_hop}",
-                            },
+        retries = 5
+        while True:
+            try:
+                route_table = network_client.route_tables.begin_create_or_update(
+                    resource_group_name=self._resource_group_name,
+                    route_table_name=f"{nic_name}-{route_name}-route_table",
+                    parameters={
+                        "location": vm.location,
+                        "properties": {
+                            "disableBgpRoutePropagation": False,
+                            "routes": [
+                                {
+                                    "name": route_table_name,
+                                    "properties": {
+                                        "addressPrefix": exact_match_route,  # 0.0.0.0/0 routes all traffic to dest
+                                        "nextHopType": next_hop_type,
+                                        "nextHopIpAddress": f"{dest_hop}",
+                                    },
+                                },
+                            ],
                         },
-                    ],
-                },
-            },
-        ).result()
+                    },
+                ).result()
+                break
+            except HttpResponseError as err:
+                if err.status_code == HTTP_TOO_MANY_REQUESTS:
+                    retries -= 1
+                    if retries <= 0:
+                        raise err
+                    # Too much activity too quicly, take a break
+                    self._log.debug(
+                        (
+                            f"HTTP status {HTTP_TOO_MANY_REQUESTS} too many requests,"
+                            " sleeping 10 seconds and will retry..."
+                        )
+                    )
+                    sleep(10)
+
         self._log.debug(f"Result:{route_table}")
         vnets: Dict[str, List[str]] = get_virtual_networks(
             azure_platform, self._resource_group_name
