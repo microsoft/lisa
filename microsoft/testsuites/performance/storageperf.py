@@ -48,6 +48,51 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case uses fio to test ultra disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.UltraSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=160000),
+                data_disk_count=search_space.IntRange(min=8),
+            ),
+        ),
+    )
+    def perf_ultra_datadisks_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(
+            node=node,
+            test_result=result,
+            disk_type=DiskType.ultradisk,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test ultra disk performance using 1024K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.UltraSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=160000),
+                data_disk_count=search_space.IntRange(min=8),
+            ),
+        ),
+    )
+    def perf_ultra_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(
+            node=node,
+            test_result=result,
+            block_size=1024,
+            disk_type=DiskType.ultradisk,
+        )
+
+    @TestCaseMetadata(
+        description="""
         This test case uses fio to test data disk performance with 4K block size.
         """,
         priority=3,
@@ -459,6 +504,7 @@ class StoragePerformance(TestSuite):
         disk_setup_type: DiskSetupType = DiskSetupType.raw,
         disk_type: DiskType = DiskType.premiumssd,
         block_size: int = 4,
+        start_iodepth: int = 1,
         max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
@@ -471,7 +517,6 @@ class StoragePerformance(TestSuite):
         filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
-        start_iodepth = 1
         perf_disk(
             node,
             start_iodepth,
