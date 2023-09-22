@@ -20,8 +20,8 @@ from azure.keyvault.certificates import (
     KeyVaultCertificate,
 )
 from azure.keyvault.secrets import SecretClient
-from azure.mgmt.compute import ComputeManagementClient  # type: ignore
-from azure.mgmt.compute.models import VirtualMachine  # type: ignore
+from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.compute.models import NetworkProfile, VirtualMachine
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
     AccessPolicyEntry,
@@ -48,8 +48,10 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import ResourceManagementClient  # type: ignore
-from azure.mgmt.resource import SubscriptionClient
+from azure.mgmt.resource import (  # type: ignore
+    ResourceManagementClient,
+    SubscriptionClient,
+)
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -1613,7 +1615,16 @@ def get_primary_ip_addresses(
     platform: "AzurePlatform", resource_group_name: str, vm: VirtualMachine
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
+    assert isinstance(
+        vm.network_profile, NetworkProfile
+    ), f"actual: {type(vm.network_profile)}"
+    assert isinstance(
+        vm.network_profile.network_interfaces, List
+    ), f"actual: {type(vm.network_profile.network_interfaces)}"
     for network_interface in vm.network_profile.network_interfaces:
+        assert isinstance(
+            network_interface.id, str
+        ), f"actual: {type(network_interface.id)}"
         nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
         nic = network_client.network_interfaces.get(resource_group_name, nic_name)
         if nic.primary:
