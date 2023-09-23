@@ -102,7 +102,7 @@ class MshvHostTestSuite(TestSuite):
             times = config.get("iterations", self.DEFAULT_ITERS)
             cpus_per_vm = config.get("cpus_per_vm", self.DEFAULT_CPUS_PER_VM)
             mem_per_vm_mb = config.get("mem_per_vm_mb", self.DEFAULT_MEM_PER_VM_MB)
-            guest_vm_type = config.get("guest_vm_type", self.DEFAULT_GUEST_VM_TYPE)
+            guest_vm_type = config.get("clh_guest_vm_type", self.DEFAULT_GUEST_VM_TYPE)
             test_name = f"mshv_stress_vm_create_{times}times_{cpus_per_vm}cpu_{mem_per_vm_mb}MB"  # noqa: E501
             try:
                 self._mshv_stress_vm_create(
