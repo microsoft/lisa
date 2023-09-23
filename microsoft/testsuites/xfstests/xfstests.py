@@ -322,7 +322,8 @@ class Xfstests(Tool):
             if self.node.shell.exists(exclude_file_path):
                 self.node.shell.remove(exclude_file_path)
             echo = self.node.tools[Echo]
-            echo.write_to_file(exclude_tests, exclude_file_path)
+            for exclude_test in exclude_tests.split():
+                echo.write_to_file(exclude_test, exclude_file_path, append=True)
 
     def create_send_subtest_msg(
         self,
