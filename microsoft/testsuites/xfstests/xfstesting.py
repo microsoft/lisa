@@ -131,7 +131,7 @@ class Xfstesting(TestSuite):
     # commit d0c7feaf8767 ("xfs: add agf freeblocks verify in xfs_agf_verify")
     # TODO: will figure out the detailed reason of every excluded case.
     excluded_tests = (
-        "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
+        "generic/211 generic/430 generic/431 generic/434 xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
