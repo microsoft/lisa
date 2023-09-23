@@ -249,7 +249,7 @@ def _set_target_role_parameters(
 
     target_role = {
         "Description": (
-            "Delegation role is to run test cases and upload logs in"
+            "Delegation role is to run test cases and upload logs in "
             "Azure Image Testing for Linux (AITL)."
         ),
         "IsCustom": True,
@@ -278,7 +278,15 @@ def _get_service_principal_objectid(service_principal_name: str) -> Any:
             "You need register Resource Provider Firstly"
         )
     else:
-        service_principal_objectid = service_principals[0]["objectId"]
+        # different az command versions have different ObjectID keys
+        if "id" in service_principals[0].keys():
+            service_principal_objectid = service_principals[0]["id"]
+        elif "objectId" in service_principals[0].keys():
+            service_principal_objectid = service_principals[0]["objectId"]
+        else:
+            raise SystemExit(
+                f"Error: Service Principal {service_principals} Object ID not exist! "
+            )
 
     return service_principal_objectid
 
@@ -297,21 +305,21 @@ def _set_target_role(
 
     if exist_role.startswith("[]"):
         # create
-        logging.info(f"creating new role {role_name}:")
+        logging.info(f"creating new role '{role_name}':")
         _call_cmd("az role definition create --role-definition role.json")
         _wait_role_propagate(role_name, subscription_id, "")
     else:
         # update
-        logging.info(f"Try to update role {role_name} :")
+        logging.info(f"Try to update role '{role_name}' :")
 
         is_same_role = _check_same_role_existed(exist_role, target_role_json)
         if is_same_role is True:
             logging.info(
-                f"Input Role {role_name} has same setting with exist one, won't update"
+                f"Input Role '{role_name}' is same with exist one, won't update"
             )
         else:
             # only update when different.
-            logging.debug(f"Updating existed role: {role_name} with parameters: ")
+            logging.debug(f"Updating existed role: '{role_name}' with parameters: ")
             logging.debug(target_role_json)
             _call_cmd("az role definition update --role-definition role.json")
             _wait_role_propagate(role_name, subscription_id, exist_role)
@@ -324,7 +332,7 @@ def _assign_role_to_service_principal(
     subscription_id: str,
 ) -> None:
     logging.info(
-        f"Assign role {role_name} to ServicePrincipal {service_principal_name} "
+        f"Assign role '{role_name}' to ServicePrincipal {service_principal_name} "
         f"with ID: {service_principal_objectid}"
     )
 
@@ -332,8 +340,8 @@ def _assign_role_to_service_principal(
     for i in range(max_tries):
         try:
             _call_cmd(
-                f"az role assignment create --role {role_name} --assignee-object-id "
-                f" {service_principal_objectid} --scope {subscription_id}"
+                f'az role assignment create --role "{role_name}" --assignee-object-id '
+                f' "{service_principal_objectid}" --scope "{subscription_id}"'
             )
 
             logging.info(
