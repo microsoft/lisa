@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import BSD, Redhat, Windows
+from lisa.operating_system import BSD, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     check_or_create_storage_account,
@@ -130,7 +130,7 @@ class Xfstesting(TestSuite):
     # VM will hung during running case xfs/520
     # commit d0c7feaf8767 ("xfs: add agf freeblocks verify in xfs_agf_verify")
     # TODO: will figure out the detailed reason of every excluded case.
-    EXCLUDED_TESTS = (
+    excluded_tests = (
         "generic/211 generic/430 generic/431 generic/434 /xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
@@ -138,6 +138,11 @@ class Xfstesting(TestSuite):
         + " xfs/432 xfs/500 xfs/508 xfs/512 xfs/514 xfs/515 xfs/516 xfs/518 xfs/521"
         + " xfs/528 xfs/544 ext4/054 ext4/056 ext4/058 ext4/059 xfs/081 xfs/520"
     )
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
+            self.excluded_tests = self.excluded_tests + " btrfs/299"
 
     @TestCaseMetadata(
         description="""
@@ -173,7 +178,7 @@ class Xfstesting(TestSuite):
             data_disks[0],
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -209,7 +214,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}1",
             f"{data_disks[0]}2",
             test_type=FileSystem.xfs.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -246,7 +251,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}2",
             file_system=FileSystem.ext4,
             test_type=FileSystem.ext4.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -286,7 +291,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}2",
             file_system=FileSystem.btrfs,
             test_type=FileSystem.btrfs.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -315,7 +320,7 @@ class Xfstesting(TestSuite):
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -345,7 +350,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
             test_type=FileSystem.xfs.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -376,7 +381,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.ext4,
             test_type=FileSystem.ext4.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -408,7 +413,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.btrfs,
             test_type=FileSystem.btrfs.name,
-            excluded_tests=self.EXCLUDED_TESTS,
+            excluded_tests=self.excluded_tests,
         )
 
     @TestCaseMetadata(
@@ -498,7 +503,7 @@ class Xfstesting(TestSuite):
                 result,
                 test_dev=fs_url_dict[file_share_name],
                 scratch_dev=fs_url_dict[scratch_name],
-                excluded_tests=self.EXCLUDED_TESTS,
+                excluded_tests=self.excluded_tests,
                 mount_opts=mount_opts,
             )
         finally:
