@@ -132,7 +132,7 @@ class Kselftest(Tool):
             self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
         else:
             mkdir = self.node.tools[Mkdir]
-            mkdir.create_directory(str(self._kself_installed_dir))
+            mkdir.create_directory(self._kself_installed_dir.as_posix())
             if isinstance(self.node.os, Ubuntu):
                 arch = self.node.os.get_kernel_information().hardware_platform
                 if arch == "aarch64":
@@ -192,7 +192,7 @@ class Kselftest(Tool):
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder(str(self._kself_installed_dir), "777", sudo=True)
+            chmod.update_folder(self._kself_installed_dir.as_posix(), "777", sudo=True)
 
         return self._check_exists()
 
