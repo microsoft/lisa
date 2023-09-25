@@ -340,6 +340,13 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
+        # if a test case runs on a deployed environment, the environment will be
+        # connected after it's initialized. It breaks the flow, so the
+        # transformers are in the connected phase will be ignored. So mark this
+        # kind of environment is dirty to prevent it run other test cases.
+        if environment.status == EnvironmentStatus.Deployed:
+            environment.mark_dirty()
+
         test_suite.start(
             environment=environment,
             case_results=test_results,
