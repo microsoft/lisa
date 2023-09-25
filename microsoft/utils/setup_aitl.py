@@ -16,7 +16,7 @@ _fmt = "%(asctime)s.%(msecs)03d[%(thread)d][%(levelname)s] %(name)s %(message)s"
 _datefmt = "%Y-%m-%d %H:%M:%S"
 
 
-def _call_cmd(command: str) -> subprocess.CompletedProcess[str]:
+def _call_cmd(command: str) -> "subprocess.CompletedProcess[str]":
     # Run the command and capture the return code
     result = subprocess.run(
         command,
@@ -351,28 +351,29 @@ def _assign_role_to_service_principal(
             continue
 
 
-# Main Function
-logging.Formatter.converter = time.gmtime
-logging.basicConfig(format=_fmt, datefmt=_datefmt, level=logging.INFO)
+if __name__ == "__main__":
+    # Main Function
+    logging.Formatter.converter = time.gmtime
+    logging.basicConfig(format=_fmt, datefmt=_datefmt, level=logging.INFO)
 
-# Step 0. parse input, get service_principal_objectid
-args = _init_arg_parser()
-if args.debug:
-    logging.getLogger().setLevel(logging.DEBUG)
-role_name = args.role
-service_principal_name = args.service_principal
-subscription_id = args.subscriptionId
-service_principal_objectid = _get_service_principal_objectid(service_principal_name)
+    # Step 0. parse input, get service_principal_objectid
+    args = _init_arg_parser()
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    role_name = args.role
+    service_principal_name = args.service_principal
+    subscription_id = args.subscriptionId
+    service_principal_objectid = _get_service_principal_objectid(service_principal_name)
 
-# Step 1. Set default value for subscription_id and target role content
-subscription_id, target_role_json = _set_target_role_parameters(
-    subscription_id, role_name
-)
+    # Step 1. Set default value for subscription_id and target role content
+    subscription_id, target_role_json = _set_target_role_parameters(
+        subscription_id, role_name
+    )
 
-# step 2. Create or Update Role according to target role
-_set_target_role(target_role_json, role_name, subscription_id)
+    # step 2. Create or Update Role according to target role
+    _set_target_role(target_role_json, role_name, subscription_id)
 
-# Step 3. assign this role to Service Principal
-_assign_role_to_service_principal(
-    role_name, service_principal_name, service_principal_objectid, subscription_id
-)
+    # Step 3. assign this role to Service Principal
+    _assign_role_to_service_principal(
+        role_name, service_principal_name, service_principal_objectid, subscription_id
+    )
