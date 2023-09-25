@@ -215,6 +215,8 @@ def _set_target_role_parameters(
         "Microsoft.Compute/disks/read",
         "Microsoft.Compute/disks/write",
         "Microsoft.Compute/disks/delete",
+        "Microsoft.Compute/images/read",
+        "Microsoft.Compute/images/write",
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
         "Microsoft.Network/virtualNetworks/read",
