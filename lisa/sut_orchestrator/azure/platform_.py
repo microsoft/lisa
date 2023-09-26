@@ -62,7 +62,7 @@ from lisa.util import (
     constants,
     dump_file,
     field_metadata,
-    generate_random_chars,
+    generate_strong_password,
     get_datetime_path,
     get_matched_str,
     get_public_key_data,
@@ -1180,7 +1180,7 @@ class AzurePlatform(Platform):
                 is_windows = True
                 if not self.runbook.admin_password:
                     # password is required, if it doesn't present, generate one.
-                    password = generate_random_chars()
+                    password = generate_strong_password()
                     add_secret(password)
                     self.runbook.admin_password = password
 
