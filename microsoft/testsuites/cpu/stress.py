@@ -30,6 +30,7 @@ class CPUStressSuite(TestSuite):
         requirement=simple_requirement(
             min_core_count=32,
         ),
+        timeout=7200,
     )
     def stress_cpu_hot_plug(self, log: Logger, node: Node) -> None:
         verify_cpu_hot_plug(log, node, 10)
