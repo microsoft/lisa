@@ -265,12 +265,29 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
-        # vmbus magic to enable uio_hv_generic
-        echo.write_to_file(
-            hv_uio_generic_uuid,
-            node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
-            sudo=True,
-        )
+    # vmbus magic to enable uio_hv_generic
+    echo.write_to_file(
+        hv_uio_generic_uuid,
+        node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
+        sudo=True,
+    )
+
+
+def do_pmd_driver_setup(
+    node: Node, test_nic: NicInfo, testpmd: DpdkTestpmd, pmd: str = "failsafe"
+) -> None:
+    if pmd == "netvsc":
+        # setup system for netvsc pmd
+        # https://doc.dpdk.org/guides/nics/netvsc.html
+        enable_uio_hv_generic_for_nic(node, test_nic)
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+
+    # if mana is present, set VF interface down.
+    # FIXME: add mana dpdk docs link when it's available.
+    if testpmd.is_mana:
+        if test_nic.lower:
+            node.tools[Ip].down(test_nic.lower)
 
 
 def initialize_node_resources(
@@ -341,18 +358,7 @@ def initialize_node_resources(
     ).is_equal_to("hv_netvsc")
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
-    if pmd == "netvsc":
-        # setup system for netvsc pmd
-        # https://doc.dpdk.org/guides/nics/netvsc.html
-        enable_uio_hv_generic_for_nic(node, test_nic)
-        node.nics.unbind(test_nic)
-        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
-
-    # if mana is present, set VF interface down.
-    # FIXME: add mana dpdk docs link when it's available.
-    if testpmd.is_mana:
-        if test_nic.lower:
-            node.tools[Ip].down(test_nic.lower)
+    do_pmd_driver_setup(node=node, test_nic=test_nic, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(node, testpmd)
 
@@ -440,6 +446,7 @@ def init_nodes_concurrent(
     variables: Dict[str, Any],
     pmd: str,
     enable_gibibyte_hugepages: bool = False,
+    sample_apps: Union[List[str], None] = None,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -456,6 +463,7 @@ def init_nodes_concurrent(
                 variables,
                 pmd,
                 enable_gibibyte_hugepages=enable_gibibyte_hugepages,
+                sample_apps=sample_apps,
             )
             for node in environment.nodes.list()
         ],
