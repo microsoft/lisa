@@ -296,6 +296,13 @@ class RequireUserPasswordException(LisaException):
     """
 
 
+class SshSpawnTimeoutException(LisaException):
+    """
+    This exception is used to indicate a timeout while spawning a process
+    using SshShell.
+    """
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
