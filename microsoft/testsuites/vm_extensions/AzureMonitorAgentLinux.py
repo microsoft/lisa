@@ -68,7 +68,8 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
 
         assert_that(extension.check_exist("AzureMonitorLinuxAgent")).described_as(
             "Found the VM Extension still unexpectedly exists on the VM after deletion"
-        ).is_false()        
+        ).is_false()
+    
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions = {
             Redhat: [7, 8, 9],
