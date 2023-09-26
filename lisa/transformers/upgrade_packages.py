@@ -72,7 +72,7 @@ class UpgradeTransformer(DeploymentTransformer):
         runbook: UpgradeTransformerSchema = self.runbook
         assert runbook.installer, "installer must be defined."
 
-        node = self.node
+        node = self._node
 
         uname = node.tools[Uname]
         self._log.info(

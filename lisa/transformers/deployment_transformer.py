@@ -28,12 +28,12 @@ class DeploymentTransformer(Transformer):
     ) -> None:
         super().__init__(runbook, *args, **kwargs)
         if node:
-            self.node = node
+            self._node = node
         else:
             assert (
                 runbook.connection
             ), "'connection' must be defined if not running during deployed phase."
-            self.node = quick_connect(
+            self._node = quick_connect(
                 runbook.connection, runbook.name, parent_logger=self._log
             )
 
