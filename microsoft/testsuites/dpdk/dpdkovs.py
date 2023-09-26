@@ -44,10 +44,7 @@ class DpdkOvs(Tool):
     # For reference: https://docs.openvswitch.org/en/latest/intro/install/general/
     @property
     def can_install(self) -> bool:
-        kernel_version = self.node.tools[Uname].get_linux_information().kernel_version
-        return kernel_version > "4.4.0" and (
-            isinstance(self.node.os, Debian) or isinstance(self.node.os, Fedora)
-        )
+        return self.node.is_posix
 
     def _install_os_packages(self) -> None:
         os = self.node.os
@@ -67,6 +64,17 @@ class DpdkOvs(Tool):
         # NOTE: defer building until we can provide the DPDK source dir as a parameter.
         # _install just checks out our resources and sets up the version info
         node = self.node
+        kernel_version = node.tools[Uname].get_linux_information().kernel_version
+        if not (
+            kernel_version > "4.4.0"
+            and (isinstance(node.os, Debian) or isinstance(node.os, Fedora))
+        ):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "OVS is not available for this platform"
+                )
+            )
+
         self._install_os_packages()
         if isinstance(node.os, Fedora):
             node.os.group_install_packages("Development Tools")
