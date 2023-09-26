@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-import time
 from pathlib import PurePosixPath
 from typing import Any, List, Tuple, Type, Union
 
@@ -547,7 +546,10 @@ class DpdkTestpmd(Tool):
             return
 
         tar_path = wget.get(
-            url="https://github.com/linux-rdma/rdma-core/releases/download/v46.0/rdma-core-46.0.tar.gz",
+            url=(
+                "https://github.com/linux-rdma/rdma-core/"
+                "releases/download/v46.0/rdma-core-46.0.tar.gz"
+            ),
             file_path=str(node.working_path),
         )
 
