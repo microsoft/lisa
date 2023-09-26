@@ -2,6 +2,8 @@ import re
 from typing import TYPE_CHECKING, Optional, Tuple, Type
 from urllib.parse import urlparse
 
+from retry import retry
+
 from lisa.executable import Tool
 from lisa.tools.ls import Ls
 from lisa.tools.mkdir import Mkdir
@@ -31,6 +33,7 @@ class Wget(Tool):
         posix_os.install_packages([self])
         return self._check_exists()
 
+    @retry(LisaException, tries=5, delay=2, backoff=1.5)
     def get(
         self,
         url: str,
