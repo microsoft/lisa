@@ -118,6 +118,15 @@ class Ip(Tool):
                 f"ip link set {nic_name} {status}"
             )
 
+    def add_route(self, iface: str, dest: str, next_hop: str) -> None:
+        next_hop = f"via {next_hop} dev {iface}"
+        self.run(f"route add to {dest}/32 {next_hop}", sudo=True, force_run=True)
+
+    def remove_route(self, prefix: str, first_hop: str = "") -> None:
+        if first_hop:
+            first_hop = f" via {first_hop}"
+        self.run(f"route del {prefix}{first_hop}", sudo=True, force_run=True)
+
     def _get_matched_dict(self, result: str) -> Dict[str, str]:
         matched = self.__ip_addr_show_regex.match(result)
         assert matched is not None, f"Could not parse result: {result}"
