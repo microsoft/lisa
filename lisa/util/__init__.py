@@ -671,6 +671,30 @@ def generate_random_chars(
     return "".join(random.choices(candidates, k=length))
 
 
+def generate_strong_password(length: int = 20) -> str:
+    if length < 4:
+        raise ValueError("length must be greater than 4 to contains all types.")
+
+    # Removed \ and - from standard punctuation due to Azure password doesn't support.
+    special_chars = r"""!"#$%&'()*+,./:;<=>?@[]^_`{|}~"""
+    upper_char = random.choice(string.ascii_uppercase)
+    lower_char = random.choice(string.ascii_lowercase)
+    digit_char = random.choice(string.digits)
+    special_char = random.choice(special_chars)
+    password = list(
+        upper_char
+        + lower_char
+        + digit_char
+        + special_char
+        + generate_random_chars(
+            candidates=string.ascii_letters + string.digits + special_chars,
+            length=length - 4,
+        )
+    )
+    random.shuffle(password)
+    return "".join(password)
+
+
 def strip_strs(obj: Any, fields: List[str]) -> Any:
     for field in fields:
         if hasattr(obj, field):
