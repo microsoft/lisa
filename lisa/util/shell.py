@@ -20,7 +20,12 @@ from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
 from lisa import development, schema
-from lisa.util import InitializableMixin, LisaException, TcpConnectionException
+from lisa.util import (
+    InitializableMixin,
+    LisaException,
+    SshSpawnTimeoutException,
+    TcpConnectionException,
+)
 
 from .logger import Logger, get_logger
 from .perf_timer import create_timer
@@ -337,7 +342,7 @@ class SshShell(InitializableMixin):
                 )
                 break
             except FunctionTimedOut:
-                raise LisaException(
+                raise SshSpawnTimeoutException(
                     f"The remote node is timeout on execute {command}. "
                     f"It may be caused by paramiko/spur not support the shell of node."
                 )
