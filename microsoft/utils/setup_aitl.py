@@ -207,16 +207,20 @@ def _set_target_role_parameters(
         "Microsoft.Compute/virtualMachines/read",
         "Microsoft.Compute/virtualMachines/write",
         "Microsoft.Compute/virtualMachines/retrieveBootDiagnosticsData/action",
+        # for availability set testing
         "Microsoft.Compute/availabilitySets/write",
+        # for verify GPU PCI device count should be same after stop-start
         "Microsoft.Compute/virtualMachines/start/action",
         "Microsoft.Compute/virtualMachines/restart/action",
         "Microsoft.Compute/virtualMachines/deallocate/action",
         "Microsoft.Compute/virtualMachines/powerOff/action",
+        # for testing hot adding disk
         "Microsoft.Compute/disks/read",
         "Microsoft.Compute/disks/write",
         "Microsoft.Compute/disks/delete",
         "Microsoft.Compute/images/read",
         "Microsoft.Compute/images/write",
+        # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
         "Microsoft.Network/virtualNetworks/read",
@@ -228,12 +232,12 @@ def _set_target_role_parameters(
         "Microsoft.Network/networkInterfaces/read",
         "Microsoft.Network/networkInterfaces/write",
         "Microsoft.Network/networkInterfaces/join/action",
+        # for verify_azure_file_share_nfs mount and delete
         "Microsoft.Network/privateEndpoints/write",
-        (
-            "Microsoft.Network/privateLinkServices/PrivateEndpointConnectionsApproval"
-            "/action"
-        ),
+        "Microsoft.Network/privateLinkServices/PrivateEndpointConnectionsApproval/action",  # noqa: E501
+        # for verify_serial_console write operation
         "Microsoft.SerialConsole/serialPorts/write",
+        # For setting firewall rules to access Microsoft tenant VMs
         "Microsoft.Network/networkSecurityGroups/write",
         "Microsoft.Network/networkSecurityGroups/read",
         "Microsoft.Network/networkSecurityGroups/join/action",
