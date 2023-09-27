@@ -21,6 +21,35 @@ class RemoteCopy(Tool):
     def can_install(self) -> bool:
         return False
 
+    def copy_to_local(
+        self,
+        src: PurePath,
+        dest: PurePath,
+        recurse: bool = False,
+    ) -> None:
+        # check if the source is a file or a directory
+        is_file = self.node.tools[Ls].is_file(src, sudo=True)
+
+        # recurse should be false for files
+        recurse = recurse and not is_file
+
+        try:
+            self._copy(src, dest, recurse=recurse, is_file=is_file)
+        except Exception as e:
+            self._log.debug(
+                f"Failed to copy files to {dest} with error: {e}, trying again "
+                "with sudo"
+            )
+
+            # copy files to a temp directory with updated permissions
+            tmp_location = self._prepare_tmp_copy(src, recurse=recurse, is_file=is_file)
+
+            # copy files from the temp directory and remove the temp directory
+            try:
+                self._copy(tmp_location, dest, recurse=recurse, is_file=is_file)
+            finally:
+                self.node.tools[Rm].remove_directory(str(tmp_location), sudo=True)
+
     def _prepare_tmp_copy(
         self,
         src: PurePath,
@@ -95,32 +124,3 @@ class RemoteCopy(Tool):
         # copy sub folders
         for dir_ in dirs:
             self._copy(dir_, destination_dir, recurse=recurse)
-
-    def copy_to_local(
-        self,
-        src: PurePath,
-        dest: PurePath,
-        recurse: bool = False,
-    ) -> None:
-        # check if the source is a file or a directory
-        is_file = self.node.tools[Ls].is_file(src, sudo=True)
-
-        # recurse shpuld be false for files
-        recurse = recurse and not is_file
-
-        try:
-            self._copy(src, dest, recurse=recurse, is_file=is_file)
-        except Exception as e:
-            self._log.debug(
-                f"Failed to copy files to {dest} with error: {e}, trying again "
-                "with sudo"
-            )
-
-            # copy files to a temp directory with updated permissions
-            tmp_location = self._prepare_tmp_copy(src, recurse=recurse, is_file=is_file)
-
-            # copy files from the temp directory and remove the temp directory
-            try:
-                self._copy(tmp_location, dest, recurse=recurse, is_file=is_file)
-            finally:
-                self.node.tools[Rm].remove_directory(str(tmp_location), sudo=True)
