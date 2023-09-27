@@ -13,7 +13,7 @@ from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.tools import Uname
+from lisa.tools import Echo, Uname
 from lisa.transformer import Transformer
 from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
@@ -201,6 +201,20 @@ class RepoInstaller(BaseInstaller):
                 version_name = f"{release}-proposed"
         else:
             version_name = release
+        if release == "lunar":
+            config = [
+                "Package: *",
+                "Pin: release a=*-proposed",
+                "Pin-Priority: 500",
+            ]
+            echo = node.tools[Echo]
+            for config_line in config:
+                echo.write_to_file(
+                    config_line,
+                    node.get_pure_path("/etc/apt/preferences.d/proposed.pref"),
+                    append=True,
+                    sudo=True,
+                )
         repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
