@@ -16,6 +16,8 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     create_timer,
+    schema,
+    search_space,
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
@@ -189,6 +191,31 @@ class Provisioning(TestSuite):
             log_path,
             reboot_in_platform=True,
             case_name="verify_reboot_in_platform",
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with an ultra datadisk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.UltraSSDLRS,
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def verify_deployment_provision_ultra_datadisk(
+        self, log: Logger, node: RemoteNode, log_path: Path
+    ) -> None:
+        self._smoke_test(
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_ultra_datadisk",
         )
 
     @TestCaseMetadata(
