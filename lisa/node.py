@@ -442,8 +442,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._is_dirty = True
 
     def test_connection(self) -> bool:
+        self.log.debug("testing connection...")
         try:
-            self.execute("date")
+            self.execute("echo connected", timeout=10)
             return True
         except Exception as identifier:
             self.log.debug(f"cannot access VM {self.name}, error is {identifier}")
