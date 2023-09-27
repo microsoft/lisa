@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import LisaException, find_group_in_lines, find_groups_in_lines
 
 CpuType = Enum(
     "CpuType",
@@ -290,6 +290,11 @@ class Lscpu(Tool):
 
 
 class WindowsLscpu(Lscpu):
+    # Processor(s):              1 Processor(s) Installed.
+    __cpu_count = re.compile(
+        r"^Processor\(s\):\s+(?P<count>[\d]+) Processor\(s\) Installed.\r?$", re.M
+    )
+
     @property
     def command(self) -> str:
         return ""
@@ -299,11 +304,39 @@ class WindowsLscpu(Lscpu):
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance Win32_ComputerSystem).NumberOfProcessors",
+            force_run=force_run,
+        )
+        physical_core_count = int(result.strip())
+        self._log.debug(f"physical core count: {physical_core_count}")
+        return physical_core_count
+
+    def get_socket_count(self, force_run: bool = False) -> int:
+        result = self.node.tools[PowerShell].run_cmdlet(
+            "systeminfo", force_run=force_run
+        )
+        socket_count = int(find_group_in_lines(result, self.__cpu_count)["count"])
+        self._log.debug(f"socket count: {socket_count}")
+        return socket_count
+
+    def get_core_per_socket_count(self, force_run: bool = False) -> int:
+        socket_count = self.get_socket_count(force_run=force_run)
+        logic_processor_count = self.get_core_count(force_run=force_run)
+
+        core_pre_socket = logic_processor_count // socket_count
+        self._log.debug(f"core per socket: {core_pre_socket}")
+
+        return core_pre_socket
+
+    def get_thread_per_core_count(self, force_run: bool = False) -> int:
+        result = self.node.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors",
             force_run=force_run,
         )
-        core_count = int(result.strip())
-        return core_count
+        thread_count = int(result.strip())
+        thread_per_core = thread_count // self.get_core_count(force_run=force_run)
+        self._log.debug(f"thread per core: {thread_per_core}")
+        return thread_per_core
 
 
 class BSDLscpu(Lscpu):

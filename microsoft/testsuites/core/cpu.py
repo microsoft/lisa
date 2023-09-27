@@ -14,6 +14,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
 from lisa.environment import Environment
 from lisa.operating_system import CpuArchitecture
@@ -130,6 +131,7 @@ class CPU(TestSuite):
             3. Judge whether the actual vCPU count equals to expected value.
             """,
         priority=1,
+        requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_cpu_count(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
@@ -168,7 +170,7 @@ class CPU(TestSuite):
             1. Look for the Hyper-v timer property of each vCPU under /proc/interrupts
             2. For Hyper-V reenlightenment interrupt, verify that the interrupt count
             for all vCPU are zero.
-            3. For Hypervisor callback interrupt, verify that atleast min(#vCPU, 4)
+            3. For Hypervisor callback interrupt, verify that at least min(#vCPU, 4)
             vCPU's are processing interrupts.
             4. For Hyper-V Synthetic timer, run a CPU intensive command on each vCPU and
             verify that every vCPU is processing the interrupt.
