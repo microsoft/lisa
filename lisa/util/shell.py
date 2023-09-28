@@ -9,7 +9,7 @@ import socket
 import sys
 import time
 from functools import partial
-from pathlib import Path, PurePath
+from pathlib import Path, PurePath, WindowsPath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
@@ -566,8 +566,8 @@ class SshShell(InitializableMixin):
         self.mkdir(node_path.parent, parents=True, exist_ok=True)
         self.initialize()
         assert self._inner_shell
-        local_path_str = self._purepath_to_str(local_path)
-        node_path_str = self._purepath_to_str(node_path)
+        local_path_str = self._purepath_to_str(local_path, True)
+        node_path_str = self._purepath_to_str(node_path, False)
         self._inner_shell.put(
             local_path_str,
             node_path_str,
@@ -587,8 +587,8 @@ class SshShell(InitializableMixin):
         """
         self.initialize()
         assert self._inner_shell
-        node_path_str = self._purepath_to_str(node_path)
-        local_path_str = self._purepath_to_str(local_path)
+        node_path_str = self._purepath_to_str(node_path, False)
+        local_path_str = self._purepath_to_str(local_path, True)
         self._inner_shell.get(
             node_path_str,
             local_path_str,
@@ -596,13 +596,18 @@ class SshShell(InitializableMixin):
         )
 
     def _purepath_to_str(
-        self, path: Union[Path, PurePath, str]
+        self, path: Union[Path, PurePath, str], is_local: bool = False
     ) -> Union[Path, PurePath, str]:
         """
         spurplus doesn't support pure path, so it needs to convert.
         """
         if isinstance(path, PurePath):
-            path = str(path)
+            if is_local:
+                path = str(path)
+            elif self.is_posix:
+                path = path.as_posix()
+            else:
+                path = str(WindowsPath(path))
         return path
 
     def _establish_jump_boxes(self, address: str, port: int) -> Any:
