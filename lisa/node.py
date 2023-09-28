@@ -22,6 +22,7 @@ from lisa.util import (
     RequireUserPasswordException,
     constants,
     fields_to_dict,
+    generate_strong_password,
     get_datetime_path,
     hookimpl,
     hookspec,
@@ -683,6 +684,8 @@ class RemoteNode(Node):
         password_extension = self.features[PasswordExtension]
         username = self._connection_info.username
         password = self._connection_info.password
+        if not password:
+            password = generate_strong_password()
         try:
             password_extension.reset_password(username, str(password))
         except Exception as identifier:
