@@ -11,7 +11,6 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.operating_system import Posix, Suse
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
-from lisa.util.process import ExecutableResult
 
 
 class CodeExistsException(LisaException):
@@ -181,20 +180,6 @@ class Git(Tool):
         )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
 
-    def bisect(
-        self,
-        cwd: pathlib.PurePath,
-        cmd: str,
-    ) -> ExecutableResult:
-        result = self.run(
-            f"bisect {cmd}",
-            shell=True,
-            cwd=cwd,
-            force_run=True,
-        )
-        result.assert_exit_code(message=f"failed on bisect {cmd}. {result.stdout}")
-        return result
-
     def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
             "--no-pager tag --color=never",
@@ -311,6 +296,13 @@ class Git(Tool):
         )
         return filter_ansi_escape(result.stdout)
 
+    def get_current_commit_hash(self, cwd: pathlib.PurePath) -> str:
+        result = self.run("rev-parse HEAD", cwd=cwd, force_run=True, shell=True)
+        result.assert_exit_code(
+            message=f"failed getting current commit hash {result.stdout}"
+        )
+        return filter_ansi_escape(result.stdout)
+
     def get_repo_url(self, cwd: pathlib.PurePath, name: str = "origin") -> str:
         result = self.run(
             f"config --get remote.{name}.url",
@@ -368,3 +360,29 @@ class Git(Tool):
         }
 
         return result
+
+
+class GitBisect(Git):
+    _STOP_PATTERNS = ["first bad commit", "This means the bug has been fixed between"]
+
+    @property
+    def command(self) -> str:
+        return "git bisect"
+
+    def start(self, cwd: pathlib.PurePath) -> None:
+        result = self.run("start", cwd=cwd, force_run=True)
+        result.assert_exit_code(message=f"failed to start git bisect {result.stdout}")
+
+    def good(self, cwd: pathlib.PurePath, ref: str = "") -> None:
+        result = self.run(f"good {ref}", cwd=cwd, force_run=True)
+        result.assert_exit_code(message=f"failed to run bisect good {result.stdout}")
+
+    def bad(self, cwd: pathlib.PurePath, ref: str = "") -> None:
+        result = self.run(f"bad {ref}", cwd=cwd, force_run=True)
+        result.assert_exit_code(message=f"failed to run bisect bad {result.stdout}")
+
+    def check_bisect_complete(self, cwd: pathlib.PurePath) -> bool:
+        result = self.run("log", cwd=cwd, force_run=True)
+        if any(pattern in result.stdout for pattern in self._STOP_PATTERNS):
+            return True
+        return False
