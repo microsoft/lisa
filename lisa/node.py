@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
 from random import randint
 from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, cast
 
@@ -337,6 +337,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             return PurePosixPath(path)
         else:
             return PureWindowsPath(path)
+
+    def get_str_path(self, path: PurePath) -> str:
+        # convert to path format of the system.
+        if self.is_posix:
+            return path.as_posix()
+        else:
+            return str(WindowsPath(path))
 
     def get_case_working_path(self, case_unique_name: str) -> PurePath:
         working_path = self.working_path / "tests" / case_unique_name
