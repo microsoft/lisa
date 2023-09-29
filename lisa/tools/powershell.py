@@ -27,8 +27,14 @@ class PowerShell(Tool):
     ) -> str:
         # cmdlet can have `"` characters, so we need to escape them
         cmdlet = cmdlet.replace('"', '`"')
+        if self.node.is_remote:
+            cmdlet = f'-Command "{cmdlet}"'
         result = self.run(
-            f'"{cmdlet}"', force_run=force_run, sudo=sudo, timeout=timeout
+            cmdlet,
+            force_run=force_run,
+            sudo=sudo,
+            timeout=timeout,
+            shell=True,
         )
         if fail_on_error and result.exit_code != 0:
             raise LisaException(
