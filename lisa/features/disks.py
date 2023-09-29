@@ -47,6 +47,9 @@ class Disk(Feature):
     def get_all_disks(self) -> List[str]:
         raise NotImplementedError
 
+    def get_hardware_disk_controller_type(self) -> schema.DiskControllerType:
+        raise NotImplementedError
+
     def add_data_disk(
         self,
         count: int,
@@ -63,6 +66,21 @@ class Disk(Feature):
 
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
+
+    # Get disk controller type from the VM by checking the boot partition
+    def get_os_disk_controller_type(self) -> schema.DiskControllerType:
+        partition_info = self._node.tools[Mount].get_partition_info()
+
+        # On certain gen2 image only "/boot/efi" exists
+        for partition in partition_info:
+            if partition.mount_point in ("/boot", "/boot/efi"):
+                boot_partition_disk = partition.disk
+                break
+
+        if boot_partition_disk == "nvme":
+            return schema.DiskControllerType.NVME
+        else:
+            return schema.DiskControllerType.SCSI
 
 
 DiskEphemeral = partial(
