@@ -63,6 +63,7 @@ if platform.system() == "Linux":
 
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
+import lisa.transformers.file_uploader  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
 import lisa.transformers.script_transformer  # noqa: F401
 import lisa.transformers.to_list  # noqa: F401
