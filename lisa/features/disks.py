@@ -67,7 +67,7 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
-    # Get disk controller type from the VM by checking the boot partition
+    # Get boot partition of VM by looking for "/boot" and "/boot/efi"
     def get_os_boot_partition(self) -> Optional[PartitionInfo]:
         partition_info = self._node.tools[Mount].get_partition_info()
         boot_partition: Optional[PartitionInfo] = None
