@@ -80,7 +80,7 @@ class Disk(Feature):
     # Get disk controller type from the VM by checking the boot partition
     def get_os_disk_controller_type(self) -> schema.DiskControllerType:
         boot_partition = self.get_os_boot_partition()
-        assert boot_partition, "'boot_partition_disk' must not be 'None'"
+        assert boot_partition, "'boot_partition' must not be 'None'"
         if boot_partition.disk == "nvme":
             return schema.DiskControllerType.NVME
         else:
