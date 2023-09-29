@@ -10,6 +10,7 @@ from lisa import schema
 from lisa.feature import Feature
 from lisa.tools import Mount
 from lisa.tools.mount import PartitionInfo
+from lisa.util import LisaException
 
 
 class Disk(Feature):
@@ -79,12 +80,17 @@ class Disk(Feature):
 
     # Get disk controller type from the VM by checking the boot partition
     def get_os_disk_controller_type(self) -> schema.DiskControllerType:
+        os_disk_controller_type: schema.DiskControllerType = ""
         boot_partition = self.get_os_boot_partition()
         assert boot_partition, "'boot_partition' must not be 'None'"
-        if boot_partition.disk == "nvme":
-            return schema.DiskControllerType.NVME
+
+        if boot_partition.disk.startswith("nvme"):
+            os_disk_controller_type = schema.DiskControllerType.NVME
+        elif boot_partition.disk.startswith("sd"):
+            os_disk_controller_type = schema.DiskControllerType.SCSI
         else:
-            return schema.DiskControllerType.SCSI
+            raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
+        return os_disk_controller_type
 
 
 DiskEphemeral = partial(
