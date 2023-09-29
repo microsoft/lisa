@@ -449,6 +449,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._is_dirty = True
 
     def test_connection(self) -> bool:
+        assert self._shell
+        if not self._shell.is_remote:
+            return True
         self.log.debug("testing connection...")
         try:
             self.execute("echo connected", timeout=10)
