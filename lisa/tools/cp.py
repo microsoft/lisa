@@ -24,7 +24,7 @@ class Cp(Tool):
         recur: bool = False,
         timeout: int = 600,
     ) -> None:
-        cmd = f"{src} {dest}"
+        cmd = f"{self.node.get_str_path(src)} {self.node.get_str_path(dest)}"
         if recur:
             cmd = f"-r {cmd}"
         result = self.run(
