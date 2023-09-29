@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Type, cast
 
-from azure.mgmt.compute.models import GrantAccessData  # type: ignore
+from azure.mgmt.compute.models import GrantAccessData
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 from retry import retry

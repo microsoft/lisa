@@ -18,10 +18,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute.models import (  # type: ignore
+from azure.mgmt.compute.models import (
     GalleryImage,
     GalleryImageVersion,
-    PurchasePlan,
     ResourceSku,
     RunCommandInput,
     RunCommandInputParameter,
@@ -1349,6 +1348,10 @@ class AzurePlatform(Platform):
             if image_info:
                 azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
 
+            assert image_info, "'image_info' must not be 'None'"
+            assert (
+                image_info.os_disk_image
+            ), "'image_info.os_disk_image' must not be 'None'"
             # retrieve the os type for arm template.
             if (
                 azure_node_runbook.is_linux is None
@@ -1406,6 +1409,9 @@ class AzurePlatform(Platform):
                 arm_parameters.location, arm_parameters.marketplace
             )
             if image_info:
+                assert (
+                    image_info.os_disk_image
+                ), "'image_info.os_disk_image' must not be 'None'"
                 arm_parameters.osdisk_size_in_gb = max(
                     arm_parameters.osdisk_size_in_gb,
                     _get_disk_size_in_gb(
@@ -1689,6 +1695,9 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
+        assert (
+            resource_sku.location_info
+        ), "'resource_sku.location_info' must not be 'None'"
         for location_info in resource_sku.location_info:
             for zone_details in location_info.zone_details:
                 for location_capability in zone_details.capabilities:
@@ -1696,6 +1705,9 @@ class AzurePlatform(Platform):
                         location_capability.name
                     ] = location_capability.value
 
+        assert (
+            resource_sku.capabilities
+        ), "'resource_sku.capabilities' must not be 'None'"
         for sku_capability in resource_sku.capabilities:
             # prevent to loop in every feature
             azure_raw_capabilities[sku_capability.name] = sku_capability.value
@@ -1771,6 +1783,7 @@ class AzurePlatform(Platform):
             # below VM size families don't support `Accelerated Networking` but
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
+            assert resource_sku.family, "'resource_sku.family' must not be 'None'"
             if resource_sku.family not in [
                 "standardDCSv2Family",
                 "standardNCSv2Family",
@@ -1788,6 +1801,7 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        assert resource_sku.name, "'resource_sku.name' must not be 'None'"
         # for below vm sizes, there are 2 nics
         # but the accelerated networking can only be applied to a single NIC
         # there is no API to expose this information
@@ -1952,9 +1966,11 @@ class AzurePlatform(Platform):
                     gallery_image_name=new_shared_image.image_definition,
                 )
             )
-            image: GalleryImageVersion = None
+            image: Optional[GalleryImageVersion] = None
             time: Optional[datetime] = None
             for image in gallery_images:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
                 gallery_image = compute_client.gallery_image_versions.get(
                     resource_group_name=new_shared_image.resource_group_name,
                     gallery_name=new_shared_image.image_gallery,
@@ -1964,9 +1980,13 @@ class AzurePlatform(Platform):
                 )
                 if not time:
                     time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
                     new_shared_image.image_version = image.name
                 if gallery_image.publishing_profile.published_date > time:
                     time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
                     new_shared_image.image_version = image.name
         return new_shared_image
 
@@ -1977,7 +1997,7 @@ class AzurePlatform(Platform):
         plan_name: str,
         plan_product: str,
         plan_publisher: str,
-    ) -> Optional[PurchasePlan]:
+    ) -> Optional[AzureVmPurchasePlanSchema]:
         """
         this method to fill plan, if a VM needs it. If don't fill it, the deployment
         will be failed.
@@ -2117,12 +2137,11 @@ class AzurePlatform(Platform):
             # some images has data disks by default
             # e.g. microsoft-ads linux-data-science-vm linuxdsvm 21.05.27
             # we have to inject below part when dataDisks section added in
-            #  arm template,
-            # otherwise will see below exception:
-            # deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
-            #  does not have required value(s) for image specified in
-            #  storage profile.
-            if marketplace:
+            # arm template, otherwise will see below exception:
+            #   deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
+            #     does not have required value(s) for image specified in
+            #     storage profile.
+            if marketplace and marketplace.data_disk_images:
                 for default_data_disk in marketplace.data_disk_images:
                     data_disks.append(
                         DataDiskSchema(
@@ -2259,32 +2278,44 @@ class AzurePlatform(Platform):
         assert properties.size, f"fail to get blob size of {blob_url}"
         # Azure requires only megabyte alignment of vhds, round size up
         # for cases where the size is megabyte aligned
-        return math.ceil(properties.size / 1024 / 1024 / 1024)
+        vhd_os_disk_size = math.ceil(properties.size / 1024 / 1024 / 1024)
+        assert isinstance(vhd_os_disk_size, int), f"actual: {type(vhd_os_disk_size)}"
+        return vhd_os_disk_size
 
     def _get_sig_info(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_image_versions.get(
+        sig_info = compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
             gallery_image_version_name=shared_image.image_version,
             expand="ReplicationStatus",
         )
+        assert isinstance(sig_info, GalleryImageVersion), f"actual: {type(sig_info)}"
+        return sig_info
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_detailed_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_images.get(
+        detailed_sig = compute_client.gallery_images.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
         )
+        assert isinstance(detailed_sig, GalleryImage), f"actual: {type(detailed_sig)}"
+        return detailed_sig
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
-        assert found_image.storage_profile.os_disk_image.size_in_gb
+        assert found_image.storage_profile, "'storage_profile' must not be 'None'"
+        assert (
+            found_image.storage_profile.os_disk_image
+        ), "'os_disk_image' must not be 'None'"
+        assert (
+            found_image.storage_profile.os_disk_image.size_in_gb
+        ), "'size_in_gb' must not be 'None'"
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
 
     def _get_normalized_vm_sizes(
@@ -2609,7 +2640,9 @@ class AzurePlatform(Platform):
                 generation = _get_vhd_generation(image_info)
                 node_space.features.add(features.VhdGenerationSettings(gen=generation))
                 node_space.features.add(
-                    features.ArchitectureSettings(arch=image_info.architecture)
+                    features.ArchitectureSettings(
+                        arch=image_info.architecture  # type: ignore
+                    )
                 )
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
@@ -2619,7 +2652,7 @@ class AzurePlatform(Platform):
             generation = _get_gallery_image_generation(sig)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
             node_space.features.add(
-                features.ArchitectureSettings(arch=sig.architecture)
+                features.ArchitectureSettings(arch=sig.architecture)  # type: ignore
             )
         elif azure_runbook.vhd:
             node_space.features.add(
