@@ -263,7 +263,7 @@ class Storage(TestSuite):
 
         assert_that(
             os_disk_controller_type,
-            "The disk controller types of VM and OS should be the same.",
+            "The disk controller types of hardware and OS should be the same.",
         ).is_equal_to(vm_disk_controller_type)
 
     @TestCaseMetadata(
