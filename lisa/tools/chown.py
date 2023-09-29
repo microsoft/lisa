@@ -36,10 +36,11 @@ class Chown(Tool):
             arguments.append(new_owner)
 
         # add FILE
-        assert_that(str(file)).described_as(
+        path_str = self.node.get_str_path(file)
+        assert_that(path_str).described_as(
             "chown: filepath was empty and file is a required argument"
         ).is_true()
-        arguments.append(f"{str(file)}")
+        arguments.append(path_str)
 
         # execute chown
         self.run(

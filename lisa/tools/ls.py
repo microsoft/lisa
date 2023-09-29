@@ -55,13 +55,15 @@ class Ls(Tool):
         # If `ls -al <path>` returns more than one line, it is a directory, else
         # it is a file. This is because `ls -al <path>` returns info of the dir and
         # parent dir.
+        path_str = self.node.get_str_path(path)
         cmd_result = self.run(
-            f"-al {path}",
+            f"-al {path_str}",
             force_run=True,
             sudo=sudo,
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=f"Failed to check if {path} is a file",
+            expected_exit_code_failure_message=f"Failed to check if {path_str} "
+            "is a file",
         )
 
         return len(cmd_result.stdout.splitlines()) == 1
@@ -78,6 +80,15 @@ class WindowsLs(Ls):
 
     def _check_exists(self) -> bool:
         return True
+
+    def is_file(self, path: PurePath, sudo: bool = False) -> bool:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Test-Path {path} -PathType Leaf",
+            force_run=True,
+            sudo=sudo,
+        )
+
+        return output.strip() == "True"
 
     def path_exists(self, path: str, sudo: bool = False) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
