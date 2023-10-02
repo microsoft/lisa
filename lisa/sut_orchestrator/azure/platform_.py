@@ -1584,7 +1584,7 @@ class AzurePlatform(Platform):
     def _load_vms(
         self, resource_group_name: str, log: Logger
     ) -> Dict[str, VirtualMachine]:
-        compute_client = get_compute_client(self, api_version="2020-06-01")
+        compute_client = get_compute_client(self)
 
         log.debug(f"listing vm in resource group {resource_group_name}")
         vms_map: Dict[str, VirtualMachine] = {}

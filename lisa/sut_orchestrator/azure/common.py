@@ -21,7 +21,7 @@ from azure.keyvault.certificates import (
 )
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import NetworkProfile, VirtualMachine
+from azure.mgmt.compute.models import VirtualMachine
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
     AccessPolicyEntry,
@@ -98,7 +98,6 @@ if TYPE_CHECKING:
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
 AZURE_SUBNET_PREFIX = "lisa-subnet-"
-
 
 NIC_NAME_PATTERN = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
@@ -1540,7 +1539,10 @@ def load_environment(
         environment_runbook.nodes_raw = []
 
     vms_map: Dict[str, VirtualMachine] = {}
-    compute_client = get_compute_client(platform)
+    # When lists VMs, it may raise unsupported api version error on "2022-08-01"
+    # in some subscriptions. This version should be safe for those
+    # subscriptions. Once the new version is supported, we can remove this.
+    compute_client = get_compute_client(platform, api_version="2022-03-01")
     vms = compute_client.virtual_machines.list(resource_group_name)
     for vm in vms:
         node_schema = schema.RemoteNode(name=vm.name)
@@ -1615,9 +1617,8 @@ def get_primary_ip_addresses(
     platform: "AzurePlatform", resource_group_name: str, vm: VirtualMachine
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
-    assert isinstance(
-        vm.network_profile, NetworkProfile
-    ), f"actual: {type(vm.network_profile)}"
+
+    assert vm.network_profile, "no network profile found"
     assert isinstance(
         vm.network_profile.network_interfaces, List
     ), f"actual: {type(vm.network_profile.network_interfaces)}"
