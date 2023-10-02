@@ -1347,18 +1347,12 @@ class AzurePlatform(Platform):
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
             if image_info:
                 azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
-
-            assert image_info, "'image_info' must not be 'None'"
-            assert (
-                image_info.os_disk_image
-            ), "'image_info.os_disk_image' must not be 'None'"
-            # retrieve the os type for arm template.
-            if (
-                azure_node_runbook.is_linux is None
-                and image_info
-                and image_info.os_disk_image.operating_system == "Windows"
-            ):
-                azure_node_runbook.is_linux = False
+                # retrieve the os type for arm template.
+                if (
+                    image_info.os_disk_image
+                    and image_info.os_disk_image.operating_system == "Windows"
+                ):
+                    azure_node_runbook.is_linux = False
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
                 self._get_detailed_sig(azure_node_runbook.shared_gallery)
@@ -1695,22 +1689,18 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
-        assert (
-            resource_sku.location_info
-        ), "'resource_sku.location_info' must not be 'None'"
-        for location_info in resource_sku.location_info:
-            for zone_details in location_info.zone_details:
-                for location_capability in zone_details.capabilities:
-                    azure_raw_capabilities[
-                        location_capability.name
-                    ] = location_capability.value
+        if resource_sku.location_info:
+            for location_info in resource_sku.location_info:
+                for zone_details in location_info.zone_details:
+                    for location_capability in zone_details.capabilities:
+                        azure_raw_capabilities[
+                            location_capability.name
+                        ] = location_capability.value
 
-        assert (
-            resource_sku.capabilities
-        ), "'resource_sku.capabilities' must not be 'None'"
-        for sku_capability in resource_sku.capabilities:
-            # prevent to loop in every feature
-            azure_raw_capabilities[sku_capability.name] = sku_capability.value
+        if resource_sku.capabilities:
+            for sku_capability in resource_sku.capabilities:
+                # prevent to loop in every feature
+                azure_raw_capabilities[sku_capability.name] = sku_capability.value
 
         # calculate cpu count. Some vm sizes, like Standard_HC44rs, doesn't have
         # vCPUsAvailable, so use vCPUs.
