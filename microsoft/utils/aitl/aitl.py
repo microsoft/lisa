@@ -103,7 +103,7 @@ def _add_resource_parser(
             action_parser, support_name=support_name, required_name=required_name
         )
 
-        if resource == "job" and action == "create":
+        if resource in {"job", "template"} and action == "create":
             _add_job_creation_parser(action_parser)
 
         _add_common_optional_parsers(action_parser)
