@@ -83,6 +83,9 @@ class Ip(Tool):
         r"\s+dev\s+"  # looking for the device for the default route
         r"([a-zA-Z0-9]+)"  # capture device
     )
+    __ip_br_show_regex = re.compile(
+        r"(?P<name>\w+)\s+(?P<status>\w+)\s+(?P<mac>[0-9a-z:]+)\s+(?P<flags>\<.+\>)"
+    )
 
     @property
     def command(self) -> str:
@@ -135,6 +138,23 @@ class Ip(Tool):
             "mac": matched.group("mac"),
             "ip_addr": matched.group("ip_addr"),
         }
+
+    def is_device_up(self, nic_name: str) -> bool:
+        # -br flag gives easily parsible output
+        # ex:
+        # eth0             UP             00:15:5d:ff:20:68 ...
+        device_info = self.node.execute(
+            f"ip -br link show {nic_name}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"ip show could not get info for device {nic_name}"
+            ),
+        ).stdout
+        matched = self.__ip_br_show_regex.match(device_info)
+        assert matched is not None, f"Could not parse result: {device_info}"
+        return matched.group("status") == "UP"
 
     def up(self, nic_name: str, persist: bool = False) -> None:
         self._set_device_status(nic_name, "up", persist=persist)
