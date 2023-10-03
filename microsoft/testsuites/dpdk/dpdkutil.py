@@ -286,8 +286,9 @@ def do_pmd_driver_setup(
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
-        if test_nic.lower:
-            node.tools[Ip].down(test_nic.lower)
+        ip = node.tools[Ip]
+        if test_nic.lower and ip.is_device_up(test_nic.lower):
+            ip.down(test_nic.lower)
 
 
 def initialize_node_resources(
