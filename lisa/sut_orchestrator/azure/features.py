@@ -1947,6 +1947,8 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
         if resource_sku.family in [
             "standardDCACCV5Family",
             "standardECACCV5Family",
+            "standardDCADCCV5Family",
+            "standardECADCCV5Family",
         ]:
             return schema.FeatureSettings.create(cls.name())
         return None
