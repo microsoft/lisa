@@ -594,8 +594,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Create libvirt domain (i.e. VM).
         xml = self._create_node_domain_xml(environment, log, node)
+        log.debug(f"Domain xml for {node_context.vm_name} - {xml}")
         node_context.domain = self.libvirt_conn.defineXML(xml)
 
+        log.debug(f"Creating libvirt domain - {node_context.vm_name}")
         self._create_domain_and_attach_logger(
             node_context,
         )
@@ -1103,10 +1105,14 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         while True:
             addr = self._try_get_node_ip_address(environment, log, node)
             if addr:
+                log.debug(f"VM {node_context.vm_name} booted with IP - {addr}")
                 return addr
 
             if time.time() > timeout:
-                raise LisaException(f"no IP addresses found for {node_context.vm_name}")
+                raise LisaException(
+                    f"no IP addresses found for {node_context.vm_name}."
+                    " Guest OS might have failed to boot"
+                )
 
     # Try to get the IP address of the VM.
     def _try_get_node_ip_address(
