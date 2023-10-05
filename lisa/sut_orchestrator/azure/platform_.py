@@ -810,13 +810,8 @@ class AzurePlatform(Platform):
         return information
 
     def _get_disk_controller_type(self, node: Node) -> str:
-        result: str = ""
-        try:
-            result = node.features[Disk].get_hardware_disk_controller_type()
-        except Exception as identifier:
-            # it happens on some error vms. Those error should be caught earlier in
-            # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on collecting disk controller type: {identifier}")
+        disk_controller_type = node.features[Disk].get_hardware_disk_controller_type()
+        result = disk_controller_type if disk_controller_type else ""
         return result
 
     def _get_kernel_version(self, node: Node) -> str:
