@@ -2213,9 +2213,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
                 sub="***REDACTED***",
             )
 
-        self._log.debug(
-            f"extension_parameters: {extension_parameters.as_dict()}"  # type: ignore
-        )
+        self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 
         operation = compute_client.virtual_machine_extensions.begin_create_or_update(
             resource_group_name=self._resource_group_name,

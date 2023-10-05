@@ -1048,7 +1048,7 @@ class AzurePlatform(Platform):
             log.debug(f"{key}: querying")
             all_skus: Dict[str, AzureCapability] = dict()
             paged_skus = compute_client.resource_skus.list(
-                f"location eq '{location}'"
+                filter=f"location eq '{location}'"
             ).by_page()
             for skus in paged_skus:
                 for sku_obj in skus:
