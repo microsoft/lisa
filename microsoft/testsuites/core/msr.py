@@ -117,6 +117,10 @@ class Msr(TestSuite):
             raise SkippedException("MSR platform id test not yet supported on this OS.")
 
         distro.install_packages("msr-tools")
+        if node.execute("command -v rdmsr", shell=True, sudo=True).exit_code != 0:
+            raise SkippedException(
+                "rdmsr isn't available after attempted install of msr-tools."
+            )
         node.tools[Modprobe].load("msr")
         # read the content of the msr register
         id_information = node.execute(
