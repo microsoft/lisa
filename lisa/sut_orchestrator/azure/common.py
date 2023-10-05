@@ -1539,10 +1539,7 @@ def load_environment(
         environment_runbook.nodes_raw = []
 
     vms_map: Dict[str, VirtualMachine] = {}
-    # When lists VMs, it may raise unsupported api version error on "2022-08-01"
-    # in some subscriptions. This version should be safe for those
-    # subscriptions. Once the new version is supported, we can remove this.
-    compute_client = get_compute_client(platform, api_version="2022-03-01")
+    compute_client = get_compute_client(platform)
     vms = compute_client.virtual_machines.list(resource_group_name)
     for vm in vms:
         node_schema = schema.RemoteNode(name=vm.name)
