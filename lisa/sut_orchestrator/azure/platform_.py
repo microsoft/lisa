@@ -49,6 +49,7 @@ from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
+from lisa.features import Disk
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
@@ -164,6 +165,7 @@ WALA_VERSION_PATTERN = re.compile(
     r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
 
+KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
 KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
@@ -433,6 +435,7 @@ class AzurePlatform(Platform):
         # It has to be defined after the class definition is loaded. So it
         # cannot be a class level variable.
         self._environment_information_hooks = {
+            KEY_HARDWARE_DISK_CONTROLLER_TYPE: self._get_disk_controller_type,
             KEY_HOST_VERSION: self._get_host_version,
             KEY_KERNEL_VERSION: self._get_kernel_version,
             KEY_WALA_VERSION: self._get_wala_version,
@@ -777,6 +780,16 @@ class AzurePlatform(Platform):
             information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
         return information
+
+    def _get_disk_controller_type(self, node: Node) -> str:
+        result: str = ""
+        try:
+            result = node.features[Disk].get_hardware_disk_controller_type()
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on collecting disk controller type: {identifier}")
+        return result
 
     def _get_kernel_version(self, node: Node) -> str:
         result: str = ""
