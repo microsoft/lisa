@@ -14,7 +14,8 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Debian, Fedora, Linux, Suse
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Modprobe
+from lisa.tools import Lscpu, Modprobe
+from lisa.tools.lscpu import ARCH_AARCH64, ARCH_X86_64
 
 # See docs for hypercall spec, sharing os info
 # is required before making hypercalls.
@@ -39,7 +40,12 @@ IS_OPEN_SOURCE_OS_MASK = 0x8000_0000_0000_0000
 
 
 class HvOsPlatformInfo:
-    # OS ID's according to tlfs documentation (above)
+    # HV_REGISTER_GUEST_OSID constant declared in linus kernel source:
+    # arch/{ARCH_NAME}/include/asm/hyperv-tlfs.h
+    HV_REGISTER_GUEST_OSID = {
+        ARCH_AARCH64: "0x00090002",
+        ARCH_X86_64: "0x40000000",
+    }
     OS_ID_UNDEFINED = 0
     OS_ID_MSDOS = 1
     OS_ID_WINDOWS_3 = 2
@@ -88,7 +94,7 @@ class HvOsPlatformInfo:
 
 
 @TestSuiteMetadata(
-    area="core",
+    area="msr",
     category="functional",
     description="""
     Test suite verifies hyper-v platform id is set correctly via hypercall to host.
@@ -116,20 +122,42 @@ class Msr(TestSuite):
         else:
             raise SkippedException("MSR platform id test not yet supported on this OS.")
 
-        distro.install_packages("msr-tools")
+        # get the msr offset to read, this constant is arch specific
+        arch_id = node.tools[Lscpu].get_architecture()
+        try:
+            arch_msr_offset = HvOsPlatformInfo.HV_REGISTER_GUEST_OSID[arch_id]
+        except KeyError as missing_key:
+            raise SkippedException(f"Arch {missing_key} is not supported by msr test")
+
+        # try installing msr-tools if rdmsr isn't already insalled.
         if node.execute("command -v rdmsr", shell=True, sudo=True).exit_code != 0:
+            try:
+                distro.install_packages("msr-tools")
+            except AssertionError:
+                raise SkippedException(
+                    "Could not install msr-tools and rdmsr was not available."
+                )
+
+        # bail if rdmsr wasn't in msr-tools packacge.
+        if node.execute("command -v rdmsr", shell=True, sudo=True).exit_code != 0:
+            raise SkippedException("rdmsr isn't available after install of msr-tools.")
+
+        # load the msr module, skip with status if it's broken on this system.
+        try:
+            node.tools[Modprobe].load("msr")
+        except AssertionError:
             raise SkippedException(
-                "rdmsr isn't available after attempted install of msr-tools."
+                "Could not load msr module, package may be broken for this OS."
             )
-        node.tools[Modprobe].load("msr")
+
         # read the content of the msr register
         id_information = node.execute(
-            "rdmsr 0x40000000",
+            f"rdmsr {arch_msr_offset}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "Could not run rdmsr and fetch platform id info"
+                "Could not run rdmsr and fetch platform id info from msr register"
             ),
         ).stdout
 

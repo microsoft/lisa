@@ -52,6 +52,10 @@ class CPUInfo:
         return self.__str__()
 
 
+ARCH_X86_64 = "x86_64"
+ARCH_AARCH64 = "aarch_64"
+
+
 class Lscpu(Tool):
     # Positive example:
     # CPU(s):              16
@@ -75,10 +79,10 @@ class Lscpu(Tool):
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __architecture_dict = {
-        "x86_64": "x86_64",
-        "aarch64": "aarch64",
-        "amd64": "x86_64",
-        "arm64": "aarch64",
+        "x86_64": ARCH_X86_64,
+        "aarch64": ARCH_AARCH64,
+        "amd64": ARCH_X86_64,
+        "arm64": ARCH_AARCH64,
     }
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
