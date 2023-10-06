@@ -135,8 +135,8 @@ _global_sas_vhd_copy_lock = Lock()
 # when call sdk APIs, it's easy to have conflict on access auth files. Use lock
 # to prevent it happens.
 global_credential_access_lock = Lock()
-# if user uses lisa for the first time in parallel, there will be a possiblilty
-# to create the same stroage account at the same time.
+# if user uses lisa for the first time in parallel, there will be a possibility
+# to create the same storage account at the same time.
 # add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
 

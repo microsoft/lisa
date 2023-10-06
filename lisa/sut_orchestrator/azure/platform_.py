@@ -394,9 +394,9 @@ class AzurePlatformSchema:
             #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
             #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
             elif isinstance(self.cloud_raw, dict):
-                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+                cloud_schema = schema.load_by_type(CloudSchema, self.cloud_raw)
                 cloud = Cloud(
-                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
+                    cloud_schema.name, cloud_schema.endpoints, cloud_schema.suffixes
                 )
             else:
                 # by default use azure public cloud

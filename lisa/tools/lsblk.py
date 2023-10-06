@@ -217,11 +217,11 @@ class Lsblk(Tool):
     ) -> DiskInfo:
         disks = self.get_disks(force_run=force_run)
         for disk in disks:
-            # check if disk is mounted and moutpoint matches
+            # check if disk is mounted and mountpoint matches
             if disk.mountpoint == mountpoint:
                 return disk
 
-            # check if any of the partitions is mounted and moutpoint matches
+            # check if any of the partitions is mounted and mountpoint matches
             for partition in disk.partitions:
                 if partition.mountpoint == mountpoint:
                     return disk
@@ -233,11 +233,11 @@ class Lsblk(Tool):
     ) -> str:
         disks = self.get_disks(force_run=force_run)
         for disk in disks:
-            # check if disk is mounted and moutpoint matches
+            # check if disk is mounted and mountpoint matches
             if disk.name == volume_name:
                 return disk.mountpoint
 
-            # check if any of the partitions is mounted and moutpoint matches
+            # check if any of the partitions is mounted and mountpoint matches
             for partition in disk.partitions:
                 if partition.name == volume_name:
                     return partition.mountpoint
