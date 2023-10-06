@@ -44,7 +44,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     # [sudo] password for
     # Password:
-    _sudo_passwrod_prompts: List[str] = [
+    _sudo_password_prompts: List[str] = [
         "[sudo] password for",
         "Password:",
     ]
@@ -630,7 +630,7 @@ class RemoteNode(Node):
         )
         result = process.wait_result(10)
         if result.exit_code != 0:
-            for prompt in self._sudo_passwrod_prompts:
+            for prompt in self._sudo_password_prompts:
                 if prompt in result.stdout:
                     require_sudo_password = True
                     break

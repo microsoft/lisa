@@ -916,8 +916,8 @@ class Debian(Linux):
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
-        aptaddrepository = self._node.tools[AptAddRepository]
-        aptaddrepository.add_repository(repo)
+        apt_repo = self._node.tools[AptAddRepository]
+        apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) == Debian:
