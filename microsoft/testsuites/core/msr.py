@@ -184,6 +184,7 @@ class Msr(TestSuite):
         ).is_not_zero()
 
 
-# NOTE: further work: checking the kernel version matches checking for known manufacturer ids, etc.
-#       implementing this platform ID info is not required for use with hyper-v but is for
-#       hv guest extensions and azure platform health reporting.
+# NOTE: further work: checking the kernel version matches checking for known
+#       manufacturer ids, etc.
+#       implementing this platform ID info is not required for use with hyper-v
+#       but is for hv guest extensions and azure platform health reporting.
