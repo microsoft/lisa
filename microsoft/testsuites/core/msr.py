@@ -16,6 +16,7 @@ from lisa.operating_system import CBLMariner, Debian, Fedora, Linux, Suse
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Lscpu, Modprobe
 from lisa.tools.lscpu import ARCH_AARCH64, ARCH_X86_64
+from lisa.util import MissingPackagesException
 
 # See docs for hypercall spec, sharing os info
 # is required before making hypercalls.
@@ -137,6 +138,8 @@ class Msr(TestSuite):
                 raise SkippedException(
                     "Could not install msr-tools and rdmsr was not available."
                 )
+            except MissingPackagesException:
+                raise SkippedException("Cannot find package msr-tools or rdmsr binary")
 
         # bail if rdmsr wasn't in msr-tools packacge.
         if node.execute("command -v rdmsr", shell=True, sudo=True).exit_code != 0:
@@ -157,7 +160,7 @@ class Msr(TestSuite):
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "Could not run rdmsr and fetch platform id info from msr register"
+                "Could not run rdmsr to fetch platform id info from msr"
             ),
         ).stdout
 
@@ -179,3 +182,8 @@ class Msr(TestSuite):
             "OS_TYPE not set to OPEN_SOURCE in hv platform info bitfield. "
             f"Expected {hex(msr_register_content)} & {hex(IS_OPEN_SOURCE_OS_MASK)} != 0"
         ).is_not_zero()
+
+
+# NOTE: further work: checking the kernel version matches checking for known manufacturer ids, etc.
+#       implementing this platform ID info is not required for use with hyper-v but is for
+#       hv guest extensions and azure platform health reporting.
