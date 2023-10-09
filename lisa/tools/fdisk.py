@@ -34,6 +34,8 @@ class Fdisk(Tool):
         disk_name: str,
         file_system: FileSystem = FileSystem.ext4,
         format_: bool = True,
+        first_partition_size: str = "",
+        second_partition_size: str = "",
     ) -> str:
         """
         disk_name: make a partition against the disk.
@@ -52,8 +54,9 @@ class Fdisk(Tool):
         # fdisk -W always => always to wipe signatures from new partitions
         mkfs = self.node.tools[Mkfs]
         cmd_result = self.node.execute(
-            f"(echo n; echo p; echo 1; echo ; echo; echo ; echo w) | "
-            f"{self.command} -w always -W always {disk_name}",
+            f"(echo n; echo p; echo 1; echo '{first_partition_size}';"
+            f" echo '{second_partition_size}'; echo w) |"
+            f" {self.command} -w always -W always {disk_name}",
             shell=True,
             sudo=True,
         )
@@ -61,8 +64,9 @@ class Fdisk(Tool):
         # when lower fdisk version doesn't support
         if self.not_support_option_pattern.match(cmd_result.stdout):
             self.node.execute(
-                f"(echo n; echo p; echo 1; echo ; echo; echo ; echo w) | "
-                f"{self.command} {disk_name}",
+                f"(echo n; echo p; echo 1; echo '{first_partition_size}';"
+                f" echo '{second_partition_size}'; echo w) |"
+                f" {self.command} {disk_name}",
                 shell=True,
                 sudo=True,
                 expected_exit_code=0,
@@ -134,6 +138,8 @@ class BSDFdisk(Fdisk):
         disk_name: str,
         file_system: FileSystem = FileSystem.ufs,
         format_: bool = True,
+        first_partition_size: str = "",
+        second_partition_size: str = "",
     ) -> str:
         # add free space to the end of the disk
         self.node.execute(
