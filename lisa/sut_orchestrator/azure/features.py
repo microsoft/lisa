@@ -547,13 +547,24 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         if release not in supported_versions.get(type(self._node.os), []):
             raise UnsupportedOperationException("GPU Extension not supported")
         extension = self._node.features[AzureExtension]
-        result = extension.create_or_update(
-            type_="NvidiaGpuDriverLinux",
-            publisher="Microsoft.HpcCompute",
-            type_handler_version="1.6",
-            auto_upgrade_minor_version=True,
-            settings={},
-        )
+        try:
+            result = extension.create_or_update(
+                type_="NvidiaGpuDriverLinux",
+                publisher="Microsoft.HpcCompute",
+                type_handler_version="1.6",
+                auto_upgrade_minor_version=True,
+                settings={},
+            )
+        except Exception as e:
+            if (
+                "'Microsoft.HpcCompute.NvidiaGpuDriverLinux' already added"
+                " or specified in input" in str(e)
+            ):
+                self._log.info("GPU Extension is already added")
+                return
+            else:
+                raise e
+
         if result["provisioning_state"] == "Succeeded":
             return
         else:
