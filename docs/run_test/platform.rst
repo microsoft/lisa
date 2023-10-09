@@ -142,6 +142,9 @@ deployment.
       use_public_address: "<true or false>"
       requirement:
          ...
+         ignored_capability:
+            - SerialConsole
+            - Isolated_Resource
          azure:
             ...
             location: "<one or multiple locations, split by comma>"
@@ -170,6 +173,17 @@ deployment.
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
+* **ignored_capability**. Specify feature names which will be ignored in 
+  test requirement. You can find the feature name from its name method in source code.
+  For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
+
+   .. code:: python
+
+             @classmethod
+             def name(cls) -> str:
+               return FEATURE_NAME_ISOLATED_RESOURCE
+
+  Then, you can add ``isolated_resource`` to ``ignored_capability``.
 * **location**. Specify which locations is used to deploy VMs. It can be one or
   multiple locations. For example, westus3 or westus3,eastus. If multiple
   locations are specified, it means each environment deploys VMs in one of
