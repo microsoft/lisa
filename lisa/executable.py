@@ -392,38 +392,6 @@ class CustomScript(Tool):
             update_envs=update_envs,
         )
 
-    def run(
-        self,
-        parameters: str = "",
-        force_run: bool = False,
-        shell: bool = False,
-        sudo: bool = False,
-        no_error_log: bool = False,
-        no_info_log: bool = True,
-        no_debug_log: bool = False,
-        cwd: Optional[pathlib.PurePath] = None,
-        update_envs: Optional[Dict[str, str]] = None,
-        timeout: int = 600,
-        expected_exit_code: Optional[int] = None,
-        expected_exit_code_failure_message: str = "",
-    ) -> ExecutableResult:
-        process = self.run_async(
-            parameters=parameters,
-            force_run=force_run,
-            shell=shell,
-            sudo=sudo,
-            no_error_log=no_error_log,
-            no_info_log=no_info_log,
-            no_debug_log=no_debug_log,
-            cwd=cwd,
-            update_envs=update_envs,
-        )
-        return process.wait_result(
-            timeout=timeout,
-            expected_exit_code=expected_exit_code,
-            expected_exit_code_failure_message=expected_exit_code_failure_message,
-        )
-
     @property
     def name(self) -> str:
         return self._name
