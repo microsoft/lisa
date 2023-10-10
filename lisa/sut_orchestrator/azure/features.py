@@ -2474,3 +2474,29 @@ class IaaS(AzureFeatureMixin, Feature):
             return schema.FeatureSettings.create(cls.name())
 
         return None
+
+
+class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def reset_password(self, username: str, password: str) -> None:
+        # This uses the VMAccessForLinux extension to reset the credentials for an
+        # existing user or create a new user with sudo privileges.
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/vmaccess
+        reset_user_password = {"username": username, "password": password}
+        extension = self._node.features[AzureExtension]
+        result = extension.create_or_update(
+            name="VMAccessForLinux",
+            publisher="Microsoft.OSTCExtensions",
+            type_="VMAccessForLinux",
+            type_handler_version="1.5",
+            auto_upgrade_minor_version=True,
+            protected_settings=reset_user_password,
+        )
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")

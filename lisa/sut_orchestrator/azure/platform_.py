@@ -454,6 +454,7 @@ class AzurePlatform(Platform):
             features.CVMNestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
+            features.PasswordExtension,
             features.Resize,
             features.StartStop,
             features.IaaS,
@@ -1116,8 +1117,7 @@ class AzurePlatform(Platform):
             arm_parameters.admin_key_data = get_public_key_data(
                 self.runbook.admin_private_key_file
             )
-        else:
-            arm_parameters.admin_password = self.runbook.admin_password
+        arm_parameters.admin_password = self.runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
