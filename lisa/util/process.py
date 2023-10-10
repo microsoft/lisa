@@ -334,6 +334,11 @@ class Process:
             self._result.stdout
         )
 
+        if not self._is_posix:
+            # fix windows ending with " by some unknown reason.
+            self._result.stdout = self._remove_ending_quote(self._result.stdout)
+            self._result.stderr = self._remove_ending_quote(self._result.stderr)
+
         return self._result
 
     def kill(self) -> None:
@@ -483,6 +488,16 @@ class Process:
         ):
             for prompt in self._shell.password_prompts:
                 raw_input = raw_input.replace(prompt, "")
+        return raw_input
+
+    def _remove_ending_quote(self, raw_input: str) -> str:
+        # remove ending " by some unknown reason.
+        if raw_input.startswith('"'):
+            # if it starts with quote, don't remove it.
+            return raw_input
+
+        if raw_input.endswith('"'):
+            raw_input = raw_input[:-1]
         return raw_input
 
 
