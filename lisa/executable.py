@@ -196,7 +196,7 @@ class Tool(InitializableMixin):
         if result.exit_code == 0:
             exists = True
             use_sudo = False
-        else:
+        elif self.node.is_posix:
             result = self.node.execute(
                 where_command,
                 shell=True,
