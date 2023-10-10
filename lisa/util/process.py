@@ -300,6 +300,14 @@ class Process:
             )
 
             self._recycle_resource()
+
+            if not self._is_posix:
+                # convert windows error code to int4, so it's more friendly.
+                assert self._result.exit_code is not None
+                exit_code = self._result.exit_code
+                if exit_code > 2**31:
+                    self._result.exit_code = exit_code - 2**32
+
             self._log.debug(
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
