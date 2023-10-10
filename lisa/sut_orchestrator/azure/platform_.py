@@ -164,7 +164,7 @@ WALA_VERSION_PATTERN = re.compile(
     r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
 
-KEY_DISK_CONTROLLER_TYPE = "disk_controller_type"
+KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
 KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
@@ -434,7 +434,7 @@ class AzurePlatform(Platform):
         # It has to be defined after the class definition is loaded. So it
         # cannot be a class level variable.
         self._environment_information_hooks = {
-            KEY_DISK_CONTROLLER_TYPE: self._get_disk_controller_type,
+            KEY_HARDWARE_DISK_CONTROLLER_TYPE: self._get_disk_controller_type,
             KEY_HOST_VERSION: self._get_host_version,
             KEY_KERNEL_VERSION: self._get_kernel_version,
             KEY_WALA_VERSION: self._get_wala_version,
