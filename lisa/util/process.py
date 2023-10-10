@@ -48,9 +48,11 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
+        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}."])
         if include_output:
-            message += "\n".join(["stdout:", self.stdout, "stderr:", self.stderr])
+            message = "\n".join(
+                [message, "stdout:", self.stdout, "stderr:", self.stderr]
+            )
         # make the type checker happy by not using the union
         expected_exit_codes: List[int] = []
         if isinstance(expected_exit_code, int):
