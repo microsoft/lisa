@@ -223,6 +223,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         cwd: Optional[PurePath] = None,
         timeout: int = 600,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
@@ -236,6 +237,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
         return process.wait_result(
             timeout=timeout,
@@ -254,6 +256,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
     ) -> Process:
         self.initialize()
 
@@ -267,6 +270,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
 
     def cleanup(self) -> None:
@@ -463,8 +467,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
     ) -> Process:
         cmd_id = str(randint(0, 10000))
+        if not encoding:
+            encoding = self._encoding
         process = Process(cmd_id, self.shell, parent_logger=self.log)
         process.start(
             cmd,
@@ -474,7 +481,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             no_debug_log=no_debug_log,
-            encoding=self._encoding,
+            encoding=encoding,
             cwd=cwd,
             update_envs=update_envs,
         )
@@ -710,17 +717,19 @@ class LocalNode(Node):
         runbook: schema.Node,
         index: int,
         logger_name: str,
-        base_part_path: Optional[Path],
         is_test_target: bool = True,
+        base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        encoding: str = "utf-8",
     ) -> None:
         super().__init__(
-            index=index,
             runbook=runbook,
+            index=index,
             logger_name=logger_name,
             is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
+            encoding=encoding,
         )
 
         self._shell = LocalShell()
