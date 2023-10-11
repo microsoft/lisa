@@ -46,7 +46,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
 from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lsblk, Lspci, Modprobe, Rm, Sed
@@ -452,6 +452,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     _amd_supported_skus = re.compile(
         r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
     )
+
+    _grid_unsupported_os = [CBLMariner]
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
@@ -490,6 +492,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             supported = node.os.information.version >= "16.0.0"
         elif isinstance(node.os, Suse):
             supported = node.os.information.version >= "15.0.0"
+        elif isinstance(node.os, CBLMariner):
+            supported = node.os.information.version >= "2.0.0"
 
         return supported
 
@@ -498,7 +502,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
-        if re.match(self._grid_supported_skus, node_runbook.vm_size):
+        if re.match(self._grid_supported_skus, node_runbook.vm_size) and not isinstance(
+            self._node.os, tuple(self._grid_unsupported_os)
+        ):
             driver_list.append(ComputeSDK.GRID)
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
             driver_list.append(ComputeSDK.AMD)
