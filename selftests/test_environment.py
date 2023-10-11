@@ -43,6 +43,7 @@ class CustomLocalNode(node.LocalNode):
         is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             index=index,
@@ -89,6 +90,7 @@ class CustomRemoteNode(node.RemoteNode):
         is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             index=index,

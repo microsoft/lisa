@@ -241,6 +241,7 @@ class Tool(InitializableMixin):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
     ) -> Process:
         """
         Run a command async and return the Process. The process is used for async, or
@@ -266,6 +267,7 @@ class Tool(InitializableMixin):
                 no_debug_log=no_debug_log,
                 cwd=cwd,
                 update_envs=update_envs,
+                encoding=encoding,
             )
             self.__cached_results[command_key] = process
         else:
@@ -283,6 +285,7 @@ class Tool(InitializableMixin):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
         timeout: int = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
@@ -300,6 +303,7 @@ class Tool(InitializableMixin):
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
         return process.wait_result(
             timeout=timeout,
@@ -382,6 +386,7 @@ class CustomScript(Tool):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
     ) -> Process:
         if cwd is not None:
             raise LisaException("don't set cwd for script")
@@ -396,6 +401,7 @@ class CustomScript(Tool):
             no_debug_log=no_debug_log,
             cwd=self._cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
 
     @property

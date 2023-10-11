@@ -159,7 +159,8 @@ class Process:
             f"sudo: {sudo}, "
             f"nohup: {nohup}, "
             f"posix: {self._is_posix}, "
-            f"remote: {self._shell.is_remote}"
+            f"remote: {self._shell.is_remote}, "
+            f"encoding: {encoding}"
         )
 
         try:
