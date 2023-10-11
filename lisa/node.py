@@ -58,6 +58,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
         encoding: str = "utf-8",
+        parent: Optional[Node] = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(runbook=runbook)
         self.is_default = runbook.is_default
@@ -69,6 +71,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._shell: Optional[Shell] = None
         self._first_initialize: bool = False
         self._encoding = encoding
+        self._guests: List[Node] = []
+        self._parent = parent
 
         # will be initialized by platform
         self.features: Features
@@ -131,6 +135,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         return self._support_sudo
 
     @property
+    def parent(self) -> Optional[Node]:
+        return self._parent
+
+    @property
+    def guests(self) -> List[Node]:
+        return self._guests
+
+    @property
     def is_connected(self) -> bool:
         return self._shell is not None and self._shell.is_connected
 
@@ -189,6 +201,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        parent: Optional["Node"] = None,
     ) -> Node:
         if not cls._factory:
             cls._factory = subclasses.Factory[Node](Node)
@@ -200,6 +213,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
+            parent=parent,
         )
 
         node.log.debug(
@@ -721,6 +735,7 @@ class LocalNode(Node):
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
         encoding: str = "utf-8",
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             runbook=runbook,
@@ -730,6 +745,7 @@ class LocalNode(Node):
             base_part_path=base_part_path,
             parent_logger=parent_logger,
             encoding=encoding,
+            **kwargs,
         )
 
         self._shell = LocalShell()
@@ -751,6 +767,55 @@ class LocalNode(Node):
 
     def __repr__(self) -> str:
         return "local"
+
+
+class GuestNode(Node):
+    __PARENT_ASSERT_MESSAGE = "guest node must have a parent node."
+
+    def __init__(
+        self,
+        runbook: schema.Node,
+        index: int,
+        logger_name: str,
+        is_test_target: bool = True,
+        base_part_path: Path | None = None,
+        parent_logger: Logger | None = None,
+        encoding: str = "utf-8",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            runbook=runbook,
+            index=index,
+            logger_name=logger_name,
+            is_test_target=is_test_target,
+            base_part_path=base_part_path,
+            parent_logger=parent_logger,
+            encoding=encoding,
+            **kwargs,
+        )
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        self._shell = self._parent._shell
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "guest_node"
+
+    @property
+    def is_remote(self) -> bool:
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        return self._parent.is_remote
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        # provision before initialize other parts
+        self._provision()
+
+        super()._initialize(*args, **kwargs)
+        # os can be initialized earlier in subclasses. If not, initialize it here.
+        if not hasattr(self, "os"):
+            self.os: OperatingSystem = OperatingSystem.create(self)
+
+    def _provision(self) -> None:
+        ...
 
 
 class Nodes:

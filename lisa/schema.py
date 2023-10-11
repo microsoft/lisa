@@ -1226,6 +1226,12 @@ class RemoteNode(Node):
 
 @dataclass_json()
 @dataclass
+class GuestNode(Node):
+    reinstall: bool = False
+
+
+@dataclass_json()
+@dataclass
 class Environment:
     name: str = field(default="")
     topology: str = field(
@@ -1292,6 +1298,9 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_username: str = constants.DEFAULT_USER_NAME
     admin_password: str = ""
     admin_private_key_file: str = ""
+
+    guest_enabled: bool = False
+    guests: List[Node] = field(default_factory=list)
 
     # no/False: means to delete the environment regardless case fail or pass
     # yes/always/True: means to keep the environment regardless case fail or pass
