@@ -436,6 +436,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         return final_information
 
+    def expand_env_path(self, raw_path: str) -> str:
+        echo = self.tools[Echo]
+        result = echo.run(raw_path, shell=True)
+        return result.stdout
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
             self._log_handler = create_file_handler(
@@ -609,10 +614,7 @@ class RemoteNode(Node):
         ).as_posix()
 
         # expand environment variables in path
-        echo = self.tools[Echo]
-        result = echo.run(working_path, shell=True)
-
-        return self.get_pure_path(result.stdout)
+        return self.get_pure_path(self.expand_env_path(working_path))
 
     @property
     def support_sudo(self) -> bool:
