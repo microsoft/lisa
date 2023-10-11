@@ -241,6 +241,8 @@ class Tool(InitializableMixin):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        # node uses for guest nodes.
+        node: Optional["Node"] = None,
         encoding: str = "",
     ) -> Process:
         """
@@ -257,8 +259,10 @@ class Tool(InitializableMixin):
         sudo = sudo or self._use_sudo
         command_key = f"{command}|{shell}|{sudo}|{cwd}"
         process = self.__cached_results.get(command_key, None)
+        if node is None:
+            node = self.node
         if force_run or not process:
-            process = self.node.execute_async(
+            process = node.execute_async(
                 command,
                 shell=shell,
                 sudo=sudo,
@@ -386,6 +390,7 @@ class CustomScript(Tool):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        node: Optional["Node"] = None,
         encoding: str = "",
     ) -> Process:
         if cwd is not None:
@@ -401,6 +406,7 @@ class CustomScript(Tool):
             no_debug_log=no_debug_log,
             cwd=self._cwd,
             update_envs=update_envs,
+            node=node,
             encoding=encoding,
         )
 
