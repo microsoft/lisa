@@ -290,7 +290,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         else:
             return PureWindowsPath(path)
 
-    def get_str_path(self, path: PurePath) -> str:
+    def get_str_path(self, path: Union[PurePath, str]) -> str:
+        # normalize str path to pure path for next step.
+        if isinstance(path, str):
+            path = self.get_pure_path(path)
+
         # convert to path format of the system.
         if self.is_posix:
             return path.as_posix()
