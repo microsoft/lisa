@@ -40,6 +40,7 @@ class PowerShell(Tool):
             raise LisaException(
                 f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
                 f"output: {result.stdout}"
+                f"error: {result.stderr}"
             )
         return result.stdout
 
