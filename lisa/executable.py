@@ -210,6 +210,12 @@ class Tool(InitializableMixin):
                 )
                 exists = True
                 use_sudo = True
+        else:
+            # for Windows, where is not enough to check if a full path exists,
+            # use dir to try again.
+            test_command = f"powershell test-path '{command}'"
+            result = self.node.execute(test_command, shell=True, no_info_log=True)
+            exists = result.stdout == "True"
         return exists, use_sudo
 
     def install(self) -> bool:
