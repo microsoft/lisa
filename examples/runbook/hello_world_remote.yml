@@ -9,13 +9,13 @@ environment:
           address: <ip or fqdn>
           username: <username>
           password: <your password or privateKeyFile>
-          privateKeyFile: <your password or privateKeyFile>
+          private_key_file: <your password or privateKeyFile>
         - type: remote
           port: 22
           address: <ip or fqdn>
           username: <username>
           password: <your password or privateKeyFile>
-          privateKeyFile: <your password or privateKeyFile>
+          private_key_file: <your password or privateKeyFile>
 platform:
   - type: ready
 testcase:
