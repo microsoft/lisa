@@ -22,7 +22,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.executable import ExecutableResult
-from lisa.features import Disk
+from lisa.features import Disk, DiskPremiumSSDLRS
 from lisa.operating_system import Posix
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Find, Lsblk, Wget
@@ -315,7 +315,10 @@ class CVTTest(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension],
+            disk=DiskPremiumSSDLRS(),
+        ),
     )
     def verify_asr_by_cvt(
         self,
