@@ -1793,6 +1793,7 @@ class CBLMariner(RPMDistro):
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
     ) -> None:
+        super().add_azure_core_repo(repo_name, code_name)
         release = self.information.release
         from lisa.tools import Curl
 
