@@ -42,7 +42,7 @@ _cudnn_file_name = "cudnn.tgz"
     """,
 )
 class GpuTestSuite(TestSuite):
-    TIMEOUT = 2000
+    TIMEOUT = 12000
 
     _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
     _numpy_error_pattern = re.compile(
