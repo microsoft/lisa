@@ -155,7 +155,7 @@ class Infiniband(Feature):
         ).is_not_empty()
         return result.stdout.split()
 
-    def _get_mofed_version(self) -> str:
+    def _get_ofed_version(self) -> str:
         node = self._node
         default = "5.4-3.0.3.0"
         if self._is_legacy_device():
@@ -336,10 +336,11 @@ class Infiniband(Feature):
         os_version = node.os.information.release.split(".")
         # Dependencies
         kernel = node.tools[Uname].get_linux_information().kernel_version_raw
+        kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
 
         # Install OFED
-        mofed_version = self._get_mofed_version()
+        ofed_version = self._get_ofed_version()
         if isinstance(node.os, Oracle):
             os_class = "ol"
         elif isinstance(node.os, Redhat):
@@ -347,14 +348,23 @@ class Infiniband(Feature):
         else:
             os_class = node.os.name.lower()
 
-        mofed_folder = (
-            f"MLNX_OFED_LINUX-{mofed_version}-{os_class}"
+        # refer https://forums.developer.nvidia.com/t/connectx-3-on-ubuntu-20-04/206201/8 # noqa: E501
+        # for why we don't support ConnectX-3 on kernel >= 5.6
+        if self._is_legacy_device() and kernel_version >= "5.6.0":
+            raise UnsupportedKernelException(
+                node.os,
+                "OFED driver for ConnectX-3 devices is not supported on "
+                "kernel versions >= 5.6",
+            )
+
+        ofed_folder = (
+            f"MLNX_OFED_LINUX-{ofed_version}-{os_class}"
             f"{os_version[0]}."
             f"{os_version[1]}-x86_64"
         )
-        tarball_name = f"{mofed_folder}.tgz"
+        tarball_name = f"{ofed_folder}.tgz"
         mlnx_ofed_download_url = (
-            f"https://content.mellanox.com/ofed/MLNX_OFED-{mofed_version}"
+            f"https://content.mellanox.com/ofed/MLNX_OFED-{ofed_version}"
             f"/{tarball_name}"
         )
 
@@ -402,12 +412,12 @@ class Infiniband(Feature):
             extra_params += " --skip-unsupported-devices-check"
 
         node.execute(
-            f"{self.resource_disk_path}/{mofed_folder}/mlnxofedinstall "
+            f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
             f"--add-kernel-support {extra_params} "
             f"--tmpdir {self.resource_disk_path}/tmp",
             expected_exit_code=0,
             expected_exit_code_failure_message="SetupRDMA: failed to install "
-            "MOFED Drivers",
+            "OFED Drivers",
             sudo=True,
             timeout=1200,
         )
