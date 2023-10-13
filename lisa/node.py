@@ -32,7 +32,7 @@ from lisa.util import (
 from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
-from lisa.util.process import ExecutableResult, Process
+from lisa.util.process import ExecutableResult, Process, process_command
 from lisa.util.shell import LocalShell, Shell, SshShell
 
 T = TypeVar("T")
@@ -482,6 +482,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
         encoding: str = "",
+        command_splitter: Callable[..., List[str]] = process_command,
     ) -> Process:
         cmd_id = str(randint(0, 10000))
         if not encoding:
@@ -498,6 +499,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             encoding=encoding,
             cwd=cwd,
             update_envs=update_envs,
+            command_splitter=command_splitter,
         )
         return process
 
