@@ -51,3 +51,27 @@ class WindowsEcho(Echo):
     @property
     def command(self) -> str:
         return "cmd /c echo"
+
+    def write_to_file(
+        self,
+        value: str,
+        file: PurePath,
+        sudo: bool = False,
+        timeout: int = 60,
+        append: bool = False,
+        ignore_error: bool = True,
+    ) -> None:
+        from . import PowerShell
+
+        command = f'@"\n{value}\n"@ | Out-File -FilePath {file}'
+        if append:
+            command += " -Append"
+
+        ps = self.node.tools[PowerShell]
+        ps.run_cmdlet(
+            command,
+            force_run=True,
+            sudo=sudo,
+            timeout=timeout,
+            fail_on_error=not ignore_error,
+        )
