@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 from dataclasses import dataclass, field
 from pathlib import PurePath
 from typing import Any, Dict, List, Type
@@ -7,7 +8,7 @@ from typing import Any, Dict, List, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.tools.remote_copy import RemoteCopy
+from lisa.tools import Ls, Mkdir, RemoteCopy
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -56,11 +57,22 @@ class FileUploaderTransformer(DeploymentTransformer):
         if not runbook.files:
             raise ValueError("'files' must be provided.")
 
+        if not os.path.exists(runbook.source):
+            raise ValueError(f"source {runbook.source} doesn't exist.")
+
     def _internal_run(self) -> Dict[str, Any]:
         runbook: FileUploaderTransformerSchema = self.runbook
         result: Dict[str, Any] = dict()
         copy = self._node.tools[RemoteCopy]
         uploaded_files: List[str] = []
+
+        self._log.debug(f"checking destination {runbook.destination}")
+        ls = self._node.tools[Ls]
+        if not ls.path_exists(runbook.destination):
+            self._log.debug(f"creating directory {runbook.destination}")
+            mkdir = self._node.tools[Mkdir]
+            mkdir.create_directory(runbook.destination)
+
         for name in runbook.files:
             self._log.debug(f"uploading file {name}")
             copy.copy_to_remote(
