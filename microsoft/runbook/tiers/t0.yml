@@ -1,3 +1,4 @@
 testcase:
   - criteria:
       priority: 0
+    enabled: $(enable_tests)
