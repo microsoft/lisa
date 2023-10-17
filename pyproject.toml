@@ -26,6 +26,7 @@ dependencies = [
     "simpleeval ~= 0.9.12",
     "spurplus ~= 2.3.4",
     "websockets ~= 10.3",
+    "charset_normalizer ~= 2.1.1",
 ]
 dynamic = ["version"]
 license = {text = "MIT"}

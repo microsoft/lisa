@@ -117,6 +117,7 @@ from .usermod import Usermod
 from .vdsotest import Vdsotest
 from .who import Who
 from .whoami import Whoami
+from .wsl import Wsl
 
 __all__ = [
     "AptAddRepository",
@@ -242,4 +243,5 @@ __all__ = [
     "Vdsotest",
     "Who",
     "Whoami",
+    "Wsl",
 ]

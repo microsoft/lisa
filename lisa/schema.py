@@ -1232,6 +1232,18 @@ class GuestNode(Node):
 
 @dataclass_json()
 @dataclass
+class WslNode(GuestNode):
+    type: str = "wsl"
+    # force to reinstall
+    distro: str = "Ubuntu"
+    # set to new kernel path, if it needs to specify kernel.
+    kernel: str = ""
+    # debug console
+    debug_console: bool = False
+
+
+@dataclass_json()
+@dataclass
 class Environment:
     name: str = field(default="")
     topology: str = field(
