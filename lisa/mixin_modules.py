@@ -8,6 +8,7 @@ import platform
 
 import lisa.combinators.batch_combinator  # noqa: F401
 import lisa.combinators.csv_combinator  # noqa: F401
+import lisa.combinators.git_bisect_combinator  # noqa: F401
 import lisa.combinators.grid_combinator  # noqa: F401
 import lisa.notifiers.console  # noqa: F401
 import lisa.notifiers.env_stats  # noqa: F401

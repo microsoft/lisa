@@ -1,0 +1,95 @@
+name: git_bisect
+extension:
+  - "../../testsuites"
+
+include:
+  - path: ../tiers/tier.yml
+  - path: ../azure.yml
+
+variable:
+  - name: subscription_id
+    value: ""
+  - name: tier
+    value: 0
+  - name: test_case_name
+    value: "smoke_test"
+  - name: marketplace_image
+    value: "canonical ubuntuserver 18.04-lts latest"
+  - name: repo_url
+    value: "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git"
+  - name: good_commit
+    value: ""
+  - name: bad_commit
+    value: ""
+
+  # Do not assign values to below variables. These are used by the combinator.
+  - name: build_vm_address
+    value: ""
+  - name: bisect_vm_address
+    value: ""
+  - name: build_vm_resource_group_name
+    value: ""
+  - name: bisect_vm_resource_group_name
+    value: ""
+  - name: vhd
+    value: ""
+  - name: kernel_installer_is_success
+    value: False
+  - name: ref
+    value: ""
+
+transformer:
+  - type: azure_deploy
+    name: bisect_vm
+    requirement:
+      azure:
+        marketplace: $(marketplace_image)
+        location: $(location)
+      core_count: 2
+    enabled: true
+  - type: azure_deploy
+    phase: expanded
+    name: build_vm
+    requirement:
+      azure:
+        marketplace: $(marketplace_image)
+        location: $(location)
+      core_count: 16
+    enabled: true
+  - type: kernel_installer
+    phase: expanded
+    connection:
+      address: $(build_vm_address)
+      private_key_file: $(admin_private_key_file)
+    installer:
+      type: source
+      location:
+        type: repo
+        path: /mnt/code
+        ref: $(ref)
+        repo: $(repo_url)
+    raise_exception: False
+    rename:
+      kernel_installer_is_success: enable_tests
+  # Do not create vhd when build fails
+  - type: azure_vhd
+    enabled: $(enable_tests)
+    phase: expanded
+    resource_group_name: $(build_vm_resource_group_name)
+    rename:
+      azure_vhd_url: vhd
+  - type: azure_delete
+    resource_group_name: $(build_vm_resource_group_name)
+    phase: expanded_cleanup
+  - type: azure_delete
+    resource_group_name: $(bisect_vm_resource_group_name)
+    phase: cleanup
+
+combinator:
+  type: git_bisect
+  repo: $(repo_url)
+  bad_commit: $(bad_commit)
+  good_commit: $(good_commit)
+  connection:
+    address: $(bisect_vm_address)
+    private_key_file: $(admin_private_key_file)
