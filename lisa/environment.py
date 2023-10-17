@@ -354,6 +354,43 @@ class Environment(ContextMixin, InitializableMixin):
         self.log.debug("mark environment to dirty")
         self._is_dirty = True
 
+    def get_guest_environment(self) -> "Environment":
+        # It adds guests from different parent nodes. The order is to add first
+        # guest from each node, and then add second and more similar. So, it can
+        # test across parents.
+
+        # Make preparing phase works from parents.
+        if self.status == EnvironmentStatus.Prepared:
+            return self
+
+        runbook = copy.copy(self.runbook)
+        runbook.name = f"{self.name}(gst)"
+        env = Environment(
+            is_predefined=self.is_predefined,
+            warn_as_error=self.warn_as_error,
+            id_=self._raw_id,
+            runbook=runbook,
+        )
+
+        env.id = f"{self.id}(gst)"
+
+        max_guest = max([len(node.guests) for node in self.nodes.list()])
+        env.runbook.nodes = []
+        env.nodes = Nodes()
+        for index in range(max_guest):
+            for node in self.nodes.list():
+                if node.guests and len(node.guests) > index:
+                    guest = node.guests[index]
+                    env.nodes.append(guest)
+
+        # set other needed fields
+        env.platform = self.platform
+
+        # use what ever the status of current environment.
+        env.status = self.status
+
+        return env
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:
             raise LisaException("environment is not deployed, cannot be initialized")

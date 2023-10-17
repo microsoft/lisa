@@ -63,6 +63,9 @@ class LisaRunner(BaseRunner):
         # load development settings
         development.load_development_settings(self._runbook.dev)
 
+        # set flag to enable guest nodes.
+        self._guest_enabled = self.platform.runbook.guest_enabled
+
         # load environments
         runbook_environments = load_environments(self._runbook.environment)
         if not runbook_environments:
@@ -75,7 +78,10 @@ class LisaRunner(BaseRunner):
         self.environments: List[Environment] = [
             x for x in runbook_environments.values()
         ]
-        self._log.debug(f"candidate environment count: {len(self.environments)}")
+        self._log.debug(
+            f"Candidate environment count: {len(self.environments)}. "
+            f"Guest enabled: {self._guest_enabled}."
+        )
 
     @property
     def is_done(self) -> bool:
@@ -328,8 +334,8 @@ class LisaRunner(BaseRunner):
     ) -> None:
         self._log.debug(
             f"start running cases on '{environment.name}', "
-            f"case count: {len(test_results)}, "
-            f"status {environment.status.name}"
+            f"status {environment.status.name}, "
+            f"guest enabled: {self._guest_enabled}"
         )
         assert test_results
         assert len(test_results) == 1, (
@@ -347,8 +353,12 @@ class LisaRunner(BaseRunner):
         if environment.status == EnvironmentStatus.Deployed:
             environment.mark_dirty()
 
+        tested_environment = environment
+        if self._guest_enabled:
+            tested_environment = environment.get_guest_environment()
+
         test_suite.start(
-            environment=environment,
+            environment=tested_environment,
             case_results=test_results,
             case_variables=case_variables,
         )
@@ -358,10 +368,10 @@ class LisaRunner(BaseRunner):
         # Some test cases may break the ssh connections. To reduce side effects
         # on next test cases, close the connection after each test run. It will
         # be connected on the next command automatically.
-        environment.nodes.close()
+        tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not environment.nodes.test_connections():
+        if not is_unittest() and not tested_environment.nodes.test_connections():
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "
@@ -379,7 +389,7 @@ class LisaRunner(BaseRunner):
                     "found kernel panic from the node(s) of "
                     f"'{environment.name}': {identifier}"
                 )
-        environment.nodes.close()
+        tested_environment.nodes.close()
 
         # keep failed environment, not to delete
         if (
@@ -600,9 +610,13 @@ class LisaRunner(BaseRunner):
         if environment:
             runnable_results: List[TestResult] = []
             for result in results:
+                # use guest environment to check
+                tested_environment = environment
+                if self._guest_enabled:
+                    tested_environment = environment.get_guest_environment()
                 try:
                     if result.check_environment(
-                        environment=environment, save_reason=True
+                        environment=tested_environment, save_reason=True
                     ) and (
                         not result.runtime_data.use_new_environment
                         or environment.is_new
