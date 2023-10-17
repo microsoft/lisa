@@ -115,7 +115,9 @@ class TimeSync(TestSuite):
         #  instead of /dev/ptp0 or /dev/ptp1.
         for chrony_config in self.chrony_path:
             if node.shell.exists(PurePosixPath(chrony_config)):
-                chrony_results = cat.run(f"{chrony_config}")
+                chrony_results = cat.run(
+                    f"{chrony_config}", sudo=True, shell=True, force_run=True
+                )
                 assert_that(chrony_results.stdout).described_as(
                     "Chrony config file should use the symlink /dev/ptp_hyperv."
                 ).contains(self.hyperv_ptp_udev_rule)
