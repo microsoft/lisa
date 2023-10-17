@@ -48,7 +48,7 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}."])
+        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}"])
         if include_output:
             message = "\n".join(
                 [message, "stdout:", self.stdout, "stderr:", self.stderr]
