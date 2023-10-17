@@ -5,7 +5,18 @@ from __future__ import annotations
 
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
 from random import randint
-from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from lisa import schema
 from lisa.executable import Tools
@@ -13,7 +24,7 @@ from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
 from lisa.operating_system import BSD, OperatingSystem
 from lisa.secret import add_secret
-from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
+from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -818,6 +829,148 @@ class GuestNode(Node):
 
     def _provision(self) -> None:
         ...
+
+
+class WslContainerNode(GuestNode):
+    def __init__(
+        self,
+        runbook: schema.Node,
+        index: int,
+        logger_name: str,
+        is_test_target: bool = True,
+        base_part_path: Path | None = None,
+        parent_logger: Logger | None = None,
+        encoding: str = "utf-8",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            runbook=runbook,
+            index=index,
+            logger_name=logger_name,
+            is_test_target=is_test_target,
+            base_part_path=base_part_path,
+            parent_logger=parent_logger,
+            encoding=encoding,
+            **kwargs,
+        )
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "wsl"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.WslNode
+
+    def reboot(self, time_out: int = 300) -> None:
+        self._wsl.shutdown(self._distro)
+
+    def _provision(self) -> None:
+        assert self.parent, self.__PARENT_ASSERT_MESSAGE
+
+        runbook = cast(schema.WslNode, self.runbook)
+        # initialize wsl tool to check if wsl installed
+        wsl: Wsl = self.parent.tools.create(Wsl, guest=self)
+        self._wsl = wsl
+        self._distro = runbook.distro
+
+        wsl.install_distro(
+            name=self.runbook.distro, reinstall=runbook.reinstall, kernel=runbook.kernel
+        )
+
+    def _execute(
+        self,
+        cmd: str,
+        shell: bool = False,
+        sudo: bool = False,
+        nohup: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
+        no_debug_log: bool = False,
+        cwd: Optional[PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
+        command_splitter: Callable[..., List[str]] = process_command,
+    ) -> Process:
+        assert self.parent, self.__PARENT_ASSERT_MESSAGE
+
+        cwd_commands: List[str] = []
+        if cwd:
+            # preprocess cwd, and ignore it from parent's command.
+            cwd_commands.append("--cd")
+            cwd_commands.append(str(PurePosixPath(cwd)))
+
+        def _get_wsl_cmd(
+            is_posix: bool,
+            command: str,
+            sudo: bool,
+            shell: bool,
+            nohup: bool,
+            update_envs: Dict[str, str],
+        ) -> List[str]:
+            # change order to support envs
+            result: List[str] = []
+            if update_envs:
+                # set all envs in wsl, not in Windows.
+                for key, value in update_envs.items():
+                    value = value.replace('"', '\\"')
+                    result.append("export")
+                    result.append(f"{key}={value}")
+                    result.append(";")
+
+                # prevent it's be processed by the other logic in underlying
+                # shell.
+                update_envs.clear()
+
+            if sudo:
+                result += ["sudo"]
+
+            if nohup:
+                result += ["nohup"]
+
+            split_cmd = process_command(
+                is_posix=True,
+                command=command,
+                sudo=False,
+                shell=shell,
+                nohup=False,
+                update_envs={},
+            )
+
+            if shell and self.is_remote:
+                # fix for remote bash commands.
+                # assume the original output is like:
+                # ['sh', '-c', command]
+                last_command = split_cmd[-1].replace('"', '\\"')
+                split_cmd[-1] = f'"{last_command}"'
+
+            prefixes = [self._wsl.command, "-d", self._distro]
+
+            if cwd_commands:
+                prefixes += cwd_commands
+
+            result = [
+                *prefixes,
+                "--",
+                *result,
+                *split_cmd,
+            ]
+
+            return result
+
+        return super()._execute(
+            cmd=cmd,
+            shell=shell,
+            sudo=sudo,
+            nohup=nohup,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            no_debug_log=no_debug_log,
+            cwd=None,
+            update_envs=update_envs,
+            encoding=encoding,
+            command_splitter=_get_wsl_cmd,
+        )
 
 
 class Nodes:
