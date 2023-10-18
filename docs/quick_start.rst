@@ -2,7 +2,7 @@ Introduction
 ============
 
 **LISA** can be used to run test against the local node, or a remote node; if it
-is used to run against a remote node, you don’t need to configure anything on
+is used to run against a remote node, you don't need to configure anything on
 the remote node.
 
 .. figure:: img/deploy.svg

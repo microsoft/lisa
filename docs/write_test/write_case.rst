@@ -36,7 +36,7 @@ following documents to ensure a better LISA development experience. We believe
 that the engineering excellence is equally important in addition to new test
 cases, since any test case will be run thousands of times, and many people will
 read and troubleshoot it. Therefore, a good test case following the guidelines
-can save everyone’s time.
+can save everyone's time.
 
 -  :doc:`Basic concepts <concepts>` introduces design considerations
    and how components work together in LISA. We recommend every LISA developer
@@ -153,7 +153,7 @@ Definition in test case
    case of more importance, and thus it will be run more often. The
    lowest value (most prioritized) is ``0``.
 -  **requirement** defines the requirements in this case. If no
-   requirement specified, the test suite’s or the default global
+   requirement specified, the test suite's or the default global
    requirements will apply.
 -  **timeout** defines when the test case will be ended by timeout. The default
    value is 3600 seconds. It applies to test method and before/after test case
@@ -314,7 +314,7 @@ other functionality.
 get_environment_information
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It returns the information of an environment. It’s called when a test
+It returns the information of an environment. It's called when a test
 case is completed.
 
 Please note that to avoid the mutual influence of hooks, there is no

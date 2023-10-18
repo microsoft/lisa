@@ -166,7 +166,7 @@ cases, other requirements of the test cases in addition to the default
 ones should be defined explicitly.
 
 The platform provides environments with different **capability**. The
-capabilities of environments are loaded from the platform’s API. Only if
+capabilities of environments are loaded from the platform's API. Only if
 the capability of an environment meets the requirements of a test case,
 the test case can be run on this environment.
 

@@ -33,7 +33,7 @@ You are welcome to provide any feedback by `filing an
 issue <https://github.com/microsoft/lisa/issues/new>`__.
 
 When there is any question, please check :doc:`FAQ and troubleshooting
-<troubleshooting>` first. If there is no satisfying answer, don’t hesitate to
+<troubleshooting>` first. If there is no satisfying answer, don't hesitate to
 `ask us <https://github.com/microsoft/lisa/issues/new>`__.
 
 Propose or implement a new feature
@@ -58,10 +58,10 @@ Contributing fixes or extensions
 --------------------------------
 
 If there is a bug and you want to fix it, feel free to do so by
-submitting a pull request. We will review it proactively. Once it’s
+submitting a pull request. We will review it proactively. Once it's
 approved, we will merge it.
 
-If you’d like to suggest any extension, please submit a pull request.
+If you'd like to suggest any extension, please submit a pull request.
 
 Learn more from :doc:`development guidelines <write_test/guidelines>` and
 :doc:`how to write extensions <write_test/extension>`.

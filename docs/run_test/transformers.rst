@@ -162,7 +162,7 @@ type: string | Default: "None" | Allowed Values: "None", "ReadOnly", "ReadWrite"
 rename
 ^^^^^^
 type: <key>: <value>
-Used to rename the ouput variable
+Used to rename the output variable
 
 eg: azure_sig_url: shared_gallery
 Rename's the transformer output `azure_sig_url` to `shared_gallery`

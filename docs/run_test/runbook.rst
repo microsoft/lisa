@@ -433,7 +433,7 @@ type: bool, optional, default is False.
 When set to True, the value of this variable will be masked in log and
 other output information.
 
-Recommend to use secret file or env variable. It’s not recommended to
+Recommend to use secret file or env variable. It's not recommended to
 specify secret value in runbook directly.
 
 file
@@ -471,7 +471,7 @@ type: str, required, the type of transformer. See `transformers
 <https://github.com/microsoft/lisa/tree/main/lisa/transformers>`__ for all
 transformers.
 
-See  :ref:`documentation for transformers <transformers.rst>`
+See :doc:`documentation for transformers<transformers>`.
 
 .. _name-3:
 
@@ -480,8 +480,8 @@ name
 
 type: str, optional, default is the ``type``.
 
-Unique name of the transformer. It’s depended by other transformers. If
-it’s not specified, it will use the ``type`` field. But if there are two
+Unique name of the transformer. It's depended by other transformers. If
+it's not specified, it will use the ``type`` field. But if there are two
 transformers with the same type, one of them should have name at least.
 
 prefix
@@ -489,7 +489,7 @@ prefix
 
 type: str, optional, default is the ``name``.
 
-The prefix of generated variables from this transformer. If it’s not
+The prefix of generated variables from this transformer. If it's not
 specified, it will use the ``name`` field.
 
 depends_on
