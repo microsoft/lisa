@@ -206,6 +206,7 @@ class GpuTestSuite(TestSuite):
         2. Validate enable back the disabled GPU devices.
         """,
         priority=2,
+        timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
         ),
@@ -250,6 +251,7 @@ class GpuTestSuite(TestSuite):
         3. Compare with PCI result
         """,
         priority=3,
+        timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
         ),
