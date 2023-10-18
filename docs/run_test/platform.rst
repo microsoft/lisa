@@ -15,6 +15,8 @@ Run tests on different platforms
 
 -  `Run on AWS <#run-on-aws>`__
 
+-  `Run on WSL <#run-on-wsl>`__
+
 Run on Azure
 ------------
 
@@ -294,3 +296,44 @@ be deployed to the same configured region.
    Update the default user name for the AMI you use to launch the instance.
    For an Ubuntu AMI, the user name is ubuntu. Please refer to the
    `general prerequisites for connecting to the instance <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html>`_.
+
+Run on WSL
+------------
+
+WSL is supported cross all platforms by the guest layer in a node. So, it can be
+run with Local, Ready, Azure, AWS, BareMetal, etc. It supports below
+functionalities:
+
+* Provisioning WSL from a clean environment, or reuse existing WSL environment.
+* Replace the default kernel.
+* Install distro by names.
+* Support kernel format as tar.xz, unzipped kernel, or a folder which contains a
+  file starting with "vmlinux-".
+
+The WSL configurations is under platform section as below.
+
+.. code:: yaml
+
+   platform:
+   - type: ready
+      guest_enabled: true # Default is false. Make sure set it to true to enable WSL.
+      guests:
+      - type: wsl
+        reinstall: false # Default is false. Set to true to reinstall WSL every time.
+        distro: # distro name in Windows store. Default is Ubuntu.
+        kernel: # path to replaced kernel
+        debug_console: # true or false. Default is false. Set it to true to pop up console for debugging.
+
+If it needs to copy kernel to the Windows host, you can use the
+file_uploader transformer to upload the kernel during the "environment_connected"
+phase.
+
+.. code:: yaml
+
+   transformer:
+   - type: file_uploader
+     phase: environment_connected
+     source: D:\temp
+     destination: \temp
+     files:
+       - linux-5.15.123.1-microsoft-standard-WSL2.tar.xz
