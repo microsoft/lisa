@@ -10,7 +10,7 @@ Welcome to Linux Integration Services Automation (LISA)!
 |CI Workflow| |GitHub license| |Docs|
 
 **Linux Integration Services Automation (LISA)** is a Linux quality
-validation system, which consists of two parts：
+validation system, which consists of two parts:
 
 -  A test framework to drive test execution.
 -  A set of test suites to verify Linux kernel/distribution quality.
@@ -22,7 +22,7 @@ on any platforms if the proper orchestrator module implemented.
 Why LISA
 --------
 
--  **Scalable**：Benefit from the appropriate abstractions, **LISA**
+-  **Scalable**: Benefit from the appropriate abstractions, **LISA**
    can be used to test the quality of numerous Linux distributions
    without duplication of code implementation.
 
@@ -59,7 +59,7 @@ used standalone or called from the current LISA. Learn more from :doc:`how to
 run LISAv2 test cases <run_test/run_legacy>`.
 
 LISA is in active developing, and a lot of exciting features are implementing.
-We’re listening your `feedback
+We're listening your `feedback
 <https://github.com/microsoft/lisa/issues/new>`__.
 
 License

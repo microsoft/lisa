@@ -87,16 +87,16 @@ def parse_args() -> Namespace:
     support_working_path(parser)
     support_id(parser)
 
-    # Default to ‘run’ when no subcommand is given.
+    # Default to 'run' when no subcommand is given.
     parser.set_defaults(func=commands.run)
 
     subparsers = parser.add_subparsers(dest="cmd", required=False)
 
-    # Entry point for ‘run’.
+    # Entry point for 'run'.
     run_parser = subparsers.add_parser("run")
     run_parser.set_defaults(func=commands.run)
 
-    # Entry point for ‘list-start’.
+    # Entry point for 'list-start'.
     list_parser = subparsers.add_parser(constants.LIST)
     list_parser.set_defaults(func=commands.list_start)
     list_parser.add_argument(
@@ -114,7 +114,7 @@ def parse_args() -> Namespace:
         help="ignore test case selection, and display all test cases",
     )
 
-    # Entry point for ‘check’.
+    # Entry point for 'check'.
     check_parser = subparsers.add_parser("check")
     check_parser.set_defaults(func=commands.check)
 

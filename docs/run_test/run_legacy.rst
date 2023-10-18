@@ -7,7 +7,7 @@ value of LISA, we decide to continue to invest and have more innovation
 on LISA. So, we started the next version.
 
 During the transition time, we keep validating Linux kernels and
-distributions. We cannot and don’t want to stop to wait for the exciting
+distributions. We cannot and don't want to stop to wait for the exciting
 current LISA. The two versions will be co-existing for a while. So, the
 current LISA version supports to invoke previous LISAv2.
 
@@ -36,13 +36,13 @@ Follow `LISAv2
 document <https://github.com/microsoft/lisa/blob/master/README.md>`__
 to understand prerequisites and prepare secret files.
 
-Note, you don’t need to clone the LISAv2 yourself, the current LISA will
+Note, you don't need to clone the LISAv2 yourself, the current LISA will
 clone it when running.
 
 Limitations
 -----------
 
-1. The Test in Parallel of LISAv2 doesn’t support with the current LISA
+1. The Test in Parallel of LISAv2 doesn't support with the current LISA
    together. The current LISA implements test matrix to replace current
    test in parallel in LISAv2. There is no plan for compatibility with
    LISAv2 on this.
@@ -54,7 +54,7 @@ Limitations
 Road map
 --------
 
-We’re migrating LISAv2 test cases to current LISA by test case priority.
+We're migrating LISAv2 test cases to current LISA by test case priority.
 We will keep t0 to tx runbooks update to date. When test cases migrated,
-they will be included in current LISA, and remove from LISAv2. It’s
+they will be included in current LISA, and remove from LISAv2. It's
 transparent when running LISA tests.

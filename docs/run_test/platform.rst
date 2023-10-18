@@ -214,8 +214,8 @@ If you have prepared a Linux computer for testing, please run LISA with
 
       lisa -r ./microsoft/runbook/ready.yml -v public_address:<public address> -v "user_name:<user name>" -v "admin_private_key_file:<private key file>"
 
-The advantage is it’s not related to any infra. The shortage is that,
-some test cases won’t run in Ready platform, for example, test cases
+The advantage is it's not related to any infra. The shortage is that,
+some test cases won't run in Ready platform, for example, test cases
 cannot get serial log from a VM directly.
 
 ``ready`` runbook also supports tests which require multiple computers (for

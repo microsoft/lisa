@@ -17,7 +17,7 @@ Linux VM on Azure.
    authentications, for more information, please refer to :doc: `runbook
    reference <runbook>`.
 
-   Here, let’s choose ``Azure CLI`` for the setup. You should see a page
+   Here, let's choose ``Azure CLI`` for the setup. You should see a page
    pop up and all your Azure subscriptions shown in console after
    running the following command.
 
@@ -56,7 +56,7 @@ Linux VM on Azure.
       }
 
    Note although the example subscription named “AzureCloud” has the
-   attribute ``isDefault`` as true, it’s not necessary to do so as long
+   attribute ``isDefault`` as true, it's not necessary to do so as long
    as you provide the correct ``<subscription id>``.
 
 #. Prepare SSH key pair
@@ -66,7 +66,7 @@ Linux VM on Azure.
    running the test.
 
    You can skip this step if you already have a key pair. However, if
-   you don’t have a key pair, run below command to create a new one.
+   you don't have a key pair, run below command to create a new one.
 
    .. code:: bash
 
@@ -74,7 +74,7 @@ Linux VM on Azure.
 
 .. warning::
 
-   Don’t use passphrase to protect your key. LISA doesn’t
+   Don't use passphrase to protect your key. LISA doesn't
    support that.
 
 #. Run LISA

@@ -8,7 +8,7 @@ Understand test results
 Overview
 --------
 
-It’s essential to understand the results after running tests. LISA has 7
+It's essential to understand the results after running tests. LISA has 7
 kinds of test results in total: 3 of which are intermediate results, and
 4 of which are final results, as explained in sections below. Each test
 case can and will be moved from one result to another but can never have

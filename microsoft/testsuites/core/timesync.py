@@ -130,7 +130,7 @@ class TimeSync(TestSuite):
             1. Check clock source name is one of hyperv_clocksource_tsc_page,
              lis_hv_clocksource_tsc_page, hyperv_clocksource, tsc,
              arch_sys_counter(arm64).
-             (there’s a new feature in the AH2021 host that allows Linux guests so use
+             (there's a new feature in the AH2021 host that allows Linux guests so use
               the plain "tsc" instead of the "hyperv_clocksource_tsc_page",
               which produces a modest performance benefit when reading the clock.)
             2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
