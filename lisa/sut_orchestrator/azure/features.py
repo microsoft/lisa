@@ -2301,6 +2301,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
+        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
