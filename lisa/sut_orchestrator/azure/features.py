@@ -29,6 +29,7 @@ from azure.mgmt.compute.models import (
     VirtualMachineUpdate,
 )
 from azure.mgmt.core.exceptions import ARMErrorFormat
+from azure.mgmt.network.models import RouteTable  # type: ignore
 from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignore
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
 from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
@@ -658,6 +659,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     network interface options settings.
     """
 
+    # ex: 1.1.1.0/24 or 1.2.3.4/32 or 4.0.0.0/8
+    __ipv4_mask_check_regex = re.compile(
+        r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/([012][0-9]?|3[012])"
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return schema.NetworkInterfaceOptionSettings
@@ -679,6 +685,77 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # extra sriov nics count before testing
         self.origin_extra_sriov_nics_count = (
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
+        )
+
+    def create_route_table(
+        self,
+        nic_name: str,
+        route_name: str,
+        subnet_mask: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        next_hop_type: str = "",
+    ) -> None:
+        # some quick checks that the subnet mask looks correct
+        check_mask = self.__ipv4_mask_check_regex.match(subnet_mask)
+        assert_that(check_mask).described_as(
+            "subnet mask should be prefix format X.X.X.X/YY"
+        ).is_not_none()
+
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        # Step 1: create the route table, apply comes later.
+        route_table = self._do_create_route_table(
+            em_first_hop,
+            subnet_mask=subnet_mask,
+            nic_name=nic_name,
+            route_name=route_name,
+            next_hop_type=next_hop_type,
+            dest_hop=dest_hop,
+        )
+        # Step 2: Get the virtual networks in the resource group.
+        vnets: Dict[str, List[str]] = get_virtual_networks(
+            azure_platform, self._resource_group_name
+        )
+        # get the subnets in the virtual network
+        vnet_id = ""
+        subnet_ids: List[str] = []
+        assert_that(vnets.items()).described_as(
+            "There is more than one virtual network in this RG!"
+            " This RG is setup is unexpected, test cannot infer which VNET to use."
+            "Check if LISA has changed it's test setup logic, verify if the "
+            "DPDK test suite needs to be modified."
+        ).is_length(1)
+
+        # get the subnets for the virtual network in the test RG.
+        # dict will have a single entry, lisa is only creating one vnet per test vm.
+        vnet_items: List[Tuple[str, List[str]]] = list(vnets.items())
+        vnet_id, subnet_ids = vnet_items[0]
+        self._log.debug(f"Found vnet/subnet info: {vnet_id} {subnet_ids}")
+
+        # get the az resource name for the virtual network
+        # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
+        #        .../Microsoft.Network/virtualNetworks/lisa-virtualNetwork
+        virtual_network_name = vnet_id.split("/")[-1]
+
+        # Step 3: Look for the subnet we'll assign this routing table entry to.
+        for subnet in subnet_ids:
+            # get the az resource name for the subnet
+            # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
+            #     .../subnet_resource_name
+            subnet_name = subnet.split("/")[-1]
+            # update the subnet, there will only be one since they cannot
+            # share address spaces.
+            if self._do_update_subnet(
+                virtual_network_name=virtual_network_name,
+                subnet_name=subnet_name,
+                subnet_mask=subnet_mask,
+                route_table=route_table,
+            ):
+                return
+        # if we're through the loop and didn't find the subnet, fail
+        raise LisaException(
+            "routing table was not assigned to any subnet! "
+            f"targeted subnet: {subnet_mask} with route table: {route_table}"
         )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
@@ -705,7 +782,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 # if ip is provided, skip resource which don't match.
                 self._log.debug(f"Skipping enable ip forwarding on nic {nic_name}...")
                 continue
-
             if updated_nic.enable_ip_forwarding == enable:
                 self._log.debug(
                     f"network interface {nic_name}'s ip forwarding default "
@@ -908,6 +984,101 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
         modprobe_tool.reload(["hv_netvsc"])
+
+    # Subroutine for applying route table to subnet.
+    # We don't want to retry the entire routine if we
+    # catch an exception in this section.
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    def _do_update_subnet(
+        self,
+        virtual_network_name: str,
+        subnet_name: str,
+        subnet_mask: str,
+        route_table: Any,
+    ) -> bool:
+        platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(platform)
+        subnet_az = network_client.subnets.get(
+            resource_group_name=self._resource_group_name,
+            virtual_network_name=virtual_network_name,
+            subnet_name=subnet_name,
+        )
+        self._log.debug(f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}")
+        # Step 4: once we find the matching subnet, assign the routing table to it.
+        if subnet_az.address_prefix == subnet_mask:
+            subnet_az.route_table = route_table
+            result = network_client.subnets.begin_create_or_update(
+                resource_group_name=self._resource_group_name,
+                virtual_network_name=virtual_network_name,
+                subnet_name=subnet_name,
+                subnet_parameters=subnet_az,
+            ).result()
+            # log the subnets we're finding along the way...
+            self._log.info(
+                f'Assigned routing table "{route_table}" to subnet: "{subnet_az}"'
+                f' with result: "{result}"'
+            )
+            return True
+        return False
+
+    # Subroutine to create the route table,
+    # seperated because the create/apply process has multiple potential timeouts.
+    # We don't want to restart the entire process if one step fails.
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
+    def _do_create_route_table(
+        self,
+        em_first_hop: str,
+        subnet_mask: str,
+        nic_name: str,
+        route_name: str,
+        next_hop_type: str,
+        dest_hop: str,
+    ) -> RouteTable:
+        platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(platform)
+        vm = get_vm(platform, self._node)
+
+        # Set up first hop routing rule.
+        # If no exact match first hop is provided:
+        # assume the rule is to be applied to all traffic on the subnet.
+        # Otherwise allow an arbitrary 'first hop' address
+        if not em_first_hop:
+            address_prefix = subnet_mask
+        else:
+            address_prefix = em_first_hop
+
+        # NOTE: Next Hop Types
+        # 'None' is for dropping all traffic
+        # 'VirtualAppliance' is common for sending all traffic on a subnet
+        # to a VM (or NetVirtualApplicate aka NVA ) to filter it before forarding.
+        # There are other next hop types, see:
+        # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
+
+        # Step 1: Create the routing table entry, it will be assigned to a subnet later.
+        route_table_name = f"{nic_name}-{route_name}-route_table"
+        route_table: RouteTable = network_client.route_tables.begin_create_or_update(
+            resource_group_name=self._resource_group_name,
+            route_table_name=f"{nic_name}-{route_name}-route_table",
+            parameters={
+                "location": vm.location,
+                "properties": {
+                    "disableBgpRoutePropagation": False,
+                    "routes": [
+                        {
+                            "name": route_table_name,
+                            "properties": {
+                                "addressPrefix": address_prefix,
+                                "nextHopType": next_hop_type,
+                                "nextHopIpAddress": dest_hop,
+                            },
+                        },
+                    ],
+                },
+            },
+        ).result()
+        self._log.debug(f"Created routing table:{route_table}")
+
+        return route_table
 
     @retry(tries=60, delay=10)
     def _check_sriov_enabled(
