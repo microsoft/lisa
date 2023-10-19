@@ -30,6 +30,20 @@ class NetworkInterface(Feature):
     def is_enabled_sriov(self) -> bool:
         raise NotImplementedError
 
+    def create_route_table(
+        self,
+        nic_name: str,
+        route_name: str,
+        subnet_mask: str,
+        dest_hop: str,
+        em_first_hop: str = "",
+        next_hop_type: str = "",
+    ) -> None:
+        raise NotImplementedError
+
+    def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
+        raise NotImplementedError
+
     def attach_nics(
         self, extra_nic_count: int, enable_accelerated_networking: bool = True
     ) -> None:
