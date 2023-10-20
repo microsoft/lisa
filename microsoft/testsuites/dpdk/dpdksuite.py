@@ -644,6 +644,12 @@ class Dpdk(TestSuite):
         dpdk_port_rcv_side = 3
         # ip_protocol = 0x6  # TCP
 
+        # arbitrarily pick fwd/snd/recv nodes.
+        forwarder, sender, receiver = environment.nodes.list()
+        available_cores = forwarder.tools[Lscpu].get_core_count()
+        if available_cores < 8:
+            raise SkippedException("l3 forward test needs more than 8 cores.")
+
         self._force_dpdk_default_source(variables)
         _ping_all_nodes_in_environment(environment)
         test_result = environment.source_test_result
@@ -672,9 +678,6 @@ class Dpdk(TestSuite):
         run_in_parallel(
             [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
         )
-
-        # arbitrarily pick fwd/snd/recv nodes.
-        forwarder, sender, receiver = environment.nodes.list()
 
         # get some basic node info
 
@@ -841,7 +844,7 @@ class Dpdk(TestSuite):
         #  cores and queues to unused ports.
         queue_count = 8
         # reduce queue count if we will run out of cores using 8
-        if forwarder.tools[Lscpu].get_core_count() < 32:
+        if available_cores < 32:
             queue_count = 4
         use_queues = range(queue_count)
         config_tups = []
