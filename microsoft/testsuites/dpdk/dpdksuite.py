@@ -680,11 +680,9 @@ class Dpdk(TestSuite):
         )
 
         # get some basic node info
-
         # forwarder nics
         f_nic2 = forwarder.nics.get_secondary_nic()
         f_nic2_ip = f_nic2.ip_addr
-
         f_nic3 = forwarder.nics.get_tertiary_nic()
         f_nic3_ip = f_nic3.ip_addr
 
@@ -697,15 +695,13 @@ class Dpdk(TestSuite):
         r_nic3_ip = r_nic3.ip_addr
 
         # We use ntttcp for snd/rcv which will respect kernel routes!
-        # So: set these extra interfaces to DOWN
+        # SO: set these extra interfaces to DOWN
         _s_nic3 = sender.nics.get_tertiary_nic()
         _r_nic2 = receiver.nics.get_secondary_nic()
         sender.tools[Ip].down(_s_nic3.name)
         receiver.tools[Ip].down(_r_nic2.name)
-
-        # AND: create kernel routing rules so traffic for subnet B/C gets routed through
+        # AND: Create kernel routing rules so traffic for subnet B/C gets routed through
         #      the FWDer no matter which subnet it originates from.
-
         # clear current route to subnet C on sender
         sender.execute(
             f"ip route del {ipv4_lpm(r_nic3_ip)}",
