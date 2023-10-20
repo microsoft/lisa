@@ -352,7 +352,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self.log.debug(f"error on capturing system information: {identifier}")
 
     def find_partition_with_freespace(
-        self, size_in_gb: int, use_os_drive: bool = True
+        self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
     ) -> str:
         if self.os.is_windows:
             raise NotImplementedError(
@@ -390,9 +390,20 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             else:
                 # mount the disk if it isn't mounted
                 disk_name = disk.name
-                # skip floppy disk
                 if "fd" in disk_name:
+                    # skip floppy disk
                     continue
+                if disk.fstype == "swap":
+                    # skip swap disk
+                    continue
+
+                if disk.size_in_gb < size_in_gb:
+                    # skip smaller size disk, instead of format it automatically.
+                    self.log.debug(
+                        f"skip disk {disk_name}, size {disk.size_in_gb} is too small."
+                    )
+                    continue
+
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
@@ -408,9 +419,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 # the mount point after mounting
                 return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
 
-        raise LisaException(
-            f"No partition with Required disk space of {size_in_gb}GB found"
-        )
+        if raise_error:
+            raise LisaException(
+                f"No partition with Required disk space of {size_in_gb}GB found"
+            )
+
+        return ""
 
     def get_working_path_with_required_space(self, required_size_in_gb: int) -> str:
         work_path = str(self.working_path)
