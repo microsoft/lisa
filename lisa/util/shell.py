@@ -347,7 +347,9 @@ class SshShell(InitializableMixin):
             except FunctionTimedOut:
                 raise SshSpawnTimeoutException(
                     f"The remote node is timeout on execute {command}. "
-                    f"It may be caused by paramiko/spur not support the shell of node."
+                    f"Possible reasons are, "
+                    "the process wait for inputs, "
+                    "the paramiko/spur not support the shell of node."
                 )
             except spur.errors.CommandInitializationError as identifier:
                 # Some publishers images, such as azhpc-desktop, javlinltd and
