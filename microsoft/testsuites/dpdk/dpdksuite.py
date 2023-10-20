@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-import time
+from functools import partial
 from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
@@ -22,7 +22,7 @@ from lisa import (
 from lisa.features import Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Socat
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Ntttcp
 from lisa.util.constants import SIGINT
 from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
@@ -31,6 +31,7 @@ from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
+    _ping_all_nodes_in_environment,
     check_send_receive_compatibility,
     do_pmd_driver_setup,
     enable_uio_hv_generic_for_nic,
@@ -613,171 +614,224 @@ class Dpdk(TestSuite):
 
         pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
-        l3_port = 0xD007
-        dpdk_port_rcv_fwd = 1
-        dpdk_port_snd_fwd = 2
-        ip_protocol = 0x6  # TCP
+        # l3_port = 0xD007
+        dpdk_port_rcv_fwd = 2
+        dpdk_port_snd_fwd = 3
+        # ip_protocol = 0x6  # TCP
 
         self._force_dpdk_default_source(variables)
+        _ping_all_nodes_in_environment(environment)
 
-        for node in environment.nodes.list():
+        # shitty ipv4 prefix function
+        def ipv4_lpm(addr: str) -> str:
+            return ".".join(addr.split(".")[:3]) + ".0/24"
+
+        def ipv4_em_prefix(addr: str) -> str:
+            return addr + "/32"
+
+        # enable ip forwarding for secondary and tertiary nics in this test.
+        def _enable_ip_forwarding(node: Node) -> None:
             fwd_nic_private_ip = node.nics.get_secondary_nic().ip_addr
             node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
                 enable=True, private_ip_addr=fwd_nic_private_ip
             )
-            rcv_nic_private_ip = node.nics.get_nic_by_index(2).ip_addr
+            rcv_nic_private_ip = node.nics.get_tertiary_nic().ip_addr
             node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
                 enable=True, private_ip_addr=rcv_nic_private_ip
             )
 
+        run_in_parallel(
+            [partial(_enable_ip_forwarding, node) for node in environment.nodes.list()]
+        )
+
         forwarder, sender, receiver = environment.nodes.list()
         # initialize DPDK with sample applications selected for build
-        test_kit = initialize_node_resources(
-            forwarder, log, variables, pmd, sample_apps=["l3fwd"]
-        )
+
         # enable hugepages needed for dpdk EAL
 
         # get some basic node info
-        sender_primary_nic = sender.nics.get_primary_nic()
-        forwarder_primary_ip = forwarder.nics.get_primary_nic().ip_addr
-        forwarder_primary_mac = forwarder.nics.get_primary_nic().mac_addr
-        forwarder_recv_nic = forwarder.nics.get_secondary_nic()
-        forwarder_recv_ip = forwarder_recv_nic.ip_addr
-        forwarder_send_nic = forwarder.nics.get_nic_by_index(2)
-        forwarder_send_ip = forwarder_send_nic.ip_addr
-        sender_nic = sender.nics.get_secondary_nic()
-        sender_disabled_nic = sender.nics.get_nic_by_index(2)
-        receiver_disabled_nic = receiver.nics.get_secondary_nic()
-        sender_mac = sender_nic.mac_addr
-        sender_ip = sender_nic.ip_addr
-        receiver_nic = receiver.nics.get_nic_by_index(2)
-        receiver_ip = receiver_nic.ip_addr
-        receiver_mac = receiver_nic.mac_addr
 
-        # for node in environment.nodes.list():
-        #     node.features[NetworkInterface].switch_sriov(
-        #         enable=False,
-        #         wait=False,
-        #         reset_connections=False,
-        #         private_ip_addr=node.nics.get_primary_nic().ip_addr,
-        #     )  # type: ignore
+        # we're attempting to change this initial setup:
+        #   snd         fwd        rcv
+        #    s_nic1 <-> f_nic1 <-> r_nic1    10.0.0.0/24
+        #    s_nic2 <-> f_nic2 <-> r_nic2    10.0.1.0/24
+        #    s_nic3 <-> f_nic3 <-> r_nic3    10.0.2.0/24
+        # To this:
+        #    snd          fwd      rcv
+        #    s_nic1 <-> f_nic1 <-> r_nic1    10.0.0.0/24
+        #    s_nic2 <-> f_nic2               10.0.1.0/24
+        #                 ↕ (dpdk port fwd)
+        #               f_nic3  <-> r_nic3   10.0.2.0/24
+        # 1. intercepting traffic from  s_nic2 bound for r_nic3, sending it to f_nic2 with az routing table
+        # 2. forwarding from f_nic2 to f_nic3 with dpdk port forwarding
+        # 3. sending it to the r_nic3 from f_nic3 in the new subnet via re-transmit on the new interface after dpdk port forwarding.
 
-        # drop traffic on primary subnet bound for the receiver.
-        # this is to catch when traffic is unintentionally routed over
-        # the primary interface.
-        # node.features[NetworkInterface].create_route_table(  # type: ignore
-        #     sender_primary_nic.name,
-        #     "fwd-rx",
-        #     subnet_addr=sender_primary_nic.ip_addr,
-        #     first_hop=receiver_ip,
-        #     dest_hop="",
-        # )
+        # forwarder_primary_ip = forwarder.nics.get_primary_nic().ip_addr
+        # forwarder_primary_mac = forwarder.nics.get_primary_nic().mac_addr
+
+        # forwarder nics
+        f_nic2 = forwarder.nics.get_secondary_nic()
+        f_nic2_ip = f_nic2.ip_addr
+
+        f_nic3 = forwarder.nics.get_tertiary_nic()
+        f_nic3_ip = f_nic3.ip_addr
+
+        # sender nic
+        s_nic2 = sender.nics.get_secondary_nic()
+        # s_nic2_mac = s_nic2.mac_addr
+        s_nic2_ip = s_nic2.ip_addr
+
+        # receiver nic
+        r_nic3 = receiver.nics.get_tertiary_nic()
+        r_nic3_ip = r_nic3.ip_addr
+        # r_nic3_mac = r_nic3.mac_addr
+
+        # ntttcp is going to respect the kernel routing table
+        # so set these extra interfaces to DOWN to make sure
+        # we don't inadvertently send traffic on the wrong interfaces.
+        _s_nic3 = sender.nics.get_tertiary_nic()
+        _r_nic2 = receiver.nics.get_secondary_nic()
+
+        # FIXME: probably not doing this right
+        sender.tools[Ip].down(_s_nic3.name)
+        receiver.tools[Ip].down(_r_nic2.name)
+
+        sender.execute(
+            f"ip route del {ipv4_lpm(r_nic3_ip)} dev {_s_nic3.name}",
+            sudo=True,
+            shell=True,
+        )
+        receiver.execute(
+            f"ip route del {ipv4_lpm(s_nic2_ip)} dev {_r_nic2.name}",
+            sudo=True,
+            shell=True,
+        )
+        sender.execute(
+            f"ip route add {ipv4_lpm(r_nic3_ip)} via {f_nic2.ip_addr} dev {s_nic2.name} ",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not add route",
+        )
+        receiver.execute(
+            f"ip route add {ipv4_lpm(s_nic2_ip)} via {f_nic3.ip_addr} dev {r_nic3.name} ",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not add route",
+        )
+
+        # AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
         # create our forwarding rules, all traffic on sender and receiver nic
         # subnets goes to the forwarder, our virtual appliance VM.
-        node.features[NetworkInterface].create_route_table(  # type: ignore
-            forwarder_recv_nic.name,
-            "fwd-rx",
-            subnet_addr=sender_ip,
-            first_hop=receiver_ip,
-            dest_hop=forwarder_recv_ip,
+        sender.features[NetworkInterface].create_route_table(  # type: ignore
+            nic_name=f_nic2.name,
+            route_name="fwd-rx",
+            subnet_mask=ipv4_lpm(s_nic2_ip),
+            em_first_hop=ipv4_em_prefix(r_nic3_ip),
+            next_hop_type="VirtualAppliance",
+            dest_hop=f_nic2_ip,
         )
-        node.features[NetworkInterface].create_route_table(  # type: ignore
-            forwarder_send_nic.name,
-            "fwd-tx",
-            subnet_addr=receiver_ip,
-            first_hop=sender_ip,
-            dest_hop=forwarder_send_ip,
+        receiver.features[NetworkInterface].create_route_table(  # type: ignore
+            nic_name=f_nic3.name,
+            route_name="fwd-tx",
+            subnet_mask=ipv4_lpm(r_nic3_ip),
+            em_first_hop=ipv4_em_prefix(s_nic2_ip),
+            next_hop_type="VirtualAppliance",
+            dest_hop=f_nic3_ip,
         )
         # reboot after setting these rules (also after changing the sriov settings)
         # run_in_parallel([_node.reboot for _node in environment.nodes.list()])
-        do_pmd_driver_setup(forwarder, forwarder_recv_nic, test_kit.testpmd, "netvsc")
-        do_pmd_driver_setup(forwarder, forwarder_send_nic, test_kit.testpmd, "netvsc")
+        # do_pmd_driver_setup(forwarder, forwarder_recv_nic, test_kit.testpmd, "netvsc")
+        fwd_kit = initialize_node_resources(
+            forwarder,
+            log,
+            variables,
+            pmd,
+            sample_apps=["l3fwd"],
+            extra_nics=[f_nic3],
+        )
         init_hugepages(forwarder)
-        socat = sender.tools[Socat]
-        sender.tools[Ip].down(sender_disabled_nic.name)
-        receiver.tools[Ip].down(receiver_disabled_nic.name)
-        receiver_subnet_prefix = (
-            ".".join(receiver_nic.ip_addr.split(".")[:3] + ["0"]) + "/24"
-        )
-        sender_subnet_prefix = (
-            ".".join(sender_nic.ip_addr.split(".")[:3] + ["0"]) + "/24"
-        )
-        # sender.tools[Ip].remove_route(
-        #     prefix=receiver_subnet_prefix, first_hop=f"dev {sender_disabled_nic.name}"
-        # )
-        # sender.tools[Ip].add_route(
-        #     iface=sender_nic.name, dest=receiver_ip, next_hop=forwarder_recv_ip
-        # )
-        # receiver.tools[Ip].remove_route(
-        #     prefix=sender_subnet_prefix, first_hop=f"dev {receiver_disabled_nic.name}"
-        # )
-        # receiver.tools[Ip].add_route(
-        #     iface=receiver_nic.name, dest=sender_ip, next_hop=forwarder_send_ip
-        # )
 
-        # pick which node will be forwarder and sender arbitrarily
-        fwd_kit = test_kit
+        # create sender/receiver ntttcp instances
+        NTTTCP_PORTS = 16
+        ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+
         ### setup forwarding rules
-        sample_rules_v4 = (
-            f"R {forwarder_recv_ip} {receiver_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}\n"
-            f"R {forwarder_send_ip} {sender_ip} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}"
-        )
-
-        def ipv4_to_ipv6(addr: str) -> str:
+        def ipv4_to_ipv6_lpm(addr: str) -> str:
             # format to 0 prefixed 2 char hex
             parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
             assert_that(parts).described_as(
                 "IP address conversion failed, length of split array was unexpected"
             ).is_length(4)
             return (
-                "0000:0000:0000:0000:0000:FFFF:"
-                f"{parts[0]}{parts[1]}:{parts[2]}{parts[3]}"
+                "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
             )
 
-        # ipv6_mapped_forwarder = ipv4_to_ipv6(forwarder_recv_ip)
-        ipv6_mapped_sender = ipv4_to_ipv6(sender_ip)
-        ipv6_mapped_receiver = ipv4_to_ipv6(receiver_ip)
+        # Set up DPDK forwarding rules:
+        # see https://doc.dpdk.org/guides/sample_app_ug/l3_forward.html#parse-rules-from-file
+        # for additional context
 
-        sample_rules_v6 = (
-            f"R {ipv6_mapped_receiver} {ipv6_mapped_receiver} {l3_port} {l3_port} {ip_protocol} {dpdk_port_rcv_fwd}\n"
-            f"R {ipv6_mapped_sender} {ipv6_mapped_sender} {l3_port} {l3_port} {ip_protocol} {dpdk_port_snd_fwd}"
-        )
+        sample_rules_v4 = []
+        sample_rules_v6 = []
+        #
+        # create our longest-prefix-match aka 'lpm' rules
+        sample_rules_v4 += [
+            f"R {ipv4_lpm(r_nic3_ip)} {dpdk_port_snd_fwd}",
+            f"R {ipv4_lpm(s_nic2_ip)} {dpdk_port_rcv_fwd}",
+        ]
+        # need to map ipv4 to ipv6 addresses, unused but the rules must be provided.
+        sample_rules_v6 += [
+            f"R {ipv4_to_ipv6_lpm(r_nic3_ip)} {dpdk_port_rcv_fwd}",
+            f"R {ipv4_to_ipv6_lpm(s_nic2_ip)} {dpdk_port_snd_fwd}",
+        ]
+
+        # write them out to the rules files on the forwarder
         rules_paths = [
             forwarder.get_pure_path(path) for path in ["rules_v4", "rules_v6"]
         ]
-
-        # for line in sample_rules_v4:
         forwarder.tools[Echo].write_to_file(
-            sample_rules_v4, rules_paths[0], append=True
+            "\n".join(sample_rules_v4), rules_paths[0], append=True
         )
-        forwarder.execute(f"cat {rules_paths[0].as_posix()}")
-        # for line in sample_rules_v6:
         forwarder.tools[Echo].write_to_file(
-            sample_rules_v6, rules_paths[1], append=True
+            "\n".join(sample_rules_v6), rules_paths[1], append=True
         )
 
         # get binary path and start the forwarder
         examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(server_app_name)
-
+        # generate the dpdk include arguments to add to our commandline
         include_devices = [
-            fwd_kit.testpmd.generate_testpmd_include(
-                forwarder_recv_nic, dpdk_port_rcv_fwd
-            ),
-            fwd_kit.testpmd.generate_testpmd_include(
-                forwarder_send_nic, dpdk_port_snd_fwd
-            ),
+            fwd_kit.testpmd.generate_testpmd_include(f_nic2, dpdk_port_rcv_fwd),
+            fwd_kit.testpmd.generate_testpmd_include(f_nic3, dpdk_port_snd_fwd),
         ]
 
         # Generate port,queue,core mappings for forwarder
         # FIXME: use 8 queues
-        config_tups = [  # map some queues to cores idk
-            (dpdk_port_rcv_fwd, 0, 2),
-            (dpdk_port_rcv_fwd, 1, 4),
-            (dpdk_port_snd_fwd, 0, 3),
-            (dpdk_port_snd_fwd, 1, 5),
-        ]  # zip(ports, queues, use_cores)
+        queue_count = 4
+        use_queues = range(queue_count)
+        config_tups = []
+        curent_core = 1
+        for q in use_queues:
+            config_tups.append((dpdk_port_rcv_fwd, q, curent_core))
+            curent_core += 1
+        for q in use_queues:
+            config_tups.append((dpdk_port_snd_fwd, q, curent_core))
+            curent_core += 1
+
+        # config_tups = [  # map some queues to cores idk
+        #     (dpdk_port_rcv_fwd, 0, 2),
+        #     # (dpdk_port_rcv_fwd, 2, 4),
+        #     (dpdk_port_snd_fwd, 0, 3),
+        #     # (dpdk_port_snd_fwd, 2, 5),
+        # ]  # zip(ports, queues, use_cores)
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
+
+        def get_portmask(ports: List[int]) -> str:
+            mask = 0
+            for i in ports:
+                mask |= 1 << i
+            return hex(mask)
 
         # mana doesn't support promiscuous mode
         if fwd_kit.testpmd.is_mana:
@@ -788,15 +842,15 @@ class Dpdk(TestSuite):
         joined_include = " ".join(include_devices)
         # start forwarder
         fwd_cmd = (
-            f"{server_app_path} {joined_include} -l 2-5  -- "
-            f" {promiscuous} -p 0x6  --lookup=em "  # FIXME: -p 0x2 port mask needs to be dynamic
-            f'--config="{configs}" '
+            f"{server_app_path} {joined_include} -l 1-{curent_core}  -- "
+            f" {promiscuous} -p {get_portmask([dpdk_port_rcv_fwd,dpdk_port_snd_fwd])} "
+            f' --lookup=lpm --config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
             f" --parse-ptype "
             f"--mode=poll"
         )
         dev_scripts = str(
-            test_kit.testpmd.dpdk_path.joinpath("usertools/dpdk-devbind.py")
+            fwd_kit.testpmd.dpdk_path.joinpath("usertools/dpdk-devbind.py")
         )
         forwarder.execute(f"python3 {dev_scripts} --status", sudo=True, shell=True)
         fwd_proc = forwarder.execute_async(
@@ -806,70 +860,31 @@ class Dpdk(TestSuite):
         )
         fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
 
-        receiver_proc = receiver.execute_async(
-            f"nc -l {receiver_ip} {l3_port}",  # f"tcpdump -K -n -e -vvv --immediate-mode -i {receiver_nic.name} ",  # f"nc -l {receiver_ip} {l3_port}",
-            sudo=True,
-            shell=True,
+        receiver_proc = ntttcp[receiver].run_as_server_async(
+            r_nic3.name,
+            run_time_seconds=30,
+            server_ip=r_nic3_ip,
+            ports_count=NTTTCP_PORTS,
         )
 
-        # start the listener and start sending data to the forwarder
-        # snd_cmd = snd_kit.testpmd.generate_testpmd_command(
-        #     snd_nic,
-        #     0,
-        #     "txonly",
-        #     extra_args=f"--tx-ip={snd_nic.ip_addr},{forwarder_recv_ip} --tx-udp={l3_port},{l3_port}",
-        #     multiple_queues=True,
-        # )
-        # sender.tools[Timeout].run_with_timeout(
-        #     snd_cmd,
-        #     timeout=10,
-        #     kill_timeout=15,
-        # )
-        sender.execute(
-            f"echo {'boop'*1024} > ./data_to_send",
-            shell=True,
-            sudo=True,
-            cwd=sender.working_path,
-        )
-        socat.send_file(
-            sender_ip,
-            forwarder_recv_ip,
-            str(l3_port),
-            sender_nic.name,
-            "data_to_send",
-            cwd=sender.working_path,
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=s_nic2.name,
+            server_ip=r_nic3_ip,
+            threads_count=NTTTCP_PORTS,
+            ports_count=NTTTCP_PORTS,
+            run_time_seconds=10,
         )
 
-        # FIXME: receive traffic and confirm forwarding worked
+        receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
 
-        receiver_proc.kill()
-        result = receiver_proc.wait_result()
-        log.debug(f"result: {result.stdout}")
-
+        log.debug(f"result: {receiver_result.stdout}")
+        log.debug(f"result: {sender_result.stdout}")
         # kill l3fwd on forwarder
-        forwarder.tools[Kill].by_name(
-            server_app_name, signum=SIGINT, ignore_not_exist=True
-        )
+        # forwarder.tools[Kill].by_name(
+        #     server_app_name, signum=SIGINT, ignore_not_exist=True
+        # )
         forwarder.log.info(f"Forwarder: {forwarder.name}")
         forwarder.log.info(f"l3fwd cmd: {fwd_cmd}")
-        graph_msg = (
-            "\nL3Fwd Quick info:\nPath should be:\n"
-            f"{sender_ip}[{sender_mac}]\n"
-            "|\nv\n"
-            f"{forwarder_recv_ip}[{forwarder_recv_nic.mac_addr}]\n"
-            f"{forwarder_send_ip}[{forwarder_send_nic.mac_addr}]\n"
-            "|\nv\n"
-            f"{receiver_ip}[{receiver_mac}]\n"
-            "\n\n"
-            "Not one of these:"
-            "{}"
-            f"{sender_disabled_nic.ip_addr}[{sender_disabled_nic.mac_addr}] (sender subnet c nic)\n"
-            f"{receiver_disabled_nic.ip_addr}[{receiver_disabled_nic.mac_addr}] (receiver subnet b nic)\n"
-            f"{forwarder_primary_ip}[{forwarder_primary_mac}] (forwader subnet a nic)\n"
-            f"sender subnet a :\n{str(sender.nics.get_primary_nic())}\n"
-            f"recv subnet a:\n{str(receiver.nics.get_primary_nic())}\n"
-        )
-        log.debug(graph_msg)
 
     @TestCaseMetadata(
         description="""

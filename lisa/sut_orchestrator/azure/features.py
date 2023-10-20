@@ -654,75 +654,75 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
+    @retry(HttpResponseError, tries=5, delay=2.0, backoff=1.5)
     def create_route_table(
         self,
         nic_name: str,
         route_name: str,
-        subnet_addr: str,
-        first_hop: str,
+        subnet_mask: str,
         dest_hop: str,
+        em_first_hop: str = "",
+        next_hop_type: str = "",
     ) -> None:
+        # some quick checks that the subnet mask looks correct
+        assert_that(subnet_mask).described_as(
+            "subnet mask should be prefix format X.X.X.X/YY"
+        ).contains("/")
+        assert_that(subnet_mask.split("/")).described_as(
+            "subnet mask should be prefix format X.X.X.X/YY"
+        ).is_length(2)
+
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
 
-        subnet_prefix = ".".join(subnet_addr.split(".")[:3] + ["0"]) + "/24"
-        if first_hop == "0.0.0.0":
-            exact_match_route = (
-                first_hop + "/0"
-            )  # special default to direct all traffic
+        # Set up first hop routing rule.
+        # If no exact match first hop is provided:
+        # assume the rule is to be applied to all traffic on the subnet.
+        # Otherwise allow an arbitrary 'first hop' address
+        if not em_first_hop:
+            address_prefix = subnet_mask
         else:
-            exact_match_route = f"{first_hop}/32"
-        if not dest_hop:
-            next_hop_type = "None"
-        else:
-            # NOTE: there are otehr next hop types, see:
-            # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
-            next_hop_type = "VirtualAppliance"
-        route_table_name = f"{nic_name}-{route_name}-route_table"
-        retries = 5
-        while True:
-            try:
-                route_table = network_client.route_tables.begin_create_or_update(
-                    resource_group_name=self._resource_group_name,
-                    route_table_name=f"{nic_name}-{route_name}-route_table",
-                    parameters={
-                        "location": vm.location,
-                        "properties": {
-                            "disableBgpRoutePropagation": False,
-                            "routes": [
-                                {
-                                    "name": route_table_name,
-                                    "properties": {
-                                        "addressPrefix": exact_match_route,  # 0.0.0.0/0 routes all traffic to dest
-                                        "nextHopType": next_hop_type,
-                                        "nextHopIpAddress": f"{dest_hop}",
-                                    },
-                                },
-                            ],
-                        },
-                    },
-                ).result()
-                break
-            except HttpResponseError as err:
-                if err.status_code == HTTP_TOO_MANY_REQUESTS:
-                    retries -= 1
-                    if retries <= 0:
-                        raise err
-                    # Too much activity too quicly, take a break
-                    self._log.debug(
-                        (
-                            f"HTTP status {HTTP_TOO_MANY_REQUESTS} too many requests,"
-                            " sleeping 10 seconds and will retry..."
-                        )
-                    )
-                    sleep(10)
+            address_prefix = em_first_hop
 
-        self._log.debug(f"Result:{route_table}")
+        # NOTE: Next Hop Types
+        # 'None' is for dropping all traffic
+        # 'VirtualAppliance' is common for sending all traffic on a subnet
+        # to a VM (or NetVirtualApplicate aka NVA ) to filter it before forarding.
+        # There are other next hop types, see:
+        # https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#user-defined
+
+        # Step 1: Create the routing table entry, it will be assigned to a subnet later.
+        route_table_name = f"{nic_name}-{route_name}-route_table"
+        route_table = network_client.route_tables.begin_create_or_update(
+            resource_group_name=self._resource_group_name,
+            route_table_name=f"{nic_name}-{route_name}-route_table",
+            parameters={
+                "location": vm.location,
+                "properties": {
+                    "disableBgpRoutePropagation": False,
+                    "routes": [
+                        {
+                            "name": route_table_name,
+                            "properties": {
+                                "addressPrefix": address_prefix,
+                                "nextHopType": next_hop_type,
+                                "nextHopIpAddress": dest_hop,
+                            },
+                        },
+                    ],
+                },
+            },
+        ).result()
+
+        self._log.debug(f"Created routing table:{route_table}")
+
+        # Step 2: Get the virtual networks in the resource group.
         vnets: Dict[str, List[str]] = get_virtual_networks(
             azure_platform, self._resource_group_name
         )
 
+        # get the subnets in each virtual network
         vnet_id = ""
         subnet_ids = []
         for vnet, subnets in vnets.items():
@@ -730,17 +730,26 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             subnet_ids = subnets
             break
         self._log.debug(f"info: {vnet} {subnet_ids}")
-        virtual_network_name = vnet_id.split("/")[-1]
 
+        # get the az resource name for the virtual network
+        virtual_network_name = vnet_id.split("/")[-1]
+        # split the subnet prefix from the mask bits for our search
+
+        # Step 3: Look for the subnet we'll assign this routing table entry to.
         for subnet in subnet_ids:
+            # get the az resource name for the subnet
             subnet_name = subnet.split("/")[-1]
+            # get the subnet object using the resource name and vnet name
             subnet_az = network_client.subnets.get(
                 resource_group_name=self._resource_group_name,
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
             )
-            self._log.debug(f"SUBNET: {subnet_az} \n PREFIX:{subnet_az.address_prefix}")
-            if subnet_az.address_prefix == subnet_prefix:
+            self._log.debug(
+                f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}"
+            )
+            # Step 4: once we find the matching subnet, assign the routing table to it.
+            if subnet_az.address_prefix == subnet_mask:
                 subnet_az.route_table = route_table
                 result = network_client.subnets.begin_create_or_update(
                     resource_group_name=self._resource_group_name,
@@ -748,7 +757,17 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     subnet_name=subnet_name,
                     subnet_parameters=subnet_az,
                 ).result()
-                self._log.debug(result)
+                # log the subnets we're finding along the way...
+                self._log.info(
+                    f'Assigned routing table "{route_table}" to subnet: "{subnet_az}"'
+                    f' with result: "{result}"'
+                )
+                return
+
+        raise LisaException(
+            "routing table was not assigned to any subnet! "
+            f"targeted subnet: {subnet_mask} with route table: {route_table}"
+        )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore

@@ -16,7 +16,6 @@ from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
-    Ip,
     KernelConfig,
     Kill,
     Lscpu,

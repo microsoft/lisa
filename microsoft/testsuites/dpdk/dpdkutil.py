@@ -292,7 +292,7 @@ def do_pmd_driver_setup(
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
-        if test_nic.lower:
+        if test_nic.lower and node.tools[Ip].is_device_up(test_nic.lower):
             node.tools[Ip].down(test_nic.lower)
 
 
@@ -303,6 +303,7 @@ def initialize_node_resources(
     pmd: str,
     sample_apps: Union[List[str], None] = None,
     enable_gibibyte_hugepages: bool = False,
+    extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -363,6 +364,9 @@ def initialize_node_resources(
     ).is_equal_to("hv_netvsc")
 
     do_pmd_driver_setup(node, test_nic, testpmd, pmd=pmd)
+    if extra_nics:
+        for extra_nic in extra_nics:
+            do_pmd_driver_setup(node, extra_nic, testpmd, pmd=pmd)
 
     return DpdkTestResources(node, testpmd)
 
