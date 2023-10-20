@@ -44,7 +44,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     # [sudo] password for
     # Password:
-    _sudo_passwrod_prompts: List[str] = [
+    _sudo_password_prompts: List[str] = [
         "[sudo] password for",
         "Password:",
     ]
@@ -290,7 +290,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         else:
             return PureWindowsPath(path)
 
-    def get_str_path(self, path: PurePath) -> str:
+    def get_str_path(self, path: Union[PurePath, str]) -> str:
+        # normalize str path to pure path for next step.
+        if isinstance(path, str):
+            path = self.get_pure_path(path)
+
         # convert to path format of the system.
         if self.is_posix:
             return path.as_posix()
@@ -431,6 +435,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             final_information.update(current_information)
 
         return final_information
+
+    def expand_env_path(self, raw_path: str) -> str:
+        echo = self.tools[Echo]
+        result = echo.run(raw_path, shell=True)
+        return result.stdout
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if not hasattr(self, "_log_handler"):
@@ -605,10 +614,7 @@ class RemoteNode(Node):
         ).as_posix()
 
         # expand environment variables in path
-        echo = self.tools[Echo]
-        result = echo.run(working_path, shell=True)
-
-        return self.get_pure_path(result.stdout)
+        return self.get_pure_path(self.expand_env_path(working_path))
 
     @property
     def support_sudo(self) -> bool:
@@ -630,7 +636,7 @@ class RemoteNode(Node):
         )
         result = process.wait_result(10)
         if result.exit_code != 0:
-            for prompt in self._sudo_passwrod_prompts:
+            for prompt in self._sudo_password_prompts:
                 if prompt in result.stdout:
                     require_sudo_password = True
                     break

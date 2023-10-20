@@ -13,7 +13,7 @@ from lisa import schema
 from lisa.base_tools import Wget
 from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
-from lisa.operating_system import Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, CpuArchitecture, Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
@@ -78,6 +78,8 @@ class Gpu(Feature):
         "libglvnd-devel",
         "dkms",
     ]
+
+    _mariner_dependencies = ["build-essential", "binutils", "kernel-devel"]
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -275,6 +277,20 @@ class Gpu(Feature):
                     self._node.os.install_packages("cuda-drivers-465")
                 else:
                     self._node.os.install_packages("cuda-drivers-515")
+        elif (
+            isinstance(self._node.os, CBLMariner)
+            and self._node.os.get_kernel_information().hardware_platform
+            == CpuArchitecture.X64
+        ):
+            # Replace "5.15.131.1-2.cm2" with "5.15.131.1.2.cm2"
+            kernel_ver = self._node.os.get_kernel_information().raw_version.replace(
+                "-", "."
+            )
+            self._node.os._install_package_from_url(
+                "https://packages.microsoft.com/cbl-mariner/2.0/prod/nvidia/x86_64/"
+                f"Packages/c/cuda-525.85.12-3_{kernel_ver}.x86_64.rpm",
+                signed=False,
+            )
         else:
             raise SkippedException(
                 f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
@@ -307,6 +323,12 @@ class Gpu(Feature):
             and self._node.os.information.version >= "16.4.0"
         ):
             self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
+        elif (
+            isinstance(self._node.os, CBLMariner)
+            and self._node.os.information.version == "2.0.0"
+        ):
+            self._node.os.install_packages(self._mariner_dependencies, signed=False)
+
         else:
             raise SkippedException(
                 f"Distro {self._node.os.name} ver: {self._node.os.information.version}"

@@ -209,9 +209,6 @@ class OperatingSystem:
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
-        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
-
         cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
 
@@ -247,6 +244,9 @@ class OperatingSystem:
         # try best for some suse derives, like netiq
         cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
+
+        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
 
         # try best from distros'family through ID_LIKE
         yield get_matched_str(
@@ -916,8 +916,8 @@ class Debian(Linux):
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
-        aptaddrepository = self._node.tools[AptAddRepository]
-        aptaddrepository.add_repository(repo)
+        apt_repo = self._node.tools[AptAddRepository]
+        apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) == Debian:

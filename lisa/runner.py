@@ -37,29 +37,36 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
 def print_results(
     test_results: List[TestResultMessage],
     output_method: Callable[[str], Any],
+    add_ending: bool = False,
 ) -> None:
-    output_method("________________________________________")
+    def output_with_ending(message: str) -> None:
+        if add_ending:
+            output_method(f"{message}\n")
+        else:
+            output_method(message)
+
+    output_with_ending("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
         result_name = test_result.full_name
         result_status = test_result.status
 
-        output_method(
+        output_with_ending(
             f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
         )
         result_count = result_count_dict.get(result_status, 0)
         result_count += 1
         result_count_dict[result_status] = result_count
 
-    output_method("test result summary")
-    output_method(f"    TOTAL    : {len(test_results)}")
+    output_with_ending("test result summary")
+    output_with_ending(f"    TOTAL    : {len(test_results)}")
     for key in TestStatus:
         count = result_count_dict.get(key, 0)
         if key == TestStatus.ATTEMPTED and count == 0:
             # attempted is confusing if user don't know it.
             # so hide it if there is no attempted cases.
             continue
-        output_method(f"    {key.name:<9}: {count}")
+        output_with_ending(f"    {key.name:<9}: {count}")
 
 
 class RunnerResult(notifier.Notifier):

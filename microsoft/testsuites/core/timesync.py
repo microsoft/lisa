@@ -113,12 +113,16 @@ class TimeSync(TestSuite):
 
         # 4. Chrony should be configured to use the symlink /dev/ptp_hyperv
         #  instead of /dev/ptp0 or /dev/ptp1.
+        all_chrony_configs: str = ""
         for chrony_config in self.chrony_path:
             if node.shell.exists(PurePosixPath(chrony_config)):
-                chrony_results = cat.run(f"{chrony_config}")
-                assert_that(chrony_results.stdout).described_as(
-                    "Chrony config file should use the symlink /dev/ptp_hyperv."
-                ).contains(self.hyperv_ptp_udev_rule)
+                config_data = cat.run(
+                    f"{chrony_config}", sudo=True, shell=True, force_run=True
+                )
+                all_chrony_configs = all_chrony_configs + config_data.stdout + "\n"
+        assert_that(all_chrony_configs).described_as(
+            "Chrony config file should use the symlink /dev/ptp_hyperv."
+        ).contains(self.hyperv_ptp_udev_rule)
 
     @TestCaseMetadata(
         description="""

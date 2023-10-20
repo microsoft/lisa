@@ -46,4 +46,4 @@ class TextResult(notifier.Notifier):
 
     def finalize(self) -> None:
         with open(self.result_path, "w") as result_file:
-            print_results(self.received_messages, result_file.write)
+            print_results(self.received_messages, result_file.write, add_ending=True)

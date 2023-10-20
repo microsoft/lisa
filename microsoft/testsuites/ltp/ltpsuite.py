@@ -65,13 +65,13 @@ class LtpTestsuite(TestSuite):
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
 
-        # get comma seperated list of tests
+        # get comma separated list of tests
         if tests:
             test_list = tests.split(",")
         else:
             test_list = self.LTP_LITE_TESTS
 
-        # get comma seperated list of tests to skip
+        # get comma separated list of tests to skip
         if skip_tests:
             skip_test_list = skip_tests.split(",")
         else:

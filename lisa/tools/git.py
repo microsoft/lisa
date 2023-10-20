@@ -381,8 +381,12 @@ class GitBisect(Git):
         result = self.run(f"bad {ref}", cwd=cwd, force_run=True)
         result.assert_exit_code(message=f"failed to run bisect bad {result.stdout}")
 
-    def check_bisect_complete(self, cwd: pathlib.PurePath) -> bool:
+    def log(self, cwd: pathlib.PurePath) -> str:
         result = self.run("log", cwd=cwd, force_run=True)
-        if any(pattern in result.stdout for pattern in self._STOP_PATTERNS):
+        return result.stdout
+
+    def check_bisect_complete(self, cwd: pathlib.PurePath) -> bool:
+        result = self.log(cwd=cwd)
+        if any(pattern in result for pattern in self._STOP_PATTERNS):
             return True
         return False

@@ -48,9 +48,11 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
+        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}"])
         if include_output:
-            message += "\n".join(["stdout:", self.stdout, "stderr:", self.stderr])
+            message = "\n".join(
+                [message, "stdout:", self.stdout, "stderr:", self.stderr]
+            )
         # make the type checker happy by not using the union
         expected_exit_codes: List[int] = []
         if isinstance(expected_exit_code, int):
@@ -298,6 +300,14 @@ class Process:
             )
 
             self._recycle_resource()
+
+            if not self._is_posix:
+                # convert windows error code to int4, so it's more friendly.
+                assert self._result.exit_code is not None
+                exit_code = self._result.exit_code
+                if exit_code > 2**31:
+                    self._result.exit_code = exit_code - 2**32
+
             self._log.debug(
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
@@ -323,6 +333,11 @@ class Process:
         self._result.stdout = self._filter_sudo_required_password_info(
             self._result.stdout
         )
+
+        if not self._is_posix:
+            # fix windows ending with " by some unknown reason.
+            self._result.stdout = self._remove_ending_quote(self._result.stdout)
+            self._result.stderr = self._remove_ending_quote(self._result.stderr)
 
         return self._result
 
@@ -473,6 +488,16 @@ class Process:
         ):
             for prompt in self._shell.password_prompts:
                 raw_input = raw_input.replace(prompt, "")
+        return raw_input
+
+    def _remove_ending_quote(self, raw_input: str) -> str:
+        # remove ending " by some unknown reason.
+        if raw_input.startswith('"'):
+            # if it starts with quote, don't remove it.
+            return raw_input
+
+        if raw_input.endswith('"'):
+            raw_input = raw_input[:-1]
         return raw_input
 
 

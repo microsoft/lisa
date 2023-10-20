@@ -98,5 +98,17 @@ class WindowsLs(Ls):
         )
         return output.strip() == "True"
 
+    def list(self, path: str, sudo: bool = False) -> List[str]:
+        command = f'Get-ChildItem -Path "{path}" `| Select-Object -ExpandProperty Name'
+        output = self.node.tools[PowerShell].run_cmdlet(
+            cmdlet=command,
+            force_run=True,
+            sudo=sudo,
+        )
+        if output:
+            return output.split()
+        else:
+            return []
+
     def list_dir(self, path: str, sudo: bool = False) -> List[str]:
         raise NotImplementedError()

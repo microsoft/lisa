@@ -394,9 +394,9 @@ class AzurePlatformSchema:
             #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
             #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
             elif isinstance(self.cloud_raw, dict):
-                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+                cloud_schema = schema.load_by_type(CloudSchema, self.cloud_raw)
                 cloud = Cloud(
-                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
+                    cloud_schema.name, cloud_schema.endpoints, cloud_schema.suffixes
                 )
             else:
                 # by default use azure public cloud
@@ -784,12 +784,12 @@ class AzurePlatform(Platform):
         if node.is_connected and node.is_posix:
             linux_information = node.tools[Uname].get_linux_information()
             result = linux_information.kernel_version_raw
-
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            # try to get kernel version in Azure. use it, when uname doesn't work
-            node.log.debug("detecting kernel version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
+        elif not node.is_connected or node.is_posix:
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                # try to get kernel version in Azure. use it, when uname doesn't work
+                node.log.debug("detecting kernel version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
 
         return result
 
@@ -808,12 +808,14 @@ class AzurePlatform(Platform):
             # test cases not here. So ignore any error here to collect information only.
             node.log.debug(f"error on run dmesg: {identifier}")
 
-        # if not get, try again from serial console log.
-        # skip if node is not initialized.
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            node.log.debug("detecting host version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
+        # skip for Windows
+        if not node.is_connected or node.is_posix:
+            # if not get, try again from serial console log.
+            # skip if node is not initialized.
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                node.log.debug("detecting host version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
 
         return result
 
@@ -845,10 +847,11 @@ class AzurePlatform(Platform):
             # test cases not here. So ignore any error here to collect information only.
             node.log.debug(f"error on run waagent: {identifier}")
 
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            node.log.debug("detecting wala agent version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
+        if not node.is_connected or node.is_posix:
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                node.log.debug("detecting wala agent version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
 
         return result
 

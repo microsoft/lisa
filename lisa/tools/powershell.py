@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 from typing import Any
+from xml.etree import ElementTree
 
 from lisa.executable import Tool
 from lisa.util import LisaException
@@ -25,22 +27,34 @@ class PowerShell(Tool):
         fail_on_error: bool = True,
         timeout: int = 600,
     ) -> str:
-        # cmdlet can have `"` characters, so we need to escape them
-        cmdlet = cmdlet.replace('"', '`"')
-        if self.node.is_remote:
-            cmdlet = f'-Command "{cmdlet}"'
+        # encoding command for any special characters
+        self._log.debug(f"encoding command: {cmdlet}")
+        encoded_command = base64.b64encode(cmdlet.encode("utf-16-le")).decode("utf-8")
+
+        encoded_command = f"-EncodedCommand {encoded_command}"
+
         result = self.run(
-            cmdlet,
+            encoded_command,
             force_run=force_run,
             sudo=sudo,
             timeout=timeout,
             shell=True,
+            no_error_log=True,
+            no_info_log=True,
+            no_debug_log=True,
         )
-        if fail_on_error and result.exit_code != 0:
-            raise LisaException(
-                f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
-                f"output: {result.stdout}"
-            )
+        if result.exit_code == 0:
+            self._log.debug(f"stdout:\n{result.stdout}")
+        else:
+            stderr = self._parse_error_message(result.stderr)
+            self._log.debug(f"stderr:\n{stderr}")
+            if fail_on_error:
+                raise LisaException(
+                    f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
+                    f"output:\n{result.stdout}"
+                    f"error:\n{stderr}"
+                )
+
         return result.stdout
 
     def install_module(self, name: str) -> None:
@@ -57,3 +71,16 @@ class PowerShell(Tool):
             "Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope CurrentUser",
             fail_on_error=False,
         )
+
+    def _parse_error_message(self, raw: str) -> str:
+        # remove first line, which is "#< CLIXML"
+        leading = "#< CLIXML"
+        if raw.startswith(leading):
+            raw = raw[len(leading) :]
+        root = ElementTree.fromstring(raw)
+        namespaces = {"ns": "http://schemas.microsoft.com/powershell/2004/04"}
+        error_elements = root.findall(".//ns:S[@S='Error']", namespaces=namespaces)
+        result = "".join([e.text for e in error_elements if e.text])
+
+        result = result.replace("_x000D__x000A_", "\n")
+        return result
