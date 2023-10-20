@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from decimal import Decimal
 from functools import partial
 from typing import Any, Dict, List, Tuple
 
@@ -915,7 +916,7 @@ class Dpdk(TestSuite):
             msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
                 server_result=ntttcp_results[receiver],
                 client_result=ntttcp_results[sender],
-                latency=0,
+                latency=Decimal(0),
                 connections_num="64",
                 buffer_size=64,
                 test_case_name="verify_dpdk_l3_forward",
