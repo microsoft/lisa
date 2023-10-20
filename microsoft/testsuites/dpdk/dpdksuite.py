@@ -24,7 +24,7 @@ from lisa import (
 from lisa.features import Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Ntttcp
+from lisa.tools import Echo, Git, Ip, Kill, Lscpu, Lsmod, Make, Modprobe, Ntttcp
 from lisa.util.constants import SIGINT
 from lisa.util.parallel import run_in_parallel
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
@@ -840,6 +840,9 @@ class Dpdk(TestSuite):
         # These are minimally error checked, we can accidentally assign
         #  cores and queues to unused ports.
         queue_count = 8
+        # reduce queue count if we will run out of cores using 8
+        if forwarder.tools[Lscpu].get_core_count() < 32:
+            queue_count = 4
         use_queues = range(queue_count)
         config_tups = []
         curent_core = 1
