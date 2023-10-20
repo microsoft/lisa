@@ -697,12 +697,12 @@ class Dpdk(TestSuite):
         receiver.tools[Ip].down(_r_nic2.name)
 
         sender.execute(
-            f"ip route del {ipv4_lpm(r_nic3_ip)} dev {_s_nic3.name}",
+            f"ip route del {ipv4_lpm(r_nic3_ip)}",
             sudo=True,
             shell=True,
         )
         receiver.execute(
-            f"ip route del {ipv4_lpm(s_nic2_ip)} dev {_r_nic2.name}",
+            f"ip route del {ipv4_lpm(s_nic2_ip)}",
             sudo=True,
             shell=True,
         )
@@ -711,24 +711,24 @@ class Dpdk(TestSuite):
             sudo=True,
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Could not add route",
+            expected_exit_code_failure_message="Could not add route to sender",
         )
         receiver.execute(
             f"ip route add {ipv4_lpm(s_nic2_ip)} via {f_nic3.ip_addr} dev {r_nic3.name} ",
             sudo=True,
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="Could not add route",
+            expected_exit_code_failure_message="Could not add route to receiver",
         )
 
-        # AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+        AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
         # create our forwarding rules, all traffic on sender and receiver nic
         # subnets goes to the forwarder, our virtual appliance VM.
         sender.features[NetworkInterface].create_route_table(  # type: ignore
             nic_name=f_nic2.name,
             route_name="fwd-rx",
             subnet_mask=ipv4_lpm(s_nic2_ip),
-            em_first_hop=ipv4_em_prefix(r_nic3_ip),
+            em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
             next_hop_type="VirtualAppliance",
             dest_hop=f_nic2_ip,
         )
@@ -736,7 +736,7 @@ class Dpdk(TestSuite):
             nic_name=f_nic3.name,
             route_name="fwd-tx",
             subnet_mask=ipv4_lpm(r_nic3_ip),
-            em_first_hop=ipv4_em_prefix(s_nic2_ip),
+            em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
             next_hop_type="VirtualAppliance",
             dest_hop=f_nic3_ip,
         )
