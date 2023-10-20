@@ -16,6 +16,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
+    notifier,
     schema,
     search_space,
 )
@@ -600,37 +601,64 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3_forward(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        # l3 forward is not intuitive, since Azure doesn't route the way you would expect.
+        # This is currently the most complicated DPDK test. There is a lot that can
+        # go wrong, so we restrict the test to netvsc and only a few distros.
+        # Current usage is checking for regressions in the host, not validating all distros.
+        #
+        #  l3 forward is also _not_ intuitive, and Azure net routing doesn't help.
         #  Azure primarily considers IP and not ethernet addresses.
-        # The general setup would normally be something like this:
-        # [[nic0]  [nic1] 10.0.1.5  [nic2] 10.0.2.5 ]
-        #              ^                  |_ subnet2
-        #              | -subnet1         v
-        # [[nic0]  [nic1] 10.0.1.4  [nic2] 10.0.2.4 ]
-        # with subnet routing tables:
-        # subnet1: {route_rule, 10.0.1.0/24 -> 10.0.1.5 }
-        # subnet2: {route_rule, 10.0.2.0/24 -> 10.0.2.4 }
-        # where DPDK forwards from port 1 (10.0.1.5) to port 2 (10.0.2.5) for tx
+        #  It's weirdly normal to see ARP requests providing inaccurate MAC addresses.
+        #  Why? Beyond me at this time. -mm
+        #
+        # SUMMARY:
+        #  The test attempts to change this initial default LISA setup:
+        #   snd_VM      fwd_VM      rcv_VM
+        #   |s_nic1 <-> |f_nic1 <-> |r_nic1    10.0.0.0/24 (Subnet A)
+        #   |s_nic2 <-> |f_nic2 <-> |r_nic2    10.0.1.0/24 (Subnet B)
+        #   |s_nic3 <-> |f_nic3 <-> |r_nic3    10.0.2.0/24 (Subnet C)
+        # To this:
+        #    snd_VM      fwd_VM      rcv_VM
+        #    |s_nic1 <-> |f_nic1 <-> |r_nic1    10.0.0.0/24 (Subnet A)
+        #    |s_nic2 <-> |f_nic2     |          10.0.1.0/24 (Subnet B/C)
+        #                | ↕ DPDK as NVA forwarding (and filtering) traffic
+        #                |f_nic3 <-> |r_nic3   10.0.2.0/24 (Subnet B/C)
+        #
+        #  With the goal of guaranteeing that snv_VM cannot reach
+        #  rcv_VM on Subnet B/C without traffic being forwarded through
+        #  DPDK on  fwd_VM
+        #
+        # Our key objectives are:
+        # 1. intercepting traffic from  s_nic2 bound for r_nic3,
+        #      sending it to f_nic2 (az routing table)
+        #
+        # 2. forwarding from f_nic2 to f_nic3 to bridge subnet b/c (DPDK)
+        #
+        # 3. enjoy the thrill of victory, ship a cloud net applicance.
 
+        # constants
         pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
         # l3_port = 0xD007
-        dpdk_port_rcv_fwd = 2
-        dpdk_port_snd_fwd = 3
+        dpdk_port_snd_side = 2
+        dpdk_port_rcv_side = 3
         # ip_protocol = 0x6  # TCP
 
         self._force_dpdk_default_source(variables)
         _ping_all_nodes_in_environment(environment)
+        test_result = environment.source_test_result
+        if not test_result:
+            log.warn(
+                "LISA environment does not have a pointer to the test result object."
+                "performance data reporting for this test will be broken!"
+            )
 
-        # shitty ipv4 prefix function
+        # ipv4 network prefix helper. Assumes 24bit mask
         def ipv4_lpm(addr: str) -> str:
             return ".".join(addr.split(".")[:3]) + ".0/24"
 
-        def ipv4_em_prefix(addr: str) -> str:
-            return addr + "/32"
-
         # enable ip forwarding for secondary and tertiary nics in this test.
-        def _enable_ip_forwarding(node: Node) -> None:
+        # run in parallel to save a bit of time on this net io step.
+        def __enable_ip_forwarding(node: Node) -> None:
             fwd_nic_private_ip = node.nics.get_secondary_nic().ip_addr
             node.features[NetworkInterface].switch_ip_forwarding(  # type: ignore
                 enable=True, private_ip_addr=fwd_nic_private_ip
@@ -641,33 +669,13 @@ class Dpdk(TestSuite):
             )
 
         run_in_parallel(
-            [partial(_enable_ip_forwarding, node) for node in environment.nodes.list()]
+            [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
         )
 
+        # arbitrarily pick fwd/snd/recv nodes.
         forwarder, sender, receiver = environment.nodes.list()
-        # initialize DPDK with sample applications selected for build
-
-        # enable hugepages needed for dpdk EAL
 
         # get some basic node info
-
-        # we're attempting to change this initial setup:
-        #   snd         fwd        rcv
-        #    s_nic1 <-> f_nic1 <-> r_nic1    10.0.0.0/24
-        #    s_nic2 <-> f_nic2 <-> r_nic2    10.0.1.0/24
-        #    s_nic3 <-> f_nic3 <-> r_nic3    10.0.2.0/24
-        # To this:
-        #    snd          fwd      rcv
-        #    s_nic1 <-> f_nic1 <-> r_nic1    10.0.0.0/24
-        #    s_nic2 <-> f_nic2               10.0.1.0/24
-        #                 ↕ (dpdk port fwd)
-        #               f_nic3  <-> r_nic3   10.0.2.0/24
-        # 1. intercepting traffic from  s_nic2 bound for r_nic3, sending it to f_nic2 with az routing table
-        # 2. forwarding from f_nic2 to f_nic3 with dpdk port forwarding
-        # 3. sending it to the r_nic3 from f_nic3 in the new subnet via re-transmit on the new interface after dpdk port forwarding.
-
-        # forwarder_primary_ip = forwarder.nics.get_primary_nic().ip_addr
-        # forwarder_primary_mac = forwarder.nics.get_primary_nic().mac_addr
 
         # forwarder nics
         f_nic2 = forwarder.nics.get_secondary_nic()
@@ -678,34 +686,35 @@ class Dpdk(TestSuite):
 
         # sender nic
         s_nic2 = sender.nics.get_secondary_nic()
-        # s_nic2_mac = s_nic2.mac_addr
         s_nic2_ip = s_nic2.ip_addr
 
         # receiver nic
         r_nic3 = receiver.nics.get_tertiary_nic()
         r_nic3_ip = r_nic3.ip_addr
-        # r_nic3_mac = r_nic3.mac_addr
 
-        # ntttcp is going to respect the kernel routing table
-        # so set these extra interfaces to DOWN to make sure
-        # we don't inadvertently send traffic on the wrong interfaces.
+        # We use ntttcp for snd/rcv which will respect kernel routes!
+        # So: set these extra interfaces to DOWN
         _s_nic3 = sender.nics.get_tertiary_nic()
         _r_nic2 = receiver.nics.get_secondary_nic()
-
-        # FIXME: probably not doing this right
         sender.tools[Ip].down(_s_nic3.name)
         receiver.tools[Ip].down(_r_nic2.name)
 
+        # AND: create kernel routing rules so traffic for subnet B/C gets routed through
+        #      the FWDer no matter which subnet it originates from.
+
+        # clear current route to subnet C on sender
         sender.execute(
             f"ip route del {ipv4_lpm(r_nic3_ip)}",
             sudo=True,
             shell=True,
         )
+        # clear current route to subnet B on receiver
         receiver.execute(
             f"ip route del {ipv4_lpm(s_nic2_ip)}",
             sudo=True,
             shell=True,
         )
+        # add routes to subnet B/C through forwarder on sender/receiver
         sender.execute(
             f"ip route add {ipv4_lpm(r_nic3_ip)} via {f_nic2.ip_addr} dev {s_nic2.name} ",
             sudo=True,
@@ -721,7 +730,14 @@ class Dpdk(TestSuite):
             expected_exit_code_failure_message="Could not add route to receiver",
         )
 
+        ## AZ ROUTING TABLES
+        #  The kernel routes are not sufficient, since Azure also manages the VNETs for the VMS.
+        #  We must set up an azure route table and apply it to our VNETs to send traffic to the
+        #  DPDK forwarder.
+
+        # special constant, implies 'route all traffic'
         AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
         # create our forwarding rules, all traffic on sender and receiver nic
         # subnets goes to the forwarder, our virtual appliance VM.
         sender.features[NetworkInterface].create_route_table(  # type: ignore
@@ -740,9 +756,9 @@ class Dpdk(TestSuite):
             next_hop_type="VirtualAppliance",
             dest_hop=f_nic3_ip,
         )
-        # reboot after setting these rules (also after changing the sriov settings)
-        # run_in_parallel([_node.reboot for _node in environment.nodes.list()])
-        # do_pmd_driver_setup(forwarder, forwarder_recv_nic, test_kit.testpmd, "netvsc")
+
+        # Do actual DPDK initialization, compile l3fwd and apply setup to
+        # the extra forwarding nic
         fwd_kit = initialize_node_resources(
             forwarder,
             log,
@@ -751,22 +767,13 @@ class Dpdk(TestSuite):
             sample_apps=["l3fwd"],
             extra_nics=[f_nic3],
         )
+        # enable hugepages needed for dpdk EAL
         init_hugepages(forwarder)
 
         # create sender/receiver ntttcp instances
-        NTTTCP_PORTS = 16
         ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
         ### setup forwarding rules
-        def ipv4_to_ipv6_lpm(addr: str) -> str:
-            # format to 0 prefixed 2 char hex
-            parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
-            assert_that(parts).described_as(
-                "IP address conversion failed, length of split array was unexpected"
-            ).is_length(4)
-            return (
-                "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
-            )
 
         # Set up DPDK forwarding rules:
         # see https://doc.dpdk.org/guides/sample_app_ug/l3_forward.html#parse-rules-from-file
@@ -777,13 +784,26 @@ class Dpdk(TestSuite):
         #
         # create our longest-prefix-match aka 'lpm' rules
         sample_rules_v4 += [
-            f"R {ipv4_lpm(r_nic3_ip)} {dpdk_port_snd_fwd}",
-            f"R {ipv4_lpm(s_nic2_ip)} {dpdk_port_rcv_fwd}",
+            f"R {ipv4_lpm(r_nic3_ip)} {dpdk_port_rcv_side}",
+            f"R {ipv4_lpm(s_nic2_ip)} {dpdk_port_snd_side}",
         ]
+
         # need to map ipv4 to ipv6 addresses, unused but the rules must be provided.
+        # a valid ipv6 address needs to be in the ipv6 rules, but ipv6 is not enabled in azure.
+        # NOTE: DPDK doesn't like shortened ipv6 addresses.
+        def ipv4_to_ipv6_lpm(addr: str) -> str:
+            # format to 0 prefixed 2 char hex
+            parts = ["{:02x}".format(int(part)) for part in addr.split(".")]
+            assert_that(parts).described_as(
+                "IP address conversion failed, length of split array was unexpected"
+            ).is_length(4)
+            return (
+                "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
+            )
+
         sample_rules_v6 += [
-            f"R {ipv4_to_ipv6_lpm(r_nic3_ip)} {dpdk_port_rcv_fwd}",
-            f"R {ipv4_to_ipv6_lpm(s_nic2_ip)} {dpdk_port_snd_fwd}",
+            f"R {ipv4_to_ipv6_lpm(r_nic3_ip)} {dpdk_port_snd_side}",
+            f"R {ipv4_to_ipv6_lpm(s_nic2_ip)} {dpdk_port_rcv_side}",
         ]
 
         # write them out to the rules files on the forwarder
@@ -802,29 +822,35 @@ class Dpdk(TestSuite):
         server_app_path = examples_path.joinpath(server_app_name)
         # generate the dpdk include arguments to add to our commandline
         include_devices = [
-            fwd_kit.testpmd.generate_testpmd_include(f_nic2, dpdk_port_rcv_fwd),
-            fwd_kit.testpmd.generate_testpmd_include(f_nic3, dpdk_port_snd_fwd),
+            fwd_kit.testpmd.generate_testpmd_include(
+                f_nic2, dpdk_port_snd_side, force_netvsc=True
+            ),
+            fwd_kit.testpmd.generate_testpmd_include(
+                f_nic3, dpdk_port_rcv_side, force_netvsc=True
+            ),
         ]
 
-        # Generate port,queue,core mappings for forwarder
-        # FIXME: use 8 queues
-        queue_count = 4
+        ## Generating port,queue,core mappings for forwarder
+        # NOTE: For DPDK '8 queues' means 8 queues * N PORTS
+        # Each port P has N queues (really queue pairs for tx/rx)
+        # Each core can receive one (1) queue id.
+        # l3fwd rquires us to explicitly map these as a set of tuples.
+        # Create a set of tuples (PortID,QueueID,CoreID)
+        # These are minimally error checked, we can accidentally assign
+        #  cores and queues to unused ports.
+        queue_count = 8
         use_queues = range(queue_count)
         config_tups = []
         curent_core = 1
+        # map port for forwarding sender-side traffic
         for q in use_queues:
-            config_tups.append((dpdk_port_rcv_fwd, q, curent_core))
+            config_tups.append((dpdk_port_snd_side, q, curent_core))
             curent_core += 1
+        # map port for forwarding receiver-side traffic
         for q in use_queues:
-            config_tups.append((dpdk_port_snd_fwd, q, curent_core))
+            config_tups.append((dpdk_port_rcv_side, q, curent_core))
             curent_core += 1
 
-        # config_tups = [  # map some queues to cores idk
-        #     (dpdk_port_rcv_fwd, 0, 2),
-        #     # (dpdk_port_rcv_fwd, 2, 4),
-        #     (dpdk_port_snd_fwd, 0, 3),
-        #     # (dpdk_port_snd_fwd, 2, 5),
-        # ]  # zip(ports, queues, use_cores)
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
 
         def get_portmask(ports: List[int]) -> str:
@@ -840,19 +866,17 @@ class Dpdk(TestSuite):
             promiscuous = "-P"
 
         joined_include = " ".join(include_devices)
-        # start forwarder
+
+        ## START THE TEST
+        # finally, start the forwarder
         fwd_cmd = (
             f"{server_app_path} {joined_include} -l 1-{curent_core}  -- "
-            f" {promiscuous} -p {get_portmask([dpdk_port_rcv_fwd,dpdk_port_snd_fwd])} "
+            f" {promiscuous} -p {get_portmask([dpdk_port_snd_side,dpdk_port_rcv_side])} "
             f' --lookup=lpm --config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
             f" --parse-ptype "
             f"--mode=poll"
         )
-        dev_scripts = str(
-            fwd_kit.testpmd.dpdk_path.joinpath("usertools/dpdk-devbind.py")
-        )
-        forwarder.execute(f"python3 {dev_scripts} --status", sudo=True, shell=True)
         fwd_proc = forwarder.execute_async(
             fwd_cmd,
             sudo=True,
@@ -860,31 +884,54 @@ class Dpdk(TestSuite):
         )
         fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
 
+        # start the receiver
         receiver_proc = ntttcp[receiver].run_as_server_async(
             r_nic3.name,
             run_time_seconds=30,
             server_ip=r_nic3_ip,
-            ports_count=NTTTCP_PORTS,
         )
-
+        # start the sender
         sender_result = ntttcp[sender].run_as_client(
             nic_name=s_nic2.name,
             server_ip=r_nic3_ip,
-            threads_count=NTTTCP_PORTS,
-            ports_count=NTTTCP_PORTS,
+            threads_count=32,
             run_time_seconds=10,
         )
 
         receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
-
         log.debug(f"result: {receiver_result.stdout}")
         log.debug(f"result: {sender_result.stdout}")
         # kill l3fwd on forwarder
-        # forwarder.tools[Kill].by_name(
-        #     server_app_name, signum=SIGINT, ignore_not_exist=True
-        # )
+        forwarder.tools[Kill].by_name(
+            server_app_name, signum=SIGINT, ignore_not_exist=True
+        )
         forwarder.log.info(f"Forwarder: {forwarder.name}")
         forwarder.log.info(f"l3fwd cmd: {fwd_cmd}")
+        ntttcp_results = {
+            receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
+            sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
+        }
+        if test_result:
+            msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
+                server_result=ntttcp_results[receiver],
+                client_result=ntttcp_results[sender],
+                latency=0,
+                connections_num="64",
+                buffer_size=64,
+                test_case_name="verify_dpdk_l3_forward",
+                test_result=test_result,
+            )
+            notifier.notify(msg)
+        throughput = ntttcp_results[receiver].throughput_in_gbps
+        assert_that(throughput).described_as(
+            "l3fwd test found 0Gbps througput. "
+            "Either the test or DPDK forwarding is broken."
+        ).is_greater_than(0)
+        assert_that(throughput).described_as(
+            f"l3fwd has very low throughput: {throughput}Gbps! "
+            "Verify netvsc was used over failsafe, check netvsc init was succesful "
+            "and the DPDK port IDs were correct."
+        ).is_greater_than(1)
 
     @TestCaseMetadata(
         description="""

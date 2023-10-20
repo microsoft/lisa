@@ -190,7 +190,9 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
+    def generate_testpmd_include(
+        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+    ) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
         # MANA and mlnx both don't require these arguments if all VFs are in use.
@@ -232,7 +234,8 @@ class DpdkTestpmd(Tool):
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-
+        if force_netvsc:
+            return include_flag
         if node_nic.module_name == "hv_netvsc":
             # primary/upper/master nic is bound to hv_netvsc
             # when using net_failsafe implicitly or explicitly.
