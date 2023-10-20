@@ -115,18 +115,6 @@
     },
     "resources": [
         {
-            "apiVersion": "2019-07-01",
-            "type": "Microsoft.Compute/availabilitySets",
-            "condition": "[parameters('use_availability_sets')]",
-            "name": "[variables('availability_set_name')]",
-            "location": "[parameters('location')]",
-            "tags": "[parameters('availability_set_tags')]",
-            "sku": {
-                "name": "Aligned"
-            },
-            "properties": "[parameters('availability_set_properties')]"
-        },
-        {
             "apiVersion": "2020-05-01",
             "type": "Microsoft.Network/publicIPAddresses",
             "location": "[parameters('location')]",
@@ -361,18 +349,17 @@
                 "name": "vmCopy",
                 "count": "[variables('node_count')]"
             },
+            "tags": {
+                "TipNode.SessionId": "cfbf5597-2d91-4623-8a49-f81edba1ad93"
+            },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
-            "tags": "[parameters('vm_tags')]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
-                "ultraDisks",
-                "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name'))]",
                 "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk'), resourceId('Microsoft.Compute/images',concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-image')))]",
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
             "properties": {
-                "availabilitySet": "[if(parameters('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
                 "hardwareProfile": {
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
