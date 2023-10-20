@@ -83,7 +83,9 @@ class Wsl(Tool):
         self._config(enable_debug_console=enable_debug_console, kernel=kernel)
 
         if not is_installed:
-            self._wsl_execute_async(f"--install -d {name}", encoding="utf-8")
+            install_process = self._wsl_execute_async(
+                f"--install -d {name}", encoding="utf-8"
+            )
 
             elapsed = create_timer()
             done = False
@@ -98,6 +100,10 @@ class Wsl(Tool):
                 self._check_install_done(distro=name, raise_error=True)
 
             self.shutdown(name)
+
+            # kill may not be success in Windows. But it prevents more output
+            # from this commands.
+            install_process.kill()
 
         self.reload_guest_os()
 
