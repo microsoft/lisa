@@ -548,5 +548,9 @@ class Process:
             return raw_input
 
         if raw_input.endswith('"'):
+            self._log.debug(
+                "Removed ending quote from output. "
+                "If it's unexpected, avoid to have ending quote in Windows output."
+            )
             raw_input = raw_input[:-1]
         return raw_input
