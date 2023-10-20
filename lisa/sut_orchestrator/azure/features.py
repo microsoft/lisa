@@ -567,7 +567,7 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
 
         arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
         arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
-        arm_parameters.use_availability_sets = True
+        arm_parameters.use_availability_sets = False
 
     @classmethod
     def create_setting(
