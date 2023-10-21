@@ -215,7 +215,7 @@ class DpdkTestpmd(Tool):
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
             # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic":
+            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
@@ -234,8 +234,6 @@ class DpdkTestpmd(Tool):
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-        if force_netvsc:
-            return include_flag
         if node_nic.module_name == "hv_netvsc":
             # primary/upper/master nic is bound to hv_netvsc
             # when using net_failsafe implicitly or explicitly.

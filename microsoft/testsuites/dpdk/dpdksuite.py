@@ -640,6 +640,7 @@ class Dpdk(TestSuite):
         pmd = "netvsc"
         server_app_name = "dpdk-l3fwd"
         # l3_port = 0xD007
+
         dpdk_port_snd_side = 2
         dpdk_port_rcv_side = 3
         # ip_protocol = 0x6  # TCP
@@ -647,8 +648,8 @@ class Dpdk(TestSuite):
         # arbitrarily pick fwd/snd/recv nodes.
         forwarder, sender, receiver = environment.nodes.list()
         available_cores = forwarder.tools[Lscpu].get_core_count()
-        if available_cores < 8:
-            raise SkippedException("l3 forward test needs more than 8 cores.")
+        if available_cores < 16:
+            raise SkippedException("l3 forward test needs >= 16 cores.")
 
         self._force_dpdk_default_source(variables)
         _ping_all_nodes_in_environment(environment)
@@ -703,17 +704,17 @@ class Dpdk(TestSuite):
         # AND: Create kernel routing rules so traffic for subnet B/C gets routed through
         #      the FWDer no matter which subnet it originates from.
         # clear current route to subnet C on sender
-        sender.execute(
-            f"ip route del {ipv4_lpm(r_nic3_ip)}",
-            sudo=True,
-            shell=True,
-        )
-        # clear current route to subnet B on receiver
-        receiver.execute(
-            f"ip route del {ipv4_lpm(s_nic2_ip)}",
-            sudo=True,
-            shell=True,
-        )
+        # sender.execute(
+        #     f"ip route del {ipv4_lpm(r_nic3_ip)} dev {_s_nic3.name}",
+        #     sudo=True,
+        #     shell=True,
+        # )
+        # # clear current route to subnet B on receiver
+        # receiver.execute(
+        #     f"ip route del {ipv4_lpm(s_nic2_ip)} dev {_r_nic2.name}",
+        #     sudo=True,
+        #     shell=True,
+        # )
         # add routes to subnet B/C through forwarder on sender/receiver
         sender.execute(
             f"ip route add {ipv4_lpm(r_nic3_ip)} via {f_nic2.ip_addr} dev {s_nic2.name} ",
@@ -770,6 +771,14 @@ class Dpdk(TestSuite):
         # enable hugepages needed for dpdk EAL
         init_hugepages(forwarder)
 
+        # we're cheating here and not dynamically picking the port IDs
+        # Why? I haven't finished the demo code for it yet. -mm
+        if fwd_kit.testpmd.is_mana:
+            dpdk_port_snd_side = 1
+            dpdk_port_rcv_side = 2
+        else:
+            dpdk_port_snd_side = 2
+            dpdk_port_rcv_side = 3
         # create sender/receiver ntttcp instances
         ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
@@ -844,15 +853,20 @@ class Dpdk(TestSuite):
             queue_count = 4
         use_queues = range(queue_count)
         config_tups = []
-        curent_core = 1
+        last_core = 1
         # map port for forwarding sender-side traffic
         for q in use_queues:
-            config_tups.append((dpdk_port_snd_side, q, curent_core))
-            curent_core += 1
+            config_tups.append((dpdk_port_snd_side, q, last_core))
+            last_core += 1
         # map port for forwarding receiver-side traffic
         for q in use_queues:
-            config_tups.append((dpdk_port_rcv_side, q, curent_core))
-            curent_core += 1
+            config_tups.append((dpdk_port_rcv_side, q, last_core))
+            last_core += 1
+
+        # cheat on mana, force single queue single core
+        if fwd_kit.testpmd.is_mana:
+            config_tups = [(1, 0, 1), (2, 0, 1)]
+            last_core = 1
 
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
 
@@ -870,15 +884,15 @@ class Dpdk(TestSuite):
 
         joined_include = " ".join(include_devices)
 
+        joined_core_list = ",".join(map(str, range(1, last_core + 1)))
         ## START THE TEST
         # finally, start the forwarder
         fwd_cmd = (
-            f"{server_app_path} {joined_include} -l 1-{curent_core}  -- "
+            f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
             f" {promiscuous} -p {get_portmask([dpdk_port_snd_side,dpdk_port_rcv_side])} "
             f' --lookup=lpm --config="{configs}" '
             "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
-            f" --parse-ptype "
-            f"--mode=poll"
+            f"--mode=poll --parse-ptype"
         )
         fwd_proc = forwarder.execute_async(
             fwd_cmd,
