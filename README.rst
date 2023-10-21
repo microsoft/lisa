@@ -62,7 +62,7 @@ LISA can be used standalone or called from the current LISA. Learn more
 from `how to run LISAv2 test cases <https://mslisa.rtfd.io/en/main/run_test/run_legacy.html>`__.
 
 LISA is in active developing, and a lot of exciting features are being
-implemented. We’re listening to your
+implemented. We're listening to your
 `feedback <https://github.com/microsoft/lisa/issues/new>`__.
 
 License

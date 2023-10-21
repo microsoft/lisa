@@ -237,9 +237,13 @@ class Process:
                     "Running commands with sudo requires user's password,"
                     " but no password is provided."
                 )
-            assert self._process
-            self._process.stdin_write(f"{self._shell.connection_info.password}\n")
+            self.input(f"{self._shell.connection_info.password}\n")
             self._log.debug("The user's password is input")
+
+    def input(self, content: str) -> None:
+        assert self._process
+        self._log.debug(f"Inputting {len(content)} chars to process.")
+        self._process.stdin_write(content)
 
     def wait_result(
         self,

@@ -16,7 +16,7 @@ Follow the :ref:`quick_start:installation` steps to
 prepare the source code. Then follow the steps below to set up the corresponding
 development environment.
 
-.. _DevVirtEnv:
+.. _DevEnv:
 
 Creating a LISA development virtual environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +90,7 @@ If you wish to deactivate the virtual environment, use the ``deactivate`` comman
 Visual Studio Code
 ~~~~~~~~~~~~~~~~~~
 
-1. Click on the Python version at the bottom left of the editor’s window
+1. Click on the Python version at the bottom left of the editor's window
    and select the Python interpreter which Poetry just created. If you do not
    find it, check :doc:`FAQ and troubleshooting <../troubleshooting>` for extra
    instructions. This step is important because it ensures that the current
@@ -382,8 +382,8 @@ Extended reading
 ----------------
 
 -  `Python Design Patterns <https://python-patterns.guide/>`__. A
-   fantastic collection of material for using Python’s design patterns.
--  `The Hitchhiker’s Guide to
+   fantastic collection of material for using Python's design patterns.
+-  `The Hitchhiker's Guide to
    Python <https://docs.python-guide.org/>`__. This handcrafted guide
    exists to provide both novice and expert Python developers a best
    practice handbook for the installation, configuration, and usage of

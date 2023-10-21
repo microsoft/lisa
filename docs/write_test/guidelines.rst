@@ -31,7 +31,7 @@ brief overview of the most important parts:
 -  To avoid conflicts with the standard library, you can add an
    underscore, such as ``id_``.
 -  Leading lines such as ``_data`` apply to non-public methods and
-   instance variables. Subclasses can use it. If you don’t use it in a
+   instance variables. Subclasses can use it. If you don't use it in a
    subclass, use it like ``__data`` in a superclass.
 -  If there is a pair of ``get_x`` and ``set_x`` methods without
    additional parameters, please use the built-in ``@property``
@@ -59,7 +59,7 @@ elsewhere, such as tools, functions, or private methods in test suites.
 An example: Be careful when using ``sleep``! The only way to use sleep
 is in polling mode. This means that you must wait for something with
 regular inspections. In the inspection cycle, you can wait for a
-reasonable period. Don’t wait for 10 seconds of sleep. This causes two
+reasonable period. Don't wait for 10 seconds of sleep. This causes two
 problems, 1) if it is too short, the case may fail; 2) if it is long
 enough, it will slow down the running speed.
 
@@ -107,7 +107,7 @@ contradictory, but they can be achieved through different INFO and DEBUG
 levels. LISA always enables the DEBUG level in the log file, while the
 INFO level is the default setting on the console.
 
-In LISA, when writing log lines in the code, it’s recommended to
+In LISA, when writing log lines in the code, it's recommended to
 consider what the test runner needs to know, instead of what the
 developer needs to know, which should be done in code comments.
 
@@ -117,7 +117,7 @@ developer needs to know, which should be done in code comments.
 
    When writing code, please keep using and improving the log. If you
    need to debug step by step, it means you need to improve the log. If
-   you don’t understand the meaning of the log, others may not as well,
+   you don't understand the meaning of the log, others may not as well,
    so please optimize the log at DEBUG level. In addition, if you find
    duplicate information, please merge it.
 
@@ -186,7 +186,7 @@ Therefore, this message should be as helpful as possible.
 The error message should include what happened and how to resolve it. It
 may not be easy to provide all the information for the first time, but
 guesswork is also helpful. At the same time, the original error message
-is also useful, please don’t hide it.
+is also useful, please don't hide it.
 
 For examples,
 
@@ -226,7 +226,7 @@ When writing the assertion,
    yourself. ``assert_that(vmbuses).is_length(6)`` is better than
    ``assert_that(len(vmbuses)).is_equal_to(6)``. It is simpler and the
    error message is clearer.
--  Don’t forget to use powerful collection assertions. They can compare
+-  Don't forget to use powerful collection assertions. They can compare
    ordered list by ``contains`` (actual value is superset),
    ``is_subset_of`` (actual value is subset), and others.
 
@@ -258,7 +258,7 @@ its lower cost of analysis.
    reproduced.
 
 In LISA, test cases fail due to exceptions, and exception messages are
-treated as single-line messages. When writing test cases, it’s time to
+treated as single-line messages. When writing test cases, it's time to
 adjust the exception message. Therefore, after completing the test case,
 many errors will be explained well.
 
@@ -297,7 +297,7 @@ following steps:
    translate <https://translate.google.com/>`__ to convert it to
    English.
 4. Convert the English version back to your language and check. If it
-   doesn’t make sense after translating back, it means the sentence is
+   doesn't make sense after translating back, it means the sentence is
    too complicated. Make it simpler, and then start from step 1 again.
 5. Once satisfied, you can use `Microsoft
    Editor <https://www.microsoft.com/en-us/microsoft-365/microsoft-editor>`__

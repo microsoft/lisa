@@ -142,7 +142,7 @@ Feature
 -------
 
 The base class is :class:`Feature` in ``feature``. All examples are in `features
-<https://github.com/microsoft/lisa/tree/main/lisa/features>`__ and Azure’s
+<https://github.com/microsoft/lisa/tree/main/lisa/features>`__ and Azure's
 `features.py
 <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/features.py>`__.
 
@@ -155,7 +155,7 @@ Support an existing feature in a platform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. Implement the feature, so that it can work normally. Learn more from
-   the ``SerialConsole`` implementation in Azure’s `features.py
+   the ``SerialConsole`` implementation in Azure's `features.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/features.py>`__.
 
 2. The platform should declare which features it supports, and where the
@@ -177,7 +177,7 @@ Support an existing feature in a platform
           [features.StartStop.name(), features.SerialConsole.name()]
       )
 
-4. Learn more from Azure’s
+4. Learn more from Azure's
    `platform_.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/platform_.py>`__.
 
@@ -261,15 +261,15 @@ The base class is :class:`Platform` in ``platform_``.
 If a platform needs to specify settings in runbook, it can be
 implemented in two places.
 
-1. Platform schema. Learn more from ``AzurePlatformSchema`` in Azure’s
+1. Platform schema. Learn more from ``AzurePlatformSchema`` in Azure's
    `platform_.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/platform_.py>`__.
 
-2. Node schema. Learn more from ``AzureNodeSchema`` in Azure’s
+2. Node schema. Learn more from ``AzureNodeSchema`` in Azure's
    `common.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/common.py>`__.
 
-3. Use them in the platform code. Learn more from Azure’s
+3. Use them in the platform code. Learn more from Azure's
    `platform_.py
    <https://github.com/microsoft/lisa/blob/main/lisa/sut_orchestrator/azure/platform_.py>`__.
 
