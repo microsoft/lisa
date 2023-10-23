@@ -701,6 +701,8 @@ class Dpdk(TestSuite):
         _r_nic2 = receiver.nics.get_secondary_nic()
         sender.tools[Ip].down(_s_nic3.name)
         receiver.tools[Ip].down(_r_nic2.name)
+        sender.tools[Ip].remove_all_routes(ipv4_lpm(_r_nic2.ip_addr))
+        receiver.tools[Ip].remove_all_routes(ipv4_lpm(_s_nic3.ip_addr))
         # AND: Create kernel routing rules so traffic for subnet B/C gets routed through
         #      the FWDer no matter which subnet it originates from.
         # clear current route to subnet C on sender

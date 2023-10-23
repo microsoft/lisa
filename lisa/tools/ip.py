@@ -123,12 +123,28 @@ class Ip(Tool):
 
     def add_route(self, iface: str, dest: str, next_hop: str) -> None:
         next_hop = f"via {next_hop} dev {iface}"
-        self.run(f"route add to {dest}/32 {next_hop}", sudo=True, force_run=True)
+        self.run(f"route add {dest} {next_hop}", sudo=True, force_run=True)
 
-    def remove_route(self, prefix: str, first_hop: str = "") -> None:
-        if first_hop:
-            first_hop = f" via {first_hop}"
-        self.run(f"route del {prefix}{first_hop}", sudo=True, force_run=True)
+    def remove_all_routes(self, prefix: str) -> None:
+        routes = self.run(
+            "route",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="ip route del: could not fetch routes with ip route",
+        ).stdout.splitlines()
+        delete_routes = []
+        for route in routes:
+            if route.startswith(prefix):
+                delete_routes.append(route)
+        for route in delete_routes:
+            self.run(
+                f"route del {route}",
+                sudo=True,
+                force_run=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"Could not delete route: {route}",
+            )
 
     def _get_matched_dict(self, result: str) -> Dict[str, str]:
         matched = self.__ip_addr_show_regex.match(result)
