@@ -245,7 +245,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             guest_node = node.create(
                 index=len(node.guests),
                 runbook=guest_runbook,
-                logger_name=f"{node.log.name}g",
+                logger_name="g",
                 parent=node,
             )
             node.guests.append(guest_node)
