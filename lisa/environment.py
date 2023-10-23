@@ -206,6 +206,9 @@ class Environment(ContextMixin, InitializableMixin):
         self._status: Optional[EnvironmentStatus] = None
         self.status = EnvironmentStatus.New
 
+        # save parent for get information
+        self._parent: Optional[Environment] = None
+
     def __repr__(self) -> str:
         return self.name
 
@@ -336,10 +339,15 @@ class Environment(ContextMixin, InitializableMixin):
         return node
 
     def get_information(self, force_run: bool = True) -> Dict[str, str]:
-        if self._information_cache is None and not force_run:
+        if self._information_cache is not None and not force_run:
             self.log.info("Returning cached Environment Information")
-            return {}
-        self._information_cache = {}
+            return self._information_cache
+
+        if self._parent:
+            temp_information = self._parent.get_information(force_run=force_run)
+        else:
+            temp_information = {}
+
         informations: List[
             Dict[str, str]
         ] = plugin_manager.hook.get_environment_information(environment=self)
@@ -347,7 +355,11 @@ class Environment(ContextMixin, InitializableMixin):
         # try basic earlier, and they are allowed to be overwritten
         informations.reverse()
         for current_information in informations:
-            self._information_cache.update(current_information)
+            for key, value in current_information.items():
+                if value or key not in temp_information:
+                    temp_information[key] = value
+
+        self._information_cache = temp_information
         return self._information_cache
 
     def mark_dirty(self) -> None:
@@ -373,6 +385,7 @@ class Environment(ContextMixin, InitializableMixin):
         )
 
         env.id = f"{self.id}(gst)"
+        env._parent = self
 
         max_guest = max([len(node.guests) for node in self.nodes.list()])
         env.runbook.nodes = []
