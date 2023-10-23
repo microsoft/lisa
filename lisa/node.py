@@ -44,7 +44,7 @@ from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
 from lisa.util.process import ExecutableResult, Process, process_command
-from lisa.util.shell import LocalShell, Shell, SshShell
+from lisa.util.shell import LocalShell, Shell, SshShell, WslShell
 
 T = TypeVar("T")
 __local_node: Optional[Node] = None
@@ -866,6 +866,13 @@ class WslContainerNode(GuestNode):
             parent_logger=parent_logger,
             encoding=encoding,
             **kwargs,
+        )
+
+        wsl_runbook = cast(schema.WslNode, runbook)
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        assert self._parent._shell, "parent node must have the shell."
+        self._shell = WslShell(
+            parent=self._parent._shell, distro_name=wsl_runbook.distro
         )
 
     @classmethod
