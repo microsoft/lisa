@@ -98,9 +98,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         # The working path will be created in remote node, when it's used.
         self._working_path: Optional[PurePath] = None
 
-        # Not to set the log path until its first used. Because the path
-        # contains node name, which is not set in __init__.
-        self._base_part_path: Path = base_part_path if base_part_path else Path()
+        if parent:
+            self._base_part_path: Path = parent._base_part_path
+        else:
+            # Not to set the log path until its first used. Because the path
+            # contains node name, which is not set in __init__.
+            self._base_part_path = base_part_path if base_part_path else Path()
+
         self._local_log_path: Optional[Path] = None
         self._local_working_path: Optional[Path] = None
         self._support_sudo: Optional[bool] = None
@@ -808,8 +812,12 @@ class GuestNode(Node):
         base_part_path: Path | None = None,
         parent_logger: Logger | None = None,
         encoding: str = "utf-8",
+        parent: Optional[Node] = None,
         **kwargs: Any,
     ) -> None:
+        if not parent_logger and parent:
+            parent_logger = parent.log
+
         super().__init__(
             runbook=runbook,
             index=index,
@@ -818,9 +826,13 @@ class GuestNode(Node):
             base_part_path=base_part_path,
             parent_logger=parent_logger,
             encoding=encoding,
+            parent=parent,
             **kwargs,
         )
         assert self._parent, self.__PARENT_ASSERT_MESSAGE
+
+        self.name = f"g{self.index}"
+
         self._shell = self._parent._shell
 
     @classmethod
@@ -832,11 +844,22 @@ class GuestNode(Node):
         assert self._parent, self.__PARENT_ASSERT_MESSAGE
         return self._parent.is_remote
 
+    def cleanup(self) -> None:
+        # do nothing on log handlers
+        ...
+
+    def _get_node_part_path(self) -> PurePath:
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        path_name = self._parent._get_node_part_path() / self.name
+
+        return path_name
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # provision before initialize other parts
         self._provision()
 
-        super()._initialize(*args, **kwargs)
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        self._parent.initialize(*args, **kwargs)
         # os can be initialized earlier in subclasses. If not, initialize it here.
         if not hasattr(self, "os"):
             self.os: OperatingSystem = OperatingSystem.create(self)
