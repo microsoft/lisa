@@ -336,6 +336,70 @@ class Ip(Tool):
         assert_that(dev_match.groups()).is_length(1)
         return dev_match.group(1), dev_match.group()
 
+    def add_route_to(self, dest: str, via: str, dev: str) -> None:
+        # Add a route to a specific destination (prefix or ip addr)
+        # via an IP and a specific interface.
+        # useful for l3fwd test where we send traffic to an NVA-like
+        # router/forwarder
+        self.run(
+            f"route add {dest} via {via} dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add ip route to {dest} via {via} through dev {dev}"
+            ),
+        )
+
+    def remove_all_routes_for_device(self, device: str) -> None:
+        # get any routes going through a specific nic and remove them.
+        all_routes = self.run(
+            "route",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ip route del: could not fetch routes with ip route"
+            ),
+        ).stdout.splitlines()
+        delete_routes = []
+        for route in all_routes:
+            if f"dev {device}" in route:
+                delete_routes.append(route)
+        if len(delete_routes) == 0:
+            self._log.warn(
+                f"Ip tool found no routes for {device}"
+                " during remove_all_routes_for_device!"
+            )
+        for route in delete_routes:
+            self.run(
+                f"route del {route}",
+                sudo=True,
+                force_run=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"Could not delete route: {route}",
+            )
+
+    def route_exists(self, prefix: str, dev: str = "") -> bool:
+        # get any routes going through a specific nic and remove them.
+        all_routes = self.run(
+            "route",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ip route del: could not fetch routes with ip route"
+            ),
+        ).stdout.splitlines()
+        found_routes = []
+        for route in all_routes:
+            if route.startswith(prefix) and (not dev or f"dev {dev}" in route):
+                found_routes.append(route)
+        if found_routes:
+            log_routes = "\n".join(found_routes)
+            self._log.debug(f"found routes: {log_routes}")
+        return len(found_routes) > 0
+
     def get_interface_list(self) -> list[str]:
         raise NotImplementedError()
 
