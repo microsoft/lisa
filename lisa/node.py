@@ -531,7 +531,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     def _get_node_part_path(self) -> PurePath:
         path_name = self.name
         if not path_name:
-            if self.index:
+            if self.index >= 0:
                 index = self.index
             else:
                 index = randint(0, 10000)
