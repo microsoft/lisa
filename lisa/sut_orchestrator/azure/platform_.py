@@ -909,8 +909,9 @@ class AzurePlatform(Platform):
         else:
             node = None
 
+        information.update(self._get_platform_information(environment))
+
         if node:
-            information.update(self._get_platform_information(environment))
             information.update(self._get_node_information(node))
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
