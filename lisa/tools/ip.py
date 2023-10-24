@@ -121,22 +121,41 @@ class Ip(Tool):
                 f"ip link set {nic_name} {status}"
             )
 
-    def add_route(self, iface: str, dest: str, next_hop: str) -> None:
-        next_hop = f"via {next_hop} dev {iface}"
-        self.run(f"route add {dest} {next_hop}", sudo=True, force_run=True)
+    def add_route_to(self, dest: str, via: str, dev: str) -> None:
+        # Add a route to a specific destination (prefix or ip addr)
+        # via an IP and a specific interface.
+        # useful for l3fwd test where we send traffic to an NVA-like
+        # router/forwarder
+        self.run(
+            f"route add {dest} via {via} dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add ip route to {dest} via {via} through dev {dev}"
+            ),
+        )
 
-    def remove_all_routes(self, prefix: str) -> None:
-        routes = self.run(
+    def remove_all_routes_for_device(self, device: str) -> None:
+        # get any routes going through a specific nic and remove them.
+        all_routes = self.run(
             "route",
             force_run=True,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="ip route del: could not fetch routes with ip route",
+            expected_exit_code_failure_message=(
+                "ip route del: could not fetch routes with ip route"
+            ),
         ).stdout.splitlines()
         delete_routes = []
-        for route in routes:
-            if route.startswith(prefix):
+        for route in all_routes:
+            if f"dev {device}" in route:
                 delete_routes.append(route)
+        if len(delete_routes) == 0:
+            self._log.warn(
+                f"Ip tool found no routes for {device}"
+                " during remove_all_routes_for_device!"
+            )
         for route in delete_routes:
             self.run(
                 f"route del {route}",
@@ -145,6 +164,26 @@ class Ip(Tool):
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Could not delete route: {route}",
             )
+
+    def route_exists(self, prefix: str, dev: str = "") -> bool:
+        # get any routes going through a specific nic and remove them.
+        all_routes = self.run(
+            "route",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ip route del: could not fetch routes with ip route"
+            ),
+        ).stdout.splitlines()
+        found_routes = []
+        for route in all_routes:
+            if route.startswith(prefix) and (not dev or f"dev {dev}" in route):
+                found_routes.append(route)
+        if found_routes:
+            log_routes = "\n".join(found_routes)
+            self._log.debug(f"found routes: {log_routes}")
+        return len(found_routes) > 0
 
     def _get_matched_dict(self, result: str) -> Dict[str, str]:
         matched = self.__ip_addr_show_regex.match(result)

@@ -657,7 +657,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we catch an exception in this section.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3, jitter=range(0, 5))
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
     def _do_update_subnet(
         self,
         virtual_network_name: str,
@@ -693,7 +693,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     # Subroutine to create the route table,
     # seperated because the create/apply process has multiple potential timeouts.
     # We don't want to restart the entire process if one step fails.
-    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3, jitter=range(0, 5))
+    @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
     def _do_create_route_table(
         self,
         em_first_hop: str,
@@ -805,7 +805,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             subnet_name = subnet.split("/")[-1]
             # get the subnet object using the resource name and vnet name
             if self._do_update_subnet(
-                resource_group_name=self._resource_group_name,
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
                 subnet_mask=subnet_mask,
