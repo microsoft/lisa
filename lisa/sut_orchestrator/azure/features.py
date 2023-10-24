@@ -49,7 +49,19 @@ from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lsblk, Lspci, Modprobe, Rm, Sed
+from lisa.tools import (
+    Cat,
+    Curl,
+    Dmesg,
+    Find,
+    IpInfo,
+    Ls,
+    Lsblk,
+    Lspci,
+    Modprobe,
+    Rm,
+    Sed,
+)
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
@@ -1300,6 +1312,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^=>\s+\d+\s+\d+\s+(?P<label>\w*)\s+\w+\s+\(\w+\)", re.M
     )
 
+    # mounts:
+    #   - [ ephemeral0, /mnt/resource ]
+    EPHEMERAL_DISK_PATTERN = re.compile(
+        r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1497,20 +1515,42 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.close()
 
     def get_resource_disk_mount_point(self) -> str:
-        # by default, cloudinit will use /mnt as mount point of resource disk
-        # in CentOS, cloud.cfg.d/91-azure_datasource.cfg customize mount point as
-        # /mnt/resource
-        if (
-            not isinstance(self._node.os, CentOs)
-            and self._node.shell.exists(
-                self._node.get_pure_path("/var/log/cloud-init.log")
-            )
-            and self._node.shell.exists(
-                self._node.get_pure_path("/var/lib/cloud/instance")
-            )
+        # get customize mount point from cloud-init configuration file from /etc/cloud/
+        # if not found, use default mount point /mnt for cloud-init
+        if self._node.shell.exists(
+            self._node.get_pure_path("/var/log/cloud-init.log")
+        ) and self._node.shell.exists(
+            self._node.get_pure_path("/var/lib/cloud/instance")
         ):
             self._log.debug("Disk handled by cloud-init.")
-            mount_point = "/mnt"
+
+            # get mount point from cloud-init config files
+            find_tool = self._node.tools[Find]
+            file_list = find_tool.find_files(
+                self._node.get_pure_path("/etc/cloud/"),
+                "*.cfg",
+                sudo=True,
+                ignore_not_exist=True,
+                file_type="f",
+            )
+            conf_content = ""
+            for found_file in file_list:
+                conf_content = conf_content + self._node.tools[Cat].read(
+                    str(found_file), sudo=True, no_debug_log=True
+                )
+            match = self.EPHEMERAL_DISK_PATTERN.search(conf_content)
+
+            if match:
+                mount_point = match.group(1)
+                self._log.debug(
+                    f"Found mount point {mount_point} from "
+                    "cloud-init configuration file."
+                )
+            else:
+                mount_point = "/mnt"
+                self._log.debug(
+                    "No mount point found from cloud-init configuration file. Use /mnt."
+                )
         else:
             self._log.debug("Disk handled by waagent.")
             mount_point = self._node.tools[Waagent].get_resource_disk_mount_point()
