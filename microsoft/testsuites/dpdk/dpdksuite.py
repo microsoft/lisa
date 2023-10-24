@@ -647,6 +647,8 @@ class Dpdk(TestSuite):
 
         # arbitrarily pick fwd/snd/recv nodes.
         forwarder, sender, receiver = environment.nodes.list()
+        for node in [forwarder, sender, receiver]:
+            node.mark_dirty()
         available_cores = forwarder.tools[Lscpu].get_core_count()
         if available_cores < 16:
             raise SkippedException("l3 forward test needs >= 16 cores.")
@@ -696,42 +698,29 @@ class Dpdk(TestSuite):
         r_nic3_ip = r_nic3.ip_addr
 
         # We use ntttcp for snd/rcv which will respect kernel routes!
-        # SO: set these extra interfaces to DOWN
+        # SO: remove the interfaces which would skip the forwarder
         _s_nic3 = sender.nics.get_tertiary_nic()
         _r_nic2 = receiver.nics.get_secondary_nic()
-        sender.tools[Ip].down(_s_nic3.name)
-        receiver.tools[Ip].down(_r_nic2.name)
-        sender.tools[Ip].remove_all_routes(ipv4_lpm(_r_nic2.ip_addr))
-        receiver.tools[Ip].remove_all_routes(ipv4_lpm(_s_nic3.ip_addr))
-        # AND: Create kernel routing rules so traffic for subnet B/C gets routed through
-        #      the FWDer no matter which subnet it originates from.
-        # clear current route to subnet C on sender
-        # sender.execute(
-        #     f"ip route del {ipv4_lpm(r_nic3_ip)} dev {_s_nic3.name}",
-        #     sudo=True,
-        #     shell=True,
-        # )
-        # # clear current route to subnet B on receiver
-        # receiver.execute(
-        #     f"ip route del {ipv4_lpm(s_nic2_ip)} dev {_r_nic2.name}",
-        #     sudo=True,
-        #     shell=True,
-        # )
-        # add routes to subnet B/C through forwarder on sender/receiver
-        sender.execute(
-            f"ip route add {ipv4_lpm(r_nic3_ip)} via {f_nic2.ip_addr} dev {s_nic2.name} ",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not add route to sender",
-        )
-        receiver.execute(
-            f"ip route add {ipv4_lpm(s_nic2_ip)} via {f_nic3.ip_addr} dev {r_nic3.name} ",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not add route to receiver",
-        )
+        ip_tool = {sender: sender.tools[Ip], receiver: receiver.tools[Ip]}
+        ip_tool[sender].down(_s_nic3.name)
+        ip_tool[receiver].down(_r_nic2.name)
+
+        # remove any lingering routes through those devices
+        ip_tool[sender].remove_all_routes_for_device(_s_nic3.name)
+        ip_tool[receiver].remove_all_routes_for_device(_r_nic2.name)
+
+        # If they're not created yet, create kernel routing rules so traffic for
+        # subnet B/C gets routed through the FWDer for subnetc B and C
+        sender_prefix = ipv4_lpm(s_nic2_ip)
+        receiver_prefix = ipv4_lpm(r_nic3_ip)
+        if not ip_tool[sender].route_exists(prefix=receiver_prefix, dev=s_nic2.name):
+            ip_tool[sender].add_route_to(
+                dest=receiver_prefix, via=f_nic2.ip_addr, dev=s_nic2.name
+            )
+        if not ip_tool[receiver].route_exists(prefix=sender_prefix, dev=r_nic3.name):
+            ip_tool[receiver].add_route_to(
+                dest=sender_prefix, via=f_nic3.ip_addr, dev=r_nic3.name
+            )
 
         ## AZ ROUTING TABLES
         #  The kernel routes are not sufficient, since Azure also manages the VNETs for the VMS.
@@ -771,7 +760,7 @@ class Dpdk(TestSuite):
             extra_nics=[f_nic3],
         )
         # enable hugepages needed for dpdk EAL
-        init_hugepages(forwarder)
+        init_hugepages(forwarder, enable_gibibyte_hugepages=True)
 
         # we're cheating here and not dynamically picking the port IDs
         # Why? I haven't finished the demo code for it yet. -mm
@@ -842,33 +831,31 @@ class Dpdk(TestSuite):
         ]
 
         ## Generating port,queue,core mappings for forwarder
-        # NOTE: For DPDK '8 queues' means 8 queues * N PORTS
+        # NOTE: For DPDK 'N queues' means N queues * N PORTS
         # Each port P has N queues (really queue pairs for tx/rx)
-        # Each core can receive one (1) queue id.
+        # Queue N for Port A and Port B will be assigned to the same core.
         # l3fwd rquires us to explicitly map these as a set of tuples.
         # Create a set of tuples (PortID,QueueID,CoreID)
         # These are minimally error checked, we can accidentally assign
-        #  cores and queues to unused ports.
-        queue_count = 8
-        # reduce queue count if we will run out of cores using 8
+        #  cores and queues to unused ports etc.
+        queue_count = 32
         if available_cores < 32:
+            queue_count = 16
+        elif available_cores < 16:
+            queue_count = 8
+        elif available_cores <= 8:
+            # minimum core count is 8
             queue_count = 4
         use_queues = range(queue_count)
         config_tups = []
+        included_cores = []
         last_core = 1
         # map port for forwarding sender-side traffic
         for q in use_queues:
             config_tups.append((dpdk_port_snd_side, q, last_core))
-            last_core += 1
-        # map port for forwarding receiver-side traffic
-        for q in use_queues:
             config_tups.append((dpdk_port_rcv_side, q, last_core))
+            included_cores.append(str(last_core))
             last_core += 1
-
-        # cheat on mana, force single queue single core
-        if fwd_kit.testpmd.is_mana:
-            config_tups = [(1, 0, 1), (2, 0, 1)]
-            last_core = 1
 
         configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
 
@@ -886,15 +873,14 @@ class Dpdk(TestSuite):
 
         joined_include = " ".join(include_devices)
 
-        joined_core_list = ",".join(map(str, range(1, last_core + 1)))
+        joined_core_list = ",".join(included_cores)
         ## START THE TEST
         # finally, start the forwarder
         fwd_cmd = (
             f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
             f" {promiscuous} -p {get_portmask([dpdk_port_snd_side,dpdk_port_rcv_side])} "
             f' --lookup=lpm --config="{configs}" '
-            "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 "
-            f"--mode=poll --parse-ptype"
+            "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
         )
         fwd_proc = forwarder.execute_async(
             fwd_cmd,
@@ -902,18 +888,19 @@ class Dpdk(TestSuite):
             shell=True,
         )
         fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
-
+        THREADS_COUNT = 64
         # start the receiver
         receiver_proc = ntttcp[receiver].run_as_server_async(
             r_nic3.name,
             run_time_seconds=30,
+            buffer_size=1024,
             server_ip=r_nic3_ip,
         )
         # start the sender
         sender_result = ntttcp[sender].run_as_client(
             nic_name=s_nic2.name,
             server_ip=r_nic3_ip,
-            threads_count=32,
+            threads_count=THREADS_COUNT,
             run_time_seconds=10,
         )
 
