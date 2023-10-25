@@ -160,9 +160,16 @@ class Lsblk(Tool):
         lsblk_entries = json.loads(output)["blockdevices"]
 
         for lsblk_entry in lsblk_entries:
+            disk_mountpoint = lsblk_entry["mountpoint"]
+            if disk_mountpoint == "/mnt/wslg/distro":
+                # WSL mounts the system disk to /mnt/wslg/distro, and it's not
+                # the default returned by lsblk. WSLg distro mountpoint is not
+                # accessible, so replace it to "/"
+                disk_mountpoint = "/"
+
             disk_info = DiskInfo(
                 name=lsblk_entry["name"],
-                mountpoint=lsblk_entry["mountpoint"],
+                mountpoint=disk_mountpoint,
                 size=int(lsblk_entry["size"]),
                 dev_type=lsblk_entry["type"],
                 fstype=lsblk_entry["fstype"],
