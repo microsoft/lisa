@@ -17,7 +17,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator.azure import features
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Dmesg
+from lisa.tools import Cat, Dmesg
 from lisa.util import LisaException, SkippedException, get_matched_str
 
 
@@ -36,10 +36,14 @@ class CVMAzureHostTestSuite(TestSuite):
     )
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
+        node: Node = kwargs["node"]
         if not isinstance(node.os, (CBLMariner)):
             raise SkippedException(
                 f"CVMAzureHostTestSuite is not implemented for {node.os.name}"
+            )
+        elif not is_mariner_dom0(node):
+            raise SkippedException(
+                "CVMAzureHostTestSuite is supported only on Dom0-Mariner"
             )
 
     @TestCaseMetadata(
@@ -83,3 +87,13 @@ class CVMAzureHostTestSuite(TestSuite):
                 err_msg: str = "Maximum SEV_SNP Partition should be greater than zero"
                 assert_that(partitions).described_as(err_msg).is_greater_than(0)
                 log.debug(f"Maximum supported SEV-SNP partitions are: {partitions}")
+
+
+def is_mariner_dom0(node: Node) -> bool:
+    cat = node.tools[Cat]
+    hosts = cat.read("/etc/hosts")
+    pattern = r"dom0-\d+-\d+-\d+-\w+-\d+"
+    matches = re.findall(pattern, hosts)
+    if matches:
+        return True
+    return False
