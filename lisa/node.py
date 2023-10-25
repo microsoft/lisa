@@ -366,7 +366,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 )
             )
 
-        mount = self.tools[Mount]
         lsblk = self.tools[Lsblk]
         disks = lsblk.get_disks(force_run=True)
         df = self.tools[Df]
@@ -377,8 +376,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             if disk.is_os_disk and not use_os_drive:
                 continue
 
-            # if the disk contains partition, check the partitions
-            if len(disk.partitions) > 0:
+            # if the disk contains partition, check the partitions only.
+            if disk.partitions:
                 for partition in disk.partitions:
                     # we only use root partition for OS disk
                     if disk.is_os_disk and partition.mountpoint != "/":
@@ -388,6 +387,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     disk_name = partition_name = partition.name
                     if not partition.is_mounted:
                         mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
+                        mount = self.tools[Mount]
                         mount.mount(partition.device_name, mountpoint, format_=True)
                     else:
                         mountpoint = partition.mountpoint
@@ -411,6 +411,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
+                    mount = self.tools[Mount]
                     mount.mount(disk.device_name, mountpoint, format_=True)
                 else:
                     mountpoint = disk.mountpoint
