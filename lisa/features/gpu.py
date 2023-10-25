@@ -322,7 +322,7 @@ class Gpu(Feature):
             isinstance(self._node.os, Ubuntu)
             and self._node.os.information.version >= "16.4.0"
         ):
-            self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=2000)
+            self._node.os.install_packages(self._ubuntu_gpu_dependencies, timeout=3500)
         elif (
             isinstance(self._node.os, CBLMariner)
             and self._node.os.information.version == "2.0.0"
