@@ -30,9 +30,14 @@ class Hwclock(Tool):
         cmd_result = self.run("--systohc", shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
-    def set_datetime(self, time: datetime) -> None:
+    def set_datetime(
+        self, time: datetime, time_format: str = "%Y-%m-%d %H:%M:%S"
+    ) -> None:
+        # The most commonly used format that is Linux-compatible is ISO 8601 format
+        # which is "YYYY-MM-DD HH:MM:SS".
+        set_time = time.strftime(time_format)
         self.run(
-            f"--set --date='{time}'",
+            f"--set --date='{set_time}'",
             shell=True,
             sudo=True,
             force_run=True,
@@ -40,14 +45,17 @@ class Hwclock(Tool):
             expected_exit_code_failure_message="fail to set date",
         )
 
-    @retry(exceptions=LisaException, tries=20, delay=0.5)
+    @retry(exceptions=LisaException, tries=20, delay=1)
     def get(self, no_error_log: bool = True) -> datetime:
         command_result = self.run(
             no_error_log=no_error_log,
             force_run=True,
             sudo=True,
-            timeout=10,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="fail to get date",
+            timeout=60,
         )
+        if command_result.exit_code != 0:
+            raise LisaException(
+                f"fail to run hwclock, output: {command_result.stdout},"
+                f" error: {command_result.stderr}"
+            )
         return parser().parse(command_result.stdout)

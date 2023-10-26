@@ -144,7 +144,8 @@ class OperatingSystem:
         result: Optional[OperatingSystem] = None
 
         detected_info = ""
-        if node.shell.is_posix:
+        # assume all guest nodes are posix
+        if node.shell.is_posix or node.parent:
             # delay create factory to make sure it's late than loading extensions
             if cls.__posix_factory is None:
                 cls.__posix_factory = Factory[Posix](Posix)

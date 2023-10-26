@@ -51,6 +51,10 @@ class AzureDiskEncryption(TestSuite):
         node = kwargs["node"]
         if not self._is_supported_linux_distro(node):
             raise SkippedException(UnsupportedDistroException(node.os))
+        needed_packages = ["python-parted", "python3-parted"]
+        for package in needed_packages:
+            if node.os.is_package_in_repo(package):
+                node.os.install_packages(package)
 
     @TestCaseMetadata(
         description="""
@@ -234,12 +238,12 @@ class AzureDiskEncryption(TestSuite):
             return False
 
         for distro, max_supported_version in max_supported_major_versions.items():
-            if isinstance(node.os, distro):
+            if type(node.os) == distro:
                 if node.os.information.version.major > max_supported_version:
                     return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
-            if isinstance(node.os, distro):
+            if type(node.os) == distro:
                 if node.os.information.version.major >= min_supported_version:
                     return True
 
@@ -257,12 +261,12 @@ class AzureDiskEncryption(TestSuite):
         minor_version = version_info.minor
 
         # ADE support only on Ubuntu LTS images
-        if isinstance(node.os, Ubuntu):
+        if type(node.os) == Ubuntu:
             if minor_version != 4:
                 return True
 
         for distro, versions in min_supported_versions.items():
-            if isinstance(node.os, distro):
+            if type(node.os) == distro:
                 for version in versions:
                     if (
                         major_version == version["major"]

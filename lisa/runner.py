@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 from lisa import messages, notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
-from lisa.messages import TestResultMessage, TestStatus
+from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
@@ -35,7 +35,7 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
 
 
 def print_results(
-    test_results: List[TestResultMessage],
+    test_results: List[TestResultMessageBase],
     output_method: Callable[[str], Any],
     add_ending: bool = False,
 ) -> None:
@@ -48,7 +48,12 @@ def print_results(
     output_with_ending("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
-        result_name = test_result.full_name
+        if isinstance(test_result, TestResultMessage):
+            result_name = test_result.full_name
+        elif isinstance(test_result, messages.SubTestMessage):
+            result_name = f"{test_result.name} ({test_result.parent_test})"
+        else:
+            raise LisaException(f"unknown result type: {type(test_result)}")
         result_status = test_result.status
 
         output_with_ending(
@@ -238,7 +243,9 @@ class RootRunner(Action):
             self._cleanup()
 
         if self._results_collector:
-            results = [x for x in self._results_collector.results.values()]
+            results: List[TestResultMessageBase] = [
+                x for x in self._results_collector.results.values()
+            ]
             print_results(results, self._log.info)
 
             if any(x.status == TestStatus.QUEUED for x in results):

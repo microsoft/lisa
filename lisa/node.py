@@ -5,7 +5,18 @@ from __future__ import annotations
 
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
 from random import randint
-from typing import Any, Dict, Iterable, List, Optional, Type, TypeVar, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from lisa import schema
 from lisa.executable import Tools
@@ -13,7 +24,7 @@ from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
 from lisa.operating_system import BSD, OperatingSystem
 from lisa.secret import add_secret
-from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname
+from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -32,8 +43,8 @@ from lisa.util import (
 from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
 from lisa.util.parallel import run_in_parallel
-from lisa.util.process import ExecutableResult, Process
-from lisa.util.shell import LocalShell, Shell, SshShell
+from lisa.util.process import ExecutableResult, Process, process_command
+from lisa.util.shell import LocalShell, Shell, SshShell, WslShell
 
 T = TypeVar("T")
 __local_node: Optional[Node] = None
@@ -58,6 +69,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
         encoding: str = "utf-8",
+        parent: Optional[Node] = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(runbook=runbook)
         self.is_default = runbook.is_default
@@ -69,6 +82,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._shell: Optional[Shell] = None
         self._first_initialize: bool = False
         self._encoding = encoding
+        self._guests: List[Node] = []
+        self._parent = parent
 
         # will be initialized by platform
         self.features: Features
@@ -83,9 +98,13 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         # The working path will be created in remote node, when it's used.
         self._working_path: Optional[PurePath] = None
 
-        # Not to set the log path until its first used. Because the path
-        # contains node name, which is not set in __init__.
-        self._base_part_path: Path = base_part_path if base_part_path else Path()
+        if parent:
+            self._base_part_path: Path = parent._base_part_path
+        else:
+            # Not to set the log path until its first used. Because the path
+            # contains node name, which is not set in __init__.
+            self._base_part_path = base_part_path if base_part_path else Path()
+
         self._local_log_path: Optional[Path] = None
         self._local_working_path: Optional[Path] = None
         self._support_sudo: Optional[bool] = None
@@ -129,6 +148,14 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 self._support_sudo = True
 
         return self._support_sudo
+
+    @property
+    def parent(self) -> Optional[Node]:
+        return self._parent
+
+    @property
+    def guests(self) -> List[Node]:
+        return self._guests
 
     @property
     def is_connected(self) -> bool:
@@ -189,6 +216,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         is_test_target: bool = True,
         base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        parent: Optional["Node"] = None,
     ) -> Node:
         if not cls._factory:
             cls._factory = subclasses.Factory[Node](Node)
@@ -200,6 +228,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
+            parent=parent,
         )
 
         node.log.debug(
@@ -223,6 +252,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         cwd: Optional[PurePath] = None,
         timeout: int = 600,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
@@ -236,6 +266,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
         return process.wait_result(
             timeout=timeout,
@@ -254,6 +285,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
     ) -> Process:
         self.initialize()
 
@@ -267,6 +299,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
 
     def cleanup(self) -> None:
@@ -323,7 +356,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             self.log.debug(f"error on capturing system information: {identifier}")
 
     def find_partition_with_freespace(
-        self, size_in_gb: int, use_os_drive: bool = True
+        self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
     ) -> str:
         if self.os.is_windows:
             raise NotImplementedError(
@@ -333,7 +366,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 )
             )
 
-        mount = self.tools[Mount]
         lsblk = self.tools[Lsblk]
         disks = lsblk.get_disks(force_run=True)
         df = self.tools[Df]
@@ -344,8 +376,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             if disk.is_os_disk and not use_os_drive:
                 continue
 
-            # if the disk contains partition, check the partitions
-            if len(disk.partitions) > 0:
+            # if the disk contains partition, check the partitions only.
+            if disk.partitions:
                 for partition in disk.partitions:
                     # we only use root partition for OS disk
                     if disk.is_os_disk and partition.mountpoint != "/":
@@ -355,18 +387,31 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     disk_name = partition_name = partition.name
                     if not partition.is_mounted:
                         mountpoint = f"{PATH_REMOTE_ROOT}/{partition_name}"
+                        mount = self.tools[Mount]
                         mount.mount(partition.device_name, mountpoint, format_=True)
                     else:
                         mountpoint = partition.mountpoint
             else:
                 # mount the disk if it isn't mounted
                 disk_name = disk.name
-                # skip floppy disk
                 if "fd" in disk_name:
+                    # skip floppy disk
                     continue
+                if disk.fstype == "swap":
+                    # skip swap disk
+                    continue
+
+                if disk.size_in_gb < size_in_gb:
+                    # skip smaller size disk, instead of format it automatically.
+                    self.log.debug(
+                        f"skip disk {disk_name}, size {disk.size_in_gb} is too small."
+                    )
+                    continue
+
                 if not disk.is_mounted:
                     mountpoint = f"{PATH_REMOTE_ROOT}/{disk_name}"
                     self.tools[Mkfs].format_disk(disk.device_name, FileSystem.ext4)
+                    mount = self.tools[Mount]
                     mount.mount(disk.device_name, mountpoint, format_=True)
                 else:
                     mountpoint = disk.mountpoint
@@ -379,9 +424,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                 # the mount point after mounting
                 return lsblk.find_mountpoint_by_volume_name(disk_name, force_run=True)
 
-        raise LisaException(
-            f"No partition with Required disk space of {size_in_gb}GB found"
-        )
+        if raise_error:
+            raise LisaException(
+                f"No partition with Required disk space of {size_in_gb}GB found"
+            )
+
+        return ""
 
     def get_working_path_with_required_space(self, required_size_in_gb: int) -> str:
         work_path = str(self.working_path)
@@ -463,8 +511,12 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
+        command_splitter: Callable[..., List[str]] = process_command,
     ) -> Process:
         cmd_id = str(randint(0, 10000))
+        if not encoding:
+            encoding = self._encoding
         process = Process(cmd_id, self.shell, parent_logger=self.log)
         process.start(
             cmd,
@@ -474,16 +526,17 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             no_error_log=no_error_log,
             no_info_log=no_info_log,
             no_debug_log=no_debug_log,
-            encoding=self._encoding,
+            encoding=encoding,
             cwd=cwd,
             update_envs=update_envs,
+            command_splitter=command_splitter,
         )
         return process
 
     def _get_node_part_path(self) -> PurePath:
         path_name = self.name
         if not path_name:
-            if self.index:
+            if self.index >= 0:
                 index = self.index
             else:
                 index = randint(0, 10000)
@@ -710,17 +763,21 @@ class LocalNode(Node):
         runbook: schema.Node,
         index: int,
         logger_name: str,
-        base_part_path: Optional[Path],
         is_test_target: bool = True,
+        base_part_path: Optional[Path] = None,
         parent_logger: Optional[Logger] = None,
+        encoding: str = "utf-8",
+        **kwargs: Any,
     ) -> None:
         super().__init__(
-            index=index,
             runbook=runbook,
+            index=index,
             logger_name=logger_name,
             is_test_target=is_test_target,
             base_part_path=base_part_path,
             parent_logger=parent_logger,
+            encoding=encoding,
+            **kwargs,
         )
 
         self._shell = LocalShell()
@@ -742,6 +799,223 @@ class LocalNode(Node):
 
     def __repr__(self) -> str:
         return "local"
+
+
+class GuestNode(Node):
+    __PARENT_ASSERT_MESSAGE = "guest node must have a parent node."
+
+    def __init__(
+        self,
+        runbook: schema.Node,
+        index: int,
+        logger_name: str,
+        is_test_target: bool = True,
+        base_part_path: Path | None = None,
+        parent_logger: Logger | None = None,
+        encoding: str = "utf-8",
+        parent: Optional[Node] = None,
+        **kwargs: Any,
+    ) -> None:
+        if not parent_logger and parent:
+            parent_logger = parent.log
+
+        super().__init__(
+            runbook=runbook,
+            index=index,
+            logger_name=logger_name,
+            is_test_target=is_test_target,
+            base_part_path=base_part_path,
+            parent_logger=parent_logger,
+            encoding=encoding,
+            parent=parent,
+            **kwargs,
+        )
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+
+        self.name = f"g{self.index}"
+
+        self._shell = self._parent._shell
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "guest_node"
+
+    @property
+    def is_remote(self) -> bool:
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        return self._parent.is_remote
+
+    def cleanup(self) -> None:
+        # do nothing on log handlers
+        ...
+
+    def _get_node_part_path(self) -> PurePath:
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        path_name = self._parent._get_node_part_path() / self.name
+
+        return path_name
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        # provision before initialize other parts
+        self._provision()
+
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        self._parent.initialize(*args, **kwargs)
+        # os can be initialized earlier in subclasses. If not, initialize it here.
+        if not hasattr(self, "os"):
+            self.os: OperatingSystem = OperatingSystem.create(self)
+
+    def _provision(self) -> None:
+        ...
+
+
+class WslContainerNode(GuestNode):
+    def __init__(
+        self,
+        runbook: schema.Node,
+        index: int,
+        logger_name: str,
+        is_test_target: bool = True,
+        base_part_path: Path | None = None,
+        parent_logger: Logger | None = None,
+        encoding: str = "utf-8",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            runbook=runbook,
+            index=index,
+            logger_name=logger_name,
+            is_test_target=is_test_target,
+            base_part_path=base_part_path,
+            parent_logger=parent_logger,
+            encoding=encoding,
+            **kwargs,
+        )
+
+        wsl_runbook = cast(schema.WslNode, runbook)
+        assert self._parent, self.__PARENT_ASSERT_MESSAGE
+        assert self._parent._shell, "parent node must have the shell."
+        self._shell = WslShell(
+            parent=self._parent._shell, distro_name=wsl_runbook.distro
+        )
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "wsl"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return schema.WslNode
+
+    def reboot(self, time_out: int = 300) -> None:
+        self._wsl.shutdown(self._distro)
+
+    def _provision(self) -> None:
+        assert self.parent, self.__PARENT_ASSERT_MESSAGE
+
+        runbook = cast(schema.WslNode, self.runbook)
+        # initialize wsl tool to check if wsl installed
+        wsl: Wsl = self.parent.tools.create(Wsl, guest=self)
+        self._wsl = wsl
+        self._distro = runbook.distro
+
+        wsl.install_distro(
+            name=self.runbook.distro, reinstall=runbook.reinstall, kernel=runbook.kernel
+        )
+
+    def _execute(
+        self,
+        cmd: str,
+        shell: bool = False,
+        sudo: bool = False,
+        nohup: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = False,
+        no_debug_log: bool = False,
+        cwd: Optional[PurePath] = None,
+        update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
+        command_splitter: Callable[..., List[str]] = process_command,
+    ) -> Process:
+        assert self.parent, self.__PARENT_ASSERT_MESSAGE
+
+        cwd_commands: List[str] = []
+        if cwd:
+            # preprocess cwd, and ignore it from parent's command.
+            cwd_commands.append("--cd")
+            cwd_commands.append(str(PurePosixPath(cwd)))
+
+        def _get_wsl_cmd(
+            is_posix: bool,
+            command: str,
+            sudo: bool,
+            shell: bool,
+            nohup: bool,
+            update_envs: Dict[str, str],
+        ) -> List[str]:
+            # change order to support envs
+            result: List[str] = []
+            if update_envs:
+                # set all envs in wsl, not in Windows.
+                for key, value in update_envs.items():
+                    value = value.replace('"', '\\"')
+                    result.append("export")
+                    result.append(f"{key}={value}")
+                    result.append(";")
+
+                # prevent it's be processed by the other logic in underlying
+                # shell.
+                update_envs.clear()
+
+            if sudo:
+                result += ["sudo"]
+
+            if nohup:
+                result += ["nohup"]
+
+            split_cmd = process_command(
+                is_posix=True,
+                command=command,
+                sudo=False,
+                shell=shell,
+                nohup=False,
+                update_envs={},
+            )
+
+            if shell and self.is_remote:
+                # fix for remote bash commands.
+                # assume the original output is like:
+                # ['sh', '-c', command]
+                last_command = split_cmd[-1].replace('"', '\\"')
+                split_cmd[-1] = f'"{last_command}"'
+
+            prefixes = [self._wsl.command, "-d", self._distro]
+
+            if cwd_commands:
+                prefixes += cwd_commands
+
+            result = [
+                *prefixes,
+                "--",
+                *result,
+                *split_cmd,
+            ]
+
+            return result
+
+        return super()._execute(
+            cmd=cmd,
+            shell=shell,
+            sudo=sudo,
+            nohup=nohup,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            no_debug_log=no_debug_log,
+            cwd=None,
+            update_envs=update_envs,
+            encoding=encoding,
+            command_splitter=_get_wsl_cmd,
+        )
 
 
 class Nodes:

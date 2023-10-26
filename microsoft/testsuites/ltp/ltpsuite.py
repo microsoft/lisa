@@ -79,11 +79,12 @@ class LtpTestsuite(TestSuite):
 
         if not block_device:
             mountpoint = node.find_partition_with_freespace(
-                self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False
+                self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
             )
-            block_device = (
-                node.tools[Lsblk].find_disk_by_mountpoint(mountpoint).device_name
-            )
+            if mountpoint:
+                block_device = (
+                    node.tools[Lsblk].find_disk_by_mountpoint(mountpoint).device_name
+                )
 
         # run ltp lite tests
         ltp: Ltp = node.tools.get(Ltp, git_tag=ltp_tests_git_tag)

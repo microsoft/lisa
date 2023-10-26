@@ -206,6 +206,9 @@ class Environment(ContextMixin, InitializableMixin):
         self._status: Optional[EnvironmentStatus] = None
         self.status = EnvironmentStatus.New
 
+        # save parent for get information
+        self._parent: Optional[Environment] = None
+
     def __repr__(self) -> str:
         return self.name
 
@@ -336,10 +339,15 @@ class Environment(ContextMixin, InitializableMixin):
         return node
 
     def get_information(self, force_run: bool = True) -> Dict[str, str]:
-        if self._information_cache is None and not force_run:
+        if self._information_cache is not None and not force_run:
             self.log.info("Returning cached Environment Information")
-            return {}
-        self._information_cache = {}
+            return self._information_cache
+
+        if self._parent:
+            temp_information = self._parent.get_information(force_run=force_run)
+        else:
+            temp_information = {}
+
         informations: List[
             Dict[str, str]
         ] = plugin_manager.hook.get_environment_information(environment=self)
@@ -347,12 +355,54 @@ class Environment(ContextMixin, InitializableMixin):
         # try basic earlier, and they are allowed to be overwritten
         informations.reverse()
         for current_information in informations:
-            self._information_cache.update(current_information)
+            for key, value in current_information.items():
+                if value or key not in temp_information:
+                    temp_information[key] = value
+
+        self._information_cache = temp_information
         return self._information_cache
 
     def mark_dirty(self) -> None:
         self.log.debug("mark environment to dirty")
         self._is_dirty = True
+
+    def get_guest_environment(self) -> "Environment":
+        # It adds guests from different parent nodes. The order is to add first
+        # guest from each node, and then add second and more similar. So, it can
+        # test across parents.
+
+        # Make preparing phase works from parents.
+        if self.status == EnvironmentStatus.Prepared:
+            return self
+
+        runbook = copy.copy(self.runbook)
+        runbook.name = f"{self.name}(gst)"
+        env = Environment(
+            is_predefined=self.is_predefined,
+            warn_as_error=self.warn_as_error,
+            id_=self._raw_id,
+            runbook=runbook,
+        )
+
+        env.id = f"{self.id}(gst)"
+        env._parent = self
+
+        max_guest = max([len(node.guests) for node in self.nodes.list()])
+        env.runbook.nodes = []
+        env.nodes = Nodes()
+        for index in range(max_guest):
+            for node in self.nodes.list():
+                if node.guests and len(node.guests) > index:
+                    guest = node.guests[index]
+                    env.nodes.append(guest)
+
+        # set other needed fields
+        env.platform = self.platform
+
+        # use what ever the status of current environment.
+        env.status = self.status
+
+        return env
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         if self.status != EnvironmentStatus.Deployed:

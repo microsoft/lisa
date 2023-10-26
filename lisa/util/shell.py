@@ -25,6 +25,7 @@ from lisa.util import (
     LisaException,
     SshSpawnTimeoutException,
     TcpConnectionException,
+    filter_ansi_escape,
 )
 
 from .logger import Logger, get_logger
@@ -347,7 +348,9 @@ class SshShell(InitializableMixin):
             except FunctionTimedOut:
                 raise SshSpawnTimeoutException(
                     f"The remote node is timeout on execute {command}. "
-                    f"It may be caused by paramiko/spur not support the shell of node."
+                    f"Possible reasons are, "
+                    "the process wait for inputs, "
+                    "the paramiko/spur not support the shell of node."
                 )
             except spur.errors.CommandInitializationError as identifier:
                 # Some publishers images, such as azhpc-desktop, javlinltd and
@@ -749,7 +752,8 @@ class LocalShell(InitializableMixin):
             parents: make parent directories as needed
             exist_ok: return with no error if target already present
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
     def exists(self, path: PurePath) -> bool:
@@ -759,7 +763,8 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if present, False otherwise
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         return path.exists()
 
     def remove(self, path: PurePath, recursive: bool = False) -> None:
@@ -769,7 +774,8 @@ class LocalShell(InitializableMixin):
             recursive: whether to remove recursively, if target is a directory
                        (will fail if that's the case and this flag is off)
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         if path.is_dir():
             if recursive:
                 shutil.rmtree(path)
@@ -787,7 +793,8 @@ class LocalShell(InitializableMixin):
             path: target path. (Absolute)
             mode: numerical chmod mode entry
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         path.chmod(mode)
 
     def stat(self, path: PurePath) -> os.stat_result:
@@ -797,7 +804,8 @@ class LocalShell(InitializableMixin):
         Outputs:
             os.stat_result: The status structure/class
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         return path.stat()
 
     def is_dir(self, path: PurePath) -> bool:
@@ -807,7 +815,8 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if it is a directory, False otherwise
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         return path.is_dir()
 
     def is_symlink(self, path: PurePath) -> bool:
@@ -817,7 +826,8 @@ class LocalShell(InitializableMixin):
         Outputs:
             bool: True if it is a symlink, False otherwise
         """
-        assert isinstance(path, Path), f"actual: {type(path)}"
+        if not isinstance(path, Path):
+            path = Path(path)
         return path.is_symlink()
 
     def symlink(self, source: PurePath, destination: PurePath) -> None:
@@ -826,8 +836,10 @@ class LocalShell(InitializableMixin):
             source: source path. (Absolute)
             destination: destination path. (Absolute)
         """
-        assert isinstance(source, Path), f"actual: {type(source)}"
-        assert isinstance(destination, Path), f"actual: {type(destination)}"
+        if not isinstance(source, Path):
+            source = Path(source)
+        if not isinstance(destination, Path):
+            destination = Path(destination)
         source.symlink_to(destination)
 
     def copy(self, local_path: PurePath, node_path: PurePath) -> None:
@@ -848,4 +860,73 @@ class LocalShell(InitializableMixin):
         self.copy(local_path=node_path, node_path=local_path)
 
 
-Shell = Union[LocalShell, SshShell]
+class WslShell(InitializableMixin):
+    def __init__(self, parent: "Shell", distro_name: str) -> None:
+        super().__init__()
+        self._parent = parent
+        self._distro_name = distro_name
+
+    def __getattr__(self, key: str) -> Any:
+        return getattr(self._parent, key)
+
+    def copy(self, local_path: PurePath, node_path: PurePath) -> None:
+        """
+        Copy to temp folder for transfer between WSL and Windows.
+        """
+        # parent must be Windows
+        host_temp_file = self._get_parent_temp_path() / node_path.name
+
+        self._parent.copy(local_path, host_temp_file)
+
+        wsl_path = self._get_wsl_file_windows_path(node_path)
+        process = self._parent.spawn(
+            command=["cmd", "/c", "copy", "/y", str(host_temp_file), str(wsl_path)]
+        )
+        self._wait_process_output(process)
+
+        self._parent.remove(host_temp_file)
+
+    def copy_back(self, node_path: PurePath, local_path: PurePath) -> None:
+        """
+        Copy to temp folder for transfer between WSL and Windows.
+        """
+        host_temp_file = self._get_parent_temp_path() / node_path.name
+        wsl_path = self._get_wsl_file_windows_path(node_path)
+        process = self._parent.spawn(
+            command=["cmd", "/c", "copy", "/y", str(wsl_path), str(host_temp_file)]
+        )
+        self._wait_process_output(process)
+
+        try:
+            self._parent.copy_back(host_temp_file, local_path)
+        except Exception as e:
+            raise LisaException(
+                f"failed to copy back {node_path} to {local_path}. "
+                f"temp path: {host_temp_file}. error: {e}"
+            )
+
+        self._parent.remove(host_temp_file)
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        return self._parent._initialize(*args, **kwargs)
+
+    def _get_parent_temp_path(self) -> WindowsPath:
+        process = self._parent.spawn(["cmd", "/c", "echo %TEMP%"])
+
+        return WindowsPath(self._wait_process_output(process))
+
+    def _get_wsl_file_windows_path(self, wsl_path: PurePath) -> WindowsPath:
+        return WindowsPath(rf"\\wsl$\{self._distro_name}") / wsl_path
+
+    def _wait_process_output(self, process: Any) -> str:
+        result = process.wait_for_result()
+        result.output = filter_ansi_escape(result.output)
+
+        if isinstance(self._parent, SshShell):
+            # remove extra line in Windows SSH shell.
+            result.output = "\n".join(result.output.split("\n")[:-1])
+
+        return str(result.output.strip())
+
+
+Shell = Union[LocalShell, SshShell, WslShell]

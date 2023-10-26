@@ -984,9 +984,15 @@ class AzureImageStandard(TestSuite):
         This test will check that the readme file existed in resource disk mount point.
 
         Steps:
-        1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
-        file is present, mount location is `/mnt`, otherwise it is obtained from
-        `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
+        1. Obtain the mount point for the resource disk.
+            If the /var/log/cloud-init.log file is present,
+             attempt to read the customized mount point from
+             the cloud-init configuration file.
+            If mount point from the cloud-init configuration is unavailable,
+             use the default mount location, which is /mnt.
+            If none of the above sources provide the mount point,
+             it is retrieved from the ResourceDisk.MountPoint entry
+             in the waagent.conf configuration file.
         2. Verify that resource disk is mounted from the output of `mount` command.
         3. Verify lost+found folder exists.
         4. Verify DATALOSS_WARNING_README.txt file exists.
