@@ -50,6 +50,7 @@ Runbook Reference
       -  `batch combinator <#batch-combinator>`__
 
          -  `items <#items-1>`__
+      -   `bisect combinator <#bisect-combinator>`__
 
    -  `notifier <#notifier>`__
 
@@ -570,6 +571,30 @@ For example,
        vm_size: Standard_DS3_v2
      - image: CentOS
        vm_size: Standard_DS3_v2
+
+
+bisect combinator
+^^^^^^^^^^^^^^^^^
+
+Specify a git repo url, the good commit and bad commit. The combinator
+performs bisect operations on VM specified under 'connection'.
+
+The runbook will be iterated until the bisect operations completes.
+
+For example,
+
+.. code:: yaml
+
+  combinator:
+    type: git_bisect
+    repo: $(repo_url)
+    bad_commit: $(bad_commit)
+    good_commit: $(good_commit)
+    connection:
+      address: $(bisect_vm_address)
+      private_key_file: $(admin_private_key_file)
+
+Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/examples/runbook/git_bisect.yml>`__
 
 notifier
 ~~~~~~~~
