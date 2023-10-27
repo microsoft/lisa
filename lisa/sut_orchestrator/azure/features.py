@@ -1811,11 +1811,12 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
     @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
         parameters: Any = kwargs.get("arm_parameters")
-        if parameters.use_availability_sets:
+        """if parameters.use_availability_sets:
             raise SkippedException(
                 "Hibernation cannot be enabled on Virtual Machines created in an"
                 " Availability Set."
             )
+        """
         template: Any = kwargs.get("template")
         log = cast(Logger, kwargs.get("log"))
         log.debug("updating arm template to support vm hibernation.")
