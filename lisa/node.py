@@ -910,7 +910,7 @@ class WslContainerNode(GuestNode):
         return schema.WslNode
 
     def reboot(self, time_out: int = 300) -> None:
-        self._wsl.shutdown(self._distro)
+        self._wsl.shutdown_distro(self._distro)
 
     def _provision(self) -> None:
         assert self.parent, self.__PARENT_ASSERT_MESSAGE
