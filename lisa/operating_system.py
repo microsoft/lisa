@@ -1008,6 +1008,7 @@ class Debian(Linux):
         )
         if not signed:
             command += " --allow-unauthenticated"
+        self.wait_running_package_process()
         uninstall_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
