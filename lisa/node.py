@@ -865,6 +865,8 @@ class GuestNode(Node):
         if not hasattr(self, "os"):
             self.os: OperatingSystem = OperatingSystem.create(self)
 
+        self.capture_system_information("started")
+
     def _provision(self) -> None:
         ...
 
