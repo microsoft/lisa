@@ -71,7 +71,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
-        supported_major_versions = {
+        supported_major_versions_x86_64 = {
             Redhat: [7, 8, 9],
             CentOs: [7, 8],
             Oracle: [7, 8, 9],
@@ -82,9 +82,24 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             CBLMariner: [2],
         }
 
+        supported_major_versions_arm64 = {
+            Redhat: [8],
+            CentOs: [7],
+            Debian: [11],
+            Ubuntu: [18, 20, 22],
+            SLES: [15],
+            CBLMariner: [2],
+        }
+
         for distro in supported_major_versions:
             if type(node.os) == distro:
-                version_list = supported_major_versions.get(distro)
+                version_list = None
+                arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+                if arch == CpuArchitecture.ARM64:
+                    version_list = supported_major_versions_arm64.get(distro)
+                else:
+                    version_list = supported_major_versions_x86_64.get(distro)
+                    
                 if (
                     version_list is not None
                     and node.os.information.version.major in version_list
