@@ -14,12 +14,12 @@ from lisa.operating_system import (
     SLES,
     CBLMariner,
     CentOs,
+    CpuArchitecture,
     Debian,
     Oracle,
     Redhat,
     Suse,
     Ubuntu,
-    CpuArchitecture,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
@@ -95,7 +95,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         for distro in supported_major_versions_x86_64:
             if type(node.os) == distro:
                 version_list = None
-                arch = node.os.get_kernel_information().hardware_platform  
+                arch = node.os.get_kernel_information().hardware_platform
                 if arch == CpuArchitecture.ARM64:
                     version_list = supported_major_versions_arm64.get(distro)
                 else:
