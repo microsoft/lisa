@@ -100,7 +100,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                     version_list = supported_major_versions_arm64.get(distro)
                 else:
                     version_list = supported_major_versions_x86_64.get(distro)
-                    
+
                 if (
                     version_list is not None
                     and node.os.information.version.major in version_list
