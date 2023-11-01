@@ -40,6 +40,7 @@ from retry import retry
 from lisa import Logger, features, schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.features.availability import AvailabilityType
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import (
@@ -85,6 +86,7 @@ if TYPE_CHECKING:
 
 from .. import AZURE
 from .common import (
+    AvailabilityArmParameter,
     AzureArmParameter,
     AzureNodeSchema,
     check_or_create_storage_account,
@@ -621,9 +623,15 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
 
-        arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
-        arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
-        arm_parameters.use_availability_sets = True
+        arm_parameters.availability_options.availability_set_properties[
+            "platformFaultDomainCount"
+        ] = 1
+        arm_parameters.availability_options.availability_set_properties[
+            "platformUpdateDomainCount"
+        ] = 1
+        arm_parameters.availability_options.availability_type = (
+            AvailabilityType.AvailabilitySet.value
+        )
 
     @classmethod
     def create_setting(
@@ -2014,8 +2022,11 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
 
     @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
-        parameters: Any = kwargs.get("arm_parameters")
-        if parameters.use_availability_sets:
+        parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        if (
+            parameters.availability_options.availability_type
+            == AvailabilityType.AvailabilitySet
+        ):
             raise SkippedException(
                 "Hibernation cannot be enabled on Virtual Machines created in an"
                 " Availability Set."
@@ -2174,6 +2185,159 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         f"{settings.security_profile} "
                         "can only be set on gen2 image/vhd."
                     )
+
+
+availability_type_priority: List[AvailabilityType] = [
+    AvailabilityType.NoRedundancy,
+    AvailabilityType.AvailabilitySet,
+    AvailabilityType.AvailabilityZone,
+]
+
+
+class AvailabilitySettings(features.AvailabilitySettings):
+    def _resolve_availability_type_by_priority(
+        self, arm_parameters: Optional[AvailabilityArmParameter] = None
+    ) -> AvailabilityType:
+        if isinstance(self.availability_type, AvailabilityType):
+            return self.availability_type
+        if arm_parameters:
+            if (
+                arm_parameters.availability_set_properties
+                or arm_parameters.availability_set_tags
+            ) and AvailabilityType.AvailabilitySet in self.availability_type:
+                return AvailabilityType.AvailabilitySet
+            elif (
+                arm_parameters.availability_zones
+                and AvailabilityType.AvailabilityZone in self.availability_type
+            ):
+                return AvailabilityType.AvailabilityZone
+        for option in availability_type_priority:
+            if option in self.availability_type:
+                return option
+        raise LisaException(
+            "Could not resolve availability option."
+            f"Availability Options: {self.availability_type}"
+        )
+
+
+class Availability(AzureFeatureMixin, features.Availability):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return AvailabilitySettings
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        availability_settings: AvailabilitySettings = AvailabilitySettings()
+        availability_settings.availability_type = search_space.SetSpace(
+            True,
+            [
+                AvailabilityType.NoRedundancy,
+                AvailabilityType.AvailabilitySet,
+            ],
+        )
+
+        availability_zones = raw_capabilities.get("availability_zones", None)
+        if availability_zones:
+            availability_settings.availability_type.add(
+                AvailabilityType.AvailabilityZone
+            )
+            availability_settings.availability_zones = search_space.SetSpace(
+                is_allow_set=True, items=availability_zones
+            )
+
+        return availability_settings
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        settings = cast(AvailabilitySettings, kwargs.get("settings"))
+        params = arm_parameters.availability_options
+
+        try:
+            assert environment.runbook.nodes_requirement
+            assert environment.runbook.nodes_requirement[0].extended_schemas
+            is_maximize_capability = environment.runbook.nodes_requirement[
+                0
+            ].extended_schemas["azure"]["maximize_capability"]
+        except (KeyError, IndexError, AssertionError):
+            is_maximize_capability = False
+
+        if not is_maximize_capability:
+            assert isinstance(settings.availability_type, search_space.SetSpace)
+
+            # Ultra Disk does not support Availability Sets
+            assert environment.capability.nodes
+            assert environment.capability.nodes[0].disk
+            is_ultra_disk = (
+                environment.capability.nodes[0].disk.data_disk_type
+                == schema.DiskType.UltraSSDLRS
+            )
+            if is_ultra_disk:
+                settings.availability_type.discard(AvailabilityType.AvailabilitySet)
+                # If a region supports Ultra Disk in availability zones,
+                # then availability zones must be used
+                if AvailabilityType.AvailabilityZone in settings.availability_type:
+                    settings.availability_type.discard(AvailabilityType.NoRedundancy)
+
+            # Set ARM parameters based on min capability
+            if params.availability_type == AvailabilityType.Default:
+                params.availability_type = (
+                    settings._resolve_availability_type_by_priority(params).value
+                )
+            if (
+                params.availability_zones
+                and params.availability_type == AvailabilityType.AvailabilityZone
+            ):
+                params.availability_zones = [
+                    zone
+                    for zone in params.availability_zones
+                    if zone in settings.availability_zones
+                ]
+                assert params.availability_zones, (
+                    "Invalid zones provided. "
+                    "This SKU in this location supports zones: "
+                    f"{settings.availability_zones}. "
+                )
+            elif settings.availability_zones:
+                params.availability_zones = [settings.availability_zones.items[0]]
+
+            assert params.availability_type in [
+                type.value for type in AvailabilityType
+            ], ("Not a valid Availability Type: " f"{params.availability_type}")
+
+            assert (
+                AvailabilityType(params.availability_type) in settings.availability_type
+            ), (
+                f"Availability Type "
+                f"'{params.availability_type}' "
+                "is not supported in the current configuration. Please select one of "
+                f"{[type.value for type in settings.availability_type.items]}. "
+                "Or consider changing the disk type or location."
+            )
+
+        # Once the availability type has been determined, clear the unecessary
+        # fields for clarity
+        if params.availability_type == AvailabilityType.AvailabilitySet:
+            params.availability_zones.clear()
+        elif params.availability_type == AvailabilityType.AvailabilityZone:
+            assert (
+                params.availability_zones
+            ), "Availability Zone is selected, but no zone was provided."
+            params.availability_zones = [params.availability_zones[0]]
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+        else:
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+            params.availability_zones.clear()
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
