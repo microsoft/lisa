@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
     Any,
@@ -332,7 +332,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         if self.is_posix:
             return path.as_posix()
         else:
-            return str(WindowsPath(path))
+            return str(PureWindowsPath(path))
 
     def get_case_working_path(self, case_unique_name: str) -> PurePath:
         working_path = self.working_path / "tests" / case_unique_name
