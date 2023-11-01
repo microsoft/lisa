@@ -620,6 +620,15 @@ class DataDiskSchema:
 
 @dataclass_json()
 @dataclass
+class AvailabilityArmParameter:
+    availability_type: str = constants.AVAILABILITY_DEFAULT
+    availability_set_tags: Dict[str, str] = field(default_factory=dict)
+    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
+    availability_zones: List[int] = field(default_factory=list)
+
+
+@dataclass_json()
+@dataclass
 class AzureArmParameter:
     storage_name: str = ""
     vhd_storage_name: str = ""
@@ -628,12 +637,12 @@ class AzureArmParameter:
     admin_password: str = ""
     admin_key_data: str = ""
     subnet_count: int = 1
+    availability_options: AvailabilityArmParameter = field(
+        default_factory=AvailabilityArmParameter
+    )
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
-    availability_set_tags: Dict[str, str] = field(default_factory=dict)
-    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeArmParameter] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
-    use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
 
     virtual_network_resource_group: str = ""

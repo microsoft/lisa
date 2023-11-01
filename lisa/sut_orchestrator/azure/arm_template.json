@@ -57,17 +57,10 @@
                 "description": "created subnet count"
             }
         },
-        "use_availability_sets": {
-            "type": "bool",
-            "defaultValue": false,
-            "metadata": {
-                "description": "flag to create availability set"
-            }
-        },
-        "availability_set_tags": {
+        "availability_options": {
             "type": "object",
             "metadata": {
-                "description": "tags of availability set"
+                "description": "options for availability sets, zones, and VMSS"
             }
         },
         "virtual_network_resource_group": {
@@ -94,12 +87,6 @@
                 "description": "tags of virtual machine"
             }
         },
-        "availability_set_properties": {
-            "type": "object",
-            "metadata": {
-                "description": "properties of availability set"
-            }
-        },
         "data_disks": {
             "type": "array",
             "metadata": {
@@ -111,20 +98,26 @@
         "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks/', parameters('virtual_network_name'))]",
         "node_count": "[length(parameters('nodes'))]",
         "availability_set_name": "lisa-availabilitySet",
-        "existing_subnet_ref": "[if(not(empty(parameters('virtual_network_resource_group'))), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]"
+        "existing_subnet_ref": "[if(not(empty(parameters('virtual_network_resource_group'))), resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')), '')]",
+        "availability_set_tags": "[parameters('availability_options')['availability_set_tags']]",
+        "availability_set_properties": "[parameters('availability_options')['availability_set_properties']]",
+        "availability_zones": "[parameters('availability_options')['availability_zones']]",
+        "availability_type": "[parameters('availability_options')['availability_type']]",
+        "use_availability_sets": "[equals(parameters('availability_options')['availability_type'], 'availability_set')]",
+        "use_availability_zones": "[equals(parameters('availability_options')['availability_type'], 'availability_zone')]"
     },
     "resources": [
         {
             "apiVersion": "2019-07-01",
             "type": "Microsoft.Compute/availabilitySets",
-            "condition": "[parameters('use_availability_sets')]",
+            "condition": "[variables('use_availability_sets')]",
             "name": "[variables('availability_set_name')]",
             "location": "[parameters('location')]",
-            "tags": "[parameters('availability_set_tags')]",
+            "tags": "[variables('availability_set_tags')]",
             "sku": {
                 "name": "Aligned"
             },
-            "properties": "[parameters('availability_set_properties')]"
+            "properties": "[variables('availability_set_properties')]"
         },
         {
             "apiVersion": "2020-05-01",
@@ -136,8 +129,12 @@
                 "count": "[variables('node_count')]"
             },
             "properties": {
-                "publicIPAllocationMethod": "Dynamic"
-            }
+                "publicIPAllocationMethod": "Static"
+            },
+            "sku": {
+                "name": "Standard"
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), json('null'))]"
         },
         {
             "condition": "[empty(parameters('virtual_network_resource_group'))]",
@@ -202,6 +199,9 @@
                     },
                     "enable_sriov": {
                         "value": "[parameters('nodes')[copyIndex('nicCopy')]['enable_sriov']]"
+                    },
+                    "availability_zones": {
+                        "value": "[variables('availability_zones')]"
                     }
                 },
                 "mode": "Incremental",
@@ -229,6 +229,9 @@
                         },
                         "enable_sriov": {
                             "type": "bool"
+                        },
+                        "availability_zones": {
+                            "type": "array"
                         }
                     },
                     "resources": [
@@ -330,7 +333,8 @@
                     "securityDataUri": "[parameters('nodes')[copyIndex('diskCopy')]['vhd']['vmgs_path']]",
                     "sourceUri": "[parameters('nodes')[copyIndex('diskCopy')]['vhd']['vhd_path']]"
                 }
-            }
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), json('null'))]"
         },
         {
             "name": "[concat(parameters('nodes')[div(copyIndex(), length(parameters('data_disks')))]['name'], '-data-disk-', mod(copyIndex(), length(parameters('data_disks'))))]",
@@ -352,7 +356,8 @@
             "copy": {
                 "name": "ultraDisks",
                 "count": "[mul(length(parameters('data_disks')), variables('node_count'))]"
-            }
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), json('null'))]"
         },
         {
             "apiVersion": "2022-08-01",
@@ -372,7 +377,7 @@
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
             "properties": {
-                "availabilitySet": "[if(parameters('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
+                "availabilitySet": "[if(variables('use_availability_sets'), json(concat('{\"id\": \"',resourceId('Microsoft.Compute/availabilitySets',variables('availability_set_name')),'\"}')), json('null'))]",
                 "hardwareProfile": {
                     "vmSize": "[parameters('nodes')[copyIndex('vmCopy')]['vm_size']]"
                 },
@@ -411,7 +416,8 @@
                 },
                 "additionalCapabilities": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['data_disk_type'], 'UltraSSD_LRS'), json('{\"ultraSSDEnabled\": true}'), json('null'))]",
                 "securityProfile": "[if(empty(parameters('nodes')[copyIndex('vmCopy')]['security_profile']), json('null'), lisa.getSecurityProfile(parameters('nodes')[copyIndex('vmCopy')]['security_profile']))]"
-            }
+            },
+            "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), json('null'))]"
         }
     ],
     "functions": [

@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
+from .availability import Availability, AvailabilitySettings
 from .cvm_nested_virtualization import CVMNestedVirtualization
 from .disks import (
     Disk,
@@ -31,6 +32,8 @@ from .startstop import StartStop, StopState
 
 __all__ = [
     "ACC",
+    "Availability",
+    "AvailabilitySettings",
     "CVMNestedVirtualization",
     "Disk",
     "DiskEphemeral",
