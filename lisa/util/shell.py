@@ -9,7 +9,7 @@ import socket
 import sys
 import time
 from functools import partial
-from pathlib import Path, PurePath, WindowsPath
+from pathlib import Path, PurePath, PureWindowsPath
 from time import sleep
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
@@ -613,7 +613,7 @@ class SshShell(InitializableMixin):
             elif self.is_posix:
                 path = path.as_posix()
             else:
-                path = str(WindowsPath(path))
+                path = str(PureWindowsPath(path))
         return path
 
     def _establish_jump_boxes(self, address: str, port: int) -> Any:
@@ -910,13 +910,13 @@ class WslShell(InitializableMixin):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         return self._parent._initialize(*args, **kwargs)
 
-    def _get_parent_temp_path(self) -> WindowsPath:
+    def _get_parent_temp_path(self) -> PureWindowsPath:
         process = self._parent.spawn(["cmd", "/c", "echo %TEMP%"])
 
-        return WindowsPath(self._wait_process_output(process))
+        return PureWindowsPath(self._wait_process_output(process))
 
-    def _get_wsl_file_windows_path(self, wsl_path: PurePath) -> WindowsPath:
-        return WindowsPath(rf"\\wsl$\{self._distro_name}") / wsl_path
+    def _get_wsl_file_windows_path(self, wsl_path: PurePath) -> PureWindowsPath:
+        return PureWindowsPath(rf"\\wsl$\{self._distro_name}") / wsl_path
 
     def _wait_process_output(self, process: Any) -> str:
         result = process.wait_for_result()
