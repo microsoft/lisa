@@ -74,10 +74,11 @@ class FileUploaderTransformer(DeploymentTransformer):
             mkdir.create_directory(runbook.destination)
 
         for name in runbook.files:
-            self._log.debug(f"uploading file {name}")
-            copy.copy_to_remote(
-                PurePath(runbook.source) / name, PurePath(runbook.destination)
-            )
+            local_path = PurePath(runbook.source) / name
+            remote_path = PurePath(runbook.destination)
+            self._log.debug(f"uploading file from '{local_path}' to '{remote_path}'")
+
+            copy.copy_to_remote(local_path, remote_path)
             uploaded_files.append(name)
 
         result[UPLOADED_FILES] = uploaded_files
