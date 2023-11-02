@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
 import re
 import time
 from pathlib import PurePath
@@ -312,7 +311,7 @@ class Wsl(Tool):
     def _config_kernel(self, kernel: str) -> str:
         self._log.debug(f"Detecting kernel from {kernel}")
 
-        if not os.path.exists(kernel):
+        if not self.node.shell.exists(PurePath(kernel)):
             raise LisaException(f"Kernel file {kernel} doesn't exist.")
 
         if kernel.endswith(".tar.xz"):
