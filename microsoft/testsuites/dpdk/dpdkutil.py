@@ -982,3 +982,16 @@ def verify_dpdk_l3_forward(
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
     ).is_greater_than(1)
+
+
+def do_parallel_cleanup(environment: Environment) -> None:
+    def _parallel_cleanup(node: Node) -> None:
+        interface = node.features[NetworkInterface]
+        if not interface.is_enabled_sriov():
+            interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+            # cleanup temporary hugepage and driver changes
+        node.reboot()
+
+    run_in_parallel(
+        [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
+    )
