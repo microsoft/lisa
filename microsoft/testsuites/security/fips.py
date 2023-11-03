@@ -4,6 +4,7 @@
 from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.operating_system import CBLMariner
 from lisa.util import SkippedException
 
 
@@ -26,20 +27,57 @@ class Fips(TestSuite):
         priority=3,
     )
     def verify_fips_enable(self, log: Logger, node: Node) -> None:
-        result = node.execute("command -v fips-mode-setup", shell=True)
-        if result.exit_code != 0:
-            raise SkippedException(
-                "Command not found: fips-mode-setup. "
-                f"Please ensure {node.os.name} supports fips mode."
-            )
+        if isinstance(node.os, CBLMariner):
+            result = node.execute("sudo cat /proc/sys/crypto/fips_enabled")
+            if result.exit_code != 0:
+                raise SkippedException(
+                    "fips_enabled file is not found in proc file system. "
+                    f"Please ensure {node.os.name} supports fips mode."
+                )
 
-        node.execute("fips-mode-setup --enable", sudo=True)
+            if "1" != result.stdout:
+                raise SkippedException(
+                    "fips is not enabled by default. "
+                    f"Please ensure {node.os.name} has fips mode turned on by default."
+                )
 
-        log.info("FIPS mode set to enable. Attempting reboot.")
-        node.reboot()
+            result = node.execute("sudo sysctl crypto.fips_enabled")
+            if result.exit_code != 0 or "crypto.fips_enabled = 1" != result.stdout:
+                raise SkippedException(
+                    "fips mode is not enabled"
+                    f"Please ensure {node.os.name} supports fips mode."
+                )
 
-        result = node.execute("fips-mode-setup --check")
+            result = node.execute("rpm -qa | grep dracut-fips")
+            if result.exit_code != 0:
+                raise SkippedException(
+                    "fips is not enabled by default. "
+                    f"Please ensure {node.os.name} has fips mode turned on by default."
+                )
 
-        assert_that(result.stdout).described_as(
-            "FIPS was not properly enabled."
-        ).contains("is enabled")
+            result = node.execute("openssl md5")
+            if result.exit_code != 0:
+                if result.stdout.split("\n")[0] == "Error setting digest":
+                    pass
+            else:
+                raise SkippedException(
+                    "openssl is not operating under fips mode."
+                )
+        else:
+            result = node.execute("command -v fips-mode-setup", shell=True)
+            if result.exit_code != 0:
+                raise SkippedException(
+                    "Command not found: fips-mode-setup. "
+                    f"Please ensure {node.os.name} supports fips mode."
+                )
+
+            node.execute("fips-mode-setup --enable", sudo=True)
+
+            log.info("FIPS mode set to enable. Attempting reboot.")
+            node.reboot()
+
+            result = node.execute("fips-mode-setup --check")
+
+            assert_that(result.stdout).described_as(
+                "FIPS was not properly enabled."
+            ).contains("is enabled")
