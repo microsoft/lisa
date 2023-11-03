@@ -18,10 +18,10 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
+from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -30,6 +30,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
+    do_parallel_cleanup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -762,17 +763,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        for node in environment.nodes.list():
-            # reset SRIOV to enabled if left disabled
-            interface = node.features[NetworkInterface]
-            if not interface.is_enabled_sriov():
-                log.debug("DPDK detected SRIOV was left disabled during cleanup.")
-                interface.switch_sriov(enable=True, wait=False, reset_connections=True)
-
-            # cleanup driver changes
-            modprobe = node.tools[Modprobe]
-            if modprobe.module_exists("uio_hv_generic"):
-                node.tools[Service].stop_service("vpp")
-                modprobe.remove(["uio_hv_generic"])
-                node.close()
-                modprobe.reload(["hv_netvsc"])
+        do_parallel_cleanup(environment)

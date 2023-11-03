@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -24,6 +25,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
     UnsupportedPackageVersionException,
+    do_parallel_cleanup,
     verify_dpdk_build,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
@@ -324,3 +326,7 @@ class DpdkPerformance(TestSuite):
             "Nodes contain different core counts, DPDK Suite expects sender "
             "and receiver to have same core count."
         ).contains_only(core_counts[0])
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        do_parallel_cleanup(environment)
