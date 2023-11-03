@@ -591,3 +591,16 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
     )
+
+
+def do_parallel_cleanup(environment: Environment) -> None:
+    def _parallel_cleanup(node: Node) -> None:
+        interface = node.features[NetworkInterface]
+        if not interface.is_enabled_sriov():
+            interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+            # cleanup temporary hugepage and driver changes
+        node.reboot()
+
+    run_in_parallel(
+        [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
+    )
