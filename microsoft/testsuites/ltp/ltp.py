@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import time
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Type
@@ -24,11 +25,12 @@ from lisa.tools import (
     Ls,
     Make,
     Mkdir,
+    Pgrep,
     Rm,
     Swap,
     Sysctl,
 )
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, create_timer, find_patterns_in_lines
 
 
 @dataclass
@@ -135,12 +137,29 @@ class Ltp(Tool):
 
         # run ltp tests
         command = f"{self.command} {parameters}"
-        self.node.execute(
+        self.node.execute_async(
             f"echo y | {command}",
             sudo=True,
-            timeout=self.RUN_TIMEOUT,
             shell=True,
         )
+
+        start_timer = create_timer()
+        pgrep = self.node.tools[Pgrep]
+        while start_timer.elapsed(False) < self.RUN_TIMEOUT:
+            # Check if the process is still running. The WSL doesn't support
+            # process operations, so it needs to check the process status by
+            # pgrep. In future, it could be converted to a common logic.
+            #
+            # The long running ltp process may timeout on SSH connection. This
+            # check is also help keep SSH alive.
+            ltp_process_infos = pgrep.get_processes("runltp")
+            if not ltp_process_infos:
+                self._log.debug("The runltp process is not running, stop to wait.")
+                break
+            time.sleep(10)
+
+        if start_timer.elapsed(False) >= self.RUN_TIMEOUT:
+            raise LisaException(f"LTP tests timed out with {self.RUN_TIMEOUT} seconds.")
 
         # to avoid no permission issue when copying back files
         self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
