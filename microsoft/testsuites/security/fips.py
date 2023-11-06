@@ -5,6 +5,7 @@ from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner
+from lisa.tools import Cat
 from lisa.util import SkippedException
 
 
@@ -28,7 +29,9 @@ class Fips(TestSuite):
     )
     def verify_fips_enable(self, log: Logger, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
-            result = node.execute("sudo cat /proc/sys/crypto/fips_enabled")
+            result = node.tools[Cat].run(
+                "/proc/sys/crypto/fips_enabled", sudo=True, force_run=True)
+
             if result.exit_code != 0:
                 raise SkippedException(
                     "fips_enabled file is not found in proc file system. "
@@ -38,11 +41,13 @@ class Fips(TestSuite):
             if "1" != result.stdout:
                 raise SkippedException(
                     "fips is not enabled by default. "
-                    f"Please ensure {node.os.name} has fips mode turned on by default."
+                    f"Please ensure {node.os.name} has fips turned "
+                    "on by default."
                 )
 
             result = node.execute("sudo sysctl crypto.fips_enabled")
-            if result.exit_code != 0 or "crypto.fips_enabled = 1" != result.stdout:
+            if (result.exit_code != 0
+                    or "crypto.fips_enabled = 1" != result.stdout):
                 raise SkippedException(
                     "fips mode is not enabled"
                     f"Please ensure {node.os.name} supports fips mode."
@@ -52,7 +57,8 @@ class Fips(TestSuite):
             if result.exit_code != 0:
                 raise SkippedException(
                     "fips is not enabled by default. "
-                    f"Please ensure {node.os.name} has fips mode turned on by default."
+                    f"Please ensure {node.os.name} has fips turned "
+                    "on by default."
                 )
 
             result = node.execute("openssl md5")
