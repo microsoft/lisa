@@ -112,8 +112,6 @@ from .common import (
 )
 from .tools import Waagent
 
-HTTP_TOO_MANY_REQUESTS = 429
-
 
 class AzureFeatureMixin:
     def _initialize_information(self, node: Node) -> None:
@@ -660,6 +658,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     network interface options settings.
     """
 
+    # ex: 1.1.1.0/24 or 1.2.3.4/32 or 4.0.0.0/8
+    __ipv4_mask_check_regex = re.compile(
+        r"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/([012][0-9]?|3[012])"
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return schema.NetworkInterfaceOptionSettings
@@ -693,12 +696,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         next_hop_type: str = "",
     ) -> None:
         # some quick checks that the subnet mask looks correct
-        assert_that(subnet_mask).described_as(
+        check_mask = self.__ipv4_mask_check_regex.match(subnet_mask)
+        assert_that(check_mask).described_as(
             "subnet mask should be prefix format X.X.X.X/YY"
-        ).contains("/")
-        assert_that(subnet_mask.split("/")).described_as(
-            "subnet mask should be prefix format X.X.X.X/YY"
-        ).is_length(2)
+        ).is_not_none()
 
         azure_platform: AzurePlatform = self._platform  # type: ignore
         # Step 1: create the route table, apply comes later.
@@ -714,23 +715,36 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         vnets: Dict[str, List[str]] = get_virtual_networks(
             azure_platform, self._resource_group_name
         )
-        # get the subnets in each virtual network
+        # get the subnets in the virtual network
         vnet_id = ""
         subnet_ids = []
-        for vnet, subnets in vnets.items():
-            vnet_id = vnet
-            subnet_ids = subnets
-            break
-        self._log.debug(f"info: {vnet} {subnet_ids}")
+        assert_that(vnets.items()).described_as(
+            "There is more than one virtual network in this RG!"
+            " This RG is setup is unexpected, test cannot infer which VNET to use."
+            "Check if LISA has changed it's test setup logic, verify if the "
+            "DPDK test suite needs to be modified."
+        ).is_length(1)
+
+        # get the subnets for the virtual network in the test RG.
+        # dict will have a single entry, lisa is only creating one vnet per test vm.
+        vnet_id, subnet_ids = vnets.items()[0]
+        subnet_id = subnet_ids[0]
+        self._log.debug(f"Found vnet/subnet info: {vnet_id} {subnet_ids}")
+        self._log.debug(f"Found vnet/subnet info: {vnet_id} {subnet_ids}")
 
         # get the az resource name for the virtual network
+        # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
+        #        .../Microsoft.Network/virtualNetworks/lisa-virtualNetwork
         virtual_network_name = vnet_id.split("/")[-1]
 
         # Step 3: Look for the subnet we'll assign this routing table entry to.
         for subnet in subnet_ids:
             # get the az resource name for the subnet
+            # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
+            #     .../subnet_resource_name
             subnet_name = subnet.split("/")[-1]
-            # get the subnet object using the resource name and vnet name
+            # update the subnet, there will only be one since they cannot
+            # share address spaces.
             if self._do_update_subnet(
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
@@ -738,7 +752,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 route_table=route_table,
             ):
                 return
-
+        # if we're through the loop and didn't find the subnet, fail
         raise LisaException(
             "routing table was not assigned to any subnet! "
             f"targeted subnet: {subnet_mask} with route table: {route_table}"
@@ -793,11 +807,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 ).is_equal_to(enable)
 
     def switch_sriov(
-        self,
-        enable: bool,
-        wait: bool = True,
-        reset_connections: bool = True,
-        private_ip_addr: str = "",
+        self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -811,15 +821,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             updated_nic = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
             )
-            if private_ip_addr and not any(
-                [
-                    x.private_ip_address == private_ip_addr
-                    for x in updated_nic.ip_configurations
-                ]
-            ):
-                # if ip is provided, skip resource which don't match.
-                self._log.debug(f"Skipping enable accelnet on nic {nic_name}...")
-                continue
             if updated_nic.enable_accelerated_networking == enable:
                 self._log.debug(
                     f"network interface {nic_name}'s accelerated networking default "
@@ -984,42 +985,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         modprobe_tool = self._node.tools[Modprobe]
         modprobe_tool.reload(["hv_netvsc"])
 
-    @retry(tries=60, delay=10)
-    def _check_sriov_enabled(
-        self, enabled: bool, reset_connections: bool = True
-    ) -> None:
-        if reset_connections:
-            self._node.close()
-        self._node.nics.check_pci_enabled(enabled)
-
-    def _get_primary(
-        self, nics: List[NetworkInterfaceReference]
-    ) -> NetworkInterfaceReference:
-        for nic in nics:
-            if nic.primary:
-                return nic
-
-        raise LisaException(f"failed to find primary nic for vm {self._node.name}")
-
-    def _get_all_nics(self) -> Any:
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        network_client = get_network_client(azure_platform)
-        vm = get_vm(azure_platform, self._node)
-        all_nics = []
-        for nic in vm.network_profile.network_interfaces:
-            # get nic name from nic id
-            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
-            # /Microsoft.Network/networkInterfaces/[nicname]
-            nic_name = nic.id.split("/")[-1]
-            all_nics.append(
-                network_client.network_interfaces.get(
-                    self._resource_group_name, nic_name
-                )
-            )
-        return all_nics
-
     # Subroutine for applying route table to subnet.
-    # We don't want to retry the entire routine if we catch an exception in this section.
+    # We don't want to retry the entire routine if we
+    # catch an exception in this section.
     @retry(HttpResponseError, tries=5, delay=1, backoff=1.3)
     def _do_update_subnet(
         self,
@@ -1065,7 +1033,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         route_name: str,
         next_hop_type: str,
         dest_hop: str,
-    ) -> Union[RouteTable, None]:
+    ) -> RouteTable:
         platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(platform)
         vm = get_vm(platform, self._node)
@@ -1088,9 +1056,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         # Step 1: Create the routing table entry, it will be assigned to a subnet later.
         route_table_name = f"{nic_name}-{route_name}-route_table"
-        route_table: Union[
-            RouteTable, None
-        ] = network_client.route_tables.begin_create_or_update(
+        route_table: RouteTable = network_client.route_tables.begin_create_or_update(
             resource_group_name=self._resource_group_name,
             route_table_name=f"{nic_name}-{route_name}-route_table",
             parameters={
@@ -1119,6 +1085,40 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
         return route_table
 
+    @retry(tries=60, delay=10)
+    def _check_sriov_enabled(
+        self, enabled: bool, reset_connections: bool = True
+    ) -> None:
+        if reset_connections:
+            self._node.close()
+        self._node.nics.check_pci_enabled(enabled)
+
+    def _get_primary(
+        self, nics: List[NetworkInterfaceReference]
+    ) -> NetworkInterfaceReference:
+        for nic in nics:
+            if nic.primary:
+                return nic
+
+        raise LisaException(f"failed to find primary nic for vm {self._node.name}")
+
+    def _get_all_nics(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        vm = get_vm(azure_platform, self._node)
+        all_nics = []
+        for nic in vm.network_profile.network_interfaces:
+            # get nic name from nic id
+            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+            # /Microsoft.Network/networkInterfaces/[nicname]
+            nic_name = nic.id.split("/")[-1]
+            all_nics.append(
+                network_client.network_interfaces.get(
+                    self._resource_group_name, nic_name
+                )
+            )
+        return all_nics
+
     def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
         interfaces_info_list: List[IpInfo] = []
         for interface in self._get_all_nics():
@@ -1131,18 +1131,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         for x in interface.ip_configurations
                         if x.primary
                     ][0],
-                )
-            )
-        return interfaces_info_list
-
-    def get_all_nics_ip_info(self) -> List[IpInfo]:
-        interfaces_info_list: List[IpInfo] = []
-        for interface in self._get_all_nics():
-            interfaces_info_list.append(
-                IpInfo(
-                    interface.name,
-                    ":".join(interface.mac_address.lower().split("-")),
-                    [x.private_ip_address for x in interface.ip_configurations][0],
                 )
             )
         return interfaces_info_list
