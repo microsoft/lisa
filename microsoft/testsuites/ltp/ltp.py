@@ -57,6 +57,7 @@ class Ltp(Tool):
     LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
     LTP_SKIP_FILE = "/opt/ltp/skipfile"
     COMPILE_TIMEOUT = 1800
+    RUN_TIMEOUT = 12000
 
     @property
     def command(self) -> str:
@@ -137,7 +138,7 @@ class Ltp(Tool):
         self.node.execute(
             f"echo y | {command}",
             sudo=True,
-            timeout=12000,
+            timeout=self.RUN_TIMEOUT,
             shell=True,
         )
 
