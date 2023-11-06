@@ -600,6 +600,7 @@ class AzureImageStandard(TestSuite):
                     [
                         "deb.debian.org" in repository.uri
                         or "debian-archive.trafficmanager.net" in repository.uri
+                        or "azure.deb.debian.cloud/debian" in repository.uri
                         for repository in debian_repositories
                     ]
                 )
