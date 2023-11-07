@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
 import re
 import time
 from pathlib import PurePath
@@ -82,6 +81,10 @@ class Wsl(Tool):
         # set debug console and replace kernel
         self._config(enable_debug_console=enable_debug_console, kernel=kernel)
 
+        # shutdown to make new kernel effective after configured. If the kernel
+        # is not configured, the original kernel will be loaded.
+        self.shutdown_wsl()
+
         if not is_installed:
             install_process = self._wsl_execute_async(
                 f"--install -d {name}", encoding="utf-8"
@@ -99,7 +102,7 @@ class Wsl(Tool):
             if not done:
                 self._check_install_done(distro=name, raise_error=True)
 
-            self.shutdown(name)
+            self.shutdown_distro(name)
 
             # kill may not be success in Windows. But it prevents more output
             # from this commands.
@@ -128,9 +131,13 @@ class Wsl(Tool):
 
         return result
 
-    def shutdown(self, distro: str) -> None:
-        self._log.debug(f"shutting down {distro}")
+    def shutdown_distro(self, distro: str) -> None:
+        self._log.debug(f"shutting down distro {distro}")
         self._wsl_execute(f"--terminate {distro}")
+
+    def shutdown_wsl(self) -> None:
+        self._log.debug("shutting down WSL.")
+        self._wsl_execute("--shutdown")
 
     def reload_guest_os(self) -> None:
         from lisa.operating_system import OperatingSystem
@@ -304,10 +311,7 @@ class Wsl(Tool):
     def _config_kernel(self, kernel: str) -> str:
         self._log.debug(f"Detecting kernel from {kernel}")
 
-        # shutdown to make new kernel effective after configured.
-        self._wsl_execute("--shutdown")
-
-        if not os.path.exists(kernel):
+        if not self.node.shell.exists(PurePath(kernel)):
             raise LisaException(f"Kernel file {kernel} doesn't exist.")
 
         if kernel.endswith(".tar.xz"):

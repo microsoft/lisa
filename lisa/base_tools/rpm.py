@@ -28,3 +28,11 @@ class Rpm(Tool):
             expected_exit_code_failure_message=(f"fail to get size of file {file}"),
         )
         return int(cmd_result.stdout)
+
+    def install_local_package(self, file: str) -> None:
+        self.run(
+            f"-ivh {file}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"failed to install {file}"),
+        )

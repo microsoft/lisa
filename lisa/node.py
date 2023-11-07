@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath, WindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
     Any,
@@ -332,7 +332,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         if self.is_posix:
             return path.as_posix()
         else:
-            return str(WindowsPath(path))
+            return str(PureWindowsPath(path))
 
     def get_case_working_path(self, case_unique_name: str) -> PurePath:
         working_path = self.working_path / "tests" / case_unique_name
@@ -865,6 +865,8 @@ class GuestNode(Node):
         if not hasattr(self, "os"):
             self.os: OperatingSystem = OperatingSystem.create(self)
 
+        self.capture_system_information("started")
+
     def _provision(self) -> None:
         ...
 
@@ -908,7 +910,7 @@ class WslContainerNode(GuestNode):
         return schema.WslNode
 
     def reboot(self, time_out: int = 300) -> None:
-        self._wsl.shutdown(self._distro)
+        self._wsl.shutdown_distro(self._distro)
 
     def _provision(self) -> None:
         assert self.parent, self.__PARENT_ASSERT_MESSAGE
