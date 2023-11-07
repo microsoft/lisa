@@ -358,6 +358,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     def find_partition_with_freespace(
         self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
     ) -> str:
+        self.initialize()
         if self.os.is_windows:
             raise NotImplementedError(
                 (
@@ -916,6 +917,11 @@ class WslContainerNode(GuestNode):
         assert self.parent, self.__PARENT_ASSERT_MESSAGE
 
         runbook = cast(schema.WslNode, self.runbook)
+
+        # Reinitialize parent node connection, because sometimes the connection
+        # is corrupted due to distro is not installed correctly.
+        self.parent.close()
+
         # initialize wsl tool to check if wsl installed
         wsl: Wsl = self.parent.tools.create(Wsl, guest=self)
         self._wsl = wsl
