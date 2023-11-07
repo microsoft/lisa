@@ -342,9 +342,6 @@ def initialize_node_resources(
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
-        # this code makes changes to interfaces that will cause later tests to fail.
-        # Therefore we mark the node dirty to prevent future testing on this environment
-        node.mark_dirty()
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic_for_nic(node, test_nic)
