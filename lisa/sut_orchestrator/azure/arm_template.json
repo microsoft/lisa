@@ -287,8 +287,7 @@
                         "osType": "Linux",
                         "osState": "Generalized",
                         "blobUri": "[parameters('nodes')[copyIndex('imageCopy')]['vhd']['vhd_path']]",
-                        "storageAccountType": "Standard_LRS",
-                        "diskSizeGB": "1024"
+                        "storageAccountType": "Standard_LRS"
                     }
                 },
                 "hyperVGeneration": "[concat('V', parameters('nodes')[copyIndex('imageCopy')]['hyperv_generation'])]"
