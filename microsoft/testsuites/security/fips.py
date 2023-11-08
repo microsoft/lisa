@@ -19,6 +19,10 @@ from lisa.util import LisaException, SkippedException, get_matched_str
     """,
 )
 class Fips(TestSuite):
+    _expected_failure_pattern = re.compile(
+        "Error setting digest\r\n.*EVP_DigestInit_ex:disabled for FIPS.*", re.M
+    )
+
     @TestCaseMetadata(
         description="""
         This test case will
@@ -54,24 +58,21 @@ class Fips(TestSuite):
                     )
 
                 result = node.execute("openssl md5")
-                print(result)
                 # md5 should not work If It is a FIPS image
                 # Following the output of the above command
                 # Error setting digest
                 # 131590634539840:error:060800C8:digital envelope routines:EVP_DigestInit_ex:disabled for FIPS:crypto/evp/digest.c:135:
                 if result.exit_code != 0:
-                    pattern = re.compile(
-                        r"^Error setting digest.*"
-                        r"\d+:error:\w+:digital envelope routines:"
-                        r"EVP_DigestInit_ex:disabled for FIPS:crypto", re.M
-                    )
-                    if not get_matched_str(result.stdout, pattern):
+                    if get_matched_str(result.stdout, self._expected_failure_pattern):
+                            log.info("FIPS is enabled properly.")
+                    else:
                         raise LisaException(
-                            "openssl is not operating under fips mode."
+                            "md5 alogrithm should not work in FIPS mode."
                         )
                 else:
                     raise LisaException(
-                        "Not a valid FIPS image."
+                        "md5 algorithm should not work in FIPS mode."
+                        "Please ensure {node.os.name} has fips turned on."
                     )
         else:
             result = node.execute("command -v fips-mode-setup", shell=True)
