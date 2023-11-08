@@ -533,7 +533,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_location,
             self._log,
         )
-        gallery = check_or_create_gallery(
+        check_or_create_gallery(
             platform,
             runbook.gallery_resource_group_name,
             runbook.gallery_name,
@@ -573,7 +573,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_location,
         )
 
-        sig_url = f"{gallery.name}/{runbook.gallery_image_name}/{gallery_image_version}"
+        sig_url = f"{runbook.gallery_name}/{runbook.gallery_image_name}/{gallery_image_version}"
 
         self._log.info(f"SIG Url: {sig_url}")
         return {self.__sig_name: sig_url}
