@@ -342,9 +342,6 @@ def initialize_node_resources(
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
     if pmd == "netvsc":
-        # this code makes changes to interfaces that will cause later tests to fail.
-        # Therefore we mark the node dirty to prevent future testing on this environment
-        node.mark_dirty()
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic_for_nic(node, test_nic)
@@ -590,4 +587,17 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     # enables long-running tests to shakeQoS and SLB issue
     return verify_dpdk_send_receive(
         environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
+    )
+
+
+def do_parallel_cleanup(environment: Environment) -> None:
+    def _parallel_cleanup(node: Node) -> None:
+        interface = node.features[NetworkInterface]
+        if not interface.is_enabled_sriov():
+            interface.switch_sriov(enable=True, wait=False, reset_connections=True)
+            # cleanup temporary hugepage and driver changes
+        node.reboot()
+
+    run_in_parallel(
+        [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
     )
