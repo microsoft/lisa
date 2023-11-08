@@ -388,9 +388,11 @@ class AzureNodeSchema:
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
                 self.marketplace_raw = dict(
-                    (k, v.lower())
-                    if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
-                    else (k, v)
+                    (
+                        (k, v.lower())
+                        if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
+                        else (k, v)
+                    )
                     for k, v in self.marketplace_raw.items()
                 )
                 marketplace = schema.load_by_type(
@@ -1345,6 +1347,7 @@ def check_or_create_resource_group(
     resource_group_name: str,
     location: str,
     log: Logger,
+    managed_by: str = "",
 ) -> None:
     with get_resource_management_client(
         credential, subscription_id, cloud
@@ -1356,9 +1359,15 @@ def check_or_create_resource_group(
         if not az_shared_rg_exists:
             log.info(f"Creating Resource group: '{resource_group_name}'")
 
+            rg_properties = {"location": location}
+            if managed_by:
+                log.debug(f"Using managed_by resource group: '{managed_by}'")
+                rg_properties["managed_by"] = managed_by
+
             with global_credential_access_lock:
                 rm_client.resource_groups.create_or_update(
-                    resource_group_name, {"location": location}
+                    resource_group_name,
+                    rg_properties,
                 )
             check_till_timeout(
                 lambda: rm_client.resource_groups.check_existence(resource_group_name)

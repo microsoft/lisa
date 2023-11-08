@@ -283,6 +283,7 @@ class AzurePlatformSchema:
     resource_group_name: str = field(default="")
     # specify shared resource group location
     shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
+    resource_group_managed_by: str = field(default="")
     # specify the locations which used to retrieve marketplace image information
     # example: westus, westus2
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
@@ -617,6 +618,7 @@ class AzurePlatform(Platform):
                         resource_group_name=resource_group_name,
                         location=location,
                         log=log,
+                        managed_by=self.resource_group_managed_by,
                     )
                 else:
                     log.info(f"reusing resource group: [{resource_group_name}]")
@@ -975,6 +977,7 @@ class AzurePlatform(Platform):
 
         self.subscription_id = azure_runbook.subscription_id
         self.cloud = azure_runbook.cloud
+        self.resource_group_managed_by = azure_runbook.resource_group_managed_by
 
         self._initialize_credential()
 
@@ -985,6 +988,7 @@ class AzurePlatform(Platform):
             azure_runbook.shared_resource_group_name,
             azure_runbook.shared_resource_group_location,
             self._log,
+            azure_runbook.resource_group_managed_by,
         )
 
         self._rm_client = get_resource_management_client(
