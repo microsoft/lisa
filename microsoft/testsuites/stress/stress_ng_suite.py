@@ -133,11 +133,10 @@ class StressNgTestSuite(TestSuite):
             test_msg = repr(e)
         finally:
             send_sub_test_result_message(
-                test_result,
-                environment,
-                job_file_name,
-                test_status,
-                test_msg,
+                test_result=test_result,
+                test_case_name=job_file_name,
+                test_status=test_status,
+                test_message=test_msg,
             )
             self._check_panic(nodes)
 

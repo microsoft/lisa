@@ -104,6 +104,8 @@ class TestResult:
         self._send_result_message()
         self._timer: Timer
 
+        self._environment_information: Dict[str, Any] = {}
+
     @property
     def is_queued(self) -> bool:
         return self.status == TestStatus.QUEUED
@@ -119,6 +121,16 @@ class TestResult:
     @property
     def name(self) -> str:
         return self.runtime_data.metadata.name
+
+    @property
+    def environment_information(self) -> Dict[str, Any]:
+        # It's used by subtests.
+        if not self._environment_information and self.environment:
+            self._environment_information = self.environment.get_information(
+                force_run=False
+            )
+
+        return self._environment_information
 
     @hookspec
     def update_test_result_message(self, message: TestResultMessage) -> None:
@@ -254,7 +266,12 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment:
-            self.information.update(self.environment.get_information())
+            # force refresh information, when test result status is changed. The
+            # refreshed information is not used so far. But in case it's needed
+            # in future, keep it up to date.
+            self._environment_information = self.environment.get_information()
+            self.information.update(self._environment_information)
+
             self.information["environment"] = self.environment.name
             # if no nodes and case skipped, it means no environment deployed.
             if (

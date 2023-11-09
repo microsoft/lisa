@@ -333,8 +333,6 @@ class Xfstests(Tool):
         test_type: str,
         data_disk: str,
     ) -> None:
-        environment = test_result.environment
-        assert environment, "fail to get environment from testresult"
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         assert all_cases_match, "fail to find run cases from xfstests output"
         all_cases = (all_cases_match.group("all_cases")).split()
@@ -363,10 +361,9 @@ class Xfstests(Tool):
             info["information"]["test_type"] = test_type
             info["information"]["data_disk"] = data_disk
             send_sub_test_result_message(
-                test_result,
-                environment,
-                result.name,
-                result.status,
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
 

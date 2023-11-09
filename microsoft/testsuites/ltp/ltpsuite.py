@@ -6,7 +6,6 @@ from logging import Logger
 from typing import Any, Dict
 
 from lisa import (
-    Environment,
     Node,
     TestCaseMetadata,
     TestSuite,
@@ -51,7 +50,6 @@ class LtpTestsuite(TestSuite):
     def verify_ltp_lite(
         self,
         node: Node,
-        environment: Environment,
         log_path: str,
         variables: Dict[str, Any],
         result: TestResult,
@@ -90,7 +88,6 @@ class LtpTestsuite(TestSuite):
         ltp: Ltp = node.tools.get(Ltp, git_tag=ltp_tests_git_tag)
         ltp.run_test(
             result,
-            environment,
             test_list,
             skip_test_list,
             log_path,

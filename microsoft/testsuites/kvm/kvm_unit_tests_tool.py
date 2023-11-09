@@ -7,7 +7,6 @@ from typing import Any, List, Type, cast
 
 from assertpy import assert_that
 
-from lisa import Environment
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import Posix
@@ -61,9 +60,7 @@ class KvmUnitTests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
-    def run_tests(
-        self, test_result: TestResult, environment: Environment, failure_logs_path: Path
-    ) -> None:
+    def run_tests(self, test_result: TestResult, failure_logs_path: Path) -> None:
         exec_result = self.run(
             "",
             timeout=self.TIME_OUT,
@@ -83,10 +80,9 @@ class KvmUnitTests(Tool):
             if result.status == TestStatus.FAILED:
                 failed_tests.append(result.name)
             send_sub_test_result_message(
-                test_result,
-                environment,
-                result.name,
-                result.status,
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
             )
 
         self._save_logs(failed_tests, failure_logs_path)

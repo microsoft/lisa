@@ -8,7 +8,6 @@ from typing import Any, List, Type, cast
 
 from assertpy.assertpy import assert_that
 
-from lisa import Environment
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
@@ -78,7 +77,6 @@ class LibvirtTck(Tool):
     def run_tests(
         self,
         test_result: TestResult,
-        environment: Environment,
         log_path: Path,
     ) -> None:
         result = self.run(
@@ -98,10 +96,9 @@ class LibvirtTck(Tool):
 
         for r in results:
             send_sub_test_result_message(
-                test_result,
-                environment,
-                r.name,
-                r.status,
+                test_result=test_result,
+                test_case_name=r.name,
+                test_status=r.status,
             )
 
         archive_path = self.repo_root / "results.tar.gz"

@@ -3,14 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
@@ -40,9 +33,7 @@ class KvmUnitTestSuite(TestSuite):
     )
     def verify_kvm_unit_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
     ) -> None:
@@ -55,4 +46,4 @@ class KvmUnitTestSuite(TestSuite):
                 f"KVM unit tests are not implemented in LISA for {node.os.name}"
             )
 
-        node.tools[KvmUnitTests].run_tests(result, environment, log_path)
+        node.tools[KvmUnitTests].run_tests(result, log_path)
