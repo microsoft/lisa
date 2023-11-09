@@ -17,9 +17,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Echo
-from lisa.tools.git import Git
-from lisa.tools.make import Make
+from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -160,14 +158,18 @@ class Xfstests(Tool):
         data_disk: str = "",
         timeout: int = 14400,
     ) -> None:
-        self.run(
+        self.run_async(
             f"-g {test_type}/quick -E exclude.txt  > xfstest.log 2>&1",
             sudo=True,
             shell=True,
             force_run=True,
             cwd=self.get_xfstests_path(),
-            timeout=timeout,
         )
+
+        pgrep = self.node.tools[Pgrep]
+        # this is the actual process name, when xfstests runs.
+        pgrep.wait_processes("check", timeout=timeout)
+
         self.check_test_results(
             log_path=log_path, test_type=test_type, result=result, data_disk=data_disk
         )
