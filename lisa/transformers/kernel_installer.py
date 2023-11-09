@@ -190,7 +190,7 @@ class RepoInstaller(BaseInstaller):
             release
         ), f"cannot find codename from the os version: {node.os.information}"
 
-        version_name = release 
+        version_name = release
         # add the repo
         if runbook.is_proposed:
             if "proposed2" in self.repo_url:
@@ -201,7 +201,7 @@ class RepoInstaller(BaseInstaller):
                 repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
             else:
                 version_name = f"{release}-proposed"
-                repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
+                repo_entry = "ppa:canonical-kernel-team/proposed"
         else:
             repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
 
