@@ -26,6 +26,8 @@ from lisa.util import LisaException, constants
 @dataclass
 class JUnitSchema(schema.Notifier):
     path: str = "lisa.junit.xml"
+    # respect the original behavior, include subtest by default
+    include_subtest: bool = True
 
 
 class _TestSuiteInfo:
@@ -71,7 +73,7 @@ class JUnit(Notifier):
 
         self._report_path = constants.RUN_LOCAL_LOG_PATH / runbook.path
 
-        # Open file now, to avoid errors occuring after all the tests have completed.
+        # Open file now, to avoid errors occurring after all the tests have completed.
         self._report_file = open(self._report_path, "wb")
 
         self._testsuites = ET.Element("testsuites")
@@ -98,7 +100,13 @@ class JUnit(Notifier):
 
     # The types of messages that this class supports.
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
-        return [TestResultMessage, TestRunMessage, SubTestMessage]
+        subscribed_types = [TestResultMessage, TestRunMessage]
+
+        runbook: JUnitSchema = cast(JUnitSchema, self.runbook)
+        if runbook.include_subtest:
+            subscribed_types.append(SubTestMessage)
+
+        return subscribed_types
 
     # Handle a message.
     def _received_message(self, message: MessageBase) -> None:
