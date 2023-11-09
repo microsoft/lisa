@@ -6,10 +6,10 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
-from lisa import Environment, notifier
+from lisa import Environment
 from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
@@ -249,17 +249,13 @@ class Kselftest(Tool):
             info: Dict[str, Any] = {}
             info["information"] = {}
             info["information"]["exit_value"] = result.exit_value
-            subtest_message = create_test_result_message(
-                SubTestMessage,
+            send_sub_test_result_message(
                 test_result,
                 environment,
                 result.name,
                 result.status,
                 other_fields=info,
             )
-
-            # notify subtest result
-            notifier.notify(subtest_message)
 
         # assert that none of the tests failed
         assert_that(failed_tests).described_as("kselftests failed").is_empty()

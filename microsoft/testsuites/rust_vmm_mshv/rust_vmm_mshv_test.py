@@ -13,9 +13,8 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    notifier,
 )
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Cargo, Git, Ls
@@ -97,7 +96,7 @@ class RustVmmTestSuite(TestSuite):
                 status = TestStatus.FAILED
             elif log_status and log_status.strip().lower() == "ignored":
                 status = TestStatus.SKIPPED
-            self.__send_subtest_msg(
+            send_sub_test_result_message(
                 result,
                 environment,
                 testcase_name,
@@ -106,21 +105,3 @@ class RustVmmTestSuite(TestSuite):
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
         ).is_empty()
-
-    def __send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_message: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-            test_message,
-        )
-        notifier.notify(subtest_msg)

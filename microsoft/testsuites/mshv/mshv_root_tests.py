@@ -13,9 +13,8 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    notifier,
 )
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
 from lisa.util import SkippedException
@@ -115,7 +114,7 @@ class MshvHostTestSuite(TestSuite):
                     guest_vm_type=guest_vm_type,
                     igvm_path=igvm_path,
                 )
-                self._send_subtest_msg(
+                send_sub_test_result_message(
                     result,
                     environment,
                     test_name,
@@ -124,7 +123,7 @@ class MshvHostTestSuite(TestSuite):
             except Exception as e:
                 failures += 1
                 log.error(f"{test_name} FAILED: {e}")
-                self._send_subtest_msg(
+                send_sub_test_result_message(
                     result, environment, test_name, TestStatus.FAILED, repr(e)
                 )
         self._save_dmesg_logs(node, log_path)
@@ -222,25 +221,6 @@ class MshvHostTestSuite(TestSuite):
             return PurePath("/mnt")
         else:
             return node.working_path
-
-    def _send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_msg: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-            test_msg,
-        )
-
-        notifier.notify(subtest_msg)
 
     def _save_dmesg_logs(self, node: Node, log_path: Path) -> None:
         dmesg_str = node.tools[Dmesg].get_output()

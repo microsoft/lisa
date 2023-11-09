@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type, cast
 
-from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
     CBLMariner,
     Debian,
@@ -361,17 +360,13 @@ class Xfstests(Tool):
             info["information"] = {}
             info["information"]["test_type"] = test_type
             info["information"]["data_disk"] = data_disk
-            subtest_message = create_test_result_message(
-                SubTestMessage,
+            send_sub_test_result_message(
                 test_result,
                 environment,
                 result.name,
                 result.status,
                 other_fields=info,
             )
-
-            # notify subtest result
-            notifier.notify(subtest_message)
 
     def check_test_results(
         self,

@@ -4,6 +4,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar
 
+from lisa import notifier
 from lisa.schema import NetworkDataPath
 from lisa.util import dict_to_fields
 
@@ -309,26 +310,28 @@ def create_perf_message(
 TestResultMessageType = TypeVar("TestResultMessageType", bound=TestResultMessageBase)
 
 
-def create_test_result_message(
-    message_type: Type[TestResultMessageType],
+def send_sub_test_result_message(
     test_result: "TestResult",
     environment: "Environment",
     test_case_name: str = "",
     test_status: TestStatus = TestStatus.QUEUED,
     test_message: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
-) -> TestResultMessageType:
-    message = message_type()
+) -> SubTestMessage:
+    message = SubTestMessage()
     dict_to_fields(environment.get_information(), message)
     message.id_ = test_result.id_
     message.name = test_case_name
     message.status = test_status
     message.message = test_message
     message.elapsed = test_result.get_elapsed()
-    if message_type == SubTestMessage:
-        if not other_fields:
-            other_fields = {}
-        other_fields.update({"parent_test": test_result.runtime_data.name})
+
+    if not other_fields:
+        other_fields = {}
+    other_fields.update({"parent_test": test_result.runtime_data.name})
     if other_fields:
         dict_to_fields(other_fields, message)
+
+    notifier.notify(message)
+
     return message

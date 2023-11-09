@@ -8,9 +8,9 @@ from typing import Any, List, Type, cast
 
 from assertpy.assertpy import assert_that
 
-from lisa import Environment, notifier
+from lisa import Environment
 from lisa.executable import Tool
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Chmod, Echo, Git, Sed, Service, Usermod
@@ -97,7 +97,7 @@ class LibvirtTck(Tool):
             result.assert_exit_code()
 
         for r in results:
-            self._send_subtest_msg(
+            send_sub_test_result_message(
                 test_result,
                 environment,
                 r.name,
@@ -235,20 +235,3 @@ class LibvirtTck(Tool):
             results.append(result)
 
         return results
-
-    def _send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-        )
-
-        notifier.notify(subtest_msg)
