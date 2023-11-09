@@ -346,7 +346,7 @@ class Xfstests(Tool):
         if fail_match:
             fail_cases = (fail_match.group("fail_cases")).split()
         pass_cases = [
-            x for x in all_cases if x not in not_run_cases and x not in not_run_cases
+            x for x in all_cases if x not in not_run_cases and x not in fail_cases
         ]
         results: List[XfstestsResult] = []
         for case in fail_cases:
