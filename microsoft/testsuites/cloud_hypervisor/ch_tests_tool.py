@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
-from lisa import Environment
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -62,7 +61,6 @@ class CloudHypervisorTests(Tool):
     def run_tests(
         self,
         test_result: TestResult,
-        environment: Environment,
         test_type: str,
         hypervisor: str,
         log_path: Path,
@@ -105,11 +103,10 @@ class CloudHypervisorTests(Tool):
 
         for r in results:
             send_sub_test_result_message(
-                test_result,
-                environment,
-                r.name,
-                r.status,
-                r.message,
+                test_result=test_result,
+                test_case_name=r.name,
+                test_status=r.status,
+                test_message=r.message,
             )
 
         self._save_kernel_logs(log_path)
@@ -132,7 +129,6 @@ class CloudHypervisorTests(Tool):
     def run_metrics_tests(
         self,
         test_result: TestResult,
-        environment: Environment,
         hypervisor: str,
         log_path: Path,
         ref: str = "",
@@ -198,11 +194,10 @@ class CloudHypervisorTests(Tool):
 
             msg = metrics if status == TestStatus.PASSED else trace
             send_sub_test_result_message(
-                test_result,
-                environment,
-                testcase,
-                status,
-                msg,
+                test_result=test_result,
+                test_case_name=testcase,
+                test_status=status,
+                test_message=msg,
             )
 
             # Write stdout of testcase to log as per given requirement

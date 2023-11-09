@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Type
 
 from assertpy import assert_that
 
-from lisa import Environment
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
@@ -80,7 +79,6 @@ class Ltp(Tool):
     def run_test(
         self,
         test_result: TestResult,
-        environment: Environment,
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
@@ -177,10 +175,9 @@ class Ltp(Tool):
             info["information"]["version"] = result.version
             info["information"]["exit_value"] = result.exit_value
             send_sub_test_result_message(
-                test_result,
-                environment,
-                result.name,
-                result.status,
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
 

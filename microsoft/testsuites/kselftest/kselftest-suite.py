@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.kselftest.kselftest import Kselftest
@@ -43,7 +43,6 @@ class KselftestTestsuite(TestSuite):
     def verify_kselftest(
         self,
         node: Node,
-        environment: Environment,
         log_path: str,
         variables: Dict[str, Any],
         result: TestResult,
@@ -54,6 +53,6 @@ class KselftestTestsuite(TestSuite):
                 Kselftest,
                 kselftest_file_path=file_path,
             )
-            kselftest.run_all(result, environment, log_path, self._KSELF_TIMEOUT)
+            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT)
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)

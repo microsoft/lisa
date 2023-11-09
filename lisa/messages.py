@@ -10,7 +10,6 @@ from lisa.util import dict_to_fields
 
 if TYPE_CHECKING:
     from lisa import Node
-    from lisa.environment import Environment
     from lisa.testsuite import TestResult
 
 
@@ -312,14 +311,13 @@ TestResultMessageType = TypeVar("TestResultMessageType", bound=TestResultMessage
 
 def send_sub_test_result_message(
     test_result: "TestResult",
-    environment: "Environment",
     test_case_name: str = "",
     test_status: TestStatus = TestStatus.QUEUED,
     test_message: str = "",
     other_fields: Optional[Dict[str, Any]] = None,
 ) -> SubTestMessage:
     message = SubTestMessage()
-    dict_to_fields(environment.get_information(), message)
+    dict_to_fields(test_result.environment_information, message)
     message.id_ = test_result.id_
     message.name = test_case_name
     message.status = test_status
@@ -329,8 +327,7 @@ def send_sub_test_result_message(
     if not other_fields:
         other_fields = {}
     other_fields.update({"parent_test": test_result.runtime_data.name})
-    if other_fields:
-        dict_to_fields(other_fields, message)
+    dict_to_fields(other_fields, message)
 
     notifier.notify(message)
 

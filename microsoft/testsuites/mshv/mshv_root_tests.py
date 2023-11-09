@@ -6,14 +6,7 @@ from typing import Any, Dict
 
 from assertpy import assert_that
 
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
@@ -83,7 +76,6 @@ class MshvHostTestSuite(TestSuite):
         log: Logger,
         node: Node,
         variables: Dict[str, Any],
-        environment: Environment,
         log_path: Path,
         result: TestResult,
     ) -> None:
@@ -115,16 +107,18 @@ class MshvHostTestSuite(TestSuite):
                     igvm_path=igvm_path,
                 )
                 send_sub_test_result_message(
-                    result,
-                    environment,
-                    test_name,
-                    TestStatus.PASSED,
+                    test_result=result,
+                    test_case_name=test_name,
+                    test_status=TestStatus.PASSED,
                 )
             except Exception as e:
                 failures += 1
                 log.error(f"{test_name} FAILED: {e}")
                 send_sub_test_result_message(
-                    result, environment, test_name, TestStatus.FAILED, repr(e)
+                    test_result=result,
+                    test_case_name=test_name,
+                    test_status=TestStatus.FAILED,
+                    test_message=repr(e),
                 )
         self._save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)

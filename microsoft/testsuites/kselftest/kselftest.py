@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
-from lisa import Environment
 from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -199,7 +198,6 @@ class Kselftest(Tool):
     def run_all(
         self,
         test_result: TestResult,
-        environment: Environment,
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
@@ -250,10 +248,9 @@ class Kselftest(Tool):
             info["information"] = {}
             info["information"]["exit_value"] = result.exit_value
             send_sub_test_result_message(
-                test_result,
-                environment,
-                result.name,
-                result.status,
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
 

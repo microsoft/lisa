@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 from lisa import (
-    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -63,9 +62,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_integration_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -78,7 +75,6 @@ class CloudHypervisorTestSuite(TestSuite):
         )
         node.tools[CloudHypervisorTests].run_tests(
             result,
-            environment,
             "integration",
             hypervisor,
             log_path,
@@ -102,9 +98,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_live_migration_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -119,7 +113,6 @@ class CloudHypervisorTestSuite(TestSuite):
         )
         node.tools[CloudHypervisorTests].run_tests(
             result,
-            environment,
             "integration-live-migration",
             hypervisor,
             log_path,
@@ -137,9 +130,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -155,7 +146,6 @@ class CloudHypervisorTestSuite(TestSuite):
         subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
         node.tools[CloudHypervisorTests].run_metrics_tests(
             result,
-            environment,
             hypervisor,
             log_path,
             ref,
