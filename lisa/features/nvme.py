@@ -10,6 +10,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema, search_space
 from lisa.feature import Feature
+from lisa.features import Disk
 from lisa.operating_system import BSD
 from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
@@ -83,7 +84,14 @@ class Nvme(Feature):
         return devices_from_lspci
 
     def get_raw_data_disks(self) -> List[str]:
-        return self.get_namespaces()
+        node_disk = self._node.features[Disk]
+        # When VM's disc controller type is NVMe
+        # Skip OS disk which is '[0]' in namespaces list
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            disk_array = self.get_namespaces()[1:]
+        else:
+            disk_array = self.get_namespaces()
+        return disk_array
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:
         if (not self._ls_devices) or force_run:
