@@ -247,7 +247,7 @@ class AzureNodeSchema:
     # Specifies the minimum OS disk size. The size of the disk that gets provisioned
     # may be larger than this depending on other requirements set by VHD, marketplace
     # image etc but it will never be smaller.
-    osdisk_size_in_gb: int = 30
+    osdisk_size_in_gb: int = 1024
     # Force to maximize capability of the vm size. It bypass requirements on
     # test cases, and uses to force run performance tests on any vm size.
     maximize_capability: bool = False
