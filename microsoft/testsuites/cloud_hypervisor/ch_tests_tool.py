@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
-from lisa import Environment, notifier
+from lisa import Environment
 from lisa.executable import Tool
 from lisa.features import SerialConsole
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
@@ -104,7 +104,7 @@ class CloudHypervisorTests(Tool):
         failures = [r.name for r in results if r.status == TestStatus.FAILED]
 
         for r in results:
-            self._send_subtest_msg(
+            send_sub_test_result_message(
                 test_result,
                 environment,
                 r.name,
@@ -197,7 +197,7 @@ class CloudHypervisorTests(Tool):
                 failed_testcases.append(testcase)
 
             msg = metrics if status == TestStatus.PASSED else trace
-            self._send_subtest_msg(
+            send_sub_test_result_message(
                 test_result,
                 environment,
                 testcase,
@@ -345,25 +345,6 @@ class CloudHypervisorTests(Tool):
             )
 
         return results
-
-    def _send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_message: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-            test_message,
-        )
-
-        notifier.notify(subtest_msg)
 
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
         tests_list = []
