@@ -77,7 +77,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             CentOs: [7, 8],
             Oracle: [7, 8, 9],
             Debian: [9, 10, 11],
-            Ubuntu: [16, 18, 20, 22],
+            Ubuntu: [16, 18, 20],
             Suse: [12, 15],
             SLES: [12, 15],
             CBLMariner: [2],
