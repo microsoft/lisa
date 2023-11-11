@@ -215,70 +215,85 @@ class Dpdk(TestSuite):
                     f"{ovs.OVS_BRIDGE_NAME}"
                 ),
             )
-            port = 8080
-            # this regex breaks on the MANA case for this ovs interface
-            # addr_infos = node.tools[Ip].get_info(ovs.OVS_BRIDGE_NAME)
+            # arbitrarily use http-alt for dest port
+            dst_port = 8080
+            # arbitrarily use 0x5E7D aka 'send' for src port
+            src_port = 0x5E7D
+            # we'll send a big chunk of arbitrary data to the neighbor
+            # over the ovs+dpdk bridge interface
+            # note: ~ipinbs~ is '~squid!~' upside-down
+            chunk_of_data = "~ipinbs~"
+            # 64KiB = 8B * 8 * 1024
+            multiplier = 1024 * 8
+            expected_data = chunk_of_data * multiplier
+
             receiver = neighbor.nics.get_secondary_nic()
-            # if not addr_infos:
-            #    fail(f"Could not get {ovs.OVS_BRIDGE_NAME} ip address info after ovs init!")
-
-            # dpdk_bridge = addr_infos[0]
-
-            node.log.debug(f"{ovs.OVS_BRIDGE_NAME} {sender_ip}")
-
+            node.log.debug(f"Using {ovs.OVS_BRIDGE_NAME} with ip: {sender_ip}")
             tcpdump = neighbor.tools[Timeout].start_with_timeout(
                 f"tcpdump -n -i {receiver.name} --immediate-mode", timeout=30
             )
             tcpdump.wait_output(f"listening on {receiver.name}", timeout=10)
             # start a listener on the neighbor node
             server = neighbor.execute_async(
-                f"nc -l -s {receiver.ip_addr} -p {port}",
+                f"nc -l -s {receiver.ip_addr} -p {dst_port}",
                 shell=True,
                 sudo=True,
             )
-            # send an big chunk of arbitrary data to the neighbor with ovs+dpdk
-            # note: data is 'squid!' upside-down
-            chunk_of_data = "~ipinbs~"
-            # 64KiB = 8B * 8 * 1024
-            multiplier = 1024 * 8
-            expected_data = chunk_of_data * multiplier
-            # send it
+            # send it, silence output since we don't want to dump 64KB of squids to the log
+            # -n to omit trailing newline
             _client = node.tools[Timeout].start_with_timeout(
-                f"echo '{expected_data}' | nc {receiver.ip_addr} {port}",
+                f"echo -n '{expected_data}' | nc -s {sender_ip} -p {src_port} {receiver.ip_addr} {dst_port}",
                 timeout=15,
                 signal=SIGINT,
                 kill_timeout=20,
+                silence_output=True,
             )
-            # wait for it
+            # wait for it...
             try:
                 server.wait_output(expected_data, timeout=30)
             except LisaException:
+                # don't need to raise the packet content w the expection, it's big
                 fail(
                     "Did not receive the expected data from dpdk bridge device on "
-                    f"OVS node."
+                    f"OVS node. Check OVS setup and init logs for unhandled errors."
                 )
 
-            server.kill()
-            _client.kill()
-            output = tcpdump.wait_result().stdout
+            neighbor.tools[Kill].by_name(process_name="tcpdump", ignore_not_exist=True)
+            tcpdump_output = tcpdump.wait_result().stdout
             # check for the packets and where they came from
-            search_for_source = sender_ip.replace(".", "\\.")
-            search_for_dest = receiver.ip_addr.replace(".", "\\.")
+            # escape the ip addresses for use in the regex
+            search_for_source = sender_ip.replace(".", r"\.")
+            search_for_dest = receiver.ip_addr.replace(".", r"\.")
+            # search for the packet records using the dynamic regex
+            # we don't know
             regex_pattern = (
-                r"IP\s+[0-9.]+"
-                + search_for_source
-                + r"\.[0-9]+ > "
-                + search_for_dest
-                + r".http-alt"
+                r"[0-9.:]+\s+IP\s+"  # 'IP' and timestamp
+                + search_for_source  # ex 10.0.1.5 (src ip)
+                + r"\."  # ex '.' (dot before src port)
+                + f"{src_port}"  # 24189 aka 0x5E7D (src port)
+                + r"\s+\>\s+"  # > (packet direction)
+                + search_for_dest  # ex 10.0.1.4 (dst ip)
+                + r"\."  # dot before dst port
+                + f"{dst_port}"  # .8080 (dst port)
+                + r".*length\s+(?P<packet_len>[0-9]+).*\n"  # save this for later
             )
+            node.log.info(f"checking tcpdump using search regex: {regex_pattern}")
             tcpdump_pattern = re.compile(regex_pattern)
-            _matches = tcpdump_pattern.search(output)
+            _matches = tcpdump_pattern.finditer(tcpdump_output)
             if not _matches:
                 fail(
                     "Received expected data but did not receive packets from the "
                     "expected IP address! Check OVS setup and routing for "
                     "leaked traffic."
                 )
+            bytes_received = 0
+            for match in _matches:
+                byte_count = int(match.group("packet_len"))
+                node.log.info(f"found packet of length: {byte_count}")
+                bytes_received += byte_count
+            node.log.info(
+                f"Received a total of {bytes_received} bytes. Data was length: {len(expected_data)}"
+            )
 
         finally:
             ...  # ovs.stop_ovs()
