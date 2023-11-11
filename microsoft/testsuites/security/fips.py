@@ -36,43 +36,41 @@ class Fips(TestSuite):
     def verify_fips_enable(self, log: Logger, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
             # check If It is a non-FIPS image
-            if node.execute("rpm -qa | grep dracut-fips").exit_code != 0:
-                raise SkippedException(
-                    "Not a fips enabled image."
-                )
+            if node.execute("rpm -qa | grep dracut-fips", shell=True).exit_code != 0:
+                raise SkippedException("Not a fips enabled image.")
             else:
                 # FIPS image
                 result = node.tools[Cat].run(
-                    "/proc/sys/crypto/fips_enabled", sudo=True, force_run=True)
+                    "/proc/sys/crypto/fips_enabled", sudo=True, force_run=True
+                )
 
                 if result.exit_code != 0:
                     raise LisaException(
-                        "fips_enabled file is not found in proc file system. "
+                        "fips_enabled file is not found in proc file system."
                     )
 
                 if "1" != result.stdout:
                     raise LisaException(
                         "fips is not enabled properly. "
-                        f"Please ensure {node.os.name} has fips turned "
-                        "on by default."
+                        f"Please ensure {node.os.name} has fips turned on by default."
                     )
 
                 result = node.execute("openssl md5")
                 # md5 should not work If It is a FIPS image
                 # Following the output of the above command
                 # Error setting digest
-                # 131590634539840:error:060800C8:digital envelope routines:EVP_DigestInit_ex:disabled for FIPS:crypto/evp/digest.c:135:
+                # 131590634539840:error:060800C8:digital envelope routines:EVP_DigestInit_ex:disabled for FIPS:crypto/evp/digest.c:135: # noqa: E501
                 if result.exit_code != 0:
                     if get_matched_str(result.stdout, self._expected_failure_pattern):
-                            log.info("FIPS is enabled properly.")
+                        log.info("FIPS is enabled properly.")
                     else:
                         raise LisaException(
                             "md5 alogrithm should not work in FIPS mode."
                         )
                 else:
                     raise LisaException(
-                        "md5 algorithm should not work in FIPS mode."
-                        "Please ensure {node.os.name} has fips turned on."
+                        "md5 algorithm should not work in FIPS mode. "
+                        f"Please ensure {node.os.name} has fips turned on."
                     )
         else:
             result = node.execute("command -v fips-mode-setup", shell=True)
