@@ -205,7 +205,7 @@ class DpdkOvs(Tool):
             cwd=self.repo_dir,
         )
 
-    def setup_ovs(self, device_address: str) -> None:
+    def setup_ovs(self, device_init_args: str, bridge_name: str = "br-dpdk") -> None:
         # setup OVS and track which state we are in.
         # this will allow a try/except to catch a failure and hold it until
         # until after the teardown. It should also allow teardown
@@ -263,7 +263,7 @@ class DpdkOvs(Tool):
             (
                 f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
                 "set Interface p1 type=dpdk "
-                f"options:dpdk-devargs={device_address} "
+                f"options:dpdk-devargs={device_init_args} "
                 "options:n_rxq=2 options:n_txq=2"
             ),
             sudo=True,

@@ -161,6 +161,7 @@ class Dpdk(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
+            min_count=2,
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
@@ -168,10 +169,11 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_ovs(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         self._force_dpdk_default_source(variables)
+        node, neighbor = environment.nodes.list()
         test_kit = initialize_node_resources(node, log, variables, "netvsc")
 
         # checkout OpenVirtualSwitch
@@ -181,10 +183,10 @@ class Dpdk(TestSuite):
         use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
         ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-
+        test_nic_ip = node.nics.get_secondary_nic().ip_addr
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
-
+        bridge_name = "br-dpdk"
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
             if test_kit.testpmd.is_mana:
@@ -194,7 +196,7 @@ class Dpdk(TestSuite):
                 )
             else:
                 devargs = node.nics.get_secondary_nic().pci_slot
-            ovs.setup_ovs(devargs)
+            ovs.setup_ovs(device_init_args=devargs, bridge_name=bridge_name)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -205,6 +207,41 @@ class Dpdk(TestSuite):
                     "OVS repoted that DPDK EAL failed to initialize."
                 ),
             )
+            node.execute(
+                f"dhclient {bridge_name}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"Could not get an IP address for OVS {bridge_name}"
+                ),
+            )
+            port = 8080
+            hello_world = "Hello, World!"
+            _hello_response = "Hey yourself, jerk!"
+            addr_infos = node.tools[Ip].get_info(bridge_name)
+            if not addr_infos:
+                node.log.warn(f"Couldn't get updated address info for {bridge_name}")
+
+            if len(addr_infos) > 0:
+                dpdk_bridge = addr_infos[0]
+                node.log.debug(f"{dpdk_bridge.name} {dpdk_bridge.ip_addr}")
+                test_nic_ip = dpdk_bridge.ip_addr
+            else:
+                node.log.debug("attempting to run using old ip info...")
+
+            server = neighbor.execute_async(
+                f"nc -l -s {neighbor.nics.get_secondary_nic().ip_addr} -p {port}",
+                shell=True,
+                sudo=True,
+            )
+            _client = node.execute_async(
+                f"echo '{hello_world}' | nc {neighbor.nics.get_secondary_nic().ip_addr} {port}",
+                shell=True,
+                sudo=True,
+            )
+            server.wait_output(hello_world, timeout=30)
+
         finally:
             ...  # ovs.stop_ovs()
 
