@@ -282,6 +282,11 @@ class DpdkOvs(Tool):
         ip.up(self.OVS_BRIDGE_NAME)
         self.teardown_state = self.INTERFACE_UP
 
+    def check_setup_page(self) -> None:
+        ip_addr = self.node.tools[Ip].get_info(self.OVS_BRIDGE_NAME)[0].ip_addr
+
+        self.node.execute(f"wget {ip_addr}", shell=True, sudo=True)
+
     def stop_ovs(self) -> None:
         # teardown based on the state that was reached during setup_ovs
         # this allows use in a 'finally' block
