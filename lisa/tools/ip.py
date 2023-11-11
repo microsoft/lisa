@@ -66,9 +66,9 @@ class Ip(Tool):
     """
     __ip_addr_show_regex = re.compile(
         (
-            r"\d+: (?P<name>\w+): \<.+\> .+\n\s+link\/(?:ether|infiniband|loopback)"
+            r"\d+: (?P<name>[\w\-_]+): \<.+\> .+\n\s*link/(?:ether|infiniband|loopback)"
             r" (?P<mac>[0-9a-z:]+)( .+\n(?:(?:.+\n\s+|.*)altname \w+))?"
-            r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/.*\n))?"
+            r"(.*(?:\s*inet (?P<ip_addr>[\d.]+)\/.*\n))?"
         )
     )
     # capturing from ip route show
@@ -258,6 +258,7 @@ class Ip(Tool):
                     ip_addr=matched["ip_addr"],
                 )
             )
+
         return found_nics
 
     def setup_bridge(self, name: str, ip: str) -> None:
