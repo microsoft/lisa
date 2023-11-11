@@ -185,7 +185,6 @@ class Dpdk(TestSuite):
         sender_ip = node.nics.get_secondary_nic().ip_addr
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
-        bridge_name = "br-dpdk"
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
             if test_kit.testpmd.is_mana:
@@ -195,7 +194,7 @@ class Dpdk(TestSuite):
                 )
             else:
                 devargs = node.nics.get_secondary_nic().pci_slot
-            ovs.setup_ovs(device_init_args=devargs, bridge_name=bridge_name)
+            ovs.setup_ovs(device_init_args=devargs)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -207,24 +206,25 @@ class Dpdk(TestSuite):
                 ),
             )
             node.execute(
-                f"dhclient {bridge_name}",
+                f"dhclient {ovs.OVS_BRIDGE_NAME}",
                 shell=True,
                 sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
-                    f"Could not get an IP address for OVS {bridge_name}"
+                    "Could not get an IP address for OVS bridge "
+                    f"{ovs.OVS_BRIDGE_NAME}"
                 ),
             )
             port = 8080
             # this regex breaks on the MANA case for this ovs interface
-            # addr_infos = node.tools[Ip].get_info(bridge_name)
+            # addr_infos = node.tools[Ip].get_info(ovs.OVS_BRIDGE_NAME)
             receiver = neighbor.nics.get_secondary_nic()
             # if not addr_infos:
-            #    fail(f"Could not get {bridge_name} ip address info after ovs init!")
+            #    fail(f"Could not get {ovs.OVS_BRIDGE_NAME} ip address info after ovs init!")
 
             # dpdk_bridge = addr_infos[0]
 
-            node.log.debug(f"{bridge_name} {sender_ip}")
+            node.log.debug(f"{ovs.OVS_BRIDGE_NAME} {sender_ip}")
 
             tcpdump = neighbor.tools[Timeout].start_with_timeout(
                 f"tcpdump -n -i {receiver.name} --immediate-mode", timeout=30

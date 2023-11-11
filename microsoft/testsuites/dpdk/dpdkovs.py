@@ -168,7 +168,9 @@ class DpdkOvs(Tool):
         self._set_version_info(tag)
 
     def build_with_dpdk(
-        self, dpdk_tool: DpdkTestpmd, use_latest_ovs: bool = False
+        self,
+        dpdk_tool: DpdkTestpmd,
+        use_latest_ovs: bool = False,
     ) -> None:
         node = self.node
         # run dpdk version check if not forcing latest OVS
@@ -205,7 +207,11 @@ class DpdkOvs(Tool):
             cwd=self.repo_dir,
         )
 
-    def setup_ovs(self, device_init_args: str, bridge_name: str = "br-dpdk") -> None:
+    def setup_ovs(
+        self,
+        device_init_args: str,
+        enable_tso: bool = False,
+    ) -> None:
         # setup OVS and track which state we are in.
         # this will allow a try/except to catch a failure and hold it until
         # until after the teardown. It should also allow teardown
@@ -234,13 +240,13 @@ class DpdkOvs(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Could not init dpdk properties for OVS",
         )
-
-        node.execute(
-            "ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
-        )
+        if enable_tso:
+            node.execute(
+                "ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
+            )
 
         # NOTE: this is just config step and doesn't need a teardown step.
         # add a bridge to OVS
