@@ -228,7 +228,7 @@ class Dpdk(TestSuite):
             node.log.debug(f"{bridge_name} {sender_ip}")
 
             tcpdump = neighbor.tools[Timeout].start_with_timeout(
-                f"tcpdump -i {receiver.name} --immediate-mode", timeout=30
+                f"tcpdump -n -i {receiver.name} --immediate-mode", timeout=30
             )
             tcpdump.wait_output(f"listening on {receiver.name}", timeout=10)
             # start a listener on the neighbor node
