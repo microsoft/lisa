@@ -8,6 +8,7 @@ from assertpy import assert_that, fail
 
 from lisa import (
     Environment,
+    LisaException,
     Logger,
     Node,
     SkippedException,
@@ -15,8 +16,6 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
-    schema,
-    search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
@@ -240,33 +239,27 @@ class Dpdk(TestSuite):
             # send an big chunk of arbitrary data to the neighbor with ovs+dpdk
             # note: data is 'squid!' upside-down
             chunk_of_data = "~ipinbs~"
-            multiplier = 0x4000
+            # 64KiB = 8B * 8 * 1024
+            multiplier = 1024 * 8
             expected_data = chunk_of_data * multiplier
             # send it
             _client = node.tools[Timeout].start_with_timeout(
-                f"python3 -c \"print('{chunk_of_data}' * {hex(multiplier)} )\"  | nc {receiver.ip_addr} {port}",
+                f"echo '{expected_data}' | nc {receiver.ip_addr} {port}",
                 timeout=15,
                 signal=SIGINT,
                 kill_timeout=20,
             )
             # wait for it
-            server.wait_output(chunk_of_data, timeout=30)
-            server_output = server.wait_result().stdout
-            if not server_output:
+            try:
+                server.wait_output(expected_data, timeout=30)
+            except LisaException:
                 fail(
-                    "Did not receive any expected data from OVS node. "
-                    "Check interface status, ovs init, dhclient, "
-                    "and generation of send data for errors."
-                )
-            elif expected_data not in server_output:
-                end_pos = len(server_output)
-                if end_pos > 30:
-                    end_pos = 30
-                fail(
-                    "Did not receive expected data from dpdk bridge device on "
-                    f"OVS node. Truncated: {server_output[:30]}"
+                    "Did not receive the expected data from dpdk bridge device on "
+                    f"OVS node."
                 )
 
+            server.kill()
+            _client.kill()
             output = tcpdump.wait_result().stdout
             # check for the packets and where they came from
             search_for_source = sender_ip.replace(".", "\\.")
