@@ -183,7 +183,7 @@ class Dpdk(TestSuite):
         use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
         ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-        client_ip = node.nics.get_secondary_nic().ip_addr
+        sender_ip = node.nics.get_secondary_nic().ip_addr
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
         bridge_name = "br-dpdk"
@@ -217,14 +217,15 @@ class Dpdk(TestSuite):
                 ),
             )
             port = 8080
-            addr_infos = node.tools[Ip].get_info(bridge_name)
+            # this regex breaks on the MANA case for this ovs interface
+            # addr_infos = node.tools[Ip].get_info(bridge_name)
             receiver = neighbor.nics.get_secondary_nic()
-            if not addr_infos:
-                fail(f"Could not get {bridge_name} ip address info after ovs init!")
+            # if not addr_infos:
+            #    fail(f"Could not get {bridge_name} ip address info after ovs init!")
 
-            dpdk_bridge = addr_infos[0]
-            node.log.debug(f"{dpdk_bridge.name} {dpdk_bridge.ip_addr}")
-            source_ip = dpdk_bridge.ip_addr
+            # dpdk_bridge = addr_infos[0]
+
+            node.log.debug(f"{bridge_name} {sender_ip}")
 
             tcpdump = neighbor.tools[Timeout].start_with_timeout(
                 f"tcpdump -i {receiver.name} --immediate-mode", timeout=30
@@ -251,7 +252,7 @@ class Dpdk(TestSuite):
             server.wait_output((chunk_of_data * multiplier), timeout=60)
             output = tcpdump.wait_result().stdout
             # check for the packets and where they came from
-            search_for_source = source_ip.replace(".", "\\.")
+            search_for_source = sender_ip.replace(".", "\\.")
             search_for_dest = receiver.ip_addr.replace(".", "\\.")
             regex_pattern = (
                 r"IP\s+[0-9.]+"
