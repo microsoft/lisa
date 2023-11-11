@@ -164,11 +164,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-            disk=schema.DiskOptionSettings(
-                data_disk_count=search_space.IntRange(min=1),
-                data_disk_size=search_space.IntRange(min=64),
-            ),
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_ovs(
@@ -191,7 +187,14 @@ class Dpdk(TestSuite):
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_secondary_nic().pci_slot)
+            if test_kit.testpmd.is_mana:
+                devargs = (
+                    f"{node.nics.get_secondary_nic().pci_slot},"
+                    f"mac={test_kit.node.nics.get_secondary_nic().mac_addr}"
+                )
+            else:
+                devargs = node.nics.get_secondary_nic().pci_slot
+            ovs.setup_ovs(devargs)
 
             # validate if OVS was able to initialize DPDK
             node.execute(
@@ -707,6 +710,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -726,7 +730,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(

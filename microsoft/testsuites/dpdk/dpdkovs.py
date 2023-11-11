@@ -234,8 +234,15 @@ class DpdkOvs(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Could not init dpdk properties for OVS",
         )
-        # NOTE: this is just config step and doesn't need a teardown step.
 
+        node.execute(
+            "ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
+        )
+
+        # NOTE: this is just config step and doesn't need a teardown step.
         # add a bridge to OVS
         node.execute(
             (
@@ -248,13 +255,16 @@ class DpdkOvs(Tool):
                 "Could not create dpdk bridge pseudo-device"
             ),
         )
-        self.teardown_state = self.BRIDGE_ADD
 
+        self.teardown_state = self.BRIDGE_ADD
+        node.execute("cat /var/log/openvswitch/ovs-vswitchd.log", shell=True, sudo=True)
         # add the dpdk port and give it the address of the interface to use
-        node.execute(
+        init_result = node.execute(
             (
                 f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
-                f"set Interface p1 type=dpdk options:dpdk-devargs={device_address}"
+                "set Interface p1 type=dpdk "
+                f"options:dpdk-devargs={device_address} "
+                "options:n_rxq=2 options:n_txq=2"
             ),
             sudo=True,
             expected_exit_code=0,
@@ -263,6 +273,9 @@ class DpdkOvs(Tool):
             ),
         )
         self.teardown_state = self.PORT_ADD
+
+        if "Error detected" in init_result.stdout:
+            fail(f"OVS raised an error during init: {init_result.stdout}")
 
         # set interface UP
         ip = node.tools[Ip]
