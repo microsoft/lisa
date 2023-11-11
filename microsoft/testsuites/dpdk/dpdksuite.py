@@ -241,15 +241,32 @@ class Dpdk(TestSuite):
             # note: data is 'squid!' upside-down
             chunk_of_data = "~ipinbs~"
             multiplier = 0x4000
+            expected_data = chunk_of_data * multiplier
             # send it
             _client = node.tools[Timeout].start_with_timeout(
-                f"python -c \"print('{chunk_of_data}' * {hex(multiplier)} )\"  | nc {receiver.ip_addr} {port}",
+                f"python3 -c \"print('{chunk_of_data}' * {hex(multiplier)} )\"  | nc {receiver.ip_addr} {port}",
                 timeout=15,
                 signal=SIGINT,
                 kill_timeout=20,
             )
             # wait for it
-            server.wait_output((chunk_of_data * multiplier), timeout=60)
+            server.wait_output(chunk_of_data, timeout=30)
+            server_output = server.wait_result().stdout
+            if not server_output:
+                fail(
+                    "Did not receive any expected data from OVS node. "
+                    "Check interface status, ovs init, dhclient, "
+                    "and generation of send data for errors."
+                )
+            elif expected_data not in server_output:
+                end_pos = len(server_output)
+                if end_pos > 30:
+                    end_pos = 30
+                fail(
+                    "Did not receive expected data from dpdk bridge device on "
+                    f"OVS node. Truncated: {server_output[:30]}"
+                )
+
             output = tcpdump.wait_result().stdout
             # check for the packets and where they came from
             search_for_source = sender_ip.replace(".", "\\.")
@@ -263,7 +280,12 @@ class Dpdk(TestSuite):
             )
             tcpdump_pattern = re.compile(regex_pattern)
             _matches = tcpdump_pattern.search(output)
-            # celebrate
+            if not _matches:
+                fail(
+                    "Received expected data but did not receive packets from the "
+                    "expected IP address! Check OVS setup and routing for "
+                    "leaked traffic."
+                )
 
         finally:
             ...  # ovs.stop_ovs()
