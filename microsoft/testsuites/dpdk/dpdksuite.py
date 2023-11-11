@@ -21,7 +21,7 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Timeout
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -183,7 +183,7 @@ class Dpdk(TestSuite):
         use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
         ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-        test_nic_ip = node.nics.get_secondary_nic().ip_addr
+        client_ip = node.nics.get_secondary_nic().ip_addr
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
         bridge_name = "br-dpdk"
@@ -217,30 +217,52 @@ class Dpdk(TestSuite):
                 ),
             )
             port = 8080
-            hello_world = "Hello, World!"
-            _hello_response = "Hey yourself, jerk!"
             addr_infos = node.tools[Ip].get_info(bridge_name)
+            receiver = neighbor.nics.get_secondary_nic()
             if not addr_infos:
-                node.log.warn(f"Couldn't get updated address info for {bridge_name}")
+                fail(f"Could not get {bridge_name} ip address info after ovs init!")
 
-            if len(addr_infos) > 0:
-                dpdk_bridge = addr_infos[0]
-                node.log.debug(f"{dpdk_bridge.name} {dpdk_bridge.ip_addr}")
-                test_nic_ip = dpdk_bridge.ip_addr
-            else:
-                node.log.debug("attempting to run using old ip info...")
+            dpdk_bridge = addr_infos[0]
+            node.log.debug(f"{dpdk_bridge.name} {dpdk_bridge.ip_addr}")
+            source_ip = dpdk_bridge.ip_addr
 
+            tcpdump = neighbor.tools[Timeout].start_with_timeout(
+                f"tcpdump -i {receiver.name} --immediate-mode", timeout=30
+            )
+            tcpdump.wait_output(f"listening on {receiver.name}", timeout=10)
+            # start a listener on the neighbor node
             server = neighbor.execute_async(
-                f"nc -l -s {neighbor.nics.get_secondary_nic().ip_addr} -p {port}",
+                f"nc -l -s {receiver.ip_addr} -p {port}",
                 shell=True,
                 sudo=True,
             )
-            _client = node.execute_async(
-                f"echo '{hello_world}' | nc {neighbor.nics.get_secondary_nic().ip_addr} {port}",
-                shell=True,
-                sudo=True,
+            # send an big chunk of arbitrary data to the neighbor with ovs+dpdk
+            # note: data is 'squid!' upside-down
+            chunk_of_data = "~ipinbs~"
+            multiplier = 0x4000
+            # send it
+            _client = node.tools[Timeout].start_with_timeout(
+                f"python -c \"print('{chunk_of_data}' * {hex(multiplier)} )\"  | nc {receiver.ip_addr} {port}",
+                timeout=15,
+                signal=SIGINT,
+                kill_timeout=20,
             )
-            server.wait_output(hello_world, timeout=30)
+            # wait for it
+            server.wait_output((chunk_of_data * multiplier), timeout=60)
+            output = tcpdump.wait_result().stdout
+            # check for the packets and where they came from
+            search_for_source = source_ip.replace(".", "\\.")
+            search_for_dest = receiver.ip_addr.replace(".", "\\.")
+            regex_pattern = (
+                r"IP\s+[0-9.]+"
+                + search_for_source
+                + r"\.[0-9]+ > "
+                + search_for_dest
+                + r".http-alt"
+            )
+            tcpdump_pattern = re.compile(regex_pattern)
+            _matches = tcpdump_pattern.search(output)
+            # celebrate
 
         finally:
             ...  # ovs.stop_ovs()
