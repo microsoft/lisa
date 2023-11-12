@@ -96,6 +96,13 @@ class SourceInstallerSchema(BaseInstallerSchema):
     # Additional build dependencies
     build_deps: List[str] = field(default_factory=list)
 
+    # Kernel local version
+    kernel_local_version: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
 
 class SourceInstaller(BaseInstaller):
     _code_path: PurePath
@@ -162,8 +169,10 @@ class SourceInstaller(BaseInstaller):
         self._modify_code(node=node, code_path=self._code_path)
 
         kconfig_file = runbook.kernel_config_file
+        local_version = runbook.kernel_local_version
         self._build_code(
-            node=node, code_path=self._code_path, kconfig_file=kconfig_file
+            node=node, code_path=self._code_path, kconfig_file=kconfig_file,
+            local_version=local_version
         )
 
         self._install_build(node=node, code_path=self._code_path)
@@ -230,7 +239,7 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str) -> None:
+    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str, local_version: str) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
@@ -263,6 +272,13 @@ class SourceInstaller(BaseInstaller):
             file=str(config_path),
             sudo=True,
         )
+
+        result = node.execute(
+            f"scripts/config --set-str LOCALVERSION '{local_version}'",
+            cwd=code_path,
+            shell=True,
+        )
+        result.assert_exit_code()
 
         # workaround failures.
         #
