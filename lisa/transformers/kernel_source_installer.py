@@ -155,6 +155,27 @@ class SourceInstaller(BaseInstaller):
 
         self._install_build_tools(node, runbook.build_deps)
 
+        # Ubuntu sort kernels by version. If installed kernel version is lower than default
+        # one extra steps needed to ensure boot into correct kernel.
+        if isinstance(node.os, Ubuntu):
+            result = node.execute(
+                "cat > /tmp/grub-lisa.cfg <<EOF\n" \
+                "GRUB_DEFAULT=saved\n" \
+                "GRUB_DISABLE_SUBMENU=y\n" \
+                "EOF\n",
+                shell=True
+            )
+            result.assert_exit_code()
+
+            result = node.execute(
+                f"cp /tmp/grub-lisa.cfg /etc/default/grub.d/99-lisa.cfg",
+                sudo=True,
+            )
+            result.assert_exit_code()
+
+            # grub.cfg will be regenerated later during make install, so
+            # no need to explicitly regenerate it now.
+
         factory = subclasses.Factory[BaseLocation](BaseLocation)
         source = factory.create_by_runbook(
             runbook=runbook.location, node=node, parent_log=self._log
@@ -196,6 +217,20 @@ class SourceInstaller(BaseInstaller):
             sudo=True,
         )
         result.assert_exit_code()
+
+        if isinstance(node.os, Ubuntu):
+            result = node.execute("find /boot -name 'grub.cfg'", sudo=True)
+            result.assert_exit_code()
+
+            grub_config = result.stdout
+            result = node.execute(f"grep 'menuentry ' {grub_config}", sudo=True)
+            result.assert_exit_code()
+
+            for idx, menuentry in enumerate(result.stdout.splitlines()):
+                if kernel_version in menuentry:
+                    node.execute(f"grub-set-default {idx}", sudo=True)
+                    result.assert_exit_code()
+                    break
 
         return kernel_version
 
