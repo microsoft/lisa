@@ -93,6 +93,9 @@ class SourceInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    # Additional build dependencies
+    build_deps: List[str] = field(default_factory=list)
+
 
 class SourceInstaller(BaseInstaller):
     _code_path: PurePath
@@ -143,7 +146,7 @@ class SourceInstaller(BaseInstaller):
         runbook: SourceInstallerSchema = self.runbook
         assert runbook.location, "the repo must be defined."
 
-        self._install_build_tools(node)
+        self._install_build_tools(node, runbook.build_deps)
 
         factory = subclasses.Factory[BaseLocation](BaseLocation)
         source = factory.create_by_runbook(
@@ -302,12 +305,12 @@ class SourceInstaller(BaseInstaller):
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
 
-    def _install_build_tools(self, node: Node) -> None:
+    def _install_build_tools(self, node: Node, build_deps: list[str]) -> None:
         os = node.os
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
             for package in list(
-                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
+                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"] + build_deps
             ):
                 if os.is_package_in_repo(package):
                     os.install_packages(package)
@@ -336,7 +339,7 @@ class SourceInstaller(BaseInstaller):
                     "libssl-dev",
                     "bc",
                     "ccache",
-                ]
+                ] + build_deps
             )
         elif isinstance(os, CBLMariner):
             os.install_packages(
@@ -355,7 +358,7 @@ class SourceInstaller(BaseInstaller):
                     "xz-libs",
                     "openssl-libs",
                     "openssl-devel",
-                ]
+                ] + build_deps
             )
         else:
             raise LisaException(
