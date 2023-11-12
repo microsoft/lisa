@@ -1,11 +1,12 @@
 import itertools
+import re
 import time
 from collections import deque
 from decimal import Decimal
 from functools import partial
 from typing import Any, Dict, List, Tuple, Union
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa import (
@@ -592,6 +593,51 @@ def verify_dpdk_send_receive(
     ).is_greater_than(2**20)
 
     return sender, receiver
+
+
+def check_tcpdump_output(
+    log: Logger,
+    tcpdump_output: str,
+    src_ip: str,
+    src_port: int,
+    dst_ip: str,
+    dst_port: int,
+    sent_content: str,
+) -> None:
+    # check for the packets and where they came from
+    # escape the ip addresses for use in the regex
+    search_for_source = src_ip.replace(".", r"\.")
+    search_for_dest = dst_ip.replace(".", r"\.")
+    # search for the packet records using the dynamic regex
+    # we don't know
+    regex_pattern = (
+        r"[0-9.:]+\s+IP\s+"  # 'IP' and timestamp
+        + search_for_source  # ex 10.0.1.5 (src ip)
+        + r"\."  # ex '.' (dot before src port)
+        + f"{src_port}"  # 24189 aka 0x5E7D (src port)
+        + r"\s+\>\s+"  # > (packet direction)
+        + search_for_dest  # ex 10.0.1.4 (dst ip)
+        + r"\."  # dot before dst port
+        + f"{dst_port}"  # .8080 (dst port)
+        + r".*length\s+(?P<packet_len>[0-9]+).*\n"  # save this for later
+    )
+    log.info(f"checking tcpdump using search regex: {regex_pattern}")
+    tcpdump_pattern = re.compile(regex_pattern)
+    _matches = tcpdump_pattern.finditer(tcpdump_output)
+    if not _matches:
+        fail(
+            "Received expected data but did not receive packets from the "
+            "expected IP address! Check OVS setup and routing for "
+            "leaked traffic."
+        )
+    bytes_received = 0
+    for match in _matches:
+        byte_count = int(match.group("packet_len"))
+        log.info(f"found packet of length: {byte_count}")
+        bytes_received += byte_count
+    log.info(
+        f"Received a total of {bytes_received} bytes. Data was length: {len(sent_content)}"
+    )
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(

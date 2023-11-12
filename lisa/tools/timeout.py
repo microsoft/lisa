@@ -46,7 +46,6 @@ class Timeout(Tool):
         signal: int = SIGTERM,
         kill_timeout: int = 0,
         delay_start: int = 0,
-        silence_output: bool = False,
     ) -> Process:
         # timeout [OPTION] DURATION COMMAND [ARG]...
         params = f"-s {signal} --preserve-status {timeout} {command}"
@@ -57,6 +56,4 @@ class Timeout(Tool):
             force_run=True,
             shell=True,
             sudo=True,
-            no_debug_log=silence_output,
-            no_info_log=silence_output,
         )

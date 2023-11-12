@@ -29,6 +29,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
+    check_tcpdump_output,
     do_parallel_cleanup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
@@ -172,32 +173,32 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         self._force_dpdk_default_source(variables)
-        node, neighbor = environment.nodes.list()
-        test_kit = initialize_node_resources(node, log, variables, "netvsc")
+        source_node, dest_node = environment.nodes.list()
+        test_kit = initialize_node_resources(source_node, log, variables, "netvsc")
 
         # checkout OpenVirtualSwitch
-        ovs = node.tools[DpdkOvs]
+        ovs = source_node.tools[DpdkOvs]
 
         # check for runbook variable to skip dpdk version check
         use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
         ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-        sender_ip = node.nics.get_secondary_nic().ip_addr
+        sender_ip = source_node.nics.get_secondary_nic().ip_addr
         # enable hugepages needed for dpdk EAL
-        init_hugepages(node)
+        init_hugepages(source_node)
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
             if test_kit.testpmd.is_mana:
                 devargs = (
-                    f"{node.nics.get_secondary_nic().pci_slot},"
+                    f"{source_node.nics.get_secondary_nic().pci_slot},"
                     f"mac={test_kit.node.nics.get_secondary_nic().mac_addr}"
                 )
             else:
-                devargs = node.nics.get_secondary_nic().pci_slot
+                devargs = source_node.nics.get_secondary_nic().pci_slot
             ovs.setup_ovs(device_init_args=devargs)
 
             # validate if OVS was able to initialize DPDK
-            node.execute(
+            source_node.execute(
                 "ovs-vsctl get Open_vSwitch . dpdk_initialized",
                 sudo=True,
                 expected_exit_code=0,
@@ -205,7 +206,7 @@ class Dpdk(TestSuite):
                     "OVS repoted that DPDK EAL failed to initialize."
                 ),
             )
-            node.execute(
+            source_node.execute(
                 f"dhclient {ovs.OVS_BRIDGE_NAME}",
                 shell=True,
                 sudo=True,
@@ -227,26 +228,24 @@ class Dpdk(TestSuite):
             multiplier = 1024 * 8
             expected_data = chunk_of_data * multiplier
 
-            receiver = neighbor.nics.get_secondary_nic()
-            node.log.debug(f"Using {ovs.OVS_BRIDGE_NAME} with ip: {sender_ip}")
-            tcpdump = neighbor.tools[Timeout].start_with_timeout(
+            receiver = dest_node.nics.get_secondary_nic()
+            source_node.log.debug(f"Using {ovs.OVS_BRIDGE_NAME} with ip: {sender_ip}")
+            tcpdump = dest_node.tools[Timeout].start_with_timeout(
                 f"tcpdump -n -i {receiver.name} --immediate-mode", timeout=30
             )
             tcpdump.wait_output(f"listening on {receiver.name}", timeout=10)
             # start a listener on the neighbor node
-            server = neighbor.execute_async(
+            server = dest_node.execute_async(
                 f"nc -l -s {receiver.ip_addr} -p {dst_port}",
-                shell=True,
                 sudo=True,
             )
             # send it, silence output since we don't want to dump 64KB of squids to the log
             # -n to omit trailing newline
-            _client = node.tools[Timeout].start_with_timeout(
+            _client = source_node.tools[Timeout].start_with_timeout(
                 f"echo -n '{expected_data}' | nc -s {sender_ip} -p {src_port} {receiver.ip_addr} {dst_port}",
                 timeout=15,
                 signal=SIGINT,
                 kill_timeout=20,
-                silence_output=True,
             )
             # wait for it...
             try:
@@ -258,41 +257,16 @@ class Dpdk(TestSuite):
                     f"OVS node. Check OVS setup and init logs for unhandled errors."
                 )
 
-            neighbor.tools[Kill].by_name(process_name="tcpdump", ignore_not_exist=True)
+            dest_node.tools[Kill].by_name(process_name="tcpdump", ignore_not_exist=True)
             tcpdump_output = tcpdump.wait_result().stdout
-            # check for the packets and where they came from
-            # escape the ip addresses for use in the regex
-            search_for_source = sender_ip.replace(".", r"\.")
-            search_for_dest = receiver.ip_addr.replace(".", r"\.")
-            # search for the packet records using the dynamic regex
-            # we don't know
-            regex_pattern = (
-                r"[0-9.:]+\s+IP\s+"  # 'IP' and timestamp
-                + search_for_source  # ex 10.0.1.5 (src ip)
-                + r"\."  # ex '.' (dot before src port)
-                + f"{src_port}"  # 24189 aka 0x5E7D (src port)
-                + r"\s+\>\s+"  # > (packet direction)
-                + search_for_dest  # ex 10.0.1.4 (dst ip)
-                + r"\."  # dot before dst port
-                + f"{dst_port}"  # .8080 (dst port)
-                + r".*length\s+(?P<packet_len>[0-9]+).*\n"  # save this for later
-            )
-            node.log.info(f"checking tcpdump using search regex: {regex_pattern}")
-            tcpdump_pattern = re.compile(regex_pattern)
-            _matches = tcpdump_pattern.finditer(tcpdump_output)
-            if not _matches:
-                fail(
-                    "Received expected data but did not receive packets from the "
-                    "expected IP address! Check OVS setup and routing for "
-                    "leaked traffic."
-                )
-            bytes_received = 0
-            for match in _matches:
-                byte_count = int(match.group("packet_len"))
-                node.log.info(f"found packet of length: {byte_count}")
-                bytes_received += byte_count
-            node.log.info(
-                f"Received a total of {bytes_received} bytes. Data was length: {len(expected_data)}"
+            check_tcpdump_output(
+                source_node.log,
+                tcpdump_output,
+                src_ip=sender_ip,
+                src_port=src_port,
+                dst_ip=receiver.ip_addr,
+                dst_port=dst_port,
+                sent_content=expected_data,
             )
 
         finally:
