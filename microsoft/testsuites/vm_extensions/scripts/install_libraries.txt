@@ -1,0 +1,15 @@
+import subprocess
+
+# Command 1: Install python2.7
+subprocess.call(["apt", "install", "-y", "python2.7"])
+
+# Command 2: Download and install pip for Python 2.7
+subprocess.call(["curl", "https://bootstrap.pypa.io/pip/2.7/get-pip.py", "-o", "get-pip.py"])
+subprocess.call(["python2.7", "get-pip.py"])
+
+# Command 3: Check the pip version for Python 2.7
+subprocess.call(["python2.7", "-m", "pip", "--version"])
+
+# Command 4: Install the 'mock' library using pip
+subprocess.call(["sudo", "python2.7", "-m", "pip", "install", "mock"])
+
