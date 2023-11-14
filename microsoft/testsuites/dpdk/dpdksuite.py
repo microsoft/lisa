@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Windows
+from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
@@ -709,10 +709,12 @@ class Dpdk(TestSuite):
         ),
         priority=3,
         requirement=simple_requirement(
+            supported_os=[Ubuntu],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -734,6 +736,7 @@ class Dpdk(TestSuite):
             """,
         priority=3,
         requirement=simple_requirement(
+            supported_os=[Ubuntu],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
