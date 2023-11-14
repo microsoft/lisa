@@ -20,6 +20,12 @@ class Rpm(Tool):
         posix_os.install_packages(package_name)
         return self._check_exists()
 
+    def is_valid_package(self, file: str) -> bool:
+        cmd_result = self.run(
+            f'-qp "{file}"',
+        )
+        return cmd_result.exit_code == 0
+
     def get_file_size(self, file: str) -> int:
         cmd_result = self.run(
             "--queryformat='%{SIZE}' " f"-qp {file}",
@@ -29,9 +35,16 @@ class Rpm(Tool):
         )
         return int(cmd_result.stdout)
 
-    def install_local_package(self, file: str) -> None:
+    def install_local_package(
+        self, file: str, force: bool = False, nodeps: bool = False
+    ) -> None:
+        parameters = f'-ivh "{file}"'
+        if force:
+            parameters += " --force"
+        if nodeps:
+            parameters += " --nodeps"
         self.run(
-            f"-ivh {file}",
+            parameters,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(f"failed to install {file}"),
