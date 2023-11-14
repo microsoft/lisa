@@ -1,11 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import random
 import re
 import string
 import sys
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from threading import Lock
 from time import sleep
@@ -18,8 +18,10 @@ from typing import (
     List,
     Optional,
     Pattern,
+    Tuple,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -750,3 +752,49 @@ def check_till_timeout(
         sleep(interval)
     if timer.elapsed() >= timeout:
         raise LisaException(f"timeout: {timeout_message}")
+
+
+def retry_without_exceptions(
+    skipped_exceptions: List[Type[Exception]],
+    tries: int = -1,
+    delay: float = 0,
+    max_delay: Optional[float] = None,
+    backoff: float = 1,
+    jitter: Union[Tuple[float, float], float] = 0,
+    logger: Optional["Logger"] = None,
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args: object, **kwargs: object) -> T:
+            current_delay = delay
+            current_tries = 0
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if any(isinstance(e, ex_type) for ex_type in skipped_exceptions):
+                        raise
+                    else:
+                        current_tries += 1
+                        if current_tries == tries:
+                            raise
+                        if max_delay is not None and current_delay > max_delay:
+                            current_delay = max_delay
+                        sleep(current_delay)
+                        # Apply jitter if it's specified as a tuple (min, max)
+                        if isinstance(jitter, tuple):
+                            current_delay += random.uniform(jitter[0], jitter[1])
+                        elif jitter > 0:
+                            current_delay += random.uniform(0, jitter)
+                        current_delay *= backoff
+
+                        if logger:
+                            logger.info(
+                                "Retrying in %s seconds...",
+                                round(current_delay, 2),
+                                exc_info=True,
+                            )
+
+        return wrapper
+
+    return decorator
