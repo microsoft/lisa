@@ -13,6 +13,15 @@ from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
 
 
+def get_dpdk_coremask(cores: List[int]) -> str:
+    # helper to take a list of DPDK port IDs and return
+    # the bit mask the EAL uses to enable them.
+    mask = 0
+    for i in cores:
+        mask |= 1 << i
+    return hex(mask)
+
+
 class DpdkOvs(Tool):
     ubuntu_packages = ["automake", "autoconf", "libtool", "libcap-ng-dev"]
     _version_regex = re.compile(
@@ -219,74 +228,96 @@ class DpdkOvs(Tool):
         node = self.node
         modprobe = node.tools[Modprobe]
         self.teardown_state = self.INIT
-
+        queues = 8
+        max_lcore = queues
+        cores = list(range(1, max_lcore))
+        core_mask = get_dpdk_coremask(cores)
         # load ovs driver
         modprobe.load("openvswitch")
         self.teardown_state = self.MODULE_LOAD
-
-        # start OVS service
-        node.execute(
-            "/usr/share/openvswitch/scripts/ovs-ctl start",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not start ovs-ctl",
-        )
-        self.teardown_state = self.SERVICE_START
-
-        # enable dpdk in ovs config
-        node.execute(
-            "ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Could not init dpdk properties for OVS",
-        )
-        if enable_tso:
+        try:
+            # start OVS service
             node.execute(
-                "ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true",
+                "/usr/share/openvswitch/scripts/ovs-ctl start",
                 sudo=True,
                 expected_exit_code=0,
-                expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
+                expected_exit_code_failure_message="Could not start ovs-ctl",
+            )
+            self.teardown_state = self.SERVICE_START
+
+            # set lcore before init
+            # https://developers.redhat.com/blog/2017/06/28/ovs-dpdk-parameters-dealing-with-multi-numa#dpdk_lcore_mask
+            node.execute(
+                f"ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask={core_mask}",  # other_config:dpdk-lcore-mask=0x0F other_config:pmd-cpu-mask=0xF0
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not set DPDK logical core mask for OVS",
+            )
+            # node.execute(
+            #     f"ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask=0xFE",  # other_config:dpdk-lcore-mask=0x0F other_config:pmd-cpu-mask=0xF0
+            #     sudo=True,
+            #     expected_exit_code=0,
+            #     expected_exit_code_failure_message="Could not set DPDK logical core mask for OVS",
+            # )
+
+            if enable_tso:
+                node.execute(
+                    "ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
+                )
+
+            # enable dpdk in ovs config
+            node.execute(
+                "ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not init dpdk properties for OVS",
             )
 
-        # NOTE: this is just config step and doesn't need a teardown step.
-        # add a bridge to OVS
-        node.execute(
-            (
-                f"ovs-vsctl add-br {self.OVS_BRIDGE_NAME} -- "
-                f"set bridge {self.OVS_BRIDGE_NAME} datapath_type=netdev"
-            ),
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not create dpdk bridge pseudo-device"
-            ),
-        )
+            # NOTE: this is just config step and doesn't need a teardown step.
+            # add a bridge to OVS
+            node.execute(
+                (
+                    f"ovs-vsctl add-br {self.OVS_BRIDGE_NAME} -- "
+                    f"set bridge {self.OVS_BRIDGE_NAME} datapath_type=netdev"
+                ),
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Could not create dpdk bridge pseudo-device"
+                ),
+            )
 
-        self.teardown_state = self.BRIDGE_ADD
-        node.execute("cat /var/log/openvswitch/ovs-vswitchd.log", shell=True, sudo=True)
-        # add the dpdk port and give it the address of the interface to use
-        init_result = node.execute(
-            (
-                f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
-                "set Interface p1 type=dpdk "
-                f"options:dpdk-devargs={device_init_args} "
-                "options:n_rxq=2 options:n_txq=2"
-            ),
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not add dpdk port to the OVS bridge"
-            ),
-        )
-        self.teardown_state = self.PORT_ADD
+            self.teardown_state = self.BRIDGE_ADD
+            # add the dpdk port and give it the address of the interface to use
+            init_result = node.execute(
+                (
+                    f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
+                    "set Interface p1 type=dpdk "
+                    f"options:dpdk-devargs={device_init_args} "
+                    f"options:n_rxq={queues} "
+                ),
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Could not add dpdk port to the OVS bridge"
+                ),
+            )
+            self.teardown_state = self.PORT_ADD
 
-        if "Error detected" in init_result.stdout:
-            fail(f"OVS raised an error during init: {init_result.stdout}")
+            if "Error detected" in init_result.stdout:
+                fail(f"OVS raised an error during init: {init_result.stdout}")
 
-        # set interface UP
-        ip = node.tools[Ip]
-        ip.up(self.OVS_BRIDGE_NAME)
-        self.teardown_state = self.INTERFACE_UP
+            # set interface UP
+            ip = node.tools[Ip]
+            ip.up(self.OVS_BRIDGE_NAME)
+            self.teardown_state = self.INTERFACE_UP
+        finally:
+            node.execute(
+                "cat /var/log/openvswitch/ovs-vswitchd.log", shell=True, sudo=True
+            )
 
     def check_setup_page(self) -> None:
         ip_addr = self.node.tools[Ip].get_info(self.OVS_BRIDGE_NAME)[0].ip_addr

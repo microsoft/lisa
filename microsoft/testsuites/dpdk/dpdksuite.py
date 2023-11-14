@@ -18,7 +18,7 @@ from lisa import (
     UnsupportedDistroException,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Windows
+from lisa.operating_system import BSD, CBLMariner, OperatingSystem, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Timeout
 from lisa.util.constants import SIGINT
@@ -36,6 +36,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_hugepages,
     init_nodes_concurrent,
     initialize_node_resources,
+    run_ovs_ntttcp_test,
     run_testpmd_concurrent,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
@@ -57,6 +58,11 @@ DPDK_VF_REMOVAL_MAX_TEST_TIME = 60 * 10
     """,
 )
 class Dpdk(TestSuite):
+    def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
+        if not variables.get("dpdk_source", None):
+            variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
+        return variables
+
     # regex for parsing ring ping output for the final line,
     # grabbing the max latency of 99.999% of data in nanoseconds.
     # ex: percentile 99.999 = 12302
@@ -172,105 +178,8 @@ class Dpdk(TestSuite):
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
-        self._force_dpdk_default_source(variables)
-        source_node, dest_node = environment.nodes.list()
-        test_kit = initialize_node_resources(source_node, log, variables, "netvsc")
-
-        # checkout OpenVirtualSwitch
-        ovs = source_node.tools[DpdkOvs]
-
-        # check for runbook variable to skip dpdk version check
-        use_latest_ovs = variables.get("use_latest_ovs", False)
-        # provide ovs build with DPDK tool info and build
-        ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-        sender_ip = source_node.nics.get_secondary_nic().ip_addr
-        # enable hugepages needed for dpdk EAL
-        init_hugepages(source_node)
-        try:
-            # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            if test_kit.testpmd.is_mana:
-                devargs = (
-                    f"{source_node.nics.get_secondary_nic().pci_slot},"
-                    f"mac={test_kit.node.nics.get_secondary_nic().mac_addr}"
-                )
-            else:
-                devargs = source_node.nics.get_secondary_nic().pci_slot
-            ovs.setup_ovs(device_init_args=devargs)
-
-            # validate if OVS was able to initialize DPDK
-            source_node.execute(
-                "ovs-vsctl get Open_vSwitch . dpdk_initialized",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "OVS repoted that DPDK EAL failed to initialize."
-                ),
-            )
-            source_node.execute(
-                f"dhclient {ovs.OVS_BRIDGE_NAME}",
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Could not get an IP address for OVS bridge "
-                    f"{ovs.OVS_BRIDGE_NAME}"
-                ),
-            )
-            # arbitrarily use http-alt for dest port
-            dst_port = 8080
-            # arbitrarily use 0x5E7D aka 'send' for src port
-            src_port = 0x5E7D
-            # we'll send a big chunk of arbitrary data to the neighbor
-            # over the ovs+dpdk bridge interface
-            # note: ~ipinbs~ is '~squid!~' upside-down
-            chunk_of_data = "~ipinbs~"
-            # 64KiB = 8B * 8 * 1024
-            multiplier = 1024 * 8
-            expected_data = chunk_of_data * multiplier
-
-            receiver = dest_node.nics.get_secondary_nic()
-            source_node.log.debug(f"Using {ovs.OVS_BRIDGE_NAME} with ip: {sender_ip}")
-            tcpdump = dest_node.tools[Timeout].start_with_timeout(
-                f"tcpdump -n -i {receiver.name} --immediate-mode", timeout=30
-            )
-            tcpdump.wait_output(f"listening on {receiver.name}", timeout=10)
-            # start a listener on the neighbor node
-            server = dest_node.execute_async(
-                f"nc -l -s {receiver.ip_addr} -p {dst_port}",
-                sudo=True,
-            )
-            # send it, silence output since we don't want to dump 64KB of squids to the log
-            # -n to omit trailing newline
-            _client = source_node.tools[Timeout].start_with_timeout(
-                f"echo -n '{expected_data}' | nc -s {sender_ip} -p {src_port} {receiver.ip_addr} {dst_port}",
-                timeout=15,
-                signal=SIGINT,
-                kill_timeout=20,
-            )
-            # wait for it...
-            try:
-                server.wait_output(expected_data, timeout=30)
-            except LisaException:
-                # don't need to raise the packet content w the expection, it's big
-                fail(
-                    "Did not receive the expected data from dpdk bridge device on "
-                    f"OVS node. Check OVS setup and init logs for unhandled errors."
-                )
-
-            dest_node.tools[Kill].by_name(process_name="tcpdump", ignore_not_exist=True)
-            tcpdump_output = tcpdump.wait_result().stdout
-            check_tcpdump_output(
-                source_node.log,
-                tcpdump_output,
-                src_ip=sender_ip,
-                src_port=src_port,
-                dst_ip=receiver.ip_addr,
-                dst_port=dst_port,
-                sent_content=expected_data,
-            )
-
-        finally:
-            ...  # ovs.stop_ovs()
+        variables = self._force_dpdk_default_source(variables)
+        run_ovs_ntttcp_test(environment=environment, log=log, variables=variables)
 
     @TestCaseMetadata(
         description="""
@@ -315,7 +224,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # multiprocess test requires dpdk source.
-        self._force_dpdk_default_source(variables)
+        variables = self._force_dpdk_default_source(variables)
         kill = node.tools[Kill]
         pmd = "failsafe"
         server_app_name = "dpdk-mp_server"
@@ -555,7 +464,7 @@ class Dpdk(TestSuite):
     ) -> None:
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
-        self._force_dpdk_default_source(variables)
+        variables = self._force_dpdk_default_source(variables)
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
@@ -780,7 +689,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._force_dpdk_default_source(variables)
+        variables = self._force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
 
@@ -800,7 +709,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._force_dpdk_default_source(variables)
+        variables = self._force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, pmd=pmd, enable_gibibyte_hugepages=True
@@ -869,10 +778,6 @@ class Dpdk(TestSuite):
                 "/dev/uio0 still exists after driver unload"
             ),
         )
-
-    def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
-        if not variables.get("dpdk_source", None):
-            variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")

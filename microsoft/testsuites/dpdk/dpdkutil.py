@@ -7,6 +7,7 @@ from functools import partial
 from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
+from retry import retry
 from semver import VersionInfo
 
 from lisa import (
@@ -47,6 +48,8 @@ from lisa.util.constants import AZ_ROUTE_ALL_TRAFFIC, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+
+from .dpdkovs import DpdkOvs
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv
@@ -593,6 +596,137 @@ def verify_dpdk_send_receive(
     ).is_greater_than(2**20)
 
     return sender, receiver
+
+
+@retry(LisaException, tries=4, delay=5)
+def wait_for_route_update(node: Node, prefix: str, devname: str) -> None:
+    if not node.tools[Ip].route_exists(prefix, devname):
+        raise LisaException(f"Could not locate route for {prefix} from {devname}!")
+
+
+def run_ovs_ntttcp_test(
+    environment: Environment, log: Logger, variables: Dict[str, Any]
+) -> None:
+    source_node, dest_node = environment.nodes.list()
+    test_result = environment.source_test_result
+    test_kit = initialize_node_resources(source_node, log, variables, "netvsc")
+
+    # checkout OpenVirtualSwitch
+    ovs = source_node.tools[DpdkOvs]
+
+    # check for runbook variable to skip dpdk version check
+    use_latest_ovs = variables.get("use_latest_ovs", False)
+    # provide ovs build with DPDK tool info and build
+    ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
+    sender_ip = source_node.nics.get_secondary_nic().ip_addr
+    # enable hugepages needed for dpdk EAL
+    init_hugepages(source_node)
+    ntttcp = {
+        source_node: source_node.tools[Ntttcp],
+        dest_node: dest_node.tools[Ntttcp],
+    }
+
+    try:
+        # run OVS tests, providing OVS with the NIC info needed for DPDK init
+        if test_kit.testpmd.is_mana:
+            devargs = (
+                f"{source_node.nics.get_secondary_nic().pci_slot},"
+                f"mac={test_kit.node.nics.get_secondary_nic().mac_addr}"
+            )
+        else:
+            devargs = source_node.nics.get_secondary_nic().pci_slot
+        ovs.setup_ovs(device_init_args=devargs)
+
+        # validate if OVS was able to initialize DPDK
+        source_node.execute(
+            "ovs-vsctl get Open_vSwitch . dpdk_initialized",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "OVS repoted that DPDK EAL failed to initialize."
+            ),
+        )
+        source_node.execute(
+            f"dhclient {ovs.OVS_BRIDGE_NAME}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not get an IP address for OVS bridge " f"{ovs.OVS_BRIDGE_NAME}"
+            ),
+        )
+        dest_nic = dest_node.nics.get_secondary_nic()
+
+        source_node.log.debug(f"Using {ovs.OVS_BRIDGE_NAME} with ip: {sender_ip}")
+        # tcpdump = source_node.tools[Timeout].start_with_timeout(
+        #     f"tcpdump -n -i {ovs.OVS_BRIDGE_NAME} --immediate-mode", timeout=30
+        # )
+        # tcpdump.wait_output(f"listening on {ovs.OVS_BRIDGE_NAME}", timeout=10)
+
+        # start ntttcp client and server
+        ntttcp_threads_count = 64
+        # start the receiver
+        receiver_proc = ntttcp[dest_node].run_as_server_async(
+            dest_nic.name,
+            run_time_seconds=30,
+            buffer_size=64,
+            server_ip=dest_nic.ip_addr,
+        )
+
+        # start the sender with 64KB buffer
+        sender_result = ntttcp[source_node].run_as_client(
+            nic_name=ovs.OVS_BRIDGE_NAME,
+            server_ip=dest_nic.ip_addr,
+            threads_count=ntttcp_threads_count,
+            buffer_size=64,
+            run_time_seconds=10,
+        )
+
+        # collect, log, and process results
+        receiver_result = ntttcp[dest_node].wait_server_result(receiver_proc)
+        log.debug(f"result: {receiver_result.stdout}")
+        log.debug(f"result: {sender_result.stdout}")
+        # kill l3fwd on forwarder
+        # dest_node.tools[Kill].by_name("tmpdump", signum=SIGINT, ignore_not_exist=True)
+        ntttcp_results = {
+            dest_node: ntttcp[dest_node].create_ntttcp_result(receiver_result),
+            source_node: ntttcp[source_node].create_ntttcp_result(
+                sender_result, "client"
+            ),
+        }
+    finally:
+        ...
+    # send result to notifier if we found a test result to report with
+    if test_result:
+        msg = ntttcp[source_node].create_ntttcp_tcp_performance_message(
+            server_result=ntttcp_results[dest_node],
+            client_result=ntttcp_results[source_node],
+            latency=Decimal(0),
+            connections_num="64",
+            buffer_size=64,
+            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
+            test_result=test_result,
+        )
+        notifier.notify(msg)
+
+    # check the throughput and fail if it was unexpectedly low.
+    # NOTE: only checking 0 and < 1 now. Once we have more data
+    # there should be more stringest checks for each NIC type.
+    throughput = ntttcp_results[dest_node].throughput_in_gbps
+    assert_that(throughput).described_as(
+        "l3fwd test found 0Gbps througput. "
+        "Either the test or DPDK forwarding is broken."
+    ).is_greater_than(0)
+    assert_that(throughput).described_as(
+        f"l3fwd has very low throughput: {throughput}Gbps! "
+        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "and the DPDK port IDs were correct."
+    ).is_greater_than(1)
+    source_node.execute(
+        f"ovs-vsctl get Interface {ovs.OVS_BRIDGE_NAME} statistics",
+        shell=True,
+        sudo=True,
+    )
 
 
 def check_tcpdump_output(
