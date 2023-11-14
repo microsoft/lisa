@@ -27,7 +27,7 @@ Some terms
 Test priority
 ~~~~~~~~~~~~~
 
-The priority of each test case is determined by the impact if it’s
+The priority of each test case is determined by the impact if it's
 failed. The smaller number means the higher priority. For example, if a
 high-priority test case fails, it means the operating system cannot
 start. If a lower-priority test case fails, it may mean that a function
@@ -42,16 +42,16 @@ failure of high-priority test cases to speed up the analysis.
    configurations, for example, add firewall rules, install some popular
    packages. There is data loss with popular configurations. The system
    cannot be connected via network with default settings. The system
-   performance drops significantly, like SRIOV doesn’t work as expected;
+   performance drops significantly, like SRIOV doesn't work as expected;
    only one CPU core works on multiple core machine; an important
-   feature doesn’t work with default settings; or the system can be used
+   feature doesn't work with default settings; or the system can be used
    with limited functionality.
 -  **P2**. The system fails/hangs on start/restart using unpopular
    configurations. Data loss with unpopular configurations. The system
    cannot be connected with popular configurations. The system
-   performance drops obviously. An important feature doesn’t work with
+   performance drops obviously. An important feature doesn't work with
    popular configurations.
--  **P3**. A feature doesn’t work with unpopular configurations with low
+-  **P3**. A feature doesn't work with unpopular configurations with low
    impact.
 -  **P4**. The system has obvious but not serious problems on long-haul,
    stress or performance test scenarios.
@@ -116,7 +116,7 @@ more from :doc:`how to run LISA tests <run>` to run different tiers on
 an image or existing environment.
 
 LISA comes with a set of test suites to verify Linux distro/kernel
-quality on Microsoft’s platforms (including Azure, and HyperV). The test
+quality on Microsoft's platforms (including Azure, and HyperV). The test
 cases in those test suites are organized with multiple test ``Tiers``
 (``T0``, ``T1``, ``T2``, ``T3``, ``T4``).
 

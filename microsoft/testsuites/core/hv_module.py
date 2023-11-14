@@ -18,7 +18,7 @@ from lisa import (
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import Find, KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe, Uname
+from lisa.tools import KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.util import SkippedException
 
 
@@ -43,7 +43,7 @@ class HvModule(TestSuite):
            matches with the Linux kernel release number. (Drivers loaded directly in
            to the kernel are skipped)
         """,
-        priority=1,
+        priority=2,
     )
     def verify_lis_modules_version(self, node: Node) -> None:
         if not isinstance(node.os, Redhat):
@@ -73,10 +73,9 @@ class HvModule(TestSuite):
         This test case will ensure all necessary hv_modules are present in
         initrd. This is achieved by
         1. Skipping any modules that are loaded directly in the kernel
-        2. Find the path of initrd file
-        3. Use lsinitrd tool to check whether a necessary module is missing
+        2. Use lsinitrd tool to check whether a necessary module is missing
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             unsupported_os=[BSD],
         ),
@@ -99,34 +98,12 @@ class HvModule(TestSuite):
             if k not in skip_modules
         }
 
-        # 2) Find the path of initrd
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information().kernel_version_raw
-        find = node.tools[Find]
-        initrd_possible_file_names = [
-            f"initrd-{kernel_version}",
-            f"initramfs-{kernel_version}.img",
-            f"initrd.img-{kernel_version}",
-        ]
-
-        initrd_file_path = ""
-        for file_name in initrd_possible_file_names:
-            cmd_result = find.find_files(
-                node.get_pure_path("/boot"), file_name, sudo=True
-            )
-            if cmd_result and cmd_result[0]:
-                initrd_file_path = cmd_result[0]
-                break
-
-        # 3) Use lsinitrd to check whether a necessary module
+        # 2) Use lsinitrd to check whether a necessary module
         #    is missing.
         lsinitrd = node.tools[Lsinitrd]
         missing_modules = []
         for module in hv_modules_file_names:
-            if not lsinitrd.has_module(
-                module_file_name=hv_modules_file_names[module],
-                initrd_file_path=initrd_file_path,
-            ):
+            if not lsinitrd.has_module(module_file_name=hv_modules_file_names[module]):
                 missing_modules.append(module)
 
         if (

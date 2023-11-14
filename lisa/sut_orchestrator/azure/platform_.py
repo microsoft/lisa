@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import copy
 import json
 import logging
@@ -19,10 +18,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
-from azure.mgmt.compute.models import (  # type: ignore
+from azure.mgmt.compute.models import (
     GalleryImage,
     GalleryImageVersion,
-    PurchasePlan,
     ResourceSku,
     RunCommandInput,
     RunCommandInputParameter,
@@ -46,6 +44,7 @@ from msrestazure.azure_cloud import (  # type: ignore
     AZURE_US_GOV_CLOUD,
     Cloud,
 )
+from packaging.version import parse
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -53,7 +52,8 @@ from lisa.environment import Environment
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
-from lisa.tools import Dmesg, Hostname, Modinfo, Whoami
+from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
+from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -62,9 +62,10 @@ from lisa.util import (
     constants,
     dump_file,
     field_metadata,
-    generate_random_chars,
+    generate_strong_password,
     get_datetime_path,
     get_matched_str,
+    get_or_generate_key_pairs,
     get_public_key_data,
     is_unittest,
     plugin_manager,
@@ -169,6 +170,8 @@ KEY_KERNEL_VERSION = "kernel_version"
 KEY_WALA_VERSION = "wala_version"
 KEY_WALA_DISTRO_VERSION = "wala_distro"
 KEY_HARDWARE_PLATFORM = "hardware_platform"
+KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
+KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
@@ -276,6 +279,7 @@ class AzurePlatformSchema:
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
         default=None
     )
+    use_availability_sets: Optional[bool] = field(default=None)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
@@ -390,9 +394,9 @@ class AzurePlatformSchema:
             #       azure_datalake_store_file_system_endpoint: azuredatalakestore.net
             #       azure_datalake_analytics_catalog_and_job_endpoint: azuredatalakeanalytics.net  # noqa: E501
             elif isinstance(self.cloud_raw, dict):
-                cloudschema = schema.load_by_type(CloudSchema, self.cloud_raw)
+                cloud_schema = schema.load_by_type(CloudSchema, self.cloud_raw)
                 cloud = Cloud(
-                    cloudschema.name, cloudschema.endpoints, cloudschema.suffixes
+                    cloud_schema.name, cloud_schema.endpoints, cloud_schema.suffixes
                 )
             else:
                 # by default use azure public cloud
@@ -448,8 +452,10 @@ class AzurePlatform(Platform):
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,
+            features.CVMNestedVirtualization,
             features.SerialConsole,
             features.NetworkInterface,
+            features.PasswordExtension,
             features.Resize,
             features.StartStop,
             features.IaaS,
@@ -487,7 +493,7 @@ class AzurePlatform(Platform):
 
         # covert to azure node space, so the azure extensions can be loaded.
         for req in nodes_requirement:
-            self._load_image_features(req)
+            self._set_image_features(req)
 
         is_success: bool = False
 
@@ -566,6 +572,16 @@ class AzurePlatform(Platform):
             log.info(f"dry_run: {self._azure_runbook.dry_run}")
         else:
             try:
+                if (
+                    not self._azure_runbook.deploy
+                    and not self.runbook.admin_private_key_file
+                    and not self.runbook.admin_password
+                ):
+                    raise LisaException(
+                        "admin_private_key_file or admin_password must be "
+                        "specified when use existing environment."
+                    )
+
                 location, deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment, log
                 )
@@ -732,6 +748,27 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+            if node.capture_kernel_config:
+                node.log.debug("detecting mana driver enabled...")
+                information[
+                    KEY_MANA_DRIVER_ENABLED
+                ] = node.nics.is_mana_driver_enabled()
+                node.log.debug(f"mana enabled: {information[KEY_MANA_DRIVER_ENABLED]}")
+                node.log.debug("detecting nvme driver enabled...")
+                _has_nvme_core = node.tools[KernelConfig].is_built_in(
+                    "CONFIG_NVME_CORE"
+                ) or (
+                    node.tools[KernelConfig].is_built_as_module("CONFIG_NVME_CORE")
+                    and node.tools[Lsinitrd].has_module("nvme-core.ko")
+                )
+                _has_nvme = node.tools[KernelConfig].is_built_in(
+                    "CONFIG_BLK_DEV_NVME"
+                ) or (
+                    node.tools[KernelConfig].is_built_as_module("CONFIG_BLK_DEV_NVME")
+                    and node.tools[Lsinitrd].has_module("nvme.ko")
+                )
+                information[KEY_NVME_ENABLED] = _has_nvme_core and _has_nvme
+                node.log.debug(f"nvme enabled: {information[KEY_NVME_ENABLED]}")
 
         node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
         if node_runbook:
@@ -747,12 +784,12 @@ class AzurePlatform(Platform):
         if node.is_connected and node.is_posix:
             linux_information = node.tools[Uname].get_linux_information()
             result = linux_information.kernel_version_raw
-
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            # try to get kernel version in Azure. use it, when uname doesn't work
-            node.log.debug("detecting kernel version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
+        elif not node.is_connected or node.is_posix:
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                # try to get kernel version in Azure. use it, when uname doesn't work
+                node.log.debug("detecting kernel version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
 
         return result
 
@@ -771,12 +808,14 @@ class AzurePlatform(Platform):
             # test cases not here. So ignore any error here to collect information only.
             node.log.debug(f"error on run dmesg: {identifier}")
 
-        # if not get, try again from serial console log.
-        # skip if node is not initialized.
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            node.log.debug("detecting host version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
+        # skip for Windows
+        if not node.is_connected or node.is_posix:
+            # if not get, try again from serial console log.
+            # skip if node is not initialized.
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                node.log.debug("detecting host version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(HOST_VERSION_PATTERN)
 
         return result
 
@@ -808,10 +847,11 @@ class AzurePlatform(Platform):
             # test cases not here. So ignore any error here to collect information only.
             node.log.debug(f"error on run waagent: {identifier}")
 
-        if not result and hasattr(node, ATTRIBUTE_FEATURES):
-            node.log.debug("detecting wala agent version from serial log...")
-            serial_console = node.features[features.SerialConsole]
-            result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
+        if not node.is_connected or node.is_posix:
+            if not result and hasattr(node, ATTRIBUTE_FEATURES):
+                node.log.debug("detecting wala agent version from serial log...")
+                serial_console = node.features[features.SerialConsole]
+                result = serial_console.get_matched_str(WALA_VERSION_PATTERN)
 
         return result
 
@@ -869,8 +909,9 @@ class AzurePlatform(Platform):
         else:
             node = None
 
+        information.update(self._get_platform_information(environment))
+
         if node:
-            information.update(self._get_platform_information(environment))
             information.update(self._get_node_information(node))
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
@@ -1023,7 +1064,7 @@ class AzurePlatform(Platform):
             log.debug(f"{key}: querying")
             all_skus: Dict[str, AzureCapability] = dict()
             paged_skus = compute_client.resource_skus.list(
-                f"location eq '{location}'"
+                filter=f"location eq '{location}'"
             ).by_page()
             for skus in paged_skus:
                 for sku_obj in skus:
@@ -1087,12 +1128,15 @@ class AzurePlatform(Platform):
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
+        # if no key or password specified, generate the key pair
+        if not self.runbook.admin_private_key_file and not self.runbook.admin_password:
+            self.runbook.admin_private_key_file = get_or_generate_key_pairs(self._log)
+
         if self.runbook.admin_private_key_file:
             arm_parameters.admin_key_data = get_public_key_data(
                 self.runbook.admin_private_key_file
             )
-        else:
-            arm_parameters.admin_password = self.runbook.admin_password
+        arm_parameters.admin_password = self.runbook.admin_password
 
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
@@ -1155,7 +1199,7 @@ class AzurePlatform(Platform):
                 is_windows = True
                 if not self.runbook.admin_password:
                     # password is required, if it doesn't present, generate one.
-                    password = generate_random_chars()
+                    password = generate_strong_password()
                     add_secret(password)
                     self.runbook.admin_password = password
 
@@ -1183,11 +1227,15 @@ class AzurePlatform(Platform):
             self.subscription_id, arm_parameters.location, "t"
         )
 
-        if (
-            self._azure_runbook.availability_set_properties
-            or self._azure_runbook.availability_set_tags
-        ):
-            arm_parameters.use_availability_sets = True
+        if self._azure_runbook.use_availability_sets is None:
+            arm_parameters.use_availability_sets = bool(
+                self._azure_runbook.availability_set_properties
+                or self._azure_runbook.availability_set_tags
+            )
+        else:
+            arm_parameters.use_availability_sets = (
+                self._azure_runbook.use_availability_sets
+            )
 
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
@@ -1318,14 +1366,12 @@ class AzurePlatform(Platform):
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
             if image_info:
                 azure_node_runbook.hyperv_generation = _get_vhd_generation(image_info)
-
-            # retrieve the os type for arm template.
-            if (
-                azure_node_runbook.is_linux is None
-                and image_info
-                and image_info.os_disk_image.operating_system == "Windows"
-            ):
-                azure_node_runbook.is_linux = False
+                # retrieve the os type for arm template.
+                if (
+                    image_info.os_disk_image
+                    and image_info.os_disk_image.operating_system == "Windows"
+                ):
+                    azure_node_runbook.is_linux = False
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
                 self._get_detailed_sig(azure_node_runbook.shared_gallery)
@@ -1376,6 +1422,9 @@ class AzurePlatform(Platform):
                 arm_parameters.location, arm_parameters.marketplace
             )
             if image_info:
+                assert (
+                    image_info.os_disk_image
+                ), "'image_info.os_disk_image' must not be 'None'"
                 arm_parameters.osdisk_size_in_gb = max(
                     arm_parameters.osdisk_size_in_gb,
                     _get_disk_size_in_gb(
@@ -1397,9 +1446,13 @@ class AzurePlatform(Platform):
 
         # Set disk type
         assert capability.disk, "node space must have disk defined."
-        assert isinstance(capability.disk.disk_type, schema.DiskType)
-        arm_parameters.disk_type = features.get_azure_disk_type(
-            capability.disk.disk_type
+        assert isinstance(capability.disk.os_disk_type, schema.DiskType)
+        arm_parameters.os_disk_type = features.get_azure_disk_type(
+            capability.disk.os_disk_type
+        )
+        assert isinstance(capability.disk.data_disk_type, schema.DiskType)
+        arm_parameters.data_disk_type = features.get_azure_disk_type(
+            capability.disk.data_disk_type
         )
         assert isinstance(
             capability.disk.disk_controller_type, schema.DiskControllerType
@@ -1423,6 +1476,7 @@ class AzurePlatform(Platform):
 
         return arm_parameters
 
+    @retry(exceptions=ResourceNotFoundError, tries=5, delay=2)
     def _validate_template(
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
@@ -1437,6 +1491,11 @@ class AzurePlatform(Platform):
             wait_operation(validate_operation, failure_identity="validation")
         except Exception as identifier:
             error_messages: List[str] = [str(identifier)]
+
+            # retry when encounter azure.core.exceptions.ResourceNotFoundError:
+            # (ResourceGroupNotFound) Resource group 'lisa-xxxx' could not be found.
+            if isinstance(identifier, ResourceNotFoundError) and identifier.error:
+                raise identifier
 
             if isinstance(identifier, HttpResponseError) and identifier.error:
                 # no validate_operation returned, the message may include
@@ -1544,7 +1603,7 @@ class AzurePlatform(Platform):
     def _load_vms(
         self, resource_group_name: str, log: Logger
     ) -> Dict[str, VirtualMachine]:
-        compute_client = get_compute_client(self, api_version="2020-06-01")
+        compute_client = get_compute_client(self)
 
         log.debug(f"listing vm in resource group {resource_group_name}")
         vms_map: Dict[str, VirtualMachine] = {}
@@ -1630,13 +1689,17 @@ class AzurePlatform(Platform):
             is_allow_set=True
         )
         node_space.disk = features.AzureDiskOptionSettings()
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.os_disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
         node_space.disk.disk_controller_type = search_space.SetSpace[
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
         node_space.disk.data_disk_iops = search_space.IntRange(min=0)
+        node_space.disk.data_disk_throughput = search_space.IntRange(min=0)
         node_space.disk.data_disk_size = search_space.IntRange(min=0)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
@@ -1645,9 +1708,18 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
-        for sku_capability in resource_sku.capabilities:
-            # prevent to loop in every feature
-            azure_raw_capabilities[sku_capability.name] = sku_capability.value
+        if resource_sku.location_info:
+            for location_info in resource_sku.location_info:
+                for zone_details in location_info.zone_details:
+                    for location_capability in zone_details.capabilities:
+                        azure_raw_capabilities[
+                            location_capability.name
+                        ] = location_capability.value
+
+        if resource_sku.capabilities:
+            for sku_capability in resource_sku.capabilities:
+                # prevent to loop in every feature
+                azure_raw_capabilities[sku_capability.name] = sku_capability.value
 
         # calculate cpu count. Some vm sizes, like Standard_HC44rs, doesn't have
         # vCPUsAvailable, so use vCPUs.
@@ -1681,7 +1753,11 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = sku_nic_count
 
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
-            node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+
+        if azure_raw_capabilities.get("UltraSSDAvailable", None) == "True":
+            node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
 
         disk_controller_types = azure_raw_capabilities.get("DiskControllerTypes", None)
         if disk_controller_types:
@@ -1704,7 +1780,7 @@ class AzurePlatform(Platform):
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
             cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
             if cached_disk_bytes_gb >= 30:
-                node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
+                node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -1716,6 +1792,7 @@ class AzurePlatform(Platform):
             # below VM size families don't support `Accelerated Networking` but
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
+            assert resource_sku.family, "'resource_sku.family' must not be 'None'"
             if resource_sku.family not in [
                 "standardDCSv2Family",
                 "standardNCSv2Family",
@@ -1733,6 +1810,7 @@ class AzurePlatform(Platform):
             node_space.network_interface.max_nic_count = 1
             node_space.network_interface.nic_count = search_space.IntRange(min=1, max=1)
 
+        assert resource_sku.name, "'resource_sku.name' must not be 'None'"
         # for below vm sizes, there are 2 nics
         # but the accelerated networking can only be applied to a single NIC
         # there is no API to expose this information
@@ -1803,8 +1881,10 @@ class AzurePlatform(Platform):
             if feature_setting:
                 node_space.features.add(feature_setting)
 
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
 
         return node_space
@@ -1855,8 +1935,9 @@ class AzurePlatform(Platform):
                             f"{marketplace.offer} {marketplace.sku} in {location}"
                         )
                     else:
-                        # any one should be the same to get purchase plan
-                        new_marketplace.version = versioned_images[-1].name
+                        # use the same sort approach as Az CLI.
+                        versioned_images.sort(key=lambda x: parse(x.name), reverse=True)
+                        new_marketplace.version = versioned_images[0].name
                 except ResourceNotFoundError as e:
                     self._log.debug(
                         f"Cannot find any version of image {marketplace.publisher} "
@@ -1894,9 +1975,11 @@ class AzurePlatform(Platform):
                     gallery_image_name=new_shared_image.image_definition,
                 )
             )
-            image: GalleryImageVersion = None
+            image: Optional[GalleryImageVersion] = None
             time: Optional[datetime] = None
             for image in gallery_images:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
                 gallery_image = compute_client.gallery_image_versions.get(
                     resource_group_name=new_shared_image.resource_group_name,
                     gallery_name=new_shared_image.image_gallery,
@@ -1906,9 +1989,13 @@ class AzurePlatform(Platform):
                 )
                 if not time:
                     time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
                     new_shared_image.image_version = image.name
                 if gallery_image.publishing_profile.published_date > time:
                     time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
                     new_shared_image.image_version = image.name
         return new_shared_image
 
@@ -1919,7 +2006,7 @@ class AzurePlatform(Platform):
         plan_name: str,
         plan_product: str,
         plan_publisher: str,
-    ) -> Optional[PurchasePlan]:
+    ) -> Optional[AzureVmPurchasePlanSchema]:
         """
         this method to fill plan, if a VM needs it. If don't fill it, the deployment
         will be failed.
@@ -1972,13 +2059,20 @@ class AzurePlatform(Platform):
         )
         node_space.disk = features.AzureDiskOptionSettings()
         node_space.disk.data_disk_count = search_space.IntRange(min=0)
-        node_space.disk.disk_type = search_space.SetSpace[schema.DiskType](
+        node_space.disk.os_disk_type = search_space.SetSpace[schema.DiskType](
             is_allow_set=True, items=[]
         )
-        node_space.disk.disk_type.add(schema.DiskType.PremiumSSDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.Ephemeral)
-        node_space.disk.disk_type.add(schema.DiskType.StandardHDDLRS)
-        node_space.disk.disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
+        node_space.disk.data_disk_type = search_space.SetSpace[schema.DiskType](
+            is_allow_set=True, items=[]
+        )
+        node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.disk.disk_controller_type = search_space.SetSpace[
             schema.DiskControllerType
         ](is_allow_set=True, items=[])
@@ -2052,12 +2146,11 @@ class AzurePlatform(Platform):
             # some images has data disks by default
             # e.g. microsoft-ads linux-data-science-vm linuxdsvm 21.05.27
             # we have to inject below part when dataDisks section added in
-            #  arm template,
-            # otherwise will see below exception:
-            # deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
-            #  does not have required value(s) for image specified in
-            #  storage profile.
-            if marketplace:
+            # arm template, otherwise will see below exception:
+            #   deployment failed: InvalidParameter: StorageProfile.dataDisks.lun
+            #     does not have required value(s) for image specified in
+            #     storage profile.
+            if marketplace and marketplace.data_disk_images:
                 for default_data_disk in marketplace.data_disk_images:
                     data_disks.append(
                         DataDiskSchema(
@@ -2065,7 +2158,9 @@ class AzurePlatform(Platform):
                             _get_disk_size_in_gb(
                                 default_data_disk.additional_properties
                             ),
-                            azure_node_runbook.disk_type,
+                            0,
+                            0,
+                            azure_node_runbook.data_disk_type,
                             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
                         )
                     )
@@ -2073,12 +2168,22 @@ class AzurePlatform(Platform):
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
         for _ in range(node.capability.disk.data_disk_count):
-            assert isinstance(node.capability.disk.data_disk_size, int)
+            assert isinstance(
+                node.capability.disk.data_disk_size, int
+            ), f"actual: {type(node.capability.disk.data_disk_size)}"
+            assert isinstance(
+                node.capability.disk.data_disk_iops, int
+            ), f"actual: {type(node.capability.disk.data_disk_iops)}"
+            assert isinstance(
+                node.capability.disk.data_disk_throughput, int
+            ), f"actual: {type(node.capability.disk.data_disk_throughput)}"
             data_disks.append(
                 DataDiskSchema(
                     node.capability.disk.data_disk_caching_type,
                     node.capability.disk.data_disk_size,
-                    azure_node_runbook.disk_type,
+                    node.capability.disk.data_disk_iops,
+                    node.capability.disk.data_disk_throughput,
+                    azure_node_runbook.data_disk_type,
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
             )
@@ -2182,32 +2287,44 @@ class AzurePlatform(Platform):
         assert properties.size, f"fail to get blob size of {blob_url}"
         # Azure requires only megabyte alignment of vhds, round size up
         # for cases where the size is megabyte aligned
-        return math.ceil(properties.size / 1024 / 1024 / 1024)
+        vhd_os_disk_size = math.ceil(properties.size / 1024 / 1024 / 1024)
+        assert isinstance(vhd_os_disk_size, int), f"actual: {type(vhd_os_disk_size)}"
+        return vhd_os_disk_size
 
     def _get_sig_info(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_image_versions.get(
+        sig_info = compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
             gallery_image_version_name=shared_image.image_version,
             expand="ReplicationStatus",
         )
+        assert isinstance(sig_info, GalleryImageVersion), f"actual: {type(sig_info)}"
+        return sig_info
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_detailed_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
         compute_client = get_compute_client(self)
-        return compute_client.gallery_images.get(
+        detailed_sig = compute_client.gallery_images.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
         )
+        assert isinstance(detailed_sig, GalleryImage), f"actual: {type(detailed_sig)}"
+        return detailed_sig
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
-        assert found_image.storage_profile.os_disk_image.size_in_gb
+        assert found_image.storage_profile, "'storage_profile' must not be 'None'"
+        assert (
+            found_image.storage_profile.os_disk_image
+        ), "'os_disk_image' must not be 'None'"
+        assert (
+            found_image.storage_profile.os_disk_image.size_in_gb
+        ), "'size_in_gb' must not be 'None'"
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
 
     def _get_normalized_vm_sizes(
@@ -2532,7 +2649,9 @@ class AzurePlatform(Platform):
                 generation = _get_vhd_generation(image_info)
                 node_space.features.add(features.VhdGenerationSettings(gen=generation))
                 node_space.features.add(
-                    features.ArchitectureSettings(arch=image_info.architecture)
+                    features.ArchitectureSettings(
+                        arch=image_info.architecture  # type: ignore
+                    )
                 )
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
@@ -2542,7 +2661,7 @@ class AzurePlatform(Platform):
             generation = _get_gallery_image_generation(sig)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
             node_space.features.add(
-                features.ArchitectureSettings(arch=sig.architecture)
+                features.ArchitectureSettings(arch=sig.architecture)  # type: ignore
             )
         elif azure_runbook.vhd:
             node_space.features.add(
@@ -2551,12 +2670,24 @@ class AzurePlatform(Platform):
         else:
             ...
 
-    def _load_image_features(self, node_space: schema.NodeSpace) -> None:
+    def _check_image_capability(self, node_space: schema.NodeSpace) -> None:
+        azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
+        if azure_runbook.vhd:
+            if node_space.network_interface:
+                data_path = search_space.intersect_setspace_by_priority(  # type: ignore
+                    node_space.network_interface.data_path,
+                    azure_runbook.vhd.network_data_path,
+                    [],
+                )
+                node_space.network_interface.data_path = data_path
+
+    def _set_image_features(self, node_space: schema.NodeSpace) -> None:
         # This method does the same thing as _convert_to_azure_node_space
         # method, and attach the additional features. The additional features
         # need Azure platform, so it needs to be in Azure Platform.
         _convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
+        self._check_image_capability(node_space)
 
 
 def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:

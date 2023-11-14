@@ -3,7 +3,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, Set, cast
 
 from lisa import (
     ResourceAwaitableException,
@@ -12,6 +12,7 @@ from lisa import (
     notifier,
     schema,
     search_space,
+    transformer,
 )
 from lisa.action import ActionStatus
 from lisa.environment import (
@@ -62,6 +63,9 @@ class LisaRunner(BaseRunner):
         # load development settings
         development.load_development_settings(self._runbook.dev)
 
+        # set flag to enable guest nodes.
+        self._guest_enabled = self.platform.runbook.guest_enabled
+
         # load environments
         runbook_environments = load_environments(self._runbook.environment)
         if not runbook_environments:
@@ -74,7 +78,10 @@ class LisaRunner(BaseRunner):
         self.environments: List[Environment] = [
             x for x in runbook_environments.values()
         ]
-        self._log.debug(f"candidate environment count: {len(self.environments)}")
+        self._log.debug(
+            f"Candidate environment count: {len(self.environments)}. "
+            f"Guest enabled: {self._guest_enabled}."
+        )
 
     @property
     def is_done(self) -> bool:
@@ -306,6 +313,11 @@ class LisaRunner(BaseRunner):
             assert (
                 environment.status == EnvironmentStatus.Connected
             ), f"actual: {environment.status}"
+            transformer.run(
+                self._runbook_builder,
+                phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED,
+                environment=environment,
+            )
         except Exception as identifier:
             self._attach_failed_environment_to_result(
                 environment=environment,
@@ -322,8 +334,8 @@ class LisaRunner(BaseRunner):
     ) -> None:
         self._log.debug(
             f"start running cases on '{environment.name}', "
-            f"case count: {len(test_results)}, "
-            f"status {environment.status.name}"
+            f"status {environment.status.name}, "
+            f"guest enabled: {self._guest_enabled}"
         )
         assert test_results
         assert len(test_results) == 1, (
@@ -334,8 +346,19 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
+        # if a test case runs on a deployed environment, the environment will be
+        # connected after it's initialized. It breaks the flow, so the
+        # transformers are in the connected phase will be ignored. So mark this
+        # kind of environment is dirty to prevent it run other test cases.
+        if environment.status == EnvironmentStatus.Deployed:
+            environment.mark_dirty()
+
+        tested_environment = environment
+        if self._guest_enabled:
+            tested_environment = environment.get_guest_environment()
+
         test_suite.start(
-            environment=environment,
+            environment=tested_environment,
             case_results=test_results,
             case_variables=case_variables,
         )
@@ -345,10 +368,10 @@ class LisaRunner(BaseRunner):
         # Some test cases may break the ssh connections. To reduce side effects
         # on next test cases, close the connection after each test run. It will
         # be connected on the next command automatically.
-        environment.nodes.close()
+        tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not environment.nodes.test_connections():
+        if not is_unittest() and not tested_environment.nodes.test_connections():
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "
@@ -366,7 +389,7 @@ class LisaRunner(BaseRunner):
                     "found kernel panic from the node(s) of "
                     f"'{environment.name}': {identifier}"
                 )
-        environment.nodes.close()
+        tested_environment.nodes.close()
 
         # keep failed environment, not to delete
         if (
@@ -587,9 +610,13 @@ class LisaRunner(BaseRunner):
         if environment:
             runnable_results: List[TestResult] = []
             for result in results:
+                # use guest environment to check
+                tested_environment = environment
+                if self._guest_enabled:
+                    tested_environment = environment.get_guest_environment()
                 try:
                     if result.check_environment(
-                        environment=environment, save_reason=True
+                        environment=tested_environment, save_reason=True
                     ) and (
                         not result.runtime_data.use_new_environment
                         or environment.is_new
@@ -693,6 +720,25 @@ class LisaRunner(BaseRunner):
 
             test_result.set_status(TestStatus.SKIPPED, reasons)
 
+    def _get_ignored_features(self, nodes: List[schema.NodeSpace]) -> Set[str]:
+        ignored_features: Set[str] = set()
+        for _, node_requirement in enumerate(nodes):
+            if (
+                node_requirement.features
+                and hasattr(self, "platform")
+                and self.platform.runbook.ignored_capability
+            ):
+                for feature in node_requirement.features:
+                    if str(feature).lower() in list(
+                        map(
+                            str.lower,
+                            self.platform.runbook.ignored_capability,
+                        )
+                    ):
+                        node_requirement.features.items.remove(feature)
+                        ignored_features.add(str(feature))
+        return ignored_features
+
     def _merge_test_requirements(
         self,
         test_results: List[TestResult],
@@ -704,6 +750,7 @@ class LisaRunner(BaseRunner):
             is_allow_set=True, items=[platform_type]
         )
 
+        cases_ignored_features: Dict[str, Set[str]] = {}
         # if platform defined requirement, replace the requirement from
         # test case.
         for test_result in test_results:
@@ -719,6 +766,12 @@ class LisaRunner(BaseRunner):
 
             if test_result.can_run:
                 assert test_req.environment
+
+                ignored_features = self._get_ignored_features(
+                    test_req.environment.nodes
+                )
+                if ignored_features:
+                    cases_ignored_features[test_result.name] = ignored_features
 
                 environment_requirement = copy.deepcopy(test_req.environment)
                 if platform_requirement:
@@ -771,23 +824,6 @@ class LisaRunner(BaseRunner):
                             test_result.set_status(TestStatus.SKIPPED, str(identifier))
                             break
 
-                        if (
-                            node_requirement.features
-                            and hasattr(self, "platform")
-                            and self.platform.runbook.ignored_capability
-                        ):
-                            node_requirement.features.items = [
-                                x
-                                for x in node_requirement.features
-                                if str(x).lower()
-                                not in list(
-                                    map(
-                                        str.lower,
-                                        self.platform.runbook.ignored_capability,
-                                    )
-                                )
-                            ]
-
                         assert isinstance(platform_requirement.extended_schemas, dict)
                         assert isinstance(node_requirement.extended_schemas, dict)
                         node_requirement.extended_schemas = deep_update_dict(
@@ -803,6 +839,12 @@ class LisaRunner(BaseRunner):
                     # if env prepare or deploy failed and the test result is not
                     # run, the failure will attach to this test result.
                     env.source_test_result = test_result
+
+        for case_name, ignored_features in cases_ignored_features.items():
+            self._log.debug(
+                f"the feature(s) {ignored_features} have "
+                f"been ignored for case {case_name}"
+            )
 
     def _create_platform_requirement(self) -> Optional[schema.NodeSpace]:
         if not hasattr(self, "platform"):

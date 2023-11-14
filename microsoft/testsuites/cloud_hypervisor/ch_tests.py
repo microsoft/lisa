@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 from lisa import (
-    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -63,9 +62,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_integration_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -78,7 +75,6 @@ class CloudHypervisorTestSuite(TestSuite):
         )
         node.tools[CloudHypervisorTests].run_tests(
             result,
-            environment,
             "integration",
             hypervisor,
             log_path,
@@ -102,9 +98,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_live_migration_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -119,7 +113,6 @@ class CloudHypervisorTestSuite(TestSuite):
         )
         node.tools[CloudHypervisorTests].run_tests(
             result,
-            environment,
             "integration-live-migration",
             hypervisor,
             log_path,
@@ -137,9 +130,7 @@ class CloudHypervisorTestSuite(TestSuite):
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
@@ -155,7 +146,6 @@ class CloudHypervisorTestSuite(TestSuite):
         subtest_timeout = variables.get("ch_perf_subtest_timeout", None)
         node.tools[CloudHypervisorTests].run_metrics_tests(
             result,
-            environment,
             hypervisor,
             log_path,
             ref,
@@ -183,19 +173,36 @@ class CloudHypervisorTestSuite(TestSuite):
         return ""
 
     def _set_ms_clh_param(self, variables: Dict[str, Any]) -> None:
+        # Get access token from testing infra to clone the repo
         ms_access_token = variables.get("ms_access_token", None)
+
+        # Get URL for MS CLH repo
         ms_clh_repo = variables.get("ms_clh_repo", None)
+
+        # Get URL for igvm-parser repo
         ms_igvm_parser_repo = variables.get("ms_igvm_parser_repo", None)
+
+        # Get GUEST VM type, set default to NON-CVM
+        clh_guest_vm_type = variables.get("clh_guest_vm_type", "NON-CVM")
+
+        # Check if MS Guest kernel need to be used
+        # Dom0 VHD is shipped with it now
+        # Default, we will use upstream guest kernel only
+        use_ms_guest_kernel = variables.get("use_ms_guest_kernel", "NO")
+
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
         if not ms_clh_repo:
             raise SkippedException("CLH URL is needed while using MS-CLH")
         if not ms_igvm_parser_repo:
             raise SkippedException("IGVM-Parser URL is needed while using MS-CLH")
+
         CloudHypervisorTests.use_ms_clh_repo = True
         CloudHypervisorTests.ms_access_token = ms_access_token
         CloudHypervisorTests.ms_clh_repo = ms_clh_repo
         CloudHypervisorTests.ms_igvm_parser_repo = ms_igvm_parser_repo
+        CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
+        CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:

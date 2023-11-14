@@ -6,16 +6,8 @@ from typing import Any
 
 from assertpy.assertpy import assert_that
 
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    notifier,
-)
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Cargo, Git, Ls
@@ -51,9 +43,7 @@ class RustVmmTestSuite(TestSuite):
     )
     def verify_rust_vmm_mshv_tests(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
     ) -> None:
@@ -68,14 +58,12 @@ class RustVmmTestSuite(TestSuite):
         self.__process_result(
             test_result.stdout,
             result,
-            environment,
         )
 
     def __process_result(
         self,
         data: str,
         result: TestResult,
-        environment: Environment,
     ) -> None:
         pattern = r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])"
         ansi_escape = re.compile(pattern)
@@ -97,30 +85,11 @@ class RustVmmTestSuite(TestSuite):
                 status = TestStatus.FAILED
             elif log_status and log_status.strip().lower() == "ignored":
                 status = TestStatus.SKIPPED
-            self.__send_subtest_msg(
-                result,
-                environment,
-                testcase_name,
-                status,
+            send_sub_test_result_message(
+                test_result=result,
+                test_case_name=testcase_name,
+                test_status=status,
             )
         assert_that(
             failed_testcases, f"Failed Testcases: {failed_testcases}"
         ).is_empty()
-
-    def __send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_message: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-            test_message,
-        )
-        notifier.notify(subtest_msg)

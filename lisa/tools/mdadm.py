@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import List, Optional, Type, cast
+from typing import List, Optional, Type, Union, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Suse
@@ -28,23 +28,33 @@ class Mdadm(Tool):
     def create_raid(
         self,
         disk_list: List[str],
-        level: int = 0,
+        level: Union[int, str] = 0,
         volume_name: str = "/dev/md0",
         chunk_size: int = 0,
+        force_run: bool = False,
+        shell: bool = False,
     ) -> None:
         count = len(disk_list)
         disks = " ".join(disk_list)
-        cmd = f"--create {volume_name} --level {level} --raid-devices {count} {disks}"
+        if force_run:
+            cmd = f"echo y | {self.command} "
+        else:
+            cmd = f"{self.command} "
+        cmd += f"--create {volume_name} --level={level} --raid-devices={count} {disks}"
         if chunk_size:
             cmd += " --chunk {chunk_size}"
-        self.run(
+        self.node.execute(
             cmd,
             sudo=True,
-            force_run=True,
+            shell=shell,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"failed to create {volume_name} against disks {disks}"
             ),
+        )
+        self.node.execute(
+            "sync",
+            sudo=True,
         )
 
     def stop_raid(
@@ -118,9 +128,11 @@ class WindowsMdadm(Mdadm):
     def create_raid(
         self,
         disk_list: List[str],
-        level: int = 0,
+        level: Union[int, str] = 0,
         volume_name: str = "Raid0-Disk",
         chunk_size: int = 0,
+        force_run: bool = False,
+        shell: bool = False,
         pool_name: str = "Raid0-Pool",
     ) -> None:
         powershell = self.node.tools[PowerShell]

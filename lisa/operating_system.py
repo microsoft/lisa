@@ -126,6 +126,7 @@ class OperatingSystem:
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
+    __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
@@ -143,7 +144,8 @@ class OperatingSystem:
         result: Optional[OperatingSystem] = None
 
         detected_info = ""
-        if node.shell.is_posix:
+        # assume all guest nodes are posix
+        if node.shell.is_posix or node.parent:
             # delay create factory to make sure it's late than loading extensions
             if cls.__posix_factory is None:
                 cls.__posix_factory = Factory[Posix](Posix)
@@ -243,6 +245,9 @@ class OperatingSystem:
         # try best for some suse derives, like netiq
         cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
+
+        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
 
         # try best from distros'family through ID_LIKE
         yield get_matched_str(
@@ -663,6 +668,12 @@ class BSD(Posix):
     ...
 
 
+class BMC(Posix):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^wcscli$")
+
+
 class MacOS(Posix):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -906,8 +917,8 @@ class Debian(Linux):
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
-        aptaddrepository = self._node.tools[AptAddRepository]
-        aptaddrepository.add_repository(repo)
+        apt_repo = self._node.tools[AptAddRepository]
+        apt_repo.add_repository(repo)
 
         # apt update will not be triggered on Debian during add repo
         if type(self._node.os) == Debian:
@@ -997,6 +1008,7 @@ class Debian(Linux):
         )
         if not signed:
             command += " --allow-unauthenticated"
+        self.wait_running_package_process()
         uninstall_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
@@ -1012,11 +1024,15 @@ class Debian(Linux):
     def _package_exists(self, package: str) -> bool:
         command = "dpkg --get-selections"
         result = self._node.execute(command, sudo=True, shell=True)
-        package_pattern = re.compile(f"{package}([ \t]+)install")
         # Not installed package not shown in the output
         # Uninstall package will show as deinstall
+        # The 'hold' status means that when the operating system is upgraded, the
+        # installer will not upgrade these packages,unless explicitly stated. If
+        # package is hold status, it means this package exists.
         # vim                                             deinstall
         # vim-common                                      install
+        # auoms                                           hold
+        package_pattern = re.compile(f"{package}([ \t]+)(install|hold)")
         if len(list(filter(package_pattern.match, result.stdout.splitlines()))) == 1:
             return True
         return False
@@ -1775,6 +1791,22 @@ class CBLMariner(RPMDistro):
     def _package_exists(self, package: str) -> bool:
         self._initialize_package_installation()
         return super()._package_exists(package)
+
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
+    ) -> None:
+        super().add_azure_core_repo(repo_name, code_name)
+        release = self.information.release
+        from lisa.tools import Curl
+
+        curl = self._node.tools[Curl]
+        curl.fetch(
+            arg="-o /etc/yum.repos.d/mariner-extras.repo",
+            execute_arg="",
+            url=f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/{release}"
+            "/SPECS/mariner-repos/mariner-extras.repo",
+            sudo=True,
+        )
 
 
 @dataclass

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Type, cast
 
-from azure.mgmt.compute.models import GrantAccessData  # type: ignore
+from azure.mgmt.compute.models import GrantAccessData
 from dataclasses_json import dataclass_json
 from marshmallow import validate
 from retry import retry
@@ -533,7 +533,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_location,
             self._log,
         )
-        gallery = check_or_create_gallery(
+        check_or_create_gallery(
             platform,
             runbook.gallery_resource_group_name,
             runbook.gallery_name,
@@ -573,7 +573,11 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_location,
         )
 
-        sig_url = f"{gallery.name}/{runbook.gallery_image_name}/{gallery_image_version}"
+        sig_url = (
+            f"{runbook.gallery_name}/"
+            f"{runbook.gallery_image_name}/"
+            f"{gallery_image_version}"
+        )
 
         self._log.info(f"SIG Url: {sig_url}")
         return {self.__sig_name: sig_url}

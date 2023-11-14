@@ -7,6 +7,7 @@ import string
 import sys
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from time import sleep
 from typing import (
     TYPE_CHECKING,
@@ -22,6 +23,7 @@ from typing import (
     cast,
 )
 
+import paramiko
 import pluggy
 from assertpy import assert_that
 from dataclasses_json import config
@@ -34,8 +36,10 @@ from lisa.util.perf_timer import create_timer
 
 if TYPE_CHECKING:
     from lisa.operating_system import OperatingSystem
+    from lisa.util.logger import Logger
 
 T = TypeVar("T")
+global_ssh_key_access_lock = Lock()
 
 # regex to validate url
 # source -
@@ -296,6 +300,13 @@ class RequireUserPasswordException(LisaException):
     """
 
 
+class SshSpawnTimeoutException(LisaException):
+    """
+    This exception is used to indicate a timeout while spawning a process
+    using SshShell.
+    """
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
@@ -378,7 +389,36 @@ def get_datetime_path(current: Optional[datetime] = None) -> str:
     return f"{date}-{time}"
 
 
-def get_public_key_data(private_key_file_path: str) -> str:
+algorthim_dict: Dict[str, Any] = {
+    "RSA": paramiko.RSAKey,
+    "DSA": paramiko.DSSKey,
+    "ECDSA": paramiko.ECDSAKey,
+}
+
+
+def get_or_generate_key_pairs(
+    log: "Logger", key_length: int = 2048, algorthim: str = "RSA"
+) -> str:
+    # refer: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/create-ssh-keys-detailed#supported-ssh-key-formats # noqa: E501
+    # azure platform key accepts only RSA key with minimum length of 2048 bits.
+    # for some older distro, it only supports 2048 bits.
+    public_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa.pub")
+    private_key_file: str = str(constants.RUN_LOCAL_LOG_PATH / "id_rsa")
+
+    if not (Path(private_key_file).exists() and Path(public_key_file).exists()):
+        key_class = algorthim_dict.get(algorthim.upper(), None)
+        assert key_class, f"unsupported key algorthim: {algorthim}"
+        key = key_class.generate(key_length)
+        with global_ssh_key_access_lock:
+            with open(private_key_file, "w") as f:
+                key.write_private_key(f)
+            with open(public_key_file, "w") as f:
+                f.write(f"{key.get_name()} {key.get_base64()}")
+        log.info(f"ssh key is generated at {private_key_file}")
+    return private_key_file
+
+
+def get_public_key_data(private_key_file_path: str = "") -> str:
     # TODO: support ppk, if it's needed.
     private_key_path = Path(private_key_file_path)
     if not private_key_path.exists():
@@ -662,6 +702,30 @@ def generate_random_chars(
     candidates: str = string.ascii_letters + string.digits, length: int = 20
 ) -> str:
     return "".join(random.choices(candidates, k=length))
+
+
+def generate_strong_password(length: int = 20) -> str:
+    if length < 4:
+        raise ValueError("length must be greater than 4 to contains all types.")
+
+    # Removed \ and - from standard punctuation due to Azure password doesn't support.
+    special_chars = r"""!"#$%&'()*+,./:;<=>?@[]^_`{|}~"""
+    upper_char = random.choice(string.ascii_uppercase)
+    lower_char = random.choice(string.ascii_lowercase)
+    digit_char = random.choice(string.digits)
+    special_char = random.choice(special_chars)
+    password = list(
+        upper_char
+        + lower_char
+        + digit_char
+        + special_char
+        + generate_random_chars(
+            candidates=string.ascii_letters + string.digits + special_chars,
+            length=length - 4,
+        )
+    )
+    random.shuffle(password)
+    return "".join(password)
 
 
 def strip_strs(obj: Any, fields: List[str]) -> Any:

@@ -12,6 +12,7 @@ from time import sleep
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
+from retry import retry
 from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
@@ -103,6 +104,8 @@ class TestResult:
         self._send_result_message()
         self._timer: Timer
 
+        self._environment_information: Dict[str, Any] = {}
+
     @property
     def is_queued(self) -> bool:
         return self.status == TestStatus.QUEUED
@@ -118,6 +121,16 @@ class TestResult:
     @property
     def name(self) -> str:
         return self.runtime_data.metadata.name
+
+    @property
+    def environment_information(self) -> Dict[str, Any]:
+        # It's used by subtests.
+        if not self._environment_information and self.environment:
+            self._environment_information = self.environment.get_information(
+                force_run=False
+            )
+
+        return self._environment_information
 
     @hookspec
     def update_test_result_message(self, message: TestResultMessage) -> None:
@@ -253,7 +266,12 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment:
-            self.information.update(self.environment.get_information())
+            # force refresh information, when test result status is changed. The
+            # refreshed information is not used so far. But in case it's needed
+            # in future, keep it up to date.
+            self._environment_information = self.environment.get_information()
+            self.information.update(self._environment_information)
+
             self.information["environment"] = self.environment.name
             # if no nodes and case skipped, it means no environment deployed.
             if (
@@ -352,6 +370,7 @@ def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
     min_gpu_count: int = 0,
+    min_memory_mb: Optional[int] = None,
     min_nic_count: Optional[int] = None,
     min_data_disk_count: Optional[int] = None,
     disk: Optional[schema.DiskOptionSettings] = None,
@@ -375,6 +394,8 @@ def simple_requirement(
     node.node_count = search_space.IntRange(min=min_count)
     node.core_count = search_space.IntRange(min=min_core_count)
     node.gpu_count = search_space.IntRange(min=min_gpu_count)
+    if min_memory_mb:
+        node.memory_mb = search_space.IntRange(min=min_memory_mb)
 
     if min_data_disk_count or disk:
         if not disk:
@@ -672,6 +693,7 @@ class TestSuite:
                 log_dir.mkdir(parents=True)
                 serial_console.get_console_log(log_dir, force_run=True)
 
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
     def __create_case_log_path(self, case_name: str) -> Path:
         while True:
             path = (

@@ -40,7 +40,7 @@ class GDB(TestSuite):
         3. expect to see 'Hello World![Inferior 1 (process 1869) exited normally]'
            from output
         """,
-        priority=1,
+        priority=2,
     )
     def verify_gdb(self, node: Node) -> None:
         # copy hello.c into test machine

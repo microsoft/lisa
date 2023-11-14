@@ -3,14 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from lisa import (
-    Environment,
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
@@ -50,10 +43,8 @@ class LibvirtTckSuite(TestSuite):
     )
     def verify_libvirt_tck(
         self,
-        log: Logger,
         node: Node,
-        environment: Environment,
         log_path: Path,
         result: TestResult,
     ) -> None:
-        node.tools[LibvirtTck].run_tests(result, environment, log_path)
+        node.tools[LibvirtTck].run_tests(result, log_path)

@@ -222,6 +222,10 @@ class AzureImageStandard(TestSuite):
             re.M,
         ),
         re.compile(r"^(.*Internal error: Cannot find counter: swap.*)$", re.M),
+        re.compile(r"^(.*ACPI.*failed to evaluate _DSM \(0x1001\).*)$", re.M),
+        # refer https://access.redhat.com/solutions/6732061
+        re.compile(r"^(.*ib_srpt MAD registration failed for.*)$", re.M),
+        re.compile(r"^(.*ib_srpt srpt_add_one\(.*\) failed.*)$", re.M),
     ]
 
     @TestCaseMetadata(
@@ -320,7 +324,7 @@ class AzureImageStandard(TestSuite):
         1. Get the output of command `rpm -q NetworkManager` and verify that
         network manager is not installed.
         """,
-        priority=1,
+        priority=3,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
@@ -482,7 +486,7 @@ class AzureImageStandard(TestSuite):
         1. Read the `yum.conf` file and verify that "http_caching=packages" is
         present in the file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_yum_conf(self, node: Node) -> None:
@@ -506,7 +510,7 @@ class AzureImageStandard(TestSuite):
         1. Verify that list of running process matching name of kvp daemon
         has length greater than zero.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
@@ -596,6 +600,7 @@ class AzureImageStandard(TestSuite):
                     [
                         "deb.debian.org" in repository.uri
                         or "debian-archive.trafficmanager.net" in repository.uri
+                        or "azure.deb.debian.cloud/debian" in repository.uri
                         for repository in debian_repositories
                     ]
                 )
@@ -882,7 +887,7 @@ class AzureImageStandard(TestSuite):
         2. Pass with warning if not find it.
         3. Pass with warning if the value is not between 0 and 180.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
@@ -980,16 +985,22 @@ class AzureImageStandard(TestSuite):
         This test will check that the readme file existed in resource disk mount point.
 
         Steps:
-        1. Get the mount point for the resource disk. If `/var/log/cloud-init.log`
-        file is present, mount location is `/mnt`, otherwise it is obtained from
-        `ResourceDisk.MountPoint` entry in `waagent.conf` configuration file.
+        1. Obtain the mount point for the resource disk.
+            If the /var/log/cloud-init.log file is present,
+             attempt to read the customized mount point from
+             the cloud-init configuration file.
+            If mount point from the cloud-init configuration is unavailable,
+             use the default mount location, which is /mnt.
+            If none of the above sources provide the mount point,
+             it is retrieved from the ResourceDisk.MountPoint entry
+             in the waagent.conf configuration file.
         2. Verify that resource disk is mounted from the output of `mount` command.
         3. Verify lost+found folder exists.
         4. Verify DATALOSS_WARNING_README.txt file exists.
         5. Verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
         DATALOSS_WARNING_README.txt file.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(
             disk=AzureDiskOptionSettings(has_resource_disk=True),
             supported_platform_type=[AZURE],

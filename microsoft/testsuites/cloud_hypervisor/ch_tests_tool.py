@@ -8,10 +8,9 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
-from lisa import Environment, notifier
 from lisa.executable import Tool
 from lisa.features import SerialConsole
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
@@ -33,11 +32,16 @@ class CloudHypervisorTests(Tool):
     PERF_CMD_TIME_OUT = 900
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
+    env_vars = {
+        "RUST_BACKTRACE": "full",
+    }
 
     ms_clh_repo = ""
     ms_igvm_parser_repo = ""
     use_ms_clh_repo = False
     ms_access_token = ""
+    clh_guest_vm_type = ""
+    use_ms_guest_kernel = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -57,7 +61,6 @@ class CloudHypervisorTests(Tool):
     def run_tests(
         self,
         test_result: TestResult,
-        environment: Environment,
         test_type: str,
         hypervisor: str,
         log_path: Path,
@@ -90,6 +93,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             no_info_log=False,  # print out result of each test
             shell=True,
+            update_envs=self.env_vars,
         )
 
         # Report subtest results and collect logs before doing any
@@ -98,12 +102,11 @@ class CloudHypervisorTests(Tool):
         failures = [r.name for r in results if r.status == TestStatus.FAILED]
 
         for r in results:
-            self._send_subtest_msg(
-                test_result,
-                environment,
-                r.name,
-                r.status,
-                r.message,
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=r.name,
+                test_status=r.status,
+                test_message=r.message,
             )
 
         self._save_kernel_logs(log_path)
@@ -126,7 +129,6 @@ class CloudHypervisorTests(Tool):
     def run_metrics_tests(
         self,
         test_result: TestResult,
-        environment: Environment,
         hypervisor: str,
         log_path: Path,
         ref: str = "",
@@ -163,14 +165,17 @@ class CloudHypervisorTests(Tool):
             if subtest_timeout:
                 cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
             try:
+                cmd_timeout = self.PERF_CMD_TIME_OUT
+                if self.clh_guest_vm_type == "CVM":
+                    cmd_timeout = cmd_timeout + 300
                 result = self.run(
                     cmd_args,
-                    timeout=self.PERF_CMD_TIME_OUT,
+                    timeout=cmd_timeout,
                     force_run=True,
                     cwd=self.repo_root,
                     no_info_log=False,  # print out result of each test
                     shell=True,
-                    update_envs={"RUST_BACKTRACE": "full"},
+                    update_envs=self.env_vars,
                 )
 
                 if result.exit_code == 0:
@@ -188,12 +193,11 @@ class CloudHypervisorTests(Tool):
                 failed_testcases.append(testcase)
 
             msg = metrics if status == TestStatus.PASSED else trace
-            self._send_subtest_msg(
-                test_result,
-                environment,
-                testcase,
-                status,
-                msg,
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=testcase,
+                test_status=status,
+                test_message=msg,
             )
 
             # Write stdout of testcase to log as per given requirement
@@ -225,6 +229,8 @@ class CloudHypervisorTests(Tool):
                 clone_path,
                 auth_token=self.ms_access_token,
             )
+            self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
+            self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
         else:
             git.clone(self.upstream_repo, clone_path)
 
@@ -334,25 +340,6 @@ class CloudHypervisorTests(Tool):
             )
 
         return results
-
-    def _send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_message: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-            test_message,
-        )
-
-        notifier.notify(subtest_msg)
 
     def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> Set[str]:
         tests_list = []

@@ -22,8 +22,9 @@ class Cp(Tool):
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
         recur: bool = False,
+        timeout: int = 600,
     ) -> None:
-        cmd = f"{src} {dest}"
+        cmd = f"{self.node.get_str_path(src)} {self.node.get_str_path(dest)}"
         if recur:
             cmd = f"-r {cmd}"
         result = self.run(
@@ -32,6 +33,7 @@ class Cp(Tool):
             sudo=sudo,
             cwd=cwd,
             shell=True,
+            timeout=timeout,
         )
 
         # cp copies all the files except folders in the source

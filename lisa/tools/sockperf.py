@@ -12,9 +12,13 @@ from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
 from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
-from lisa.tools import Firewall, Gcc, Git, Make
 from lisa.util import constants
 from lisa.util.process import Process
+
+from .firewall import Firewall
+from .gcc import Gcc
+from .git import Git
+from .make import Make
 
 if TYPE_CHECKING:
     from lisa.testsuite import TestResult
@@ -60,6 +64,19 @@ class Sockperf(Tool):
         r"sockperf: ---> <MIN> observation "
         r"=\s+(?P<min_latency_us>[0-9]+\.[0-9]+)"
     )
+
+    # Summary: Round trip is 297.328 usec
+    sockperf_average_latency = re.compile(
+        r"Summary: Round trip is (?P<avg_latency_us>[0-9]+\.[0-9]+) usec"
+    )  # noqa: E501
+
+    # Total 1283 observations;
+    sockperf_total_observations = re.compile(
+        r"Total (?P<total_observations>[0-9]+) observations"
+    )  # noqa: E501
+
+    # [Valid Duration] RunTime=0.546 sec; SentMessages=1283; ReceivedMessages=1283
+    sockperf_run_time = re.compile(r"RunTime=(?P<run_time>[0-9]+\.[0-9]+) sec")
 
     def _get_protocol_flag(self, mode: str) -> str:
         assert_that(mode).described_as(
@@ -147,20 +164,22 @@ class Sockperf(Tool):
 
         make.make_install(cwd=code_path, sudo=True)
 
-    def get(self, command: str) -> str:
-        return self.run(command, shell=True, force_run=True).stdout
-
     def start(self, command: str) -> Process:
         return self.run_async(command, shell=True, force_run=True)
 
-    def start_server(self, mode: str, timeout: int = 30) -> Process:
+    def start_server_async(self, mode: str, timeout: int = 30) -> Process:
         self_ip = self.node.nics.get_primary_nic().ip_addr
         protocol_flag = self._get_protocol_flag(mode)
         return self.start(command=f"server {protocol_flag} -i {self_ip}")
 
-    def run_client(self, mode: str, server_ip: str) -> str:
+    def run_client_async(self, mode: str, server_ip: str) -> Process:
         protocol_flag = self._get_protocol_flag(mode)
-        return self.get(f"ping-pong {protocol_flag} --full-rtt -i {server_ip}")
+        return self.start(
+            command=f"ping-pong {protocol_flag} --full-rtt -i {server_ip}"
+        )
+
+    def run_client(self, mode: str, server_ip: str) -> str:
+        return self.run_client_async(mode, server_ip).wait_result().stdout
 
     def create_latency_performance_message(
         self,
@@ -204,3 +223,32 @@ class Sockperf(Tool):
             other_fields,
         )
         notifier.notify(message)
+
+    def get_average_latency(self, sockperf_output: str) -> Decimal:
+        matched_results = self.sockperf_average_latency.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return Decimal(matched_results.group("avg_latency_us"))
+
+    def get_total_observations(self, sockperf_output: str) -> int:
+        matched_results = self.sockperf_total_observations.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return int(matched_results.group("total_observations"))
+
+    def get_run_time(self, sockperf_output: str) -> Decimal:
+        matched_results = self.sockperf_run_time.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        return Decimal(matched_results.group("run_time"))
+
+    def get_statistics(self, sockperf_output: str) -> Dict[str, Any]:
+        matched_results = self.sockperf_result_regex.search(sockperf_output)
+        assert matched_results, "Could not find sockperf latency results in output."
+        stats: Dict[str, Any] = {}
+        stats["min_latency_us"] = Decimal(matched_results.group("min_latency_us"))
+        stats["max_latency_us"] = Decimal(matched_results.group("max_latency_us"))
+        stats["average_latency_us"] = self.get_average_latency(sockperf_output)
+        stats["latency99_percentile_us"] = Decimal(
+            matched_results.group("latency99_percentile_us")
+        )
+        stats["total_observations"] = self.get_total_observations(sockperf_output)
+        stats["run_time_seconds"] = self.get_run_time(sockperf_output)
+        return stats

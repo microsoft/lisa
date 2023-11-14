@@ -135,6 +135,8 @@ class Dns(TestSuite):
                     timeout=2400,
                 )
             if result.exit_code != 0:
+                # make node as dirty, so the node will be not used in next test case
+                node.mark_dirty()
                 raise LisaException(
                     "fail to run apt update && unattended-upgrade -d -v"
                 )

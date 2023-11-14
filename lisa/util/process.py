@@ -11,7 +11,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import spur  # type: ignore
 from assertpy.assertpy import AssertionBuilder, assert_that, fail
@@ -48,9 +48,11 @@ class ExecutableResult:
         message: str = "",
         include_output: bool = False,
     ) -> AssertionBuilder:
-        message = "\n".join([message, f"get unexpected exit code on cmd {self.cmd}"])
+        message = "\n".join([message, f"Get unexpected exit code on cmd {self.cmd}"])
         if include_output:
-            message += "\n".join(["stdout:", self.stdout, "stderr:", self.stderr])
+            message = "\n".join(
+                [message, "stdout:", self.stdout, "stderr:", self.stderr]
+            )
         # make the type checker happy by not using the union
         expected_exit_codes: List[int] = []
         if isinstance(expected_exit_code, int):
@@ -72,7 +74,90 @@ class ExecutableResult:
         return self
 
 
-# TODO: So much cleanup here. It was using duck typing.
+def _create_exports(update_envs: Dict[str, str]) -> str:
+    result: str = ""
+
+    for key, value in update_envs.items():
+        value = value.replace('"', '\\"')
+        result += f'export {key}="{value}";'
+
+    return result
+
+
+def process_posix_command(
+    command: str, sudo: bool, shell: bool, nohup: bool, update_envs: Dict[str, str]
+) -> List[str]:
+    if shell:
+        split_command = []
+        if sudo:
+            split_command += ["sudo"]
+        if nohup:
+            split_command += ["nohup"]
+        envs = _create_exports(update_envs=update_envs)
+        if envs:
+            command = f"{envs} {command}"
+
+        split_command += ["sh", "-c", command]
+        # expand variables in posix mode
+        update_envs.clear()
+    else:
+        if sudo:
+            command = f"sudo {command}"
+        if nohup:
+            command = f"nohup {command}"
+        try:
+            split_command = shlex.split(command, posix=True)
+        except Exception as identifier:
+            raise LisaException(f"failed on split command: {command}: {identifier}")
+
+    return split_command
+
+
+def process_windows_command(
+    command: str, sudo: bool, shell: bool, nohup: bool, update_envs: Dict[str, str]
+) -> List[str]:
+    if shell:
+        split_command = ["cmd", "/c", command]
+    else:
+        try:
+            split_command = shlex.split(command, posix=False)
+        except Exception as identifier:
+            raise LisaException(f"failed on split command: {command}: {identifier}")
+
+    return split_command
+
+
+def process_command(
+    is_posix: bool,
+    command: str,
+    sudo: bool,
+    shell: bool,
+    nohup: bool,
+    update_envs: Dict[str, str],
+) -> List[str]:
+    # command may be Path object, convert it to str
+    command = str(command)
+
+    if is_posix:
+        split_command = process_posix_command(
+            command=command,
+            sudo=sudo,
+            shell=shell,
+            nohup=nohup,
+            update_envs=update_envs,
+        )
+    else:
+        split_command = process_windows_command(
+            command=command,
+            sudo=sudo,
+            shell=shell,
+            nohup=nohup,
+            update_envs=update_envs,
+        )
+
+    return split_command
+
+
 class Process:
     def __init__(
         self,
@@ -108,6 +193,8 @@ class Process:
         no_error_log: bool = False,
         no_info_log: bool = False,
         no_debug_log: bool = False,
+        encoding: str = "utf-8",
+        command_splitter: Callable[..., List[str]] = process_command,
     ) -> None:
         """
         command include all parameters also.
@@ -140,7 +227,9 @@ class Process:
             shell = True
 
         update_envs = update_envs.copy()
-        split_command = self._process_command(command, sudo, shell, nohup, update_envs)
+        split_command = command_splitter(
+            self._is_posix, command, sudo, shell, nohup, update_envs
+        )
 
         cwd_path: Optional[str] = None
         if cwd:
@@ -156,7 +245,8 @@ class Process:
             f"sudo: {sudo}, "
             f"nohup: {nohup}, "
             f"posix: {self._is_posix}, "
-            f"remote: {self._shell.is_remote}"
+            f"remote: {self._shell.is_remote}, "
+            f"encoding: {encoding}"
         )
 
         try:
@@ -169,7 +259,7 @@ class Process:
                 update_env=update_envs,
                 allow_error=True,
                 store_pid=self._is_posix,
-                encoding="utf-8",
+                encoding=encoding,
                 use_pty=self._is_posix,
             )
             # save for logging.
@@ -183,46 +273,6 @@ class Process:
             )
             self._log.log(stderr_level, f"not found command: {identifier}")
 
-    def _process_command(
-        self,
-        command: str,
-        sudo: bool,
-        shell: bool,
-        nohup: bool,
-        update_envs: Dict[str, str],
-    ) -> List[str]:
-        # command may be Path object, convert it to str
-        command = str(command)
-
-        if shell:
-            if not self._is_posix:
-                split_command = ["cmd", "/c", command]
-            else:
-                split_command = []
-                if sudo:
-                    split_command += ["sudo"]
-                if nohup:
-                    split_command += ["nohup"]
-                envs = _create_exports(update_envs=update_envs)
-                if envs:
-                    command = f"{envs} {command}"
-
-                split_command += ["sh", "-c", command]
-                # expand variables in posix mode
-                update_envs.clear()
-        else:
-            if self._is_posix:
-                if sudo:
-                    command = f"sudo {command}"
-                if nohup:
-                    command = f"nohup {command}"
-            try:
-                split_command = shlex.split(command, posix=self._is_posix)
-            except Exception as identifier:
-                raise LisaException(f"failed on split command: {command}: {identifier}")
-
-        return split_command
-
     def check_and_input_password(self) -> None:
         if (
             self._sudo
@@ -234,9 +284,13 @@ class Process:
                     "Running commands with sudo requires user's password,"
                     " but no password is provided."
                 )
-            assert self._process
-            self._process.stdin_write(f"{self._shell.connection_info.password}\n")
+            self.input(f"{self._shell.connection_info.password}\n")
             self._log.debug("The user's password is input")
+
+    def input(self, content: str) -> None:
+        assert self._process
+        self._log.debug(f"Inputting {len(content)} chars to process.")
+        self._process.stdin_write(content)
 
     def wait_result(
         self,
@@ -297,6 +351,14 @@ class Process:
             )
 
             self._recycle_resource()
+
+            if not self._is_posix:
+                # convert windows error code to int4, so it's more friendly.
+                assert self._result.exit_code is not None
+                exit_code = self._result.exit_code
+                if exit_code > 2**31:
+                    self._result.exit_code = exit_code - 2**32
+
             self._log.debug(
                 f"execution time: {self._timer}, exit code: {self._result.exit_code}"
             )
@@ -323,9 +385,21 @@ class Process:
             self._result.stdout
         )
 
+        if not self._is_posix:
+            # fix windows ending with " by some unknown reason.
+            self._result.stdout = self._remove_ending_quote(self._result.stdout)
+            self._result.stderr = self._remove_ending_quote(self._result.stderr)
+
         return self._result
 
     def kill(self) -> None:
+        if (
+            isinstance(self._shell, SshShell)
+            and self._shell._inner_shell
+            and self._shell._inner_shell._spur._shell_type
+            == spur.ssh.ShellTypes.minimal
+        ):
+            return
         if self._process:
             self._log.debug(f"Killing process : {self._id_}")
             try:
@@ -421,10 +495,11 @@ class Process:
             isinstance(self._shell, SshShell)
             and self._shell.spawn_initialization_error_string
         ):
-            raw_input = re.sub(
-                re.compile(rf"{self._shell.spawn_initialization_error_string}\r\n"),
-                "",
-                raw_input,
+            raw_input = raw_input.replace(
+                rf"{self._shell.spawn_initialization_error_string}\n", ""
+            )
+            raw_input = raw_input.replace(
+                rf"{self._shell.spawn_initialization_error_string}\r\n", ""
             )
             self._log.debug(
                 "filter the profile error string: "
@@ -466,12 +541,16 @@ class Process:
                 raw_input = raw_input.replace(prompt, "")
         return raw_input
 
+    def _remove_ending_quote(self, raw_input: str) -> str:
+        # remove ending " by some unknown reason.
+        if raw_input.startswith('"'):
+            # if it starts with quote, don't remove it.
+            return raw_input
 
-def _create_exports(update_envs: Dict[str, str]) -> str:
-    result: str = ""
-
-    for key, value in update_envs.items():
-        value = value.replace('"', '\\"')
-        result += f'export {key}="{value}";'
-
-    return result
+        if raw_input.endswith('"'):
+            self._log.debug(
+                "Removed ending quote from output. "
+                "If it's unexpected, avoid to have ending quote in Windows output."
+            )
+            raw_input = raw_input[:-1]
+        return raw_input

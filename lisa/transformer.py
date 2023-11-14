@@ -6,6 +6,8 @@ import functools
 from typing import Any, Dict, List, Optional, Set
 
 from lisa import schema
+from lisa.environment import Environment
+from lisa.node import Node
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import InitializableMixin, LisaException, constants, subclasses
 from lisa.util.logger import get_logger
@@ -93,6 +95,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     # sort by phase: init, expanded.
     init_transformers: List[schema.Transformer] = []
     expanded_transformers: List[schema.Transformer] = []
+    deployed_transformers: List[schema.Transformer] = []
     expanded_cleanup_transformers: List[schema.Transformer] = []
     cleanup_transformers: List[schema.Transformer] = []
     for transformer in sorted_transformers:
@@ -100,6 +103,8 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
             init_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED:
             expanded_transformers.append(transformer)
+        elif transformer.phase == constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED:
+            deployed_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_EXPANDED_CLEANUP:
             expanded_cleanup_transformers.append(transformer)
         elif transformer.phase == constants.TRANSFORMER_PHASE_CLEANUP:
@@ -109,6 +114,7 @@ def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
     sorted_transformers = (
         init_transformers
         + expanded_transformers
+        + deployed_transformers
         + expanded_cleanup_transformers
         + cleanup_transformers
     )
@@ -162,6 +168,7 @@ def _load_transformers(
 def _run_transformers(
     runbook_builder: RunbookBuilder,
     phase: str = constants.TRANSFORMER_PHASE_INIT,
+    node: Optional[Node] = None,
 ) -> Dict[str, VariableEntry]:
     # resolve variables
     transformers_dict = _load_transformers(runbook_builder=runbook_builder)
@@ -188,7 +195,7 @@ def _run_transformers(
 
         derived_builder = runbook_builder.derive(copied_variables)
         transformer = factory.create_by_runbook(
-            runbook=runbook, runbook_builder=derived_builder
+            runbook=runbook, runbook_builder=derived_builder, node=node
         )
         transformer.initialize()
         values = transformer.run()
@@ -198,16 +205,32 @@ def _run_transformers(
 
 
 def run(
-    runbook_builder: RunbookBuilder, phase: str = constants.TRANSFORMER_PHASE_INIT
+    runbook_builder: RunbookBuilder,
+    phase: str = constants.TRANSFORMER_PHASE_INIT,
+    environment: Optional[Environment] = None,
 ) -> None:
+    """
+    Runs transformers of the given phase.
+    If environment is provided, it will run a DeploymentTransformer for each node.
+    """
     log = _get_init_logger()
 
     root_runbook_data = runbook_builder.raw_data
-    if constants.TRANSFORMER not in root_runbook_data:
+    if not root_runbook_data or constants.TRANSFORMER not in root_runbook_data:
         log.debug("no transformer found, skipped")
         return
 
     # real run
     log.debug(f"detecting or running transformers of phase '{phase}'...")
-    output_variables = _run_transformers(runbook_builder, phase=phase)
-    merge_variables(runbook_builder.variables, output_variables)
+
+    # Some transformer phases, like environment_connected, expect initialized nodes
+    # so we offer the nodes if available.
+    if environment and environment.nodes:
+        for node in environment.nodes.list():
+            output_variables = _run_transformers(
+                runbook_builder, phase=phase, node=node
+            )
+            merge_variables(runbook_builder.variables, output_variables)
+    else:
+        output_variables = _run_transformers(runbook_builder, phase=phase)
+        merge_variables(runbook_builder.variables, output_variables)

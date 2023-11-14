@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
+from .cvm_nested_virtualization import CVMNestedVirtualization
 from .disks import (
     Disk,
     DiskEphemeral,
@@ -17,6 +18,7 @@ from .nested_virtualization import NestedVirtualization
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nfs import Nfs
 from .nvme import Nvme, NvmeSettings
+from .password_extension import PasswordExtension
 from .resize import Resize, ResizeAction
 from .security_profile import (
     SecureBootEnabled,
@@ -29,6 +31,7 @@ from .startstop import StartStop, StopState
 
 __all__ = [
     "ACC",
+    "CVMNestedVirtualization",
     "Disk",
     "DiskEphemeral",
     "DiskPremiumSSDLRS",
@@ -48,6 +51,7 @@ __all__ = [
     "NvmeSettings",
     "SerialConsole",
     "NetworkInterface",
+    "PasswordExtension",
     "Resize",
     "ResizeAction",
     "SecureBootEnabled",

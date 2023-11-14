@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import Any, List, Pattern, Tuple, Type, Union
+from typing import Any, List, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -20,6 +20,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Pidof,
+    Pkgconfig,
     Rm,
     Service,
     Tar,
@@ -32,7 +33,7 @@ from lisa.util import (
     SkippedException,
     UnsupportedDistroException,
 )
-from lisa.util.constants import SIGINT
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -64,6 +65,7 @@ class DpdkTestpmd(Tool):
     _version_info_from_tarball_regex = re.compile(
         r"dpdk-(?P<major>[0-9]+)\.(?P<minor>[0-9]+)"
     )
+    _dpdk_lib_name = "libdpdk"
 
     @property
     def command(self) -> str:
@@ -148,18 +150,21 @@ class DpdkTestpmd(Tool):
         return [Git, Wget, Lscpu]
 
     def get_dpdk_version(self) -> VersionInfo:
+        self.node.log.debug(f"Found DPDK version {str(self._dpdk_version_info)}.")
         return self._dpdk_version_info
 
+    def has_dpdk_version(self) -> bool:
+        return bool(self._dpdk_version_info > "0.0.0")
+
     def has_tx_ip_flag(self) -> bool:
-        dpdk_version = self.get_dpdk_version()
-        if not dpdk_version:
+        if not self.has_dpdk_version():
             fail(
                 "Test suite bug: dpdk version was not set prior "
                 "to querying the version information."
             )
 
         # black doesn't like to direct return VersionInfo comparison
-        return bool(dpdk_version >= "19.11.0")  # appease the type checker
+        return bool(self.get_dpdk_version() >= "19.11.0")
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
@@ -171,61 +176,68 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def set_version_info_from_source_install(
-        self, branch_identifier: str, matcher: Pattern[str]
-    ) -> None:
-        match = matcher.search(branch_identifier)
-        if not match or not match.group("major") or not match.group("minor"):
-            fail(
-                f"Could not determine dpdk version info from '{self._dpdk_source}'"
-                f" with id: '{branch_identifier}' using regex: '{matcher.pattern}'"
-            )
-        else:
-            major, minor = map(int, [match.group("major"), match.group("minor")])
-            self._dpdk_version_info: VersionInfo = VersionInfo(major, minor)
-
     def generate_testpmd_include(self, node_nic: NicInfo, vdev_id: int) -> str:
         # handle generating different flags for pmds/device combos for testpmd
 
-        # identify which nics to inlude in test, exclude others
-        include_nics = [node_nic]
-        exclude_nics = [
-            self.node.nics.get_nic(nic)
-            for nic in self.node.nics.get_nic_names()
-            if nic != node_nic.name
-        ]
+        # MANA and mlnx both don't require these arguments if all VFs are in use.
+        # We have a primary nic to exclude in our tests, so we include the
+        # test nic by either bus address and mac (MANA)
+        # or by interface name (mlnx failsafe)
+        #
+        # include flag changed to 'allowlist' in 20.11
+        # use 'allow' instead of 'deny' for envionments where
+        # there is 1 shared bus address (MANA)
+        if self._dpdk_version_info and self._dpdk_version_info < "20.11.0":
+            include_flag = "-w"
+        else:
+            include_flag = "-a"
+        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
-        # build list of vdev info flags for each nic
-        vdev_info = ""
-        self.node.log.info(f"Running test with {len(include_nics)} nics.")
-        for nic in include_nics:
-            if self._dpdk_version_info and self._dpdk_version_info >= "18.11.0":
-                vdev_name = "net_vdev_netvsc"
-                vdev_flags = f"iface={nic.name},force=1"
-            else:
-                vdev_name = "net_failsafe"
-                vdev_flags = (
-                    f"dev({nic.pci_slot}),dev(net_tap0,iface={nic.name},force=1)"
+        # build pmd argument
+        if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
+            pmd_name = "net_failsafe"
+            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
+        elif self.is_mana:
+            # mana selects by mac, just return the vdev info directly
+            if node_nic.module_name == "uio_hv_generic":
+                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+            # if mana_ib is present, use mana friendly args
+            elif self.node.tools[Modprobe].module_exists("mana_ib"):
+                return (
+                    f' --vdev="net_vdev_netvsc0,mac={node_nic.mac_addr}"'
+                    f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
                 )
-            if nic.module_name == "hv_netvsc":
-                vdev_info += f'--vdev="{vdev_name}{vdev_id},{vdev_flags}" '
-            elif nic.module_name == "uio_hv_generic":
-                pass
             else:
-                fail(
-                    (
-                        f"Unknown driver({nic.module_name}) bound to "
-                        f"{nic.name}/{nic.lower}."
-                        "Cannot generate testpmd include arguments."
-                    )
+                # use eth interface for failsafe otherwise
+                # test will probably fail due to low throughput
+                pmd_name = "net_vdev_netvsc"
+                pmd_flags = f"iface={node_nic.name}"
+                # reset include flag for MANA since there is only one interface
+                include_flag = ""
+        else:
+            # mlnx setup for failsafe
+            pmd_name = "net_vdev_netvsc"
+            pmd_flags = f"iface={node_nic.name},force=1"
+
+        if node_nic.module_name == "hv_netvsc":
+            # primary/upper/master nic is bound to hv_netvsc
+            # when using net_failsafe implicitly or explicitly.
+            # Set up net_failsafe/net_vdev_netvsc args here
+            return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
+        elif node_nic.module_name == "uio_hv_generic":
+            # if using netvsc pmd, just let -w or -a select
+            # which device to use. No other args are needed.
+            return include_flag
+        else:
+            # if we're all the way through and haven't picked a pmd, something
+            # has gone wrong. fail fast
+            raise LisaException(
+                (
+                    f"Unknown driver({node_nic.module_name}) bound to "
+                    f"{node_nic.name}/{node_nic.lower}."
+                    "Cannot generate testpmd include arguments."
                 )
-
-        # exclude pci slots not associated with the test nic
-        exclude_flags = ""
-        for nic in exclude_nics:
-            exclude_flags += f' -b "{nic.pci_slot}"'
-
-        return vdev_info + exclude_flags
+            )
 
     def generate_testpmd_command(
         self,
@@ -247,13 +259,20 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
 
+        # pick amount of queues for tx/rx (txq/rxq flag)
+        # our tests use equal amounts for rx and tx
         if multiple_queues:
-            txq = 4
-            rxq = 4
+            if self.is_mana:
+                queues = 8
+            else:
+                queues = 4
         else:
-            txq = 1
-            rxq = 1
+            queues = 1
 
+        # MANA needs a file descriptor argument, mlnx doesn't.
+        txd = 128
+
+        # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
         # infer core count to assign based on number of queues
@@ -262,16 +281,19 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 cores, recommended more than 8 cores"
         ).is_greater_than(4)
 
-        # EAL core model is logical cores, so one thread per EAL 'core'
-        threads_per_core = max(1, self.node.tools[Lscpu].get_thread_per_core_count())
-        logical_cores_available = cores_available * threads_per_core
-        queues_and_servicing_core = txq + rxq + service_cores
+        queues_and_servicing_core = queues + service_cores
 
-        # use enough cores for (queues + service core) or max available
-        max_core_index = min(
-            logical_cores_available - threads_per_core,  # leave one physical for system
-            queues_and_servicing_core,
-        )
+        while queues_and_servicing_core > (cores_available - 2):
+            # if less, split the number of queues
+            queues = queues // 2
+            queues_and_servicing_core = queues + service_cores
+            txd = 64  # txd has to be >= 64 for MANA.
+            assert_that(queues).described_as(
+                "txq value must be greater than 1"
+            ).is_greater_than_or_equal_to(1)
+
+        # label core index for future use
+        max_core_index = queues_and_servicing_core
 
         # service cores excluded from forwarding cores count
         forwarding_cores = max_core_index - service_cores
@@ -282,6 +304,11 @@ class DpdkTestpmd(Tool):
             extra_args = extra_args.strip()
         else:
             extra_args = ""
+        # mana pmd needs tx/rx descriptors declared.
+        if self.is_mana:
+            extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
+        if queues > 1:
+            extra_args += f" --txq={queues} --rxq={queues}"
 
         assert_that(forwarding_cores).described_as(
             ("DPDK tests need at least one forwading core. ")
@@ -435,14 +462,22 @@ class DpdkTestpmd(Tool):
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
-        self.find_testpmd_binary(assert_on_fail=False)
+        self._determine_network_hardware()
+        # if dpdk is already installed, find the binary and check the version
+        if self.find_testpmd_binary(assert_on_fail=False):
+            pkgconfig = self.node.tools[Pkgconfig]
+            if pkgconfig.package_info_exists(self._dpdk_lib_name):
+                self._dpdk_version_info = pkgconfig.get_package_version(
+                    self._dpdk_lib_name
+                )
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
-        device_list = lspci.get_devices()
+        device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
         self.is_connect_x3 = any(
             ["ConnectX-3" in dev.device_info for dev in device_list]
         )
+        self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_pps_data"
@@ -477,7 +512,6 @@ class DpdkTestpmd(Tool):
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
-        self._determine_network_hardware()
         node = self.node
         if isinstance(node.os, Debian):
             repos = node.os.get_repositories()
@@ -486,12 +520,22 @@ class DpdkTestpmd(Tool):
                 self._debian_backports_args = [f"-t {backport_repo}"]
             else:
                 self._debian_backports_args = []
+        if self.has_dpdk_version():
+            # DPDK is already installed
+            node.log.info(
+                "DPDK was installed from source previously, using existing DPDK."
+            )
+            self._load_drivers_for_dpdk()
+            return True
+
+        # otherwise, install from package manager, git, or tar
         self._install_dependencies()
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
+
             if isinstance(node.os, Debian):
                 node.os.install_packages(
                     ["dpdk", "dpdk-dev"],
@@ -504,13 +548,12 @@ class DpdkTestpmd(Tool):
                     "Dpdk package names are missing in dpdktestpmd.install"
                     f" for os {node.os.name}"
                 )
-
-            self._dpdk_version_info = node.os.get_package_information("dpdk")
-
             self.node.log.info(
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
+
+            self._dpdk_version_info = node.os.get_package_information("dpdk")
             self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
@@ -521,6 +564,7 @@ class DpdkTestpmd(Tool):
         if self.find_testpmd_binary(
             assert_on_fail=False, check_path="/usr/local/bin"
         ):  # tools are already installed
+            # version info must already be set from __init__
             return True
 
         git_tool = node.tools[Git]
@@ -547,9 +591,6 @@ class DpdkTestpmd(Tool):
                 str(self.dpdk_path),
                 strip_components=1,
             )
-            self.set_version_info_from_source_install(
-                self._dpdk_source, self._version_info_from_tarball_regex
-            )
         else:
             git_tool.clone(
                 self._dpdk_source,
@@ -564,9 +605,6 @@ class DpdkTestpmd(Tool):
                 )
 
             git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-            self.set_version_info_from_source_install(
-                self._dpdk_branch, self._version_info_from_git_tag_regex
-            )
 
         self._load_drivers_for_dpdk()
 
@@ -626,13 +664,19 @@ class DpdkTestpmd(Tool):
         )
 
         self.find_testpmd_binary(check_path="/usr/local/bin")
-
+        self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
+            self._dpdk_lib_name, update_cached=True
+        )
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             mellanox_drivers = ["mlx4_core", "mlx4_ib"]
+        elif self.is_mana:
+            mellanox_drivers = ["mana"]
+            if self.node.tools[Modprobe].load("mana_ib", dry_run=True):
+                mellanox_drivers.append("mana_ib")
         else:
             mellanox_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]

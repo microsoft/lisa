@@ -48,4 +48,4 @@ Other issues
 
 Please check `known issues <https://github.com/microsoft/lisa/issues>`__
 or `file a new issue <https://github.com/microsoft/lisa/issues/new>`__
-if it doesn’t exist.
+if it doesn't exist.

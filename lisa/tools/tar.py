@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Callable, List
+from typing import Callable, List, Optional, Type
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.operating_system import Suse
 from lisa.tools.bzip2 import Bzip2
+from lisa.tools.mkdir import Mkdir
 
 
 class Tar(Tool):
@@ -22,6 +23,10 @@ class Tar(Tool):
 
         return True
 
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsTar
+
     def extract(
         self,
         file: str,
@@ -29,6 +34,7 @@ class Tar(Tool):
         strip_components: int = 0,
         gzip: bool = False,
         sudo: bool = False,
+        raise_error: bool = True,
     ) -> None:
         # create folder when it doesn't exist
         assert_that(strip_components).described_as(
@@ -43,9 +49,10 @@ class Tar(Tool):
             # optionally strip N top level components from a tar file
             tar_cmd += f" --strip-components={strip_components}"
         result = self.run(tar_cmd, shell=True, force_run=True, sudo=sudo)
-        result.assert_exit_code(
-            0, f"Failed to extract file to {dest_dir}, {result.stderr}"
-        )
+        if raise_error:
+            result.assert_exit_code(
+                0, f"Failed to extract file to {dest_dir}, {result.stderr}"
+            )
 
     def list(
         self, file: str, recursive: bool = True, folders_only: bool = False
@@ -109,3 +116,27 @@ class Tar(Tool):
             )
         ).is_length(1)
         return folders[0].replace("/", "")
+
+
+class WindowsTar(Tar):
+    def extract(
+        self,
+        file: str,
+        dest_dir: str,
+        strip_components: int = 0,
+        gzip: bool = False,
+        sudo: bool = False,
+        raise_error: bool = True,
+    ) -> None:
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(dest_dir)
+
+        tar_cmd = f"-xf {file} -C {dest_dir}"
+
+        result = self.run(tar_cmd)
+        if raise_error:
+            result.assert_exit_code(
+                expected_exit_code=0,
+                message=f"Failed to extract file to {dest_dir}",
+                include_output=True,
+            )

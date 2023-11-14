@@ -4,6 +4,8 @@ from typing import List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
+from lisa.util import LisaException
+
 FIRMWARE_TYPE_BIOS = "bios"
 FIRMWARE_TYPE_UEFI = "uefi"
 
@@ -68,6 +70,9 @@ class BaseLibvirtNodeSchema:
     disk_img_resize_gib: Optional[int] = None
     # Configuration options for cloud-init.
     cloud_init: Optional[CloudInitSchema] = None
+
+    # Configuration options for ignition.
+    ignition: Optional[bool] = False
     # Whether to use UEFI or BIOS firmware.
     # Defaults to UEFI.
     firmware_type: str = ""
@@ -93,6 +98,10 @@ class QemuNodeSchema(BaseLibvirtNodeSchema):
     qcow2: str = ""
 
     def __post_init__(self) -> None:
+        if self.ignition and self.cloud_init:
+            raise LisaException(
+                "Can't use Ignition and cloud-init provisioning at the same time"
+            )
         if not self.disk_img:
             self.disk_img = self.qcow2
             self.disk_img_format = DiskImageFormat.QCOW2.value

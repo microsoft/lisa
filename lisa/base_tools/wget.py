@@ -1,6 +1,6 @@
 import re
-from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional, Tuple, Type
+from urllib.parse import urlparse
 
 from lisa.executable import Tool
 from lisa.tools.ls import Ls
@@ -44,15 +44,7 @@ class Wget(Tool):
     ) -> str:
         is_valid_url(url)
 
-        # combine download file path
-        # TODO: support current lisa folder in pathlib.
-        # So that here can use the corresponding path format.
-        if file_path:
-            # create folder when it doesn't exist
-            self.node.shell.mkdir(PurePosixPath(file_path), exist_ok=True)
-            download_path = f"{file_path}/{filename}"
-        else:
-            download_path = f"{self.node.working_path}/{filename}"
+        file_path, download_path = self._ensure_download_path(file_path, filename)
 
         # remove existing file and dir to download again.
         download_pure_path = self.node.get_pure_path(download_path)
@@ -109,6 +101,22 @@ class Wget(Tool):
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsWget
 
+    def _ensure_download_path(self, path: str, filename: str) -> Tuple[str, str]:
+        # combine download file path
+        # TODO: support current lisa folder in pathlib.
+        # So that here can use the corresponding path format.
+        if path:
+            # create folder when it doesn't exist
+            self.node.shell.mkdir(self.node.get_pure_path(path), exist_ok=True)
+            download_path = f"{path}/{filename}"
+        else:
+            path = self.node.get_str_path(self.node.working_path)
+            download_path = f"{self.node.working_path}/{filename}"
+
+        download_path = self.node.get_str_path(download_path)
+
+        return path, download_path
+
 
 class WindowsWget(Wget):
     @property
@@ -131,11 +139,16 @@ class WindowsWget(Wget):
     ) -> str:
         ls = self.node.tools[Ls]
 
-        fullpath = f"{file_path}\\{filename}"
+        if not filename:
+            filename = urlparse(url).path.split("/")[-1]
+            self._log.debug(f"filename is not provided, use {filename} from url.")
+
+        file_path, download_path = self._ensure_download_path(file_path, filename)
+
         # return if file exists and not overwrite
         if ls.path_exists(file_path, sudo=sudo) and not overwrite:
             self._log.debug(
-                f"File {fullpath} already exists and rewrite is set to False"
+                f"File {download_path} already exists and rewrite is set to False"
             )
 
         # create directory if it doesn't exist
@@ -143,13 +156,13 @@ class WindowsWget(Wget):
 
         # TODO: add support for executables
         # remove existing file if present and download
-        self.node.tools[Rm].remove_file(fullpath, sudo=sudo)
+        self.node.tools[Rm].remove_file(download_path, sudo=sudo)
         self.node.tools[PowerShell].run_cmdlet(
             f"$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri '{url}'"
-            f" -OutFile '{fullpath}'",
+            f" -OutFile '{download_path}'",
             sudo=sudo,
             force_run=force_run,
             timeout=timeout,
         )
 
-        return fullpath
+        return download_path

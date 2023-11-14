@@ -71,7 +71,7 @@ Clone code
 Development Environment
 -----------------------
 
-For making any code changes and running testcases in LISA, you will need to setup a development environment. Instructions for setting up the development environment are present here: :ref:`DevVirtEnv`.
+For making any code changes and running test cases in LISA, you will need to setup a development environment. Instructions for setting up the development environment are present here: :ref:`DevEnv`.
 
 Runtime Environment
 -------------------
@@ -110,5 +110,5 @@ computer.
 FAQ and Troubleshooting
 -----------------------
 
-If there’s any problem during the installation, please refer to :doc:`FAQ and
+If there's any problem during the installation, please refer to :doc:`FAQ and
 troubleshooting <troubleshooting>`.

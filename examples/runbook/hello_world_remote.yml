@@ -8,14 +8,14 @@ environment:
           port: 22
           address: <ip or fqdn>
           username: <username>
-          password: <your password or privateKeyFile>
-          privateKeyFile: <your password or privateKeyFile>
+          password: <your password or private_key_file>
+          private_key_file: <your password or private_key_file>
         - type: remote
           port: 22
           address: <ip or fqdn>
           username: <username>
-          password: <your password or privateKeyFile>
-          privateKeyFile: <your password or privateKeyFile>
+          password: <your password or private_key_file>
+          private_key_file: <your password or private_key_file>
 platform:
   - type: ready
 testcase:

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
 from lisa.messages import DiskPerformanceMessage, create_perf_message
-from lisa.operating_system import CBLMariner, CentOs, Debian, Posix, Redhat, Suse
+from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, RepoNotExistException, constants
 from lisa.util.process import Process
 
@@ -85,10 +85,14 @@ class Fio(Tool):
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
+        do_verify: bool = False,
+        bsrange: str = "",
+        verify_dump: bool = False,
+        verify_fatal: bool = False,
+        verify: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = self._get_command(
@@ -102,20 +106,24 @@ class Fio(Tool):
             size_gb,
             direct,
             gtod_reduce,
-            ioengine,
             group_reporting,
             overwrite,
             time_based,
+            do_verify,
+            bsrange,
+            verify_dump,
+            verify_fatal,
+            verify,
         )
         result = self.run(
             cmd,
             force_run=True,
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"fail to run {cmd}",
             cwd=cwd,
             timeout=ssh_timeout,
         )
+        if result.exit_code != 0:
+            raise LisaException(f"fail to run {cmd} with {result.stdout}")
         fio_result = self.get_result_from_raw_output(
             mode, result.stdout, iodepth, numjob
         )
@@ -133,10 +141,14 @@ class Fio(Tool):
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
+        do_verify: bool = False,
+        bsrange: str = "",
+        verify_dump: bool = False,
+        verify_fatal: bool = False,
+        verify: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd = self._get_command(
@@ -150,10 +162,14 @@ class Fio(Tool):
             size_gb,
             direct,
             gtod_reduce,
-            ioengine,
             group_reporting,
             overwrite,
             time_based,
+            do_verify,
+            bsrange,
+            verify_dump,
+            verify_fatal,
+            verify,
         )
         process = self.run_async(
             cmd,
@@ -234,22 +250,34 @@ class Fio(Tool):
         filename: str,
         mode: str,
         iodepth: int,
-        numjob: int,
+        numjob: int = 0,
         time: int = 120,
         block_size: str = "4K",
         size_gb: int = 0,
         direct: bool = True,
         gtod_reduce: bool = False,
-        ioengine: str = "libaio",
         group_reporting: bool = True,
         overwrite: bool = False,
         time_based: bool = False,
+        do_verify: bool = False,
+        bsrange: str = "",
+        verify_dump: bool = False,
+        verify_fatal: bool = False,
+        verify: str = "",
     ) -> str:
+        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
         cmd = (
-            f"--ioengine={ioengine} --bs={block_size} --filename={filename} "
-            f"--readwrite={mode} --runtime={time} --iodepth={iodepth} "
-            f"--numjob={numjob} --name={name}"
+            f"--ioengine={ioengine} --filename={filename} "
+            f"--readwrite={mode} --iodepth={iodepth} "
+            f"--name={name}"
         )
+
+        if time:
+            cmd += f" --runtime={time}"
+        if block_size:
+            cmd += f" --bs={block_size}"
+        if numjob:
+            cmd += f" --numjob={numjob}"
         if direct:
             cmd += " --direct=1"
         if gtod_reduce:
@@ -262,6 +290,16 @@ class Fio(Tool):
             cmd += " --overwrite=1"
         if time_based:
             cmd += " --time_based"
+        if do_verify:
+            cmd += " --do_verify=1"
+        if bsrange:
+            cmd += f" --bsrange={bsrange}"
+        if verify_dump:
+            cmd += " --verify_dump=1"
+        if verify_fatal:
+            cmd += " --verify_fatal=1"
+        if verify:
+            cmd += f" --verify={verify}"
 
         return cmd
 

@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -11,7 +12,7 @@ from lisa import (
     notifier,
     simple_requirement,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.features import Gpu, Infiniband, Sriov
 from lisa.messages import (
     NetworkPPSPerformanceMessage,
     TransportProtocol,
@@ -24,6 +25,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
     UnsupportedPackageVersionException,
+    do_parallel_cleanup,
     verify_dpdk_build,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
@@ -38,8 +40,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     """,
 )
 class DpdkPerformance(TestSuite):
-    TIMEOUT = 12000
-
     @TestCaseMetadata(
         description="""
         DPDK Performance: failsafe mode, minimal core count
@@ -51,7 +51,6 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_send_only_failsafe_pmd(
@@ -96,7 +95,6 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_send_only_netvsc_pmd(
@@ -141,7 +139,6 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_minimal_failsafe_pmd(
@@ -163,7 +160,6 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_minimal_netvsc_pmd(
@@ -186,7 +182,6 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_multi_queue_failsafe_pmd(
@@ -214,7 +209,6 @@ class DpdkPerformance(TestSuite):
             min_nic_count=2,
             min_core_count=16,
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def perf_dpdk_multi_queue_netvsc_pmd(
@@ -332,3 +326,7 @@ class DpdkPerformance(TestSuite):
             "Nodes contain different core counts, DPDK Suite expects sender "
             "and receiver to have same core count."
         ).contains_only(core_counts[0])
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        do_parallel_cleanup(environment)

@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 from lisa import messages, notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
-from lisa.messages import TestResultMessage, TestStatus
+from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.util import BaseClassMixin, InitializableMixin, LisaException, constants
@@ -35,31 +35,43 @@ def parse_testcase_filters(raw_filters: List[Any]) -> List[schema.BaseTestCaseFi
 
 
 def print_results(
-    test_results: List[TestResultMessage],
+    test_results: List[TestResultMessageBase],
     output_method: Callable[[str], Any],
+    add_ending: bool = False,
 ) -> None:
-    output_method("________________________________________")
+    def output_with_ending(message: str) -> None:
+        if add_ending:
+            output_method(f"{message}\n")
+        else:
+            output_method(message)
+
+    output_with_ending("________________________________________")
     result_count_dict: Dict[TestStatus, int] = {}
     for test_result in test_results:
-        result_name = test_result.full_name
+        if isinstance(test_result, TestResultMessage):
+            result_name = test_result.full_name
+        elif isinstance(test_result, messages.SubTestMessage):
+            result_name = f"{test_result.name} ({test_result.parent_test})"
+        else:
+            raise LisaException(f"unknown result type: {type(test_result)}")
         result_status = test_result.status
 
-        output_method(
+        output_with_ending(
             f"{result_name:>50}: {result_status.name:<8} {test_result.message}"
         )
         result_count = result_count_dict.get(result_status, 0)
         result_count += 1
         result_count_dict[result_status] = result_count
 
-    output_method("test result summary")
-    output_method(f"    TOTAL    : {len(test_results)}")
+    output_with_ending("test result summary")
+    output_with_ending(f"    TOTAL    : {len(test_results)}")
     for key in TestStatus:
         count = result_count_dict.get(key, 0)
         if key == TestStatus.ATTEMPTED and count == 0:
             # attempted is confusing if user don't know it.
             # so hide it if there is no attempted cases.
             continue
-        output_method(f"    {key.name:<9}: {count}")
+        output_with_ending(f"    {key.name:<9}: {count}")
 
 
 class RunnerResult(notifier.Notifier):
@@ -94,11 +106,13 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
 
     def __init__(
         self,
+        runbook_builder: RunbookBuilder,
         runbook: schema.Runbook,
         index: int,
         case_variables: Dict[str, Any],
     ) -> None:
         super().__init__()
+        self._runbook_builder = runbook_builder
         self._runbook = runbook
 
         self.id = f"{self.type_name()}_{index}"
@@ -229,7 +243,9 @@ class RootRunner(Action):
             self._cleanup()
 
         if self._results_collector:
-            results = [x for x in self._results_collector.results.values()]
+            results: List[TestResultMessageBase] = [
+                x for x in self._results_collector.results.values()
+            ]
             print_results(results, self._log.info)
 
             if any(x.status == TestStatus.QUEUED for x in results):
@@ -273,9 +289,7 @@ class RootRunner(Action):
                     sub_runbook_builder, phase=constants.TRANSFORMER_PHASE_EXPANDED
                 )
 
-                runners = self._generate_runners(
-                    sub_runbook_builder.resolve(), variables
-                )
+                runners = self._generate_runners(sub_runbook_builder, variables)
                 for runner in runners:
                     yield runner
 
@@ -290,7 +304,7 @@ class RootRunner(Action):
             )
 
             for runner in self._generate_runners(
-                root_runbook, self._runbook_builder.variables
+                self._runbook_builder, self._runbook_builder.variables
             ):
                 yield runner
 
@@ -300,9 +314,10 @@ class RootRunner(Action):
             )
 
     def _generate_runners(
-        self, runbook: schema.Runbook, variables: Dict[str, VariableEntry]
+        self, runbook_builder: RunbookBuilder, variables: Dict[str, VariableEntry]
     ) -> Iterator[BaseRunner]:
         # group filters by runner type
+        runbook = runbook_builder.resolve(variables=variables)
         case_variables = get_case_variables(variables)
         runner_filters: Dict[str, List[schema.BaseTestCaseFilter]] = {}
         for raw_filter in runbook.testcase_raw:
@@ -329,6 +344,7 @@ class RootRunner(Action):
             runbook.testcase = parse_testcase_filters(raw_filters)
             runner = factory.create_by_type_name(
                 type_name=runner_name,
+                runbook_builder=runbook_builder,
                 runbook=runbook,
                 index=self._runner_count,
                 case_variables=case_variables,

@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import LisaException, find_group_in_lines, find_groups_in_lines
 
 CpuType = Enum(
     "CpuType",
@@ -52,6 +52,10 @@ class CPUInfo:
         return self.__str__()
 
 
+ARCH_X86_64 = "x86_64"
+ARCH_AARCH64 = "aarch64"
+
+
 class Lscpu(Tool):
     # Positive example:
     # CPU(s):              16
@@ -75,10 +79,10 @@ class Lscpu(Tool):
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
     __architecture_dict = {
-        "x86_64": "x86_64",
-        "aarch64": "aarch64",
-        "amd64": "x86_64",
-        "arm64": "aarch64",
+        "x86_64": ARCH_X86_64,
+        "aarch64": ARCH_AARCH64,
+        "amd64": ARCH_X86_64,
+        "arm64": ARCH_AARCH64,
     }
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
@@ -290,6 +294,21 @@ class Lscpu(Tool):
 
 
 class WindowsLscpu(Lscpu):
+    # Processor(s):              1 Processor(s) Installed.
+    __cpu_count = re.compile(
+        r"^Processor\(s\):\s+(?P<count>[\d]+) Processor\(s\) Installed.\r?$", re.M
+    )
+    # NumberOfProcessors          : 1
+    __number_of_processors = re.compile(
+        r"^NumberOfProcessors\s+:\s+(?P<count>\d+)$", re.M
+    )
+    # NumberOfLogicalProcessors   : 12
+    __number_of_logic_processors = re.compile(
+        r"^NumberOfLogicalProcessors\s+:\s+(?P<count>\d+)$", re.M
+    )
+
+    __computer_system_command = "Get-CimInstance Win32_ComputerSystem | fl *"
+
     @property
     def command(self) -> str:
         return ""
@@ -299,10 +318,47 @@ class WindowsLscpu(Lscpu):
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.node.tools[PowerShell].run_cmdlet(
-            "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors",
-            force_run=force_run,
+            self.__computer_system_command, force_run=force_run
         )
-        core_count = int(result.strip())
+        # Linux returns vCPU count, so let Windows return vCPU count too.
+        logic_core_count = int(
+            find_group_in_lines(result, self.__number_of_logic_processors)["count"]
+        )
+        self._log.debug(f"vCPU core count: {logic_core_count}")
+        return logic_core_count
+
+    def get_socket_count(self, force_run: bool = False) -> int:
+        result = self.node.tools[PowerShell].run_cmdlet(
+            "systeminfo", force_run=force_run
+        )
+        socket_count = int(find_group_in_lines(result, self.__cpu_count)["count"])
+        self._log.debug(f"socket count: {socket_count}")
+        return socket_count
+
+    def get_core_per_socket_count(self, force_run: bool = False) -> int:
+        socket_count = self.get_socket_count(force_run=force_run)
+        core_count = self._get_physical_core_count(force_run=force_run)
+        core_pre_socket = core_count // socket_count
+        self._log.debug(f"core per socket: {core_pre_socket}")
+
+        return core_pre_socket
+
+    def get_thread_per_core_count(self, force_run: bool = False) -> int:
+        physical_core_count = self._get_physical_core_count(force_run=force_run)
+        thread_count = self.get_core_count(force_run=force_run)
+
+        thread_per_core = thread_count // physical_core_count
+        self._log.debug(f"thread per core: {thread_per_core}")
+        return thread_per_core
+
+    def _get_physical_core_count(self, force_run: bool = False) -> int:
+        result = self.node.tools[PowerShell].run_cmdlet(
+            self.__computer_system_command, force_run=force_run
+        )
+        core_count = int(
+            find_group_in_lines(result, self.__number_of_processors)["count"]
+        )
+        self._log.debug(f"physical core count: {core_count}")
         return core_count
 
 

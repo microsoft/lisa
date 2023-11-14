@@ -8,6 +8,7 @@ import platform
 
 import lisa.combinators.batch_combinator  # noqa: F401
 import lisa.combinators.csv_combinator  # noqa: F401
+import lisa.combinators.git_bisect_combinator  # noqa: F401
 import lisa.combinators.grid_combinator  # noqa: F401
 import lisa.notifiers.console  # noqa: F401
 import lisa.notifiers.env_stats  # noqa: F401
@@ -30,6 +31,19 @@ try:
 except ModuleNotFoundError as e:
     print(f"azure package is not installed. [{e}]")
 
+# Baremetal modules
+try:
+    import lisa.sut_orchestrator.baremetal.build  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.cluster  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.idrac  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.rackmanager  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.ip_getter  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.platform_  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.readychecker  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.source  # noqa: F401
+except ModuleNotFoundError as e:
+    print(f"baremetal package is not installed. [{e}]")
+
 # Aws modules
 try:
     import lisa.sut_orchestrator.aws.platform_  # noqa: F401
@@ -50,7 +64,9 @@ if platform.system() == "Linux":
 
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
+import lisa.transformers.file_uploader  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
+import lisa.transformers.rpm_kernel_installer  # noqa: F401
 import lisa.transformers.script_transformer  # noqa: F401
 import lisa.transformers.to_list  # noqa: F401
 import lisa.transformers.upgrade_packages  # noqa: F401

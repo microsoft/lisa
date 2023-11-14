@@ -7,7 +7,7 @@ from typing import List
 from semver import VersionInfo
 
 from lisa.executable import Tool
-from lisa.util import LisaException
+from lisa.util import LisaException, filter_ansi_escape
 from lisa.util.process import ExecutableResult
 
 
@@ -26,8 +26,6 @@ class Dmesg(Tool):
         r"\[\s+\d+.\d+\]\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"
     )
 
-    __color_code_pattern = r"\x1b\[[0-9;]*m"
-
     @property
     def command(self) -> str:
         return "dmesg"
@@ -37,7 +35,10 @@ class Dmesg(Tool):
 
     def get_output(self, force_run: bool = False) -> str:
         command_output = self._run(force_run=force_run)
-        return command_output.stdout
+
+        # Remove the color code from stdout stream
+        stdout = filter_ansi_escape(command_output.stdout)
+        return stdout
 
     def check_kernel_errors(
         self,
@@ -73,7 +74,7 @@ class Dmesg(Tool):
         )
 
         # Remove the color code from stdout stream
-        stdout = re.sub(self.__color_code_pattern, "", result.stdout)
+        stdout = filter_ansi_escape(result.stdout)
 
         raw_vmbus_version = re.finditer(self.__vmbus_version_pattern, stdout)
         for vmbus_version in raw_vmbus_version:

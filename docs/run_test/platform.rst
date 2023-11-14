@@ -15,6 +15,8 @@ Run tests on different platforms
 
 -  `Run on AWS <#run-on-aws>`__
 
+-  `Run on WSL <#run-on-wsl>`__
+
 Run on Azure
 ------------
 
@@ -142,11 +144,15 @@ deployment.
       use_public_address: "<true or false>"
       requirement:
          ...
+         ignored_capability:
+            - SerialConsole
+            - Isolated_Resource
          azure:
             ...
             location: "<one or multiple locations, split by comma>"
             vm_size: "<vm size>"
             maximize_capability: "<true or false>"
+            osdisk_size_in_gb: <disk size in gb>
 
 * **virtual_network_resource_group**. Specify if an existing virtual network
   should be used. If `virtual_network_resource_group` is not provided, a virtual
@@ -169,6 +175,17 @@ deployment.
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
+* **ignored_capability**. Specify feature names which will be ignored in 
+  test requirement. You can find the feature name from its name method in source code.
+  For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
+
+   .. code:: python
+
+             @classmethod
+             def name(cls) -> str:
+               return FEATURE_NAME_ISOLATED_RESOURCE
+
+  Then, you can add ``isolated_resource`` to ``ignored_capability``.
 * **location**. Specify which locations is used to deploy VMs. It can be one or
   multiple locations. For example, westus3 or westus3,eastus. If multiple
   locations are specified, it means each environment deploys VMs in one of
@@ -179,6 +196,9 @@ deployment.
   run all test cases. Notice, there are some features are conflict by natural,
   so some test cases may not be picked up. This setting is useful to force run
   perf tests on not designed VM sizes.
+* **osdisk_size_in_gb** is used to specify the size of the OS disk. If the specified
+  size is smaller than the default size, the default size will be used.
+  For range of disk size `refer <https://learn.microsoft.com/en-us/azure/virtual-machines/linux/expand-disks?tabs=ubuntu>`__
 
 Run on Ready computers
 ----------------------
@@ -196,8 +216,8 @@ If you have prepared a Linux computer for testing, please run LISA with
 
       lisa -r ./microsoft/runbook/ready.yml -v public_address:<public address> -v "user_name:<user name>" -v "admin_private_key_file:<private key file>"
 
-The advantage is it’s not related to any infra. The shortage is that,
-some test cases won’t run in Ready platform, for example, test cases
+The advantage is it's not related to any infra. The shortage is that,
+some test cases won't run in Ready platform, for example, test cases
 cannot get serial log from a VM directly.
 
 ``ready`` runbook also supports tests which require multiple computers (for
@@ -276,3 +296,44 @@ be deployed to the same configured region.
    Update the default user name for the AMI you use to launch the instance.
    For an Ubuntu AMI, the user name is ubuntu. Please refer to the
    `general prerequisites for connecting to the instance <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html>`_.
+
+Run on WSL
+------------
+
+WSL is supported cross all platforms by the guest layer in a node. So, it can be
+run with Local, Ready, Azure, AWS, BareMetal, etc. It supports below
+functionalities:
+
+* Provisioning WSL from a clean environment, or reuse existing WSL environment.
+* Replace the default kernel.
+* Install distro by names.
+* Support kernel format as tar.xz, unzipped kernel, or a folder which contains a
+  file starting with "vmlinux-".
+
+The WSL configurations is under platform section as below.
+
+.. code:: yaml
+
+   platform:
+   - type: ready
+      guest_enabled: true # Default is false. Make sure set it to true to enable WSL.
+      guests:
+      - type: wsl
+        reinstall: false # Default is false. Set to true to reinstall WSL every time.
+        distro: # distro name in Windows store. Default is Ubuntu.
+        kernel: # path to replaced kernel
+        debug_console: # true or false. Default is false. Set it to true to pop up console for debugging.
+
+If it needs to copy kernel to the Windows host, you can use the
+file_uploader transformer to upload the kernel during the "environment_connected"
+phase.
+
+.. code:: yaml
+
+   transformer:
+   - type: file_uploader
+     phase: environment_connected
+     source: D:\temp
+     destination: \temp
+     files:
+       - linux-5.15.123.1-microsoft-standard-WSL2.tar.xz

@@ -20,7 +20,7 @@ from azure.core.exceptions import (
     ResourceNotFoundError,
     map_error,
 )
-from azure.mgmt.compute.models import (  # type: ignore
+from azure.mgmt.compute.models import (
     DiskCreateOption,
     DiskCreateOptionTypes,
     HardwareProfile,
@@ -46,10 +46,23 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node, RemoteNode
-from lisa.operating_system import BSD, CentOs, Redhat, Suse, Ubuntu
+from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
 from lisa.secret import add_secret
-from lisa.tools import Curl, Dmesg, IpInfo, Ls, Lspci, Modprobe, Rm, Sed
+from lisa.tools import (
+    Cat,
+    Curl,
+    Dmesg,
+    Find,
+    IpInfo,
+    Ls,
+    Lsblk,
+    Lspci,
+    Modprobe,
+    Rm,
+    Sed,
+)
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
     NotMeetRequirementException,
@@ -451,6 +464,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
     _amd_supported_skus = re.compile(
         r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
     )
+
+    _grid_unsupported_os = [CBLMariner]
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
@@ -489,6 +504,8 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             supported = node.os.information.version >= "16.0.0"
         elif isinstance(node.os, Suse):
             supported = node.os.information.version >= "15.0.0"
+        elif isinstance(node.os, CBLMariner):
+            supported = node.os.information.version >= "2.0.0"
 
         return supported
 
@@ -497,7 +514,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
-        if re.match(self._grid_supported_skus, node_runbook.vm_size):
+        if re.match(self._grid_supported_skus, node_runbook.vm_size) and not isinstance(
+            self._node.os, tuple(self._grid_unsupported_os)
+        ):
             driver_list.append(ComputeSDK.GRID)
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
             driver_list.append(ComputeSDK.AMD)
@@ -546,13 +565,24 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         if release not in supported_versions.get(type(self._node.os), []):
             raise UnsupportedOperationException("GPU Extension not supported")
         extension = self._node.features[AzureExtension]
-        result = extension.create_or_update(
-            type_="NvidiaGpuDriverLinux",
-            publisher="Microsoft.HpcCompute",
-            type_handler_version="1.6",
-            auto_upgrade_minor_version=True,
-            settings={},
-        )
+        try:
+            result = extension.create_or_update(
+                type_="NvidiaGpuDriverLinux",
+                publisher="Microsoft.HpcCompute",
+                type_handler_version="1.6",
+                auto_upgrade_minor_version=True,
+                settings={},
+            )
+        except Exception as e:
+            if (
+                "'Microsoft.HpcCompute.NvidiaGpuDriverLinux' already added"
+                " or specified in input" in str(e)
+            ):
+                self._log.info("GPU Extension is already added")
+                return
+            else:
+                raise e
+
         if result["provisioning_state"] == "Succeeded":
             return
         else:
@@ -650,6 +680,55 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             len(all_nics) - self.origin_extra_synthetic_nics_count - 1
         )
 
+    def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        network_client = get_network_client(azure_platform)
+        vm = get_vm(azure_platform, self._node)
+        for nic in vm.network_profile.network_interfaces:
+            # get nic name from nic id
+            # /subscriptions/[subid]/resourceGroups/[rgname]/providers
+            # /Microsoft.Network/networkInterfaces/[nicname]
+            nic_name = nic.id.split("/")[-1]
+            updated_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            # Since the VM nic and the Azure NIC names won't always match,
+            # allow selection by private_ip_address to resolve a NIC in the VM
+            # to an azure network interface resource.
+            if private_ip_addr and not any(
+                [
+                    x.private_ip_address == private_ip_addr
+                    for x in updated_nic.ip_configurations
+                ]
+            ):
+                # if ip is provided, skip resource which don't match.
+                self._log.debug(f"Skipping enable ip forwarding on nic {nic_name}...")
+                continue
+
+            if updated_nic.enable_ip_forwarding == enable:
+                self._log.debug(
+                    f"network interface {nic_name}'s ip forwarding default "
+                    f"status [{updated_nic.enable_ip_forwarding}] is "
+                    f"consistent with set status [{enable}], no need to update."
+                )
+            else:
+                self._log.debug(
+                    f"network interface {nic_name}'s ip forwarding default "
+                    f"status [{updated_nic.enable_ip_forwarding}], "
+                    f"now set its status into [{enable}]."
+                )
+                updated_nic.enable_ip_forwarding = enable
+                network_client.network_interfaces.begin_create_or_update(
+                    self._resource_group_name, updated_nic.name, updated_nic
+                )
+                updated_nic = network_client.network_interfaces.get(
+                    self._resource_group_name, nic_name
+                )
+                assert_that(updated_nic.enable_ip_forwarding).described_as(
+                    f"fail to set network interface {nic_name}'s ip forwarding "
+                    f"into status [{enable}]"
+                ).is_equal_to(enable)
+
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
@@ -700,6 +779,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         sriov_enabled: bool = False
         vm = get_vm(azure_platform, self._node)
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id, "'nic.id' must not be 'None'"
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -734,6 +814,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 f" it exceeds the vm size's capability {node_capability_nic_count}."
             )
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id, "'nic.id' must not be 'None'"
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -802,6 +883,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             self._log.debug("No existed extra nics can be disassociated.")
             return
         nic = self._get_primary(vm.network_profile.network_interfaces)
+        assert nic.id, "'nic.id' must not be 'None'"
         nic_name = nic.id.split("/")[-1]
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
@@ -877,30 +959,41 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         return interfaces_info_list
 
 
-# Tuple: (IOPS, Disk Size)
-_disk_size_iops_map: Dict[schema.DiskType, List[Tuple[int, int]]] = {
+# Tuple: (Disk Size, IOPS, Throughput)
+_disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = {
     schema.DiskType.PremiumSSDLRS: [
-        (120, 4),
-        (240, 64),
-        (500, 128),
-        (1100, 256),
-        (2300, 512),
-        (5000, 1024),
-        (7500, 2048),
-        (16000, 8192),
-        (18000, 16384),
-        (20000, 32767),
+        (4, 120, 25),
+        (64, 240, 50),
+        (128, 500, 100),
+        (256, 1100, 125),
+        (512, 2300, 150),
+        (1024, 5000, 200),
+        (2048, 7500, 250),
+        (8192, 16000, 500),
+        (16384, 18000, 750),
+        (32767, 20000, 900),
     ],
     schema.DiskType.StandardHDDLRS: [
-        (500, 32),
-        (1300, 8192),
-        (2000, 16384),
+        (32, 500, 60),
+        (8192, 1300, 300),
+        (16384, 2000, 500),
     ],
     schema.DiskType.StandardSSDLRS: [
-        (500, 4),
-        (2000, 8192),
-        (4000, 16384),
-        (6000, 32767),
+        (4, 500, 60),
+        (8192, 2000, 400),
+        (16384, 4000, 600),
+        (32767, 6000, 750),
+    ],
+    schema.DiskType.UltraSSDLRS: [
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
     ],
 }
 
@@ -934,7 +1027,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         result = super().check(capability)
 
         result.merge(
-            search_space.check_setspace(self.disk_type, capability.disk_type),
+            search_space.check_setspace(self.os_disk_type, capability.os_disk_type),
+            "os_disk_type",
+        )
+        result.merge(
+            search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
             "disk_type",
         )
         result.merge(
@@ -948,6 +1045,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.data_disk_iops, capability.data_disk_iops
             ),
             "data_disk_iops",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
+            ),
+            "data_disk_throughput",
         )
         result.merge(
             search_space.check_countspace(
@@ -984,7 +1087,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         ), f"actual: {type(capability)}"
 
         assert (
-            capability.disk_type
+            capability.os_disk_type
+        ), "capability should have at least one OS disk type, but it's None"
+        assert (
+            capability.data_disk_type
         ), "capability should have at least one disk type, but it's None"
         assert (
             capability.disk_controller_type
@@ -995,7 +1101,25 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         )
         set_filtered_fields(super_value, value, ["data_disk_count"])
 
-        cap_disk_type = capability.disk_type
+        cap_os_disk_type = capability.os_disk_type
+        if isinstance(cap_os_disk_type, search_space.SetSpace):
+            assert (
+                len(cap_os_disk_type) > 0
+            ), "capability should have at least one disk type, but it's empty"
+        elif isinstance(cap_os_disk_type, schema.DiskType):
+            cap_os_disk_type = search_space.SetSpace[schema.DiskType](
+                is_allow_set=True, items=[cap_os_disk_type]
+            )
+        else:
+            raise LisaException(
+                f"unknown OS disk type on capability, type: {cap_os_disk_type}"
+            )
+
+        value.os_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.os_disk_type, capability.os_disk_type, schema.disk_type_priority)
+
+        cap_disk_type = capability.data_disk_type
         if isinstance(cap_disk_type, search_space.SetSpace):
             assert (
                 len(cap_disk_type) > 0
@@ -1009,9 +1133,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 f"unknown disk type on capability, type: {cap_disk_type}"
             )
 
-        value.disk_type = getattr(search_space, f"{method.value}_setspace_by_priority")(
-            self.disk_type, capability.disk_type, schema.disk_type_priority
-        )
+        value.data_disk_type = getattr(
+            search_space, f"{method.value}_setspace_by_priority"
+        )(self.data_disk_type, capability.data_disk_type, schema.disk_type_priority)
 
         cap_disk_controller_type = capability.disk_controller_type
         if isinstance(cap_disk_controller_type, search_space.SetSpace):
@@ -1054,70 +1178,70 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         # The Ephemeral doesn't support data disk, but it needs a value. And it
         # doesn't need to calculate on intersect
         value.data_disk_iops = 0
+        value.data_disk_throughput = 0
         value.data_disk_size = 0
 
         if method == RequirementMethod.generate_min_capability:
             assert isinstance(
-                value.disk_type, schema.DiskType
-            ), f"actual: {type(value.disk_type)}"
-            disk_type_iops = _disk_size_iops_map.get(value.disk_type, None)
+                value.data_disk_type, schema.DiskType
+            ), f"actual: {type(value.data_disk_type)}"
+            disk_type_performance = _disk_size_performance_map.get(
+                value.data_disk_type, None
+            )
             # ignore unsupported disk type like Ephemeral. It supports only os
             # disk. Calculate for iops, if it has value. If not, try disk size
-            if disk_type_iops:
-                if isinstance(self.data_disk_iops, int) or (
-                    self.data_disk_iops != search_space.IntRange(min=0)
-                ):
-                    req_disk_iops = search_space.count_space_to_int_range(
-                        self.data_disk_iops
-                    )
-                    cap_disk_iops = search_space.count_space_to_int_range(
-                        capability.data_disk_iops
-                    )
-                    min_iops = max(req_disk_iops.min, cap_disk_iops.min)
-                    max_iops = min(req_disk_iops.max, cap_disk_iops.max)
+            if disk_type_performance:
+                req_disk_iops = search_space.count_space_to_int_range(
+                    self.data_disk_iops
+                )
+                cap_disk_iops = search_space.count_space_to_int_range(
+                    capability.data_disk_iops
+                )
+                min_iops = max(req_disk_iops.min, cap_disk_iops.min)
+                max_iops = min(req_disk_iops.max, cap_disk_iops.max)
 
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= min_iops and iops <= max_iops
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                elif self.data_disk_size:
-                    req_disk_size = search_space.count_space_to_int_range(
-                        self.data_disk_size
-                    )
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    min_size = max(req_disk_size.min, cap_disk_size.min)
-                    max_size = min(req_disk_size.max, cap_disk_size.max)
+                req_disk_throughput = search_space.count_space_to_int_range(
+                    self.data_disk_throughput
+                )
+                cap_disk_throughput = search_space.count_space_to_int_range(
+                    capability.data_disk_throughput
+                )
+                min_throughput = max(req_disk_throughput.min, cap_disk_throughput.min)
+                max_throughput = min(req_disk_throughput.max, cap_disk_throughput.max)
 
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, disk_size in disk_type_iops
-                        if disk_size >= min_size and disk_size <= max_size
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
-                else:
-                    # if req is not specified, query minimum value.
-                    cap_disk_size = search_space.count_space_to_int_range(
-                        capability.data_disk_size
-                    )
-                    value.data_disk_iops = min(
-                        iops
-                        for iops, _ in disk_type_iops
-                        if iops >= cap_disk_size.min and iops <= cap_disk_size.max
-                    )
-                    value.data_disk_size = self._get_disk_size_from_iops(
-                        value.data_disk_iops, disk_type_iops
-                    )
+                req_disk_size = search_space.count_space_to_int_range(
+                    self.data_disk_size
+                )
+                cap_disk_size = search_space.count_space_to_int_range(
+                    capability.data_disk_size
+                )
+                min_size = max(req_disk_size.min, cap_disk_size.min)
+                max_size = min(req_disk_size.max, cap_disk_size.max)
+
+                value.data_disk_size = min(
+                    size
+                    for size, iops, throughput in disk_type_performance
+                    if iops >= min_iops
+                    and iops <= max_iops
+                    and throughput >= min_throughput
+                    and throughput <= max_throughput
+                    and size >= min_size
+                    and size <= max_size
+                )
+
+                (
+                    value.data_disk_iops,
+                    value.data_disk_throughput,
+                ) = self._get_disk_performance_from_size(
+                    value.data_disk_size, disk_type_performance
+                )
+
         elif method == RequirementMethod.intersect:
             value.data_disk_iops = search_space.intersect_countspace(
                 self.data_disk_iops, capability.data_disk_iops
+            )
+            value.data_disk_throughput = search_space.intersect_countspace(
+                self.data_disk_throughput, capability.data_disk_throughput
             )
             value.data_disk_size = search_space.intersect_countspace(
                 self.data_disk_size, capability.data_disk_size
@@ -1135,11 +1259,13 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return value
 
-    def _get_disk_size_from_iops(
-        self, data_disk_iops: int, disk_type_iops: List[Tuple[int, int]]
-    ) -> int:
+    def _get_disk_performance_from_size(
+        self, data_disk_size: int, disk_type_performance: List[Tuple[int, int, int]]
+    ) -> Tuple[int, int]:
         return next(
-            disk_size for iops, disk_size in disk_type_iops if iops == data_disk_iops
+            (iops, throughput)
+            for size, iops, throughput in disk_type_performance
+            if size == data_disk_size
         )
 
     def _check_has_resource_disk(
@@ -1186,6 +1312,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^=>\s+\d+\s+\d+\s+(?P<label>\w*)\s+\w+\s+\(\w+\)", re.M
     )
 
+    # mounts:
+    #   - [ ephemeral0, /mnt/resource ]
+    EPHEMERAL_DISK_PATTERN = re.compile(
+        r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1194,7 +1326,16 @@ class Disk(AzureFeatureMixin, features.Disk):
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
 
+    def get_hardware_disk_controller_type(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+        return vm.storage_profile.disk_controller_type
+
     def get_raw_data_disks(self) -> List[str]:
+        # Handle BSD case
+        if isinstance(self._node.os, BSD):
+            return self._get_raw_data_disks_bsd()
+
         if (
             self._node.capability.disk
             and self._node.capability.disk.disk_controller_type
@@ -1374,24 +1515,67 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.close()
 
     def get_resource_disk_mount_point(self) -> str:
-        # by default, cloudinit will use /mnt as mount point of resource disk
-        # in CentOS, cloud.cfg.d/91-azure_datasource.cfg customize mount point as
-        # /mnt/resource
-        if (
-            not isinstance(self._node.os, CentOs)
-            and self._node.shell.exists(
-                self._node.get_pure_path("/var/log/cloud-init.log")
-            )
-            and self._node.shell.exists(
-                self._node.get_pure_path("/var/lib/cloud/instance")
-            )
+        # get customize mount point from cloud-init configuration file from /etc/cloud/
+        # if not found, use default mount point /mnt for cloud-init
+        if self._node.shell.exists(
+            self._node.get_pure_path("/var/log/cloud-init.log")
+        ) and self._node.shell.exists(
+            self._node.get_pure_path("/var/lib/cloud/instance")
         ):
             self._log.debug("Disk handled by cloud-init.")
-            mount_point = "/mnt"
+
+            # get mount point from cloud-init config files
+            find_tool = self._node.tools[Find]
+            file_list = find_tool.find_files(
+                self._node.get_pure_path("/etc/cloud/"),
+                "*.cfg",
+                sudo=True,
+                ignore_not_exist=True,
+                file_type="f",
+            )
+            conf_content = ""
+            for found_file in file_list:
+                conf_content = conf_content + self._node.tools[Cat].read(
+                    str(found_file), sudo=True, no_debug_log=True
+                )
+            match = self.EPHEMERAL_DISK_PATTERN.search(conf_content)
+
+            if match:
+                mount_point = match.group(1)
+                self._log.debug(
+                    f"Found mount point {mount_point} from "
+                    "cloud-init configuration file."
+                )
+            else:
+                mount_point = "/mnt"
+                self._log.debug(
+                    "No mount point found from cloud-init configuration file. Use /mnt."
+                )
         else:
             self._log.debug("Disk handled by waagent.")
             mount_point = self._node.tools[Waagent].get_resource_disk_mount_point()
         return mount_point
+
+    def _is_resource_disk(self, disk: DiskInfo) -> bool:
+        # check if the disk is a resource disk
+        if disk.mountpoint == "/mnt/resource":
+            return True
+
+        return any(
+            partition.mountpoint == "/mnt/resource" for partition in disk.partitions
+        )
+
+    def _get_raw_data_disks_bsd(self) -> List[str]:
+        disks = self._node.tools[Lsblk].get_disks()
+
+        # Remove os disk and resource disk
+        data_disks = [
+            disk.device_name
+            for disk in disks
+            if not disk.is_os_disk and not self._is_resource_disk(disk)
+        ]
+
+        return data_disks
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
@@ -1407,10 +1591,11 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
 
 
 _disk_type_mapping: Dict[schema.DiskType, str] = {
-    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.Ephemeral: "Ephemeral",
+    schema.DiskType.PremiumSSDLRS: "Premium_LRS",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
+    schema.DiskType.UltraSSDLRS: "UltraSSD_LRS",
 }
 
 
@@ -1811,6 +1996,26 @@ class ACC(AzureFeatureMixin, features.ACC):
         return None
 
 
+class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualization):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        # add vm which support nested confidential virtualization
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/dcasccv5-dcadsccv5-series
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/ecasccv5-ecadsccv5-series
+        if resource_sku.family in [
+            "standardDCACCV5Family",
+            "standardECACCV5Family",
+            "standardDCADCCV5Family",
+            "standardECADCCV5Family",
+        ]:
+            return schema.FeatureSettings.create(cls.name())
+        return None
+
+
 class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
     @classmethod
     def create_setting(
@@ -2066,7 +2271,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
         if protected_settings:
             add_secret(
-                str(extension_parameters.as_dict()["protected_settings"]),
+                str(extension_parameters.protected_settings),
                 sub="***REDACTED***",
             )
 
@@ -2136,6 +2341,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
+        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
@@ -2326,3 +2532,29 @@ class IaaS(AzureFeatureMixin, Feature):
             return schema.FeatureSettings.create(cls.name())
 
         return None
+
+
+class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def reset_password(self, username: str, password: str) -> None:
+        # This uses the VMAccessForLinux extension to reset the credentials for an
+        # existing user or create a new user with sudo privileges.
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/vmaccess
+        reset_user_password = {"username": username, "password": password}
+        extension = self._node.features[AzureExtension]
+        result = extension.create_or_update(
+            name="VMAccessForLinux",
+            publisher="Microsoft.OSTCExtensions",
+            type_="VMAccessForLinux",
+            type_handler_version="1.5",
+            auto_upgrade_minor_version=True,
+            protected_settings=reset_user_password,
+        )
+        assert_that(result["provisioning_state"]).described_as(
+            "Expected the extension to succeed"
+        ).is_equal_to("Succeeded")

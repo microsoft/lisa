@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+from assertpy import assert_that
+
 from lisa import (
     BadEnvironmentStateException,
     Logger,
@@ -14,6 +16,8 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     create_timer,
+    schema,
+    search_space,
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
@@ -21,11 +25,14 @@ from lisa.features import (
     DiskEphemeral,
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
+    NetworkInterface,
     SerialConsole,
     Sriov,
     StartStop,
     Synthetic,
 )
+from lisa.nic import Nics
+from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -159,7 +166,9 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_sriov(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
+        self.check_sriov(log, node)
         self._smoke_test(log, node, log_path, "verify_deployment_provision_sriov")
+        self.check_sriov(log, node)
 
     @TestCaseMetadata(
         description="""
@@ -167,7 +176,7 @@ class Provisioning(TestSuite):
         The test steps are almost the same as `smoke_test` except for
         executing reboot from Azure SDK.
         """,
-        priority=1,
+        priority=2,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole, StartStop],
@@ -186,11 +195,36 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This case runs smoke test on a node provisioned with an ultra datadisk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.UltraSSDLRS,
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def verify_deployment_provision_ultra_datadisk(
+        self, log: Logger, node: RemoteNode, log_path: Path
+    ) -> None:
+        self._smoke_test(
+            log,
+            node,
+            log_path,
+            "verify_deployment_provision_ultra_datadisk",
+        )
+
+    @TestCaseMetadata(
+        description="""
         This case runs smoke test on a node provisioned.
         The test steps are almost the same as `smoke_test` except for
         executing stop then start from Azure SDK.
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole, StartStop],
@@ -284,3 +318,47 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
+
+    def is_mana_device_discovered(self, node: RemoteNode) -> bool:
+        lspci = node.tools[Lspci]
+        pci_devices = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_SRIOV, force_run=True
+        )
+        assert_that(
+            len(pci_devices),
+            "One or more SRIOV devices are expected to be discovered.",
+        ).is_greater_than(0)
+
+        all_mana_devices = False
+        for pci_device in pci_devices:
+            if (
+                "Device 00ba" in pci_device.device_info
+                and pci_device.vendor == "Microsoft Corporation"
+            ):
+                all_mana_devices = True
+            else:
+                all_mana_devices = False
+                break
+        return all_mana_devices
+
+    def check_sriov(self, log: Logger, node: RemoteNode) -> None:
+        node_nic_info = Nics(node)
+        node_nic_info.initialize()
+
+        network_interface_feature = node.features[NetworkInterface]
+        sriov_count = network_interface_feature.get_nic_count()
+        log.info(f"check_sriov: sriov_count {sriov_count}")
+        pci_nic_check = True
+        if self.is_mana_device_discovered(node):
+            if not node.nics.is_mana_driver_enabled():
+                pci_nic_check = False
+            else:
+                pci_nic_check = True
+        if pci_nic_check:
+            log.info(
+                f"check_sriov: PCI nic count {len(node_nic_info.get_lower_nics())}"
+            )
+            assert_that(len(node_nic_info.get_lower_nics())).described_as(
+                f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
+                f"actual sriov nic count is {sriov_count}"
+            ).is_equal_to(sriov_count)

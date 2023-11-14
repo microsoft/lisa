@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import BSD, Posix
-from lisa.util import LisaException, find_patterns_groups_in_lines
+from lisa.util import LisaException, find_groups_in_lines, find_patterns_groups_in_lines
 
 
 def _get_size_in_bytes(size: float, size_unit: str) -> int:
@@ -76,6 +77,7 @@ class DiskInfo(object):
     mountpoint: str = ""
     size_in_gb: int = 0
     type: str = ""
+    fstype: str = ""
     partitions: List[PartitionInfo] = field(default_factory=list)
 
     @property
@@ -89,7 +91,9 @@ class DiskInfo(object):
         # check if the disk contains boot partition
         # boot partitions start with /boot/{id}
         return any(
-            partition.mountpoint.startswith("/boot") for partition in self.partitions
+            partition.mountpoint.startswith("/boot")
+            for partition in self.partitions
+            if partition.mountpoint
         )
 
     @property
@@ -110,16 +114,19 @@ class DiskInfo(object):
         mountpoint: str,
         size: int = 0,
         dev_type: str = "",
+        fstype: str = "",
         partitions: Optional[List[PartitionInfo]] = None,
     ):
         self.name = name
         self.mountpoint = mountpoint
         self.size_in_gb = int(size / (1024 * 1024 * 1024))
         self.type = dev_type
-        self.partitions = partitions if partitions is not None else []
+        self.fstype = fstype
+        self.partitions = partitions if partitions else []
 
 
 class Lsblk(Tool):
+    _INVAILD_JSON_OPTION_PATTERN = re.compile(r"lsblk: invalid option -- 'J'", re.M)
     # NAME="loop2" SIZE="34017280" TYPE="loop" MOUNTPOINT="/snap/snapd/13640"
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
@@ -151,13 +158,41 @@ class Lsblk(Tool):
             )
         return self._check_exists()
 
-    def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
+    def parse_lsblk_json_output(self, output: str) -> List[DiskInfo]:
         disks: List[DiskInfo] = []
+        lsblk_entries = json.loads(output)["blockdevices"]
+        for lsblk_entry in lsblk_entries:
+            disk_mountpoint = lsblk_entry["mountpoint"]
+            if disk_mountpoint == "/mnt/wslg/distro":
+                # WSL mounts the system disk to /mnt/wslg/distro, and it's not
+                # the default returned by lsblk. WSLg distro mountpoint is not
+                # accessible, so replace it to "/"
+                disk_mountpoint = "/"
 
-        # parse output of lsblk
-        output = self.run(
-            "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE", sudo=True, force_run=force_run
-        ).stdout
+            disk_info = DiskInfo(
+                name=lsblk_entry["name"],
+                mountpoint=disk_mountpoint,
+                size=int(lsblk_entry["size"]),
+                dev_type=lsblk_entry["type"],
+                fstype=lsblk_entry["fstype"],
+            )
+
+            for child in lsblk_entry.get("children", []):
+                disk_info.partitions.append(
+                    PartitionInfo(
+                        name=child["name"],
+                        mountpoint=child["mountpoint"],
+                        size=int(child["size"]),
+                        dev_type=child["type"],
+                        fstype=child["fstype"],
+                    )
+                )
+            # add disk to list of disks
+            disks.append(disk_info)
+        return disks
+
+    def parse_lsblk_raw_output(self, output: str) -> List[DiskInfo]:
+        disks: List[DiskInfo] = []
         lsblk_entries = find_patterns_groups_in_lines(
             output, [self._LSBLK_ENTRY_REGEX]
         )[0]
@@ -206,6 +241,30 @@ class Lsblk(Tool):
                     partitions=disk_partition_map.get(lsblk_entry["name"], []),
                 )
             )
+        return disks
+
+    def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
+        disks: List[DiskInfo] = []
+
+        # parse output of lsblk
+        # -b print SIZE in bytes rather than in human readable format
+        # -J output in JSON format
+        # -o list of columns to output
+        cmd_result = self.run(
+            "-b -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE", sudo=True, force_run=force_run
+        )
+        output = cmd_result.stdout
+        if cmd_result.exit_code != 0 and re.match(
+            self._INVAILD_JSON_OPTION_PATTERN, output
+        ):
+            output = self.run(
+                "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE",
+                sudo=True,
+                force_run=force_run,
+            ).stdout
+            disks = self.parse_lsblk_raw_output(output)
+        else:
+            disks = self.parse_lsblk_json_output(output)
 
         # sort disk with OS disk first
         disks.sort(key=lambda disk: disk.is_os_disk, reverse=True)
@@ -217,11 +276,11 @@ class Lsblk(Tool):
     ) -> DiskInfo:
         disks = self.get_disks(force_run=force_run)
         for disk in disks:
-            # check if disk is mounted and moutpoint matches
+            # check if disk is mounted and mountpoint matches
             if disk.mountpoint == mountpoint:
                 return disk
 
-            # check if any of the partitions is mounted and moutpoint matches
+            # check if any of the partitions is mounted and mountpoint matches
             for partition in disk.partitions:
                 if partition.mountpoint == mountpoint:
                     return disk
@@ -233,11 +292,11 @@ class Lsblk(Tool):
     ) -> str:
         disks = self.get_disks(force_run=force_run)
         for disk in disks:
-            # check if disk is mounted and moutpoint matches
+            # check if disk is mounted and mountpoint matches
             if disk.name == volume_name:
                 return disk.mountpoint
 
-            # check if any of the partitions is mounted and moutpoint matches
+            # check if any of the partitions is mounted and mountpoint matches
             for partition in disk.partitions:
                 if partition.name == volume_name:
                     return partition.mountpoint
@@ -255,13 +314,18 @@ class BSDLsblk(Lsblk):
 
     # Example:
     # da1
-    _DISK_NAME_REGEX_MATCH = re.compile(r"^\D+\d*$")
+    # nvd0
+    _DISK_NAME_REGEX_MATCH = re.compile(r"^(da|nvd)\d+$")
 
     # Example:
     # da1p1
-    _PARTITION_NAME_REGEX_MATCH = re.compile(r"^\D+\d+\D*\d+$")
+    # nvd0p1
+    _PARTITION_NAME_REGEX_MATCH = re.compile(r"^(da|nvd)\d+p\d+$")
 
-    _PARTITION_DISK_NAME_REGEX = re.compile(r"^(?P<disk_name>\D+\d+)\D+\d+$")
+    # Example:
+    # da1p1 -> da1
+    # nvd0p1 -> nvd0
+    _PARTITION_DISK_NAME_REGEX = re.compile(r"^(?P<disk_name>(da|nvd)\d+)p\d+$")
 
     @property
     def command(self) -> str:
@@ -281,8 +345,7 @@ class BSDLsblk(Lsblk):
 
         # parse output of lsblk
         output = self.run(force_run=force_run).stdout
-        entries = find_patterns_groups_in_lines(output, [self._ENTRY_REGEX])[0]
-
+        entries = find_groups_in_lines(output, self._ENTRY_REGEX)
         # create partition map to store partitions for each disk
         disk_partition_map: Dict[str, List[PartitionInfo]] = {}
 
@@ -293,9 +356,10 @@ class BSDLsblk(Lsblk):
                 continue
 
             # extract drive name from partition name
-            matched = find_patterns_groups_in_lines(
-                entry["name"], [self._PARTITION_DISK_NAME_REGEX]
-            )[0]
+            matched = find_groups_in_lines(
+                entry["name"], self._PARTITION_DISK_NAME_REGEX
+            )
+
             assert len(matched) == 1, "Could not extract drive name from partition name"
             drive_name = matched[0]["disk_name"]
 
@@ -321,7 +385,7 @@ class BSDLsblk(Lsblk):
                 continue
 
             # convert size to bytes and create disk info
-            size_in_bytes = _get_size_in_bytes(int(entry["size"]), entry["size_unit"])
+            size_in_bytes = _get_size_in_bytes(float(entry["size"]), entry["size_unit"])
             disks.append(
                 DiskInfo(
                     name=entry["name"],

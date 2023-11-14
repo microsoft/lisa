@@ -15,8 +15,8 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole
 from lisa.operating_system import Debian, Posix, RPMDistro
-from lisa.tools import Chmod, Lscpu, Make, Tar, Wget
-from lisa.util import UnsupportedDistroException
+from lisa.tools import Chmod, Ls, Lscpu, Make, Tar, Wget
+from lisa.util import SkippedException, UnsupportedDistroException
 
 OSU_MPI_LOCATION = (
     "https://mvapich.cse.ohio-state.edu/download/mvapich/mv2/mvapich2-2.3.7-1.tar.gz"
@@ -54,49 +54,52 @@ class OSUTestSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole],
         ),
-        priority=1,
+        priority=2,
     )
     def perf_mpi_operations(self, node: Node, log: Logger, log_path: Path) -> None:
-        _install_osu_mpi(node)
-        path = _install_osu_bench(node)
+        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            _install_osu_mpi(node)
+            path = _install_osu_bench(node)
 
-        gpu_count = node.capability.gpu_count
-        gpu = node.features[Gpu]
-        expected_count = gpu.get_gpu_count_with_lspci()
-        assert_that(gpu_count).described_as(
-            "Expected device count didn't match actual device count from lspci!"
-        ).is_equal_to(expected_count)
+            gpu_count = node.capability.gpu_count
+            gpu = node.features[Gpu]
+            expected_count = gpu.get_gpu_count_with_lspci()
+            assert_that(gpu_count).described_as(
+                "Expected device count didn't match actual device count from lspci!"
+            ).is_equal_to(expected_count)
 
-        nproc = node.tools[Lscpu].get_core_count()
-        tests = [
-            "allgather",
-            "allreduce",
-            "alltoall",
-            "bcast",
-            "gather",
-            "reduce_scatter",
-            "reduce",
-            "scatter",
-        ]
-        for test in tests:
-            node.execute(
-                f"mpirun -np {nproc} python3.8 {path}/python/run.py"
-                f" --benchmark {test} --min 128 --max 10000000 >> "
-                f"{path}/osu_bench.log",  # 2>&1
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    f"failed to run mpirun {test} benchmark"
-                ),
-                timeout=1200,
-                shell=True,
-                sudo=True,
+            nproc = node.tools[Lscpu].get_core_count()
+            tests = [
+                "allgather",
+                "allreduce",
+                "alltoall",
+                "bcast",
+                "gather",
+                "reduce_scatter",
+                "reduce",
+                "scatter",
+            ]
+            for test in tests:
+                node.execute(
+                    f"mpirun -np {nproc} python3.8 {path}/python/run.py"
+                    f" --benchmark {test} --min 128 --max 10000000 >> "
+                    f"{path}/osu_bench.log",  # 2>&1
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"failed to run mpirun {test} benchmark"
+                    ),
+                    timeout=1200,
+                    shell=True,
+                    sudo=True,
+                )
+            log.info("OSU MPI tests finish!")
+            osu_log_path = str(node.get_pure_path(f"{path}/osu_bench.log"))
+            node.tools[Chmod].chmod(osu_log_path, "a+rwX", sudo=True)
+            node.shell.copy_back(
+                node.get_pure_path(osu_log_path), PurePath(log_path) / "osu_bench.log"
             )
-        log.info("OSU MPI tests finish!")
-        osu_log_path = str(node.get_pure_path(f"{path}/osu_bench.log"))
-        node.tools[Chmod].chmod(osu_log_path, "a+rwX", sudo=True)
-        node.shell.copy_back(
-            node.get_pure_path(osu_log_path), PurePath(log_path) / "osu_bench.log"
-        )
+        else:
+            raise SkippedException("OSU MPI tests are not supported on non-HPC images.")
 
 
 def _install_osu_mpi(node: Node) -> None:

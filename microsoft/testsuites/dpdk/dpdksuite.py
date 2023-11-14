@@ -18,10 +18,10 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
-from lisa.operating_system import BSD, Windows
+from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe, Service
+from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -30,6 +30,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
+    do_parallel_cleanup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
     init_hugepages,
@@ -67,7 +68,7 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            netvsc direct pmd version.
+            netvsc pmd version.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
@@ -89,7 +90,29 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            failsafe (azure default, recommended) version.
+            netvsc pmd version with 1GiB hugepages
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_gb_hugepages_netvsc(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        verify_dpdk_build(node, log, variables, "netvsc", gibibyte_hugepages=True)
+
+    @TestCaseMetadata(
+        description="""
+            failsafe version with 1GiB hugepages.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
             The VM should have at least two network interfaces,
@@ -111,6 +134,28 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            failsafe version with 2MB hugepages
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+            with one interface for management.
+            More details: https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_gb_hugepages_failsafe(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        verify_dpdk_build(node, log, variables, "failsafe", gibibyte_hugepages=True)
+
+    @TestCaseMetadata(
+        description="""
            Install and run OVS+DPDK functional tests
         """,
         priority=4,
@@ -119,10 +164,9 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
-                data_disk_size=search_space.IntRange(min=32),
+                data_disk_size=search_space.IntRange(min=64),
             ),
         ),
     )
@@ -131,13 +175,15 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         self._force_dpdk_default_source(variables)
-        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        test_kit = initialize_node_resources(node, log, variables, "netvsc")
 
         # checkout OpenVirtualSwitch
         ovs = node.tools[DpdkOvs]
 
+        # check for runbook variable to skip dpdk version check
+        use_latest_ovs = variables.get("use_latest_ovs", False)
         # provide ovs build with DPDK tool info and build
-        ovs.build_with_dpdk(test_kit.testpmd)
+        ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
 
         # enable hugepages needed for dpdk EAL
         init_hugepages(node)
@@ -392,6 +438,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_vpp(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        if isinstance(node.os, CBLMariner):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "VPP test does not support Mariner installation."
+                )
+            )
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
@@ -565,6 +617,33 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+            Test uses 1GB hugepages.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_gb_hugepages_failsafe(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment, log, variables, "failsafe", gibibyte_hugepages=True
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
             Tests a basic sender/receiver setup for direct netvsc pmd setup.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
@@ -584,6 +663,33 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive(environment, log, variables, "netvsc")
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for direct netvsc pmd setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+            Test uses 1GB hugepages.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_gb_hugepages_netvsc(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment, log, variables, "netvsc", gibibyte_hugepages=True
+            )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
@@ -657,17 +763,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        for node in environment.nodes.list():
-            # reset SRIOV to enabled if left disabled
-            interface = node.features[NetworkInterface]
-            if not interface.is_enabled_sriov():
-                log.debug("DPDK detected SRIOV was left disabled during cleanup.")
-                interface.switch_sriov(enable=True, wait=False, reset_connections=True)
-
-            # cleanup driver changes
-            modprobe = node.tools[Modprobe]
-            if modprobe.module_exists("uio_hv_generic"):
-                node.tools[Service].stop_service("vpp")
-                modprobe.remove(["uio_hv_generic"])
-                node.close()
-                modprobe.reload(["hv_netvsc"])
+        do_parallel_cleanup(environment)

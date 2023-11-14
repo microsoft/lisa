@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type, cast
 
-from lisa import notifier
 from lisa.executable import Tool
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
     CBLMariner,
     Debian,
@@ -18,9 +17,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Echo
-from lisa.tools.git import Git
-from lisa.tools.make import Make
+from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -161,14 +158,18 @@ class Xfstests(Tool):
         data_disk: str = "",
         timeout: int = 14400,
     ) -> None:
-        self.run(
+        self.run_async(
             f"-g {test_type}/quick -E exclude.txt  > xfstest.log 2>&1",
             sudo=True,
             shell=True,
             force_run=True,
             cwd=self.get_xfstests_path(),
-            timeout=timeout,
         )
+
+        pgrep = self.node.tools[Pgrep]
+        # this is the actual process name, when xfstests runs.
+        pgrep.wait_processes("check", timeout=timeout)
+
         self.check_test_results(
             log_path=log_path, test_type=test_type, result=result, data_disk=data_disk
         )
@@ -322,7 +323,8 @@ class Xfstests(Tool):
             if self.node.shell.exists(exclude_file_path):
                 self.node.shell.remove(exclude_file_path)
             echo = self.node.tools[Echo]
-            echo.write_to_file(exclude_tests, exclude_file_path)
+            for exclude_test in exclude_tests.split():
+                echo.write_to_file(exclude_test, exclude_file_path, append=True)
 
     def create_send_subtest_msg(
         self,
@@ -331,8 +333,6 @@ class Xfstests(Tool):
         test_type: str,
         data_disk: str,
     ) -> None:
-        environment = test_result.environment
-        assert environment, "fail to get environment from testresult"
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         assert all_cases_match, "fail to find run cases from xfstests output"
         all_cases = (all_cases_match.group("all_cases")).split()
@@ -345,7 +345,7 @@ class Xfstests(Tool):
         if fail_match:
             fail_cases = (fail_match.group("fail_cases")).split()
         pass_cases = [
-            x for x in all_cases if x not in not_run_cases and x not in not_run_cases
+            x for x in all_cases if x not in not_run_cases and x not in fail_cases
         ]
         results: List[XfstestsResult] = []
         for case in fail_cases:
@@ -360,17 +360,12 @@ class Xfstests(Tool):
             info["information"] = {}
             info["information"]["test_type"] = test_type
             info["information"]["data_disk"] = data_disk
-            subtest_message = create_test_result_message(
-                SubTestMessage,
-                test_result,
-                environment,
-                result.name,
-                result.status,
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
-
-            # notify subtest result
-            notifier.notify(subtest_message)
 
     def check_test_results(
         self,

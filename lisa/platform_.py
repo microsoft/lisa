@@ -175,6 +175,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         return environment
 
     def deploy_environment(self, environment: Environment) -> None:
+        platform_runbook = cast(schema.Platform, self.runbook)
+
         log = get_logger(f"deploy[{environment.name}]", parent=self._log)
         log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
@@ -186,8 +188,15 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # features may need platform, so create it in platform
         for node in environment.nodes.list():
             node.features = Features(node, self)
-            node.capture_azure_information = self.runbook.capture_azure_information
-            node.capture_boot_time = self.runbook.capture_azure_information
+            node.capture_azure_information = platform_runbook.capture_azure_information
+            node.capture_boot_time = platform_runbook.capture_boot_time
+            node.capture_kernel_config = (
+                platform_runbook.capture_kernel_config_information
+            )
+
+            if platform_runbook.guest_enabled:
+                self._initialize_guest_nodes(node)
+
         log.info(f"deployed in {timer}")
 
     def delete_environment(self, environment: Environment) -> None:
@@ -219,6 +228,27 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def cleanup(self) -> None:
         self._cleanup()
+
+    def _initialize_guest_nodes(self, node: Node) -> None:
+        platform_runbook = cast(schema.Platform, self.runbook)
+
+        if not platform_runbook.guests:
+            raise LisaException(
+                "guests must be defined in the platform runbook, "
+                "when guest_enabled is True."
+            )
+
+        for guest_runbook in platform_runbook.guests:
+            guest_runbook = cast(schema.GuestNode, guest_runbook)
+            # follow parent capability, so it can pass requirements validations.
+            guest_runbook.capability = node.capability
+            guest_node = node.create(
+                index=len(node.guests),
+                runbook=guest_runbook,
+                logger_name="g",
+                parent=node,
+            )
+            node.guests.append(guest_node)
 
 
 def load_platform(platforms_runbook: List[schema.Platform]) -> Platform:

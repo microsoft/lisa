@@ -9,8 +9,8 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CoreOs, Redhat, Ubuntu
-from lisa.tools import Gcc, Git, Modinfo, PowerShell, Service, Uname
+from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian, Redhat
+from lisa.tools import Gcc, Git, Modinfo, PowerShell, Sed, Service, Uname
 from lisa.tools.ls import Ls
 from lisa.util import (
     LisaException,
@@ -97,7 +97,7 @@ class Waagent(Tool):
 
     def restart(self) -> None:
         service = self.node.tools[Service]
-        if isinstance(self.node.os, Ubuntu):
+        if isinstance(self.node.os, Debian):
             service.restart_service("walinuxagent")
         else:
             service.restart_service("waagent")
@@ -151,6 +151,23 @@ class Waagent(Tool):
             return False
         else:
             raise LisaException(f"Unknown value for OS.EnableRDMA : {is_rdma_enabled}")
+
+    def enable_configuration(self, configuration_name: str) -> None:
+        waagent_configuration = self._get_configuration(force_run=True)
+        is_conf_enabled = waagent_configuration.get(configuration_name, None)
+        if is_conf_enabled:
+            if is_conf_enabled == "y":
+                self._log.debug(f"{configuration_name} has been already enabled")
+            elif is_conf_enabled == "n":
+                self.node.tools[Sed].substitute(
+                    regexp=f"{configuration_name}=n",
+                    replacement=f"{configuration_name}=y",
+                    file=self._get_waagent_conf_path(),
+                    sudo=True,
+                )
+                self.restart()
+        else:
+            self._log.debug(f"not find {configuration_name} in waagent.conf")
 
     def get_python_cmd(self) -> Tuple[str, bool]:
         if self._python_cmd is not None and self._python_use_sudo is not None:
@@ -474,7 +491,7 @@ class AzCmdlet(Tool):
 class Azsecd(Tool):
     @property
     def command(self) -> str:
-        return "azsecd"
+        return "/usr/local/bin/azsecd"
 
     @property
     def can_install(self) -> bool:

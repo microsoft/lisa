@@ -10,6 +10,7 @@ from lisa import schema
 from lisa.feature import Feature
 from lisa.tools import Mount
 from lisa.tools.mount import PartitionInfo
+from lisa.util import LisaException
 
 
 class Disk(Feature):
@@ -47,6 +48,9 @@ class Disk(Feature):
     def get_all_disks(self) -> List[str]:
         raise NotImplementedError
 
+    def get_hardware_disk_controller_type(self) -> schema.DiskControllerType:
+        raise NotImplementedError
+
     def add_data_disk(
         self,
         count: int,
@@ -64,14 +68,48 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
+    # Get boot partition of VM by looking for "/boot" and "/boot/efi"
+    def get_os_boot_partition(self) -> Optional[PartitionInfo]:
+        partition_info = self._node.tools[Mount].get_partition_info()
+        boot_partition: Optional[PartitionInfo] = None
+        for partition in partition_info:
+            if partition.mount_point.startswith("/boot"):
+                boot_partition = partition
+                break
+        return boot_partition
 
-DiskEphemeral = partial(schema.DiskOptionSettings, disk_type=schema.DiskType.Ephemeral)
+    # Get disk controller type from the VM by checking the boot partition
+    def get_os_disk_controller_type(self) -> schema.DiskControllerType:
+        boot_partition = self.get_os_boot_partition()
+        assert boot_partition, "'boot_partition' must not be 'None'"
+
+        if boot_partition.disk.startswith("nvme"):
+            os_disk_controller_type = schema.DiskControllerType.NVME
+        elif boot_partition.disk.startswith("sd"):
+            os_disk_controller_type = schema.DiskControllerType.SCSI
+        else:
+            raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
+        return os_disk_controller_type
+
+
+DiskEphemeral = partial(
+    schema.DiskOptionSettings, os_disk_type=schema.DiskType.Ephemeral
+)
 DiskPremiumSSDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.PremiumSSDLRS
+    schema.DiskOptionSettings,
+    data_disk_type=schema.DiskType.PremiumSSDLRS,
+    os_disk_type=schema.DiskType.PremiumSSDLRS,
 )
 DiskStandardHDDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardHDDLRS
+    schema.DiskOptionSettings,
+    data_disk_type=schema.DiskType.StandardHDDLRS,
+    os_disk_type=schema.DiskType.StandardHDDLRS,
 )
 DiskStandardSSDLRS = partial(
-    schema.DiskOptionSettings, disk_type=schema.DiskType.StandardSSDLRS
+    schema.DiskOptionSettings,
+    data_disk_type=schema.DiskType.StandardSSDLRS,
+    os_disk_type=schema.DiskType.StandardSSDLRS,
+)
+DiskUltraSSDLRS = partial(
+    schema.DiskOptionSettings, data_disk_type=schema.DiskType.UltraSSDLRS
 )

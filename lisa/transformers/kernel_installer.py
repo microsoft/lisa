@@ -6,13 +6,15 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
+from assertpy.assertpy import assert_that
 from dataclasses_json import dataclass_json
 
-from lisa import schema
+from lisa import notifier, schema
+from lisa.messages import KernelBuildMessage
 from lisa.node import Node, quick_connect
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.tools import Uname
+from lisa.tools import Echo, Uname
 from lisa.transformer import Transformer
 from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
@@ -72,6 +74,7 @@ class KernelInstallerTransformerSchema(schema.Transformer):
     installer: Optional[BaseInstallerSchema] = field(
         default=None, metadata=field_metadata(required=True)
     )
+    raise_exception: Optional[bool] = True
 
 
 class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
@@ -100,6 +103,8 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
 
 class KernelInstallerTransformer(Transformer):
     _information_output_name = "information"
+    _is_success_output_name = "is_success"
+
     _information: Dict[str, Any] = dict()
 
     @classmethod
@@ -119,11 +124,16 @@ class KernelInstallerTransformer(Transformer):
         assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
+        message = KernelBuildMessage()
+        build_sucess: bool = False
+        boot_success: bool = False
+
         node = quick_connect(runbook.connection, "installer_node")
 
         uname = node.tools[Uname]
+        kernel_version_before_install = uname.get_linux_information()
         self._log.info(
-            f"kernel version before install: {uname.get_linux_information()}"
+            f"kernel version before install: {kernel_version_before_install}"
         )
         factory = subclasses.Factory[BaseInstaller](BaseInstaller)
         installer = factory.create_by_runbook(
@@ -131,16 +141,31 @@ class KernelInstallerTransformer(Transformer):
         )
 
         installer.validate()
-        installed_kernel_version = installer.install()
-        self._information = installer.information
-        self._log.info(f"installed kernel version: {installed_kernel_version}")
 
-        # for ubuntu cvm kernel, there is no menuentry added into grub file
-        if hasattr(installer.runbook, "source"):
-            if installer.runbook.source != "linux-image-azure-fde":
+        try:
+            message.old_kernel_version = uname.get_linux_information(
+                force_run=True
+            ).kernel_version_raw
+
+            installed_kernel_version = installer.install()
+            build_sucess = True
+            self._information = installer.information
+            self._log.info(f"installed kernel version: {installed_kernel_version}")
+
+            # for ubuntu cvm kernel, there is no menuentry added into grub file when
+            # the installer's type is "source", it needs to add the menuentry into grub
+            # file. Otherwise, the node might not boot into the new kernel especially
+            # the installed kernel version is lower than current kernel version.
+            from lisa.transformers.kernel_source_installer import SourceInstaller
+
+            if (
+                isinstance(installer, RepoInstaller)
+                and installer.runbook.source != "linux-image-azure-fde"
+                or isinstance(installer, SourceInstaller)
+            ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
-            else:
+            elif isinstance(installer, RepoInstaller):
                 efi_files = node.execute(
                     "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
                     sudo=True,
@@ -165,13 +190,27 @@ class KernelInstallerTransformer(Transformer):
                     shell=True,
                 )
 
-        self._log.info("rebooting")
-        node.reboot()
-        self._log.info(
-            f"kernel version after install: "
-            f"{uname.get_linux_information(force_run=True)}"
-        )
-        return {self._information_output_name: self._information}
+            self._log.info("rebooting")
+            node.reboot()
+            boot_success = True
+            new_kernel_version = uname.get_linux_information(force_run=True)
+            message.new_kernel_version = new_kernel_version.kernel_version_raw
+            self._log.info(f"kernel version after install: " f"{new_kernel_version}")
+            assert_that(
+                new_kernel_version.kernel_version_raw, "Kernel installation Failed"
+            ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
+        except Exception as e:
+            message.error_message = str(e)
+            if runbook.raise_exception:
+                raise e
+            self._log.info(f"Kernel build failed: {e}")
+        finally:
+            message.is_success = build_sucess and boot_success
+            notifier.notify(message)
+        return {
+            self._information_output_name: self._information,
+            self._is_success_output_name: build_sucess and boot_success,
+        }
 
 
 class RepoInstaller(BaseInstaller):
@@ -211,18 +250,35 @@ class RepoInstaller(BaseInstaller):
             release
         ), f"cannot find codename from the os version: {node.os.information}"
 
+        version_name = release
         # add the repo
-        # 'main' is the only repo component supported by 'private-ppa' and
-        # 'proposed2' repositories
         if runbook.is_proposed:
-            if "proposed2" in self.repo_url or "private-ppa" in self.repo_url:
-                version_name = release
+            if "proposed2" in self.repo_url:
+                repo_entry = "ppa:canonical-kernel-team/proposed2"
+            elif "private-ppa" in self.repo_url:
+                # 'main' is the only repo component supported by 'private-ppa'
                 repo_component = "main"
+                repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
             else:
                 version_name = f"{release}-proposed"
+                repo_entry = "ppa:canonical-kernel-team/proposed"
         else:
-            version_name = release
-        repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
+            repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
+
+        if release == "lunar":
+            config = [
+                "Package: *",
+                "Pin: release a=*-proposed",
+                "Pin-Priority: 500",
+            ]
+            echo = node.tools[Echo]
+            for config_line in config:
+                echo.write_to_file(
+                    config_line,
+                    node.get_pure_path("/etc/apt/preferences.d/proposed.pref"),
+                    append=True,
+                    sudo=True,
+                )
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = f"{runbook.source}/{version_name}"

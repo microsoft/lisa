@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
-from lisa import Environment, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.testsuite import TestResult
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
@@ -14,9 +14,10 @@ from microsoft.testsuites.kselftest.kselftest import Kselftest
     """,
 )
 class KselftestTestsuite(TestSuite):
-    # kselftests take about an hour to complete, timeout below
-    # is in seconds and set to 1.5x an hour i.e. 90mins
-    _TIME_OUT = 5400
+    # kselftests take about a one and half an hour to complete,
+    # timeout below is in seconds and set to 2 hours.
+    _CASE_TIME_OUT = 7200
+    _KSELF_TIMEOUT = 6700
 
     @TestCaseMetadata(
         description="""
@@ -34,12 +35,14 @@ class KselftestTestsuite(TestSuite):
         run_kselftest.sh and redirects test results to a file kselftest-results.txt.
         """,
         priority=3,
-        timeout=_TIME_OUT,
+        timeout=_CASE_TIME_OUT,
+        requirement=simple_requirement(
+            min_core_count=16,
+        ),
     )
     def verify_kselftest(
         self,
         node: Node,
-        environment: Environment,
         log_path: str,
         variables: Dict[str, Any],
         result: TestResult,
@@ -50,10 +53,6 @@ class KselftestTestsuite(TestSuite):
                 Kselftest,
                 kselftest_file_path=file_path,
             )
-            kselftest.run_all(
-                result,
-                environment,
-                log_path,
-            )
+            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT)
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)

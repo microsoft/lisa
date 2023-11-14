@@ -85,6 +85,7 @@ from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
 from .pidof import Pidof
 from .ping import Ping
+from .pkgconfig import Pkgconfig
 from .powershell import PowerShell
 from .python import Pip, Python
 from .qemu import Qemu
@@ -116,6 +117,7 @@ from .usermod import Usermod
 from .vdsotest import Vdsotest
 from .who import Who
 from .whoami import Whoami
+from .wsl import Wsl
 
 __all__ = [
     "AptAddRepository",
@@ -201,6 +203,7 @@ __all__ = [
     "Pgrep",
     "Ping",
     "Pip",
+    "Pkgconfig",
     "PowerShell",
     "ProcessInfo",
     "Python",
@@ -240,4 +243,5 @@ __all__ = [
     "Vdsotest",
     "Who",
     "Whoami",
+    "Wsl",
 ]

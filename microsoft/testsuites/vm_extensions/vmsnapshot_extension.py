@@ -138,7 +138,6 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 restore_point_name=restore_point,
                 expand=None,
             )
-            log.info(response)
             if response.provisioning_state == "Succeeded":
                 log.info(f"restore point {restore_point} created")
                 consistency_mode = response.consistency_mode
@@ -319,3 +318,4 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 print(f"Substatus : '{substatus}'")
 
             print(result)
+

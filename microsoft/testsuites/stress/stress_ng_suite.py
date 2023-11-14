@@ -3,16 +3,9 @@
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
 
-from lisa import (
-    Environment,
-    RemoteNode,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-    notifier,
-)
+from lisa import Environment, RemoteNode, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features import SerialConsole
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
 from lisa.util import SkippedException
@@ -139,33 +132,14 @@ class StressNgTestSuite(TestSuite):
             test_status = TestStatus.FAILED
             test_msg = repr(e)
         finally:
-            self._send_subtest_msg(
-                test_result,
-                environment,
-                job_file_name,
-                test_status,
-                test_msg,
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=job_file_name,
+                test_status=test_status,
+                test_message=test_msg,
             )
             self._check_panic(nodes)
 
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
             node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
-
-    def _send_subtest_msg(
-        self,
-        test_result: TestResult,
-        environment: Environment,
-        test_name: str,
-        test_status: TestStatus,
-        test_msg: str = "",
-    ) -> None:
-        subtest_msg = create_test_result_message(
-            SubTestMessage,
-            test_result,
-            environment,
-            test_name,
-            test_status,
-        )
-
-        notifier.notify(subtest_msg)

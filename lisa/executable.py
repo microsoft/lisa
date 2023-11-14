@@ -196,7 +196,7 @@ class Tool(InitializableMixin):
         if result.exit_code == 0:
             exists = True
             use_sudo = False
-        else:
+        elif self.node.is_posix:
             result = self.node.execute(
                 where_command,
                 shell=True,
@@ -210,6 +210,12 @@ class Tool(InitializableMixin):
                 )
                 exists = True
                 use_sudo = True
+        else:
+            # for Windows, where is not enough to check if a full path exists,
+            # use dir to try again.
+            test_command = f"powershell test-path '{command}'"
+            result = self.node.execute(test_command, shell=True, no_info_log=True)
+            exists = result.stdout == "True"
         return exists, use_sudo
 
     def install(self) -> bool:
@@ -235,6 +241,9 @@ class Tool(InitializableMixin):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        # node uses for guest nodes.
+        node: Optional["Node"] = None,
+        encoding: str = "",
     ) -> Process:
         """
         Run a command async and return the Process. The process is used for async, or
@@ -250,8 +259,10 @@ class Tool(InitializableMixin):
         sudo = sudo or self._use_sudo
         command_key = f"{command}|{shell}|{sudo}|{cwd}"
         process = self.__cached_results.get(command_key, None)
+        if node is None:
+            node = self.node
         if force_run or not process:
-            process = self.node.execute_async(
+            process = node.execute_async(
                 command,
                 shell=shell,
                 sudo=sudo,
@@ -260,6 +271,7 @@ class Tool(InitializableMixin):
                 no_debug_log=no_debug_log,
                 cwd=cwd,
                 update_envs=update_envs,
+                encoding=encoding,
             )
             self.__cached_results[command_key] = process
         else:
@@ -277,6 +289,7 @@ class Tool(InitializableMixin):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        encoding: str = "",
         timeout: int = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
@@ -294,6 +307,7 @@ class Tool(InitializableMixin):
             no_debug_log=no_debug_log,
             cwd=cwd,
             update_envs=update_envs,
+            encoding=encoding,
         )
         return process.wait_result(
             timeout=timeout,
@@ -376,6 +390,8 @@ class CustomScript(Tool):
         no_debug_log: bool = False,
         cwd: Optional[pathlib.PurePath] = None,
         update_envs: Optional[Dict[str, str]] = None,
+        node: Optional["Node"] = None,
+        encoding: str = "",
     ) -> Process:
         if cwd is not None:
             raise LisaException("don't set cwd for script")
@@ -390,38 +406,8 @@ class CustomScript(Tool):
             no_debug_log=no_debug_log,
             cwd=self._cwd,
             update_envs=update_envs,
-        )
-
-    def run(
-        self,
-        parameters: str = "",
-        force_run: bool = False,
-        shell: bool = False,
-        sudo: bool = False,
-        no_error_log: bool = False,
-        no_info_log: bool = True,
-        no_debug_log: bool = False,
-        cwd: Optional[pathlib.PurePath] = None,
-        update_envs: Optional[Dict[str, str]] = None,
-        timeout: int = 600,
-        expected_exit_code: Optional[int] = None,
-        expected_exit_code_failure_message: str = "",
-    ) -> ExecutableResult:
-        process = self.run_async(
-            parameters=parameters,
-            force_run=force_run,
-            shell=shell,
-            sudo=sudo,
-            no_error_log=no_error_log,
-            no_info_log=no_info_log,
-            no_debug_log=no_debug_log,
-            cwd=cwd,
-            update_envs=update_envs,
-        )
-        return process.wait_result(
-            timeout=timeout,
-            expected_exit_code=expected_exit_code,
-            expected_exit_code_failure_message=expected_exit_code_failure_message,
+            node=node,
+            encoding=encoding,
         )
 
     @property

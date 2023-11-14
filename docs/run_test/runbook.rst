@@ -50,6 +50,7 @@ Runbook Reference
       -  `batch combinator <#batch-combinator>`__
 
          -  `items <#items-1>`__
+      -   `bisect combinator <#bisect-combinator>`__
 
    -  `notifier <#notifier>`__
 
@@ -433,7 +434,7 @@ type: bool, optional, default is False.
 When set to True, the value of this variable will be masked in log and
 other output information.
 
-Recommend to use secret file or env variable. It’s not recommended to
+Recommend to use secret file or env variable. It's not recommended to
 specify secret value in runbook directly.
 
 file
@@ -471,7 +472,7 @@ type: str, required, the type of transformer. See `transformers
 <https://github.com/microsoft/lisa/tree/main/lisa/transformers>`__ for all
 transformers.
 
-See  :ref:`documentation for transformers <transformers.rst>`
+See :doc:`documentation for transformers<transformers>`.
 
 .. _name-3:
 
@@ -480,8 +481,8 @@ name
 
 type: str, optional, default is the ``type``.
 
-Unique name of the transformer. It’s depended by other transformers. If
-it’s not specified, it will use the ``type`` field. But if there are two
+Unique name of the transformer. It's depended by other transformers. If
+it's not specified, it will use the ``type`` field. But if there are two
 transformers with the same type, one of them should have name at least.
 
 prefix
@@ -489,7 +490,7 @@ prefix
 
 type: str, optional, default is the ``name``.
 
-The prefix of generated variables from this transformer. If it’s not
+The prefix of generated variables from this transformer. If it's not
 specified, it will use the ``name`` field.
 
 depends_on
@@ -570,6 +571,30 @@ For example,
        vm_size: Standard_DS3_v2
      - image: CentOS
        vm_size: Standard_DS3_v2
+
+
+bisect combinator
+^^^^^^^^^^^^^^^^^
+
+Specify a git repo url, the good commit and bad commit. The combinator
+performs bisect operations on VM specified under 'connection'.
+
+The runbook will be iterated until the bisect operations completes.
+
+For example,
+
+.. code:: yaml
+
+  combinator:
+    type: git_bisect
+    repo: $(repo_url)
+    bad_commit: $(bad_commit)
+    good_commit: $(good_commit)
+    connection:
+      address: $(bisect_vm_address)
+      private_key_file: $(admin_private_key_file)
+
+Refer `Sample runbook <https://github.com/microsoft/lisa/blob/main/examples/runbook/git_bisect.yml>`__
 
 notifier
 ~~~~~~~~

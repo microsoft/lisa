@@ -8,9 +8,8 @@ from typing import Any, Dict, List, Optional, Type
 
 from assertpy import assert_that
 
-from lisa import Environment, notifier
 from lisa.executable import Tool
-from lisa.messages import SubTestMessage, TestStatus, create_test_result_message
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
 from lisa.testsuite import TestResult
@@ -24,6 +23,7 @@ from lisa.tools import (
     Ls,
     Make,
     Mkdir,
+    Pgrep,
     Rm,
     Swap,
     Sysctl,
@@ -57,6 +57,7 @@ class Ltp(Tool):
     LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
     LTP_SKIP_FILE = "/opt/ltp/skipfile"
     COMPILE_TIMEOUT = 1800
+    RUN_TIMEOUT = 12000
 
     @property
     def command(self) -> str:
@@ -78,7 +79,6 @@ class Ltp(Tool):
     def run_test(
         self,
         test_result: TestResult,
-        environment: Environment,
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
@@ -134,12 +134,14 @@ class Ltp(Tool):
 
         # run ltp tests
         command = f"{self.command} {parameters}"
-        self.node.execute(
+        self.node.execute_async(
             f"echo y | {command}",
             sudo=True,
-            timeout=12000,
             shell=True,
         )
+
+        pgrep = self.node.tools[Pgrep]
+        pgrep.wait_processes("runltp", timeout=self.RUN_TIMEOUT)
 
         # to avoid no permission issue when copying back files
         self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
@@ -172,17 +174,12 @@ class Ltp(Tool):
             info["information"] = {}
             info["information"]["version"] = result.version
             info["information"]["exit_value"] = result.exit_value
-            subtest_message = create_test_result_message(
-                SubTestMessage,
-                test_result,
-                environment,
-                result.name,
-                result.status,
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
-
-            # notify subtest result
-            notifier.notify(subtest_message)
 
         # assert that none of the tests failed
         assert_that(
