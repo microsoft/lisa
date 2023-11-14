@@ -42,9 +42,13 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.mkfs import FileSystem
-from lisa.util.constants import AZ_ROUTE_ALL_TRAFFIC, SIGINT
+from lisa.util.constants import SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
-from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO, check_dpdk_support
+from microsoft.testsuites.dpdk.common import (
+    AZ_ROUTE_ALL_TRAFFIC,
+    DPDK_STABLE_GIT_REPO,
+    check_dpdk_support,
+)
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 
 

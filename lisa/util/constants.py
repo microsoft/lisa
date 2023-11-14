@@ -163,7 +163,3 @@ LISA_TEST_FOR_SUDO = "lisa test for sudo"
 SIGINT = 2
 SIGTERM = 15
 SIGKILL = 9
-
-# azure routing table magic subnet prefix
-# signals 'route all traffic on this subnet'
-AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
