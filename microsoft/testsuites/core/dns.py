@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 
-from retry import retry
-
 from lisa import (
     Node,
     TestCaseMetadata,
@@ -20,6 +18,7 @@ from lisa.util import (
     PassedException,
     ReleaseEndOfLifeException,
     RepoNotExistException,
+    retry_without_exceptions,
 )
 
 
@@ -72,7 +71,11 @@ class Dns(TestSuite):
             node.reboot()
             self._check_dns_name_resolution(node)
 
-    @retry(tries=10, delay=0.5)
+    @retry_without_exceptions(
+        tries=10,
+        delay=0.5,
+        skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
+    )
     def _check_dns_name_resolution(self, node: Node) -> None:
         ping = node.tools[Ping]
         try:
