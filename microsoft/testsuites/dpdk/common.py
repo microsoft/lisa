@@ -7,6 +7,10 @@ from lisa.util import UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 
+# azure routing table magic subnet prefix
+# signals 'route all traffic on this subnet'
+AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
 
 def check_dpdk_support(node: Node) -> None:
     # check requirements according to:
