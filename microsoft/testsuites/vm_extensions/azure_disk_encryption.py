@@ -56,6 +56,14 @@ class AzureDiskEncryption(TestSuite):
             if node.os.is_package_in_repo(package):
                 node.os.install_packages(package)
 
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        # Disk Encryption may cause node to be in bad state
+        # some time after the test case is done. This can cause
+        # subsequent test cases to fail when environment is reused.
+        # Hence, mark the node as dirty.
+        node = kwargs["node"]
+        node.mark_dirty()
+
     @TestCaseMetadata(
         description="""
         Runs the ADE extension and verifies it
