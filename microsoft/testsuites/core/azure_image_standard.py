@@ -226,6 +226,13 @@ class AzureImageStandard(TestSuite):
         # refer https://access.redhat.com/solutions/6732061
         re.compile(r"^(.*ib_srpt MAD registration failed for.*)$", re.M),
         re.compile(r"^(.*ib_srpt srpt_add_one\(.*\) failed.*)$", re.M),
+        # this warning shown up because kvp file created after the cloud-init check
+        re.compile(
+            r"^(.*handlers.py\[WARNING\]: failed to truncate kvp pool file.*)$",
+            re.M,
+        ),
+        # pam_unix,pam_faillock
+        re.compile(r"^(.*pam_unix,pam_faillock.*)$", re.M),
     ]
 
     @TestCaseMetadata(
