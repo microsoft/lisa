@@ -7,7 +7,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import PurePath, PurePosixPath
 
 from assertpy.assertpy import assert_that
 
@@ -170,21 +170,23 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         parent_directory = ""
 
         f_name = node.working_path / filename
-        temp_file = os.path.join(parent_directory, filename)
-        temp_file = PurePosixPath(temp_file)
-        file_path = os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
+        temp_file = PurePosixPath(os.path.join(parent_directory, filename))
+        file_path = PurePath(
+            os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
+        )
         print(temp_file)
         print("file_path", file_path)
         lib_name = node.working_path / lib_file
-        temp_lib = os.path.join(parent_directory, lib_file)
-        temp_lib = PurePosixPath(temp_lib)
+        temp_lib = PurePosixPath(os.path.join(parent_directory, lib_file))
         print(temp_lib)
-        lib_path = os.path.join((os.path.dirname(__file__)), "scripts", temp_lib)
+        lib_path = PurePath(
+            os.path.join((os.path.dirname(__file__)), "scripts", temp_lib)
+        )
         print("lib path", lib_path)
         node.shell.copy(file_path, f_name)
         node.shell.copy(lib_path, lib_name)
         print("working path", node.working_path)
-        startpath = "/var/lib/waagent/"
+        startpath = PurePath("/var/lib/waagent/")
         namepattern = "Microsoft.Azure.RecoveryServices.VMSnapshotLinux-1.0.*"
         sudo = True
         find_tool = node.tools[Find]
@@ -318,4 +320,3 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 print(f"Substatus : '{substatus}'")
 
             print(result)
-
