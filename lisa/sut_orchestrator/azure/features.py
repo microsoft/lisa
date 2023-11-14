@@ -106,6 +106,7 @@ from .common import (
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
+    is_cloud_init_enabled,
     save_console_log,
     wait_operation,
 )
@@ -1517,13 +1518,8 @@ class Disk(AzureFeatureMixin, features.Disk):
     def get_resource_disk_mount_point(self) -> str:
         # get customize mount point from cloud-init configuration file from /etc/cloud/
         # if not found, use default mount point /mnt for cloud-init
-        if self._node.shell.exists(
-            self._node.get_pure_path("/var/log/cloud-init.log")
-        ) and self._node.shell.exists(
-            self._node.get_pure_path("/var/lib/cloud/instance")
-        ):
+        if is_cloud_init_enabled(self._node):
             self._log.debug("Disk handled by cloud-init.")
-
             # get mount point from cloud-init config files
             find_tool = self._node.tools[Find]
             file_list = find_tool.find_files(

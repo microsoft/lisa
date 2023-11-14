@@ -79,6 +79,7 @@ from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
+from lisa.tools import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -2342,3 +2343,13 @@ def delete_certificate(
     except Exception:
         error_message = f"Failed to delete certificate: {cert_name}"
         raise LisaException(error_message)
+
+
+def is_cloud_init_enabled(node: Node) -> bool:
+    ls_tool = node.tools[Ls]
+
+    if ls_tool.path_exists(
+        "/var/log/cloud-init.log", sudo=True
+    ) and ls_tool.path_exists("/var/lib/cloud/instance", sudo=True):
+        return True
+    return False
