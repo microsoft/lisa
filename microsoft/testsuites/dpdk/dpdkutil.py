@@ -714,11 +714,11 @@ def run_ovs_ntttcp_test(
     # there should be more stringest checks for each NIC type.
     throughput = ntttcp_results[dest_node].throughput_in_gbps
     assert_that(throughput).described_as(
-        "l3fwd test found 0Gbps througput. "
+        "OVS-tso test found 0Gbps througput. "
         "Either the test or DPDK forwarding is broken."
     ).is_greater_than(0)
     assert_that(throughput).described_as(
-        f"l3fwd has very low throughput: {throughput}Gbps! "
+        f"OVS-tso test found very low throughput: {throughput}Gbps! "
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
     ).is_greater_than(1)
@@ -726,6 +726,9 @@ def run_ovs_ntttcp_test(
         f"ovs-vsctl get Interface {ovs.OVS_BRIDGE_NAME} statistics",
         shell=True,
         sudo=True,
+    )
+    source_node.execute(
+        "$ ovs-appctl dpif-netdev/pmd-stats-show", shell=True, sudo=True
     )
 
 
