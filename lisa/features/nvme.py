@@ -10,6 +10,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema, search_space
 from lisa.feature import Feature
+from lisa.features import Disk
 from lisa.operating_system import BSD
 from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
@@ -73,6 +74,16 @@ class Nvme(Feature):
     def get_namespaces_from_cli(self) -> List[str]:
         return self._node.tools[Nvmecli].get_namespaces()
 
+    def get_os_partition_namespace(self) -> str:
+        node_disk = self._node.features[Disk]
+        os_partition_namespace = ""
+        os_boot_partition = node_disk.get_os_boot_partition()
+        # Sample os_boot_partition when disc controller type is NVMe:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        if os_boot_partition:
+            os_partition_namespace = os_boot_partition.name.split("p")[0]
+        return os_partition_namespace
+
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
         lspci_tool = self._node.tools[Lspci]
@@ -84,6 +95,18 @@ class Nvme(Feature):
 
     def get_raw_data_disks(self) -> List[str]:
         return self.get_namespaces()
+
+    def get_raw_nvme_disks(self) -> List[str]:
+        nvme_namespaces = self.get_namespaces()
+        # With disk controller type NVMe, OS disk and all remote disks appear as NVMes.
+        # They should be removed from the list of namespaces for NVMe tests as they are
+        # not actual NVMe devices.
+        # OS disk and all remote disks are connected to the same NVMe controller.
+        # Excluding the OS disk's namespace from the list of namespaces will exclude
+        # all remote disks.
+        get_os_partition_namespace = self.get_os_partition_namespace()
+        nvme_namespaces.remove(get_os_partition_namespace)
+        return nvme_namespaces
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:
         if (not self._ls_devices) or force_run:

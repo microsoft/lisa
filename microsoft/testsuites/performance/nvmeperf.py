@@ -38,7 +38,7 @@ class NvmePerformace(TestSuite):
     )
     def perf_nvme(self, node: Node, result: TestResult) -> None:
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         disk_count = len(nvme_namespaces)
         assert_that(disk_count).described_as(
             "At least 1 NVMe disk for fio testing."
