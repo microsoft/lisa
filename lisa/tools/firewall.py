@@ -3,6 +3,7 @@
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
+from lisa.operating_system import Posix
 
 
 class Firewall(Tool):
@@ -57,7 +58,12 @@ class Iptables(Tool):
 
     @property
     def can_install(self) -> bool:
-        return False
+        return True
+
+    def install(self) -> bool:
+        assert isinstance(self.node.os, Posix)
+        self.node.os.install_packages("iptables")
+        return self._check_exists()
 
     def accept(
         self,
