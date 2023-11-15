@@ -74,12 +74,12 @@ class Nvme(Feature):
     def get_namespaces_from_cli(self) -> List[str]:
         return self._node.tools[Nvmecli].get_namespaces()
 
-    def get_os_partition_namespace(self) -> List[str]:
+    def get_os_partition_namespace(self) -> str:
         node_disk = self._node.features[Disk]
         os_partition_namespace = ""
         os_boot_partition = node_disk.get_os_boot_partition()
         if os_boot_partition:
-            os_partition_namespace = os_boot_partition.name[0:12]
+            os_partition_namespace = os_boot_partition.name.split("p")[0]
         return os_partition_namespace
 
     def get_devices_from_lspci(self) -> List[PciDevice]:
