@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from typing import Any, Dict
+
 from lisa import Node
 from lisa.operating_system import Debian, Oracle, Redhat, Suse, Ubuntu
 from lisa.util import UnsupportedDistroException
@@ -10,6 +12,11 @@ DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
+
+def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
+    if not variables.get("dpdk_source", None):
+        variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
 def check_dpdk_support(node: Node) -> None:

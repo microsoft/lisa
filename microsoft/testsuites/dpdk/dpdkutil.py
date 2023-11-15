@@ -719,6 +719,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     pmd: str = "netvsc",
     enable_gibibyte_hugepages: bool = False,
     force_single_queue: bool = False,
+    is_perf_test: bool = False,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -1000,7 +1001,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
     # send result to notifier if we found a test result to report with
-    if test_result:
+    if test_result and is_perf_test:
         msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
             server_result=ntttcp_results[receiver],
             client_result=ntttcp_results[sender],
