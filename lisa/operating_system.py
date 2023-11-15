@@ -1293,7 +1293,50 @@ class Ubuntu(Debian):
         super()._initialize_package_installation()
 
 
+@dataclass
+# Repositories:
+#   FreeBSD: {
+#     url             : "pkg+http://pkg.FreeBSD.org/FreeBSD:13:amd64/quarterly",
+#     enabled         : yes,
+#     priority        : 0,
+#     mirror_type     : "SRV",
+#     signature_type  : "FINGERPRINTS",
+#     fingerprints    : "/usr/share/keys/pkg"
+#   }
+class FreeBSDRepositoryInfo(RepositoryInfo):
+    # url for the repository.
+    # Example: `pkg+http://pkg.FreeBSD.org/FreeBSD:13:amd64/quarterly`
+    url: str
+
+    # enabled for the repository. Examples : yes, no
+    enabled: str
+
+
 class FreeBSD(BSD):
+    _freebsd_repository_info_pattern = re.compile(
+        r"\s+(\w+):\s*{(?:[^}]*url\s*:\s*\"([^\"]+)\"[^}]*enabled\s*:\s*(\w+))+[^}]*}",
+        re.DOTALL,
+    )
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        self._initialize_package_installation()
+        repo_list_str = self._node.execute("pkg -vv", sudo=True).stdout
+
+        repositories: List[RepositoryInfo] = []
+        for matched in self._freebsd_repository_info_pattern.finditer(
+            repo_list_str, re.DOTALL
+        ):
+            if matched.group(3).lower() == "yes":
+                repositories.append(
+                    FreeBSDRepositoryInfo(
+                        name=matched.group(1),
+                        url=matched.group(2),
+                        enabled=matched.group(3).lower(),
+                    )
+                )
+
+        return repositories
+
     @retry(tries=10, delay=5)
     def _install_packages(
         self,

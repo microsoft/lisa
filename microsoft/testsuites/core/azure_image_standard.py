@@ -41,6 +41,7 @@ from lisa.util import (
     LisaException,
     PassedException,
     SkippedException,
+    UnsupportedDistroException,
     find_patterns_in_lines,
     get_matched_str,
 )
@@ -743,8 +744,16 @@ class AzureImageStandard(TestSuite):
                     is_repository_present,
                     f"{id_} repository should be present",
                 ).is_true()
+        elif type(node.os) == FreeBSD:
+            repositories = node.os.get_repositories()
+            assert_that(
+                len(repositories),
+                "No repositories are present in FreeBSD",
+            ).is_greater_than(0)
         else:
-            raise LisaException(f"Unsupported distro type : {type(node.os)}")
+            raise UnsupportedDistroException(
+                node.os, "repository check is missing for this distro"
+            )
 
     @TestCaseMetadata(
         description="""
