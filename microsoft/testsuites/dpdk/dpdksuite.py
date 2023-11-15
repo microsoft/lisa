@@ -23,7 +23,10 @@ from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
-from microsoft.testsuites.dpdk.common import DPDK_STABLE_GIT_REPO
+from microsoft.testsuites.dpdk.common import (
+    DPDK_STABLE_GIT_REPO,
+    force_dpdk_default_source,
+)
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -175,7 +178,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
-        self._force_dpdk_default_source(variables)
+        force_dpdk_default_source(variables)
         test_kit = initialize_node_resources(node, log, variables, "netvsc")
 
         # checkout OpenVirtualSwitch
@@ -248,7 +251,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # multiprocess test requires dpdk source.
-        self._force_dpdk_default_source(variables)
+        force_dpdk_default_source(variables)
         kill = node.tools[Kill]
         pmd = "failsafe"
         server_app_name = "dpdk-mp_server"
@@ -488,7 +491,7 @@ class Dpdk(TestSuite):
     ) -> None:
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
-        self._force_dpdk_default_source(variables)
+        force_dpdk_default_source(variables)
         # setup and unwrap the resources for this test
         test_kit = initialize_node_resources(node, log, variables, "failsafe")
         testpmd = test_kit.testpmd
@@ -720,7 +723,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._force_dpdk_default_source(variables)
+        force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
 
@@ -747,7 +750,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self._force_dpdk_default_source(variables)
+        force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, pmd=pmd, enable_gibibyte_hugepages=True
