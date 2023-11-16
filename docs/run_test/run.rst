@@ -7,7 +7,6 @@ Run LISA
    Getting started with Azure <quick_run>
    Run tests in Local VM <run_locally>
    Learn Microsoft tests <microsoft_tests>
-   Learn legacy tests <run_legacy>
    Test case summary <test_summary>
    Test specifications <test_spec>
    Run tests on different platforms <platform>

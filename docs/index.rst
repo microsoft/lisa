@@ -50,13 +50,8 @@ Why LISA
    Contributing <contributing>
    Troubleshooting <troubleshooting>
 
-History and road map
+Road map
 --------------------
-
-The previous LISA called LISAv2, which is in `master branch
-<https://github.com/microsoft/lisa/tree/master>`__. The previous LISA can be
-used standalone or called from the current LISA. Learn more from :doc:`how to
-run LISAv2 test cases <run_test/run_legacy>`.
 
 LISA is in active developing, and a lot of exciting features are implementing.
 We're listening your `feedback

@@ -25,9 +25,6 @@ aws
 azure
     Provides dependencies for running LISA on Microsoft Azure
 
-legacy
-    Provides dependencies for running LISA v2 tests
-
 libvirt
     Provides dependencies for running LISA on libvirt-managed hypervisors
 
