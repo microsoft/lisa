@@ -418,8 +418,8 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
-    def test_skipped_on_case_failure(self) -> None:
-        # First two tests were skipped because the setup is made to fail.
+    def test_failed_on_before_case_failure(self) -> None:
+        # First two tests were failed because the setup is made to fail.
         test_testsuite.fail_on_before_case = True
         test_testsuite.generate_cases_metadata()
         env_runbook = generate_env_runbook(is_single_env=True, local=True, remote=True)
