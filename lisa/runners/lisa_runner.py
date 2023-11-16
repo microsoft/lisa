@@ -113,6 +113,8 @@ class LisaRunner(BaseRunner):
         if delete_task:
             return delete_task
 
+        # Loop environments instead of test results, because it needs to reuse
+        # environment as much as possible.
         if available_results and available_environments:
             for priority in range(6):
                 can_run_results = self._get_results_by_priority(
@@ -128,7 +130,9 @@ class LisaRunner(BaseRunner):
                         # skip in used environments
                         continue
 
-                    # try to pick the designated test result.
+                    # Try to pick the designated test result from the current
+                    # priority. So it may not be able to get the designed test
+                    # result.
                     environment_results = [
                         x
                         for x in can_run_results
@@ -754,6 +758,8 @@ class LisaRunner(BaseRunner):
         # if platform defined requirement, replace the requirement from
         # test case.
         for test_result in test_results:
+            # the platform requirement maybe used later, so it won't be a shared
+            # object cross test results.
             platform_requirement = self._create_platform_requirement()
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
@@ -839,6 +845,9 @@ class LisaRunner(BaseRunner):
                     # if env prepare or deploy failed and the test result is not
                     # run, the failure will attach to this test result.
                     env.source_test_result = test_result
+                    self._log.debug(
+                        f"created environment '{env.name}' for {test_result.id_}"
+                    )
 
         for case_name, ignored_features in cases_ignored_features.items():
             self._log.debug(
