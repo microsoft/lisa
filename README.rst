@@ -44,8 +44,6 @@ Documents
 -  `Command line reference <https://mslisa.rtfd.io/en/main/run_test/command_line.html>`__
 -  `Runbook reference <https://mslisa.rtfd.io/en/main/run_test/runbook.html>`__
 -  `Extend and customize LISA <https://mslisa.rtfd.io/en/main/write_test/extension.html>`__
--  `Run the previous version of LISA (aka
-   LISAv2) <https://mslisa.rtfd.io/en/main/run_test/run_legacy.html>`__
 
 Contribute
 ----------
@@ -53,13 +51,8 @@ Contribute
 You are very welcome to contribute to this repository. Please follow `the contribution
 document <https://mslisa.rtfd.io/en/main/contributing.html>`__ for details.
 
-History and road map
+Road map
 --------------------
-
-The previous LISA called LISAv2, which is in `the master
-branch <https://github.com/microsoft/lisa/tree/master>`__. The previous
-LISA can be used standalone or called from the current LISA. Learn more
-from `how to run LISAv2 test cases <https://mslisa.rtfd.io/en/main/run_test/run_legacy.html>`__.
 
 LISA is in active developing, and a lot of exciting features are being
 implemented. We're listening to your
