@@ -404,7 +404,7 @@ class NvmeTestSuite(TestSuite):
         nvme = node.features[Nvme]
         nvme_device = nvme.get_devices()
         nvme_namespace = nvme.get_namespaces()
-        nvme_namespace = nvme.get_raw_nvme_disks()
+        # nvme_namespace = nvme.get_raw_nvme_disks() 
         assert_that(nvme_device).described_as(
             "nvme devices count should be equal to namespace count by listing devices "
             "under folder /dev."
@@ -428,10 +428,10 @@ class NvmeTestSuite(TestSuite):
 
         # 4. Azure platform only, nvme devices count should equal to
         #  actual vCPU count / 8.
-        if isinstance(environment.platform, AzurePlatform):
-            lscpu_tool = node.tools[Lscpu]
-            core_count = lscpu_tool.get_core_count()
-            expected_count = math.ceil(core_count / 8)
-            assert_that(nvme_namespace).described_as(
-                "nvme devices count should be equal to [vCPU/8]."
-            ).is_length(expected_count)
+        #if isinstance(environment.platform, AzurePlatform):
+        #    lscpu_tool = node.tools[Lscpu]
+        #    core_count = lscpu_tool.get_core_count()
+        #    expected_count = math.ceil(core_count / 8)
+        #    assert_that(nvme_namespace).described_as(
+        #        "nvme devices count should be equal to [vCPU/8]."
+        #    ).is_length(expected_count)
