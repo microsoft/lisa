@@ -67,8 +67,6 @@ class Gpu(Feature):
         "libelf-dev",
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
-        "python3",
-        "ubuntu-desktop",
     ]
 
     _oracle_uek_dependencies = [
