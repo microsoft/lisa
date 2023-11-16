@@ -6,7 +6,7 @@ Run tests on different platforms
    *  `Use vhd <#use-vhd>`__
    *  `Use marketplace image <#use-marketplace-image>`__
    *  `Use shared image gallery <#use-shared-image-gallery>`__
-   *  `Use existing deployment <#use-existing-deployment>`__
+   *  `Use existing VMs <#use-existing-vms>`__
    *  `Set other Azure parameters <#set-other-azure-parameters>`__
 
 -  `Run on Ready computers <#run-on-ready-computers>`__
@@ -101,31 +101,32 @@ the shared image gallery.
 The remaining steps are same as outlined in
 :doc:`Getting started with Azure <quick_run>`.
 
-Use existing deployment
-^^^^^^^^^^^^^^^^^^^^^^^
+Use existing VMs
+^^^^^^^^^^^^^^^^
 
-In addition to deploying a new Azure server and running tests, you can
-skip the deployment phase and use existing resource group. This feature
-is only available for Azure platform.
+In addition to deploying a new Azure server and running tests every time, you
+can use a deployed resource group or pre-existing resource group. The execution
+time is much shorter than deploying a new VM, because it skips deploying VMs,
+and avoiding to installing prerequisites packages for some test cases.
 
-The advantage is that it can run all test cases of Azure. The shortage
-is that the VM name is fixed, and it should be node-0, so each resource
-group can put only one VM.
+If the pre-existing deployment is not created by LISA, the VM names may need to
+be specified in the runbook.
 
-To use existing deployment, follow the steps below:
-
-1. Start a run with the variable values set to following in the runbook:
-
-.. code:: bash
-
-   lisa -r <runbook> ..  -v deploy:true -v keep_environment:always -v resource_group_name:"<resource group name>"
-
-2. After the run is completed, the resource group will be kept. You can
-   use the same resource group name in the subsequent runs.
+1. If there is no deployment to reuse, run with the variables to keep the
+   environment after test passed. If there is an existing deployment, skip this
+   step.
 
 .. code:: bash
 
-   lisa -r <runbook> .. -v deploy:false -v keep_environment:always -v resource_group_name:"<resource group name>
+   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id>  -v keep_environment:always
+
+2. Specify the resource group name, and deploy to false to reuse an environment.
+   If the environment is deployed by above step, you can find the resource group
+   name from the log.
+
+.. code:: bash
+
+   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>
 
 Set other Azure parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
