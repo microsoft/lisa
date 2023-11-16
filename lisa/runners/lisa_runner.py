@@ -140,6 +140,14 @@ class LisaRunner(BaseRunner):
                         and x.id_ == environment.source_test_result.id_
                     ]
                     if not environment_results:
+                        if (
+                            not environment.is_predefined
+                        ) and environment.status == EnvironmentStatus.Prepared:
+                            # If the environment is not deployed, it will be
+                            # skipped until the source test result is found. It
+                            # makes sure the deployment failure attaches to the
+                            # source test result.
+                            continue
                         environment_results = self._get_runnable_test_results(
                             test_results=can_run_results, environment=environment
                         )
