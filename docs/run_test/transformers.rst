@@ -245,7 +245,7 @@ Name of the resource group that should be deleted.
 
 
 Use Vhd Transformer
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Convert a VM to a VHD using this transformer. This VHD can be used to deploy a VM.
 
