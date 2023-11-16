@@ -469,7 +469,10 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         r"^(Standard_NG[^_]+_V620_v[0-9]+|Standard_NV[^_]+_v4)$", re.I
     )
 
-    _grid_unsupported_os = [CBLMariner]
+    _grid_supported_distros: Dict[Any, List[str]] = {
+        Redhat: ["7.9.0", "8.6.0", "8.8.0"],
+        Ubuntu: ["20.4.0", "22.4.0"],
+    }
     _gpu_extension_template = """
         {
         "name": "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '/gpu-extension')]",
@@ -518,8 +521,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         node_runbook = self._node.capability.get_extended_runbook(
             AzureNodeSchema, AZURE
         )
-        if re.match(self._grid_supported_skus, node_runbook.vm_size) and not isinstance(
-            self._node.os, tuple(self._grid_unsupported_os)
+        if (
+            re.match(self._grid_supported_skus, node_runbook.vm_size)
+            and self.is_grid_supported_os()
         ):
             driver_list.append(ComputeSDK.GRID)
         elif re.match(self._amd_supported_skus, node_runbook.vm_size):
@@ -534,6 +538,16 @@ class Gpu(AzureFeatureMixin, features.Gpu):
                 f" {node_runbook.vm_size}."
             )
         return driver_list
+
+    # GRID driver is supported on a limited number of distros.
+    # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-grid-drivers # noqa: E501
+    def is_grid_supported_os(self) -> bool:
+        distro = type(self._node.os)
+        if distro not in self._grid_supported_distros:
+            return False
+        else:
+            version = str(self._node.os.information.version)
+            return version in self._grid_supported_distros[distro]
 
     @classmethod
     def create_setting(
