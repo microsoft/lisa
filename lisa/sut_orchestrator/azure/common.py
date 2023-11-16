@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
+from azure.core.exceptions import ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -1506,11 +1507,15 @@ def save_console_log(
 ) -> bytes:
     compute_client = get_compute_client(platform)
     with global_credential_access_lock:
-        diagnostic_data = (
-            compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                resource_group_name=resource_group_name, vm_name=vm_name
+        try:
+            diagnostic_data = (
+                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                    resource_group_name=resource_group_name, vm_name=vm_name
+                )
             )
-        )
+        except ResourceExistsError as identifier:
+            log.debug(f"fail to get serial console log. {identifier}")
+            return b""
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
         screenshot_response = requests.get(

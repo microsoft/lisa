@@ -746,7 +746,10 @@ class AzurePlatform(Platform):
                     )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
+        platform_runbook = cast(schema.Platform, self.runbook)
         information: Dict[str, Any] = {}
+        if platform_runbook.capture_vm_information is False:
+            return information
         for key, method in self._environment_information_hooks.items():
             node.log.debug(f"detecting {key} ...")
             try:
