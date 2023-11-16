@@ -193,7 +193,7 @@ class LisaRunner(BaseRunner):
         # run on deployed environment
         can_run_results = [x for x in can_run_results if x.can_run]
         if environment.status == EnvironmentStatus.Deployed and can_run_results:
-            selected_test_results = self._get_test_results_to_run(
+            selected_test_results = self._get_test_result_to_run(
                 test_results=test_results, environment=environment
             )
             if selected_test_results:
@@ -221,7 +221,7 @@ class LisaRunner(BaseRunner):
         # run on connected environment
         can_run_results = [x for x in can_run_results if x.can_run]
         if environment.status == EnvironmentStatus.Connected and can_run_results:
-            selected_test_results = self._get_test_results_to_run(
+            selected_test_results = self._get_test_result_to_run(
                 test_results=test_results, environment=environment
             )
             if selected_test_results:
@@ -654,7 +654,7 @@ class LisaRunner(BaseRunner):
         results = self._sort_test_results(results)
         return results
 
-    def _get_test_results_to_run(
+    def _get_test_result_to_run(
         self, test_results: List[TestResult], environment: Environment
     ) -> List[TestResult]:
         to_run_results = self._get_runnable_test_results(
