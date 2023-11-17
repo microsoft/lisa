@@ -30,6 +30,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.testsuite import TestResult
 from lisa.tools.curl import Curl
 from lisa.tools.find import Find
 
@@ -115,10 +116,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         return extension_directory
 
     def copy_to_node(self, node: Node, filename: str) -> None:
-        parent_directory = ""
-
         f_name = node.working_path / filename
-        temp_file = PurePosixPath(os.path.join(parent_directory, filename))
+        temp_file = PurePosixPath(filename)
         file_path = PurePath(
             os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
         )
@@ -135,7 +134,11 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         ),
     )
     def verify_exclude_disk(
-        self, log: Logger, node: Node, environment: Environment
+        self,
+        log: Logger,
+        node: Node,
+        environment: TestResult.environment,
+        result: TestResult,
     ) -> None:
         # Any extension will do, use CustomScript for convenience.
         # Copy the local files into the VM.
@@ -146,58 +149,67 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         extension_dir = self.find_extension_dir(node)
         if extension_dir == "":
             self._verify_vmsnapshot_extension(log, node, environment)
-            extension_dir = self.find_extension_dir(node)
-        else:
-            # installing all the required packages
-            posix_os: Posix = cast(Posix, node.os)
-            posix_os.install_packages("python2.7")
-            posix_os.install_packages("pip")
-            url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
-            args = "-o get-pip.py"
-            curl = Curl(node)
-            curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
-            node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
-            node.execute(cmd="python2.7 -m pip --version")
-            node.execute(cmd="python2.7 -m pip install mock", sudo=True)
-            # copy the file into the vm
-            self.copy_to_node(node, "handle.txt")
-
-            if extension_dir != "":
-                # moving the handle.py file to extension directory
-                script = (
-                    "#!/bin/sh\n"
-                    f"mv {node.working_path}/handle.txt {extension_dir}/handle.py"
-                )
-                script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
-                settings = {"script": script_base64}
-                extension = node.features[AzureExtension]
-                result = extension.create_or_update(
-                    name="CustomScript",
-                    publisher="Microsoft.Azure.Extensions",
-                    type_="CustomScript",
-                    type_handler_version="2.1",
-                    auto_upgrade_minor_version=True,
-                    settings=settings,
-                )
-                log.info(extension_dir)
-                # give the execution permissions to the file
-                node.execute(
-                    cmd=f"chmod 777 {extension_dir}/handle.py", shell=True, sudo=True
-                )
-                # execute the file
-                result = node.execute(
-                    cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
-                )
-                print(type(result.stdout))
-                print(result.stdout)
-                if "True" in result.stdout:
-                    # test should partially pass
-                    log.info("unsupported distro")
+            trial = 0
+            while trial < 10:
+                time.sleep(2)
+                extension_dir = self.find_extension_dir(node)
+                if extension_dir == "":
+                    trial = trial + 1
                 else:
-                    # pass the test
-                    log.info("supported distro")
+                    break
+
+        # installing all the required packages
+        posix_os: Posix = cast(Posix, node.os)
+        posix_os.install_packages("python2.7")
+        posix_os.install_packages("pip")
+        url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
+        args = "-o get-pip.py"
+        curl = Curl(node)
+        curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
+        node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
+        node.execute(cmd="python2.7 -m pip --version")
+        node.execute(cmd="python2.7 -m pip install mock", sudo=True)
+        # copy the file into the vm
+        self.copy_to_node(node, "handle.txt")
+
+        if extension_dir != "":
+            # moving the handle.py file to extension directory
+            script = (
+                "#!/bin/sh\n"
+                f"mv {node.working_path}/handle.txt {extension_dir}/handle.py"
+            )
+            script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
+            settings = {"script": script_base64}
+            extension = node.features[AzureExtension]
+            extension.create_or_update(
+                name="CustomScript",
+                publisher="Microsoft.Azure.Extensions",
+                type_="CustomScript",
+                type_handler_version="2.1",
+                auto_upgrade_minor_version=True,
+                settings=settings,
+            )
+            log.info(extension_dir)
+            # give the execution permissions to the file
+            node.execute(
+                cmd=f"chmod 777 {extension_dir}/handle.py", shell=True, sudo=True
+            )
+            # execute the file
+            script_result = node.execute(
+                cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
+            )
+            print(type(script_result.stdout))
+            print(script_result.stdout)
+            if "True" in script_result.stdout:
+                # isSizeComputationFailed flag is set to True.
+                result.information["distro_supported"] = False
+                log.info("unsupported distro")
             else:
-                log.info("failed to find the extension directory")
+                result.information["distro_supported"] = True
+                log.info("supported distro")
+        else:
+            log.info("failed to find the extension directory")
+        assert extension_dir != "", "Unable to find the extension directory."
 
     def _verify_vmsnapshot_extension(
         self, log: Logger, node: Node, environment: Environment
