@@ -543,8 +543,15 @@ class Sriov(TestSuite):
 
         # disable and enable VF in pci level
         disable_enable_devices(environment)
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
+
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
 
         # get the enabled features after disable and enable VF
         # make sure there is not any change
@@ -569,6 +576,10 @@ class Sriov(TestSuite):
                 "sg setting is not sync into VF.",
             ).is_equal_to(device_vf_sg_settings.sg_setting)
 
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
+
         # set off for scatter-gather feature for synthetic nic
         # verify vf scatter-gather feature has value 'off'
         for client_nic_info in vm_nics[client_node.name].values():
@@ -583,10 +594,22 @@ class Sriov(TestSuite):
                 "sg setting is not sync into VF.",
             ).is_equal_to(device_vf_sg_settings.sg_setting)
 
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
+
         #  disable and enable VF in pci level
         disable_enable_devices(environment)
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
+
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
+
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
 
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
@@ -600,9 +623,15 @@ class Sriov(TestSuite):
 
         # disable and enable sriov in network interface level
         sriov_disable_enable(environment, 3)
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
+        dest_cat = client_node.tools[Cat]
+        iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
+        assert_that(iperf_log).does_not_contain("error")
         # check VF's scatter-gather feature keep consistent with previous status
         for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
