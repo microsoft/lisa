@@ -303,6 +303,7 @@ class AzureNodeSchema:
                 "data_disk_type",
             ],
         )
+        self.location = self.location.lower()
         # If vhd contains sas token, need add mask
         if isinstance(self.vhd_raw, str):
             add_secret(self.vhd_raw, PATTERN_URL)
