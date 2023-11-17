@@ -574,9 +574,10 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         self._is_nvidia = True
 
     def _install_driver_using_platform_feature(self) -> None:
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
         supported_versions: Dict[Any, List[str]] = {
-            Redhat: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
-            Ubuntu: ["16.04", "18.04", "20.04"],
+            Redhat: ["7.9"],
+            Ubuntu: ["20.04"],
             CentOs: ["7.3", "7.4", "7.5", "7.6", "7.7", "7.8"],
         }
         release = self._node.os.information.release

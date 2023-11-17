@@ -271,7 +271,7 @@ class Gpu(Feature):
                 # dmesg
                 # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
                 # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                cuda_package_versions = {"1604": "465", "1804": "530"}
+                cuda_package_versions = {"1804": "530"}
                 # 545 is the latest version available for Ubuntu 2004+
                 package_version = cuda_package_versions.get(release, "545")
                 self._node.os.install_packages(f"cuda-drivers-{package_version}")
