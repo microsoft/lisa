@@ -56,6 +56,7 @@ from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
+    StorageAccountUpdateParameters,
 )
 from azure.storage.blob import (
     AccountSasPermissions,
@@ -2353,3 +2354,23 @@ def is_cloud_init_enabled(node: Node) -> bool:
     ) and ls_tool.path_exists("/var/lib/cloud/instance", sudo=True):
         return True
     return False
+
+
+def check_or_set_storage_account_blob_public_access(
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    resource_group_name: str,
+    storage_account_name: str,
+) -> None:
+    storage_client = get_storage_client(credential, subscription_id, cloud)
+    sc_properties = storage_client.storage_accounts.get_properties(
+        resource_group_name=resource_group_name,
+        account_name=storage_account_name,
+    )
+    if not sc_properties.allow_blob_public_access:
+        storage_client.storage_accounts.update(
+            resource_group_name=resource_group_name,
+            account_name=storage_account_name,
+            parameters=StorageAccountUpdateParameters(allow_blob_public_access=True),
+        )

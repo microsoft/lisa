@@ -12,6 +12,7 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
+    check_or_set_storage_account_blob_public_access,
     generate_blob_sas_token,
     get_or_create_storage_container,
     get_storage_account_name,
@@ -92,6 +93,13 @@ def retrieve_storage_blob_url(
     location = node_context.location
     storage_account_name = get_storage_account_name(
         subscription_id=subscription_id, location=location
+    )
+    check_or_set_storage_account_blob_public_access(
+        credential=platform.credential,
+        subscription_id=subscription_id,
+        cloud=platform.cloud,
+        resource_group_name=AZURE_SHARED_RG_NAME,
+        storage_account_name=storage_account_name,
     )
     is_public_container = container_name.endswith("-public")
     blob_data = script or f"touch {test_file}"
