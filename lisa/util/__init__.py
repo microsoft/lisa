@@ -798,3 +798,36 @@ def retry_without_exceptions(
         return wrapper
 
     return decorator
+
+
+def get_first_combination(
+    items: List[Any],
+    index: int,
+    results: List[Any],
+    check: Callable[[List[Any]], bool],
+    next_value: Callable[..., Any],
+    can_early_stop: bool = False,
+) -> bool:
+    if index == len(items):
+        if check(results):
+            return True
+        return False
+
+    if can_early_stop and not check(results):
+        return False
+
+    item = items[index]
+    for data in next_value(item):
+        results.append(data)
+        if get_first_combination(
+            items=items,
+            index=index + 1,
+            results=results,
+            check=check,
+            next_value=next_value,
+            can_early_stop=can_early_stop,
+        ):
+            return True
+        results.pop()
+
+    return False
