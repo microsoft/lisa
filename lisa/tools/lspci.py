@@ -42,6 +42,10 @@ DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller"],
 }
 
+VENDOR_TYPE_DICT: Dict[str, List[str]] = {
+    constants.DEVICE_TYPE_GPU: ["NVIDIA Corporation"],
+}
+
 # Kernel driver in use: mlx4_core
 # Kernel driver in use: mlx5_core
 # Kernel driver in use: mlx4_core\r
@@ -168,6 +172,17 @@ class Lspci(Tool):
         )
         matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
         return matched
+
+    def get_gpu_devices(self, force_run: bool = False) -> List[PciDevice]:
+        class_names = DEVICE_TYPE_DICT[constants.DEVICE_TYPE_GPU]
+        vendor_names = VENDOR_TYPE_DICT[constants.DEVICE_TYPE_GPU]
+        devices_list = self.get_devices(force_run)
+        gpu_device_list = [
+            x
+            for x in devices_list
+            if x.device_class in class_names and x.vendor in vendor_names
+        ]
+        return gpu_device_list
 
 
 class LspciBSD(Lspci):
