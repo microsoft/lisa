@@ -50,7 +50,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Validate response of the restore point for validity.
         Attempt it a few items to rule out cases when VM is under changes.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_features=[AzureExtension]),
     )
     def verify_vmsnapshot_extension(
@@ -128,7 +128,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Runs the custom script extension and verifies it execution on the
         remote machine.
         """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -137,7 +137,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         self,
         log: Logger,
         node: Node,
-        environment: TestResult.environment,
+        environment: Environment,
         result: TestResult,
     ) -> None:
         # Any extension will do, use CustomScript for convenience.
@@ -150,7 +150,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         if extension_dir == "":
             self._verify_vmsnapshot_extension(log, node, environment)
             trial = 0
-            while trial < 10:
+            while trial < 3:
                 time.sleep(2)
                 extension_dir = self.find_extension_dir(node)
                 if extension_dir == "":

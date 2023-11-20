@@ -27,8 +27,6 @@ import sys
 import imp
 import shlex
 import traceback
-#import urllib2
-#import urlparse
 import datetime
 import math
 import json
