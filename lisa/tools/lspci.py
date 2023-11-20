@@ -39,8 +39,7 @@ PATTERN_PCI_DEVICE = re.compile(
 DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: ["Ethernet controller"],
     constants.DEVICE_TYPE_NVME: ["Non-Volatile memory controller"],
-    constants.DEVICE_TYPE_GPU: ["3D controller"],
-    constants.DEVICE_TYPE_DISPLAY: ["VGA compatible controller"],
+    constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller"],
 }
 
 # Kernel driver in use: mlx4_core
