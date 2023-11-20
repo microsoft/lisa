@@ -399,7 +399,11 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     # Try to install GPU driver using extension
     try:
         gpu_feature._install_driver_using_platform_feature()
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
         return
+    except UnsupportedOperationException:
+        log.info("Installing NVIDIA Driver using Azure GPU Extension is not supported")
     except Exception:
         log.info("Failed to install NVIDIA Driver using Azure GPU Extension")
         if isinstance(node.os, Ubuntu):

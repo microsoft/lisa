@@ -603,6 +603,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
                 raise e
 
         if result["provisioning_state"] == "Succeeded":
+            # Close the connection because the extension takes long time
+            # to install and ssh connection may get timeout.
+            self._node.close()
             return
         else:
             raise LisaException("GPU Extension Provisioning Failed")
