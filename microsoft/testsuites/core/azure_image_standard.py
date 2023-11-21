@@ -36,7 +36,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
-from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
+from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh, Stat
 from lisa.util import (
     LisaException,
     PassedException,
@@ -992,8 +992,11 @@ class AzureImageStandard(TestSuite):
                 key_content = node.tools[Cat].read(file_path, sudo=True)
                 key_match = key_pattern.findall(key_content)
                 if not (key_match and key_match[0]):
+                    stat = node.tools[Stat]
+                    file_size = stat.get_total_size(file_path, sudo=True)
                     assert_that(
-                        file_exists, f"{file_path} is detected. It should be deleted."
+                        file_exists,
+                        f"{file_path} is detected. It should be deleted. File size: {file_size}",
                     ).is_false()
 
     @TestCaseMetadata(
