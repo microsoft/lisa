@@ -396,6 +396,6 @@ class Fio(Tool):
         make = self.node.tools[Make]
         make.make_install(cwd=code_path)
         self.node.execute(
-            "ln -s /usr/local/bin/fio /usr/bin/fio", sudo=True, cwd=code_path
+            "ln -sf /usr/local/bin/fio /usr/bin/fio", sudo=True, cwd=code_path
         ).assert_exit_code()
         return self._check_exists()
