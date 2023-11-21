@@ -194,7 +194,7 @@ class KernelInstallerTransformer(Transformer):
                 )
 
             self._log.info("rebooting")
-            node.reboot()
+            node.reboot(time_out=900)
             boot_success = True
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
