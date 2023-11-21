@@ -253,21 +253,17 @@ class RepoInstaller(BaseInstaller):
             release
         ), f"cannot find codename from the os version: {node.os.information}"
 
-        version_name = release
         # add the repo
+        # 'main' is the only repo component supported by 'private-ppa' and
+        # 'proposed2' repositories
         if runbook.is_proposed:
-            if "proposed2" in self.repo_url:
-                repo_entry = "ppa:canonical-kernel-team/proposed2"
-            elif "private-ppa" in self.repo_url:
-                # 'main' is the only repo component supported by 'private-ppa'
+            if "proposed2" in self.repo_url or "private-ppa" in self.repo_url:
+                version_name = release
                 repo_component = "main"
-                repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
             else:
                 version_name = f"{release}-proposed"
-                repo_entry = "ppa:canonical-kernel-team/proposed"
         else:
-            repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
-
+            version_name = release
         if release == "lunar":
             config = [
                 "Package: *",
@@ -282,6 +278,7 @@ class RepoInstaller(BaseInstaller):
                     append=True,
                     sudo=True,
                 )
+        repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = f"{runbook.source}/{version_name}"
