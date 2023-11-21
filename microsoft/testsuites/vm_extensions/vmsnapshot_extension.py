@@ -31,7 +31,6 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
-from lisa.tools.curl import Curl
 from lisa.tools.find import Find
 
 
@@ -128,12 +127,12 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Runs the custom script extension and verifies it execution on the
         remote machine.
         """,
-        priority=1,
+        priority=0,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
     )
-    def verify_exclude_disk(
+    def verify_exclude_disk_support_restore_point(
         self,
         log: Logger,
         node: Node,
@@ -160,15 +159,12 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
 
         # installing all the required packages
         posix_os: Posix = cast(Posix, node.os)
-        posix_os.install_packages("python2.7")
+        posix_os.install_packages("python3")
+        # install pip
         posix_os.install_packages("pip")
-        url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
-        args = "-o get-pip.py"
-        curl = Curl(node)
-        curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
-        node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
-        node.execute(cmd="python2.7 -m pip --version")
-        node.execute(cmd="python2.7 -m pip install mock", sudo=True)
+        node.execute(cmd="python3 -m pip --version")
+        # install mock module
+        node.execute(cmd="python3 -m pip install mock", sudo=True)
         # copy the file into the vm
         self.copy_to_node(node, "handle.txt")
 
@@ -198,8 +194,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             script_result = node.execute(
                 cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
             )
-            print(type(script_result.stdout))
-            print(script_result.stdout)
+            log.info(script_result.stdout)
             if "True" in script_result.stdout:
                 # isSizeComputationFailed flag is set to True.
                 result.information["distro_supported"] = False
