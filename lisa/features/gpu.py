@@ -67,8 +67,6 @@ class Gpu(Feature):
         "libelf-dev",
         "linux-tools-$(uname -r)",
         "linux-cloud-tools-$(uname -r)",
-        "python3",
-        "ubuntu-desktop",
     ]
 
     _oracle_uek_dependencies = [
@@ -221,8 +219,8 @@ class Gpu(Feature):
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
             if release in ["2110", "2104"]:
                 release = "2004"
-            # 2210 NVIDIA Drivers are not available, use 2204
-            if release in ["2210"]:
+            # 2210, 2304, 2310 NVIDIA Drivers are not available, use 2204
+            if release in ["2210", "2304", "2310"]:
                 release = "2204"
 
             # Public CUDA GPG key is needed to be installed for Ubuntu
@@ -273,10 +271,10 @@ class Gpu(Feature):
                 # dmesg
                 # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
                 # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                if release == "1604":
-                    self._node.os.install_packages("cuda-drivers-465")
-                else:
-                    self._node.os.install_packages("cuda-drivers-515")
+                cuda_package_versions = {"1804": "530"}
+                # 545 is the latest version available for Ubuntu 2004+
+                package_version = cuda_package_versions.get(release, "545")
+                self._node.os.install_packages(f"cuda-drivers-{package_version}")
         elif (
             isinstance(self._node.os, CBLMariner)
             and self._node.os.get_kernel_information().hardware_platform
@@ -328,7 +326,6 @@ class Gpu(Feature):
             and self._node.os.information.version == "2.0.0"
         ):
             self._node.os.install_packages(self._mariner_dependencies, signed=False)
-
         else:
             raise SkippedException(
                 f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
