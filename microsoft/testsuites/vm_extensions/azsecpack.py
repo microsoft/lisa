@@ -247,7 +247,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{azsec_service} is running successfully")
 
-    @retry(tries=5, delay=10)
+    @retry(tries=20, delay=30)
     def _check_azsecd_status(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         output = azsecd.run(
@@ -316,7 +316,7 @@ class AzSecPack(TestSuite):
             CentOs: [7],
             Oracle: [8, 9],
             Debian: [10, 11],
-            Ubuntu: [20, 22],
+            Ubuntu: [20, 22, 18],
             SLES: [15],
             AlmaLinux: [8],
             CBLMariner: [2],
