@@ -16,7 +16,6 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    constants,
     simple_requirement,
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
@@ -223,7 +222,7 @@ class GpuTestSuite(TestSuite):
         gpu = node.features[Gpu]
 
         # 1. Disable GPU devices.
-        gpu_devices = lspci.get_devices_by_type(device_type=constants.DEVICE_TYPE_GPU)
+        gpu_devices = lspci.get_gpu_devices()
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
         # stop the service which uses nvidia module
         service = node.tools[Service]
@@ -417,7 +416,7 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     lspci = node.tools[Lspci]
     start_stop = node.features[StartStop]
 
-    init_gpu = lspci.get_devices_by_type(constants.DEVICE_TYPE_GPU, force_run=True)
+    init_gpu = lspci.get_gpu_devices(force_run=True)
     log.debug(f"Initial GPU count {len(init_gpu)}")
     assert_that(len(init_gpu)).described_as(
         "Number of GPU PCI device is not greater than 0"
@@ -426,7 +425,7 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     start_stop.stop()
     start_stop.start()
 
-    curr_gpu = lspci.get_devices_by_type(constants.DEVICE_TYPE_GPU, force_run=True)
+    curr_gpu = lspci.get_gpu_devices(force_run=True)
     log.debug(f"GPU count after reboot {len(curr_gpu)}")
     assert_that(len(curr_gpu)).described_as(
         "GPU PCI device count should be same after stop-start"
