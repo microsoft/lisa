@@ -32,6 +32,7 @@ class Find(Tool):
         ignore_case: bool = False,
         sudo: bool = False,
         ignore_not_exist: bool = False,
+        force_run: bool = True,
     ) -> List[str]:
         if not self.node.tools[Ls].path_exists(str(start_path), sudo=sudo):
             if ignore_not_exist:
@@ -56,7 +57,7 @@ class Find(Tool):
         # for possibility of newline character in the file/folder name.
         cmd += " -print0"
 
-        result = self.run(cmd, sudo=sudo)
+        result = self.run(cmd, sudo=sudo, force_run=force_run)
         if ignore_not_exist and "No such file or directory" in result.stdout:
             return []
         else:
@@ -78,6 +79,7 @@ class WindowsFind(Find):
         ignore_case: bool = False,
         sudo: bool = False,
         ignore_not_exist: bool = False,
+        force_run: bool = True,
     ) -> List[str]:
         cmd = ""
         if start_path:
@@ -87,6 +89,7 @@ class WindowsFind(Find):
 
         results = self.run(
             cmd,
+            force_run=force_run,
             expected_exit_code=0,
             expected_exit_code_failure_message="Error on find files",
         )
