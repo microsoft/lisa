@@ -501,6 +501,16 @@ class Azsecd(Tool):
         self.node.os.install_packages("azure-security")  # type: ignore
         return self._check_exists()
 
+    def run_scanners(self, scanner: str) -> str:
+        output = self.run(
+            parameters="manual -s " + scanner,
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to run azsecd scanner",
+        ).stdout
+        return output
+
 
 class KvpClientFreeBSD(KvpClient):
     _KVP_POOL_LOCATION = "/var/db/hyperv/pool"
