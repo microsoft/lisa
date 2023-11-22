@@ -124,10 +124,13 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Runs the custom script extension and verifies it execution on the
-        remote machine.
+        Runs a script on the VM
+        The script takes the responsibility of distinguishing the various ditros into
+        supported or unsupported for selective billing feature.
+        The test would be passed in both the cases, just that the information helps in
+        clearly classifying the distro, when the test runs on various distros.
         """,
-        priority=0,
+        priority=2,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -140,6 +143,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         result: TestResult,
     ) -> None:
         # Any extension will do, use CustomScript for convenience.
+        # This test would only run when extension is installed already else will
+        # triggere a retsore point that helps in installing the extension on the VM
         # Copy the local files into the VM.
         # Move the files to the extension directory
         # Give the execution permissions to the files
