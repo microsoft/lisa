@@ -137,6 +137,7 @@ class AzSecPack(TestSuite):
         self._check_mdsd_service_status(node, log)
         self._check_azsec_services_status(node, log)
         self._check_azsecd_status(node, log)
+        self._check_azsecd_scanners(node, log)
         self._check_journalctl_logs(node, log)
 
     def _install_mdsd(self, node: Node, log: Logger) -> None:
@@ -247,7 +248,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{azsec_service} is running successfully")
 
-    @retry(tries=5, delay=10)
+    @retry(tries=20, delay=30)
     def _check_azsecd_status(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         output = azsecd.run(
@@ -264,6 +265,10 @@ class AzSecPack(TestSuite):
             "Path(/var/run/azsecmon/azsecmond.socket)\r\n\t\t"
             "IsAvailableToConnect(true)",
         ]
+        # It is expected that the socket conection is not available until autoconfig
+        # is enabled and asa mdsd tenant is in running state. Wait for 7+ minutes
+        # after deploying the required changes for autoconfig. So retries 20 times
+        # with delay 30s
         for s in strings_to_check:
             if s not in output:
                 raise LisaException(
@@ -273,22 +278,20 @@ class AzSecPack(TestSuite):
         log.info("Azsecd status is checked successfully")
 
     @retry(tries=5, delay=10)
+    def _check_azsecd_scanners(self, node: Node, log: Logger) -> None:
+        azsecd = node.tools[Azsecd]
+        scanners = ["heartbeat", "time", "certsinuse"]
+        for s in scanners:
+            output = azsecd.run_scanners(s)
+            if f"Scan '{s}' completed" not in output:
+                raise LisaException(
+                    f"'Scan {s} completed' string is not in the output."
+                    " Please check if azsecd scanner is running successfully."
+                )
+
+    @retry(tries=5, delay=10)
     def _check_journalctl_logs(self, node: Node, log: Logger) -> None:
         journalctl = node.tools[Journalctl]
-        output = journalctl.logs_for_unit("azsecd", sudo=True)
-        strings_to_check = [
-            "Connected to mdsd",
-            "Scan 'certsinuse' completed",
-            "Scan 'heartbeat' completed",
-        ]
-        for s in strings_to_check:
-            if s not in output:
-                raise LisaException(
-                    f"'{s}' string is not in azsecd logs "
-                    "Please check if the connection to mdsd is successfully."
-                )
-        log.info("Azsecd connection to mdsd is successful")
-
         output = journalctl.logs_for_unit("azsecmond", sudo=True)
         if "Connected to mdsd" not in output:
             raise LisaException(
