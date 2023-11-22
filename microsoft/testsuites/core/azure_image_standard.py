@@ -990,11 +990,13 @@ class AzureImageStandard(TestSuite):
                 # then it is harmless, otherwise fail the case
                 # command="echo 'Please login as the user \"USERNAME\" rather than the user \"root\".';echo;sleep 10;exit 142"  # noqa: E501
                 key_content = node.tools[Cat].read(file_path, sudo=True)
-                key_match = key_pattern.findall(key_content)
-                if not (key_match and key_match[0]):
-                    assert_that(
-                        file_exists, f"{file_path} is detected. It should be deleted."
-                    ).is_false()
+                if key_content:
+                    key_match = key_pattern.findall(key_content)
+                    if not (key_match and key_match[0]):
+                        assert_that(
+                            file_exists,
+                            f"{file_path} is detected. It should be deleted.",
+                        ).is_false()
 
     @TestCaseMetadata(
         description="""
