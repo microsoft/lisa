@@ -6,7 +6,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from pathlib import PurePath, PurePosixPath
+from pathlib import PurePosixPath
 from typing import cast
 
 from assertpy.assertpy import assert_that
@@ -31,6 +31,8 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
+from lisa.tools.chmod import Chmod
+from lisa.tools.curl import Curl
 from lisa.tools.find import Find
 
 
@@ -101,27 +103,6 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             "after multiple attempts."
         )
 
-    def find_extension_dir(self, node: Node) -> str:
-        startpath = PurePath("/var/lib/waagent/")
-        namepattern = "Microsoft.Azure.RecoveryServices.VMSnapshotLinux-1.0.*"
-        sudo = True
-        find_tool = node.tools[Find]
-        file_list = find_tool.find_files(
-            start_path=startpath, name_pattern=namepattern, sudo=sudo
-        )
-        extension_directory = ""
-        if len(file_list) == 1:
-            extension_directory = file_list[0]
-        return extension_directory
-
-    def copy_to_node(self, node: Node, filename: str) -> None:
-        f_name = node.working_path / filename
-        temp_file = PurePosixPath(filename)
-        file_path = PurePath(
-            os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
-        )
-        node.shell.copy(file_path, f_name)
-
     @TestCaseMetadata(
         description="""
         Runs a script on the VM
@@ -150,13 +131,13 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         # Give the execution permissions to the files
         # Run the files
         # Validate the results
-        extension_dir = self.find_extension_dir(node)
+        extension_dir = self._find_extension_dir(node)
         if extension_dir == "":
             self._verify_vmsnapshot_extension(log, node, environment)
             trial = 0
             while trial < 3:
                 time.sleep(2)
-                extension_dir = self.find_extension_dir(node)
+                extension_dir = self._find_extension_dir(node)
                 if extension_dir == "":
                     trial = trial + 1
                 else:
@@ -164,14 +145,18 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
 
         # installing all the required packages
         posix_os: Posix = cast(Posix, node.os)
-        posix_os.install_packages("python3")
+        posix_os.install_packages("python2.7")
         # install pip
-        posix_os.install_packages("pip")
-        node.execute(cmd="python3 -m pip --version")
+        url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
+        args = "-o get-pip.py"
+        curl = Curl(node)
+        curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
+        node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
+        node.execute(cmd="python2.7 -m pip --version")
         # install mock module
-        node.execute(cmd="python3 -m pip install mock", sudo=True)
+        node.execute(cmd="python2.7 -m pip install mock", sudo=True)
         # copy the file into the vm
-        self.copy_to_node(node, "handle.txt")
+        self._copy_to_node(node, "handle.txt")
 
         if extension_dir != "":
             # moving the handle.py file to extension directory
@@ -192,9 +177,9 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             )
             log.info(extension_dir)
             # give the execution permissions to the file
-            node.execute(
-                cmd=f"chmod 777 {extension_dir}/handle.py", shell=True, sudo=True
-            )
+            file_path = f"{extension_dir}/handle.py"
+            permissions = "777"
+            node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
             # execute the file
             script_result = node.execute(
                 cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
@@ -202,10 +187,13 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             log.info(script_result.stdout)
             if "True" in script_result.stdout:
                 # isSizeComputationFailed flag is set to True.
-                result.information["distro_supported"] = False
-                log.info("unsupported distro")
+                result.information["distro_supported_for_selective_billing"] = False
+                log.info(
+                    "unsupported distro as it do not have few of the modules "
+                    "like lsblk, lsscsi not pre-installed"
+                )
             else:
-                result.information["distro_supported"] = True
+                result.information["distro_supported_for_selective_billing"] = True
                 log.info("supported distro")
         else:
             log.info("failed to find the extension directory")
@@ -277,3 +265,24 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             time.sleep(1)
             count = count + 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
+
+    def _find_extension_dir(self, node: Node) -> str:
+        startpath = node.get_pure_path("/var/lib/waagent/")
+        namepattern = "Microsoft.Azure.RecoveryServices.VMSnapshotLinux-1.0.*"
+        sudo = True
+        find_tool = node.tools[Find]
+        file_list = find_tool.find_files(
+            start_path=startpath, name_pattern=namepattern, sudo=sudo
+        )
+        extension_directory = ""
+        if len(file_list) == 1:
+            extension_directory = file_list[0]
+        return extension_directory
+
+    def _copy_to_node(self, node: Node, filename: str) -> None:
+        f_name = node.working_path / filename
+        temp_file = PurePosixPath(filename)
+        file_path = node.get_pure_path(
+            os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
+        )
+        node.shell.copy(file_path, f_name)
