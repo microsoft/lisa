@@ -11,15 +11,21 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import spur  # type: ignore
 from assertpy.assertpy import AssertionBuilder, assert_that, fail
+from retry import retry
 from spur.errors import NoSuchCommandError  # type: ignore
 
-from lisa.util import LisaException, RequireUserPasswordException, filter_ansi_escape
+from lisa.util import (
+    LisaException,
+    RequireUserPasswordException,
+    SshSpawnTimeoutException,
+    create_timer,
+    filter_ansi_escape,
+)
 from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
-from lisa.util.perf_timer import create_timer
 from lisa.util.shell import Shell, SshShell
 
 # [sudo] password for lisatest: \r\nsudo: timed out reading password
@@ -82,6 +88,20 @@ def _create_exports(update_envs: Dict[str, str]) -> str:
         result += f'export {key}="{value}";'
 
     return result
+
+
+def _retry_spawn(func: Callable[..., Any]) -> Any:
+    # wrap to pass in the logger object of the current process.
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        return retry(
+            exceptions=SshSpawnTimeoutException,
+            tries=3,
+            delay=1,
+            backoff=3,
+            logger=self._log,
+        )(func)(self, *args, **kwargs)
+
+    return wrapper
 
 
 def process_posix_command(
@@ -182,6 +202,7 @@ class Process:
         msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
         add_handler(self._log_handler, self._log, msg_only_format)
 
+    @_retry_spawn
     def start(
         self,
         command: str,
@@ -272,6 +293,10 @@ class Process:
                 "", identifier.strerror, 1, split_command, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {identifier}")
+        except SshSpawnTimeoutException:
+            # close the shell and try again, see if the ssh connection is interrupted.
+            self._shell.close()
+            raise
 
     def check_and_input_password(self) -> None:
         if (

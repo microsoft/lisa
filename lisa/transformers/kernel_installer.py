@@ -156,12 +156,15 @@ class KernelInstallerTransformer(Transformer):
             # the installer's type is "source", it needs to add the menuentry into grub
             # file. Otherwise, the node might not boot into the new kernel especially
             # the installed kernel version is lower than current kernel version.
+            from lisa.transformers.dom0_kernel_installer import Dom0Installer
             from lisa.transformers.kernel_source_installer import SourceInstaller
 
             if (
                 isinstance(installer, RepoInstaller)
                 and installer.runbook.source != "linux-image-azure-fde"
-                or isinstance(installer, SourceInstaller)
+            ) or (
+                isinstance(installer, SourceInstaller)
+                and not isinstance(installer, Dom0Installer)
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)

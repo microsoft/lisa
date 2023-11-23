@@ -14,7 +14,7 @@ from difflib import SequenceMatcher
 from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union, cast
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
@@ -49,6 +49,7 @@ from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
+from lisa.features import Disk
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
@@ -64,6 +65,7 @@ from lisa.util import (
     field_metadata,
     generate_strong_password,
     get_datetime_path,
+    get_first_combination,
     get_matched_str,
     get_or_generate_key_pairs,
     get_public_key_data,
@@ -164,6 +166,7 @@ WALA_VERSION_PATTERN = re.compile(
     r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
 
+KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
 KEY_HOST_VERSION = "host_version"
 KEY_VM_GENERATION = "vm_generation"
 KEY_KERNEL_VERSION = "kernel_version"
@@ -433,6 +436,7 @@ class AzurePlatform(Platform):
         # It has to be defined after the class definition is loaded. So it
         # cannot be a class level variable.
         self._environment_information_hooks = {
+            KEY_HARDWARE_DISK_CONTROLLER_TYPE: self._get_disk_controller_type,
             KEY_HOST_VERSION: self._get_host_version,
             KEY_KERNEL_VERSION: self._get_kernel_version,
             KEY_WALA_VERSION: self._get_wala_version,
@@ -502,40 +506,40 @@ class AzurePlatform(Platform):
         log.debug(f"allowed locations: {allowed_locations}")
 
         # Any to wait for resource
-        any_wait_for_resource: bool = False
+        all_awaitable: bool = False
         errors: List[str] = []
 
         for location in allowed_locations:
-            caps, error = self._get_matched_capabilities(
+            caps, error = self._get_azure_capabilities(
                 location=location, nodes_requirement=nodes_requirement, log=log
             )
 
             if error:
                 errors.append(error)
 
-            self._analyze_environment_availability(location, caps)
+            # If returns non-zero length array, it means found either available
+            # or awaitable for all nodes.
+            if caps:
+                all_awaitable = True
 
-            # set all awaitable flag if nothing is False
-            if all(x for x in caps):
-                any_wait_for_resource = True
-
-            # check to return value or raise WaitForMoreResource
-            if all(isinstance(x, schema.NodeSpace) for x in caps):
-                # with above condition, all types are NodeSpace. Ignore the mypy check.
-                environment.runbook.nodes_requirement = caps  # type: ignore
-                environment.cost = sum(
-                    x.cost for x in caps if isinstance(x, schema.NodeSpace)
-                )
-                is_success = True
-                log.debug(
-                    f"requirement meet, "
-                    f"cost: {environment.cost}, "
-                    f"cap: {environment.runbook.nodes_requirement}"
-                )
-                break
+                # check to return value or raise WaitForMoreResource
+                if all(isinstance(x, schema.NodeSpace) for x in caps):
+                    # With above condition, all types are NodeSpace. Ignore the
+                    # mypy check.
+                    environment.runbook.nodes_requirement = caps  # type: ignore
+                    environment.cost = sum(
+                        x.cost for x in caps if isinstance(x, schema.NodeSpace)
+                    )
+                    is_success = True
+                    log.debug(
+                        f"requirement meet, "
+                        f"cost: {environment.cost}, "
+                        f"cap: {environment.runbook.nodes_requirement}"
+                    )
+                    break
 
         if not is_success:
-            if any_wait_for_resource:
+            if all_awaitable:
                 raise ResourceAwaitableException(
                     "vm size", "No available quota, try to deploy later."
                 )
@@ -777,6 +781,16 @@ class AzurePlatform(Platform):
             information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
         return information
+
+    def _get_disk_controller_type(self, node: Node) -> str:
+        result: str = ""
+        try:
+            result = node.features[Disk].get_hardware_disk_controller_type()
+        except Exception as identifier:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on collecting disk controller type: {identifier}")
+        return result
 
     def _get_kernel_version(self, node: Node) -> str:
         result: str = ""
@@ -2379,37 +2393,40 @@ class AzurePlatform(Platform):
 
         return candidate_caps
 
-    def _get_matched_capability(
-        self,
-        requirement: schema.NodeSpace,
-        candidate_capabilities: List[AzureCapability],
-    ) -> Optional[schema.NodeSpace]:
-        matched_cap: Optional[schema.NodeSpace] = None
+    def _get_meet_capabilities(
+        self, item: Any
+    ) -> Iterable[Union[schema.NodeSpace, bool]]:
+        requirement, candidates = item
+
+        # assertion for type checks
+        assert isinstance(requirement, schema.NodeSpace)
+        assert isinstance(candidates, list)
 
         # filter allowed vm sizes
-        for azure_cap in candidate_capabilities:
+        for azure_cap in candidates:
             check_result = requirement.check(azure_cap.capability)
             if check_result.result:
                 min_cap = self._generate_min_capability(
                     requirement, azure_cap, azure_cap.location
                 )
+                yield min_cap
 
-                matched_cap = min_cap
-                break
+        return False
 
-        return matched_cap
-
-    def _get_matched_capabilities(
+    def _get_azure_capabilities(
         self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
-    ) -> Tuple[List[Union[schema.NodeSpace, bool]], str]:
-        # capability or if it's able to wait.
-        caps: List[Union[schema.NodeSpace, bool]] = [False] * len(nodes_requirement)
+    ) -> Tuple[List[Union[AzureCapability, bool]], str]:
         # one of errors for all requirements. It's enough for troubleshooting.
         error: str = ""
 
+        # All candidates for each requirement. The values are node_requirement,
+        # capabilities.
+        available_candidates: List[Any] = []
+        awaitable_candidates: List[Any] = []
+
         # get allowed vm sizes. Either it's from the runbook defined, or
-        # from subscription supported .
-        for req_index, req in enumerate(nodes_requirement):
+        # from subscription supported.
+        for req in nodes_requirement:
             candidate_caps, sub_error = self._get_allowed_capabilities(
                 req, location, log
             )
@@ -2423,33 +2440,58 @@ class AzurePlatform(Platform):
             (
                 available_capabilities,
                 awaitable_capabilities,
-            ) = self._parse_cap_availabilities(candidate_caps)
+            ) = self._get_available_azure_capabilities(candidate_caps, log)
 
-            # sort vm sizes to match
+            # Sort available vm sizes to match. Awaitable doesn't need to be
+            # sorted.
             available_capabilities = self.get_sorted_vm_sizes(
                 available_capabilities, log
             )
+            available_candidates.append([req, available_capabilities])
+            awaitable_candidates.append(
+                [req, available_capabilities + awaitable_capabilities]
+            )
 
-            # match vm sizes by capability or use the predefined vm sizes.
-            candidate_cap = self._get_matched_capability(req, available_capabilities)
-            if candidate_cap:
-                caps[req_index] = candidate_cap
-            else:
-                # the error will be overwritten, if there is vm sizes without
-                # quota.
-                error = f"no available vm size found on '{location}'."
+        results: List[Union[AzureCapability, bool]] = []
 
-            if not candidate_cap:
-                # check if there is awaitable VMs
-                candidate_cap = self._get_matched_capability(
-                    req, awaitable_capabilities
-                )
-                if candidate_cap:
-                    # True means awaitable.
-                    caps[req_index] = True
-                    error = f"no quota found on '{location}'"
+        # get available vm sizes
+        found = get_first_combination(
+            items=available_candidates,
+            index=0,
+            results=results,
+            check=partial(
+                self._check_environment_available, location=location, log=log
+            ),
+            next_value=self._get_meet_capabilities,
+            can_early_stop=True,
+        )
 
-        return caps, error
+        if len(results) < len(nodes_requirement):
+            # not found enough vm sizes, so mark it as not found
+            results = []
+            found = False
+
+        # if no available vm size, get awaitable vm sizes, It doesn't need to
+        # check quota again, because it's already checked in _get_meet_capabilities.
+        if not found:
+            found = get_first_combination(
+                items=awaitable_candidates,
+                index=0,
+                results=results,
+                check=lambda x: True,
+                next_value=self._get_meet_capabilities,
+                can_early_stop=True,
+            )
+
+        if len(results) < len(nodes_requirement):
+            # not found enough vm sizes, so mark it as not found
+            results = []
+            found = False
+
+        if not found:
+            error = f"no available quota found on '{location}'."
+
+        return results, error
 
     def _get_allowed_capabilities(
         self, req: schema.NodeSpace, location: str, log: Logger
@@ -2488,8 +2530,8 @@ class AzurePlatform(Platform):
 
         return allowed_capabilities, error
 
-    def _parse_cap_availabilities(
-        self, capabilities: List[AzureCapability]
+    def _get_available_azure_capabilities(
+        self, capabilities: List[AzureCapability], log: Logger
     ) -> Tuple[List[AzureCapability], List[AzureCapability]]:
         available_capabilities: List[AzureCapability] = []
         awaitable_capabilities: List[AzureCapability] = []
@@ -2503,9 +2545,10 @@ class AzurePlatform(Platform):
 
         # assume all vm sizes are in the same location.
         location = capabilities[0].location
-        quotas = self._get_quotas(location=location)
         for capability in capabilities:
-            quota = quotas.get(capability.vm_size, None)
+            quota = self._get_vm_size_remaining_usage(
+                location=location, vm_size=capability.vm_size, log=log
+            )
             if quota:
                 remaining, limit = quota
                 if limit == 0:
@@ -2521,29 +2564,41 @@ class AzurePlatform(Platform):
 
         return (available_capabilities, awaitable_capabilities)
 
-    def _analyze_environment_availability(
-        self, location: str, capabilities: List[Union[schema.NodeSpace, bool]]
-    ) -> None:
+    def _check_environment_available(
+        self,
+        capabilities: List[Union[schema.NodeSpace, bool]],
+        location: str,
+        log: Logger,
+    ) -> bool:
         # Check if sum of the same capabilities over the cap. If so, mark
         # the overflow cap as True.
         if all(isinstance(x, schema.NodeSpace) for x in capabilities):
             cap_calculator: Dict[str, Tuple[int, int]] = {}
-            for index, cap in enumerate(capabilities):
+            for cap in capabilities:
                 assert isinstance(cap, schema.NodeSpace), f"actual: {type(cap)}"
                 azure_runbook = cap.get_extended_runbook(AzureNodeSchema, AZURE)
                 vm_size = azure_runbook.vm_size
                 if vm_size not in cap_calculator:
-                    cap_calculator[vm_size] = self._get_usage(location, vm_size)
+                    cap_calculator[vm_size] = self._get_vm_size_remaining_usage(
+                        location, vm_size, log=log
+                    )
                 remaining, limit = cap_calculator[vm_size]
                 remaining -= 1
                 cap_calculator[vm_size] = (remaining, limit)
                 if remaining < 0 and limit > 0:
-                    capabilities[index] = True
+                    return False
+
+            return True
+
+        # not all have the capability
+        return False
 
     @cached(cache=TTLCache(maxsize=50, ttl=10))
-    def _get_quotas(self, location: str) -> Dict[str, Tuple[int, int]]:
+    def _get_vm_family_remaining_usages(
+        self, location: str
+    ) -> Dict[str, Tuple[int, int]]:
         """
-        The Dict item is: vm size name, Tuple(remaining vm count, limited vm count)
+        The Dict item is: vm family name, Tuple(remaining cpu count, limited cpu count)
         """
         result: Dict[str, Tuple[int, int]] = dict()
 
@@ -2556,35 +2611,46 @@ class AzurePlatform(Platform):
         # object, it makes the cache doesn't work. So create a logger in the
         # method.
         log = get_logger("azure")
-        location_info = self.get_location_info(location=location, log=log)
-        capabilities = location_info.capabilities
 
-        for vm_size, capability in capabilities.items():
+        for family, quota in quotas_map.items():
             # looking for quota for each vm size's family, and calculate
             # remaining and limit by core count of vm size.
-            quota = quotas_map.get(capability.resource_sku["family"], None)
-            if quota:
-                limit = math.floor(quota.limit / capability.capability.core_count)
-                remaining = math.floor(
-                    (quota.limit - quota.current_value)
-                    / capability.capability.core_count
-                )
-                result[vm_size] = (remaining, limit)
+            result[family] = ((quota.limit - quota.current_value), quota.limit)
 
-        log.debug(f"found {len(result)} vm sizes with quota in location '{location}'.")
+        log.debug(
+            f"found {len(result)} vm families with quota in location '{location}'."
+        )
 
         return result
 
-    def _get_usage(self, location: str, vm_size: str) -> Tuple[int, int]:
+    def _get_vm_size_remaining_usage(
+        self, location: str, vm_size: str, log: Logger
+    ) -> Tuple[int, int]:
         """
-        The format of return value refer to _get_usages
+        The format of return value refer to _get_remaining_usages
         """
         if is_unittest():
             return (sys.maxsize, sys.maxsize)
 
-        usages = self._get_quotas(location)
+        family_usages = self._get_vm_family_remaining_usages(location)
+        location_info = self.get_location_info(location=location, log=log)
+        vm_size_info = location_info.capabilities.get(vm_size, None)
+        if vm_size_info:
+            family = vm_size_info.resource_sku["family"]
+            family_usage = family_usages.get(family, (sys.maxsize, sys.maxsize))
+
+            core_count = vm_size_info.capability.core_count
+            assert isinstance(core_count, int), f"actual: {type(core_count)}"
+
+            remaining = int(math.floor(family_usage[0] / core_count))
+            limit = int(math.floor(family_usage[1] / core_count))
+        else:
+            # not trackable vm size, assume the capability is enough.
+            remaining = sys.maxsize
+            limit = sys.maxsize
+
         # The default value is to support force run for non-exists vm size.
-        return usages.get(vm_size, (sys.maxsize, sys.maxsize))
+        return (remaining, limit)
 
     def _resolve_marketplace_image_version(
         self, nodes_requirement: List[schema.NodeSpace]

@@ -45,6 +45,7 @@ from lisa.util import (
     filter_ansi_escape,
     get_matched_str,
     parse_version,
+    retry_without_exceptions,
 )
 from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
@@ -927,7 +928,11 @@ class Debian(Linux):
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
 
-    @retry(tries=10, delay=5)
+    @retry_without_exceptions(
+        tries=10,
+        delay=5,
+        skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
+    )
     def _initialize_package_installation(self) -> None:
         # wait running system package process.
         self.wait_running_package_process()
@@ -951,7 +956,11 @@ class Debian(Linux):
                     raise RepoNotExistException(self._node.os)
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
-    @retry(tries=10, delay=5)
+    @retry_without_exceptions(
+        tries=10,
+        delay=5,
+        skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
+    )
     def _install_packages(
         self,
         packages: List[str],
@@ -1127,6 +1136,7 @@ class Ubuntu(Debian):
     # The end of life releases come from
     # https://wiki.ubuntu.com/Releases?_ga=2.7226034.1862489468.1672129506-282537095.1659934740 # noqa: E501
     end_of_life_releases: List[str] = [
+        "Ubuntu 22.10",
         "Ubuntu 21.10",
         "Ubuntu 21.04",
         "Ubuntu 20.10",
@@ -1293,7 +1303,50 @@ class Ubuntu(Debian):
         super()._initialize_package_installation()
 
 
+@dataclass
+# Repositories:
+#   FreeBSD: {
+#     url             : "pkg+http://pkg.FreeBSD.org/FreeBSD:13:amd64/quarterly",
+#     enabled         : yes,
+#     priority        : 0,
+#     mirror_type     : "SRV",
+#     signature_type  : "FINGERPRINTS",
+#     fingerprints    : "/usr/share/keys/pkg"
+#   }
+class FreeBSDRepositoryInfo(RepositoryInfo):
+    # url for the repository.
+    # Example: `pkg+http://pkg.FreeBSD.org/FreeBSD:13:amd64/quarterly`
+    url: str
+
+    # enabled for the repository. Examples : yes, no
+    enabled: str
+
+
 class FreeBSD(BSD):
+    _freebsd_repository_info_pattern = re.compile(
+        r"\s+(\w+):\s*{(?:[^}]*url\s*:\s*\"([^\"]+)\"[^}]*enabled\s*:\s*(\w+))+[^}]*}",
+        re.DOTALL,
+    )
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        self._initialize_package_installation()
+        repo_list_str = self._node.execute("pkg -vv", sudo=True).stdout
+
+        repositories: List[RepositoryInfo] = []
+        for matched in self._freebsd_repository_info_pattern.finditer(
+            repo_list_str, re.DOTALL
+        ):
+            if matched.group(3).lower() == "yes":
+                repositories.append(
+                    FreeBSDRepositoryInfo(
+                        name=matched.group(1),
+                        url=matched.group(2),
+                        enabled=matched.group(3).lower(),
+                    )
+                )
+
+        return repositories
+
     @retry(tries=10, delay=5)
     def _install_packages(
         self,

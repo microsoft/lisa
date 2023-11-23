@@ -41,6 +41,7 @@ from lisa.util import (
     LisaException,
     PassedException,
     SkippedException,
+    UnsupportedDistroException,
     find_patterns_in_lines,
     get_matched_str,
 )
@@ -226,6 +227,13 @@ class AzureImageStandard(TestSuite):
         # refer https://access.redhat.com/solutions/6732061
         re.compile(r"^(.*ib_srpt MAD registration failed for.*)$", re.M),
         re.compile(r"^(.*ib_srpt srpt_add_one\(.*\) failed.*)$", re.M),
+        # this warning shown up because kvp file created after the cloud-init check
+        re.compile(
+            r"^(.*handlers.py\[WARNING\]: failed to truncate kvp pool file.*)$",
+            re.M,
+        ),
+        # pam_unix,pam_faillock
+        re.compile(r"^(.*pam_unix,pam_faillock.*)$", re.M),
     ]
 
     @TestCaseMetadata(
@@ -736,8 +744,16 @@ class AzureImageStandard(TestSuite):
                     is_repository_present,
                     f"{id_} repository should be present",
                 ).is_true()
+        elif type(node.os) == FreeBSD:
+            repositories = node.os.get_repositories()
+            assert_that(
+                len(repositories),
+                "No repositories are present in FreeBSD",
+            ).is_greater_than(0)
         else:
-            raise LisaException(f"Unsupported distro type : {type(node.os)}")
+            raise UnsupportedDistroException(
+                node.os, "repository check is missing for this distro"
+            )
 
     @TestCaseMetadata(
         description="""
@@ -974,11 +990,13 @@ class AzureImageStandard(TestSuite):
                 # then it is harmless, otherwise fail the case
                 # command="echo 'Please login as the user \"USERNAME\" rather than the user \"root\".';echo;sleep 10;exit 142"  # noqa: E501
                 key_content = node.tools[Cat].read(file_path, sudo=True)
-                key_match = key_pattern.findall(key_content)
-                if not (key_match and key_match[0]):
-                    assert_that(
-                        file_exists, f"{file_path} is detected. It should be deleted."
-                    ).is_false()
+                if key_content:
+                    key_match = key_pattern.findall(key_content)
+                    if not (key_match and key_match[0]):
+                        assert_that(
+                            file_exists,
+                            f"{file_path} is detected. It should be deleted.",
+                        ).is_false()
 
     @TestCaseMetadata(
         description="""
