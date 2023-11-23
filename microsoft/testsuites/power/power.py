@@ -63,6 +63,7 @@ class Power(TestSuite):
             network_interface=Synthetic(),
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_synthetic_network(
         self, environment: Environment, log: Logger
@@ -81,6 +82,7 @@ class Power(TestSuite):
             network_interface=Sriov(),
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_sriov_network(
         self, environment: Environment, log: Logger
@@ -102,6 +104,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_time_sync(
         self, environment: Environment, log: Logger
@@ -147,6 +150,7 @@ class Power(TestSuite):
             min_count=2,
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_with_network_workload(
         self, environment: Environment, log: Logger
@@ -170,6 +174,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_with_storage_workload(
         self, environment: Environment, log: Logger
@@ -193,6 +198,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             supported_features=[HibernationEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_hibernation_with_memory_workload(
         self, environment: Environment, log: Logger
