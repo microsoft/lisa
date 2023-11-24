@@ -24,6 +24,8 @@ class SerialConsole(Feature):
         re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
         re.compile(r"^(.*grub>.*)$", re.MULTILINE),
         re.compile(r"^The operating system has halted.$", re.MULTILINE),
+        # Synchronous Exception at 0x000000003FD04000
+        re.compile(r"^(.*Synchronous Exception at.*)$", re.MULTILINE),
     ]
 
     # ignore some return lines, which shouldn't be a panic line.
