@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from time import sleep
 from typing import List, Pattern
 
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
@@ -29,6 +30,7 @@ _tx_forwarded_patterns = [
 ]
 _huge_page_disks = {"/mnt/huge": "", "/mnt/huge1g": "pagesize=1G"}
 _huge_page_disks_rhel_arm64 = {"/mnt/huge": "", "/mnt/huge512m": "pagesize=512M"}
+_nic_not_found = re.compile(r"Couldn't get device .* statistics", re.M)
 
 
 def get_xdpdump(node: Node) -> XdpDump:
@@ -163,9 +165,23 @@ def _aggregate_count(
         # there may not have vf nic
         if not nic_name:
             continue
-        stats = ethtool.get_device_statistics(
-            interface=nic_name, force_run=True
-        ).counters
+        attempts = 0
+        max_attempts = 4
+        while attempts < max_attempts:
+            try:
+                stats = ethtool.get_device_statistics(
+                    interface=nic_name, force_run=True
+                ).counters
+                break
+            except Exception as identifier:
+                if _nic_not_found.search(str(identifier)):
+                    log.debug(f"nic {nic_name} not found, need to reload nics")
+                    sleep(2)
+                    node.nics.reload()
+                    nic_name = node.nics.get_primary_nic().lower
+                    attempts += 1
+                else:
+                    raise identifier
         # the name and pattern ordered by syn/vf
         for pattern in patterns:
             items = {key: value for key, value in stats.items() if pattern.match(key)}
