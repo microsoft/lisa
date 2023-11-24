@@ -149,7 +149,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         # install pip
         url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
         args = "-o get-pip.py"
-        curl = Curl(node)
+        curl = node.tools[Curl]
         curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
         node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
         node.execute(cmd="python2.7 -m pip --version")
@@ -157,47 +157,43 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         node.execute(cmd="python2.7 -m pip install mock", sudo=True)
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
+        assert extension_dir, "Unable to find the extension directory."
 
-        if extension_dir != "":
-            # moving the handle.py file to extension directory
-            script = (
-                "#!/bin/sh\n"
-                f"mv {node.working_path}/handle.txt {extension_dir}/handle.py"
+        # moving the handle.py file to extension directory
+        script = (
+            "#!/bin/sh\n" f"mv {node.working_path}/handle.txt {extension_dir}/handle.py"
+        )
+        script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
+        settings = {"script": script_base64}
+        extension = node.features[AzureExtension]
+        extension.create_or_update(
+            name="CustomScript",
+            publisher="Microsoft.Azure.Extensions",
+            type_="CustomScript",
+            type_handler_version="2.1",
+            auto_upgrade_minor_version=True,
+            settings=settings,
+        )
+        log.info(f"extension_directory: {extension_dir}")
+        # give the execution permissions to the file
+        file_path = f"{extension_dir}/handle.py"
+        permissions = "777"
+        node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
+        # execute the file
+        script_result = node.execute(
+            cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
+        )
+        log.info(f"The script returned {script_result.stdout}")
+        if "True" in script_result.stdout:
+            # isSizeComputationFailed flag is set to True.
+            result.information["selective_billing_support"] = False
+            log.info(
+                "unsupported distro as it do not have few of the modules "
+                "like lsblk, lsscsi not pre-installed"
             )
-            script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
-            settings = {"script": script_base64}
-            extension = node.features[AzureExtension]
-            extension.create_or_update(
-                name="CustomScript",
-                publisher="Microsoft.Azure.Extensions",
-                type_="CustomScript",
-                type_handler_version="2.1",
-                auto_upgrade_minor_version=True,
-                settings=settings,
-            )
-            log.info(extension_dir)
-            # give the execution permissions to the file
-            file_path = f"{extension_dir}/handle.py"
-            permissions = "777"
-            node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
-            # execute the file
-            script_result = node.execute(
-                cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
-            )
-            log.info(script_result.stdout)
-            if "True" in script_result.stdout:
-                # isSizeComputationFailed flag is set to True.
-                result.information["distro_supported_for_selective_billing"] = False
-                log.info(
-                    "unsupported distro as it do not have few of the modules "
-                    "like lsblk, lsscsi not pre-installed"
-                )
-            else:
-                result.information["distro_supported_for_selective_billing"] = True
-                log.info("supported distro")
         else:
-            log.info("failed to find the extension directory")
-        assert extension_dir != "", "Unable to find the extension directory."
+            result.information["selective_billing_support"] = True
+            log.info("supported distro")
 
     def _verify_vmsnapshot_extension(
         self, log: Logger, node: Node, environment: Environment
