@@ -1366,7 +1366,7 @@ def copy_vhd_to_storage(
                         expected_exit_code_failure_message=(
                             "Azcopy failed to copy the blob"
                         ),
-                        timeout=60 * 60,
+                        timeout=60 * 60 * 3,
                     )
                 except Exception as identifier:
                     blob_client.delete_blob(delete_snapshots="include")
@@ -1380,7 +1380,7 @@ def copy_vhd_to_storage(
                     src_vhd_sas_url, metadata=None, incremental_copy=False
                 )
 
-        wait_copy_blob(blob_client, dst_vhd_name, log)
+        wait_copy_blob(blob_client, dst_vhd_name, log, 60 * 60 * 3)
 
     return full_vhd_path
 
