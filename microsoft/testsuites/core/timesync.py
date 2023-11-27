@@ -18,7 +18,7 @@ from lisa import (
     UnsupportedCpuArchitectureException,
     create_timer,
 )
-from lisa.operating_system import CpuArchitecture, Redhat
+from lisa.operating_system import CpuArchitecture, Redhat, Suse
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
@@ -313,8 +313,10 @@ class TimeSync(TestSuite):
         priority=2,
     )
     def verify_timesync_ntp(self, node: Node) -> None:
-        if isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0":
-            # refer from https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_basic_system_settings/using-chrony-to-configure-ntp # noqa: E501
+        # On higher distro version, ntp is replaced by chrony. So skip this test.
+        if (isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0") or (
+            isinstance(node.os, Suse) and node.os.information.version >= "15.0.0"
+        ):
             raise SkippedException(
                 f"The distro {node.os.name} {node.os.information.version} doesn't "
                 "support ntp, because the ntp package is no longer supported and "
