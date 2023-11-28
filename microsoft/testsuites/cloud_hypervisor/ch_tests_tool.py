@@ -230,7 +230,8 @@ class CloudHypervisorTests(Tool):
                 auth_token=self.ms_access_token,
             )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
-            self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+            if self.use_ms_guest_kernel:
+                self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
         else:
             git.clone(self.upstream_repo, clone_path)
 

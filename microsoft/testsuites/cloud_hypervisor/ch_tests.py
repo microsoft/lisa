@@ -202,7 +202,8 @@ class CloudHypervisorTestSuite(TestSuite):
         CloudHypervisorTests.ms_clh_repo = ms_clh_repo
         CloudHypervisorTests.ms_igvm_parser_repo = ms_igvm_parser_repo
         CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
-        CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
+        if use_ms_guest_kernel == "YES":
+            CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:
