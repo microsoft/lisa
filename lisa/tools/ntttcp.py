@@ -175,6 +175,7 @@ class Ntttcp(Tool):
         original_settings = self._original_settings_tcp
         if udp_mode:
             original_settings = self._original_settings_udp
+        self.node.close()
         sysctl = self.node.tools[Sysctl]
         for variable_list in original_settings:
             # restore back to the original value after testing
