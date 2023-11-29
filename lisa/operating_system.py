@@ -860,6 +860,7 @@ class Debian(Linux):
             dpkg_result = self._node.execute(
                 "dpkg --force-all --configure -a", sudo=True
             )
+            time.sleep(5)
             pidof_result = self._node.execute("pidof dpkg dpkg-deb")
             if dpkg_result.exit_code == 0 and pidof_result.exit_code == 1:
                 # not found dpkg process, it's ok to exit.
