@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type, cast
 
+from assertpy import assert_that
+
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
@@ -220,12 +222,21 @@ class Xfstests(Tool):
             else:
                 arch = self.node.os.get_kernel_information().hardware_platform
                 if arch == "x86_64":
-                    posix_os.install_packages(
-                        (
-                            "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
-                            "xfsprogs-devel-4.5.0-22.el7.x86_64.rpm"
-                        )
+                    xfsprogs_version = posix_os.get_package_information("xfsprogs")
+                    # 4.5.0-20.el7.x86_64
+                    version_string = ".".join(map(str, xfsprogs_version[:3])) + str(
+                        xfsprogs_version[4]
                     )
+                    # try to install the compatible version of xfsprogs-devel with
+                    # xfsprogs package
+                    posix_os.install_packages(f"xfsprogs-devel-{version_string}")
+                    # check if xfsprogs-devel is installed successfully
+                    assert_that(posix_os.package_exists("xfsprogs-devel")).described_as(
+                        "xfsprogs-devel is not installed successfully, please check "
+                        "whether it is available in the repo, and the available "
+                        "versions are compatible with xfsprogs package."
+                    ).is_true()
+
                 posix_os.install_packages(packages="centos-release-scl")
             posix_os.install_packages(
                 packages="devtoolset-7-gcc*", extra_args=["--skip-broken"]
