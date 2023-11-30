@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+import string
 import time
 from typing import Any, Pattern
 
@@ -14,6 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.environment import Environment
 from lisa.features import Disk, Nfs
 from lisa.features.disks import (
     DiskPremiumSSDLRS,
@@ -24,12 +26,19 @@ from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskControllerType, DiskType
 from lisa.sut_orchestrator import AZURE
-from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
+from lisa.tools.kernel_config import KernelConfig
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    generate_random_chars,
+    get_matched_str,
+)
 from lisa.util.perf_timer import create_timer
 
 
@@ -466,6 +475,82 @@ class Storage(TestSuite):
             disk.remove_data_disk()
         except Exception:
             raise BadEnvironmentStateException
+
+    @TestCaseMetadata(
+        description="""
+        This test case will
+            1. Check if CONFIG_CIFS is enabled in KCONFIG
+            2. Create an Azure File Share
+            3. Mount the VM to Azure File Share
+            4. Verify mount is successful
+        """,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+        ),
+        use_new_environment=True,
+        priority=1,
+    )
+    def verify_cifs_basic(self, node: Node, environment: Environment) -> None:
+        if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
+            raise LisaException("CIFS module must be present in Azure Endorsed Distros")
+        test_folder = "/root/test"
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+        fileshare_name = f"lisa{random_str}fs"
+        azure_file_share = node.features[AzureFileShare]
+        try:
+            fs_url_dict = azure_file_share.create_file_share(
+                file_share_names=[fileshare_name], environment=environment
+            )
+            test_folders_share_dict = {
+                test_folder: fs_url_dict[fileshare_name],
+            }
+            azure_file_share.create_fileshare_folders(test_folders_share_dict)
+
+            # Reload '/etc/fstab' configuration file
+            mount = node.tools[Mount]
+            mount.run(
+                "-a",
+                force_run=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to reload fstab configuration file",
+            )
+
+            # Verify that the file share is mounted
+            mount_point_exists = mount.check_mount_point_exist(test_folder)
+            if not mount_point_exists:
+                raise LisaException(f"Mount point {test_folder} does not exist.")
+
+            # Create a file in the mounted folder
+            test_file = "test.txt"
+            test_file_path = node.get_pure_path(f"{test_folder}/{test_file}")
+            initial_file_content = f"fileshare name is {fileshare_name}"
+            echo = node.tools[Echo]
+            echo.write_to_file(
+                value=initial_file_content, file=test_file_path, sudo=True
+            )
+
+            # Umount and Mount the file share
+            mount.umount(point=test_folder, disk_name="", erase=False)
+            node.execute("sync", sudo=True, shell=True)
+            mount.run(
+                "-a",
+                force_run=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to reload fstab configuration file",
+            )
+
+            # Check the file contents
+            cat = node.tools[Cat]
+            file_content_after_mount = cat.read(
+                file=str(test_file_path), sudo=True, force_run=True
+            )
+            assert file_content_after_mount == initial_file_content
+
+        finally:
+            azure_file_share.delete_azure_fileshare([fileshare_name])
 
     def _hot_add_disk_serial(
         self, log: Logger, node: Node, disk_type: DiskType, size: int

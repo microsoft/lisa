@@ -454,6 +454,7 @@ class AzurePlatform(Platform):
         return [
             features.Disk,
             features.AzureExtension,
+            features.AzureFileShare,
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,

@@ -63,6 +63,8 @@ from lisa.tools import (
     Rm,
     Sed,
 )
+from lisa.tools.echo import Echo
+from lisa.tools.kernel_config import KernelConfig
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
@@ -104,6 +106,7 @@ from .common import (
     get_node_context,
     get_or_create_file_share,
     get_primary_ip_addresses,
+    get_storage_credential,
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
@@ -2759,3 +2762,140 @@ class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
         assert_that(result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
+
+
+class AzureFileShare(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def get_smb_version(self) -> str:
+        if self._node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
+            version = "3.1.1"
+        else:
+            version = "3.0"
+        return version
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        self._initialize_fileshare_information()
+
+    def _initialize_fileshare_information(self) -> None:
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+        self._storage_account_name = f"lisasc{random_str}"
+        self._fstab_info = (
+            f"nofail,vers={self.get_smb_version()},credentials=/etc/smbcredentials/lisa.cred"
+            ",dir_mode=0777,file_mode=0777,serverino"
+        )
+
+    def create_file_share(
+        self, file_share_names: List[str], environment: Environment
+    ) -> Dict[str, str]:
+        platform: AzurePlatform = self._platform   # type: ignore
+        information = environment.get_information()
+        resource_group_name = self._resource_group_name
+        location = information["location"]
+        storage_account_name = self._storage_account_name
+
+        fs_url_dict: Dict[str, str] = {}
+
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=self._log,
+        )
+
+        for share_name in file_share_names:
+            fs_url_dict[share_name] = get_or_create_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        return fs_url_dict
+
+    """
+     test_folders_share_dict is of the form
+        {
+        "foldername": "fileshareurl",
+        "foldername2": "fileshareurl2",
+        }
+    """
+
+    def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
+        platform: AzurePlatform = self._platform   # type: ignore
+        account_credential = get_storage_credential(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=self._storage_account_name,
+            resource_group_name=self._resource_group_name,
+        )
+        self._prepare_azure_file_share(
+            self._node,
+            account_credential,
+            test_folders_share_dict,
+            self._fstab_info,
+        )
+
+    def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
+        resource_group_name = self._resource_group_name
+        storage_account_name = self._storage_account_name
+        platform: AzurePlatform = self._platform   # type: ignore
+        for share_name in file_share_names:
+            delete_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        delete_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            log=self._log,
+        )
+        # revert file into original status after testing.
+        self._node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
+    def _prepare_azure_file_share(
+        self,
+        node: Node,
+        account_credential: Dict[str, str],
+        test_folders_share_dict: Dict[str, str],
+        fstab_info: str,
+    ) -> None:
+        folder_path = node.get_pure_path("/etc/smbcredentials")
+        if node.shell.exists(folder_path):
+            node.execute(f"rm -rf {folder_path}", sudo=True)
+        node.shell.mkdir(folder_path)
+        file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+        echo = node.tools[Echo]
+        username = account_credential["account_name"]
+        password = account_credential["account_key"]
+        echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
+        echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
+        node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+        for folder_name, share in test_folders_share_dict.items():
+            node.execute(f"mkdir {folder_name}", sudo=True)
+            echo.write_to_file(
+                f"{share} {folder_name} cifs {fstab_info}",
+                node.get_pure_path("/etc/fstab"),
+                sudo=True,
+                append=True,
+            )
