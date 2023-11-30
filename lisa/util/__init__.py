@@ -751,7 +751,7 @@ def check_till_timeout(
             break
         sleep(interval)
     if timer.elapsed() >= timeout:
-        raise LisaException(f"timeout: {timeout_message}")
+        raise LisaTimeoutException(f"timeout: {timeout_message}")
 
 
 def retry_without_exceptions(
