@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
@@ -26,8 +27,21 @@ from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Cat, Ethtool, Firewall, InterruptInspector, Iperf3, Lscpu
-from lisa.util import UnsupportedDistroException, check_till_timeout
+from lisa.tools import (
+    Cat,
+    Ethtool,
+    Firewall,
+    InterruptInspector,
+    Iperf3,
+    Journalctl,
+    Lscpu,
+)
+from lisa.util import (
+    LisaException,
+    LisaTimeoutException,
+    UnsupportedDistroException,
+    check_till_timeout,
+)
 from lisa.util.shell import wait_tcp_port_ready
 from microsoft.testsuites.network.common import (
     cleanup_iperf3,
@@ -51,6 +65,12 @@ from microsoft.testsuites.network.common import (
 )
 class Sriov(TestSuite):
     TIME_OUT = 300
+    # Failed to rename network interface 3 from 'eth1' to 'enP45159s1': Device or resource busy # noqa: E501
+    _device_rename_pattern = re.compile(
+        r"Failed to rename network interface .* from '.*' "
+        "to '.*': Device or resource busy",
+        re.M,
+    )
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
@@ -80,6 +100,16 @@ class Sriov(TestSuite):
                 lambda: node.tools[Systemctl].state() == "running",
                 timeout_message="wait for systemctl status to be running",
             )
+        except LisaTimeoutException:
+            udevd_status = node.tools[Journalctl].logs_for_unit("systemd-udevd")
+            matched = self._device_rename_pattern.search(udevd_status)
+            if matched:
+                raise LisaException(
+                    f"found {matched[0]} message "
+                    "there is a race condition when rename VF nics, "
+                    "it causes boot delay, it should be fixed in "
+                    "systemd - 245.4-4ubuntu3.21"
+                )
         except UnsupportedDistroException as e:
             raise SkippedException(e) from e
 
