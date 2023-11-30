@@ -220,6 +220,8 @@ def _set_target_role_parameters(
         "Microsoft.Compute/disks/delete",
         "Microsoft.Compute/images/read",
         "Microsoft.Compute/images/write",
+        "Microsoft.Compute/galleries/images/read",
+        "Microsoft.Compute/galleries/images/write",
         # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
