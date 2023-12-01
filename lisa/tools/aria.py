@@ -7,6 +7,7 @@ from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.tar import Tar
+from lisa.util import ReleaseEndOfLifeException, RepoNotExistException
 
 
 class Aria(Tool):
@@ -26,6 +27,8 @@ class Aria(Tool):
         posix_os: Posix = self.node.os  # type: ignore
         try:
             posix_os.install_packages(["aria2"])
+        except (RepoNotExistException, ReleaseEndOfLifeException) as e:
+            raise e
         except Exception as identifier:
             self._log.debug(f"Failed to install aria2: {identifier}")
 
