@@ -11,11 +11,14 @@ from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
 from lisa.messages import KernelBuildMessage
-from lisa.node import Node, quick_connect
+from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.tools import Uname
-from lisa.transformer import Transformer
+from lisa.transformers.deployment_transformer import (
+    DeploymentTransformer,
+    DeploymentTransformerSchema,
+)
 from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -65,11 +68,7 @@ class PpaInstallerSchema(RepoInstallerSchema):
 
 @dataclass_json
 @dataclass
-class KernelInstallerTransformerSchema(schema.Transformer):
-    # the SSH connection information to the node
-    connection: Optional[schema.RemoteNode] = field(
-        default=None, metadata=field_metadata(required=True)
-    )
+class KernelInstallerTransformerSchema(DeploymentTransformerSchema):
     # the installer's parameters.
     installer: Optional[BaseInstallerSchema] = field(
         default=None, metadata=field_metadata(required=True)
@@ -101,7 +100,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
 
-class KernelInstallerTransformer(Transformer):
+class KernelInstallerTransformer(DeploymentTransformer):
     _information_output_name = "information"
     _is_success_output_name = "is_success"
 
@@ -121,14 +120,13 @@ class KernelInstallerTransformer(Transformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: KernelInstallerTransformerSchema = self.runbook
-        assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
         message = KernelBuildMessage()
         build_sucess: bool = False
         boot_success: bool = False
 
-        node = quick_connect(runbook.connection, "installer_node")
+        node = self._node
 
         uname = node.tools[Uname]
         kernel_version_before_install = uname.get_linux_information()
