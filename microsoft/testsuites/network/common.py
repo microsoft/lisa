@@ -10,6 +10,7 @@ from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD
 from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ping, Ssh
+from time import sleep
 
 
 @retry(exceptions=AssertionError, tries=30, delay=2)
@@ -17,6 +18,7 @@ def initialize_nic_info(
     environment: Environment, is_sriov: bool = True
 ) -> Dict[str, Dict[str, NicInfo]]:
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
+    sleep(300)
     for node in environment.nodes.list():
         network_interface_feature = node.features[NetworkInterface]
         interfaces_info_list: List[
