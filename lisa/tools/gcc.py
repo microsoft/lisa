@@ -32,7 +32,13 @@ class Gcc(Tool):
         cmd = f"{arguments} {filename}"
         if output_name:
             cmd += f" -o {output_name} "
-        self.run(cmd, shell=True, force_run=True)
+        self.run(
+            cmd,
+            shell=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+        )
 
     def get_version(self) -> VersionInfo:
         output = self.run(
