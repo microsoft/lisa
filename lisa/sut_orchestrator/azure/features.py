@@ -2814,7 +2814,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     def create_file_share(
         self, file_share_names: List[str], environment: Environment
     ) -> Dict[str, str]:
-        platform: AzurePlatform = self._platform   # type: ignore
+        platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
         resource_group_name = self._resource_group_name
         location = information["location"]
@@ -2844,16 +2844,15 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             )
         return fs_url_dict
 
-    """
-     test_folders_share_dict is of the form
-        {
-        "foldername": "fileshareurl",
-        "foldername2": "fileshareurl2",
-        }
-    """
-
     def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
-        platform: AzurePlatform = self._platform   # type: ignore
+        """
+        test_folders_share_dict is of the form
+            {
+            "foldername": "fileshareurl",
+            "foldername2": "fileshareurl2",
+            }
+        """
+        platform: AzurePlatform = self._platform  # type: ignore
         account_credential = get_storage_credential(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
@@ -2871,7 +2870,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
     def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
         resource_group_name = self._resource_group_name
         storage_account_name = self._storage_account_name
-        platform: AzurePlatform = self._platform   # type: ignore
+        platform: AzurePlatform = self._platform  # type: ignore
         for share_name in file_share_names:
             delete_file_share(
                 credential=platform.credential,

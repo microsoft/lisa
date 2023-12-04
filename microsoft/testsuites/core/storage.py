@@ -15,6 +15,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.base_tools.service import Systemctl
 from lisa.environment import Environment
 from lisa.features import Disk, Nfs
 from lisa.features.disks import (
@@ -508,16 +509,10 @@ class Storage(TestSuite):
             azure_file_share.create_fileshare_folders(test_folders_share_dict)
 
             # Reload '/etc/fstab' configuration file
-            mount = node.tools[Mount]
-            mount.run(
-                "-a",
-                force_run=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="Failed to reload fstab configuration file",
-            )
+            self._reload_fstab_config(node)
 
             # Verify that the file share is mounted
+            mount = node.tools[Mount]
             mount_point_exists = mount.check_mount_point_exist(test_folder)
             if not mount_point_exists:
                 raise LisaException(f"Mount point {test_folder} does not exist.")
@@ -534,14 +529,7 @@ class Storage(TestSuite):
             # Umount and Mount the file share
             mount.umount(point=test_folder, disk_name="", erase=False)
             node.execute("sync", sudo=True, shell=True)
-            mount.run(
-                "-a",
-                force_run=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="Failed to reload fstab configuration file",
-            )
-
+            self._reload_fstab_config(node)
             # Check the file contents
             cat = node.tools[Cat]
             file_content_after_mount = cat.read(
@@ -728,3 +716,17 @@ class Storage(TestSuite):
                 os_disk_controller_type,
                 "The disk controller types of hardware and OS should be the same.",
             ).is_equal_to(vm_disk_controller_type)
+
+    def _reload_fstab_config(self, node: Node) -> None:
+        mount = node.tools[Mount]
+        try:
+            res = mount.run("-a", force_run=True, sudo=True)
+            if res.exit_code != 0:
+                raise LisaException(
+                    f"Failed to reload fstab configuration file: {res.stdout}"
+                )
+        except Exception as e:
+            if "use 'systemctl daemon-reload' to reload" in str(e):
+                node.tools[Systemctl].daemon_reload()
+            else:
+                raise e
