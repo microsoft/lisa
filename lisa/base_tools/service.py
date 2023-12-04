@@ -157,6 +157,11 @@ class Systemctl(Tool):
             expected_exit_code=0,
         )
 
+    def daemon_reload(self) -> None:
+        self.run(
+            "daemon-reload", shell=True, sudo=True, force_run=True, expected_exit_code=0
+        )
+
     def is_service_running(self, name: str) -> bool:
         cmd_result = self.run(
             f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
