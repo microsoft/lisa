@@ -1852,6 +1852,7 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
         value = SecurityProfileSettings()
         value.security_profile = super_value.security_profile
         value.encrypt_disk = super_value.encrypt_disk
+        value.tdx_stateless = super_value.tdx_stateless
 
         if self.disk_encryption_set_id:
             value.disk_encryption_set_id = self.disk_encryption_set_id
@@ -1934,11 +1935,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile[
                     "security_type"
                 ] = cls._security_profile_mapping[settings.security_profile]
-                node_parameters.security_profile["encryption_type"] = (
-                    "DiskWithVMGuestState"
-                    if settings.encrypt_disk
-                    else "VMGuestStateOnly"
-                )
+                if settings.tdx_stateless:
+                    node_parameters.security_profile["secure_boot"] = False
+                    node_parameters.security_profile[
+                        "encryption_type"
+                    ] = "NonPersistedTPM"
+                else:
+                    node_parameters.security_profile["secure_boot"] = True
+                    node_parameters.security_profile["encryption_type"] = (
+                        "DiskWithVMGuestState"
+                        if settings.encrypt_disk
+                        else "VMGuestStateOnly"
+                    )
                 node_parameters.security_profile[
                     "disk_encryption_set_id"
                 ] = settings.disk_encryption_set_id
