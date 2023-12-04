@@ -59,12 +59,16 @@ class SecurityProfileSettings(schema.FeatureSettings):
         ),
     )
     encrypt_disk: bool = field(default=False)
+    tdx_stateless: bool = field(default=False)
 
     def __hash__(self) -> int:
         return hash(self._get_key())
 
     def _get_key(self) -> str:
-        return f"{self.type}/{self.security_profile}"
+        return (
+            f"{self.type}/{self.security_profile}"
+            f"/{self.encrypt_disk}/{self.tdx_stateless}"
+        )
 
     def _call_requirement_method(
         self, method: search_space.RequirementMethod, capability: Any
@@ -78,6 +82,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             security_profile_priority,
         )
         value.encrypt_disk = self.encrypt_disk or capability.encrypt_disk
+        value.tdx_stateless = self.tdx_stateless or capability.tdx_stateless
         return value
 
     def check(self, capability: Any) -> search_space.ResultReason:
