@@ -1852,7 +1852,6 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
         value = SecurityProfileSettings()
         value.security_profile = super_value.security_profile
         value.encrypt_disk = super_value.encrypt_disk
-        value.tdx_stateless = super_value.tdx_stateless
 
         if self.disk_encryption_set_id:
             value.disk_encryption_set_id = self.disk_encryption_set_id
@@ -1868,6 +1867,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         SecurityProfileType.Standard: "",
         SecurityProfileType.SecureBoot: "TrustedLaunch",
         SecurityProfileType.CVM: "ConfidentialVM",
+        SecurityProfileType.Stateless: "ConfidentialVM",
     }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -1908,8 +1908,20 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             "standardDCADSv5Family",
             "standardECASv5Family",
             "standardECADSv5Family",
+            "standardDCEv5Family",
+            "standardDCEDv5Family",
+            "standardECEv5Family",
+            "standardECEDv5Family",
         ]:
             capabilities.append(SecurityProfileType.CVM)
+
+        if cvm_value == "TDX" and resource_sku.family in [
+            "standardDCEv5Family",
+            "standardDCEDv5Family",
+            "standardECEv5Family",
+            "standardECEDv5Family",
+        ]:
+            capabilities.append(SecurityProfileType.Stateless)
 
         return SecurityProfileSettings(
             security_profile=search_space.SetSpace(True, capabilities)
@@ -1935,7 +1947,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile[
                     "security_type"
                 ] = cls._security_profile_mapping[settings.security_profile]
-                if settings.tdx_stateless:
+                if settings.security_profile == SecurityProfileType.Stateless:
                     node_parameters.security_profile["secure_boot"] = False
                     node_parameters.security_profile[
                         "encryption_type"
