@@ -1,0 +1,25 @@
+{
+    "location": "westus3",
+    "properties": {
+        "vmSize": [
+            "Standard_D4_v4"
+        ],
+        "selections": [
+            {
+                "caseName": [],
+                "caseArea": [],
+                "caseCategory": [],
+                "casePriority": [
+                    0
+                ],
+                "caseTags": [],
+                "action": "include",
+                "testIterations": 1,
+                "retryCount": 0,
+                "useNewEnvironment": false,
+                "ignoreFailure": false
+            }
+        ],
+        "concurrency": 4
+    }
+}
