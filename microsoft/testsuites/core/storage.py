@@ -32,7 +32,6 @@ from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
-from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.tools.kernel_config import KernelConfig
 from lisa.util import (
     BadEnvironmentStateException,
@@ -720,11 +719,7 @@ class Storage(TestSuite):
     def _reload_fstab_config(self, node: Node) -> None:
         mount = node.tools[Mount]
         try:
-            res = mount.run("-a", force_run=True, sudo=True)
-            if res.exit_code != 0:
-                raise LisaException(
-                    f"Failed to reload fstab configuration file: {res.stdout}"
-                )
+            mount.reload_fstab_config()
         except Exception as e:
             if "use 'systemctl daemon-reload' to reload" in str(e):
                 node.tools[Systemctl].daemon_reload()

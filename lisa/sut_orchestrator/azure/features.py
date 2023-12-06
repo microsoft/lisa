@@ -2807,7 +2807,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         self._storage_account_name = f"lisasc{random_str}"
         self._fstab_info = (
-            f"nofail,vers={self.get_smb_version()},credentials=/etc/smbcredentials/lisa.cred"
+            f"nofail,vers={self.get_smb_version()},"
+            "credentials=/etc/smbcredentials/lisa.cred"
             ",dir_mode=0777,file_mode=0777,serverino"
         )
 
