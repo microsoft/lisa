@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import List, Type
+from pathlib import PurePath
+from typing import Any, List, Type
 
 from assertpy import assert_that
 
@@ -88,4 +89,67 @@ class Pip(Tool):
 
     def uninstall_package(self, package_name: str) -> bool:
         result = self.run(f"uninstall {package_name} -y", force_run=True, sudo=True)
+        return result.exit_code == 0
+
+
+class PythonVenv(Python):
+    @property
+    def command(self) -> str:
+        return f"{self.get_venv_path()}/bin/{super().command}"
+
+    def _check_exists(self) -> bool:
+        # _super = type(super())
+        # assert isinstance(super(), Python)
+        return self.node.execute("python3 -m venv --help", shell=True).exit_code == 0
+        # return self.node.execute("python3 -m venv --help").exit_code == 0
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+
+    def _install(self) -> bool:
+        super()._install()
+        if isinstance(self.node.os, Posix):
+            self.node.os.install_packages("python3-venv")
+        return self._check_exists()
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Python]
+
+    # if get_venv_path is invoked before create_venv, it will create
+    # a venv in the node working path
+    def get_venv_path(self) -> PurePath:
+        if not hasattr(self, "_venv_path"):
+            self._venv_path = self.create_venv()
+        return self._venv_path
+
+    def create_venv(self, venv_path: str = "", sudo: bool = False) -> PurePath:
+        _venv_path: PurePath = (
+            PurePath(venv_path) if venv_path else self.node.working_path / "venv"
+        )
+        cmd_result = super().run(
+            f"-m venv {_venv_path}", force_run=True, sudo=sudo, shell=True
+        )
+        assert_that(
+            cmd_result.exit_code, f"fail to create venv: {_venv_path}"
+        ).is_equal_to(0)
+        self._venv_path = _venv_path
+        return self._venv_path
+
+    def install_packages(self, packages_name: str, sudo: bool = False) -> None:
+        cmd_result = self.run(
+            f"-m pip -q install {packages_name}", force_run=True, shell=True, sudo=sudo
+        )
+        assert_that(
+            cmd_result.exit_code, f"fail to install {packages_name}"
+        ).is_equal_to(0)
+
+    def exists_package(self, package_name: str) -> bool:
+        result = self.run(f"-m pip show {package_name}")
+        return result.exit_code == 0
+
+    def uninstall_package(self, package_name: str, sudo: bool = False) -> bool:
+        result = self.run(
+            f"-m pip uninstall {package_name} -y", force_run=True, sudo=sudo
+        )
         return result.exit_code == 0
