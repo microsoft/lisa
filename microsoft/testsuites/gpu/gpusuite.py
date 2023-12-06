@@ -23,6 +23,7 @@ from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
+from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
@@ -270,41 +271,30 @@ class GpuTestSuite(TestSuite):
         # Step 2, Install cudnn and pyTorch
         _install_cudnn(node, log, work_path)
 
-        pip = node.tools[Pip]
-        if not pip.exists_package("torch"):
-            if use_new_path:
-                pip.install_packages("torch", work_path)
-            else:
-                pip.install_packages("torch")
+        pythonvenv = node.tools[PythonVenv]
+        if use_new_path:
+            pythonvenv.create_venv(work_path)
+
+        pythonvenv.install_packages("torch")
 
         # Step 3, verification
         gpu = node.features[Gpu]
         gpu_script = "import torch;print(f'gpu count: {torch.cuda.device_count()}')"
-        python = node.tools[Python]
         expected_count = gpu.get_gpu_count_with_lspci()
 
-        if use_new_path:
-            python_path = os.environ.get("PYTHONPATH", "")
-            python_path += f":{work_path}/python_packages"
-            python_envs = {"PYTHONPATH": python_path}
-        else:
-            python_envs = {}
-
-        script_result = python.run(
+        script_result = pythonvenv.run(
             f'-c "{gpu_script}"',
             force_run=True,
-            update_envs=python_envs,
         )
 
         if script_result.exit_code != 0 and self._numpy_error_pattern.findall(
             script_result.stdout
         ):
-            if pip.uninstall_package("numpy"):
-                pip.install_packages("numpy")
-            script_result = python.run(
+            if pythonvenv.uninstall_package("numpy"):
+                pythonvenv.install_packages("numpy")
+            script_result = pythonvenv.run(
                 f'-c "{gpu_script}"',
                 force_run=True,
-                update_envs=python_envs,
             )
 
         gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)

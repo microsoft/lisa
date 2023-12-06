@@ -2,11 +2,14 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import Any, List, Type
+from typing import TYPE_CHECKING, Any, List, Type
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
+if TYPE_CHECKING:
+    from lisa.node import Node
+
 from lisa.operating_system import Posix
 from lisa.tools.mkdir import Mkdir
 from lisa.util import UnsupportedDistroException, get_matched_str
@@ -92,22 +95,22 @@ class Pip(Tool):
         return result.exit_code == 0
 
 
-class PythonVenv(Python):
+class PythonVenv(Tool):
     @property
     def command(self) -> str:
-        return f"{self.get_venv_path()}/bin/{super().command}"
+        return f"{self.get_venv_path()}/bin/{self.python.command}"
+
+    def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
+        super().__init__(node, *args, **kwargs)
+        self.python: Python = self.node.tools[Python]
 
     def _check_exists(self) -> bool:
         # _super = type(super())
         # assert isinstance(super(), Python)
-        return self.node.execute("python3 -m venv --help", shell=True).exit_code == 0
+        return self.python.run("-m venv --help").exit_code == 0
         # return self.node.execute("python3 -m venv --help").exit_code == 0
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        super()._initialize(*args, **kwargs)
-
     def _install(self) -> bool:
-        super()._install()
         if isinstance(self.node.os, Posix):
             self.node.os.install_packages("python3-venv")
         return self._check_exists()
@@ -127,7 +130,7 @@ class PythonVenv(Python):
         _venv_path: PurePath = (
             PurePath(venv_path) if venv_path else self.node.working_path / "venv"
         )
-        cmd_result = super().run(
+        cmd_result = self.python.run(
             f"-m venv {_venv_path}", force_run=True, sudo=sudo, shell=True
         )
         assert_that(
