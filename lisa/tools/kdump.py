@@ -449,18 +449,27 @@ class KdumpRedhat(KdumpBase):
         return self._check_exists()
 
     def _get_crashkernel_cfg_file(self) -> str:
-        if self.node.os.information.version >= "8.0.0-0" and not isinstance(
-            self.node.os, Oracle
+        if (
+            self.node.os.information.version >= "8.0.0-0"
+            and not isinstance(self.node.os, Oracle)
+        ) or (
+            isinstance(self.node.os, Oracle)
+            and self.node.os.information.version >= "9.0.0-0"
         ):
-            # For Redhat 8 and later version, we can use grubby command to config
-            # crashkernel. No need to get the crashkernel cfg file
+            # For Redhat 8 and later version or oracle 9.
+            # We can use grubby command to config crashkernel.
+            # No need to get the crashkernel cfg file
             return ""
         else:
             return "/etc/default/grub"
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
-        if self.node.os.information.version >= "8.0.0-0" and not isinstance(
-            self.node.os, Oracle
+        if (
+            self.node.os.information.version >= "8.0.0-0"
+            and not isinstance(self.node.os, Oracle)
+        ) or (
+            isinstance(self.node.os, Oracle)
+            and self.node.os.information.version >= "9.0.0-0"
         ):
             return (
                 "grubby --update-kernel=/boot/vmlinuz-$(uname -r)"
