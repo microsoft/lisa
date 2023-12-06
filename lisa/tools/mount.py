@@ -170,6 +170,13 @@ class Mount(Tool):
         self._log.debug(f"Found mount points: {mount_points}")
         return any([x for x in mount_points if mount_point == x["mount_point"]])
 
+    def reload_fstab_config(self) -> None:
+        res = self.run("-a", force_run=True, sudo=True)
+        if res.exit_code != 0:
+            raise LisaException(
+                f"Failed to reload fstab configuration file: {res.stdout}"
+            )
+
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("util-linux")
