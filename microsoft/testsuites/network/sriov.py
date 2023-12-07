@@ -262,7 +262,7 @@ class Sriov(TestSuite):
         4. Do the basic sriov check.
         5. Do step 2 ~ step 4 for 2 times.
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
