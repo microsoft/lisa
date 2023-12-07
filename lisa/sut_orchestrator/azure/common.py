@@ -4,16 +4,17 @@
 import os
 import re
 import sys
+import time
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, partial
 from pathlib import Path
 from threading import Lock
-from time import sleep
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
 from assertpy import assert_that
+from azure.core.exceptions import ResourceNotFoundError
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -49,6 +50,7 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     VirtualNetworkLink,
 )
 from azure.mgmt.resource import (  # type: ignore
+    FeatureClient,
     ResourceManagementClient,
     SubscriptionClient,
 )
@@ -136,6 +138,7 @@ _global_sas_vhd_copy_lock = Lock()
 # when call sdk APIs, it's easy to have conflict on access auth files. Use lock
 # to prevent it happens.
 global_credential_access_lock = Lock()
+global_register_feature_lock = Lock()
 # if user uses lisa for the first time in parallel, there will be a possibility
 # to create the same storage account at the same time.
 # add a lock to prevent it happens.
@@ -784,7 +787,7 @@ def delete_private_zones(
                     "Can not delete resource before nested resources are deleted"
                     in str(identifier)
                 ):
-                    sleep(1)
+                    time.sleep(1)
                     continue
     except Exception:
         log.debug(f"not find private zone: {private_zone_name}")
@@ -1013,6 +1016,10 @@ def get_managed_service_identity_client(
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
     )
+
+
+def get_feature_client(credential: Any, subscription_id: str) -> FeatureClient:
+    return FeatureClient(credential, subscription_id)
 
 
 def get_storage_account_name(
@@ -2354,3 +2361,63 @@ def is_cloud_init_enabled(node: Node) -> bool:
     ) and ls_tool.path_exists("/var/lib/cloud/instance", sudo=True):
         return True
     return False
+
+
+def register_feature(
+    platform: "AzurePlatform",
+    provider_namespace: str,
+    feature_name: str,
+    log: Logger,
+) -> bool:
+    with get_feature_client(
+        credential=platform.credential, subscription_id=platform.subscription_id
+    ) as feature_client:
+        with global_register_feature_lock:
+            try:
+                found_feature = feature_client.features.get(
+                    provider_namespace, feature_name
+                )
+            except ResourceNotFoundError:
+                log.debug(
+                    f"Feature '{feature_name}' for '{provider_namespace}' not found in "
+                    "your subscription."
+                )
+                return False
+            except Exception as ex:
+                raise LisaException(
+                    f"Failed to get feature '{feature_name}' for "
+                    f"{provider_namespace}'. Error: {ex}"
+                )
+            if found_feature.properties.state.lower() == "registered":
+                return True
+            try:
+                feature_client.features.register(provider_namespace, feature_name)
+                start_time = time.time()
+                timeout_duration = 60 * 30  # 30 minutes
+
+                while True:
+                    feature = feature_client.features.get(
+                        provider_namespace, feature_name
+                    )
+                    if feature.properties.state.lower() == "registered":
+                        log.debug(
+                            f"Feature registration for '{feature_name}' is complete."
+                        )
+                        break
+
+                    # Check for timeout
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time > timeout_duration:
+                        raise LisaException(
+                            "Timed out waiting for feature registration."
+                        )
+
+                    # Add a delay before checking again
+                    time.sleep(10)
+                return True
+            except Exception as ex:
+                log.debug(
+                    f"Failed to register feature '{feature_name}' for '"
+                    f"{provider_namespace}'. Error: {ex}"
+                )
+                return False

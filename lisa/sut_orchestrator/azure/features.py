@@ -108,6 +108,7 @@ from .common import (
     get_vm,
     global_credential_access_lock,
     is_cloud_init_enabled,
+    register_feature,
     save_console_log,
     wait_operation,
 )
@@ -2019,6 +2020,12 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
             )
         template: Any = kwargs.get("template")
         log = cast(Logger, kwargs.get("log"))
+        environment = cast(Environment, kwargs.get("environment"))
+        platform: AzurePlatform = environment.platform  # type: ignore
+        if not register_feature(
+            platform, "Microsoft.Compute", "VMHibernationPreview", log
+        ):
+            raise SkippedException("Hibernation is not supported in this subscription.")
         log.debug("updating arm template to support vm hibernation.")
         resources = template["resources"]
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
