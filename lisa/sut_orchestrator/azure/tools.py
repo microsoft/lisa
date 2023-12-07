@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import json
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -561,3 +562,32 @@ class KvpClientFreeBSD(KvpClient):
             records[content_split[i]] = content_split[i + 1]
 
         return records
+
+class mdatp(Tool):
+    @property
+    def command(self) -> str:
+        return "mdatp"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def get_result(
+        self,
+        arg: str,
+        json_out: bool = False,
+        sudo: bool = False,
+    ) -> None:
+        if json_out:
+            arg += ' --output json'
+        result = self.run(
+            arg,
+            sudo=sudo,
+            shell=True,
+        )
+
+        result.assert_exit_code()
+        if json_out:
+            return json.loads(result.stdout)
+        return result.stdout.split()
+
