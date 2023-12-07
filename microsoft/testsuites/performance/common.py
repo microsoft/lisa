@@ -273,13 +273,13 @@ def perf_ntttcp(  # noqa: C901
     client_ntttcp, server_ntttcp = run_in_parallel(
         [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
     )
+    client_lagscope, server_lagscope = run_in_parallel(
+        [
+            lambda: client.tools[Lagscope],  # type: ignore
+            lambda: server.tools[Lagscope],  # type: ignore
+        ]
+    )
     try:
-        client_lagscope, server_lagscope = run_in_parallel(
-            [
-                lambda: client.tools[Lagscope],  # type: ignore
-                lambda: server.tools[Lagscope],  # type: ignore
-            ]
-        )
         # no need to set task max and reboot VM when connection less than 20480
         if max(connections) >= 20480 and not isinstance(server.os, BSD):
             set_task_max = True
