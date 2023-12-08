@@ -22,19 +22,14 @@ from lisa.features.disks import (
 )
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
-from lisa.schema import DiskType
+from lisa.schema import DiskControllerType, DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
-from lisa.util import (
-    BadEnvironmentStateException,
-    LisaException,
-    SkippedException,
-    get_matched_str,
-)
+from lisa.util import BadEnvironmentStateException, LisaException, get_matched_str
 from lisa.util.perf_timer import create_timer
 
 
@@ -234,7 +229,7 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test verifies the disk controller type of the VM.
+        This test verifies scsi disk controller type of the VM.
 
         Steps:
         1. Get the disk type of the boot partition.
@@ -243,28 +238,28 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
+            disk=AzureDiskOptionSettings(disk_controller_type=DiskControllerType.SCSI),
         ),
     )
-    def verify_disk_controller_type(self, node: RemoteNode) -> None:
-        node_disk = node.features[Disk]
+    def verify_scsi_disk_controller_type(self, node: RemoteNode) -> None:
+        self._verify_disk_controller_type(node, DiskControllerType.SCSI)
 
-        # Get VM's 'disk controller type' with azure api
-        vm_disk_controller_type = node_disk.get_hardware_disk_controller_type()
+    @TestCaseMetadata(
+        description="""
+        This test verifies nvme disk controller type of the VM.
 
-        # Get 'disk controller type' from within VM.
-        os_disk_controller_type = node_disk.get_os_disk_controller_type()
-
-        # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
-        if not vm_disk_controller_type:
-            raise SkippedException(
-                "The VM size doesn't have disk controller type information."
-                "Few VM Sizes and gen1 images doesn't support 'disk_controller_type'"
-            )
-
-        assert_that(
-            os_disk_controller_type,
-            "The disk controller types of hardware and OS should be the same.",
-        ).is_equal_to(vm_disk_controller_type)
+        Steps:
+        1. Get the disk type of the boot partition.
+        2. Compare it with hardware disk controller type of the VM.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+            disk=AzureDiskOptionSettings(disk_controller_type=DiskControllerType.NVME),
+        ),
+    )
+    def verify_nvme_disk_controller_type(self, node: RemoteNode) -> None:
+        self._verify_disk_controller_type(node, DiskControllerType.NVME)
 
     @TestCaseMetadata(
         description="""
@@ -625,3 +620,26 @@ class Storage(TestSuite):
         ):
             return False
         return True
+
+    def _verify_disk_controller_type(
+        self, node: RemoteNode, disk_controller_type: DiskControllerType
+    ) -> None:
+        node_disk = node.features[Disk]
+
+        # Get VM's 'disk controller type' with azure api
+        vm_disk_controller_type = node_disk.get_hardware_disk_controller_type()
+
+        # Get 'disk controller type' from within VM.
+        os_disk_controller_type = node_disk.get_os_disk_controller_type()
+
+        assert_that(
+            os_disk_controller_type,
+            "The disk controller types of hardware and OS should be the same.",
+        ).is_equal_to(disk_controller_type.value)
+
+        # With certain SKUs & gen1 images 'disk_controller_type' will be 'None'
+        if vm_disk_controller_type:
+            assert_that(
+                os_disk_controller_type,
+                "The disk controller types of hardware and OS should be the same.",
+            ).is_equal_to(vm_disk_controller_type)
