@@ -83,6 +83,7 @@ from lisa.tools import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
+    SkippedException,
     check_till_timeout,
     constants,
     field_metadata,
@@ -2074,7 +2075,7 @@ def get_identity_id(
     response = requests.get(graph_api_url, headers=headers, timeout=10)
 
     if response.status_code != 200:
-        raise LisaException(
+        raise SkippedException(
             f"Failed to retrieve user object ID. "
             f"Status code: {response.status_code}. "
             f"Response: {response.text}"
