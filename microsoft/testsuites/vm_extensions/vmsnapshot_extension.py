@@ -32,6 +32,8 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools.chmod import Chmod
+from lisa.tools.chown import Chown
+from lisa.tools.whoami import Whoami
 from lisa.tools.curl import Curl
 from lisa.tools.find import Find
 
@@ -111,7 +113,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         The test would be passed in both the cases, just that the information helps in
         clearly classifying the distro, when the test runs on various distros.
         """,
-        priority=2,
+        priority=0,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -144,24 +146,24 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     break
 
         # installing all the required packages
-        posix_os: Posix = cast(Posix, node.os)
-        posix_os.install_packages("python2.7")
+        curl = node.tools[Curl]
+ 
         # install pip
+        python = "python3"
         url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
         args = "-o get-pip.py"
-        curl = node.tools[Curl]
         curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
-        node.execute(cmd="python2.7 get-pip.py", shell=True, sudo=True)
-        node.execute(cmd="python2.7 -m pip --version")
+        node.execute(cmd=f"{python} get-pip.py", shell=True, sudo=True)
+        node.execute(cmd=f"{python} -m pip --version")
         # install mock module
-        node.execute(cmd="python2.7 -m pip install mock", sudo=True)
+        node.execute(cmd=f"{python} -m pip install mock", sudo=True)
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
         assert extension_dir, "Unable to find the extension directory."
 
-        # moving the handle.py file to extension directory
+        # moving the handle_test.py file to extension directory
         script = (
-            "#!/bin/sh\n" f"mv {node.working_path}/handle.txt {extension_dir}/handle.py"
+            "#!/bin/sh\n" f"mv {node.working_path}/handle.txt {extension_dir}/main/handle_test.py"
         )
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
         settings = {"script": script_base64}
@@ -176,12 +178,20 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         )
         log.info(f"extension_directory: {extension_dir}")
         # give the execution permissions to the file
-        file_path = f"{extension_dir}/handle.py"
+        file_path = f"{extension_dir}/main/handle_test.py"
         permissions = "777"
         node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
+        username = node.tools[Whoami].get_username()
+        node.tools[Chown].change_owner(
+            extension_dir, user=username, group=username, recurse=True
+        )
+        script_result = node.execute(
+            cmd="ls -lt /var/lib/waagent", shell=True, sudo=True
+        )
+        print(script_result.stdout)
         # execute the file
         script_result = node.execute(
-            cmd=f"python2.7 {extension_dir}/handle.py", shell=True, sudo=True
+            cmd=f"{python} {extension_dir}/main/handle_test.py", shell=True, sudo=True
         )
         log.info(f"The script returned {script_result.stdout}")
         if "True" in script_result.stdout:
