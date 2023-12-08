@@ -60,6 +60,7 @@ from lisa.util import (
     LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
+    SkippedException,
     constants,
     dump_file,
     field_metadata,
@@ -1471,10 +1472,13 @@ class AzurePlatform(Platform):
         assert isinstance(
             capability.disk.disk_controller_type, schema.DiskControllerType
         )
-        assert (
-            arm_parameters.hyperv_generation == 2
-            or capability.disk.disk_controller_type == schema.DiskControllerType.SCSI
-        ), "Gen 1 images cannot be set to NVMe Disk Controller Type"
+        if (
+            arm_parameters.hyperv_generation == 1
+            and capability.disk.disk_controller_type == schema.DiskControllerType.NVME
+        ):
+            raise SkippedException(
+                "Gen 1 image cannot be set to NVMe Disk Controller Type"
+            )
         arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
 
         assert capability.network_interface
