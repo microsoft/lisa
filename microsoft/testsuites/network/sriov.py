@@ -105,8 +105,8 @@ class Sriov(TestSuite):
             matched = self._device_rename_pattern.search(udevd_status)
             if matched:
                 raise LisaException(
-                    f"found {matched[0]} message "
-                    "there is a race condition when rename VF nics, "
+                    f"{matched[0]}. "
+                    "There is a race condition when rename VF nics, "
                     "it causes boot delay, it should be fixed in "
                     "systemd - 245.4-4ubuntu3.21"
                 )
