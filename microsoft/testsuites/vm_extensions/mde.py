@@ -46,6 +46,24 @@ class MDE(TestSuite):
         ),
     )
     def verify_health(self, node: Node, log: Logger, result: TestResult) -> None:
+
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        platform = environment.platform
+        log.info(platform)
+        #assert isinstance(platform, AzurePlatform)
+        #rm_client = platform._rm_client
+        #assert rm_client
+        #msi_client = get_managed_service_identity_client(platform)
+
+        node_context = get_node_context(node)
+        resource_group_name = node_context.resource_group_name
+        location = node_context.location
+        vm_name = node_context.vm_name
+
+        # Add resource tag for AzSecPack
+        tag = {"exemptPolicy": True}
+        add_tag_for_vm(platform, resource_group_name, vm_name, tag, log)
         output = node.tools[mdatp].get_result('health', json_out=True)
 
         log.info(output)

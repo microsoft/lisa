@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import sys
 import json
 from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
@@ -21,6 +22,8 @@ from lisa.util import (
     get_matched_str,
 )
 from lisa.util.process import ExecutableResult
+from typing import Optional, cast
+from lisa.operating_system import Posix
 
 
 class Waagent(Tool):
@@ -566,11 +569,25 @@ class KvpClientFreeBSD(KvpClient):
 class mdatp(Tool):
     @property
     def command(self) -> str:
+        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
         return "mdatp"
 
     @property
     def can_install(self) -> bool:
-        return False
+        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
+        return True
+
+    def _install(self) -> bool:
+        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
+        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os.add_azure_core_repo()
+        if posix_os.is_package_in_repo(self.command):
+            posix_os.install_packages(self.command)
+            self._log.info(f"{self.command} is installed successfully")
+        else:
+            raise UnsupportedDistroException(
+                    node.os, f"The distro doesn't have {package} in its repo")
+        return self._check_exists()
 
     def get_result(
         self,
@@ -578,6 +595,7 @@ class mdatp(Tool):
         json_out: bool = False,
         sudo: bool = False,
     ) -> None:
+        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
         if json_out:
             arg += ' --output json'
         result = self.run(
