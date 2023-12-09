@@ -1,0 +1,57 @@
+name: azure default
+include:
+  - path: ./debug.yml
+variable:
+  - name: origin
+    value: tiers/tier.yml
+  - name: case
+    value: verify_cpu_count
+  - name: location
+    value: "westus3"
+  - name: keep_environment
+    value: "no"
+  - name: resource_group_name
+    value: ""
+  - name: marketplace_image
+    value: ""
+  - name: vhd
+    value: ""
+  - name: vm_size
+    value: ""
+  - name: deploy
+    value: true
+  - name: wait_delete
+    value: false
+  - name: concurrency
+    value: 5
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: admin_password
+    value: ""
+    is_secret: true
+  - name: case
+    value: verify_cpu_count
+concurrency: $(concurrency)
+notifier:
+  - type: html
+  - type: env_stats
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    admin_password: $(admin_password)
+    keep_environment: $(keep_environment)
+    azure:
+      resource_group_name: $(resource_group_name)
+      deploy: $(deploy)
+      subscription_id: $(subscription_id)
+      wait_delete: $(wait_delete)
+    requirement:
+      core_count:
+        min: 2
+      azure:
+        marketplace: $(marketplace_image)
+        vhd: $(vhd)
+        location: $(location)
+        vm_size: $(vm_size)
+

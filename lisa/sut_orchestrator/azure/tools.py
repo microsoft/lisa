@@ -580,13 +580,31 @@ class mdatp(Tool):
     def _install(self) -> bool:
         self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
         posix_os: Posix = cast(Posix, self.node.os)
-        posix_os.add_azure_core_repo()
+        cur_repo = posix_os.get_repositories();
+        self._log.info(f"{cur_repo}")
+
+        #posix_os.add_azure_core_repo(code_name="bionic")
+        arch_name = "arm64,armhf,amd64"
+        repo_url = "https://packages.microsoft.com/ubuntu/18.04/prod"
+        code_name = "insiders-fast"
+        posix_os.add_repository(
+            repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
+            keys_location=[
+                "https://packages.microsoft.com/keys/microsoft.asc",
+                "https://packages.microsoft.com/keys/msopentech.asc",
+            ],
+        )
+
+
+        cur_repo = posix_os.get_repositories();
+        self._log.info(f"{cur_repo}")
+
         if posix_os.is_package_in_repo(self.command):
             posix_os.install_packages(self.command)
             self._log.info(f"{self.command} is installed successfully")
         else:
             raise UnsupportedDistroException(
-                    node.os, f"The distro doesn't have {package} in its repo")
+                    self.node.os, f"The distro doesn't have {self.command} in its repo")
         return self._check_exists()
 
     def get_result(
