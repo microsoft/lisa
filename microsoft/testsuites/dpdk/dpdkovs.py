@@ -267,7 +267,12 @@ class DpdkOvs(Tool):
                     expected_exit_code=0,
                     expected_exit_code_failure_message="Could not enable TSO for DPDK-OVS",
                 )
-
+                node.execute(
+                    "/usr/share/openvswitch/scripts/ovs-ctl restart",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="Could not restart ovs-ctl",
+                )
             # enable dpdk in ovs config
             node.execute(
                 "ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true",
@@ -298,6 +303,7 @@ class DpdkOvs(Tool):
                     "set Interface p1 type=dpdk "
                     f"options:dpdk-devargs={device_init_args} "
                     f"options:n_rxq={queues} "
+                    "options:tx-flow-ctrl=true "
                 ),
                 sudo=True,
                 expected_exit_code=0,

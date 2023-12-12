@@ -635,7 +635,7 @@ def run_ovs_ntttcp_test(
             )
         else:
             devargs = source_node.nics.get_secondary_nic().pci_slot
-        ovs.setup_ovs(device_init_args=devargs)
+        ovs.setup_ovs(device_init_args=devargs, enable_tso=True)
 
         # validate if OVS was able to initialize DPDK
         source_node.execute(
@@ -727,9 +727,7 @@ def run_ovs_ntttcp_test(
         shell=True,
         sudo=True,
     )
-    source_node.execute(
-        "$ ovs-appctl dpif-netdev/pmd-stats-show", shell=True, sudo=True
-    )
+    source_node.execute("ovs-appctl dpif-netdev/pmd-stats-show", shell=True, sudo=True)
 
 
 def check_tcpdump_output(
