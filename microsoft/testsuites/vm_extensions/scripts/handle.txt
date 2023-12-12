@@ -22,11 +22,11 @@ import string
 import subprocess
 import sys
 
-current = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(current)
-sys.path.append(os.path.join(current,'main'))
-sys.path.append('..')
-from main.Utils import HandlerUtil 
+#current = os.path.dirname(os.path.realpath(__file__))
+#sys.path.append(current)
+#sys.path.append(os.path.join(current,'main'))
+#sys.path.append('..')
+from Utils import HandlerUtil 
 from patch import GetMyPatching
 from backuplogger import Backuplogger
 from common import CommonVariables
