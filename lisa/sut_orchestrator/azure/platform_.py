@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
+import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -86,6 +87,7 @@ from .common import (
     AZURE_SHARED_RG_NAME,
     AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
+    SAS_URL_PATTERN,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -1792,9 +1794,10 @@ class AzurePlatform(Platform):
             # Check if CachedDiskBytes is greater than 30GB
             # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
-            cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
+            cached_disk_bytes_gb = int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
             if cached_disk_bytes_gb >= 30:
                 node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+                node_space.disk.os_disk_size = cached_disk_bytes_gb
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -2286,6 +2289,17 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
+        matches = SAS_URL_PATTERN.match(blob_url)
+        if matches:
+            response = requests.head(blob_url, timeout=60)
+            if response and response.status_code == 200:
+                size_in_bytes = int(response.headers["Content-Length"])
+                vhd_os_disk_size = math.ceil(size_in_bytes / 1024 / 1024 / 1024)
+                assert isinstance(
+                    vhd_os_disk_size, int
+                ), f"actual: {type(vhd_os_disk_size)}"
+                return vhd_os_disk_size
+
         result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
@@ -2733,8 +2747,43 @@ class AzurePlatform(Platform):
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
             )
+
+        if node_space.disk:
+            assert node_space.disk.os_disk_type
+            if (
+                isinstance(node_space.disk.os_disk_type, schema.DiskType)
+                and schema.DiskType.Ephemeral == node_space.disk.os_disk_type
+            ) or (
+                isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
+                and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
+            ):
+                node_space.disk.os_disk_size = search_space.IntRange(
+                    min=self._get_os_disk_size(azure_runbook)
+                )
+
+    def _get_os_disk_size(self, azure_runbook: AzureNodeSchema) -> int:
+        assert azure_runbook
+        if azure_runbook.marketplace:
+            for location in self._find_marketplace_image_location():
+                image_info = self._get_image_info(location, azure_runbook.marketplace)
+                if image_info:
+                    break
+            if image_info and image_info.os_disk_image:
+                return _get_disk_size_in_gb(
+                    image_info.os_disk_image.additional_properties
+                )
+            else:
+                # if no image info, use default size 30
+                return 30
+        elif azure_runbook.shared_gallery:
+            azure_runbook.shared_gallery = self._parse_shared_gallery_image(
+                azure_runbook.shared_gallery
+            )
+            return self._get_sig_os_disk_size(azure_runbook.shared_gallery)
         else:
-            ...
+            assert azure_runbook.vhd
+            assert azure_runbook.vhd.vhd_path
+            return self._get_vhd_os_disk_size(azure_runbook.vhd.vhd_path)
 
     def _check_image_capability(self, node_space: schema.NodeSpace) -> None:
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
