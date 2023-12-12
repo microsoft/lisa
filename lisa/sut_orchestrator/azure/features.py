@@ -1206,6 +1206,12 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
 @dataclass()
 class AzureDiskOptionSettings(schema.DiskOptionSettings):
     has_resource_disk: Optional[bool] = None
+    cached_disk_size: search_space.CountSpace = field(
+        default_factory=partial(search_space.IntRange, min=0),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
+        ),
+    )
 
     def __hash__(self) -> int:
         return super().__hash__()
@@ -1279,6 +1285,12 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.disk_controller_type, capability.disk_controller_type
             ),
             "disk_controller_type",
+        )
+        result.merge(
+            search_space.check_countspace(
+                self.cached_disk_size, capability.cached_disk_size
+            ),
+            "cached_disk_size",
         )
 
         return result

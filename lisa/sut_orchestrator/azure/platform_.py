@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
+import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -86,6 +87,7 @@ from .common import (
     AZURE_SHARED_RG_NAME,
     AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
+    SAS_URL_PATTERN,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -1792,9 +1794,10 @@ class AzurePlatform(Platform):
             # Check if CachedDiskBytes is greater than 30GB
             # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
-            cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
+            cached_disk_bytes_gb = int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
             if cached_disk_bytes_gb >= 30:
                 node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+                node_space.disk.cached_disk_size = cached_disk_bytes_gb
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -2286,6 +2289,17 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
+        matches = SAS_URL_PATTERN.match(blob_url)
+        if matches:
+            response = requests.head(blob_url)
+            if response.status_code == 200:
+                size_in_bytes = int(response.headers["Content-Length"])
+                vhd_os_disk_size = math.ceil(size_in_bytes / 1024 / 1024 / 1024)
+                assert isinstance(
+                    vhd_os_disk_size, int
+                ), f"actual: {type(vhd_os_disk_size)}"
+                return vhd_os_disk_size
+
         result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
@@ -2719,6 +2733,18 @@ class AzurePlatform(Platform):
                         arch=image_info.architecture  # type: ignore
                     )
                 )
+                if (
+                    image_info.os_disk_image
+                    and node_space.disk
+                    and node_space.disk.os_disk_type
+                    and schema.DiskType.Ephemeral in node_space.disk.os_disk_type
+                ):
+                    node_space.disk.cached_disk_size = search_space.IntRange(
+                        min=_get_disk_size_in_gb(
+                            image_info.os_disk_image.additional_properties
+                        )
+                    )
+
         elif azure_runbook.shared_gallery:
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_runbook.shared_gallery
@@ -2729,10 +2755,27 @@ class AzurePlatform(Platform):
             node_space.features.add(
                 features.ArchitectureSettings(arch=sig.architecture)  # type: ignore
             )
+            if (
+                node_space.disk
+                and node_space.disk.os_disk_type
+                and schema.DiskType.Ephemeral in node_space.disk.os_disk_type
+            ):
+                node_space.disk.cached_disk_size = search_space.IntRange(
+                    min=self._get_sig_os_disk_size(azure_runbook.shared_gallery)
+                )
         elif azure_runbook.vhd:
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
             )
+            if (
+                node_space.disk
+                and node_space.disk.os_disk_type
+                and azure_runbook.vhd.vhd_path
+                and schema.DiskType.Ephemeral in node_space.disk.os_disk_type
+            ):
+                node_space.disk.cached_disk_size = search_space.IntRange(
+                    min=self._get_vhd_os_disk_size(azure_runbook.vhd.vhd_path)
+                )
         else:
             ...
 
