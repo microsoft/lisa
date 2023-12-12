@@ -1,14 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import pathlib
+from typing import Any
 
 from assertpy import assert_that
 
 from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Linux
+from lisa.operating_system import CBLMariner, Debian, Linux
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
 from lisa.tools import Gcc
+from lisa.util.logger import Logger
 
 
 @TestSuiteMetadata(
@@ -57,6 +59,10 @@ class CdromSuite(TestSuite):
         node.tools[Gcc].compile(
             filename=str(node_source_path), output_name=str(node_exec_path)
         )
+        assert_that(node.shell.exists(node_exec_path)).described_as(
+            "Test bug! The build is broken on this distro. "
+            f"Could not find {str(node_exec_path)}"
+        ).is_true()
 
         # and run the test if the device is present.
         result = node.execute(
@@ -78,3 +84,17 @@ class CdromSuite(TestSuite):
             "Bug! /dev/cdrom device status should be "
             f"{self._expected_device_status} after reboot, found {output}."
         ).is_zero()
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        distro = node.os
+        # Mariner doesn't ship with many dev tools. Install build tools and headers
+        if isinstance(distro, CBLMariner):
+            distro.install_packages(["kernel-headers", "binutils-devel", "glibc-devel"])
+        # debian ships with headers, no setup needed
+        elif isinstance(distro, Debian):
+            ...
+        # the test _should_ run on anything, skip support for others since this
+        # is more of a test for the host than the guest.
+        else:
+            raise SkippedException("cdrom suite only supports Debian and Mariner")
