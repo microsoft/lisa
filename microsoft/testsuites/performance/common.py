@@ -5,6 +5,7 @@ import pathlib
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
+from lisa.tools.echo import Echo
 from assertpy import assert_that
 from retry import retry
 
@@ -72,6 +73,8 @@ def perf_disk(
     overwrite: bool = False,
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
+    # echo = node.tools[Echo]
+    # echo.run("120 > /sys/module/nvme_core/parameters/io_timeout", shell=True, sudo=True)
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
     numjobiterator = 0
