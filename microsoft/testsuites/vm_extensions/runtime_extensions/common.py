@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from azure.core.exceptions import ResourceExistsError
 from azure.storage.blob import BlobType
 
 from lisa import Node
@@ -108,9 +109,20 @@ def retrieve_storage_blob_url(
     blob = container_client.get_blob_client(blob_name)
     if not blob.exists():
         if is_public_container:
-            container_client.set_container_access_policy(
-                signed_identifiers={}, public_access="container"
-            )
+            try:
+                container_client.set_container_access_policy(
+                    signed_identifiers={}, public_access="container"
+                )
+            except ResourceExistsError as ex:
+                if (
+                    "public access is not permitted on this storage account"
+                    in str(ex).lower()
+                ):
+                    raise SkippedException(
+                        "Public access is not permitted on this storage account "
+                        f"{storage_account_name}. {ex}"
+                    )
+                raise ex
         # Upload blob to container if doesn't exist
         container_client.upload_blob(
             name=blob_name, data=blob_data, blob_type=blob_type  # type: ignore
