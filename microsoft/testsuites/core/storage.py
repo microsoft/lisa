@@ -3,7 +3,7 @@
 import re
 import string
 import time
-from typing import Any, Pattern
+from typing import Any, Pattern, cast
 
 from assertpy.assertpy import assert_that
 
@@ -24,7 +24,7 @@ from lisa.features.disks import (
     DiskStandardSSDLRS,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Posix, Windows
 from lisa.schema import DiskControllerType, DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
@@ -498,6 +498,8 @@ class Storage(TestSuite):
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         fileshare_name = f"lisa{random_str}fs"
         azure_file_share = node.features[AzureFileShare]
+        self._install_cifs_dependencies(node)
+
         try:
             fs_url_dict = azure_file_share.create_file_share(
                 file_share_names=[fileshare_name], environment=environment
@@ -538,6 +540,10 @@ class Storage(TestSuite):
 
         finally:
             azure_file_share.delete_azure_fileshare([fileshare_name])
+
+    def _install_cifs_dependencies(self, node: Node) -> None:
+        posix_os: Posix = cast(Posix, node.os)
+        posix_os.install_packages("cifs-utils")
 
     def _hot_add_disk_serial(
         self, log: Logger, node: Node, disk_type: DiskType, size: int
