@@ -28,6 +28,7 @@ Runbook Reference
 
    -  `variable <#variable>`__
 
+      -  `is_case_visible <#is-case-visible>`__
       -  `is_secret <#is-secret>`__
       -  `file <#file>`__
       -  `name <#name-2>`__
@@ -425,6 +426,15 @@ with value ``northeurope``.
        value: westus3
      - name: location
        value: northeurope
+
+is_case_visible
+^^^^^^^^^^^^^^^
+
+type: bool, optional, default is False.
+
+When set to True, the value of this variable will be passed to the testcases,
+such as ``perf_nested_kvm_storage_singledisk`` which requires information
+about nested image.
 
 is_secret
 ^^^^^^^^^
