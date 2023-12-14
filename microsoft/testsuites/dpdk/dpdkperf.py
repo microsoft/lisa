@@ -62,7 +62,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "failsafe")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "failsafe", build_release=True
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -106,7 +108,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "netvsc")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "netvsc", build_release=True
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -278,6 +282,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     use_service_cores=service_cores,
+                    build_release=True,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -286,6 +291,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     use_service_cores=service_cores,
+                    build_release=True,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

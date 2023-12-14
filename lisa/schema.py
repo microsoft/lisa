@@ -453,16 +453,18 @@ data_disk_types: List[DiskType] = [
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
     type: str = constants.FEATURE_DISK
-    os_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=os_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
-        ),
+    os_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=os_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_set_space_by_type, base_type=DiskType
+                )
+            ),
+        )
     )
     os_disk_size: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -470,20 +472,20 @@ class DiskOptionSettings(FeatureSettings):
             allow_none=True, decoder=search_space.decode_count_space
         ),
     )
-    data_disk_type: Optional[
-        Union[search_space.SetSpace[DiskType], DiskType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=data_disk_types,
-        ),
-        metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_nullable_set_space,
-                base_type=DiskType,
-                default_values=data_disk_types,
-            )
-        ),
+    data_disk_type: Optional[Union[search_space.SetSpace[DiskType], DiskType]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                items=data_disk_types,
+            ),
+            metadata=field_metadata(
+                decoder=partial(
+                    search_space.decode_nullable_set_space,
+                    base_type=DiskType,
+                    default_values=data_disk_types,
+                )
+            ),
+        )
     )
     data_disk_count: search_space.CountSpace = field(
         default_factory=partial(search_space.IntRange, min=0),
@@ -530,7 +532,10 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[DiskControllerType.SCSI, DiskControllerType.NVME],
+            items=[
+                DiskControllerType.SCSI,
+                DiskControllerType.NVME,
+            ],
         ),
         metadata=field_metadata(
             decoder=partial(

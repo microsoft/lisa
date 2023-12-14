@@ -1948,6 +1948,7 @@ def check_or_create_gallery_image(
     gallery_image_hyperv_generation: int,
     gallery_image_architecture: str,
     gallery_image_securitytype: str,
+    gallery_image_disk_controller: str = "SCSI",
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -1971,13 +1972,17 @@ def check_or_create_gallery_image(
                     "offer": gallery_image_offer,
                     "sku": gallery_image_sku,
                 },
+                "features": {},
             }
+            image_post_body["features"] = [
+                {"name": "DiskControllerTypes", "value": gallery_image_disk_controller}
+            ]
             if gallery_image_securitytype:
-                image_post_body["features"] = [
+                image_post_body["features"] += [
                     {
                         "name": "SecurityType",
                         "value": gallery_image_securitytype,
-                    }
+                    },
                 ]
             operation = compute_client.gallery_images.begin_create_or_update(
                 gallery_resource_group_name,
@@ -1990,7 +1995,7 @@ def check_or_create_gallery_image(
             raise LisaException(ex)
 
 
-def check_or_create_gallery_image_version(
+def check_or_create_gallery_image_version_from_vhd(
     platform: "AzurePlatform",
     gallery_resource_group_name: str,
     gallery_name: str,
@@ -2000,11 +2005,23 @@ def check_or_create_gallery_image_version(
     regional_replica_count: int,
     storage_account_type: str,
     host_caching_type: str,
-    vhd_path: str,
-    vhd_resource_group_name: str,
-    vhd_storage_account_name: str,
     gallery_image_target_regions: List[str],
+    vhd_path: str,
+    vhd_resource_group_name: str = "",
+    vhd_storage_account_name: str = "",
 ) -> None:
+    if vhd_resource_group_name and vhd_storage_account_name:
+        vhd_source_info = {
+            "uri": vhd_path,
+            "id": (
+                f"/subscriptions/{platform.subscription_id}/"
+                f"resourceGroups/{vhd_resource_group_name}"
+                "/providers/Microsoft.Storage/storageAccounts/"
+                f"{vhd_storage_account_name}"
+            ),
+        }
+    else:
+        vhd_source_info = {"id": vhd_path}
     try:
         compute_client = get_compute_client(platform)
         compute_client.gallery_image_versions.get(
@@ -2031,15 +2048,7 @@ def check_or_create_gallery_image_version(
                 "storageProfile": {
                     "osDiskImage": {
                         "hostCaching": host_caching_type,
-                        "source": {
-                            "uri": vhd_path,
-                            "id": (
-                                f"/subscriptions/{platform.subscription_id}/"
-                                f"resourceGroups/{vhd_resource_group_name}"
-                                "/providers/Microsoft.Storage/storageAccounts/"
-                                f"{vhd_storage_account_name}"
-                            ),
-                        },
+                        "source": vhd_source_info,
                     },
                 },
             }

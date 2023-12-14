@@ -30,7 +30,7 @@ from .common import (
     check_blob_exist,
     check_or_create_gallery,
     check_or_create_gallery_image,
-    check_or_create_gallery_image_version,
+    check_or_create_gallery_image_version_from_vhd,
     check_or_create_resource_group,
     check_or_create_storage_account,
     get_compute_client,
@@ -389,7 +389,8 @@ class SigTransformerSchema(schema.Transformer):
 
     # raw vhd URL, it can be the blob under the same subscription of SIG
     # or SASURL
-    vhd: str = field(default="", metadata=field_metadata(required=True))
+    vhd: str = field(default="")
+    vm_resource_group: str = field(default="")
     # if not specify gallery_resource_group_name, use shared resource group name
     gallery_resource_group_name: str = field(default=AZURE_SHARED_RG_NAME)
     # if not specified, will use the first location of gallery image
@@ -480,6 +481,13 @@ class SigTransformerSchema(schema.Transformer):
             ),
         ),
     )
+    osdisk_size_in_gb: int = field(default=30)
+    gallery_image_disk_controller_type: str = field(
+        default="SCSI",
+        metadata=field_metadata(
+            validate=validate.OneOf(["SCSI", "NVMe,SCSI", "SCSI,NVMe"])
+        ),
+    )
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -504,30 +512,68 @@ class SharedGalleryImageTransformer(Transformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
+        disk_controller_type: str = self.runbook.gallery_image_disk_controller_type
+        self._log.debug(f"Found disk controller type: {disk_controller_type}")
         image_location = runbook.gallery_image_location[0]
-        if not runbook.gallery_resource_group_location:
-            runbook.gallery_resource_group_location = image_location
-        if not runbook.gallery_location:
-            runbook.gallery_location = image_location
-        vhd_path = get_deployable_vhd_path(
-            platform, runbook.vhd, image_location, self._log
-        )
-        vhd_details = get_vhd_details(platform, vhd_path)
-        if not check_blob_exist(
-            platform,
-            vhd_details["account_name"],
-            vhd_details["container_name"],
-            vhd_details["resource_group_name"],
-            vhd_details["blob_name"],
-        ):
-            raise LisaException(f"{vhd_path} doesn't exist.")
-
         (
             gallery_image_publisher,
             gallery_image_offer,
             gallery_image_sku,
             gallery_image_version,
         ) = tuple(runbook.gallery_image_fullname.split())
+
+        if not runbook.gallery_resource_group_location:
+            runbook.gallery_resource_group_location = image_location
+        if not runbook.gallery_location:
+            runbook.gallery_location = image_location
+        if runbook.vm_resource_group:
+            environment = load_environment(
+                platform=platform,
+                resource_group_name=runbook.vm_resource_group,
+                use_public_address=False,
+                log=self._log,
+            )
+            node = list(environment.nodes.list())[0]
+            assert isinstance(node, RemoteNode)
+            vm = get_vm(platform=platform, node=node)
+            vm_name = vm.name
+            compute_client = get_compute_client(platform=platform)
+            # stop VM before generalizing
+            node.features[StartStop].stop()
+            # generalize the VM with the Azure SDK, stamps it so the SIG image is
+            # correctly registered as generalized.
+            compute_client.virtual_machines.generalize(
+                resource_group_name=runbook.vm_resource_group, vm_name=vm_name
+            )
+            node.log.debug(f"Deplying SIG image from VM: {str(vm)}")
+            # working around a bug where image deployment from VM won't validate
+            # NVMe disk controllers in a way that LISA can handle.
+            # Controller must be NVMe,SCSI or SCSI,NVME while LISA is deploying NVME.
+            # Instead, deploy the SIG from the OS disk directly after generalizing
+            # and stopping the VM.
+            # FIXME:  a little bootleg, relying on the LISA name convention
+            vhd_path = "/".join(
+                str(vm.id).split("/")[:-2] + ["disks", vm.name + "-osDisk"]
+            )
+            # don't need either of these for OS disk, just pass the os disk resource ID
+            # which includes the sub and rg guids.
+            resoure_group_name = ""
+            account_name = ""
+        else:
+            vhd_path = get_deployable_vhd_path(
+                platform, runbook.vhd, image_location, self._log
+            )
+            vhd_details = get_vhd_details(platform, vhd_path)
+            if not check_blob_exist(
+                platform,
+                vhd_details["account_name"],
+                vhd_details["container_name"],
+                vhd_details["resource_group_name"],
+                vhd_details["blob_name"],
+            ):
+                raise LisaException(f"{vhd_path} doesn't exist.")
+            resoure_group_name = vhd_details["resource_group_name"]
+            account_name = vhd_details["account_name"]
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
             platform.credential,
@@ -547,21 +593,21 @@ class SharedGalleryImageTransformer(Transformer):
 
         check_or_create_gallery_image(
             platform,
-            runbook.gallery_resource_group_name,
-            runbook.gallery_name,
-            runbook.gallery_image_name,
-            image_location,
-            gallery_image_publisher,
-            gallery_image_offer,
-            gallery_image_sku,
-            runbook.gallery_image_ostype,
-            runbook.gallery_image_osstate,
-            runbook.gallery_image_hyperv_generation,
-            runbook.gallery_image_architecture,
-            runbook.gallery_image_securitytype,
+            gallery_resource_group_name=runbook.gallery_resource_group_name,
+            gallery_name=runbook.gallery_name,
+            gallery_image_name=runbook.gallery_image_name,
+            gallery_image_location=image_location,
+            gallery_image_publisher=gallery_image_publisher,
+            gallery_image_offer=gallery_image_offer,
+            gallery_image_sku=gallery_image_sku,
+            gallery_image_ostype=runbook.gallery_image_ostype,
+            gallery_image_osstate=runbook.gallery_image_osstate,
+            gallery_image_hyperv_generation=runbook.gallery_image_hyperv_generation,
+            gallery_image_architecture=runbook.gallery_image_architecture,
+            gallery_image_securitytype=runbook.gallery_image_securitytype,
+            gallery_image_disk_controller=disk_controller_type,
         )
-
-        check_or_create_gallery_image_version(
+        check_or_create_gallery_image_version_from_vhd(
             platform,
             runbook.gallery_resource_group_name,
             runbook.gallery_name,
@@ -571,10 +617,10 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.regional_replica_count,
             runbook.storage_account_type,
             runbook.host_caching_type,
-            vhd_path,
-            vhd_details["resource_group_name"],
-            vhd_details["account_name"],
             runbook.gallery_image_location,
+            vhd_path,
+            resoure_group_name,
+            account_name,
         )
 
         sig_url = (

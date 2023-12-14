@@ -15,6 +15,7 @@ from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.util import LisaException, field_metadata, subclasses
+from lisa.util.constants import LISA_KERNEL_BUILD_SENTINEL
 from lisa.util.logger import Logger, get_logger
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -117,7 +118,10 @@ class SourceInstaller(BaseInstaller):
         information = dict()
         if self._code_path:
             information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
-            information["tag"] = git.get_tag(cwd=self._code_path)
+            try:
+                information["tag"] = git.get_tag(cwd=self._code_path)
+            except AssertionError:
+                information["tag"] = ""
             information["git_repository_url"] = git.get_repo_url(cwd=self._code_path)
             information["git_repository_branch"] = git.get_current_branch(
                 cwd=self._code_path
@@ -184,6 +188,19 @@ class SourceInstaller(BaseInstaller):
             sudo=True,
         )
         result.assert_exit_code()
+
+        # Write a sentinel file to disk in the root dir before creating the VHD
+        # Tests using this VHD can check if the kernel was built by LISA
+        # and avoid modifying the newly installed kernel unintentionally.
+        sentinel = node.execute(
+            f"touch {LISA_KERNEL_BUILD_SENTINEL}", shell=True, sudo=True
+        )
+        if sentinel.exit_code != 0 and not node.shell.exists(
+            node.get_pure_path(LISA_KERNEL_BUILD_SENTINEL)
+        ):
+            node.log.warn(
+                "Could not locate kernel build sentinel file after installation!"
+            )
 
         return kernel_version
 
@@ -486,6 +503,7 @@ def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
     if path:
         code_path = node.get_pure_path(path)
     else:
-        code_path = node.working_path / default_name
+        build_location = node.get_working_path_with_required_space(10)
+        code_path = node.get_pure_path(build_location).joinpath(default_name)
 
     return code_path

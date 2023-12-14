@@ -833,6 +833,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             subnet_name = subnet.split("/")[-1]
             # update the subnet, there will only be one since they cannot
             # share address spaces.
+
             if self._do_update_subnet(
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
@@ -840,10 +841,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 route_table=route_table,
             ):
                 return
-        # if we're through the loop and didn't find the subnet, fail
+
         raise LisaException(
-            "routing table was not assigned to any subnet! "
-            f"targeted subnet: {subnet_mask} with route table: {route_table}"
+            "Could not associate route table with provided "
+            f"subnets: {','.join(subnet_mask)}"
         )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
@@ -1039,7 +1040,16 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             ]
         )
 
-    def remove_extra_nics(self) -> None:
+    def _get_interface_by_id(
+        self, id: int, interfaces: List[NetworkInterfaceReference]
+    ) -> NetworkInterfaceReference:
+        for interface in interfaces:
+            self._node.log.debug(f"Checking nic: {interface.id}")
+            if str(interface.id).endswith(f"nic-{id}"):
+                return interface
+        raise LisaException(f"Could not find interface nic-{id}")
+
+    def remove_extra_nics(self, keep_index: int = 0) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
@@ -1053,8 +1063,20 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
         )
+        self._node.log.debug(f"Found primary nic: {nic_name} {primary_nic.id}")
         network_interfaces_section = []
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
+        if keep_index != 0:
+            keep_interface = self._get_interface_by_id(
+                keep_index, vm.network_profile.network_interfaces
+            )
+            assert keep_interface.id, "'nic.id' must not be 'None'"
+            nic_name = keep_interface.id.split("/")[-1]
+            keep_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            self._node.log.debug(f"Found secondary nic: {nic_name} {keep_nic.id}")
+            network_interfaces_section.append({"id": keep_nic.id, "primary": False})
         startstop = self._node.features[StartStop]
         startstop.stop()
         compute_client.virtual_machines.begin_update(
@@ -2263,14 +2285,14 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 settings = security_profile[0]
                 assert isinstance(settings, SecurityProfileSettings)
                 assert isinstance(settings.security_profile, SecurityProfileType)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["security_type"] = (
+                    cls._security_profile_mapping[settings.security_profile]
+                )
                 if settings.security_profile == SecurityProfileType.Stateless:
                     node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+                    node_parameters.security_profile["encryption_type"] = (
+                        "NonPersistedTPM"
+                    )
                 else:
                     node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
@@ -2278,9 +2300,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         if settings.encrypt_disk
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
+                node_parameters.security_profile["disk_encryption_set_id"] = (
+                    settings.disk_encryption_set_id
+                )
 
                 if node_parameters.security_profile["security_type"] == "":
                     node_parameters.security_profile.clear()

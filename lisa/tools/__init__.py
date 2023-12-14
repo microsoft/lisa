@@ -19,6 +19,7 @@ from .aria import Aria
 from .blkid import Blkid
 from .bzip2 import Bzip2
 from .cargo import Cargo
+from .check_lisa_custom_vhd import CustomKernelBuildCheck
 from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
@@ -131,6 +132,7 @@ __all__ = [
     "Chrony",
     "Cp",
     "Curl",
+    "CustomKernelBuildCheck",
     "Date",
     "Df",
     "Dhclient",

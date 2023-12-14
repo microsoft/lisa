@@ -120,6 +120,9 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+        result.assert_exit_code(
+            message=f"failed to checkout ref {ref}. {result.stdout}"
+        )
 
         result = self.run(
             f"checkout -b {checkout_branch}",
@@ -343,14 +346,16 @@ class Git(Tool):
             expected_exit_code_failure_message="Failed to fetch author email.",
         ).stdout
 
-        describe = self.run(
+        describe_result = self.run(
             "describe",
             shell=True,
             cwd=cwd,
             force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to run git describe",
-        ).stdout
+        )
+        if describe_result.exit_code == 0:
+            describe = describe_result.stdout
+        else:
+            describe = ""
 
         result = {
             "full_commit_id": filter_ansi_escape(latest_commit_id),

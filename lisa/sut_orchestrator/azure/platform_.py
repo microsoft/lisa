@@ -2458,6 +2458,8 @@ class AzurePlatform(Platform):
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_info(shared_image)
         assert found_image.storage_profile, "'storage_profile' must not be 'None'"
+        if not found_image.storage_profile.os_disk_image:
+            return 60
         assert (
             found_image.storage_profile.os_disk_image
         ), "'os_disk_image' must not be 'None'"
