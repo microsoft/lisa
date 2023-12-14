@@ -312,6 +312,8 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    rdma_core_source = variables.get("rdma_core_source", "")
+    rdma_core_ref = variables.get("rdma_core_git_ref", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
@@ -348,6 +350,8 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        rdma_core_source=rdma_core_source,
+        rdma_core_ref=rdma_core_ref,
     )
 
     # init and enable hugepages (required by dpdk)
