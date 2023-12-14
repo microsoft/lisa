@@ -24,6 +24,7 @@ from typing import (
     Union,
     cast,
 )
+from urllib.parse import urlparse
 
 import paramiko
 import pluggy
@@ -47,7 +48,7 @@ global_ssh_key_access_lock = Lock()
 # source -
 # https://github.com/django/django/blob/stable/1.3.x/django/core/validators.py#L45
 __url_pattern = re.compile(
-    r"^(?:http|ftp)s?://"  # http:// or https://
+    r"^(?:http|https|sftp|ftp)://"  # http:// or https://
     r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)"
     r"+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # ...domain
     r"localhost|"  # localhost...
@@ -616,6 +617,112 @@ def is_valid_url(url: str, raise_error: bool = True) -> bool:
         else:
             is_url = False
     return is_url
+
+
+def _raise_or_log_failure(log: "Logger", raise_error: bool, failure_msg: str) -> bool:
+    if raise_error:
+        raise LisaException(failure_msg)
+    else:
+        log.debug(failure_msg)
+        return False
+
+
+# big function to check the parts of a url
+# allow raising exceptions or log and return a bool
+# allows checks for:
+#   expected domains
+#   protocols (require https, sftp, etc)
+#   filenames (pattern matching)
+def check_url(
+    log: "Logger",
+    source_url: str,
+    allowed_protocols: Optional[List[str]] = None,
+    expected_domains_pattern: Optional[Pattern[str]] = None,
+    expected_filename_pattern: Optional[Pattern[str]] = None,
+    raise_error: bool = False,
+) -> bool:
+    # avoid using a mutable default parameter
+    if not allowed_protocols:
+        allowed_protocols = [
+            "https",
+        ]
+    # pylinter doesn't like returning too many times in a function
+    # instead we'll assign to a boolean and check it repeatedly.
+    # thanks, linter.
+    result = True
+    # first, check if it's a url.
+    failure_msg = f"{source_url} is not a valid URL, check your arguments."
+    if not (
+        is_valid_url(url=source_url, raise_error=False)
+        or _raise_or_log_failure(log, raise_error, failure_msg)
+    ):
+        # fast return false, other checks depend on this one
+        return False
+
+    # NOTE: urllib might not work as you'd expect.
+    # It doesn't throw on lots of things you wouldn't expect to be urls.
+    # You must verify the parts on your own, some of them may be empty, some null.
+    # check: https://docs.python.org/3/library/urllib.parse.html#url-parsing
+    failure_msg = f"urlparse failed to parse url {source_url}, check your arguments."
+    try:
+        parts = urlparse(source_url)
+    except ValueError:
+        if not _raise_or_log_failure(log, raise_error, failure_msg):
+            # another fast return, other checks depend on this one
+            return False
+
+    # ex: from https://www.com/path/to/file.tar
+    # scheme : https
+    # netloc : www.com
+    # path   : path/to/file.tar
+
+    # get the filename from the path portion of the url
+    file_path = parts.path.split("/")[-1]
+    full_match = None
+    # check we can match against the filename
+    if expected_filename_pattern:
+        full_match = expected_filename_pattern.match(file_path)
+        failure_msg = (
+            f"File at {source_url} did not match pattern "
+            f"{expected_filename_pattern.pattern}."
+        )
+        if not full_match:
+            result &= _raise_or_log_failure(log, raise_error, failure_msg)
+
+    # check the expected domain is correct if present
+    if (
+        result
+        and expected_domains_pattern
+        and not expected_domains_pattern.match(parts.netloc)
+    ):
+        # logging domains requires check that expected_domains != None
+        failure_msg = (
+            f"net location of url {source_url} did not match "
+            f"expected domains { expected_domains_pattern.pattern } "
+        )
+        result &= _raise_or_log_failure(log, raise_error, failure_msg)
+
+    # Check the protocol (aka scheme) in the url
+    # default is check access is via https
+    failure_msg = (
+        f"URL {source_url} uses an invalid protocol "
+        "or net location! Check url argument."
+    )
+    valid_scheme = any([parts.scheme == x for x in allowed_protocols])
+    if result and not valid_scheme:
+        result &= _raise_or_log_failure(log, raise_error, failure_msg)
+    # finally verify the full match we found matches the actual filename
+    # avoids an accidental partial match
+    if result and expected_filename_pattern and full_match:
+        path_matches = full_match.group(0) == file_path
+        failure_msg = (
+            f"File at url {source_url} failed to match"
+            f" pattern {expected_filename_pattern.pattern}."
+        )
+        if not path_matches:
+            result &= _raise_or_log_failure(log, raise_error, failure_msg)
+
+    return result
 
 
 def filter_ansi_escape(content: str) -> str:
