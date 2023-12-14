@@ -19,7 +19,6 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Lspci,
-    Make,
     Modprobe,
     Pidof,
     Pkgconfig,
@@ -40,6 +39,7 @@ from microsoft.testsuites.dpdk.common import (
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
 )
+from microsoft.testsuites.dpdk.rdma_core import RdmaCoreManager
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -135,22 +135,6 @@ class DpdkTestpmd(Tool):
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
-
-    def get_rdma_core_package_name(self) -> str:
-        distro = self.node.os
-        package = ""
-        # check if rdma-core is installed already...
-        if self.node.tools[Pkgconfig].package_info_exists("libibuverbs"):
-            return package
-        if isinstance(distro, Debian):
-            package = "rdma-core ibverbs-providers libibverbs-dev"
-        elif isinstance(distro, Suse):
-            package = "rdma-core-devel librdmacm1"
-        elif isinstance(distro, Fedora):
-            package = "librdmacm-devel"
-        else:
-            fail("Invalid OS for rdma-core source installation.")
-        return package
 
     @property
     def can_install(self) -> bool:
@@ -465,8 +449,17 @@ class DpdkTestpmd(Tool):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        # set source args for builds if needed, first for dpdk
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        # then for rdma-core
+        rdma_core_source = kwargs.pop("rdma_core_source", "")
+        rdma_core_ref = kwargs.pop("rdma_core_ref", "")
+        self.rdma_core = RdmaCoreManager(
+            node=self.node,
+            rdma_core_source=rdma_core_source,
+            rdma_core_ref=rdma_core_ref,
+        )
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
@@ -522,54 +515,6 @@ class DpdkTestpmd(Tool):
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
-    def _install_upstream_rdma_core_for_mana(self) -> None:
-        node = self.node
-        wget = node.tools[Wget]
-        make = node.tools[Make]
-        tar = node.tools[Tar]
-        distro = node.os
-
-        if isinstance(distro, Debian):
-            distro.install_packages(
-                "cmake libudev-dev "
-                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-                "valgrind python3-dev cython3 python3-docutils pandoc "
-                "libssl-dev libelf-dev python3-pip libnuma-dev"
-            )
-        elif isinstance(distro, Fedora):
-            distro.group_install_packages("Development Tools")
-            distro.install_packages(
-                "cmake gcc libudev-devel "
-                "libnl3-devel pkg-config "
-                "valgrind python3-devel python3-docutils  "
-                "openssl-devel unzip "
-                "elfutils-devel python3-pip libpcap-devel  "
-                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
-            )
-        else:
-            # check occcurs before this function
-            return
-
-        tar_path = wget.get(
-            url=(
-                "https://github.com/linux-rdma/rdma-core/"
-                "releases/download/v46.0/rdma-core-46.0.tar.gz"
-            ),
-            file_path=str(node.working_path),
-        )
-
-        tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-        source_path = node.working_path.joinpath("rdma-core-46.0")
-        node.execute(
-            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
-            shell=True,
-            cwd=source_path,
-            sudo=True,
-        )
-        make.make_install(source_path)
-
     def _set_backport_repo_args(self) -> None:
         distro = self.node.os
         # skip attempting to use backports for latest/prerlease
@@ -597,6 +542,18 @@ class DpdkTestpmd(Tool):
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         node = self.node
+        distro = node.os
+        if not (
+            isinstance(distro, Fedora)
+            or isinstance(distro, Debian)
+            or isinstance(distro, Suse)
+        ):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    distro, "DPDK tests not implemented for this OS."
+                )
+            )
+
         # before doing anything: determine if backport repo needs to be enabled
         self._set_backport_repo_args()
 
@@ -608,42 +565,50 @@ class DpdkTestpmd(Tool):
             self._load_drivers_for_dpdk()
             return True
 
-        # otherwise, install from package manager, git, or tar
+        # if this is mana VM, we don't support other distros yet
+        is_mana_test_supported = isinstance(distro, Ubuntu) or isinstance(
+            distro, Fedora
+        )
+        if self.is_mana and not is_mana_test_supported:
+            raise SkippedException("MANA DPDK test is not supported on this OS")
 
+        # if we need an rdma-core source install, do it now.
+        if self.rdma_core.can_install_from_source() or (
+            is_mana_test_supported and self.is_mana
+        ):
+            # ensure no older version is installed
+            distro.uninstall_packages("rdma-core")
+            self.rdma_core.do_source_install()
+
+        # otherwise, install kernel and dpdk deps from package manager, git, or tar
         self._install_dependencies()
-
-        # if this is mana VM, we need an upstream rdma-core package (for now)
-        if self.is_mana:
-            if not (isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)):
-                raise SkippedException("MANA DPDK test is not supported on this OS")
-
-            # ensure no older dependency is installed
-            node.os.uninstall_packages("rdma-core")
-            self._install_upstream_rdma_core_for_mana()
+        # install any missing rdma-core packages
+        rdma_packages = self.rdma_core.get_missing_distro_packages()
+        distro.install_packages(rdma_packages)
 
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
-            if isinstance(node.os, Debian):
-                node.os.install_packages(
+            if isinstance(distro, Debian):
+                distro.install_packages(
                     ["dpdk", "dpdk-dev"],
                     extra_args=self._backport_repo_args,
                 )
-            elif isinstance(node.os, (Fedora, Suse)):
-                node.os.install_packages(["dpdk", "dpdk-devel"])
+            elif isinstance(distro, (Fedora, Suse)):
+                distro.install_packages(["dpdk", "dpdk-devel"])
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
-                    f" for os {node.os.name}"
+                    f" for os {distro.name}"
                 )
             self.node.log.info(
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
 
-            self._dpdk_version_info = node.os.get_package_information("dpdk")
+            self._dpdk_version_info = distro.get_package_information("dpdk")
             self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
@@ -867,9 +832,6 @@ class DpdkTestpmd(Tool):
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
-            rdma_core_packages = self.get_rdma_core_package_name()
-            if rdma_core_packages:
-                suse.install_packages(rdma_core_packages.split())
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
@@ -904,9 +866,6 @@ class DpdkTestpmd(Tool):
             # MANA tests use linux-modules-extra-azure, install if it's available.
             if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
                 ubuntu.install_packages("linux-modules-extra-azure")
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            ubuntu.install_packages(rdma_core_packages.split())
 
     def _install_fedora_dependencies(self) -> None:
         node = self.node
@@ -919,7 +878,7 @@ class DpdkTestpmd(Tool):
             return  # appease the type checker
 
         # DPDK is very sensitive to rdma-core/kernel mismatches
-        # update to latest kernel before instaling dependencies
+        # update to latest kernel before installing dependencies
         rhel.install_packages("kernel")
         node.reboot()
 
@@ -935,9 +894,7 @@ class DpdkTestpmd(Tool):
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            self._fedora_packages += rdma_core_packages.split()
+        if not self.rdma_core.is_installed_from_source:
             rhel.group_install_packages("Infiniband Support")
 
         rhel.group_install_packages("Development Tools")
