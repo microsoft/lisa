@@ -24,6 +24,7 @@ from typing import (
     Union,
     cast,
 )
+from urllib.parse import urlparse
 
 import paramiko
 import pluggy
@@ -47,7 +48,7 @@ global_ssh_key_access_lock = Lock()
 # source -
 # https://github.com/django/django/blob/stable/1.3.x/django/core/validators.py#L45
 __url_pattern = re.compile(
-    r"^(?:http|ftp)s?://"  # http:// or https://
+    r"^(?:http|s?ftp)s?://"  # http:// or https://
     r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)"
     r"+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"  # ...domain
     r"localhost|"  # localhost...
@@ -583,7 +584,9 @@ def find_group_in_lines(
     return result
 
 
-def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
+def deep_update_dict(
+    src: Dict[str, Any], dest: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
     if (
         dest is None
         or isinstance(dest, int)
@@ -597,7 +600,7 @@ def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any
 
     if isinstance(result, dict):
         for key, value in src.items():
-            if isinstance(value, dict) and key in dest:
+            if dest and isinstance(value, dict) and key in dest:
                 value = deep_update_dict(value, dest[key])
             result[key] = value
     elif isinstance(src, dict):
@@ -616,6 +619,58 @@ def is_valid_url(url: str, raise_error: bool = True) -> bool:
         else:
             is_url = False
     return is_url
+
+
+def is_valid_source_code_package(
+    source_url: str,
+    expected_package_name_pattern: Pattern[str],
+    allowed_protocols: Optional[List[str]] = None,
+    expected_domains: Optional[List[str]] = None,
+) -> bool:
+    # avoid using a mutable default parameter
+    if not allowed_protocols:
+        allowed_protocols = [
+            "https",
+            "sftp",
+        ]
+    # first, check if it's a url.
+    if not is_valid_url(url=source_url, raise_error=False):
+        return False
+
+    # NOTE: urllib might not work as you'd expect.
+    # It doesn't throw on lots of things you wouldn't expect to be urls.
+    # You must verify the parts on your own, some of them may be empty, some null.
+    # check: https://docs.python.org/3/library/urllib.parse.html#url-parsing
+
+    try:
+        parts = urlparse(source_url)
+    except ValueError:
+        return False
+
+    # ex: from https://www.com/path/to/file.tar
+    # scheme : https
+    # netloc : www.com
+    # path   : path/to/file.tar
+
+    # get the filename from the path portion of the url
+    file_path = parts.path.split("/")[-1]
+    full_match = expected_package_name_pattern.match(file_path)
+    if not full_match:
+        return False
+
+    # check the expected domain is correct if present
+    valid_netloc = not expected_domains or any(
+        [domain.endswith(parts.netloc) for domain in expected_domains]
+    )
+
+    # optional but default is check access is via sftp/https
+    valid_scheme = any([parts.scheme == x for x in allowed_protocols])
+    return (
+        valid_scheme
+        and parts.netloc != ""
+        and valid_netloc
+        and (full_match.group(0) == file_path)
+    )
 
 
 def filter_ansi_escape(content: str) -> str:
