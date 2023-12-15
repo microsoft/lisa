@@ -104,6 +104,12 @@ class SourceInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    # Config options
+    kernel_config_enable: List[str] = field(default_factory=list)
+    kernel_config_disable: List[str] = field(default_factory=list)
+    kernel_config_module: List[str] = field(default_factory=list)
+
+
 class SourceInstaller(BaseInstaller):
     _code_path: PurePath
 
@@ -191,9 +197,13 @@ class SourceInstaller(BaseInstaller):
 
         kconfig_file = runbook.kernel_config_file
         local_version = runbook.kernel_local_version
+        kconfig_enable = runbook.kernel_config_enable
+        kconfig_disable = runbook.kernel_config_disable
+        kconfig_module = runbook.kernel_config_module
         self._build_code(
             node=node, code_path=self._code_path, kconfig_file=kconfig_file,
-            local_version=local_version
+            local_version=local_version, kconfig_enable=kconfig_enable,
+            kconfig_disable=kconfig_disable, kconfig_module=kconfig_module,
         )
 
         self._install_build(node=node, code_path=self._code_path)
@@ -274,7 +284,16 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str, local_version: str) -> None:
+    def _build_code(
+            self,
+            node: Node,
+            code_path: PurePath,
+            kconfig_file: str,
+            local_version: str,
+            kconfig_enable: list[str],
+            kconfig_disable: list[str],
+            kconfig_module: list[str],
+        ) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
@@ -339,6 +358,30 @@ class SourceInstaller(BaseInstaller):
             shell=True,
         )
         result.assert_exit_code()
+
+        for config_option in kconfig_enable:
+            result = node.execute(
+                f"scripts/config --enable {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
+
+        for config_option in kconfig_disable:
+            result = node.execute(
+                f"scripts/config --disable {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
+
+        for config_option in kconfig_module:
+            result = node.execute(
+                f"scripts/config --module {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
 
         # the gcc version of Redhat 7.x is too old. Upgrade it.
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
