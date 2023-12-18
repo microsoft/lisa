@@ -7,7 +7,6 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import cast
 
 from assertpy.assertpy import assert_that
 
@@ -20,7 +19,6 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Posix
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -33,9 +31,9 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools.chmod import Chmod
 from lisa.tools.chown import Chown
-from lisa.tools.whoami import Whoami
-from lisa.tools.curl import Curl
 from lisa.tools.find import Find
+from lisa.tools.python import Pip, Python
+from lisa.tools.whoami import Whoami
 
 
 @TestSuiteMetadata(
@@ -113,7 +111,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         The test would be passed in both the cases, just that the information helps in
         clearly classifying the distro, when the test runs on various distros.
         """,
-        priority=0,
+        priority=2,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -146,24 +144,23 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     break
 
         # installing all the required packages
-        curl = node.tools[Curl]
- 
-        # install pip
-        python = "python3"
-        url = "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
-        args = "-o get-pip.py"
-        curl.fetch(url=url, arg=args, shell=True, execute_arg="", sudo=True)
-        node.execute(cmd=f"{python} get-pip.py", shell=True, sudo=True)
-        node.execute(cmd=f"{python} -m pip --version")
+        # install python3 and pip
+        python = node.tools[Python]
+        python._install()
+        pip = node.tools[Pip]
+        pip._install()
+        node.execute(cmd="python3 -m pip --version")
+
         # install mock module
-        node.execute(cmd=f"{python} -m pip install mock", sudo=True)
+        node.execute(cmd="python3 -m pip install mock", sudo=True)
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
         assert extension_dir, "Unable to find the extension directory."
 
         # moving the handle_test.py file to extension directory
         script = (
-            "#!/bin/sh\n" f"mv {node.working_path}/handle.txt {extension_dir}/main/handle_test.py"
+            "#!/bin/sh\n"
+            f"mv {node.working_path}/handle.txt {extension_dir}/main/handle_test.py"
         )
         script_base64 = base64.b64encode(bytes(script, "utf-8")).decode("utf-8")
         settings = {"script": script_base64}
@@ -176,7 +173,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             auto_upgrade_minor_version=True,
             settings=settings,
         )
-        log.info(f"extension_directory: {extension_dir}")
+        log.info("extension_directory: {extension_dir}")
         # give the execution permissions to the file
         file_path = f"{extension_dir}/main/handle_test.py"
         permissions = "777"
@@ -185,13 +182,13 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         node.tools[Chown].change_owner(
             extension_dir, user=username, group=username, recurse=True
         )
-        script_result = node.execute(
-            cmd="ls -lt /var/lib/waagent", shell=True, sudo=True
-        )
-        print(script_result.stdout)
         # execute the file
         script_result = node.execute(
-            cmd=f"{python} {extension_dir}/main/handle_test.py", shell=True, sudo=True
+            cmd=f"python3 {extension_dir}/main/handle_test.py",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="The script failed to execute",
         )
         log.info(f"The script returned {script_result.stdout}")
         if "True" in script_result.stdout:
