@@ -180,7 +180,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
         username = node.tools[Whoami].get_username()
         node.tools[Chown].change_owner(
-            extension_dir, user=username, group=username, recurse=True
+            PurePosixPath(extension_dir), user=username, group=username, recurse=True
         )
         # execute the file
         script_result = node.execute(
@@ -191,6 +191,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             expected_exit_code_failure_message="The script failed to execute",
         )
         log.info(f"The script returned {script_result.stdout}")
+        print(f"The script returned {script_result.stdout}")
         if "True" in script_result.stdout:
             # isSizeComputationFailed flag is set to True.
             result.information["selective_billing_support"] = False

@@ -22,25 +22,6 @@ import string
 import subprocess
 import sys
 import fnmatch
-from Utils import HandlerUtil 
-from patch import GetMyPatching
-from backuplogger import Backuplogger
-from common import CommonVariables
-from Utils import SizeCalculation
-from mock import MagicMock
-
-def main():
-    
-    root_path = '/var/lib/waagent/'
-    folder_name_contains = 'Microsoft.Azure.RecoveryServices.VMSnapshotLinux'
-
-    matching_folders = get_folders_with_string(root_path, folder_name_contains)
-
-    for folder in matching_folders:
-        break
-    os.chdir(folder)
-    # run a test for exclude disk scenario
-    excludeDisk()
 
 def get_folders_with_string(root_path, folder_name_contains):
     matching_folders = []
@@ -51,6 +32,27 @@ def get_folders_with_string(root_path, folder_name_contains):
             matching_folders.append(folder_path)
 
     return matching_folders
+
+root_path = '/var/lib/waagent/'
+folder_name_contains = 'Microsoft.Azure.RecoveryServices.VMSnapshotLinux'
+
+matching_folders = get_folders_with_string(root_path, folder_name_contains)
+
+for folder in matching_folders:
+    break
+os.chdir(folder)
+
+from Utils import HandlerUtil 
+from patch import GetMyPatching
+from backuplogger import Backuplogger
+from common import CommonVariables
+from Utils import SizeCalculation
+from mock import MagicMock
+
+def main():
+    
+    # run a test for exclude disk scenario
+    excludeDisk()
 
 def excludeDisk():
     Log = MagicMock()
