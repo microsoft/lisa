@@ -54,19 +54,22 @@ class HyperV(Tool):
         name: str,
         guest_image_path: str,
         switch_name: str,
+        generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        secure_boot: bool = True,
         stop_existing_vm: bool = True,
     ) -> None:
         if stop_existing_vm:
             self.delete_vm(name)
 
-        # create a VM in hyperv
         powershell = self.node.tools[PowerShell]
+
+        # create a VM in hyperv
         powershell.run_cmdlet(
-            f"New-VM -Name {name} -Generation 1 "
+            f'New-VM -Name "{name}" -Generation {generation} '
             f"-MemoryStartupBytes {memory}MB -BootDevice VHD "
-            f"-VHDPath {guest_image_path} -SwitchName {switch_name}",
+            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}"',
             force_run=True,
         )
 
@@ -76,6 +79,13 @@ class HyperV(Tool):
             "-CheckpointType Disabled",
             force_run=True,
         )
+
+        # disable secure boot if requested
+        if not secure_boot:
+            powershell.run_cmdlet(
+                f"Set-VMFirmware -VMName {name} -EnableSecureBoot Off",
+                force_run=True,
+            )
 
         # add disks
         disk_info = powershell.run_cmdlet(
