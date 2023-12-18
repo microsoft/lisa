@@ -114,6 +114,12 @@ class HyperV(Tool):
         if not is_ready:
             raise LisaException(f"VM {name} did not start")
 
+    def get_first_switch(self) -> str:
+        return self.node.tools[PowerShell].run_cmdlet(
+            "Get-VMSwitch | Select -First 1 -ExpandProperty Name",
+            force_run=True,
+        )
+
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VMSwitch -Name {name}",
