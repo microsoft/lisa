@@ -304,12 +304,17 @@ class AzureNodeSchema:
                 "data_disk_caching_type",
                 "os_disk_type",
                 "data_disk_type",
+                "purchase_plan",
             ],
         )
         self.location = self.location.lower()
         # If vhd contains sas token, need add mask
         if isinstance(self.vhd_raw, str):
             add_secret(self.vhd_raw, PATTERN_URL)
+        if self.purchase_plan:
+            # Remove 'purchase_plan' if it doesn't have any details.
+            if not self.purchase_plan.name.strip():
+                del self.purchase_plan
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
