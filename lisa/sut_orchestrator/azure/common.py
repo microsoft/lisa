@@ -260,6 +260,9 @@ class AzureNodeSchema:
     # Required by shared gallery images which are present in
     # subscription different from where LISA is run
     subscription_id: str = ""
+    purchase_plan_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="purchase_plan")
+    )
     marketplace_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="marketplace")
     )
@@ -275,7 +278,7 @@ class AzureNodeSchema:
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
     # for marketplace image, which need to accept terms
-    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+    _purchase_plan: InitVar[Optional[AzureVmPurchasePlanSchema]] = None
 
     # the linux and Windows has different settings. If it's not specified, it's
     # True by default for SIG and vhd, and is parsed from marketplace
@@ -304,12 +307,74 @@ class AzureNodeSchema:
                 "data_disk_caching_type",
                 "os_disk_type",
                 "data_disk_type",
+                "purchase_plan_raw",
             ],
         )
         self.location = self.location.lower()
         # If vhd contains sas token, need add mask
         if isinstance(self.vhd_raw, str):
             add_secret(self.vhd_raw, PATTERN_URL)
+
+    @property
+    def purchase_plan(self) -> Optional[AzureVmPurchasePlanSchema]:
+        # this is a safe guard and prevent mypy error on typing
+        if not hasattr(self, "_purchase_plan"):
+            self._purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+        purchase_plan: Optional[AzureVmPurchasePlanSchema] = self._purchase_plan
+        if not purchase_plan:
+            if isinstance(self.purchase_plan_raw, dict):
+                purchase_plan = schema.load_by_type(
+                    AzureVmPurchasePlanSchema, self.purchase_plan_raw
+                )
+                if not all(
+                    [
+                        purchase_plan.name.strip(),
+                        purchase_plan.product.strip(),
+                        purchase_plan.publisher.strip(),
+                    ]
+                ):
+                    purchase_plan = None
+                else:
+                    # this step makes purchase_plan_raw is validated, and
+                    # filter out any unwanted content.
+                    self.purchase_plan_raw = purchase_plan.to_dict()  # type: ignore
+            elif self.purchase_plan_raw:
+                assert isinstance(
+                    self.purchase_plan_raw, str
+                ), f"actual: {type(self.purchase_plan_raw)}"
+
+                self.purchase_plan_raw = self.purchase_plan_raw.strip()
+
+                if self.purchase_plan_raw:
+                    purchase_plan_strings = re.split(r"[:\s]+", self.purchase_plan_raw)
+
+                    if len(purchase_plan_strings) == 3:
+                        purchase_plan = AzureVmPurchasePlanSchema(
+                            name=purchase_plan_strings[0],
+                            product=purchase_plan_strings[1],
+                            publisher=purchase_plan_strings[2],
+                        )
+                        # purchase_plan_raw is used
+                        self.purchase_plan_raw = purchase_plan.to_dict()  # type: ignore
+                    else:
+                        raise LisaException(
+                            f"Invalid value for the provided purchase_plan "
+                            f"parameter: '{self.purchase_plan_raw}'."
+                            f"The purchase_plan parameter should be in the format: "
+                            f"'<name> <product> <publisher>' "
+                        )
+            # if not purchase_plan.name.strip():
+            #    purchase_plan = None
+            self._purchase_plan = purchase_plan
+        return purchase_plan
+
+    @purchase_plan.setter
+    def purchase_plan(self, value: Optional[AzureVmPurchasePlanSchema]) -> None:
+        self._purchase_plan = value
+        if value is None:
+            self.purchase_plan_raw = None
+        else:
+            self.purchase_plan_raw = value.to_dict()  # type: ignore
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
@@ -555,6 +620,9 @@ class AzureNodeArmParameter(AzureNodeSchema):
         if "marketplace" in parameters:
             parameters["marketplace_raw"] = parameters["marketplace"]
             del parameters["marketplace"]
+        if "purchase_plan" in parameters:
+            parameters["purchase_plan_raw"] = parameters["purchase_plan"]
+            del parameters["purchase_plan"]
         if "shared_gallery" in parameters:
             parameters["shared_gallery_raw"] = parameters["shared_gallery"]
             del parameters["shared_gallery"]
