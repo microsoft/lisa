@@ -36,6 +36,10 @@ from lisa.util import (
     UnsupportedDistroException,
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
+from microsoft.testsuites.dpdk.common import (
+    is_ubuntu_latest_or_prerelease,
+    is_ubuntu_lts_version,
+)
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -566,19 +570,36 @@ class DpdkTestpmd(Tool):
         )
         make.make_install(source_path)
 
+    def _set_backport_repo_args(self) -> None:
+        distro = self.node.os
+        # skip attempting to use backports for latest/prerlease
+        # and non-lts ubuntu versions
+        if isinstance(distro, Ubuntu) and (
+            is_ubuntu_latest_or_prerelease(distro) or not is_ubuntu_lts_version(distro)
+        ):
+            self._backport_repo_args = []
+        # otherwise check if a backport repo exists use it if so
+        elif isinstance(distro, Debian):
+            repos = distro.get_repositories()
+            backport_repo = f"{distro.information.codename}-backports"
+            if any([backport_repo in repo.name for repo in repos]):
+                self._backport_repo_args = [f"-t {backport_repo}"]
+            else:
+                self._backport_repo_args = []
+        # otherwise assume backports are included in default repos
+        # TODO: check for how RHEL and SUSE manage backports
+        else:
+            self._backport_repo_args = []
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         node = self.node
-        if isinstance(node.os, Debian):
-            repos = node.os.get_repositories()
-            backport_repo = f"{node.os.information.codename}-backports"
-            if any([backport_repo in repo.name for repo in repos]):
-                self._debian_backports_args = [f"-t {backport_repo}"]
-            else:
-                self._debian_backports_args = []
+        # before doing anything: determine if backport repo needs to be enabled
+        self._set_backport_repo_args()
+
         if self.has_dpdk_version():
             # DPDK is already installed
             node.log.info(
@@ -605,11 +626,10 @@ class DpdkTestpmd(Tool):
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
-
             if isinstance(node.os, Debian):
                 node.os.install_packages(
                     ["dpdk", "dpdk-dev"],
-                    extra_args=self._debian_backports_args,
+                    extra_args=self._backport_repo_args,
                 )
             elif isinstance(node.os, (Fedora, Suse)):
                 node.os.install_packages(["dpdk", "dpdk-devel"])
@@ -818,7 +838,7 @@ class DpdkTestpmd(Tool):
             self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
             node.os.install_packages(
-                self._debian_packages, extra_args=self._debian_backports_args
+                self._debian_packages, extra_args=self._backport_repo_args
             )
         elif isinstance(node.os, Fedora):
             self._install_fedora_dependencies()
@@ -872,14 +892,14 @@ class DpdkTestpmd(Tool):
         elif ubuntu.information.version < "20.4.0":
             ubuntu.install_packages(
                 self._ubuntu_packages_1804,
-                extra_args=self._debian_backports_args,
+                extra_args=self._backport_repo_args,
             )
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
         else:
             ubuntu.install_packages(
                 self._ubuntu_packages_2004,
-                extra_args=self._debian_backports_args,
+                extra_args=self._backport_repo_args,
             )
             # MANA tests use linux-modules-extra-azure, install if it's available.
             if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):

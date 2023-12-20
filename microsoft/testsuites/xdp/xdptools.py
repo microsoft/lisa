@@ -41,7 +41,6 @@ class XdpTool(Tool):
     """
 
     _xdp_tools_repo = "https://github.com/xdp-project/xdp-tools.git"
-    _xdp_tools_tag = "v1.2.0"
     _default_command = "xdptool"
 
     #     [test_ether_deny]             PASS
@@ -82,6 +81,13 @@ class XdpTool(Tool):
         super()._initialize(*args, **kwargs)
         self._command: PurePath = PurePath(self._default_command)
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
+        # v1.4.1 requires clang-11
+        self._xdp_tools_tag = "v1.4.1"
+        if (
+            isinstance(self.node.os, Debian)
+            and self.node.os.information.version <= "18.4.0"
+        ):
+            self._xdp_tools_tag = "v1.2.0"
 
     def _install(self) -> bool:
         # install dependencies

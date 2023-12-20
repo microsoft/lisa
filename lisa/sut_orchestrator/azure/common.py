@@ -150,6 +150,9 @@ SIG_IMAGE_KEYS = [
     "image_version",
 ]
 
+# IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
+METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+
 
 @dataclass
 class EnvironmentContext:
@@ -620,6 +623,15 @@ class DataDiskSchema:
 
 @dataclass_json()
 @dataclass
+class AvailabilityArmParameter:
+    availability_type: str = constants.AVAILABILITY_DEFAULT
+    availability_set_tags: Dict[str, str] = field(default_factory=dict)
+    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
+    availability_zones: List[int] = field(default_factory=list)
+
+
+@dataclass_json()
+@dataclass
 class AzureArmParameter:
     storage_name: str = ""
     vhd_storage_name: str = ""
@@ -628,12 +640,12 @@ class AzureArmParameter:
     admin_password: str = ""
     admin_key_data: str = ""
     subnet_count: int = 1
+    availability_options: AvailabilityArmParameter = field(
+        default_factory=AvailabilityArmParameter
+    )
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
-    availability_set_tags: Dict[str, str] = field(default_factory=dict)
-    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeArmParameter] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
-    use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
 
     virtual_network_resource_group: str = ""
@@ -2052,9 +2064,74 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
+def get_azurevm_metadata() -> Any:
+    headers = {"Metadata": "true"}
+    try:
+        response = requests.get(METADATA_ENDPOINT, headers=headers, timeout=10)
+        response.raise_for_status()
+        metadata = response.json()
+        return metadata
+    except Exception:
+        return ""
+
+
+def get_azurevm_name() -> str:
+    meta_data = get_azurevm_metadata()
+    if meta_data:
+        return str(meta_data["compute"]["name"])
+    else:
+        return ""
+
+
+def get_resource_group_name() -> str:
+    meta_data = get_azurevm_metadata()
+    if meta_data:
+        return str(meta_data["compute"]["resourceGroupName"])
+    else:
+        return ""
+
+
+def get_managed_identity_object_id(
+    platform: "AzurePlatform", resource_group_name: str, vm_name: str
+) -> str:
+    compute_client = get_compute_client(
+        platform, subscription_id=platform.subscription_id
+    )
+
+    vm_identity = compute_client.virtual_machines.get(
+        resource_group_name, vm_name
+    ).identity
+
+    user_assigned_identity_resource_id = ""
+    # Check if the VM has user-assigned managed identity
+    if vm_identity and vm_identity.type == "UserAssigned":
+        user_assigned_identity_id = vm_identity.user_assigned_identities
+        if user_assigned_identity_id:
+            # Iterate over user-assigned identities
+            for _, identity_value in user_assigned_identity_id.items():
+                user_assigned_identity_resource_id = identity_value.principal_id
+            if user_assigned_identity_resource_id:
+                return user_assigned_identity_resource_id
+
+    # Check if the VM has system-assigned managed identity
+    if vm_identity and vm_identity.type == "SystemAssigned":
+        return str(vm_identity.principal_id)
+    return ""
+
+
 def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
 ) -> Any:
+    if not application_id:
+        # if the run machine resides on Azure
+        # get the object ID of the managed identity
+        if get_resource_group_name() and get_azurevm_name():
+            object_id = get_managed_identity_object_id(
+                platform, get_resource_group_name(), get_azurevm_name()
+            )
+            if object_id:
+                return object_id
+
     base_url = "https://graph.microsoft.com/"
     api_version = "v1.0"
     # If application_id is not provided or is None, use /me endpoint

@@ -53,12 +53,12 @@ class DpdkNffGo(Tool):
         os = node.os
         version = os.information.version
         if isinstance(os, Ubuntu):
-            if version < "18.4.0":
+            if version != "18.4.0":
                 raise UnsupportedDistroException(
-                    os, "NFF-GO test is not supported on EOL Ubuntu"
+                    os, "NFF-GO test is not supported on Ubuntu != 18.04"
                 )
         elif isinstance(os, Debian):
-            if version < "10.0.0":
+            if version < "11.0.0" or version >= "12.0.0":
                 raise UnsupportedDistroException(
                     os, "NFF-GO test is not supported on EOL Debian"
                 )

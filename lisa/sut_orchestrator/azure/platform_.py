@@ -51,6 +51,7 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import Disk
+from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
@@ -61,6 +62,7 @@ from lisa.util import (
     LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
+    SkippedException,
     constants,
     dump_file,
     field_metadata,
@@ -284,9 +286,15 @@ class AzurePlatformSchema:
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
         default=None
     )
-    use_availability_sets: Optional[bool] = field(default=None)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
+    availability_zones: Optional[List[int]] = field(default=None)
+    availability_type: str = field(
+        default=AvailabilityType.Default.value,
+        metadata=field_metadata(
+            validate=validate.OneOf([type.value for type in AvailabilityType])
+        ),
+    )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
     use_public_address: bool = field(default=True)
@@ -452,9 +460,12 @@ class AzurePlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
+        # This list also determines the order of calls to on_before_deploy
+        # Hibernation depends on Availability
         return [
             features.Disk,
             features.AzureExtension,
+            features.AzureFileShare,
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,
@@ -465,14 +476,15 @@ class AzurePlatform(Platform):
             features.Resize,
             features.StartStop,
             features.IaaS,
-            features.Infiniband,
-            features.Hibernation,
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
             features.VhdGeneration,
             features.Architecture,
             features.Nfs,
+            features.Availability,
+            features.Infiniband,
+            features.Hibernation,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -1130,11 +1142,20 @@ class AzurePlatform(Platform):
         # construct parameters
         arm_parameters = AzureArmParameter()
         copied_fields = [
-            "availability_set_tags",
-            "availability_set_properties",
             "vm_tags",
         ]
+        availability_copied_fields = [
+            "availability_set_tags",
+            "availability_set_properties",
+            "availability_zones",
+            "availability_type",
+        ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
+        set_filtered_fields(
+            self._azure_runbook,
+            arm_parameters.availability_options,
+            availability_copied_fields,
+        )
 
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
@@ -1243,16 +1264,6 @@ class AzurePlatform(Platform):
             self.subscription_id, arm_parameters.location, "t"
         )
 
-        if self._azure_runbook.use_availability_sets is None:
-            arm_parameters.use_availability_sets = bool(
-                self._azure_runbook.availability_set_properties
-                or self._azure_runbook.availability_set_tags
-            )
-        else:
-            arm_parameters.use_availability_sets = (
-                self._azure_runbook.use_availability_sets
-            )
-
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
         arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
@@ -1269,14 +1280,18 @@ class AzurePlatform(Platform):
         )
 
         # change deployment for each feature.
-        for f in features_settings.values():
-            feature_type = next(
-                x for x in self.supported_features() if x.name() == f.type
-            )
+        # Order of execution is guaranteed to match
+        # the order of supported_features()
+        for feature_type, setting in [
+            (t, s)
+            for t in self.supported_features()
+            for s in features_settings.values()
+            if t.name() == s.type
+        ]:
             feature_type.on_before_deployment(
                 arm_parameters=arm_parameters,
                 template=template,
-                settings=f,
+                settings=setting,
                 environment=environment,
                 log=log,
             )
@@ -1473,10 +1488,13 @@ class AzurePlatform(Platform):
         assert isinstance(
             capability.disk.disk_controller_type, schema.DiskControllerType
         )
-        assert (
-            arm_parameters.hyperv_generation == 2
-            or capability.disk.disk_controller_type == schema.DiskControllerType.SCSI
-        ), "Gen 1 images cannot be set to NVMe Disk Controller Type"
+        if (
+            arm_parameters.hyperv_generation == 1
+            and capability.disk.disk_controller_type == schema.DiskControllerType.NVME
+        ):
+            raise SkippedException(
+                "Gen 1 image cannot be set to NVMe Disk Controller Type"
+            )
         arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
 
         assert capability.network_interface
@@ -1724,13 +1742,48 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
+        # "locationInfo": [
+        #     {
+        #         "location": "southcentralus",
+        #         "zoneDetails": [
+        #         {
+        #             //Represents the zones which support
+        #             //the feature (UltraSSDAvailabile)
+        #             "Name": [
+        #             "3"
+        #             ],
+        #             "capabilities": [
+        #             {
+        #                 "name": "UltraSSDAvailable",
+        #                 "value": "True"
+        #             }
+        #             ],
+        #             "name": null
+        #         }
+        #         ],
+        #         //Represents the zones which support
+        #         //the SKU without any features
+        #         "zones": [
+        #         "2",
+        #         "3",
+        #         "1"
+        #         ]
+        #     }
+        # ],
         if resource_sku.location_info:
             for location_info in resource_sku.location_info:
+                # Default zones supported
+                azure_raw_capabilities["availability_zones"] = location_info.zones
                 for zone_details in location_info.zone_details:
                     for location_capability in zone_details.capabilities:
                         azure_raw_capabilities[
                             location_capability.name
                         ] = location_capability.value
+                        # Zones supporting the feature
+                        if zone_details.additional_properties["Name"]:
+                            azure_raw_capabilities[
+                                "availability_zones"
+                            ] = zone_details.additional_properties["Name"]
 
         if resource_sku.capabilities:
             for sku_capability in resource_sku.capabilities:

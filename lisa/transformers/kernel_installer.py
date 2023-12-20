@@ -11,11 +11,14 @@ from dataclasses_json import dataclass_json
 
 from lisa import notifier, schema
 from lisa.messages import KernelBuildMessage
-from lisa.node import Node, quick_connect
+from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.tools import Echo, Uname
-from lisa.transformer import Transformer
+from lisa.tools import Uname
+from lisa.transformers.deployment_transformer import (
+    DeploymentTransformer,
+    DeploymentTransformerSchema,
+)
 from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
@@ -65,11 +68,7 @@ class PpaInstallerSchema(RepoInstallerSchema):
 
 @dataclass_json
 @dataclass
-class KernelInstallerTransformerSchema(schema.Transformer):
-    # the SSH connection information to the node
-    connection: Optional[schema.RemoteNode] = field(
-        default=None, metadata=field_metadata(required=True)
-    )
+class KernelInstallerTransformerSchema(DeploymentTransformerSchema):
     # the installer's parameters.
     installer: Optional[BaseInstallerSchema] = field(
         default=None, metadata=field_metadata(required=True)
@@ -101,7 +100,7 @@ class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
         raise NotImplementedError()
 
 
-class KernelInstallerTransformer(Transformer):
+class KernelInstallerTransformer(DeploymentTransformer):
     _information_output_name = "information"
     _is_success_output_name = "is_success"
 
@@ -121,14 +120,13 @@ class KernelInstallerTransformer(Transformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: KernelInstallerTransformerSchema = self.runbook
-        assert runbook.connection, "connection must be defined."
         assert runbook.installer, "installer must be defined."
 
         message = KernelBuildMessage()
         build_sucess: bool = False
         boot_success: bool = False
 
-        node = quick_connect(runbook.connection, "installer_node")
+        node = self._node
 
         uname = node.tools[Uname]
         kernel_version_before_install = uname.get_linux_information()
@@ -194,7 +192,7 @@ class KernelInstallerTransformer(Transformer):
                 )
 
             self._log.info("rebooting")
-            node.reboot()
+            node.reboot(time_out=900)
             boot_success = True
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
@@ -256,35 +254,21 @@ class RepoInstaller(BaseInstaller):
         version_name = release
         # add the repo
         if runbook.is_proposed:
-            if "proposed2" in self.repo_url:
-                repo_entry = "ppa:canonical-kernel-team/proposed2"
-            elif "private-ppa" in self.repo_url:
+            if "private-ppa" in self.repo_url:
                 # 'main' is the only repo component supported by 'private-ppa'
                 repo_component = "main"
                 repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
+            elif "proposed2" in self.repo_url:
+                repo_entry = "ppa:canonical-kernel-team/proposed2"
             else:
                 version_name = f"{release}-proposed"
                 repo_entry = "ppa:canonical-kernel-team/proposed"
         else:
             repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
 
-        if release == "lunar":
-            config = [
-                "Package: *",
-                "Pin: release a=*-proposed",
-                "Pin-Priority: 500",
-            ]
-            echo = node.tools[Echo]
-            for config_line in config:
-                echo.write_to_file(
-                    config_line,
-                    node.get_pure_path("/etc/apt/preferences.d/proposed.pref"),
-                    append=True,
-                    sudo=True,
-                )
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
-        full_package_name = f"{runbook.source}/{version_name}"
+        full_package_name = runbook.source
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
 

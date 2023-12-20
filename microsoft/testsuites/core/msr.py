@@ -180,7 +180,15 @@ class Msr(TestSuite):
         # os health info in azure.
         assert_that(hv_os_platform_info.is_open_source_os).described_as(
             "OS_TYPE not set to OPEN_SOURCE in hv platform info bitfield. "
-            f"Expected {hex(msr_register_content)} & {hex(IS_OPEN_SOURCE_OS_MASK)} != 0"
+            f"Expected {hex(msr_register_content)} & "
+            f"{hex(IS_OPEN_SOURCE_OS_MASK)} != 0. "
+            "This indicates this bitfield was declared incorrectly. See: "
+            "https://git.launchpad.net/~canonical-kernel/ubuntu/+source/linux-azure/"
+            "+git/jammy/tree/include/asm-generic/hyperv-tlfs.h?h=master#n129 "
+            "for one example of how to declate the correct values. "
+            "To verify this bug: pull the source for this distro+release and check "
+            "include/asm-generic/hyperv-tlfs.h for the definition of "
+            "HV_LINUX_VENDOR_ID."
         ).is_not_zero()
 
 

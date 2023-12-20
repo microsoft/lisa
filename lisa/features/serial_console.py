@@ -33,6 +33,11 @@ class SerialConsole(Feature):
         re.compile(
             r"^(.*ipt_CLUSTERIP: ClusterIP.*loaded successfully.*)$", re.MULTILINE
         ),
+        # This is a known issue with Hyper-V when running on AMD processors.
+        # The problem occurs in VM sizes that have 16 or more vCPUs which means 2 or
+        # more NUMA nodes on AMD processors.
+        # The call trace is annoying but does not affect correct operation of the VM.
+        re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
     ]
 
     # blk_update_request: I/O error, dev sdc, sector 0

@@ -24,6 +24,9 @@ class Hwclock(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         package_name = "util-linux"
         posix_os.install_packages(package_name)
+        if not self._check_exists():
+            package_name = "util-linux-extra"
+            posix_os.install_packages(package_name)
         return self._check_exists()
 
     def set_rtc_clock_to_system_time(self) -> None:

@@ -220,6 +220,8 @@ def _set_target_role_parameters(
         "Microsoft.Compute/disks/delete",
         "Microsoft.Compute/images/read",
         "Microsoft.Compute/images/write",
+        "Microsoft.Compute/galleries/images/read",
+        "Microsoft.Compute/galleries/images/write",
         # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
@@ -232,6 +234,9 @@ def _set_target_role_parameters(
         "Microsoft.Network/networkInterfaces/read",
         "Microsoft.Network/networkInterfaces/write",
         "Microsoft.Network/networkInterfaces/join/action",
+        # for verify_dpdk_l3fwd_ntttcp_tcp to set up Azure route table
+        "Microsoft.Network/routeTables/read",
+        "Microsoft.Network/routeTables/write",
         # for verify_azure_file_share_nfs mount and delete
         "Microsoft.Network/privateEndpoints/write",
         "Microsoft.Network/privateLinkServices/PrivateEndpointConnectionsApproval/action",  # noqa: E501

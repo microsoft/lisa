@@ -5,7 +5,12 @@ from retry import retry
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Redhat
-from lisa.util import LisaException, RepoNotExistException, UnsupportedDistroException
+from lisa.util import (
+    LisaException,
+    ReleaseEndOfLifeException,
+    RepoNotExistException,
+    UnsupportedDistroException,
+)
 
 
 class Docker(Tool):
@@ -80,7 +85,7 @@ class Docker(Tool):
         if isinstance(self.node.os, Debian):
             try:
                 self.node.os.install_packages("docker.io")
-            except RepoNotExistException as e:
+            except (RepoNotExistException, ReleaseEndOfLifeException) as e:
                 raise e
             except Exception as e:
                 self._log.error(

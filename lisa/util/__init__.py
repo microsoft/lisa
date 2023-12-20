@@ -531,8 +531,12 @@ def find_patterns_groups_in_lines(
     else:
         for index, pattern in enumerate(patterns):
             finds = pattern.findall(lines)
-            for find in finds:
-                results[index].append(dict(zip(pattern.groupindex, find)))
+            if len(pattern.groupindex) == 1:
+                # if there is only one group, findall returns the string, not a list.
+                results[index].append(dict(zip(pattern.groupindex, finds)))
+            else:
+                for find in finds:
+                    results[index].append(dict(zip(pattern.groupindex, find)))
     return results
 
 
@@ -751,7 +755,7 @@ def check_till_timeout(
             break
         sleep(interval)
     if timer.elapsed() >= timeout:
-        raise LisaException(f"timeout: {timeout_message}")
+        raise LisaTimeoutException(f"timeout: {timeout_message}")
 
 
 def retry_without_exceptions(
