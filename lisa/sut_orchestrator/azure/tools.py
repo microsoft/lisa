@@ -2,9 +2,10 @@
 # Licensed under the MIT license.
 
 import re
+import os 
 import sys
 import json
-from pathlib import PurePath
+from pathlib import PurePath, Path
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
@@ -24,6 +25,7 @@ from lisa.util import (
 from lisa.util.process import ExecutableResult
 from typing import Optional, cast
 from lisa.operating_system import Posix
+
 
 
 class Waagent(Tool):
@@ -575,36 +577,9 @@ class mdatp(Tool):
     @property
     def can_install(self) -> bool:
         self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
-        return True
+        return False
 
     def _install(self) -> bool:
-        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
-        posix_os: Posix = cast(Posix, self.node.os)
-        cur_repo = posix_os.get_repositories();
-        self._log.info(f"{cur_repo}")
-
-        #posix_os.add_azure_core_repo(code_name="bionic")
-        arch_name = "arm64,armhf,amd64"
-        repo_url = "https://packages.microsoft.com/ubuntu/18.04/prod"
-        code_name = "insiders-fast"
-        posix_os.add_repository(
-            repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
-            keys_location=[
-                "https://packages.microsoft.com/keys/microsoft.asc",
-                "https://packages.microsoft.com/keys/msopentech.asc",
-            ],
-        )
-
-
-        cur_repo = posix_os.get_repositories();
-        self._log.info(f"{cur_repo}")
-
-        if posix_os.is_package_in_repo(self.command):
-            posix_os.install_packages(self.command)
-            self._log.info(f"{self.command} is installed successfully")
-        else:
-            raise UnsupportedDistroException(
-                    self.node.os, f"The distro doesn't have {self.command} in its repo")
         return self._check_exists()
 
     def get_result(
@@ -612,7 +587,7 @@ class mdatp(Tool):
         arg: str,
         json_out: bool = False,
         sudo: bool = False,
-    ) -> None:
+    ) -> Any:
         self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
         if json_out:
             arg += ' --output json'
@@ -620,6 +595,7 @@ class mdatp(Tool):
             arg,
             sudo=sudo,
             shell=True,
+            force_run=True,
         )
 
         result.assert_exit_code()
