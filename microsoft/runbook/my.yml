@@ -6,6 +6,10 @@ variable:
     value: tiers/tier.yml
   - name: case
     value: verify_cpu_count
+  - name: onboarding_script
+    is_secret: true
+    is_case_visible: True
+    value: ""
   - name: location
     value: "westus3"
   - name: keep_environment

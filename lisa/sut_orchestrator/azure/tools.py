@@ -2,10 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-import os 
-import sys
-import json
-from pathlib import PurePath, Path
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
@@ -23,9 +20,6 @@ from lisa.util import (
     get_matched_str,
 )
 from lisa.util.process import ExecutableResult
-from typing import Optional, cast
-from lisa.operating_system import Posix
-
 
 
 class Waagent(Tool):
@@ -567,39 +561,3 @@ class KvpClientFreeBSD(KvpClient):
             records[content_split[i]] = content_split[i + 1]
 
         return records
-
-class mdatp(Tool):
-    @property
-    def command(self) -> str:
-        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
-        return "mdatp"
-
-    @property
-    def can_install(self) -> bool:
-        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
-        return False
-
-    def _install(self) -> bool:
-        return self._check_exists()
-
-    def get_result(
-        self,
-        arg: str,
-        json_out: bool = False,
-        sudo: bool = False,
-    ) -> Any:
-        self._log.info(f"Inside the func: [{sys._getframe().f_code.co_name}]")
-        if json_out:
-            arg += ' --output json'
-        result = self.run(
-            arg,
-            sudo=sudo,
-            shell=True,
-            force_run=True,
-        )
-
-        result.assert_exit_code()
-        if json_out:
-            return json.loads(result.stdout)
-        return result.stdout.split()
-
