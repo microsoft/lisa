@@ -62,7 +62,6 @@ class HypervPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         print(self.server_node.tools[PowerShell].run_cmdlet("Get-VM"))
-        # print(self.server_node.working_path)
         self._deploy_nodes(environment, log)
 
     def _get_node_context(self, node: Node) -> NodeContext:
