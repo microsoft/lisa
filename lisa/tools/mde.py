@@ -29,7 +29,6 @@ class MDE(Tool):
                 filename="mde_installer.sh",
             )
             self.mde_installer = download_path
-            self._log.info(self.mde_installer)
             self.node.tools[Chmod].update_folder(self.mde_installer, "777", sudo=True)
         return True
 

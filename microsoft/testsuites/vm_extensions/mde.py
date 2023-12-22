@@ -58,8 +58,7 @@ class MDETest(TestSuite):
     def verify_mde(self, node: Node, log: Logger, result: TestResult) -> None:
         # Invoking tools first time, intalls the tool.
         try:
-            node.tools[MDE]
-            output = True
+            output = node.tools[MDE]._check_exists()
         except LisaException as e:
             log.error(e)
             output = False
