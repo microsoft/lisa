@@ -9,6 +9,7 @@ from typing import Any
 
 from lisa.executable import Tool
 from lisa.executable import CustomScriptBuilder, CustomScript
+from .chmod import Chmod
 from lisa.base_tools import Wget
 
 class MDE(Tool):
@@ -21,27 +22,25 @@ class MDE(Tool):
         return True
 
     def get_mde_installer(self) -> bool:
-        if not hasattr(self, '_mde_installer'):
-            response = requests.get("https://raw.githubusercontent.com/microsoft/mdatp-xplat/master/linux/installation/mde_installer.sh")
-            if response.ok:
-                script = response.text
-                import tempfile
-                _, self.mde_installer_script = tempfile.mkstemp(prefix='mde_installer', suffix='.sh')
-                with open(self.mde_installer_script, 'w') as writer:
-                    writer.write(script)
-                self._mde_installer = CustomScriptBuilder(Path(os.path.dirname(self.mde_installer_script)),
-                                                [os.path.basename(self.mde_installer_script)])
-                return True
-            return False
+        if not hasattr(self, 'mde_installer'):
+            wget = self.node.tools[Wget]
+
+            download_path = wget.get(
+                    url="https://raw.githubusercontent.com/microsoft/mdatp-xplat/master/linux/installation/mde_installer.sh",
+                    filename="mde_installer.sh",
+            )
+            self.mde_installer = download_path
+            self._log.info(self.mde_installer)
+            self.node.tools[Chmod].update_folder(
+                    self.mde_installer, "777", sudo=True)
         return True
 
     def _install(self) -> bool:
         if not self.get_mde_installer():
            self._log.error("Unable to download mde_installer.sh script. MDE can't be installed")
 
-        mde_installer: CustomScript = self.node.tools[self._mde_installer]
         self._log.info('Installing MDE')
-        result1 = mde_installer.run(parameters="--install", sudo=True)
+        result1 = self.node.execute(f"{self.mde_installer} --install", shell=True, sudo=True)
         self._log.info(result1)
 
         return self._check_exists()
@@ -62,10 +61,8 @@ class MDE(Tool):
         if not self.get_mde_installer():
            self._log.error("Unable to download mde_installer.sh script. MDE can't be onboarded")
 
-        script: CustomScript = self.node.tools[self._mde_installer]
-
         self._log.info('Onboarding MDE')
-        result1 = script.run(parameters=f"--onboard {download_path}", sudo=True)
+        result1 = self.node.execute(f"{self.mde_installer} --onboard {download_path}", shell=True, sudo=True)
         self._log.info(result1)
 
         output = self.get_result('health --field licensed')

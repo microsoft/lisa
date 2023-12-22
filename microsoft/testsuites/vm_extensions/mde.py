@@ -22,7 +22,19 @@ from lisa.util import LisaException, SkippedException
     area="vm_extension",
     category="functional",
     description="""
-    MDE Test Suite
+        Verify MDE installation
+        Microsoft Defender for Endpoint(MDE) for Linux includes antimalware and endpoint detection and response (EDR) capabilities.
+
+        This test suites validates if MDE can be installed, onboarded and detect an EICAR file.
+
+        The test requires the onboarding script to be kept in Azure Storage Account and provide the SAS url for downloading 
+        under the secret variable `onboarding_script_sas_uri`.
+
+        The suite runs the following tests:
+        1. Installation test
+        2. Onboarding test
+        3. Health test
+        4. EICAR detection test
     """,
 )
 class MDE(TestSuite):
@@ -35,7 +47,7 @@ class MDE(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Verify MDE installation
+            Verify MDE installation, onboarding, health and EICAR detection.
         """,
         priority=1,
         requirement=simple_requirement(min_core_count=2,
@@ -46,7 +58,8 @@ class MDE(TestSuite):
 
         #Invoking tools first time, intalls the tool.
         try:
-            output = node.tools[mdatp]._check_exists()
+            node.tools[mdatp]
+            output = True
         except LisaException as e:
             log.error(e)
             output = False
@@ -63,18 +76,18 @@ class MDE(TestSuite):
 
         onboarding_result = node.tools[mdatp].onboard(self.onboarding_script_sas_uri)
 
-        assert_that(onboarding_result).is_equal_to(True)
+        assert_that(onboarding_result).described_as('Unable to onboard MDE').is_equal_to(True)
 
         output = node.tools[mdatp].get_result('health --field licensed')
 
-        assert_that(output).is_equal_to(['true'])
+        assert_that(output).described_as('MDE is not licensed').is_equal_to(['true'])
 
     def verify_health(self, node: Node, log: Logger, result: TestResult) -> None:
         output = node.tools[mdatp].get_result('health', json_out=True)
 
         log.info(output)
 
-        assert_that(output['healthy']).is_equal_to(True)
+        assert_that(output['healthy']).described_as('MDE is not healthy').is_equal_to(True)
 
     def verify_eicar_detection(self, node: Node, log: Logger, result: TestResult) -> None:
         log.info('Running EICAR test')
@@ -82,7 +95,7 @@ class MDE(TestSuite):
         output = node.tools[mdatp].get_result('health --field real_time_protection_enabled')
         if output == ['false']:
             output = node.tools[mdatp].get_result('config real-time-protection --value enabled', sudo=True)
-            assert_that(' '.join(output)).is_equal_to('Configuration property updated.')
+            assert_that(' '.join(output)).described_as('Unable to enable RTP for MDE').is_equal_to('Configuration property updated.')
 
         current_threat_list= node.tools[mdatp].get_result('threat list')
         log.info(current_threat_list)
@@ -99,6 +112,6 @@ class MDE(TestSuite):
         eicar_detect = ' '.join(new_threat_list).replace(' '.join(current_threat_list), '')
 
         log.info(eicar_detect)
-        assert_that('Name: Virus:DOS/EICAR_Test_File' in eicar_detect).is_equal_to(True)
+        assert_that('Name: Virus:DOS/EICAR_Test_File' in eicar_detect).described_as('MDE is not able to detect EICAR file').is_equal_to(True)
 
 
