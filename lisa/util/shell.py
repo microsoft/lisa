@@ -411,6 +411,7 @@ class SshShell(InitializableMixin):
         path_str = self._purepath_to_str(path)
         self.initialize()
         assert self._inner_shell
+
         try:
             self._inner_shell.mkdir(
                 path_str, mode=mode, parents=parents, exist_ok=exist_ok
@@ -422,6 +423,16 @@ class SshShell(InitializableMixin):
             if "Channel closed." in str(identifier):
                 assert isinstance(path_str, str)
                 self.spawn(command=["mkdir", "-p", path_str])
+        except OSError as e:
+            if not self.is_posix and parents:
+                # spurplus is unable to handle Windows style paths properly. As a
+                # result, it is unable to create parent directories when parents=True
+                # is passed. So, mkdir ultimately fails. In such cases, use command
+                # instead. On Windows, mkdir creates parent directories by default;
+                # no additional parameter is needed.
+                self._inner_shell.run(command=["mkdir", path_str])
+            else:
+                raise e
 
     def exists(self, path: PurePath) -> bool:
         """Check if a target directory/file exist
