@@ -2729,8 +2729,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        if hasattr(self._node, "os"):
-            self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
+        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
