@@ -180,6 +180,7 @@ __all__ = [
     "Lsvmbus",
     "Make",
     "Mdadm",
+    "MDE",
     "Mkdir",
     "Mkfs",
     "Mkfsext",
