@@ -77,6 +77,9 @@ class HypervPlatform(Platform):
         pwsh = self.server_node.tools[PowerShell]
         default_switch = hv.get_first_switch()
 
+        if environment.runbook.nodes_requirement is None:
+            return  # nothing to deploy?
+
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
                 HypervNodeSchema, type(self).type_name()
@@ -108,20 +111,26 @@ class HypervPlatform(Platform):
             if is_zipped:
                 extraction_path = remote_path.parent.joinpath("extracted")
                 self.server_node.tools[PowerShell].run_cmdlet(
-                    f"Expand-Archive -Path {remote_path} -DestinationPath {extraction_path} -Force"
+                    f"Expand-Archive -Path {remote_path} "
+                    f"-DestinationPath {extraction_path} -Force"
                 )
                 extracted_vhd = self.server_node.tools[PowerShell].run_cmdlet(
-                    f"Get-ChildItem -Path {extraction_path} | Select -First 1 -ExpandProperty Name"
+                    f"Get-ChildItem -Path {extraction_path} "
+                    f"| Select -First 1 -ExpandProperty Name"
                 )
-                extracted_vhd = extraction_path.joinpath(extracted_vhd)
+                extracted_vhd = str(extraction_path.joinpath(extracted_vhd))
                 pwsh.run_cmdlet(
-                    f"Copy-Item -Path {extracted_vhd} -Destination {node_context.vhd_remote_path}"
+                    f"Copy-Item -Path {extracted_vhd} "
+                    f"-Destination {node_context.vhd_remote_path}"
                 )
                 self.server_node.shell.remove(remote_path)
 
+            assert isinstance(node.capability.core_count, int)
+            assert isinstance(node.capability.memory_mb, int)
+
             hv.create_vm(
                 name=vm_name,
-                guest_image_path=node_context.vhd_remote_path,
+                guest_image_path=str(node_context.vhd_remote_path),
                 switch_name=default_switch,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,
