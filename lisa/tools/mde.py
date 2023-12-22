@@ -1,14 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
 import json
-import requests
-from pathlib import Path
 from typing import Any
 
 from lisa.executable import Tool
-from lisa.executable import CustomScriptBuilder, CustomScript
 from .chmod import Chmod
 from lisa.base_tools import Wget
 
