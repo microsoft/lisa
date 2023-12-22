@@ -7,6 +7,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import PurePosixPath
+from typing import cast
 
 from assertpy.assertpy import assert_that
 
@@ -19,6 +20,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.operating_system import Posix
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -32,7 +34,7 @@ from lisa.testsuite import TestResult
 from lisa.tools.chmod import Chmod
 from lisa.tools.chown import Chown
 from lisa.tools.find import Find
-from lisa.tools.python import Pip, Python
+from lisa.tools.python import Python
 from lisa.tools.whoami import Whoami
 
 
@@ -146,13 +148,10 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         # installing all the required packages
         # install python3 and pip
         python = node.tools[Python]
-        python._install()
-        pip = node.tools[Pip]
-        pip._install()
-        node.execute(cmd="python3 -m pip --version")
-
+        posix_os: Posix = cast(Posix, node.os)
+        posix_os.install_packages("pip")
         # install mock module
-        node.execute(cmd="python3 -m pip install mock", sudo=True)
+        node.execute(cmd="pip3 install mock", sudo=True)
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
         assert extension_dir, "Unable to find the extension directory."
@@ -173,7 +172,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             auto_upgrade_minor_version=True,
             settings=settings,
         )
-        log.info("extension_directory: {extension_dir}")
+        log.info(f"extension_directory: {extension_dir}")
         # give the execution permissions to the file
         file_path = f"{extension_dir}/main/handle_test.py"
         permissions = "777"
@@ -183,15 +182,10 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             PurePosixPath(extension_dir), user=username, group=username, recurse=True
         )
         # execute the file
-        script_result = node.execute(
-            cmd=f"python3 {extension_dir}/main/handle_test.py",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="The script failed to execute",
+        script_result = python.run(
+            f"{extension_dir}/main/handle_test.py", sudo=True, shell=True
         )
         log.info(f"The script returned {script_result.stdout}")
-        print(f"The script returned {script_result.stdout}")
         if "True" in script_result.stdout:
             # isSizeComputationFailed flag is set to True.
             result.information["selective_billing_support"] = False
