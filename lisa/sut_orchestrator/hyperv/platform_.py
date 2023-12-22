@@ -131,4 +131,8 @@ class HypervPlatform(Platform):
             )
 
             ip_addr = hv.get_ip_address(vm_name)
-            node.set_connection_info(address=ip_addr, username="cloud", password="")
+            username = self.runbook.admin_username
+            password = self.runbook.admin_password
+            node.set_connection_info(
+                address=ip_addr, username=username, password=password
+            )
