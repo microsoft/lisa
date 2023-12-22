@@ -2,17 +2,14 @@
 # Licensed under the MIT license.
 
 import os
-import sys
 import json
 import requests
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any
 
 from lisa.executable import Tool
 from lisa.executable import CustomScriptBuilder, CustomScript
-#from . import RemoteCopy, Whoami, Curl
-from .remote_copy import RemoteCopy
-from .whoami import Whoami
+from lisa.base_tools import Wget
 
 class MDE(Tool):
     @property
@@ -50,15 +47,17 @@ class MDE(Tool):
         return self._check_exists()
 
 
-    def onboard(self, onboarding_script: PurePath) -> bool:
+    def onboard(self, onboarding_script_sas_uri: str) -> bool:
         if not self._check_exists():
             self._log.error("MDE is not installed, onboarding not possible")
             return False
 
-        username = self.node.tools[Whoami].get_username()
+        wget = self.node.tools[Wget]
 
-        remote_copy = self.node.tools[RemoteCopy]
-        remote_copy.copy_to_remote(onboarding_script, PurePath(f"/home/{username}/MicrosoftDefenderATPOnboardingLinuxServer.py"))
+        download_path = wget.get(
+            url=onboarding_script_sas_uri,
+            filename="MicrosoftDefenderATPOnboardingLinuxServer.py",
+        )
 
         if not self.get_mde_installer():
            self._log.error("Unable to download mde_installer.sh script. MDE can't be onboarded")
@@ -66,7 +65,7 @@ class MDE(Tool):
         script: CustomScript = self.node.tools[self._mde_installer]
 
         self._log.info('Onboarding MDE')
-        result1 = script.run(parameters=f"--onboard /home/{username}/MicrosoftDefenderATPOnboardingLinuxServer.py/MicrosoftDefenderATPOnboardingLinuxServer.py", sudo=True)
+        result1 = script.run(parameters=f"--onboard {download_path}", sudo=True)
         self._log.info(result1)
 
         output = self.get_result('health --field licensed')

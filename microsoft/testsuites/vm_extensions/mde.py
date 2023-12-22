@@ -29,9 +29,9 @@ class MDE(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         variables = kwargs["variables"]
-        self.onboarding_script = variables.get("onboarding_script", "")
-        if not self.onboarding_script:
-            raise SkippedException("Onboarding script is not provided.")
+        self.onboarding_script_sas_uri = variables.get("onboarding_script_sas_uri", "")
+        if not self.onboarding_script_sas_uri:
+            raise SkippedException("Onboarding script SAS URI is not provided.")
 
     @TestCaseMetadata(
         description="""
@@ -61,7 +61,7 @@ class MDE(TestSuite):
 
     def verify_onboard(self, node: Node, log: Logger, result: TestResult) -> None:
 
-        onboarding_result = node.tools[mdatp].onboard(PurePath(self.onboarding_script))
+        onboarding_result = node.tools[mdatp].onboard(self.onboarding_script_sas_uri)
 
         assert_that(onboarding_result).is_equal_to(True)
 
