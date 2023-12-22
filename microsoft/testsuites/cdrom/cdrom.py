@@ -27,6 +27,39 @@ class CdromSuite(TestSuite):
         "CDS_NO_DISC"  # drive tray is closed, no disk in the drive
     )
 
+    def check_cdrom_status_code(self, node: Node, check_phase: str) -> str:
+        result = node.execute(
+            cmd=str(self._node_exec_path),
+            shell=True,
+            sudo=True,
+        )
+        # first check for failure to open the cdrom device
+        assert_that(result.exit_code).described_as(
+            f"Needs Triage: during {check_phase}, call to "
+            "open('/dev/cdrom', O_RDONLY|O_NONBLOCK) failed on this VM."
+        ).is_not_equal_to(-1)
+
+        return result.stdout.strip()
+
+    def compile_cdrom_status_program(self, node: Node) -> None:
+        # collect some paths before we start compiling...
+        local_path = pathlib.PurePath(__file__).parent.joinpath("cdstat.c")
+        working_path = node.get_working_path()
+        node_source_path = working_path.joinpath("cdstat.c")
+        self._node_exec_path = working_path.joinpath("cdstat")
+
+        # copy the tiny c program to the node (cdstat.c)
+        node.shell.copy(local_path=local_path, node_path=node_source_path)
+
+        # compile it
+        node.tools[Gcc].compile(
+            filename=str(node_source_path), output_name=str(self._node_exec_path)
+        )
+        assert_that(node.shell.exists(self._node_exec_path)).described_as(
+            "Test bug! The build is broken on this distro. "
+            f"Could not find {str(self._node_exec_path)}"
+        ).is_true()
+
     @TestCaseMetadata(
         description="""
             Test to check the installation ISO is unloaded
@@ -46,37 +79,47 @@ class CdromSuite(TestSuite):
         # reboot to ensure there is no iso in the cd/dvd 'drive'
         node.reboot()
 
-        # collect some paths before we start compiling...
-        local_path = pathlib.PurePath(__file__).parent.joinpath("cdstat.c")
-        working_path = node.get_working_path()
-        node_source_path = working_path.joinpath("cdstat.c")
-        node_exec_path = working_path.joinpath("cdstat")
+        # build the tiny cdrom utility (./cdstat.c)
+        self.compile_cdrom_status_program(node)
 
-        # copy the tiny c program to the node (cdstat.c)
-        node.shell.copy(local_path=local_path, node_path=node_source_path)
+        # use the program to check the raw cdrom status code
+        # toggle open, toggle close, check final status
+        output = self.check_cdrom_status_code(node, "before_open")
+        node.log.info(f"cdrom status was: {output} before toggle...")
 
-        # compile it
-        node.tools[Gcc].compile(
-            filename=str(node_source_path), output_name=str(node_exec_path)
+        # toggle the device twice to 'open' and 'close' the tray.
+        node.execute(
+            "eject --cdrom -T /dev/cdrom",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could toggle /dev/cdrom to open.",
         )
-        assert_that(node.shell.exists(node_exec_path)).described_as(
-            "Test bug! The build is broken on this distro. "
-            f"Could not find {str(node_exec_path)}"
-        ).is_true()
+        output = self.check_cdrom_status_code(node, "after_open")
 
+        node.log.info(f"cdrom status was: {output} after toggle...")
+        node.execute(
+            "eject --cdrom -T /dev/cdrom",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not toggle /dev/cdrom to closed.",
+        )
+
+        output = self.check_cdrom_status_code(node, "after_close")
+        node.log.info(f"cdrom status was: {output} after second toggle...")
+
+        node.reboot()
         # and run the test if the device is present.
+
+        node.execute("cat /dev/cdrom ", shell=True, sudo=True)
+
         result = node.execute(
-            cmd=str(node_exec_path),
+            cmd=str(self._node_exec_path),
             shell=True,
             sudo=True,
         )
         output = result.stdout.strip()
-
-        # first check for failure to open the cdrom device
-        assert_that(result.exit_code).described_as(
-            "Needs Triage: calling "
-            "open('/dev/cdrom', O_RDONLY|O_NONBLOCK) failed on this VM."
-        ).is_not_equal_to(-1)
 
         # then check if the exit code was expected and
         # log the output code on failure
