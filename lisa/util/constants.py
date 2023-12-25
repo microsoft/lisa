@@ -163,6 +163,7 @@ NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD = "dpdk-testpmd"
 
 # Test for command with sudo
 LISA_TEST_FOR_SUDO = "lisa test for sudo"
+LISA_TEST_FOR_BASH_PROMPT = "lisa test for bash prompt"
 
 # linux signals
 SIGINT = 2
