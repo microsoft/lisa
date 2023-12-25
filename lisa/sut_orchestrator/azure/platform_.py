@@ -1208,6 +1208,14 @@ class AzurePlatform(Platform):
             node_arm_parameters = self._create_node_arm_parameters(node.capability, log)
             nodes_parameters.append(node_arm_parameters)
 
+            arm_parameters.is_ultradisk = any(
+                [
+                    x
+                    for x in nodes_parameters
+                    if x.data_disk_type
+                    == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
+                ]
+            )
             # Set data disk array
             arm_parameters.data_disks = self._generate_data_disks(
                 node, node_arm_parameters
