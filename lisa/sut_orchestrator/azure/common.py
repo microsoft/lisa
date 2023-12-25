@@ -651,6 +651,7 @@ class AzureArmParameter:
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
     subnet_prefix: str = AZURE_SUBNET_PREFIX
+    is_ultradisk: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
