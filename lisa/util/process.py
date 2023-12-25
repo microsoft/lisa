@@ -397,15 +397,20 @@ class Process:
         if self._is_posix and self._sudo:
             self._result.stdout = self._filter_sudo_result(self._result.stdout)
 
-        if (
-            isinstance(self._shell, SshShell)
-            and self._shell._inner_shell
-            and self._shell._inner_shell._spur._shell_type
-            == spur.ssh.ShellTypes.minimal
-        ):
-            self._result.stdout = self._filter_profile_error(self._result.stdout)
-        self._check_if_need_input_password(self._result.stdout)
+        if isinstance(self._shell, SshShell):
+            if (
+                self._shell._inner_shell
+                and self._shell._inner_shell._spur._shell_type
+                == spur.ssh.ShellTypes.minimal
+            ):
+                self._result.stdout = self._filter_profile_error(self._result.stdout)
 
+            if self._shell.bash_prompt:
+                self._result.stdout = self._result.stdout.replace(
+                    self._shell.bash_prompt, ""
+                )
+
+        self._check_if_need_input_password(self._result.stdout)
         self._result.stdout = self._filter_sudo_required_password_info(
             self._result.stdout
         )
@@ -521,10 +526,10 @@ class Process:
             and self._shell.spawn_initialization_error_string
         ):
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\n", ""
+                f"{self._shell.spawn_initialization_error_string}\n", ""
             )
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\r\n", ""
+                f"{self._shell.spawn_initialization_error_string}\r\n", ""
             )
             self._log.debug(
                 "filter the profile error string: "

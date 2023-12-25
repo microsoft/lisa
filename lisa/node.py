@@ -112,6 +112,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.capture_boot_time: bool = False
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
+        self.has_checked_bash_prompt: bool = False
 
     @property
     def shell(self) -> Shell:
@@ -288,6 +289,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         encoding: str = "",
     ) -> Process:
         self.initialize()
+        if isinstance(self, RemoteNode):
+            self._check_bash_prompt()
 
         return self._execute(
             cmd,
@@ -735,6 +738,26 @@ class RemoteNode(Node):
             self.log.debug(f"password prompt {i}: {password_prompt}")
         ssh_shell = cast(SshShell, self.shell)
         ssh_shell.password_prompts = password_prompts
+
+    def _check_bash_prompt(self) -> None:
+        # Check if there is bash prompt in stdout of command. If yes, the prompt
+        # should be filtered from the stdout. E.g. image yaseensmarket1645449809728
+        # wordpress-red-hat images.
+        if not self.has_checked_bash_prompt:
+            self.has_checked_bash_prompt = True
+            process = self._execute(
+                f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+            )
+            result = process.wait_result(10)
+            bash_prompt = result.stdout.replace(
+                f"{constants.LISA_TEST_FOR_BASH_PROMPT}", ""
+            )
+            self.log.debug(f"bash prompt: {bash_prompt}")
+            ssh_shell = cast(SshShell, self.shell)
+            ssh_shell.bash_prompt = bash_prompt
 
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension
