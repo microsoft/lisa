@@ -186,7 +186,8 @@ class MshvHostStressTestSuite(TestSuite):
             sleep_time = 10
             if guest_vm_type == "CVM":
                 # CVM guest take little more time to boot
-                sleep_time = 100
+                # 20 seconds per VM (with default 1024M)
+                sleep_time = 20 * vm_count
             time.sleep(sleep_time)
 
             for i in range(len(procs)):
@@ -197,6 +198,11 @@ class MshvHostStressTestSuite(TestSuite):
                     continue
                 log.info(f"Killing VM {i}")
                 p.kill()
+
+            if guest_vm_type == "CVM":
+                # CVM guest killing takes sometime
+                sleep_time = 20
+                time.sleep(sleep_time)
 
             node.tools[Free].log_memory_stats_mb()
 
