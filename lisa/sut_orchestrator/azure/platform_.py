@@ -57,11 +57,13 @@ from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
+    KernelPanicException,
     LisaException,
     LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
     SkippedException,
+    check_panic,
     constants,
     dump_file,
     field_metadata,
@@ -678,8 +680,12 @@ class AzurePlatform(Platform):
             else:
                 log.debug("not wait deleting")
 
-    def _save_console_log(
-        self, resource_group_name: str, environment: Environment, log: Logger
+    def _save_console_log_and_check_panic(
+        self,
+        resource_group_name: str,
+        environment: Environment,
+        log: Logger,
+        check_serial_console: bool = False,
     ) -> None:
         compute_client = get_compute_client(self)
         vms = compute_client.virtual_machines.list(resource_group_name)
@@ -696,6 +702,8 @@ class AzurePlatform(Platform):
             )
             log_file_name = saved_path / f"{vm.name}_serial_console.log"
             log_file_name.write_bytes(log_response_content)
+            if check_serial_console is True:
+                check_panic(log_response_content.decode("utf-8"), "provision", log)
 
     def _delete_boot_diagnostic_container(
         self, resource_group_name: str, log: Logger
@@ -1581,7 +1589,9 @@ class AzurePlatform(Platform):
                         deployment_operation, time_out=300, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
-                    self._save_console_log(resource_group_name, environment, log)
+                    self._save_console_log_and_check_panic(
+                        resource_group_name, environment, log, False
+                    )
                     continue
                 break
         except HttpResponseError as identifier:
@@ -1620,6 +1630,18 @@ class AzurePlatform(Platform):
                     f"Exception: {error_message}"
                 )
             else:
+                try:
+                    self._save_console_log_and_check_panic(
+                        resource_group_name, environment, log, True
+                    )
+                except KernelPanicException as ex:
+                    if (
+                        "OSProvisioningTimedOut: OS Provisioning for VM"
+                        in error_message
+                    ):
+                        error_message = (
+                            f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
+                        )
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
 
