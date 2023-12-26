@@ -5,16 +5,16 @@ from typing import cast
 
 from assertpy import assert_that
 
-from lisa import Environment, Logger, RemoteNode, features
+from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.features import StartStop
+from lisa.features.startstop import VMStatus
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
-from lisa.util import LisaException, SkippedException, constants
+from lisa.tools import Dmesg, Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
-from lisa.util.shell import wait_tcp_port_ready
 
 
-def is_distro_supported(node: RemoteNode) -> None:
+def is_distro_supported(node: Node) -> None:
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -32,69 +32,78 @@ def is_distro_supported(node: RemoteNode) -> None:
         )
 
 
-def verify_hibernation(node: RemoteNode, log: Logger) -> None:
+def verify_hibernation(
+    node: Node,
+    log: Logger,
+    throw_error: bool = True,
+) -> None:
+    hibernation_setup_tool = node.tools[HibernationSetup]
+    startstop = node.features[StartStop]
+
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
-    hibernation_setup_tool = node.tools[HibernationSetup]
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
     received_before_hibernation = hibernation_setup_tool.check_received()
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
-    startstop = node.features[StartStop]
+
+    # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
-    startstop.stop(state=features.StopState.Hibernate)
+
+    try:
+        startstop.stop(state=features.StopState.Hibernate)
+    except Exception as ex:
+        try:
+            node.tools[Dmesg].get_output(force_run=True)
+        except Exception as e:
+            log.debug(f"error on get dmesg output: {e}")
+        raise LisaException(f"fail to hibernate: {ex}")
+
     is_ready = True
     timeout = 900
     timer = create_timer()
     while timeout > timer.elapsed(False):
-        is_ready, _ = wait_tcp_port_ready(
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-            log=log,
-            timeout=10,
-        )
-        if not is_ready:
+        if startstop.get_status() == VMStatus.Deallocated:
+            is_ready = False
             break
     if is_ready:
-        raise LisaException("VM still can be accessed after hibernation")
+        raise LisaException("VM is not in deallocated status after hibernation")
+
     startstop.start()
+    dmesg = node.tools[Dmesg]
+    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()
     uevent_after_hibernation = hibernation_setup_tool.check_uevent()
-    assert_that(
-        entry_after_hibernation - entry_before_hibernation,
-        "not find 'hibernation entry'.",
+    assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
+        "not find 'hibernation entry'."
     ).is_equal_to(1)
-    assert_that(
-        exit_after_hibernation - exit_before_hibernation,
-        "not find 'hibernation exit'.",
+    assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+        "not find 'hibernation exit'."
     ).is_equal_to(1)
-    assert_that(
-        received_after_hibernation - received_before_hibernation,
-        "not find 'Hibernation request received'.",
+    assert_that(received_after_hibernation - received_before_hibernation).described_as(
+        "not find 'Hibernation request received'."
     ).is_equal_to(1)
-    assert_that(
-        uevent_after_hibernation - uevent_before_hibernation,
-        "not find 'Sent hibernation uevent'.",
+    assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
+        "not find 'Sent hibernation uevent'."
     ).is_equal_to(1)
 
     node_nic = node.nics
     node_nic.initialize()
     lower_nics_after_hibernation = node_nic.get_lower_nics()
     upper_nics_after_hibernation = node_nic.get_nic_names()
-    assert_that(
-        len(lower_nics_after_hibernation),
-        "sriov nics count changes after hibernation.",
+    assert_that(len(lower_nics_after_hibernation)).described_as(
+        "sriov nics count changes after hibernation."
     ).is_equal_to(len(lower_nics_before_hibernation))
-    assert_that(
-        len(upper_nics_after_hibernation),
-        "synthetic nics count changes after hibernation.",
+    assert_that(len(upper_nics_after_hibernation)).described_as(
+        "synthetic nics count changes after hibernation."
     ).is_equal_to(len(upper_nics_before_hibernation))
 
 
-def run_storage_workload(node: RemoteNode) -> Decimal:
+def run_storage_workload(node: Node) -> Decimal:
     fio = node.tools[Fio]
     fiodata = node.get_pure_path("./fiodata")
     core_count = node.tools[Lscpu].get_core_count()

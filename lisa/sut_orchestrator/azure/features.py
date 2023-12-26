@@ -47,6 +47,7 @@ from lisa.features.security_profile import (
     FEATURE_NAME_SECURITY_PROFILE,
     SecurityProfileType,
 )
+from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -181,6 +182,22 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         )
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
+
+    def get_status(self) -> VMStatus:
+        try:
+            platform: AzurePlatform = self._platform  # type: ignore
+            compute_client = get_compute_client(platform)
+            status = (
+                compute_client.virtual_machines.get(
+                    self._resource_group_name, self._vm_name, expand="instanceView"
+                )
+                .instance_view.statuses[1]
+                .display_status
+            )
+            assert isinstance(status, str), f"actual: {type(status)}"
+            return VMStatus(status)
+        except Exception as e:
+            raise LisaException(f"fail to get status of vm {self._vm_name}") from e
 
 
 class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
@@ -2014,8 +2031,18 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
 
-        if raw_capabilities.get("HibernationSupported", None) == "True":
+        if (
+            resource_sku.family
+            in [
+                "standardDSv5Family",
+                "standardDDSv5Family",
+                "standardDASv5Family",
+                "standardDADSv5Family",
+            ]
+            or raw_capabilities.get("HibernationSupported", None) == "True"
+        ):
             return schema.FeatureSettings.create(cls.name())
 
         return None

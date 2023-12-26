@@ -28,7 +28,7 @@ from .security_profile import (
     SecurityProfileType,
 )
 from .serial_console import SerialConsole
-from .startstop import StartStop, StopState
+from .startstop import StartStop, StopState, VMStatus
 
 __all__ = [
     "ACC",
@@ -63,6 +63,7 @@ __all__ = [
     "SecurityProfileType",
     "Sriov",
     "StopState",
+    "VMStatus",
     "Synthetic",
     "StartStop",
 ]
