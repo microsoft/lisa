@@ -179,9 +179,6 @@ class CloudHypervisorTestSuite(TestSuite):
         # Get URL for MS CLH repo
         ms_clh_repo = variables.get("ms_clh_repo", None)
 
-        # Get URL for igvm-parser repo
-        ms_igvm_parser_repo = variables.get("ms_igvm_parser_repo", None)
-
         # Get GUEST VM type, set default to NON-CVM
         clh_guest_vm_type = variables.get("clh_guest_vm_type", "NON-CVM")
 
@@ -194,13 +191,10 @@ class CloudHypervisorTestSuite(TestSuite):
             raise SkippedException("Access Token is needed while using MS-CLH")
         if not ms_clh_repo:
             raise SkippedException("CLH URL is needed while using MS-CLH")
-        if not ms_igvm_parser_repo:
-            raise SkippedException("IGVM-Parser URL is needed while using MS-CLH")
 
         CloudHypervisorTests.use_ms_clh_repo = True
         CloudHypervisorTests.ms_access_token = ms_access_token
         CloudHypervisorTests.ms_clh_repo = ms_clh_repo
-        CloudHypervisorTests.ms_igvm_parser_repo = ms_igvm_parser_repo
         CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
         if use_ms_guest_kernel == "YES":
             CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
