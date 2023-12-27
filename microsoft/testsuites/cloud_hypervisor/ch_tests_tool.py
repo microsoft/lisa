@@ -37,7 +37,6 @@ class CloudHypervisorTests(Tool):
     }
 
     ms_clh_repo = ""
-    ms_igvm_parser_repo = ""
     use_ms_clh_repo = False
     ms_access_token = ""
     clh_guest_vm_type = ""
@@ -221,11 +220,6 @@ class CloudHypervisorTests(Tool):
         if self.use_ms_clh_repo:
             git.clone(
                 self.ms_clh_repo,
-                clone_path,
-                auth_token=self.ms_access_token,
-            )
-            git.clone(
-                self.ms_igvm_parser_repo,
                 clone_path,
                 auth_token=self.ms_access_token,
             )
