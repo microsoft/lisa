@@ -47,7 +47,10 @@ from patch import GetMyPatching
 from backuplogger import Backuplogger
 from common import CommonVariables
 from Utils import SizeCalculation
-from mock import MagicMock
+try:
+    from unittest.mock import MagicMock
+except ImportError:
+    from mock import MagicMock
 
 def main():
     

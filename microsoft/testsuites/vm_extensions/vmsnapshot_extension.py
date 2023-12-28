@@ -7,7 +7,6 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import cast
 
 from assertpy.assertpy import assert_that
 
@@ -20,7 +19,6 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Posix
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -34,7 +32,7 @@ from lisa.testsuite import TestResult
 from lisa.tools.chmod import Chmod
 from lisa.tools.chown import Chown
 from lisa.tools.find import Find
-from lisa.tools.python import Python
+from lisa.tools.python import Pip, Python
 from lisa.tools.whoami import Whoami
 
 
@@ -148,10 +146,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         # installing all the required packages
         # install python3 and pip
         python = node.tools[Python]
-        posix_os: Posix = cast(Posix, node.os)
-        posix_os.install_packages("pip")
-        # install mock module
-        node.execute(cmd="pip3 install mock", sudo=True)
+        pip = node.tools[Pip]
+        pip.install_packages("mock")
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
         assert extension_dir, "Unable to find the extension directory."
@@ -179,7 +175,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         node.tools[Chmod].chmod(path=file_path, permission=permissions, sudo=True)
         username = node.tools[Whoami].get_username()
         node.tools[Chown].change_owner(
-            PurePosixPath(extension_dir), user=username, group=username, recurse=True
+            PurePosixPath(extension_dir), user=username, recurse=True
         )
         # execute the file
         script_result = python.run(
