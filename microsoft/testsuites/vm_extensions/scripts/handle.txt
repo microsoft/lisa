@@ -24,10 +24,9 @@ import sys
 import fnmatch
 
 def get_folders_with_string(root_path, folder_name_contains):
-    matching_folders = []
-
+    matching_folders = [] 
     for root, dirs, files in os.walk(root_path):
-        for dir_name in fnmatch.filter(dirs, f"*{folder_name_contains}*"):
+        for dir_name in fnmatch.filter(dirs, "*" + folder_name_contains + "*"):
             folder_path = os.path.join(root, dir_name)
             matching_folders.append(folder_path)
 
