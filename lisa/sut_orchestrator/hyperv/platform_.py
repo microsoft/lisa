@@ -5,13 +5,13 @@ from typing import Any, List, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
-from lisa.node import Node, RemoteNode
+from lisa.node import RemoteNode
 from lisa.platform_ import Platform
 from lisa.tools import HyperV, PowerShell
 from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
-from .context import NodeContext
+from .context import get_node_context
 from .features import SerialConsole, StartStop
 from .schema import HypervNodeSchema, HypervPlatformSchema
 
@@ -64,9 +64,6 @@ class HypervPlatform(Platform):
         print(self.server_node.tools[PowerShell].run_cmdlet("Get-VM"))
         self._deploy_nodes(environment, log)
 
-    def _get_node_context(self, node: Node) -> NodeContext:
-        return node.get_context(NodeContext)
-
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         print("hyperv platform deploy nodes")
 
@@ -92,7 +89,7 @@ class HypervPlatform(Platform):
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
 
-            node_context = self._get_node_context(node)
+            node_context = get_node_context(node)
             node_context.vm_name = f"{vm_name_prefix}-{i}"
             node_context.vhd_local_path = PurePosixPath(node_runbook.vhd)
             node_context.vhd_remote_path = PureWindowsPath(
