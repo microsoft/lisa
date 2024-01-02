@@ -366,20 +366,6 @@ class SshShell(InitializableMixin):
                 # Except CommandInitializationError then use minimal shell type.
                 if not have_tried_minimal_type:
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
-
-                    # Dynamically override that object's method. Here,
-                    # we don't enclose every shell token under single
-                    # quotes anymore. That's an assumption from spur
-                    # that minimal shells will still be POSIX
-                    # compliant--not true for some cases for LISA
-                    # users.
-                    func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
-                    self._inner_shell._spur._shell_type.generate_run_command = (
-                        func_type(
-                            minimal_generate_run_command,
-                            self._inner_shell._spur._shell_type,
-                        )
-                    )
                     have_tried_minimal_type = True
                     matched = _spawn_initialization_error_pattern.search(
                         str(identifier)
@@ -387,6 +373,22 @@ class SshShell(InitializableMixin):
                     if matched:
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
+                        )
+                    else:
+                        # Dynamically override that object's method. Here,
+                        # we don't enclose every shell token under single
+                        # quotes anymore. That's an assumption from spur
+                        # that minimal shells will still be POSIX
+                        # compliant--not true for some cases for LISA
+                        # users.
+                        func_type = type(
+                            spur.ssh.ShellTypes.minimal.generate_run_command
+                        )
+                        self._inner_shell._spur._shell_type.generate_run_command = (
+                            func_type(
+                                minimal_generate_run_command,
+                                self._inner_shell._spur._shell_type,
+                            )
                         )
                 else:
                     raise identifier
