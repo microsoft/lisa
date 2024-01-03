@@ -141,3 +141,13 @@ class HypervPlatform(Platform):
             node.set_connection_info(
                 address=ip_addr, username=username, password=password
             )
+
+    def _delete_environment(self, environment: Environment, log: Logger) -> None:
+        self._delete_nodes(environment, log)
+
+    def _delete_nodes(self, environment: Environment, log: Logger) -> None:
+        hv = self.server_node.tools[HyperV]
+        for node in environment.nodes.list():
+            node_ctx = get_node_context(node)
+            log.debug(f"Deleting VM {node_ctx.vm_name}")
+            hv.delete_vm(node_ctx.vm_name)
