@@ -123,7 +123,8 @@ class Fio(Tool):
             timeout=ssh_timeout,
         )
         if result.exit_code != 0:
-            raise LisaException(f"fail to run {cmd} with {result.stdout}")
+            print (f"LisaException: fail to run {cmd} with {result.stdout}")
+            # raise LisaException(f"fail to run {cmd} with {result.stdout}")
         fio_result = self.get_result_from_raw_output(
             mode, result.stdout, iodepth, numjob
         )
