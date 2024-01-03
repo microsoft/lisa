@@ -3,6 +3,7 @@
 
 import re
 import time
+from typing import Dict, Optional
 
 from assertpy import assert_that
 
@@ -57,6 +58,7 @@ class HyperV(Tool):
         generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
         stop_existing_vm: bool = True,
     ) -> None:
@@ -98,6 +100,21 @@ class HyperV(Tool):
             powershell.run_cmdlet(
                 f"Add-VMHardDiskDrive -VMName {name} -DiskNumber {disk_number} "
                 "-ControllerType 'SCSI'",
+                force_run=True,
+            )
+
+        # configure COM ports if specified
+        if com_ports is None:
+            com_ports = {}
+        for port_number, pipe_path in com_ports.items():
+            # only port numbers 1 and 2 are supported
+            # they correspond to COM1 and COM2 respectively
+            if port_number != 1 and port_number != 2:
+                continue
+
+            powershell.run_cmdlet(
+                f"Set-VMComPort -VMName {name} -Number {port_number} "
+                f"-Path {pipe_path}",
                 force_run=True,
             )
 
