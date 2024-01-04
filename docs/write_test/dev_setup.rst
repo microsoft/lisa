@@ -104,20 +104,7 @@ Visual Studio Code
       {
          "markdown.extension.toc.levels": "2..6",
          "python.analysis.typeCheckingMode": "strict",
-         "python.formatting.provider": "black",
-         "python.linting.enabled": true,
-         "python.linting.flake8Enabled": true,
-         "python.linting.mypyEnabled": true,
          "python.linting.pylintEnabled": false,
-         "editor.formatOnSave": true,
-         "python.linting.mypyArgs": [
-            "--config-file",
-            "pyproject.toml"
-         ],
-         "python.sortImports.path": "isort",
-         "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-         },
          "python.analysis.useLibraryCodeForTypes": false,
          "python.analysis.autoImportCompletions": false,
          "files.eol": "\n",
@@ -141,14 +128,36 @@ Visual Studio Code
             "reportOptionalMemberAccess": "none"
          },
          "python.analysis.stubPath": "./typings",
-         "python.languageServer": "Pylance"
+         "python.languageServer": "Pylance",
+         "flake8.importStrategy": "fromEnvironment",
+         "mypy-type-checker.importStrategy": "fromEnvironment",
+         "mypy-type-checker.args": [
+            "--config-file",
+            "pyproject.toml"
+         ],
+         "black-formatter.importStrategy": "fromEnvironment",
+         "[python]": {
+            "editor.defaultFormatter": "ms-python.black-formatter",
+            "editor.formatOnSave": true,
+            "editor.codeActionsOnSave": {
+                  "source.organizeImports": true
+            },
+         },
+         "isort.importStrategy": "fromEnvironment",
+         "isort.args": [
+            "--settings-path",
+            "pyproject.toml"
+         ]
       }
 
 3. Install extensions.
 
-   -  Install
+   -  Install 
+      `Python <https://marketplace.visualstudio.com/items?itemName=ms-python.python>`__, 
       `Pylance <https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance>`__
       to get best code intelligence experience.
+   -  Install Python extensions to get consistent error as CI pipelines, `flake8 <https://marketplace.visualstudio.com/items?itemName=ms-python.flake8>`__, `mypy <https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker>`__, `black <https://marketplace.visualstudio.com/items?itemName=ms-python.black-formatter>`__, `isort <https://marketplace.visualstudio.com/items?itemName=ms-python.isort>`__.
+
    -  Install
       `Rewrap <https://marketplace.visualstudio.com/items?itemName=stkb.rewrap>`__
       to automatically wrap.
