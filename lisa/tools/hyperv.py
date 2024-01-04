@@ -61,19 +61,35 @@ class HyperV(Tool):
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
         stop_existing_vm: bool = True,
+        extra_args: Optional[Dict[str, str]] = None,
     ) -> None:
         if stop_existing_vm:
             self.delete_vm(name)
 
         powershell = self.node.tools[PowerShell]
 
+        if not extra_args:
+            extra_args = {}
+        else:
+            # convert all keys to lowercase to avoid case sensitivity
+            extra_args = {k.lower(): v for k, v in extra_args.items()}
+
+        extra_args_str = extra_args["new-vm"] if "new-vm" in extra_args else ""
+
         # create a VM in hyperv
         powershell.run_cmdlet(
             f'New-VM -Name "{name}" -Generation {generation} '
             f"-MemoryStartupBytes {memory}MB -BootDevice VHD "
-            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}"',
+            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}" '
+            f"{extra_args_str}",
             force_run=True,
         )
+
+        if "set-vmprocessor" in extra_args:
+            powershell.run_cmdlet(
+                f"Set-VMProcessor -VMName {name} {extra_args['set-vmprocessor']}",
+                force_run=True,
+            )
 
         # set cores and memory type
         powershell.run_cmdlet(
