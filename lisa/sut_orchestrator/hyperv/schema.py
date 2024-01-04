@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 
@@ -23,3 +23,5 @@ class HypervPlatformSchema:
 class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: str = ""
+    # experimental args to be passed to Set-VMProcessor cmdlet
+    processor_experimental_args: Optional[str] = None

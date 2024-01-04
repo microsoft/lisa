@@ -133,6 +133,7 @@ class HypervPlatform(Platform):
                 cores=node.capability.core_count,
                 memory=node.capability.memory_mb,
                 secure_boot=False,
+                processor_experimental_args=node_runbook.processor_experimental_args,
             )
 
             ip_addr = hv.get_ip_address(vm_name)
