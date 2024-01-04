@@ -12,8 +12,9 @@ from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
 from .context import get_node_context
-from .features import SerialConsole, StartStop
+from .features import StartStop
 from .schema import HypervNodeSchema, HypervPlatformSchema
+from .serial_console import SerialConsole, SerialConsoleLogger
 
 
 class HypervPlatform(Platform):
@@ -77,6 +78,8 @@ class HypervPlatform(Platform):
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
 
+        self.console_logger = SerialConsoleLogger(self.server_node)
+
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
                 HypervNodeSchema, type(self).type_name()
@@ -91,9 +94,13 @@ class HypervPlatform(Platform):
 
             node_context = get_node_context(node)
             node_context.vm_name = f"{vm_name_prefix}-{i}"
+            node_context.server_node = self.server_node
             node_context.vhd_local_path = PurePosixPath(node_runbook.vhd)
             node_context.vhd_remote_path = PureWindowsPath(
                 f"C:/Users/Administrator/lisa_test/{vm_name}-vhd.vhdx"
+            )
+            node_context.console_log_path = PureWindowsPath(
+                self.server_node.working_path / f"{vm_name}-console.log"
             )
 
             remote_path = node_context.vhd_remote_path
@@ -125,6 +132,13 @@ class HypervPlatform(Platform):
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
 
+            com1_pipe_name = f"{vm_name}-com1"
+            com1_pipe_path = f"\\\\.\\pipe\\{com1_pipe_name}"
+
+            self.console_logger.start_logging(
+                com1_pipe_name, node_context.console_log_path
+            )
+
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(node_context.vhd_remote_path),
@@ -133,6 +147,9 @@ class HypervPlatform(Platform):
                 cores=node.capability.core_count,
                 memory=node.capability.memory_mb,
                 secure_boot=False,
+                com_ports={
+                    1: com1_pipe_path,
+                },
                 processor_experimental_args=node_runbook.processor_experimental_args,
             )
 
@@ -150,5 +167,7 @@ class HypervPlatform(Platform):
         hv = self.server_node.tools[HyperV]
         for node in environment.nodes.list():
             node_ctx = get_node_context(node)
-            log.debug(f"Deleting VM {node_ctx.vm_name}")
-            hv.delete_vm(node_ctx.vm_name)
+            vm_name = node_ctx.vm_name
+            log.debug(f"Deleting VM {vm_name}")
+            hv.delete_vm(vm_name)
+            self.console_logger.stop_logging(f"{vm_name}-com1")
