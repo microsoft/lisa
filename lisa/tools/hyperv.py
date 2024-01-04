@@ -104,19 +104,18 @@ class HyperV(Tool):
             )
 
         # configure COM ports if specified
-        if com_ports is None:
-            com_ports = {}
-        for port_number, pipe_path in com_ports.items():
-            # only port numbers 1 and 2 are supported
-            # they correspond to COM1 and COM2 respectively
-            if port_number != 1 and port_number != 2:
-                continue
+        if com_ports:
+            for port_number, pipe_path in com_ports.items():
+                # only port numbers 1 and 2 are supported
+                # they correspond to COM1 and COM2 respectively
+                if port_number != 1 and port_number != 2:
+                    continue
 
-            powershell.run_cmdlet(
-                f"Set-VMComPort -VMName {name} -Number {port_number} "
-                f"-Path {pipe_path}",
-                force_run=True,
-            )
+                powershell.run_cmdlet(
+                    f"Set-VMComPort -VMName {name} -Number {port_number} "
+                    f"-Path {pipe_path}",
+                    force_run=True,
+                )
 
         # start vm
         powershell.run_cmdlet(
