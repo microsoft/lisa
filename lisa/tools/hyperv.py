@@ -60,6 +60,7 @@ class HyperV(Tool):
         memory: int = 2048,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
+        processor_experimental_args: Optional[str] = None,
         stop_existing_vm: bool = True,
     ) -> None:
         if stop_existing_vm:
@@ -67,13 +68,25 @@ class HyperV(Tool):
 
         powershell = self.node.tools[PowerShell]
 
+        experimental = processor_experimental_args is not None
+        # -Force is required -Experimental otherwise the command will
+        # wait for user input
+        experimental_flag = "-Experimental -Force" if experimental else ""
+
         # create a VM in hyperv
         powershell.run_cmdlet(
             f'New-VM -Name "{name}" -Generation {generation} '
             f"-MemoryStartupBytes {memory}MB -BootDevice VHD "
-            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}"',
+            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}" '
+            f"{experimental_flag}",
             force_run=True,
         )
+
+        if processor_experimental_args:
+            powershell.run_cmdlet(
+                f"Set-VMProcessor -VMName {name} " f"{processor_experimental_args}",
+                force_run=True,
+            )
 
         # set cores and memory type
         powershell.run_cmdlet(
