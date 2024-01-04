@@ -66,7 +66,7 @@ def perf_disk(
     test_name: str = "",
     num_jobs: Optional[List[int]] = None,
     block_size: int = 4,
-    time: int = 360,
+    time: int = 120,
     size_mb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
@@ -75,6 +75,10 @@ def perf_disk(
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
     numjobiterator = 0
+    # /proc/sys/fs/aio-max-nr is the maximum number of events that can be queued
+    # its default value is 65536 numjob*max_iodepth should be less than this value
+    # https://www.kernel.org/doc/Documentation/sysctl/fs.txt
+    numjob = min(numjob, 256)
     for mode in FIOMODES:
         iodepth = start_iodepth
         numjobindex = 0
