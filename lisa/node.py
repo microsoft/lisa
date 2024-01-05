@@ -449,6 +449,19 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         """
         raise NotImplementedError()
 
+    def _get_remote_working_path(self) -> PurePath:
+        if self.is_posix:
+            remote_root_path = Path("$HOME")
+        else:
+            remote_root_path = Path("%TEMP%")
+
+        working_path = remote_root_path.joinpath(
+            constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+        ).as_posix()
+
+        # expand environment variables in path
+        return self.get_pure_path(self.expand_env_path(working_path))
+
     def mark_dirty(self) -> None:
         self.log.debug("mark node to dirty")
         self._is_dirty = True
@@ -658,17 +671,7 @@ class RemoteNode(Node):
         super()._initialize(*args, **kwargs)
 
     def get_working_path(self) -> PurePath:
-        if self.is_posix:
-            remote_root_path = Path("$HOME")
-        else:
-            remote_root_path = Path("%TEMP%")
-
-        working_path = remote_root_path.joinpath(
-            constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
-        ).as_posix()
-
-        # expand environment variables in path
-        return self.get_pure_path(self.expand_env_path(working_path))
+        return self._get_remote_working_path()
 
     @property
     def support_sudo(self) -> bool:
@@ -870,6 +873,9 @@ class GuestNode(Node):
 
     def _provision(self) -> None:
         ...
+
+    def get_working_path(self) -> PurePath:
+        return self._get_remote_working_path()
 
 
 class WslContainerNode(GuestNode):
