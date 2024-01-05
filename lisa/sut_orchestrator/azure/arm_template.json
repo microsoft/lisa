@@ -356,6 +356,7 @@
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
             "plan": "[parameters('nodes')[copyIndex('vmCopy')]['purchase_plan']]",
             "dependsOn": [
+                "ultraDisks",
                 "[if(and(not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd'])),not(empty(parameters('nodes')[copyIndex('vmCopy')]['vhd']['vmgs_path']))), concat(parameters('nodes')[copyIndex('vmCopy')]['name'], '-disk'), resourceId('Microsoft.Compute/images',concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-image')))]",
                 "[concat(parameters('nodes')[copyIndex('vmCopy')]['name'],'-nics')]"
             ],
