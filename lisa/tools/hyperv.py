@@ -3,6 +3,7 @@
 
 import re
 import time
+from typing import Dict, Optional
 
 from assertpy import assert_that
 
@@ -54,19 +55,23 @@ class HyperV(Tool):
         name: str,
         guest_image_path: str,
         switch_name: str,
+        generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        com_ports: Optional[Dict[int, str]] = None,
+        secure_boot: bool = True,
         stop_existing_vm: bool = True,
     ) -> None:
         if stop_existing_vm:
             self.delete_vm(name)
 
-        # create a VM in hyperv
         powershell = self.node.tools[PowerShell]
+
+        # create a VM in hyperv
         powershell.run_cmdlet(
-            f"New-VM -Name {name} -Generation 1 "
+            f'New-VM -Name "{name}" -Generation {generation} '
             f"-MemoryStartupBytes {memory}MB -BootDevice VHD "
-            f"-VHDPath {guest_image_path} -SwitchName {switch_name}",
+            f'-VHDPath "{guest_image_path}" -SwitchName "{switch_name}"',
             force_run=True,
         )
 
@@ -76,6 +81,13 @@ class HyperV(Tool):
             "-CheckpointType Disabled",
             force_run=True,
         )
+
+        # disable secure boot if requested
+        if not secure_boot:
+            powershell.run_cmdlet(
+                f"Set-VMFirmware -VMName {name} -EnableSecureBoot Off",
+                force_run=True,
+            )
 
         # add disks
         disk_info = powershell.run_cmdlet(
@@ -90,6 +102,20 @@ class HyperV(Tool):
                 "-ControllerType 'SCSI'",
                 force_run=True,
             )
+
+        # configure COM ports if specified
+        if com_ports:
+            for port_number, pipe_path in com_ports.items():
+                # only port numbers 1 and 2 are supported
+                # they correspond to COM1 and COM2 respectively
+                if port_number != 1 and port_number != 2:
+                    continue
+
+                powershell.run_cmdlet(
+                    f"Set-VMComPort -VMName {name} -Number {port_number} "
+                    f"-Path {pipe_path}",
+                    force_run=True,
+                )
 
         # start vm
         powershell.run_cmdlet(
