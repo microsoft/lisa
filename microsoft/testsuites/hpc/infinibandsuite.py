@@ -279,6 +279,7 @@ class InfinibandSuite(TestSuite):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed intra-node pingpong test "
             "with intel mpi",
+            sudo=True,
         )
 
         server_node.execute(
@@ -290,6 +291,7 @@ class InfinibandSuite(TestSuite):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed inter-node pingpong test "
             "with intel mpi",
+            sudo=True,
         )
 
         tests = ["IMB-MPI1 allreduce", "IMB-RMA", "IMB-NBC"]
@@ -303,6 +305,7 @@ class InfinibandSuite(TestSuite):
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
                 timeout=3000,
+                sudo=True,
             )
 
     @TestCaseMetadata(

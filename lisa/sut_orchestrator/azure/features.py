@@ -47,7 +47,6 @@ from lisa.features.security_profile import (
     FEATURE_NAME_SECURITY_PROFILE,
     SecurityProfileType,
 )
-from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -64,6 +63,7 @@ from lisa.tools import (
     Modprobe,
     Rm,
     Sed,
+    Firewall,
 )
 from lisa.tools.echo import Echo
 from lisa.tools.kernel_config import KernelConfig
@@ -130,13 +130,6 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
-    azure_vm_status_map = {
-        "VM deallocated": VMStatus.Deallocated,
-        "VM running": VMStatus.Running,
-        "Provisioning succeeded": VMStatus.ProvisionSucceeded,
-        # Add more Azure-specific mappings as needed
-    }
-
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -189,23 +182,6 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         )
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
-
-    def get_status(self) -> VMStatus:
-        try:
-            platform: AzurePlatform = self._platform  # type: ignore
-            compute_client = get_compute_client(platform)
-            status = (
-                compute_client.virtual_machines.get(
-                    self._resource_group_name, self._vm_name, expand="instanceView"
-                )
-                .instance_view.statuses[1]
-                .display_status
-            )
-            assert isinstance(status, str), f"actual: {type(status)}"
-            assert self.azure_vm_status_map.get(status) is not None, "unknown vm status"
-            return cast(VMStatus, self.azure_vm_status_map.get(status))
-        except Exception as e:
-            raise LisaException(f"fail to get status of vm {self._vm_name}") from e
 
 
 class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
@@ -692,19 +668,34 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
             waagent.upgrade_from_source()
         # Update waagent.conf
         sed = self._node.tools[Sed]
-        sed.substitute(
-            regexp="# OS.EnableRDMA=y",
-            replacement="OS.EnableRDMA=y",
-            file="/etc/waagent.conf",
-            sudo=True,
-        )
-        sed.substitute(
-            regexp="# AutoUpdate.Enabled=y",
-            replacement="AutoUpdate.Enabled=y",
-            file="/etc/waagent.conf",
-            sudo=True,
-        )
-        waagent.restart()
+        if isinstance(self._node.os, CBLMariner):
+            sed.append(
+                text="OS.EnableRDMA=y",
+                file="/etc/waagent.conf",
+                sudo=True,
+            )
+        else:
+            sed.substitute(
+                regexp="# OS.EnableRDMA=y",
+                replacement="OS.EnableRDMA=y",
+                file="/etc/waagent.conf",
+                sudo=True,
+            )
+            sed.substitute(
+                regexp="# AutoUpdate.Enabled=y",
+                replacement="AutoUpdate.Enabled=y",
+                file="/etc/waagent.conf",
+                sudo=True,
+            )
+
+        if isinstance(self._node.os, CBLMariner) or isinstance(self._node.os, Ubuntu):
+            self._node.reboot()
+        else:
+            waagent.restart()
+        
+        # Turn off firewall
+        firewall = self._node.tools[Firewall]
+        firewall.stop()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -2039,18 +2030,8 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
-        resource_sku: Any = kwargs.get("resource_sku")
 
-        if (
-            resource_sku.family
-            in [
-                "standardDSv5Family",
-                "standardDDSv5Family",
-                "standardDASv5Family",
-                "standardDADSv5Family",
-            ]
-            or raw_capabilities.get("HibernationSupported", None) == "True"
-        ):
+        if raw_capabilities.get("HibernationSupported", None) == "True":
             return schema.FeatureSettings.create(cls.name())
 
         return None
@@ -2764,8 +2745,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        if hasattr(self._node, "os"):
-            self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
+        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
