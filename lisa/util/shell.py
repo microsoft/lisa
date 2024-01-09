@@ -223,6 +223,7 @@ class SshShell(InitializableMixin):
         self._jump_box_sock: Any = None
         self.is_sudo_required_password: bool = False
         self.password_prompts: List[str] = []
+        self.bash_prompt: str = ""
         self.spawn_initialization_error_string = ""
 
         paramiko_logger = logging.getLogger("paramiko")
