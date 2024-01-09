@@ -459,7 +459,6 @@ class Infiniband(Feature):
         node = self._node
         # Install Open MPI
         wget = node.tools[Wget]
-        raise NotImplementedError
         tar_file = (
             "https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.gz"
         )
@@ -472,7 +471,6 @@ class Infiniband(Feature):
             overwrite=False,
             sudo=True,
         )
-
         tar = node.tools[Tar]
         tar.extract(tar_file_path, self.resource_disk_path, gzip=True, sudo=True)
         openmpi_folder = node.get_pure_path(f"{self.resource_disk_path}/{file_name}")
