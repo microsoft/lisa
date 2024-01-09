@@ -409,7 +409,7 @@ class Infiniband(Feature):
                 else:
                     raise UnsupportedKernelException(
                         node.os,
-                        "Cannot install OFED drivers without " "kernel-devel package",
+                        "Cannot install OFED drivers without kernel-devel package",
                     )
 
                 extra_params = (
