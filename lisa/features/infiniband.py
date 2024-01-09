@@ -11,8 +11,8 @@ from retry import retry
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu, CBLMariner
-from lisa.tools import Firewall, Ls, Lspci, Make, Service
+from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
+from lisa.tools import Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
@@ -408,7 +408,8 @@ class Infiniband(Feature):
                     kernel_src = kernel_dirs[0]
                 else:
                     raise UnsupportedKernelException(
-                        node.os, "Cannot install OFED drivers without kernel-devel package"
+                        node.os,
+                        "Cannot install OFED drivers without " "kernel-devel package",
                     )
 
                 extra_params = (
@@ -432,7 +433,8 @@ class Infiniband(Feature):
             node.execute(
                 "/etc/init.d/openibd force-restart",
                 expected_exit_code=0,
-                expected_exit_code_failure_message="SetupRDMA: failed to restart driver",
+                expected_exit_code_failure_message="SetupRDMA: failed to "
+                "restart driver",
                 sudo=True,
             )
 
@@ -552,8 +554,10 @@ class Infiniband(Feature):
             f"{self.resource_disk_path}/mvapich2-2.3.7-1"
         )
 
-        if isinstance(node.os, Ubuntu) or isinstance(node.os, CBLMariner) or (
-            isinstance(node.os, Redhat) and node.os.information.version.major >= 9
+        if (
+            isinstance(node.os, Ubuntu)
+            or isinstance(node.os, CBLMariner)
+            or (isinstance(node.os, Redhat) and node.os.information.version.major >= 9)
         ):
             params = "--disable-fortran --disable-mcast"
         else:
