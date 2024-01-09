@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian, Redhat
-from lisa.tools import Gcc, Git, Modinfo, PowerShell, Sed, Service, Uname, Cp, Ln
+from lisa.tools import Gcc, Ln, Modinfo, PowerShell, Sed, Service, Uname
 from lisa.tools.ls import Ls
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -88,7 +88,7 @@ class Waagent(Tool):
         # Pin the WALinuxAgent to v2.9.0.4 because the latest v2.9.1.1
         # fails to assign IP address correctly to ib interface
         wget = self.node.tools[Wget]
-        tarball_name = f"v2.9.0.4.tar.gz"
+        tarball_name = "v2.9.0.4.tar.gz"
         walinuxagent_download_url = (
             f"https://github.com/Azure/WALinuxAgent/archive/refs/tags"
             f"/{tarball_name}"
@@ -97,7 +97,7 @@ class Waagent(Tool):
         try:
             wget.get(
                 url=walinuxagent_download_url,
-                file_path=self.node.working_path,
+                file_path=str(self.node.working_path),
                 filename=tarball_name,
                 overwrite=False,
                 sudo=True,
@@ -105,13 +105,13 @@ class Waagent(Tool):
         except LisaException as identifier:
             if "404: Not Found." in str(identifier):
                 raise UnsupportedDistroException(
-                    node.os, f"{walinuxagent_download_url} doesn't exist."
+                    self.node.os, f"{walinuxagent_download_url} doesn't exist."
                 )
 
         tar = self.node.tools[Tar]
         tar.extract(
             file=f"{self.node.working_path}/{tarball_name}",
-            dest_dir=self.node.working_path,
+            dest_dir=str(self.node.working_path),
             gzip=True,
             sudo=True,
         )
@@ -120,11 +120,11 @@ class Waagent(Tool):
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
                 self.node.os.install_packages(package)  # type: ignore
-        
+
         if not self.node.tools[Ls].path_exists(path="/usr/bin/python"):
             ln = self.node.tools[Ln]
             ln.create_link("/usr/bin/python3", "/usr/bin/python")
-        
+
         self.node.execute(
             f"{python_cmd} setup.py install --force",
             sudo=True,
@@ -337,7 +337,6 @@ class LisDriver(Tool):
         if not self.node.shell.exists(self.node.working_path.joinpath("LISISO")):
             wget_tool = self.node.tools[Wget]
             lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
-            from lisa.tools import Tar
 
             tar = self.node.tools[Tar]
             tar.extract(file=lis_path, dest_dir=str(self.node.working_path))

@@ -57,6 +57,7 @@ from lisa.tools import (
     Curl,
     Dmesg,
     Find,
+    Firewall,
     IpInfo,
     Ls,
     Lsblk,
@@ -64,7 +65,6 @@ from lisa.tools import (
     Modprobe,
     Rm,
     Sed,
-    Firewall,
 )
 from lisa.tools.echo import Echo
 from lisa.tools.kernel_config import KernelConfig
