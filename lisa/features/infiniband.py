@@ -276,16 +276,11 @@ class Infiniband(Feature):
             "lsof",
         ]
         cblmariner_required_packages = [
-            "pciutils-libs",
-            "pciutils",
             "rdma-core",
             "rdma-core-devel",
             "libibverbs",
             "libibverbs-utils",
             "build-essential",
-            "libfabric-devel",
-            "ucx-ib",
-            "ucx-devel",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
@@ -351,7 +346,7 @@ class Infiniband(Feature):
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
 
-        if not isinstance(node.os, CBLMariner) and not isinstance(node.os, Ubuntu):
+        if not isinstance(node.os, CBLMariner):
             # Install OFED
             ofed_version = self._get_ofed_version()
             if isinstance(node.os, Oracle):
@@ -559,7 +554,7 @@ class Infiniband(Feature):
             f"{self.resource_disk_path}/mvapich2-2.3.7-1"
         )
 
-        if isinstance(node.os, Ubuntu) or (
+        if isinstance(node.os, Ubuntu) or isinstance(node.os, CBLMariner) or (
             isinstance(node.os, Redhat) and node.os.information.version.major >= 9
         ):
             params = "--disable-fortran --disable-mcast"

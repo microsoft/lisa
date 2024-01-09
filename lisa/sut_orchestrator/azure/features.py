@@ -688,7 +688,7 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
                 sudo=True,
             )
 
-        if isinstance(self._node.os, CBLMariner) or isinstance(self._node.os, Ubuntu):
+        if isinstance(self._node.os, CBLMariner):
             self._node.reboot()
         else:
             waagent.restart()

@@ -1,15 +1,17 @@
-name: azure default
+name: azure infiniband
 include:
   - path: ./tiers/tier.yml
 variable:
   - name: location
-    value: "westus3"
+    value: "southcentralus"
   - name: keep_environment
     value: "no"
   - name: resource_group_name
-    value: ""
+    value: "henryli-mariner-infiniband"
   - name: marketplace_image
-    value: ""
+    value: "MicrosoftCBLMariner cbl-mariner cbl-mariner-2-gen2 latest"
+  # - name: marketplace_image
+  #   value: "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 22.04.202307010"
   - name: vhd
     value: ""
   - name: vm_size
@@ -48,3 +50,9 @@ platform:
         vhd: $(vhd)
         location: $(location)
         vm_size: $(vm_size)
+testcase:
+  - criteria:
+      name: verify_mvapich_mpi
+    select_action: include
+#verify_ping_pong|verify_ib_naming|verify_hpc_over_sriov|verify_hpc_over_nd|verify_open_mpi|verify_intel_mpi|verify_ibm_mpi|verify_mvapich_mpi
+  
