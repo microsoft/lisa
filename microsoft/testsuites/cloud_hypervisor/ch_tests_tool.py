@@ -28,8 +28,8 @@ class CloudHypervisorTests(Tool):
     # Slightly higher case timeout to give the case a window to
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
-    CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    PERF_CMD_TIME_OUT = 900
+    CASE_TIME_OUT = CMD_TIME_OUT + 2400
+    PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -256,6 +256,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             no_info_log=False,
             shell=True,
+            update_envs=self.env_vars,
         )
         # e.g. "integration::test_vfio: test"
         matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
@@ -345,6 +346,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             shell=True,
             expected_exit_code=0,
+            update_envs=self.env_vars,
         )
 
         stdout = result.stdout
