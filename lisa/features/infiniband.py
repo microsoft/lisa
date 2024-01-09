@@ -334,7 +334,7 @@ class Infiniband(Feature):
         else:
             raise UnsupportedDistroException(
                 node.os,
-                "Only CentOS 7.6-8.3 and Ubuntu 18.04-20.04 distros are "
+                "Only CentOS 7.6-8.3, Ubuntu 18.04-22.04 and CBLMariner distros are "
                 "supported by the HCP team",
             )
 
