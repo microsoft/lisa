@@ -100,7 +100,6 @@ class InfinibandSuite(TestSuite):
             "ib_uverbs",
             "ib_core",
             "mlx5_core",
-            "mlx_compat",
             "rdma_cm",
             "iw_cm",
             "ib_cm",
