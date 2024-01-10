@@ -9,7 +9,7 @@ from assertpy import fail
 from lisa import Node
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.tools import Git, Make, Pkgconfig, Tar, Wget
-from lisa.util import LisaException, SkippedException, is_valid_source_code_package
+from lisa.util import LisaException, SkippedException, check_url
 
 
 class RdmaCoreManager:
@@ -77,9 +77,10 @@ class RdmaCoreManager:
             )
 
         # finally, validate what we have looks reasonable and cool
-        is_valid_package = is_valid_source_code_package(
+        is_valid_package = check_url(
+            self.node.log,
             source_url=self._rdma_core_source,
-            expected_package_name_pattern=self._source_pattern,
+            expected_filename_pattern=self._source_pattern,
             allowed_protocols=["https"],
             expected_domains=[
                 "visualstudio.com",
