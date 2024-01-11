@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 from dataclasses_json import dataclass_json
 
@@ -14,8 +14,16 @@ class HypervServer:
 
 @dataclass_json
 @dataclass
+class ExtraArgs:
+    command: str
+    args: str
+
+
+@dataclass_json
+@dataclass
 class HypervPlatformSchema:
     servers: List[HypervServer] = field(default_factory=list)
+    extra_args: List[ExtraArgs] = field(default_factory=list)
 
 
 @dataclass_json
@@ -23,5 +31,3 @@ class HypervPlatformSchema:
 class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: str = ""
-    # experimental args to be passed to Set-VMProcessor cmdlet
-    processor_experimental_args: Optional[str] = None

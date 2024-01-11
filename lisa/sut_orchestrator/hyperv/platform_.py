@@ -232,6 +232,8 @@ class HypervPlatform(Platform):
                 com1_pipe_name, node_context.console_log_path
             )
 
+            extra_args = {x.command: x.args for x in self._hyperv_runbook.extra_args}
+
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(node_context.vhd_remote_path),
@@ -243,7 +245,7 @@ class HypervPlatform(Platform):
                 com_ports={
                     1: com1_pipe_path,
                 },
-                processor_experimental_args=node_runbook.processor_experimental_args,
+                extra_args=extra_args,
             )
 
             ip_addr = hv.get_ip_address(vm_name)
