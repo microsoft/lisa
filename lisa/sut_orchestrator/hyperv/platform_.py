@@ -57,17 +57,13 @@ class HypervPlatform(Platform):
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        print("hyperv platform prepare environment")
-        print(f"{environment.runbook}")
+        self._configure_node_capabilities(environment, log)
         return True
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        print(self.server_node.tools[PowerShell].run_cmdlet("Get-VM"))
         self._deploy_nodes(environment, log)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
-        print("hyperv platform deploy nodes")
-
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
 
