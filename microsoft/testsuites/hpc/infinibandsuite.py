@@ -12,7 +12,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Infiniband, Sriov
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, Windows, CBLMariner
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
 from lisa.util import (
@@ -100,11 +100,15 @@ class InfinibandSuite(TestSuite):
             "ib_uverbs",
             "ib_core",
             "mlx5_core",
-            "mlx_compat",
             "rdma_cm",
             "iw_cm",
             "ib_cm",
         ]
+
+        # mlx_compat is only needed if using Mellanox OFED. CBLMariner uses
+        # the inbox Mellanox core driver provided by kernel which does not need this
+        if not isinstance(node.os, CBLMariner):
+            expected_modules.append("mlx_compat")
 
         for module in expected_modules:
             assert_that(modprobe.is_module_loaded(module)).described_as(
