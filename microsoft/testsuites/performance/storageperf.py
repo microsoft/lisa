@@ -527,7 +527,7 @@ class StoragePerformance(TestSuite):
             disk_count=disk_count,
             disk_setup_type=disk_setup_type,
             disk_type=disk_type,
-            numjob=core_count,
+            numjob=120,
             block_size=block_size,
             size_mb=8192,
             overwrite=True,

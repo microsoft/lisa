@@ -2,16 +2,32 @@
 # Licensed under the MIT license.
 
 from functools import partial
+import re
 from typing import Any, List, Optional, Type
 
 from assertpy.assertpy import assert_that
 
 from lisa import schema
 from lisa.feature import Feature
-from lisa.tools import Mount
+from lisa.features.nvme import Nvme
+from lisa.operating_system import Ubuntu
+from lisa.tools import Mount, Ls
+from lisa.tools.curl import Curl
 from lisa.tools.mount import PartitionInfo
 from lisa.util import LisaException
-
+from lisa.util import (
+    LisaException,
+    NotMeetRequirementException,
+    SkippedException,
+    UnsupportedOperationException,
+    check_till_timeout,
+    constants,
+    field_metadata,
+    find_patterns_in_lines,
+    generate_random_chars,
+    get_matched_str,
+    set_filtered_fields,
+)
 
 class Disk(Feature):
     @classmethod
@@ -43,7 +59,15 @@ class Disk(Feature):
         return partition
 
     def get_raw_data_disks(self) -> List[str]:
-        raise NotImplementedError
+        if (
+            self._node.capability.disk
+            and self._node.capability.disk.disk_controller_type
+            == schema.DiskControllerType.NVME
+        ):
+            nvme = self._node.features[Nvme]
+            # Skip OS disk which is '[0]' in namespaces list
+            disk_array = nvme.get_namespaces()[1:]
+        return disk_array
 
     def get_all_disks(self) -> List[str]:
         raise NotImplementedError
