@@ -125,6 +125,16 @@ class DpdkTestpmd(Tool):
         "libmnl-devel meson",
         "gcc-c++",
     ]
+    _32bit_ubuntu_packages = [
+        "python3-pyelftools",
+        "libelf-dev:i386",
+        "libnuma-dev:i386",
+        "pkg-config",
+        "python3-pip",
+        "gcc:i386",
+        "cmake",
+        "libnl-3-dev:i386",
+    ]
     _rte_target = "x86_64-native-linuxapp-gcc"
     _ninja_url = "https://github.com/ninja-build/ninja/"
 
@@ -460,6 +470,7 @@ class DpdkTestpmd(Tool):
             rdma_core_source=rdma_core_source,
             rdma_core_ref=rdma_core_ref,
         )
+        self._install_32bit_dpdk = kwargs.pop("build_32bit_dpdk", False)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
@@ -536,6 +547,35 @@ class DpdkTestpmd(Tool):
         else:
             self._backport_repo_args = []
 
+    def _check_32bit_build_implemented(self) -> None:
+        node = self.node
+        if isinstance(node.os, Ubuntu):
+            if node.os.information.version < "22.4.0":
+                raise SkippedException(
+                    "32bit DPDK installation is not supported on Ubuntu < 22.04"
+                )
+        else:
+            raise SkippedException(
+                "32bit DPDK installation is not supported on this OS yet"
+            )
+
+    def _enable_32bit_packages(self) -> None:
+        node = self.node
+        if isinstance(node.os, Ubuntu):
+            node.execute(
+                "dpkg --add-architecture i386",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not enable i386 arch for ubuntu!",
+            )
+            # run apt update
+            node.os.get_repositories()
+        else:
+            raise SkippedException(
+                "32bit DPDK installation is not supported on this OS yet"
+            )
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
@@ -556,6 +596,10 @@ class DpdkTestpmd(Tool):
 
         # before doing anything: determine if backport repo needs to be enabled
         self._set_backport_repo_args()
+
+        if self._install_32bit_dpdk:
+            self._check_32bit_build_implemented()
+            self._enable_32bit_packages()
 
         if self.has_dpdk_version():
             # DPDK is already installed
@@ -578,13 +622,16 @@ class DpdkTestpmd(Tool):
         ):
             # ensure no older version is installed
             distro.uninstall_packages("rdma-core")
+            if self._install_32bit_dpdk:
+                self.rdma_core.enable_32bit_build()
             self.rdma_core.do_source_install()
 
         # otherwise, install kernel and dpdk deps from package manager, git, or tar
         self._install_dependencies()
         # install any missing rdma-core packages
-        rdma_packages = self.rdma_core.get_missing_distro_packages()
-        distro.install_packages(rdma_packages)
+        if not self._install_32bit_dpdk:
+            rdma_packages = self.rdma_core.get_missing_distro_packages()
+            distro.install_packages(rdma_packages)
 
         # installing from distro package manager
         if self.use_package_manager_install():
@@ -665,12 +712,20 @@ class DpdkTestpmd(Tool):
 
         # add sample apps to compilation if they are present
         if self._sample_apps_to_build:
-            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
+            extra_meson_args = f"-Dexamples={','.join(self._sample_apps_to_build)}"
         else:
-            sample_apps = ""
-
+            extra_meson_args = ""
+        if self._install_32bit_dpdk:
+            update_envs = {
+                "CC": "/usr/bin/i686-linux-gnu-gcc",
+                "LDFLAGS": "-m32",
+                "PKG_CONFIG_LIBDIR": "/usr/lib/i386-linux-gnu/pkgconfig",
+            }
+            extra_meson_args += " -Dc_link_args=-m32"
+        else:
+            update_envs = None
         node.execute(
-            f"meson {sample_apps} build",
+            f"meson {extra_meson_args} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
@@ -679,6 +734,7 @@ class DpdkTestpmd(Tool):
                 "dpdk build has not changed to eliminate the use of meson or "
                 "meson version is compatible with this dpdk version and OS."
             ),
+            update_envs=update_envs,
         )
         self.dpdk_build_path = self.dpdk_path.joinpath("build")
         node.execute(
@@ -708,6 +764,9 @@ class DpdkTestpmd(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="ldconfig failed, check for error spew.",
         )
+
+        # dpdk 32bit still installing into lib64... need to fix in meson probably
+
         library_bashrc_lines = [
             "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
             "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
@@ -799,6 +858,10 @@ class DpdkTestpmd(Tool):
 
     def _install_dependencies(self) -> None:
         node = self.node
+        if self._install_32bit_dpdk and not isinstance(node.os, Ubuntu):
+            raise SkippedException(
+                "DPDK 32bit dpdk build is not implemented for distros other than Ubuntu."
+            )
         if isinstance(node.os, Ubuntu):
             self._install_ubuntu_dependencies()
         elif isinstance(node.os, Debian):
@@ -859,11 +922,15 @@ class DpdkTestpmd(Tool):
             if not self.use_package_manager_install():
                 self._install_ninja_and_meson()
         else:
-            ubuntu.install_packages(
-                self._ubuntu_packages_2004,
-                extra_args=self._backport_repo_args,
-            )
-            # MANA tests use linux-modules-extra-azure, install if it's available.
+            if self._install_32bit_dpdk:
+                # TODO: Check arch is x64
+                ubuntu.install_packages(self._32bit_ubuntu_packages)
+            else:
+                ubuntu.install_packages(
+                    self._ubuntu_packages_2004,
+                    extra_args=self._backport_repo_args,
+                )
+                # MANA tests use linux-modules-extra-azure, install if it's available.
             if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
                 ubuntu.install_packages("linux-modules-extra-azure")
 

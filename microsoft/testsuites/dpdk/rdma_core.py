@@ -11,13 +11,55 @@ from lisa.operating_system import Debian, Fedora, Suse
 from lisa.tools import Git, Make, Pkgconfig, Tar, Wget
 from lisa.util import LisaException, SkippedException, is_valid_source_code_package
 
+AMD64 = "x86_64"
+I386 = "i386"
+
 
 class RdmaCoreManager:
+    _install_cmake_line = {
+        I386: (
+            "PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig cmake -DIN_PLACE=0 "
+            "-DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
+            "-DCMAKE_C_COMPILER=/usr/bin/i686-linux-gnu-gcc -DCMAKE_C_FLAGS=-m32"
+        ),
+        AMD64: "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+    }
+    _install_packages = {
+        AMD64: {
+            Debian: (
+                "cmake libudev-dev "
+                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
+                "valgrind python3-dev cython3 python3-docutils pandoc "
+                "libssl-dev libelf-dev python3-pip libnuma-dev"
+            ),
+            Fedora: (
+                "cmake gcc libudev-devel "
+                "libnl3-devel pkg-config "
+                "valgrind python3-devel python3-docutils  "
+                "openssl-devel unzip "
+                "elfutils-devel python3-pip libpcap-devel  "
+                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
+                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
+                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
+            ),
+        },
+        I386: {
+            Debian: (
+                "gcc:i386 cmake ninja-build meson libnl-3-dev:i386 "
+                "libnl-route-3-dev:i386 pkg-config valgrind libelf-dev:i386"
+            ),
+        },
+    }
+
     def __init__(self, node: Node, rdma_core_source: str, rdma_core_ref: str) -> None:
         self.is_installed_from_source = False
         self.node = node
         self._rdma_core_source = rdma_core_source
         self._rdma_core_ref = rdma_core_ref
+        self._build_arch = AMD64
+
+    def enable_32bit_build(self) -> None:
+        self._build_arch = I386
 
     def get_missing_distro_packages(self) -> str:
         distro = self.node.os
@@ -122,6 +164,8 @@ class RdmaCoreManager:
         tar = node.tools[Tar]
         distro = node.os
 
+        # install dependencies
+
         # setup looks at options and selects some reasonable defaults
         # allow a tar.gz or git
         # if ref and no tree, use the default tree at github
@@ -131,24 +175,10 @@ class RdmaCoreManager:
 
         # for dependencies, see https://github.com/linux-rdma/rdma-core#building
         if isinstance(distro, Debian):
-            distro.install_packages(
-                "cmake libudev-dev "
-                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-                "valgrind python3-dev cython3 python3-docutils pandoc "
-                "libssl-dev libelf-dev python3-pip libnuma-dev"
-            )
+            distro.install_packages(self._install_packages[self._build_arch][Debian])
         elif isinstance(distro, Fedora):
             distro.group_install_packages("Development Tools")
-            distro.install_packages(
-                "cmake gcc libudev-devel "
-                "libnl3-devel pkg-config "
-                "valgrind python3-devel python3-docutils  "
-                "openssl-devel unzip "
-                "elfutils-devel python3-pip libpcap-devel  "
-                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
-            )
+            distro.install_packages(self._install_packages[self._build_arch][Fedora])
         else:
             # no-op, throw for invalid distro is before this function
             return
@@ -175,7 +205,7 @@ class RdmaCoreManager:
             raise SkippedException(self._get_source_pkg_error_message())
 
         node.execute(
-            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+            self._install_cmake_line[self._build_arch],
             shell=True,
             cwd=source_path,
             sudo=True,

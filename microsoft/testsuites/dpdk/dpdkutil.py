@@ -308,6 +308,7 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     enable_gibibyte_hugepages: bool = False,
     extra_nics: Union[List[NicInfo], None] = None,
+    build_32bit: bool = False,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -352,6 +353,7 @@ def initialize_node_resources(
         force_net_failsafe_pmd=force_net_failsafe_pmd,
         rdma_core_source=rdma_core_source,
         rdma_core_ref=rdma_core_ref,
+        build_32bit_dpdk=build_32bit,
     )
 
     # init and enable hugepages (required by dpdk)
@@ -497,10 +499,16 @@ def verify_dpdk_build(
     pmd: str,
     multiple_queues: bool = False,
     gibibyte_hugepages: bool = False,
+    build_32bit: bool = False,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(
-        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        node,
+        log,
+        variables,
+        pmd,
+        enable_gibibyte_hugepages=gibibyte_hugepages,
+        build_32bit=build_32bit,
     )
     testpmd = test_kit.testpmd
 
