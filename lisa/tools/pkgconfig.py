@@ -40,7 +40,7 @@ class Pkgconfig(Tool):
                 f"ensure .pc file is available for {package_name} on this OS."
             )
         ).is_true()
-        return self.run(f"--modversion {package_name}").stdout
+        return self.run(f"--modversion {package_name}", shell=True).stdout
 
     def get_package_version(
         self, package_name: str, update_cached: bool = False
