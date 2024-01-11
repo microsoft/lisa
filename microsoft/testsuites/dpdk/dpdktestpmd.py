@@ -866,7 +866,7 @@ class DpdkTestpmd(Tool):
         else:
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
+                self._install_ninja_meson_and_pyelftools()
             rdma_core_packages = self.get_rdma_core_package_name()
             if rdma_core_packages:
                 suse.install_packages(rdma_core_packages.split())
@@ -895,7 +895,7 @@ class DpdkTestpmd(Tool):
                 extra_args=self._backport_repo_args,
             )
             if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
+                self._install_ninja_meson_and_pyelftools()
         else:
             ubuntu.install_packages(
                 self._ubuntu_packages_2004,
@@ -960,11 +960,61 @@ class DpdkTestpmd(Tool):
             )
 
         if not self.use_package_manager_install():
-            self._install_ninja_and_meson()
+            # ninja from git has been flaky. try pkg install first
+            for pkg in ["ninja-build", "meson", "python3-pyelftools"]:
+                try:
+                    rhel.install_packages(pkg)
+                except LisaException:
+                    continue
+            self._install_ninja_meson_and_pyelftools()
 
-    def _install_ninja_and_meson(self) -> None:
+    def _install_ninja_meson_and_pyelftools(self) -> None:
         node = self.node
+        ninja_available = node.execute("command -v ninja", shell=True).exit_code == 0
+        meson_available = node.execute("command -v meson", shell=True).exit_code == 0
+        if not ninja_available:
+            self._install_ninja()
+        if not meson_available:
+            self._install_meson()
+        self._install_pyelftools()
 
+    def _install_pyelftools(self) -> None:
+        node = self.node
+        node.execute(
+            "pip3 install --upgrade pyelftools",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not upgrade pyelftools with pip3."
+            ),
+        )
+
+    def _install_ninja(self) -> None:
+        # NOTE: finding latest ninja is a pain,
+        # so just fetch latest from github here
+        node = self.node
+        git_tool = node.tools[Git]
+        git_tool.clone(
+            self._ninja_url,
+            cwd=node.working_path,
+        )
+        node.execute(
+            "./configure.py --bootstrap",
+            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to run ./configure.py --bootstrap"
+            ),
+        )
+        node.tools[Mv].move(
+            f"{node.working_path}/ninja/ninja",
+            "/usr/bin/ninja",
+            overwrite=True,
+            sudo=True,
+        )
+
+    def _install_meson(self) -> None:
+        node = self.node
         node.execute(
             "pip3 install --upgrade meson",
             sudo=True,
@@ -987,37 +1037,6 @@ class DpdkTestpmd(Tool):
                     "version in /usr/bin"
                 ),
             )
-
-        # NOTE: finding latest ninja is a pain,
-        # so just fetch latest from github here
-        git_tool = self.node.tools[Git]
-        git_tool.clone(
-            self._ninja_url,
-            cwd=node.working_path,
-        )
-        node.execute(
-            "./configure.py --bootstrap",
-            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to run ./configure.py --bootstrap"
-            ),
-        )
-        node.tools[Mv].move(
-            f"{node.working_path}/ninja/ninja",
-            "/usr/bin/ninja",
-            overwrite=True,
-            sudo=True,
-        )
-
-        node.execute(
-            "pip3 install --upgrade pyelftools",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not upgrade pyelftools with pip3."
-            ),
-        )
 
     def find_testpmd_binary(
         self, check_path: str = "", assert_on_fail: bool = True
