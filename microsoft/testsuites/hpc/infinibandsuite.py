@@ -12,7 +12,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Infiniband, Sriov
-from lisa.operating_system import BSD, Windows, CBLMariner
+from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
 from lisa.util import (
