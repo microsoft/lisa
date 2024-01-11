@@ -3,7 +3,7 @@ import string
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any, List, Type
 
-from lisa import feature, schema
+from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
@@ -15,6 +15,12 @@ from .context import get_node_context
 from .features import StartStop
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
+
+
+class _HostCapabilities:
+    def __init__(self) -> None:
+        self.core_count = 0
+        self.free_memory_kib = 0
 
 
 class HypervPlatform(Platform):
@@ -57,8 +63,98 @@ class HypervPlatform(Platform):
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        self._configure_node_capabilities(environment, log)
+        return self._configure_node_capabilities(environment, log)
+
+    def _configure_node_capabilities(
+        self, environment: Environment, log: Logger
+    ) -> bool:
+        if not environment.runbook.nodes_requirement:
+            return True
+
+        host_capabilities = self._get_host_capabilities(log)
+        nodes_capabilities = self._create_node_capabilities(host_capabilities)
+
+        nodes_requirement = []
+        for node_space in environment.runbook.nodes_requirement:
+            if not node_space.check(nodes_capabilities):
+                return False
+
+            requirement = node_space.generate_min_capability(nodes_capabilities)
+            nodes_requirement.append(requirement)
+
+        environment.runbook.nodes_requirement = nodes_requirement
         return True
+
+    def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
+        host_cap = _HostCapabilities()
+
+        free_mem_bytes = self.server_node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance -ClassName Win32_OperatingSystem).FreePhysicalMemory"
+        )
+        host_cap.free_memory_kib = int(free_mem_bytes) // 1024
+
+        lp_count = self.server_node.tools[PowerShell].run_cmdlet(
+            "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors"
+        )
+        host_cap.core_count = int(lp_count)
+
+        log.debug(
+            f"Host capabilities: {host_cap.core_count} cores, "
+            f"{host_cap.free_memory_kib} KiB free memory"
+        )
+
+        return host_cap
+
+    # Check that the VM requirements can be fulfilled by the host.
+    def _check_host_capabilities(
+        self,
+        nodes_requirements: List[schema.NodeSpace],
+        host_capabilities: _HostCapabilities,
+        log: Logger,
+    ) -> bool:
+        total_required_memory_mib = 0
+
+        for node_requirements in nodes_requirements:
+            # Calculate the total amount of memory required for all the VMs.
+            assert isinstance(node_requirements.memory_mb, int)
+            total_required_memory_mib += node_requirements.memory_mb
+
+        # Ensure host has enough memory for all the VMs.
+        total_required_memory_kib = total_required_memory_mib * 1024
+        if total_required_memory_kib > host_capabilities.free_memory_kib:
+            log.error(
+                f"Nodes require a total of {total_required_memory_kib} KiB memory. "
+                f"Host only has {host_capabilities.free_memory_kib} KiB free."
+            )
+            return False
+
+        return True
+
+    def _create_node_capabilities(
+        self, host_capabilities: _HostCapabilities
+    ) -> schema.NodeSpace:
+        node_capabilities = schema.NodeSpace()
+        node_capabilities.name = "Hyper-V"
+        node_capabilities.node_count = 1
+        node_capabilities.core_count = search_space.IntRange(
+            min=1, max=host_capabilities.core_count
+        )
+        node_capabilities.disk = schema.DiskOptionSettings(
+            data_disk_count=search_space.IntRange(min=0),
+            data_disk_size=search_space.IntRange(min=1),
+        )
+        node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
+        node_capabilities.network_interface.max_nic_count = 1
+        node_capabilities.network_interface.nic_count = 1
+        node_capabilities.gpu_count = 0
+        node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True,
+            items=[
+                schema.FeatureSettings.create(SerialConsole.name()),
+            ],
+        )
+
+        return node_capabilities
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         self._deploy_nodes(environment, log)
