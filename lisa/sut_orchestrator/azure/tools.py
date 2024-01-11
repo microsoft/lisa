@@ -10,7 +10,7 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian, Redhat
-from lisa.tools import Gcc, Ln, Modinfo, PowerShell, Sed, Service, Uname
+from lisa.tools import Gcc, Git, Ln, Modinfo, PowerShell, Sed, Service, Uname
 from lisa.tools.ls import Ls
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -84,51 +84,22 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def upgrade_from_source(self) -> None:
-        # Pin the WALinuxAgent to v2.9.0.4 because the latest v2.9.1.1
-        # fails to assign IP address correctly to ib interface
-        wget = self.node.tools[Wget]
-        tarball_name = "v2.9.0.4.tar.gz"
-        walinuxagent_download_url = (
-            f"https://github.com/Azure/WALinuxAgent/archive/refs/tags"
-            f"/{tarball_name}"
-        )
-
-        try:
-            wget.get(
-                url=walinuxagent_download_url,
-                file_path=str(self.node.working_path),
-                filename=tarball_name,
-                overwrite=False,
-                sudo=True,
+    def upgrade_from_source(self, source_version: str) -> None:
+        git = self.node.tools[Git]
+        git.clone(self._src_url, cwd=self.node.working_path)
+        if source_version:
+            git.checkout(
+                ref=f"tags/{source_version}",
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
             )
-        except LisaException as identifier:
-            if "404: Not Found." in str(identifier):
-                raise UnsupportedDistroException(
-                    self.node.os, f"{walinuxagent_download_url} doesn't exist."
-                )
-
-        tar = self.node.tools[Tar]
-        tar.extract(
-            file=f"{self.node.working_path}/{tarball_name}",
-            dest_dir=str(self.node.working_path),
-            gzip=True,
-            sudo=True,
-        )
-
         python_cmd, _ = self.get_python_cmd()
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
                 self.node.os.install_packages(package)  # type: ignore
-
-        if not self.node.tools[Ls].path_exists(path="/usr/bin/python"):
-            ln = self.node.tools[Ln]
-            ln.create_link("/usr/bin/python3", "/usr/bin/python")
-
         self.node.execute(
             f"{python_cmd} setup.py install --force",
             sudo=True,
-            cwd=self.node.working_path.joinpath("WALinuxAgent-2.9.0.4"),
+            cwd=self.node.working_path.joinpath("WALinuxAgent"),
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to install waagent",
         )
@@ -221,6 +192,14 @@ class Waagent(Tool):
 
         self._python_cmd = python_cmd
         self._python_use_sudo = use_sudo
+
+        if (
+            isinstance(self.node.os, CBLMariner)
+            and not self.node.tools[Ls].path_exists(path="/usr/bin/python")
+            and self._python_cmd
+        ):
+            ln = self.node.tools[Ln]
+            ln.create_link("/usr/bin/python3", "/usr/bin/python")
 
         return self._python_cmd, self._python_use_sudo
 
