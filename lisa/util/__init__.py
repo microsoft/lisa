@@ -564,9 +564,7 @@ def find_group_in_lines(
     return result
 
 
-def deep_update_dict(
-    src: Dict[str, Any], dest: Optional[Dict[str, Any]]
-) -> Dict[str, Any]:
+def deep_update_dict(src: Dict[str, Any], dest: Dict[str, Any]) -> Dict[str, Any]:
     if (
         dest is None
         or isinstance(dest, int)
@@ -580,7 +578,7 @@ def deep_update_dict(
 
     if isinstance(result, dict):
         for key, value in src.items():
-            if dest and isinstance(value, dict) and key in dest:
+            if isinstance(value, dict) and key in dest:
                 value = deep_update_dict(value, dest[key])
             result[key] = value
     elif isinstance(src, dict):
