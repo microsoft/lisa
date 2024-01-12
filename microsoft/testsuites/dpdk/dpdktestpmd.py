@@ -37,6 +37,7 @@ from lisa.util import (
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
+    DpdkVfHelper,
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
 )
@@ -196,7 +197,7 @@ class DpdkTestpmd(Tool):
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-        elif self.is_mana:
+        elif self.vf_helper.is_mana():
             # mana selects by mac, just return the vdev info directly
             if node_nic.module_name == "uio_hv_generic" or force_netvsc:
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
@@ -260,7 +261,7 @@ class DpdkTestpmd(Tool):
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
         if multiple_queues:
-            if self.is_mana:
+            if self.vf_helper.is_mana():
                 queues = 8
             else:
                 queues = 4
@@ -303,7 +304,7 @@ class DpdkTestpmd(Tool):
         else:
             extra_args = ""
         # mana pmd needs tx/rx descriptors declared.
-        if self.is_mana:
+        if self.vf_helper.is_mana():
             extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
@@ -469,7 +470,13 @@ class DpdkTestpmd(Tool):
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
-        self._determine_network_hardware()
+        # determine network hardware and whether to enforce the strict
+        # test threshold (based on user argument)
+        enforce_hw_threshold = kwargs.pop("dpdk_enforce_strict_threshold", False)
+
+        self.vf_helper = DpdkVfHelper(
+            should_enforce=enforce_hw_threshold, node=self.node
+        )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
@@ -479,14 +486,6 @@ class DpdkTestpmd(Tool):
                 )
         check_custom_kernel = self.node.tools[CustomKernelBuildCheck]
         self._is_custom_kernel = check_custom_kernel.was_kernel_built_by_lisa()
-
-    def _determine_network_hardware(self) -> None:
-        lspci = self.node.tools[Lspci]
-        device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
-        self.is_connect_x3 = any(
-            ["ConnectX-3" in dev.device_info for dev in device_list]
-        )
-        self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_pps_data"
@@ -570,12 +569,12 @@ class DpdkTestpmd(Tool):
         is_mana_test_supported = isinstance(distro, Ubuntu) or isinstance(
             distro, Fedora
         )
-        if self.is_mana and not is_mana_test_supported:
+        if self.vf_helper.is_mana() and not is_mana_test_supported:
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
         # if we need an rdma-core source install, do it now.
         if self.rdma_core.can_install_from_source() or (
-            is_mana_test_supported and self.is_mana
+            is_mana_test_supported and self.vf_helper.is_mana()
         ):
             # ensure no older version is installed
             distro.uninstall_packages("rdma-core")
@@ -727,9 +726,9 @@ class DpdkTestpmd(Tool):
 
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
-        if self.is_connect_x3:
+        if self.vf_helper.is_connect_x3():
             network_drivers = ["mlx4_core", "mlx4_ib"]
-        elif self.is_mana:
+        elif self.vf_helper.is_mana():
             network_drivers = []
             mana_builtin = self.node.tools[KernelConfig].is_built_in(
                 "CONFIG_MICROSOFT_MANA"
@@ -767,7 +766,7 @@ class DpdkTestpmd(Tool):
                 self.node.os.install_packages([linux_image_package])
                 self.node.reboot()
         elif isinstance(self.node.os, Fedora):
-            if not self.is_connect_x3:
+            if not self.vf_helper.is_connect_x3():
                 if network_drivers:
                     self.node.execute(
                         (
@@ -782,7 +781,7 @@ class DpdkTestpmd(Tool):
                     )
         else:
             raise UnsupportedDistroException(self.node.os)
-        if self.is_mana:
+        if self.vf_helper.is_mana():
             # MANA has less special casing required (for now anyway)
             rdma_drivers = ["ib_uverbs"]
         else:
@@ -868,7 +867,7 @@ class DpdkTestpmd(Tool):
             # MANA tests use linux-modules-extra-azure, install if it's available.
             if (
                 (not self._is_custom_kernel)
-                and self.is_mana
+                and self.vf_helper.is_mana()
                 and ubuntu.is_package_in_repo("linux-modules-extra-azure")
             ):
                 ubuntu.install_packages("linux-modules-extra-azure")

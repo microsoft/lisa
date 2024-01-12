@@ -216,6 +216,9 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    if multiple_queues:
+        sender.testpmd.vf_helper.set_multiple_queue()
+        receiver.testpmd.vf_helper.set_multiple_queue()
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -294,7 +297,7 @@ def do_pmd_driver_setup(
 
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
-    if testpmd.is_mana:
+    if testpmd.vf_helper.is_mana():
         ip = node.tools[Ip]
         if test_nic.lower and ip.is_device_up(test_nic.lower):
             ip.down(test_nic.lower)
@@ -503,6 +506,10 @@ def verify_dpdk_build(
         node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
     )
     testpmd = test_kit.testpmd
+    # designate node as sender
+    testpmd.vf_helper.set_sender()
+    if multiple_queues:
+        testpmd.vf_helper.set_multiple_queue()
 
     # grab a nic and run testpmd
     test_nic = node.nics.get_secondary_nic()
@@ -516,9 +523,13 @@ def verify_dpdk_build(
         f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
-    assert_that(tx_pps).described_as(
-        f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-    ).is_greater_than(2**20)
+
+    threshold = testpmd.vf_helper.get_threshold()
+    failure_msg = f"TX-PPS ({tx_pps}) should have been greater than {threshold} PPS."
+    if testpmd.vf_helper.use_strict_checks:
+        failure_msg = "STRICT CHECK ENABLED: " + failure_msg
+    assert_that(tx_pps).described_as(failure_msg).is_greater_than(threshold)
+
     return DpdkTestResources(node, testpmd)
 
 
@@ -553,6 +564,13 @@ def verify_dpdk_send_receive(
     check_send_receive_compatibility(test_kits)
 
     sender, receiver = test_kits
+    # designate sender/receiver before run
+    sender.testpmd.vf_helper.set_sender()
+    receiver.testpmd.vf_helper.set_receiver()
+    # signal multiqueue run to vf helper
+    if multiple_queues:
+        sender.testpmd.vf_helper.set_multiple_queue()
+        receiver.testpmd.vf_helper.set_multiple_queue()
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
@@ -871,7 +889,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.is_mana:
+    if fwd_kit.testpmd.vf_helper.is_mana():
         dpdk_port_a = 1
         dpdk_port_b = 2
     else:
@@ -921,9 +939,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     queue_count = get_l3fwd_queue_count(
         available_cores,
         force_single_queue=force_single_queue,
-        is_mana=fwd_kit.testpmd.is_mana,
+        is_mana=fwd_kit.testpmd.vf_helper.is_mana(),
     )
-
+    # signal multiq run to vf helper to adjust pass/fail threshold
+    if queue_count > 1:
+        fwd_kit.testpmd.vf_helper.set_multiple_queue()
     config_tups = []
     included_cores = []
     last_core = 1
@@ -933,7 +953,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     for q in range(queue_count):
         config_tups.append((dpdk_port_a, q, last_core))
 
-        if not fwd_kit.testpmd.is_mana:
+        if not fwd_kit.testpmd.vf_helper.is_mana():
             included_cores.append(str(last_core))
             last_core += 1
         config_tups.append((dpdk_port_b, q, last_core))
@@ -942,7 +962,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         last_core += 1
 
     # pick promiscuous mode arg, note mana doesn't support promiscuous mode
-    if fwd_kit.testpmd.is_mana:
+    if fwd_kit.testpmd.vf_helper.is_mana():
         promiscuous = ""
     else:
         promiscuous = "-P"

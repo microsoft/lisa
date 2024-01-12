@@ -268,7 +268,7 @@ class Dpdk(TestSuite):
             ],
         )
 
-        if test_kit.testpmd.is_connect_x3:
+        if test_kit.testpmd.vf_helper.is_connect_x3():
             raise SkippedException(
                 "Unsupported Hardware: ConnectX3 does not support secondary process RX"
             )
