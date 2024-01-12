@@ -705,7 +705,6 @@ def check_url(
     return result
 
 
-
 def filter_ansi_escape(content: str) -> str:
     return __ansi_escape.sub("", content)
 
