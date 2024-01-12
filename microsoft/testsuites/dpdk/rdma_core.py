@@ -8,7 +8,7 @@ from assertpy import fail
 
 from lisa import Node
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import Git, Make, Pkgconfig, Tar, Wget
+from lisa.tools import CustomKernelBuildCheck, Gcc, Git, Make, Pkgconfig, Tar, Wget
 from lisa.util import LisaException, SkippedException, check_url
 
 
@@ -134,23 +134,63 @@ class RdmaCoreManager:
         # for dependencies, see https://github.com/linux-rdma/rdma-core#building
         if isinstance(distro, Debian):
             distro.install_packages(
-                "cmake libudev-dev "
-                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-                "valgrind python3-dev cython3 python3-docutils pandoc "
-                "libssl-dev libelf-dev python3-pip libnuma-dev"
+                [
+                    Pkgconfig,
+                    "cmake",
+                    "libudev-dev",
+                    "libnl-3-dev",
+                    "libnl-route-3-dev",
+                    "ninja-build",
+                    "valgrind",
+                    "python3-dev",
+                    "cython3",
+                    "python3-docutils",
+                    "pandoc",
+                    "libssl-dev",
+                    "libelf-dev",
+                    "python3-pip",
+                    "libnuma-dev",
+                ]
             )
         elif isinstance(distro, Fedora):
             distro.group_install_packages("Development Tools")
             distro.install_packages(
-                "cmake gcc libudev-devel "
-                "libnl3-devel pkg-config "
-                "valgrind python3-devel python3-docutils  "
-                "openssl-devel unzip "
-                "elfutils-devel python3-pip libpcap-devel  "
-                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
+                [
+                    Gcc,
+                    Pkgconfig,
+                    Tar,
+                    Wget,
+                    "cmake",
+                    "libudev-devel",
+                    "libnl3-devel",
+                    "valgrind",
+                    "python3-devel",
+                    "python3-docutils",
+                    "openssl-devel",
+                    "unzip",
+                    "elfutils-devel",
+                    "python3-pip",
+                    "libpcap-devel",
+                    "dos2unix",
+                    "psmisc",
+                    "librdmacm-devel",
+                    "libmnl-devel",
+                    "numactl-devel",
+                    "elfutils-libelf-devel",
+                    "meson",
+                    "ninja-build",
+                    "libbpf-devel",
+                ]
             )
+            custom_kernel = node.tools[CustomKernelBuildCheck]
+            if not custom_kernel.was_kernel_built_by_lisa():
+                distro.install_packages(
+                    [
+                        "kernel-devel",
+                        "kernel-modules-extra",
+                        "kernel-headers",
+                    ]
+                )
         else:
             # no-op, throw for invalid distro is before this function
             return
