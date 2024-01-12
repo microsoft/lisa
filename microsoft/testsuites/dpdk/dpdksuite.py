@@ -717,7 +717,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -744,7 +744,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(

@@ -7,8 +7,18 @@ from urllib.parse import urlparse
 from assertpy import fail
 
 from lisa import Node
+from lisa.features import Disk
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import CustomKernelBuildCheck, Gcc, Git, Make, Pkgconfig, Tar, Wget
+from lisa.tools import (
+    Chmod,
+    CustomKernelBuildCheck,
+    Gcc,
+    Git,
+    Make,
+    Pkgconfig,
+    Tar,
+    Wget,
+)
 from lisa.util import LisaException, SkippedException, check_url
 
 
@@ -18,6 +28,14 @@ class RdmaCoreManager:
         self.node = node
         self._rdma_core_source = rdma_core_source
         self._rdma_core_ref = rdma_core_ref
+        # add space if none is available
+        build_location = node.find_partition_with_freespace(10, raise_error=False)
+        if not build_location:
+            node.features[Disk].add_data_disk(count=1, size_in_gb=20)
+            build_location = node.get_working_path_with_required_space(10)
+        else:
+            node.tools[Chmod].chmod(build_location, "777", sudo=True)
+        self._build_location = node.get_pure_path(build_location).joinpath("rdma")
 
     def get_missing_distro_packages(self) -> str:
         distro = self.node.os
@@ -202,7 +220,9 @@ class RdmaCoreManager:
         if self.is_from_git():
             git = node.tools[Git]
             source_path = git.clone(
-                self._rdma_core_source, cwd=node.working_path, ref=self._rdma_core_ref
+                self._rdma_core_source,
+                cwd=self._build_location,
+                ref=self._rdma_core_ref,
             )
 
             # if there wasn't a ref provided, check out the latest tag
@@ -212,10 +232,12 @@ class RdmaCoreManager:
         elif self.is_from_tarball():
             tar_path = wget.get(
                 url=(self._rdma_core_source),
-                file_path=str(node.working_path),
+                file_path=str(self._build_location),
             )
 
-            tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
+            tar.extract(
+                tar_path, dest_dir=str(self._build_location), gzip=True, sudo=True
+            )
             source_folder = tar_path.replace(".tar.gz", "")
             source_path = node.get_pure_path(source_folder)
         else:
