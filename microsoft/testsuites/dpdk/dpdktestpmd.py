@@ -13,6 +13,7 @@ from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
+    Chmod,
     CustomKernelBuildCheck,
     Echo,
     Git,
@@ -465,7 +466,7 @@ class DpdkTestpmd(Tool):
         self._testpmd_install_path: str = ""
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.get_working_path_with_required_space(5)
+            work_path = self.node.get_working_path_with_required_space(10)
             self.current_work_path = self.node.get_pure_path(work_path)
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
@@ -628,6 +629,7 @@ class DpdkTestpmd(Tool):
         if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
             wget_tool = node.tools[Wget]
             tar_tool = node.tools[Tar]
+            node.tools[Chmod]
             if self._dpdk_branch:
                 node.log.warn(
                     (
