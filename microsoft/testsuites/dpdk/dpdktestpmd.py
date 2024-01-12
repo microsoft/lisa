@@ -840,9 +840,6 @@ class DpdkTestpmd(Tool):
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
                 self._install_ninja_meson_and_pyelftools()
-            rdma_core_packages = self.get_rdma_core_package_name()
-            if rdma_core_packages:
-                suse.install_packages(rdma_core_packages.split())
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
