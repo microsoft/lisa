@@ -18,7 +18,8 @@ class RdmaCoreManager:
         self.node = node
         self._rdma_core_source = rdma_core_source
         self._rdma_core_ref = rdma_core_ref
-        self._build_location = node.get_working_path_with_required_space(10)
+        build_location = node.get_working_path_with_required_space(10)
+        self._build_location = node.get_pure_path(build_location)
 
     def get_missing_distro_packages(self) -> str:
         distro = self.node.os
