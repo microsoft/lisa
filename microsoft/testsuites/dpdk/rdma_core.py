@@ -124,6 +124,13 @@ class RdmaCoreManager:
         tar = node.tools[Tar]
         distro = node.os
 
+        # before pulling the rdma-core git or tar, we dont know the version.
+        # To avoid confusion about whether to install again,
+        # mark a completed succesfull custom build with a special file.
+        # So, first: check for existing build to avoid second build
+        if node.shell.exists(node.get_pure_path("/.rdma-core-built")):
+            return
+
         # setup looks at options and selects some reasonable defaults
         # allow a tar.gz or git
         # if ref and no tree, use the default tree at github
@@ -160,6 +167,7 @@ class RdmaCoreManager:
             source_path = git.clone(
                 self._rdma_core_source, cwd=node.working_path, ref=self._rdma_core_ref
             )
+
             # if there wasn't a ref provided, check out the latest tag
             if not self._rdma_core_ref:
                 git_ref = git.get_tag(cwd=source_path)
@@ -183,3 +191,5 @@ class RdmaCoreManager:
             sudo=True,
         )
         make.make_install(source_path)
+        # mark custom build rdma-core to avoid rebuilding or wiping it.
+        node.execute("touch /.rdma-core-built", shell=True, sudo=True)
