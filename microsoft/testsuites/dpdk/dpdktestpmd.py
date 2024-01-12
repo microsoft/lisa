@@ -13,6 +13,7 @@ from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
+    CustomKernelBuildCheck,
     Echo,
     Git,
     KernelConfig,
@@ -114,8 +115,6 @@ class DpdkTestpmd(Tool):
         "pkgconfig",
         "elfutils-libelf-devel",
         "python3-pip",
-        "kernel-modules-extra",
-        "kernel-headers",
         "gcc-c++",
     ]
     _suse_packages = [
@@ -478,6 +477,8 @@ class DpdkTestpmd(Tool):
                 self._dpdk_version_info = pkgconfig.get_package_version(
                     self._dpdk_lib_name
                 )
+        check_custom_kernel = self.node.tools[CustomKernelBuildCheck]
+        self._is_custom_kernel = check_custom_kernel.was_kernel_built_by_lisa()
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
@@ -844,7 +845,8 @@ class DpdkTestpmd(Tool):
             return  # appease the type checker
 
         # apply update to latest first
-        ubuntu.update_packages("linux-azure")
+        if not self._is_custom_kernel:
+            ubuntu.update_packages("linux-azure")
         node.reboot()
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
@@ -864,7 +866,11 @@ class DpdkTestpmd(Tool):
                 extra_args=self._backport_repo_args,
             )
             # MANA tests use linux-modules-extra-azure, install if it's available.
-            if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
+            if (
+                (not self._is_custom_kernel)
+                and self.is_mana
+                and ubuntu.is_package_in_repo("linux-modules-extra-azure")
+            ):
                 ubuntu.install_packages("linux-modules-extra-azure")
 
     def _install_fedora_dependencies(self) -> None:
@@ -879,17 +885,17 @@ class DpdkTestpmd(Tool):
 
         # DPDK is very sensitive to rdma-core/kernel mismatches
         # update to latest kernel before installing dependencies
-        rhel.install_packages("kernel")
-        node.reboot()
+        if not self._is_custom_kernel:
+            rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
+            node.reboot()
+            try:
+                rhel.install_packages("kernel-devel")
+            except MissingPackagesException:
+                node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
             rhel.install_packages(["libmnl-devel", "libbpf-devel"])
-
-        try:
-            rhel.install_packages("kernel-devel")
-        except MissingPackagesException:
-            node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release

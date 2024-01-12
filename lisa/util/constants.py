@@ -169,3 +169,9 @@ LISA_TEST_FOR_BASH_PROMPT = "lisa test for bash prompt"
 SIGINT = 2
 SIGTERM = 15
 SIGKILL = 9
+
+# LISA kernel build transformer sentinel file path
+# File is created after installing a kernel with
+# the source build transformer. Tests can check if it is present
+# in a VHD before running to avoid installing new kernel packages.
+LISA_KERNEL_BUILD_SENTINEL = "/.KERNEL_BUILT_BY_LISA"
