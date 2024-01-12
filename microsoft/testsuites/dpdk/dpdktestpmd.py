@@ -887,10 +887,9 @@ class DpdkTestpmd(Tool):
             rhel.install_packages(["libmnl-devel", "libbpf-devel"])
 
         try:
-            rhel.install_packages("kernel-devel-$(uname -r)")
-        except MissingPackagesException:
-            node.log.debug("kernel-devel-$(uname -r) not found. Trying kernel-devel")
             rhel.install_packages("kernel-devel")
+        except MissingPackagesException:
+            node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
