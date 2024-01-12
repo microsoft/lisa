@@ -148,19 +148,6 @@ def try_connect(
     # So try with paramiko firstly.
     paramiko_client = paramiko.SSHClient()
 
-    # Put ssh-rsa in the first element of preferred public keys
-    # to resolve ssh issues on old distros.
-    paramiko.Transport.preferred_pubkeys = (  # type: ignore
-        "ssh-rsa",
-        "ssh-ed25519",
-        "ecdsa-sha2-nistp256",
-        "ecdsa-sha2-nistp384",
-        "ecdsa-sha2-nistp521",
-        "rsa-sha2-512",
-        "rsa-sha2-256",
-        "ssh-dss",
-    )
-
     # Use base policy, do nothing on host key. The host key shouldn't be saved
     # locally, or make any warning message. The IP addresses in cloud may be
     # reused by different servers. If they are saved, there will be conflict
