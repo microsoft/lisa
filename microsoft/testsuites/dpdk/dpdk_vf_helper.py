@@ -1,24 +1,10 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT license.
-
-from datetime import datetime
-from typing import Any, Dict
-
-from assertpy import assert_that
+from assertpy import fail
 
 from lisa import Node
-from lisa.operating_system import Debian, Oracle, Redhat, Suse, Ubuntu
-from lisa.util import UnsupportedDistroException
-
-DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
-
-# azure routing table magic subnet prefix
-# signals 'route all traffic on this subnet'
-AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+from lisa.tools import Lscpu, Lspci
+from lisa.util.constants import DEVICE_TYPE_SRIOV
 
 
-<<<<<<< HEAD
-=======
 class DpdkVfHelper:
     MLX_CX3 = "mlx_cx3"
     MLX_CX4 = "mlx_cx4"
@@ -32,7 +18,7 @@ class DpdkVfHelper:
     NOT_SET = "not_set"
 
     # single queue is implemented but unused to avoid test bloat
-    _dpdk_hw_l3fwd_gbps_thresholds = {
+    _l3fwd_thresholds = {
         MLX_CX3: {
             MULTI_QUEUE: {SEND: 20},
         },
@@ -97,11 +83,17 @@ class DpdkVfHelper:
         self._direction = self.NOT_SET
         self._queue_type = self.SINGLE_QUEUE
 
+    def get_hw_name(self) -> str:
+        return self._hardware
+
     def set_sender(self) -> None:
         self._direction = self.SEND
 
     def set_receiver(self) -> None:
         self._direction = self.RECV
+
+    def set_forwader(self) -> None:
+        self._direction = self.FWD
 
     def set_multiple_queue(self) -> None:
         self._queue_type = self.MULTI_QUEUE
@@ -118,7 +110,7 @@ class DpdkVfHelper:
     def is_connect_x5(self) -> bool:
         return self._hardware == self.MLX_CX5
 
-    def get_threshold(self) -> int:
+    def get_threshold_testpmd(self) -> int:
         # default nonstrict threshold for pps
         # set up top to appease the type checker
         threshold = 3_000_000
@@ -130,7 +122,9 @@ class DpdkVfHelper:
                 "vf_helper.set_receiver() before starting tests."
             )
         if not self.use_strict_checks:
-            self._node.log.debug(f"Generated non-strict threshold: {threshold}")
+            self._node.log.debug(
+                f"Generated non-strict threshold for {self._hardware}: {threshold}"
+            )
             return threshold
 
         try:
@@ -142,85 +136,39 @@ class DpdkVfHelper:
                 "Test bug, invalid hardware or direction "
                 "key passed to DpdkHardware.get_threshold!"
             )
-        self._node.log.debug(f"Generated strict threshold: {threshold}")
+        self._node.log.debug(
+            f"Generated strict threshold for {self._hardware}: {threshold}"
+        )
         return threshold
 
-
->>>>>>> df538e4e (DPDK Threshold: add log lines)
-def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
-    if not variables.get("dpdk_source", None):
-        variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
-
-
-# rough check for ubuntu supported versions.
-# assumes:
-# - canonical convention of YEAR.MONTH for major versions
-# - canoical release cycle of EVEN_YEAR.04 for lts versions.
-# - 4 year support cycle. 6 year for ESM
-# get the age of the distro, if negative or 0, release is new.
-# if > 6, distro is out of support
-def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
-    # asserts if not ubuntu OS object
-    version_info = distro.information.version
-    distro_age = _get_ubuntu_distro_age(distro)
-    is_even_year = (version_info.major % 2) == 0
-    is_april_release = version_info.minor == 4
-    is_within_support_window = distro_age <= 6
-    return is_even_year and is_april_release and is_within_support_window
-
-
-def is_ubuntu_latest_or_prerelease(distro: Ubuntu) -> bool:
-    distro_age = _get_ubuntu_distro_age(distro)
-    return distro_age <= 2
-
-
-def _get_ubuntu_distro_age(distro: Ubuntu) -> int:
-    version_info = distro.information.version
-    # check release is within esm window
-    year_string = str(datetime.today().year)
-    assert_that(len(year_string)).described_as(
-        "Package bug: The year received from datetime module is an "
-        "unexpected size. This indicates a broken package or incorrect "
-        "date in this computer."
-    ).is_greater_than_or_equal_to(4)
-    # TODO: handle the century rollover edge case in 2099
-    current_year = int(year_string[-2:])
-    release_year = int(version_info.major)
-    # 23-18 == 5
-    # long term support and extended security updates for ~6 years
-    return current_year - release_year
-
-
-def check_dpdk_support(node: Node) -> None:
-    # check requirements according to:
-    # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
-    supported = False
-    if isinstance(node.os, Debian):
-        if isinstance(node.os, Ubuntu):
-            node.log.debug(
-                "Checking Ubuntu release: "
-                f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
-                f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
+    def get_threshold_l3fwd(self) -> int:
+        # default nonstrict threshold for pps
+        # set up top to appease the type checker
+        threshold_gbps = 3
+        if self._direction != self.FWD:
+            fail(
+                "Test bug: testpmd sender/receiver status was "
+                "not set to FWD before threshold fetch. "
+                "Make sure to call vf_helper.set_forwarder() or"
+                "vf_helper.set_receiver() before starting tests."
             )
-            # TODO: undo special casing for 18.04 when it's usage is less common
-            supported = (
-                node.os.information.version == "18.4.0"
-                or is_ubuntu_latest_or_prerelease(node.os)
-                or is_ubuntu_lts_version(node.os)
+        if not self.use_strict_checks:
+            self._node.log.debug(
+                f"Generated non-strict threshold for {self._hardware}: {threshold_gbps}"
             )
-        else:
-            supported = node.os.information.version >= "11.0.0"
-    elif isinstance(node.os, Redhat) and not isinstance(node.os, Oracle):
-        supported = node.os.information.version >= "7.5.0"
-    elif isinstance(node.os, Suse):
-        supported = node.os.information.version >= "15.0.0"
-    else:
-        # this OS is not supported
-        raise UnsupportedDistroException(
-            node.os, "This OS is not supported by the DPDK test suite for Azure."
-        )
+            return threshold_gbps
 
-    if not supported:
-        raise UnsupportedDistroException(
-            node.os, "This OS version is EOL and is not supported for DPDK on Azure"
+        try:
+            dpdk_hw = self._l3fwd_thresholds[self._hardware]
+            qtype = dpdk_hw[self._queue_type]
+            threshold_gbps = qtype[self._direction]
+        except KeyError:
+            fail(
+                "Test bug, invalid hardware or direction "
+                "key passed to DpdkHardware.get_threshold! "
+                f"hw: {self._hardware} direction: {self._direction} qtype: {self._queue_type}"
+            )
+        self._node.log.debug(
+            f"Generated strict threshold for {self._hardware}: {threshold_gbps}"
         )
+        return threshold_gbps

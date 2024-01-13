@@ -13,6 +13,7 @@ from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
+    Dmesg,
     Echo,
     Git,
     KernelConfig,
@@ -39,6 +40,7 @@ from microsoft.testsuites.dpdk.common import (
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
 )
+from microsoft.testsuites.dpdk.dpdk_vf_helper import DpdkVfHelper
 from microsoft.testsuites.dpdk.rdma_core import RdmaCoreManager
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
@@ -322,6 +324,26 @@ class DpdkTestpmd(Tool):
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
+    _mana_errors = [
+        re.compile(
+            r"mana [0-9a-fA-F]{4}:[0-9a-fA-F]{2}:"
+            r"[0-9a-fA-F]{2}\.[0-9a-fA-F]{1,4}: "
+            r"HWC: Failed hw_channel req"
+        ),
+    ]
+
+    def check_for_driver_regressions(self) -> None:
+        # check for known mana errors to catch regressions.
+        dmesg = self.node.tools[Dmesg]
+        driver_logs = dmesg.get_output(force_run=True)
+        for error in self._mana_errors:
+            found_error = error.search(driver_logs)
+            if found_error:
+                raise LisaException(
+                    "Found known MANA error in dmesg, indicates a regression "
+                    f"or possible test bug: {found_error.group()}"
+                )
+
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
@@ -330,6 +352,7 @@ class DpdkTestpmd(Tool):
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
         self._last_run_output = proc_result.stdout
+        self.check_for_driver_regressions()
         self.populate_performance_data()
         return proc_result.stdout
 
@@ -344,6 +367,7 @@ class DpdkTestpmd(Tool):
 
     def process_testpmd_output(self, result: ExecutableResult) -> str:
         self._last_run_output = result.stdout
+        self.check_for_driver_regressions()
         self.populate_performance_data()
         return result.stdout
 
@@ -470,7 +494,13 @@ class DpdkTestpmd(Tool):
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
-        self._determine_network_hardware()
+        # determine network hardware and whether to enforce the strict
+        # test threshold (based on user argument)
+        enforce_hw_threshold = kwargs.pop("enforce_strict_threshold", False)
+
+        self.vf_helper = DpdkVfHelper(
+            should_enforce=enforce_hw_threshold, node=self.node
+        )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
