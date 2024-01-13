@@ -23,7 +23,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Fedora, OperatingSystem, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -784,10 +784,14 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
-    if (
-        not isinstance(forwarder.os, Ubuntu)
-        or forwarder.os.information.version < "22.4.0"
-    ):
+    is_recent_ubuntu = (
+        isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
+    )
+    is_recent_rhel = (
+        isinstance(forwarder.os, Fedora) and forwarder.os.information.version >= "9.3.0"
+    )
+    if not (is_recent_ubuntu or is_recent_rhel):
         raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
