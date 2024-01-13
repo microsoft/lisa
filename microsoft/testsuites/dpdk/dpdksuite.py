@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
+from lisa.operating_system import BSD, CBLMariner, Fedora, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
@@ -712,7 +712,7 @@ class Dpdk(TestSuite):
         ),
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu],
+            supported_os=[Ubuntu, Fedora],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
@@ -739,7 +739,7 @@ class Dpdk(TestSuite):
             """,
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu],
+            supported_os=[Ubuntu, Fedora],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
