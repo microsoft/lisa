@@ -66,8 +66,8 @@ class DpdkVfHelper:
         },
     }
 
-    def _set_network_hardware(self, node: Node) -> None:
-        lspci = node.tools[Lspci]
+    def _set_network_hardware(self) -> None:
+        lspci = self._node.tools[Lspci]
         device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
         is_connect_x3 = any(["ConnectX-3" in dev.device_info for dev in device_list])
         is_connect_x4 = any(["ConnectX-4" in dev.device_info for dev in device_list])
@@ -87,12 +87,13 @@ class DpdkVfHelper:
                 "SRIOV is likely not enabled or this is a new, "
                 "unimplemented bit of network hardware"
             )
+        self._node.log.debug(f"Created threshold helper for nic: {self._hardware}")
 
     def __init__(self, should_enforce: bool, node: Node) -> None:
-        self.use_strict_checks = should_enforce
-        is_large_core_vm = node.tools[Lscpu].get_core_count() >= 64
-        self.use_strict_checks &= is_large_core_vm
-        self._set_network_hardware(node=node)
+        self._node = node
+        is_large_core_vm = self._node.tools[Lscpu].get_core_count() >= 64
+        self.use_strict_checks = should_enforce and is_large_core_vm
+        self._set_network_hardware()
         self._direction = self.NOT_SET
         self._queue_type = self.SINGLE_QUEUE
 
@@ -129,6 +130,7 @@ class DpdkVfHelper:
                 "vf_helper.set_receiver() before starting tests."
             )
         if not self.use_strict_checks:
+            self._node.log.debug(f"Generated non-strict threshold: {threshold}")
             return threshold
 
         try:
@@ -140,7 +142,7 @@ class DpdkVfHelper:
                 "Test bug, invalid hardware or direction "
                 "key passed to DpdkHardware.get_threshold!"
             )
-
+        self._node.log.debug(f"Generated strict threshold: {threshold}")
         return threshold
 
 
