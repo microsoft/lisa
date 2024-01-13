@@ -90,13 +90,12 @@ class DpdkVfHelper:
         self._node.log.debug(f"Created threshold helper for nic: {self._hardware}")
 
     def __init__(self, should_enforce: bool, node: Node) -> None:
-        self.use_strict_checks = should_enforce
-        is_large_core_vm = node.tools[Lscpu].get_core_count() >= 64
-        self.use_strict_checks &= is_large_core_vm
-        self._set_network_hardware(node=node)
+        self._node = node
+        is_large_core_vm = self._node.tools[Lscpu].get_core_count() >= 64
+        self.use_strict_checks = should_enforce and is_large_core_vm
+        self._set_network_hardware()
         self._direction = self.NOT_SET
         self._queue_type = self.SINGLE_QUEUE
-        self._node = node
 
     def set_sender(self) -> None:
         self._direction = self.SEND
