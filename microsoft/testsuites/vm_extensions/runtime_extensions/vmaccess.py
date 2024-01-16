@@ -81,6 +81,7 @@ def _validate_password(
     node.execute(
         cmd=f'echo "{password}" | su --command true - {username}',
         shell=True,
+        sudo=True,
         expected_exit_code=0 if valid else 1,
         expected_exit_code_failure_message=message,
     )
