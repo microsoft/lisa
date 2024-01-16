@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Fedora, Ubuntu, Windows
+from lisa.operating_system import BSD, CBLMariner, Redhat, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
@@ -698,6 +698,16 @@ class Dpdk(TestSuite):
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
+    def _check_l3fwd_support(self, environment: Environment) -> None:
+        nodes = list(environment.nodes.list())
+        distro = nodes[0].os
+        if not isinstance(distro, (Ubuntu, Redhat)):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    distro, "OS is not supported on this platform"
+                )
+            )
+
     @TestCaseMetadata(
         description=(
             """
@@ -712,7 +722,6 @@ class Dpdk(TestSuite):
         ),
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu, Fedora],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
@@ -723,6 +732,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        self._check_l3fwd_support(environment=environment)
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
@@ -739,7 +749,6 @@ class Dpdk(TestSuite):
             """,
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu, Fedora],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
@@ -750,6 +759,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        self._check_l3fwd_support(environment=environment)
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
