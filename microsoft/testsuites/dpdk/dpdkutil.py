@@ -999,6 +999,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "core dumps, or other setup/init issues."
         )
 
+    # after starting DPDK, check for known driver errors
+    fwd_kit.testpmd.check_for_driver_regressions()
+
     # start ntttcp client and server
     ntttcp_threads_count = 64
     # start the receiver
@@ -1030,6 +1033,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
+
+    # check for driver regressions again after running the test
+    fwd_kit.testpmd.check_for_driver_regressions()
+
     # send result to notifier if we found a test result to report with
     if test_result and is_perf_test:
         msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
