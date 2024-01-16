@@ -10,6 +10,7 @@ from semver import VersionInfo
 
 from lisa.base_tools import Mv
 from lisa.executable import ExecutableResult, Tool
+from lisa.features import Disk
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
@@ -489,7 +490,12 @@ class DpdkTestpmd(Tool):
         self._testpmd_install_path: str = ""
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.get_working_path_with_required_space(10)
+            work_path = self.node.find_partition_with_freespace(10, raise_error=False)
+            if not work_path:
+                self.node.features[Disk].add_data_disk(count=1, size_in_gb=20)
+                work_path = self.node.get_working_path_with_required_space(10)
+            else:
+                self.node.tools[Chmod].chmod(work_path, "777", sudo=True)
             self.current_work_path = self.node.get_pure_path(work_path)
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name

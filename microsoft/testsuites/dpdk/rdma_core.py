@@ -7,8 +7,18 @@ from urllib.parse import urlparse
 from assertpy import fail
 
 from lisa import Node
+from lisa.features import Disk
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import CustomKernelBuildCheck, Gcc, Git, Make, Pkgconfig, Tar, Wget
+from lisa.tools import (
+    Chmod,
+    CustomKernelBuildCheck,
+    Gcc,
+    Git,
+    Make,
+    Pkgconfig,
+    Tar,
+    Wget,
+)
 from lisa.util import LisaException, SkippedException, check_url
 
 
@@ -18,7 +28,13 @@ class RdmaCoreManager:
         self.node = node
         self._rdma_core_source = rdma_core_source
         self._rdma_core_ref = rdma_core_ref
-        build_location = node.get_working_path_with_required_space(10)
+        # add space if none is available
+        build_location = node.find_partition_with_freespace(10, raise_error=False)
+        if not build_location:
+            node.features[Disk].add_data_disk(count=1, size_in_gb=20)
+            build_location = node.get_working_path_with_required_space(10)
+        else:
+            node.tools[Chmod].chmod(build_location, "777", sudo=True)
         self._build_location = node.get_pure_path(build_location).joinpath("rdma")
 
     def get_missing_distro_packages(self) -> str:
