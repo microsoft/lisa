@@ -411,16 +411,19 @@ class Infiniband(Feature):
         if not self._is_legacy_device():
             extra_params += " --skip-unsupported-devices-check"
 
-        node.execute(
-            f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
-            f"--add-kernel-support {extra_params} "
-            f"--tmpdir {self.resource_disk_path}/tmp",
-            expected_exit_code=0,
-            expected_exit_code_failure_message="SetupRDMA: failed to install "
-            "OFED Drivers",
-            sudo=True,
-            timeout=1200,
-        )
+        try:
+            node.execute(
+                f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
+                f"--add-kernel-support {extra_params} "
+                f"--tmpdir {self.resource_disk_path}/tmp",
+                expected_exit_code=0,
+                expected_exit_code_failure_message="SetupRDMA: failed to install "
+                "OFED Drivers",
+                sudo=True,
+                timeout=1200,
+            )
+        except AssertionError as e:
+            raise MissingPackagesException(["OFED Drivers"]) from e
         node.execute(
             "/etc/init.d/openibd force-restart",
             expected_exit_code=0,
