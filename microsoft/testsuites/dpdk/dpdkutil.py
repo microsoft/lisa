@@ -526,8 +526,13 @@ def verify_dpdk_build(
         + f"{test_nic.pci_slot}"
     )
 
-    threshold = testpmd.vf_helper.get_threshold()
-    failure_msg = f"TX-PPS ({tx_pps}) should have been greater than {threshold} PPS."
+    threshold = testpmd.vf_helper.get_threshold_testpmd()
+    hw_name = testpmd.vf_helper.get_hw_name()
+
+    failure_msg = (
+        f"TX-PPS ({tx_pps}) for {hw_name} should have been greater "
+        f"than {threshold} PPS."
+    )
     if testpmd.vf_helper.use_strict_checks:
         failure_msg = "STRICT CHECK ENABLED: " + failure_msg
     assert_that(tx_pps).described_as(failure_msg).is_greater_than(threshold)
@@ -611,13 +616,16 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    rx_threshold = receiver.testpmd.vf_helper.get_threshold_testpmd()
+    tx_threshold = sender.testpmd.vf_helper.get_threshold_testpmd()
+    hw_name = sender.testpmd.vf_helper.get_hw_name()
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2**20)
+        f"Throughput for RECEIVE on {hw_name} was below the expected threshold: {rx_threshold}"
+    ).is_greater_than_or_equal_to(rx_threshold)
     assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2**20)
+        f"Throughput for SEND on {hw_name} was below the expected threshold: {tx_threshold}"
+    ).is_greater_than(tx_threshold)
 
     return sender, receiver
 
@@ -892,6 +900,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # enable hugepages needed for dpdk EAL on forwarder
     init_hugepages(forwarder, enable_gibibyte_hugepages=enable_gibibyte_hugepages)
 
+    # tell threshold helper that we're testing the forwarder
+    fwd_kit.testpmd.vf_helper.set_forwader()
+
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
@@ -1058,11 +1069,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         "l3fwd test found 0Gbps througput. "
         "Either the test or DPDK forwarding is broken."
     ).is_greater_than(0)
+
     assert_that(throughput).described_as(
         f"l3fwd has very low throughput: {throughput}Gbps! "
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
-    ).is_greater_than(1)
+    ).is_greater_than_or_equal_to(1)
+
+    threshold = fwd_kit.testpmd.vf_helper.get_threshold_l3fwd()
+    hw_name = fwd_kit.testpmd.vf_helper.get_hw_name()
+    if fwd_kit.testpmd.vf_helper.use_strict_checks:
+        assert_that(throughput).described_as(
+            f"l3fwd strict throughput check failed, for hw {hw_name} "
+            f"expected throughput >= {threshold} GBps!"
+        ).is_greater_than_or_equal_to(threshold)
 
 
 def create_l3fwd_rules_files(
