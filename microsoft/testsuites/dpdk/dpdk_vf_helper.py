@@ -18,7 +18,7 @@ class DpdkVfHelper:
     NOT_SET = "not_set"
 
     # single queue is implemented but unused to avoid test bloat
-    _dpdk_hw_l3fwd_gbps_thresholds = {
+    _l3fwd_thresholds = {
         MLX_CX3: {
             MULTI_QUEUE: {SEND: 20},
         },
@@ -159,7 +159,7 @@ class DpdkVfHelper:
             return threshold_gbps
 
         try:
-            dpdk_hw = self._testpmd_thresholds[self._hardware]
+            dpdk_hw = self._l3fwd_thresholds[self._hardware]
             qtype = dpdk_hw[self._queue_type]
             threshold_gbps = qtype[self._direction]
         except KeyError:
