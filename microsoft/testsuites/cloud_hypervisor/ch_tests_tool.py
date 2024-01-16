@@ -404,7 +404,7 @@ class CloudHypervisorTests(Tool):
         else:
             dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
             dmesg_path = log_path / "dmesg"
-            with open(str(dmesg_path), "w") as f:
+            with open(str(dmesg_path), "w", encoding="utf-8") as f:
                 f.write(dmesg_str)
 
 
