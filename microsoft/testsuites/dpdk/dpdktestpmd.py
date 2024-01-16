@@ -39,10 +39,10 @@ from lisa.util import (
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
-    DpdkVfHelper,
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
 )
+from microsoft.testsuites.dpdk.dpdk_vf_helper import DpdkVfHelper
 from microsoft.testsuites.dpdk.rdma_core import RdmaCoreManager
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
