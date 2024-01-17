@@ -500,6 +500,10 @@ class DpdkTestpmd(Tool):
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
+
+        # signal whether to build the debug or release version
+        self.is_perf_test = kwargs.pop("build_release", False)
+
         # determine network hardware and whether to enforce the strict
         # test threshold (based on user argument)
         enforce_hw_threshold = kwargs.pop("enforce_strict_threshold", False)
@@ -696,12 +700,17 @@ class DpdkTestpmd(Tool):
 
         # add sample apps to compilation if they are present
         if self._sample_apps_to_build:
-            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
+            build_flags = [f"-Dexamples={','.join(self._sample_apps_to_build)}"]
         else:
-            sample_apps = ""
+            build_flags = [""]
+
+        if self.is_perf_test:
+            build_flags += ["-Dbuildtype=release"]
+        else:
+            build_flags += ["-Dbuildtype=debugoptimized"]
 
         node.execute(
-            f"meson {sample_apps} build",
+            f"meson {' '.join(build_flags)} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
