@@ -308,6 +308,7 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     enable_gibibyte_hugepages: bool = False,
     extra_nics: Union[List[NicInfo], None] = None,
+    build_release: bool = False,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -354,8 +355,8 @@ def initialize_node_resources(
         rdma_core_source=rdma_core_source,
         rdma_core_ref=rdma_core_ref,
         enforce_strict_threshold=enforce_strict_threshold,
+        build_release=build_release,
     )
-
     # init and enable hugepages (required by dpdk)
     init_hugepages(node, enable_gibibyte_hugepages)
 
@@ -467,6 +468,7 @@ def init_nodes_concurrent(
     pmd: str,
     enable_gibibyte_hugepages: bool = False,
     sample_apps: Union[List[str], None] = None,
+    build_release: bool = False,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -484,6 +486,7 @@ def init_nodes_concurrent(
                 pmd,
                 enable_gibibyte_hugepages=enable_gibibyte_hugepages,
                 sample_apps=sample_apps,
+                build_release=build_release,
             )
             for node in environment.nodes.list()
         ],
@@ -499,10 +502,16 @@ def verify_dpdk_build(
     pmd: str,
     multiple_queues: bool = False,
     gibibyte_hugepages: bool = False,
+    build_release: bool = False,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(
-        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        node,
+        log,
+        variables,
+        pmd,
+        enable_gibibyte_hugepages=gibibyte_hugepages,
+        build_release=build_release,
     )
     testpmd = test_kit.testpmd
 
@@ -541,6 +550,7 @@ def verify_dpdk_send_receive(
     use_service_cores: int = 1,
     multiple_queues: bool = False,
     gibibyte_hugepages: bool = False,
+    build_release: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -558,7 +568,12 @@ def verify_dpdk_send_receive(
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        environment,
+        log,
+        variables,
+        pmd,
+        enable_gibibyte_hugepages=gibibyte_hugepages,
+        build_release=build_release,
     )
 
     check_send_receive_compatibility(test_kits)
@@ -622,11 +637,18 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     variables: Dict[str, Any],
     pmd: str,
     use_service_cores: int = 1,
+    build_release: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     return verify_dpdk_send_receive(
-        environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
+        environment,
+        log,
+        variables,
+        pmd,
+        use_service_cores=1,
+        multiple_queues=True,
+        build_release=build_release,
     )
 
 
