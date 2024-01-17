@@ -690,7 +690,7 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if len(devices) > 1:
             # upgrade waagent to latest version to resolve
             # multiple ib devices not getting ip address issue
-            waagent.upgrade_from_source("v2.9.0.4")
+            waagent.upgrade_from_source()
         # Update waagent.conf
         sed = self._node.tools[Sed]
         if isinstance(self._node.os, CBLMariner):
