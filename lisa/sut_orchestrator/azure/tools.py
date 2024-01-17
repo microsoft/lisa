@@ -84,7 +84,7 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def upgrade_from_source(self, source_version: str) -> None:
+    def upgrade_from_source(self, source_version: str = "") -> None:
         git = self.node.tools[Git]
         git.clone(self._src_url, cwd=self.node.working_path)
         if source_version:
