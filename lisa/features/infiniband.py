@@ -346,7 +346,8 @@ class Infiniband(Feature):
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
 
-        if not isinstance(node.os, CBLMariner):
+        if isinstance(node.os, CBLMariner):
+            return
             # Install OFED
             ofed_version = self._get_ofed_version()
             if isinstance(node.os, Oracle):
