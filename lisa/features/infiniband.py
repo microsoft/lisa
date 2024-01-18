@@ -334,8 +334,9 @@ class Infiniband(Feature):
         else:
             raise UnsupportedDistroException(
                 node.os,
-                "Only CentOS 7.6-8.3, Ubuntu 18.04-22.04 and CBLMariner distros are "
-                "supported by the HCP team",
+                "Only CentOS 7.6-8.3, Ubuntu 18.04-22.04 distros are "
+                "supported by the HPC team. Also supports CBLMariner 2.0 "
+                "distro which uses the Mellanox inbox driver",
             )
 
     def install_ofed(self) -> None:

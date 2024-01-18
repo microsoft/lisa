@@ -693,26 +693,36 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
             waagent.upgrade_from_source("v2.9.0.4")
         # Update waagent.conf
         sed = self._node.tools[Sed]
-        if isinstance(self._node.os, CBLMariner):
-            sed.append(
-                text="OS.EnableRDMA=y",
-                file="/etc/waagent.conf",
-                sudo=True,
-            )
-        else:
-            sed.substitute(
-                regexp="# OS.EnableRDMA=y",
-                replacement="OS.EnableRDMA=y",
-                file="/etc/waagent.conf",
-                sudo=True,
-            )
-            sed.substitute(
-                regexp="# AutoUpdate.Enabled=y",
-                replacement="AutoUpdate.Enabled=y",
-                file="/etc/waagent.conf",
-                sudo=True,
-            )
+        rdma_config = "OS.EnableRDMA=y"
+        waagent_config_path = "/etc/waagent.conf"
 
+        # CBLMariner's waagent configuration does not specify OS.EnableRDMA
+        # and thus need to manually append it for RDMA support
+        if isinstance(self._node.os, CBLMariner):
+            # Check whether OS.EnableRDMA=y is already specified
+            cat = self._node.tools[Cat]
+            if not rdma_config in cat.read(waagent_config_path, sudo=True):
+                sed.append(
+                    text=rdma_config,
+                    file=waagent_config_path,
+                    sudo=True,
+                )
+
+        sed.substitute(
+            regexp=f"# {rdma_config}",
+            replacement=rdma_config,
+            file=waagent_config_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="# AutoUpdate.Enabled=y",
+            replacement="AutoUpdate.Enabled=y",
+            file=waagent_config_path,
+            sudo=True,
+        )
+
+        # CBLMariner uses the Mellanox inbox driver instead of the Mellanox OFED driver,
+        # which requires a reboot of the VM for WALinuxAgent to enable RDMA.
         if isinstance(self._node.os, CBLMariner):
             self._node.reboot()
         else:
