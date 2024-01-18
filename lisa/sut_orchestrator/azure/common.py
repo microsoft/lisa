@@ -313,7 +313,7 @@ class AzureNodeSchema:
             add_secret(self.vhd_raw, PATTERN_URL)
         if self.purchase_plan:
             # Remove 'purchase_plan' if it doesn't have any details.
-            if not self.purchase_plan.name.strip():
+            if not self.purchase_plan["name"].strip():
                 del self.purchase_plan
 
     @property
