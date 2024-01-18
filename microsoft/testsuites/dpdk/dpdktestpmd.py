@@ -673,12 +673,12 @@ class DpdkTestpmd(Tool):
 
         # add sample apps to compilation if they are present
         if self._sample_apps_to_build:
-            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
+            build_flags = f"-Dexamples={','.join(self._sample_apps_to_build)}"
         else:
-            sample_apps = ""
+            build_flags = ""
 
         node.execute(
-            f"meson {sample_apps} build",
+            f"meson setup {' '.join(build_flags)} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
