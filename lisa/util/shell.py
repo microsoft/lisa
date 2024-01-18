@@ -1,21 +1,41 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import contextlib
 import logging
 import os
+import pathlib
+import posixpath
 import re
 import shutil
 import socket
+import stat as stat_module
 import sys
 import time
+import uuid
 from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
 from time import sleep
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
+import icontract
 import paramiko
 import spur  # type: ignore
-import spurplus  # type: ignore
+import temppathlib
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
@@ -30,6 +50,643 @@ from lisa.util import (
 
 from .logger import Logger, get_logger
 from .perf_timer import create_timer
+
+T = TypeVar('T')
+
+class ReconnectingSFTP:
+    """Open automatically a new paramiko.SFTP on connection failure."""
+
+    # pylint: disable=too-many-public-methods
+
+    def __init__(self, sftp_opener: Callable[[], paramiko.SFTP], max_retries: int = 10,
+                 retry_period: float = 0.1) -> None:
+        """
+        Iniialize.
+
+        :param sftp_opener: method to open a new SFTP connection
+        :param max_retries: maximum number of retries before raising ConnectionError
+        :param retry_period: how long to wait between two retries; in seconds
+        """
+        self.__sftp_opener = sftp_opener
+        self.max_retries: int = max_retries
+        self.retry_period: float = retry_period
+
+        self._sftp: Optional[paramiko.SFTP] = None
+
+        # last recorded working directory
+        self.last_working_directory: Optional[str] = None
+
+    def close(self) -> None:
+        """Close the the underlying paramiko SFTP client."""
+        if self._sftp is not None:
+            self._sftp.close()
+            self._sftp = None
+
+    def __enter__(self) -> 'ReconnectingSFTP':
+        """Return self prepared in a constructor upon enter."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
+        """Close upon exist."""
+        self.close()
+
+    def __wrap(self, method: Callable[[paramiko.SFTP], T]) -> T:
+        """
+        Wrap the SFTP method in a retry loop.
+
+        Open an SFTP connection, if necessary, and change to the last recorded working directory before
+        executing the method.
+
+        :param method: to be wrapped
+        :return: method's result
+        """
+        last_err: Optional[Union[socket.error, EOFError]] = None
+
+        success = False
+        for _ in range(0, self.max_retries):
+            try:
+                if self._sftp is None:
+                    self._sftp = self.__sftp_opener()
+                assert self._sftp is not None
+
+                if self._sftp.sock.closed:
+                    self._sftp = self.__sftp_opener()
+                assert not self._sftp.sock.closed
+
+                if self.last_working_directory is not None:
+                    self._sftp.chdir(path=self.last_working_directory)
+
+                success = True
+
+            except (socket.error, EOFError) as err:
+                last_err = err
+
+                if self._sftp is not None:
+                    self._sftp.close()
+                    self._sftp = None
+
+                time.sleep(self.retry_period)
+
+        if not success:
+            raise ConnectionError(
+                "Failed to execute an SFTP command after {} retries due to connection failure: {}".format(
+                    self.max_retries, last_err))
+
+        return method(self._sftp) # type: ignore
+
+    def chmod(self, path: str, mode: int):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.chmod(path, mode))
+
+    def stat(self, path: str):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.stat(path))
+    
+    def rmdir(self, path: str):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.rmdir(path))
+
+    def listdir_attr(self, path: str = '.') -> List[paramiko.SFTPAttributes]:
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.listdir_attr(path))
+
+    def remove(self, path: str) -> None:
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.remove(path))
+
+    unlink = remove
+
+    def posix_rename(self, oldpath: str, newpath: str):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.posix_rename(oldpath, newpath))
+
+    def mkdir(self, path: str, mode: int = 0o777):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.mkdir(path, mode))
+
+    def lstat(self, path: str):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.lstat(path))
+
+    def symlink(self, source: str, dest: str):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.symlink(source, dest))
+
+    def put(
+        self,
+        localpath: str,
+        remotepath: str,
+        callback: Optional[Callable[[int, int], Any]] = None,
+        confirm: bool = True,
+    ):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.put(localpath, remotepath, callback, confirm))
+
+    def get(self, remotepath: str, localpath: str, callback: Optional[Callable[[int, int], Any]] = None):
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.get(remotepath, localpath, callback))
+
+class SshShellWithSFTP(icontract.DBC):
+    def __init__(self,
+                 spur_ssh_shell: spur.SshShell,
+                 sftp: Union[paramiko.SFTP, ReconnectingSFTP],
+                 close_spur_shell: bool = True,
+                 close_sftp: bool = True) -> None:
+        """
+        Initialize the SSH wrapper with the given underlying spur SshShell and the SFTP client.
+
+        :param spur_ssh_shell: to wrap
+        :param sftp: to wrap
+        :param close_spur_shell: if set, closes spur shell when the wrapper is closed
+        :param close_sftp: if set, closes SFTP when this wrapper is closed
+        """
+        self._spur = spur_ssh_shell
+        self._sftp = sftp
+
+        self.close_spur_shell = close_spur_shell
+        self.close_sftp = close_sftp
+
+        self.hostname = spur_ssh_shell._hostname
+        self.port = spur_ssh_shell._port
+
+    @property
+    def sftp(self) -> Union[paramiko.SFTP, ReconnectingSFTP]:
+        """Return the SFTP client."""
+        return self._sftp
+
+    def close(self) -> None:
+        """Close the underlying spur shell and SFTP (if ``close_spur_shell`` and ``close_sftp``, respectively)."""
+        try:
+            if self.close_spur_shell:
+                self._spur.close()
+        finally:
+            if self.close_sftp:
+                self._sftp.close()
+
+    def exists(self, remote_path: Union[str, pathlib.Path]) -> bool:
+        """
+        Check if a file exists on a remote machine.
+
+        :param sftp: SFTP client
+        :param remote_path: to the file
+        :return: True if the file exists on the remote machine at `remote_path`
+        """
+        sftp = self._sftp
+        if isinstance(remote_path, str):
+            rmt_pth_str = remote_path
+        elif isinstance(remote_path, pathlib.Path):
+            rmt_pth_str = remote_path.as_posix()
+        else:
+            raise NotImplementedError("Unhandled type of remote path: {}".format(type(remote_path)))
+
+        permerr: Optional[PermissionError] = None
+        try:
+            sftp.stat(rmt_pth_str)
+            return True
+        except FileNotFoundError:
+            return False
+        except PermissionError as err:
+            permerr = err
+
+        if permerr:
+            raise permerr
+
+        raise AssertionError("Expected to raise before.")
+
+    def mkdir(self,
+              remote_path: Union[str, pathlib.Path],
+              mode: int = 0o777,
+              parents: bool = False,
+              exist_ok: bool = False) -> None:
+        """
+        Create the remote directory with the given SFTP client.
+
+        :param sftp: SFTP client
+        :param remote_path: to the directory
+        :param mode: directory permission mode
+        :param parents: if set, creates the parent directories
+        :param exist_ok: if set, ignores an existing directory.
+        :return:
+        """
+        # pylint: disable=too-many-branches
+        if isinstance(remote_path, str):
+            rmt_pth = pathlib.Path(os.path.normpath(remote_path))
+        elif isinstance(remote_path, pathlib.Path):
+            rmt_pth = pathlib.Path(os.path.normpath(remote_path.as_posix()))
+        else:
+            raise NotImplementedError("Unhandled type of remote path: {}".format(type(remote_path)))
+
+        if self.exists(remote_path=remote_path):
+            if not exist_ok:
+                raise FileExistsError("The remote directory already exists: {}".format(remote_path))
+            else:
+                return
+
+        oserr: Optional[OSError] = None
+
+        if not parents:
+            if not self.exists(remote_path=rmt_pth.parent):
+                raise FileNotFoundError(
+                    "The parent remote directory {} does not exist, parents=False and we need to mkdir: {}".format(
+                        rmt_pth.parent, remote_path))
+
+            try:
+                self.sftp.mkdir(path=rmt_pth.as_posix(), mode=mode)
+            except OSError as err:
+                oserr = err
+
+            if oserr is not None:
+                msg = "Failed to create the directory {}: {}".format(rmt_pth.as_posix(), oserr)
+                if isinstance(oserr, PermissionError):
+                    raise PermissionError(msg)
+                else:
+                    raise OSError(msg)
+        else:
+            directories = list(reversed(rmt_pth.parents))
+            directories.append(rmt_pth)
+
+            root = pathlib.Path('/')
+
+            for directory in directories:
+                if directory == root:
+                    continue
+
+                directory_exists = self.exists(remote_path=directory)
+                if directory_exists:
+                    continue
+
+                try:
+                    self.sftp.mkdir(path=directory.as_posix(), mode=mode)
+                except OSError as err:
+                    oserr = err
+
+                if oserr is not None:
+                    msg = "Failed to create the directory {}: {}".format(directory.as_posix(), oserr)
+                    if isinstance(oserr, PermissionError):
+                        raise PermissionError(msg)
+                    else:
+                        raise OSError(msg)
+
+    @contextlib.contextmanager
+    def _temporary_file_deleted_after_cm_exit() -> Iterator[temppathlib.NamedTemporaryFile]:
+        """
+        Generate a temporary file that is deleted only on context exit.
+
+        The file is **not** deleted when you invoke close() on it.
+
+        This context manager is necessary for Windows compatibility. Please see
+        https://bugs.python.org/issue14243 for more details.
+
+        :return: context manager around a temporary file
+        """
+        fid = temppathlib.NamedTemporaryFile(delete=False)
+
+        # Close the file so that it can be reused in different function calls
+        fid.close()
+
+        try:
+            yield fid
+        finally:
+            try:
+                fid.path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _path_to_posix_str(self, path: Union[str, pathlib.Path]) -> str:
+        """
+        Convert the path to a string representation in POSIX.
+
+        :param path: to be converted
+        :return: string representing the path in POSIX
+        """
+        if isinstance(path, str):
+            result = path
+        elif isinstance(path, pathlib.Path):
+            result = path.as_posix()
+        else:
+            raise TypeError("Unexpected type of path {}: {}".format(path, type(path)))
+
+        return result
+
+    def remove(self, remote_path: Union[str, pathlib.Path], recursive: bool = False) -> None:
+        """
+        Remove a file or a directory.
+
+        :param remote_path: to a file or a directory
+        :param recursive:
+            if set, removes the directory recursively. This parameter has no effect if remote_path is not a directory.
+        :return:
+        """
+        rmt_pth_str = self._path_to_posix_str(path=remote_path)
+
+        a_stat = self.stat(remote_path=rmt_pth_str)
+        if a_stat is None:
+            raise FileNotFoundError("Remote file does not exist and thus can not be removed: {}".format(rmt_pth_str))
+
+        if not stat_module.S_ISDIR(a_stat.st_mode):
+            self._sftp.remove(rmt_pth_str)
+            return
+
+        if not recursive:
+            attrs = self._sftp.listdir_attr(rmt_pth_str)
+
+            if len(attrs) > 0:
+                raise OSError(
+                    "The remote directory is not empty and the recursive flag was not set: {}".format(rmt_pth_str))
+
+            self._sftp.rmdir(rmt_pth_str)
+            return
+
+        # Remove all files in the first step, then remove all the directories in a second step
+        stack1: List[str] = []
+        stack2: List[str] = []
+
+        # First step: remove all files
+        stack1.append(rmt_pth_str)
+
+        while stack1:
+            pth = stack1.pop()
+            stack2.append(pth)
+
+            for attr in self._sftp.listdir_attr(pth):
+                subpth = posixpath.join(pth, attr.filename)
+
+                if stat_module.S_ISDIR(attr.st_mode):
+                    stack1.append(subpth)
+                else:
+                    try:
+                        self._sftp.remove(path=subpth)
+                    except OSError as err:
+                        raise OSError("Failed to remove the remote file while recursively removing {}: {}".format(
+                            rmt_pth_str, subpth)) from err
+
+        # Second step: remove all directories
+        while stack2:
+            pth = stack2.pop()
+
+            try:
+                self._sftp.rmdir(path=pth)
+            except OSError as err:
+                raise OSError("Failed to remove the remote directory while recursively removing {}: {}".format(
+                    rmt_pth_str, pth)) from err
+
+    def run(self,
+        command: Sequence[str],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        update_env: Optional[Mapping[str, str]] = None,
+        allow_error: bool = False,
+        stdout: Optional[TextIO] = None,
+        stderr: Optional[TextIO] = None,
+        encoding: str = 'utf-8',
+        use_pty: bool = False) -> spur.results.ExecutionResult:
+        """
+        Run a command on the remote instance and waits for it to complete.
+        """
+        # pylint: disable=too-many-arguments
+
+        return self.spawn(
+            command=command,
+            cwd=cwd,
+            update_env=update_env,
+            allow_error=allow_error,
+            stdout=stdout,
+            stderr=stderr,
+            encoding=encoding,
+            use_pty=use_pty).wait_for_result()
+
+    def chmod(self, remote_path: Union[str, pathlib.Path], mode: int) -> None:
+        """
+        Change the permission mode of the file.
+
+        :param remote_path: to the file
+        :param mode: permission mode
+        :return:
+        """
+        rmt_pth_str = self._path_to_posix_str(path=remote_path)
+
+        try:
+            self._sftp.chmod(path=rmt_pth_str, mode=mode)
+        except FileNotFoundError as err:
+            raise FileNotFoundError("Remote file to be chmod'ed does not exist: {}".format(rmt_pth_str)) from err
+    
+    def is_dir(self, remote_path: Union[str, pathlib.Path]) -> bool:
+        """
+        Check whether the remote path is a directory.
+
+        :param remote_path: path to the remote file or directory
+        :return: True if the remote path is a directory
+        :raise: FileNotFound if the remote path does not exist
+        """
+        rmt_pth_str = self._path_to_posix_str(path=remote_path)
+
+        a_stat = self.stat(remote_path=rmt_pth_str)
+        if a_stat is None:
+            raise FileNotFoundError("Remote file does not exist: {}".format(rmt_pth_str))
+
+        return stat_module.S_ISDIR(a_stat.st_mode)
+
+    def is_symlink(self, remote_path: Union[str, pathlib.Path]) -> bool:
+        """
+        Check whether the remote path is a symlink.
+
+        :param remote_path: path to the remote file or directory
+        :return: True if the remote path is a directory
+        :raise: FileNotFound if the remote path does not exist
+        """
+        rmt_pth_str = self._path_to_posix_str(path=remote_path)
+
+        try:
+            a_lstat = self._sftp.lstat(path=rmt_pth_str)
+            return stat_module.S_ISLNK(a_lstat.st_mode) # type: ignore
+
+        except FileNotFoundError as err:
+            raise FileNotFoundError("Remote file does not exist: {}".format(rmt_pth_str)) from err
+        
+    def get(self,
+            remote_path: Union[str, pathlib.Path],
+            local_path: Union[str, pathlib.Path],
+            create_directories: bool = True,
+            consistent: bool = True) -> None:
+        """
+        Get a file from the remote host.
+
+        :param remote_path: to the file
+        :param local_path: to the file
+        :param create_directories: if set, creates the parent directories of the local path with permission mode 0o777
+        :param consistent: if set, copies to a temporary local file first, and then renames it.
+        :return:
+        """
+        rmt_pth_str = remote_path if isinstance(remote_path, str) else remote_path.as_posix()
+
+        loc_pth = local_path if isinstance(local_path, pathlib.Path) else pathlib.Path(local_path)
+
+        if create_directories:
+            loc_pth.parent.mkdir(mode=0o777, exist_ok=True, parents=True)
+
+        if consistent:
+            with self._temporary_file_deleted_after_cm_exit() as tmp:
+                self._sftp.get(remotepath=rmt_pth_str, localpath=str(tmp.path))
+                shutil.move(src=str(tmp.path), dst=str(loc_pth))
+        else:
+            self._sftp.get(remotepath=rmt_pth_str, localpath=str(loc_pth))
+
+    def put(self,
+            local_path: Union[str, pathlib.Path],
+            remote_path: Union[str, pathlib.Path],
+            create_directories: bool = True,
+            consistent: bool = True) -> None:
+        """
+        Put a file on the remote host.
+
+        Mind that if you set consistent to True, the file will be copied to a temporary file and then
+        POSIX rename function will be used to rename it. The ownership and the permissions of the original 'remote_path'
+        are preserved. However, if the original 'remote_path' has read-only permissions and you still have write
+        permissions to the directory, the 'remote_path' will be overwritten nevertheless due to the logic of
+        POSIX rename.
+
+        :param local_path: to the file
+        :param remote_path: to the file
+        :param create_directories: if set, creates the parent directory of the remote path with mode 0o777
+        :param consistent: if set, copies to a temporary remote file first, and then renames it.
+        :return:
+        """
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
+        rmt_pth = remote_path if isinstance(remote_path, pathlib.Path) else pathlib.Path(remote_path)
+
+        loc_pth_str = local_path if isinstance(local_path, str) else str(local_path)
+
+        if create_directories:
+            self.mkdir(remote_path=rmt_pth.parent, mode=0o777, parents=True, exist_ok=True)
+
+        oserr: Optional[OSError] = None
+
+        if not consistent:
+            try:
+                self._sftp.put(localpath=loc_pth_str, remotepath=rmt_pth.as_posix())
+            except OSError as err:
+                oserr = err
+
+            if oserr is not None:
+                msg = "Failed to put the local file {} to the remote path {}: {}".format(
+                    local_path, rmt_pth.as_posix(), oserr)
+                if isinstance(oserr, PermissionError):
+                    raise PermissionError(msg)
+                else:
+                    raise OSError(msg)
+
+        else:
+            tmp_pth = rmt_pth.parent / (rmt_pth.name + ".{}.tmp".format(uuid.uuid4()))
+            success = False
+
+            try:
+                try:
+                    self._sftp.put(localpath=loc_pth_str, remotepath=tmp_pth.as_posix())
+                except OSError as err:
+                    oserr = err
+
+                if oserr is not None:
+                    msg = "Failed to put the local file {} to the remote temporary path {}: {}".format(
+                        local_path, tmp_pth, oserr)
+
+                    if isinstance(oserr, PermissionError):
+                        raise PermissionError(msg)
+                    else:
+                        raise OSError(msg)
+
+                # apply the same permissions to the temporary file
+                stat: Optional[paramiko.SFTPAttributes] = None
+                try:
+                    stat = self._sftp.stat(rmt_pth.as_posix())
+                except FileNotFoundError:
+                    pass
+
+                if stat is not None:
+                    try:
+                        self._sftp.chmod(path=tmp_pth.as_posix(), mode=stat.st_mode)
+                        self._sftp.chown(path=tmp_pth.as_posix(), uid=stat.st_uid, gid=stat.st_gid)
+                    except OSError as err:
+                        oserr = err
+
+                    if oserr is not None:
+                        msg = ("Failed to change the permissions and ownership of "
+                               "the remote temporary path {}: {}").format(tmp_pth, oserr)
+                        if isinstance(oserr, PermissionError):
+                            raise PermissionError(msg)
+                        else:
+                            raise OSError(msg)
+
+                ioerr: Optional[IOError] = None
+                try:
+                    self._sftp.posix_rename(oldpath=tmp_pth.as_posix(), newpath=rmt_pth.as_posix())
+                except IOError as err:
+                    ioerr = err
+
+                if ioerr is not None:
+                    raise IOError("Failed to rename the remote temporary file {} to the remote path {}: {}".format(
+                        tmp_pth, remote_path, ioerr))
+
+                success = True
+            finally:
+                if not success and self.exists(remote_path=tmp_pth):
+                    self._sftp.unlink(path=tmp_pth.as_posix())
+        
+    def spawn(self,
+              command: Sequence[str],
+              update_env: Optional[Mapping[str, str]] = None,
+              store_pid: bool = False,
+              cwd: Optional[Union[str, pathlib.Path]] = None,
+              stdout: Optional[TextIO] = None,
+              stderr: Optional[TextIO] = None,
+              encoding: str = 'utf-8',
+              use_pty: bool = False,
+              allow_error: bool = False) -> spur.ssh.SshProcess:
+        """
+        Spawn a remote process.
+
+        From https://github.com/mwilliamson/spur.py/blob/0.3.20/README.rst
+        """
+        # pylint: disable=too-many-arguments
+
+        update_env_dict = {} if update_env is None else update_env
+
+        if cwd is None:
+            resolved_cwd = None
+        elif isinstance(cwd, str):
+            resolved_cwd = cwd
+        elif isinstance(cwd, pathlib.Path):
+            resolved_cwd = cwd.as_posix()
+        else:
+            raise NotImplementedError("Unhandled type of cwd: {}".format(type(cwd)))
+
+        return self._spur.spawn(
+            command=command,
+            cwd=resolved_cwd,
+            update_env=update_env_dict,
+            store_pid=store_pid,
+            allow_error=allow_error,
+            stdout=stdout,
+            stderr=stderr,
+            encoding=encoding,
+            use_pty=use_pty)
+
+    def stat(self, remote_path: Union[str, pathlib.Path]) -> Optional[paramiko.SFTPAttributes]:
+        """
+        Stat the given remote path.
+
+        :param remote_path: to the file
+        :return: stats of the file; None if the file does not exist
+        """
+        result: Optional[paramiko.SFTPAttributes] = None
+
+        rmt_pth_str = self._path_to_posix_str(path=remote_path)
+
+        try:
+            result = self._sftp.stat(path=rmt_pth_str)
+        except FileNotFoundError:
+            pass
+
+        return result
 
 _get_jump_box_logger = partial(get_logger, name="jump_box")
 
@@ -291,10 +948,10 @@ class SshShell(InitializableMixin):
         }
 
         spur_ssh_shell = spur.SshShell(shell_type=shell_type, **spur_kwargs)
-        sftp = spurplus.sftp.ReconnectingSFTP(
+        sftp = ReconnectingSFTP(
             sftp_opener=spur_ssh_shell._open_sftp_client
         )
-        self._inner_shell = spurplus.SshShell(spur_ssh_shell=spur_ssh_shell, sftp=sftp)
+        self._inner_shell = SshShellWithSFTP(spur_ssh_shell=spur_ssh_shell, sftp=sftp)
 
     def close(self) -> None:
         if self._inner_shell:
