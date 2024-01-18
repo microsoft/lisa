@@ -347,98 +347,100 @@ class Infiniband(Feature):
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
 
+        # CBLMariner uses the Mellanox inbox driver instead of the OFED driver
         if isinstance(node.os, CBLMariner):
             return
-            # Install OFED
-            ofed_version = self._get_ofed_version()
-            if isinstance(node.os, Oracle):
-                os_class = "ol"
-            elif isinstance(node.os, Redhat):
-                os_class = "rhel"
-            else:
-                os_class = node.os.name.lower()
 
-            # refer https://forums.developer.nvidia.com/t/connectx-3-on-ubuntu-20-04/206201/8 # noqa: E501
-            # for why we don't support ConnectX-3 on kernel >= 5.6
-            if self._is_legacy_device() and kernel_version >= "5.6.0":
+        # Install OFED
+        ofed_version = self._get_ofed_version()
+        if isinstance(node.os, Oracle):
+            os_class = "ol"
+        elif isinstance(node.os, Redhat):
+            os_class = "rhel"
+        else:
+            os_class = node.os.name.lower()
+
+        # refer https://forums.developer.nvidia.com/t/connectx-3-on-ubuntu-20-04/206201/8 # noqa: E501
+        # for why we don't support ConnectX-3 on kernel >= 5.6
+        if self._is_legacy_device() and kernel_version >= "5.6.0":
+            raise UnsupportedKernelException(
+                node.os,
+                "OFED driver for ConnectX-3 devices is not supported on "
+                "kernel versions >= 5.6",
+            )
+
+        ofed_folder = (
+            f"MLNX_OFED_LINUX-{ofed_version}-{os_class}"
+            f"{os_version[0]}."
+            f"{os_version[1]}-x86_64"
+        )
+        tarball_name = f"{ofed_folder}.tgz"
+        mlnx_ofed_download_url = (
+            f"https://content.mellanox.com/ofed/MLNX_OFED-{ofed_version}"
+            f"/{tarball_name}"
+        )
+
+        wget = node.tools[Wget]
+        try:
+            wget.get(
+                url=mlnx_ofed_download_url,
+                file_path=self.resource_disk_path,
+                filename=tarball_name,
+                overwrite=False,
+                sudo=True,
+            )
+        except LisaException as identifier:
+            if "404: Not Found." in str(identifier):
+                raise UnsupportedDistroException(
+                    node.os, f"{mlnx_ofed_download_url} doesn't exist."
+                )
+        tar = node.tools[Tar]
+        tar.extract(
+            file=f"{self.resource_disk_path}/{tarball_name}",
+            dest_dir=self.resource_disk_path,
+            gzip=True,
+            sudo=True,
+        )
+
+        extra_params = ""
+        if isinstance(node.os, Redhat):
+            ls = node.tools[Ls]
+            kernel_dirs = ls.list_dir("/usr/src/kernels")
+            if f"/usr/src/kernels/{kernel}" in kernel_dirs:
+                kernel_src = f"/usr/src/kernels/{kernel}"
+            elif kernel_dirs:
+                kernel_src = kernel_dirs[0]
+            else:
                 raise UnsupportedKernelException(
                     node.os,
-                    "OFED driver for ConnectX-3 devices is not supported on "
-                    "kernel versions >= 5.6",
+                    "Cannot install OFED drivers without kernel-devel package",
                 )
 
-            ofed_folder = (
-                f"MLNX_OFED_LINUX-{ofed_version}-{os_class}"
-                f"{os_version[0]}."
-                f"{os_version[1]}-x86_64"
-            )
-            tarball_name = f"{ofed_folder}.tgz"
-            mlnx_ofed_download_url = (
-                f"https://content.mellanox.com/ofed/MLNX_OFED-{ofed_version}"
-                f"/{tarball_name}"
+            extra_params = (
+                f"--kernel {kernel} --kernel-sources {kernel_src}  "
+                f"--skip-repo --without-fw-update"
             )
 
-            wget = node.tools[Wget]
-            try:
-                wget.get(
-                    url=mlnx_ofed_download_url,
-                    file_path=self.resource_disk_path,
-                    filename=tarball_name,
-                    overwrite=False,
-                    sudo=True,
-                )
-            except LisaException as identifier:
-                if "404: Not Found." in str(identifier):
-                    raise UnsupportedDistroException(
-                        node.os, f"{mlnx_ofed_download_url} doesn't exist."
-                    )
-            tar = node.tools[Tar]
-            tar.extract(
-                file=f"{self.resource_disk_path}/{tarball_name}",
-                dest_dir=self.resource_disk_path,
-                gzip=True,
-                sudo=True,
-            )
+        if not self._is_legacy_device():
+            extra_params += " --skip-unsupported-devices-check"
 
-            extra_params = ""
-            if isinstance(node.os, Redhat):
-                ls = node.tools[Ls]
-                kernel_dirs = ls.list_dir("/usr/src/kernels")
-                if f"/usr/src/kernels/{kernel}" in kernel_dirs:
-                    kernel_src = f"/usr/src/kernels/{kernel}"
-                elif kernel_dirs:
-                    kernel_src = kernel_dirs[0]
-                else:
-                    raise UnsupportedKernelException(
-                        node.os,
-                        "Cannot install OFED drivers without kernel-devel package",
-                    )
-
-                extra_params = (
-                    f"--kernel {kernel} --kernel-sources {kernel_src}  "
-                    f"--skip-repo --without-fw-update"
-                )
-
-            if not self._is_legacy_device():
-                extra_params += " --skip-unsupported-devices-check"
-
-            node.execute(
-                f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
-                f"--add-kernel-support {extra_params} "
-                f"--tmpdir {self.resource_disk_path}/tmp",
-                expected_exit_code=0,
-                expected_exit_code_failure_message="SetupRDMA: failed to install "
-                "OFED Drivers",
-                sudo=True,
-                timeout=1200,
-            )
-            node.execute(
-                "/etc/init.d/openibd force-restart",
-                expected_exit_code=0,
-                expected_exit_code_failure_message="SetupRDMA: failed to "
-                "restart driver",
-                sudo=True,
-            )
+        node.execute(
+            f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
+            f"--add-kernel-support {extra_params} "
+            f"--tmpdir {self.resource_disk_path}/tmp",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="SetupRDMA: failed to install "
+            "OFED Drivers",
+            sudo=True,
+            timeout=1200,
+        )
+        node.execute(
+            "/etc/init.d/openibd force-restart",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="SetupRDMA: failed to "
+            "restart driver",
+            sudo=True,
+        )
 
     def install_intel_mpi(self) -> None:
         node = self._node

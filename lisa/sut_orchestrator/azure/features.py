@@ -690,6 +690,9 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if len(devices) > 1:
             # upgrade waagent to latest version to resolve
             # multiple ib devices not getting ip address issue
+
+            # Upgrade to v2.9.0.4 since the latest v2.9.1.1 version
+            # does not successfully assign IP over the IB interface
             waagent.upgrade_from_source("v2.9.0.4")
         # Update waagent.conf
         sed = self._node.tools[Sed]
@@ -701,7 +704,7 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if isinstance(self._node.os, CBLMariner):
             # Check whether OS.EnableRDMA=y is already specified
             cat = self._node.tools[Cat]
-            if not rdma_config in cat.read(waagent_config_path, sudo=True):
+            if rdma_config not in cat.read(waagent_config_path, sudo=True):
                 sed.append(
                     text=rdma_config,
                     file=waagent_config_path,
