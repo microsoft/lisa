@@ -281,6 +281,10 @@ class Infiniband(Feature):
             "libibverbs",
             "libibverbs-utils",
             "build-essential",
+            "ucx",
+            "ucx-ib",
+            "ucx-rdmacm",
+            "ucx-cma",
         ]
         if isinstance(node.os, CentOs):
             node.execute(
