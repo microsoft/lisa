@@ -490,10 +490,10 @@ class DpdkTestpmd(Tool):
         self._testpmd_install_path: str = ""
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.find_partition_with_freespace(10, raise_error=False)
+            work_path = self.node.find_partition_with_freespace(20, raise_error=False)
             if not work_path:
-                self.node.features[Disk].add_data_disk(count=1, size_in_gb=20)
-                work_path = self.node.get_working_path_with_required_space(10)
+                self.node.features[Disk].add_data_disk(count=1, size_in_gb=100)
+                work_path = self.node.get_working_path_with_required_space(20)
             else:
                 self.node.tools[Chmod].chmod(work_path, "777", sudo=True)
             self.current_work_path = self.node.get_pure_path(work_path)
@@ -709,6 +709,8 @@ class DpdkTestpmd(Tool):
         else:
             build_flags += ["-Dbuildtype=debugoptimized"]
 
+        # shrink build
+        build_flags += ["-Ddisable_drivers=event/*,net/tap"]
         node.execute(
             f"meson {' '.join(build_flags)} build",
             shell=True,
