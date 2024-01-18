@@ -437,7 +437,7 @@ class Infiniband(Feature):
         node.execute(
             "/etc/init.d/openibd force-restart",
             expected_exit_code=0,
-            expected_exit_code_failure_message="SetupRDMA: failed to " "restart driver",
+            expected_exit_code_failure_message="SetupRDMA: failed to restart driver",
             sudo=True,
         )
 

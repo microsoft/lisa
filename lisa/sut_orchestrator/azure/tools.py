@@ -89,7 +89,7 @@ class Waagent(Tool):
         git.clone(self._src_url, cwd=self.node.working_path)
         if source_version:
             git.checkout(
-                ref=f"tags/{source_version}",
+                ref=source_version,
                 cwd=self.node.working_path.joinpath("WALinuxAgent"),
             )
         python_cmd, _ = self.get_python_cmd()
