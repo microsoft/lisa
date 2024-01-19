@@ -57,7 +57,6 @@ from lisa.tools import (
     Curl,
     Dmesg,
     Find,
-    Firewall,
     IpInfo,
     Ls,
     Lsblk,
@@ -724,17 +723,15 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
             sudo=True,
         )
 
-        # CBLMariner uses the Mellanox inbox driver instead of the Mellanox OFED driver,
-        # which requires a reboot of the VM for WALinuxAgent to enable RDMA.
-        if isinstance(self._node.os, CBLMariner):
-            self._node.reboot()
-        else:
-            waagent.restart()
+        # For systems using the Mellanox inbox driver, need to make sure
+        # the following kernel modules are loaded in order to successfully
+        # make WALinuxAgent enable RDMA support
+        modprobe = self._node.tools[Modprobe]
+        for module in ["ib_uverbs", "ib_umad", "rdma_ucm", "ib_ipoib"]:
+            if modprobe.module_exists(module):
+                modprobe.load(module)
 
-        # iptable settings do not persist across reboot in CBLMariner and thus
-        # disable the firewall here after rebooting
-        firewall = self._node.tools[Firewall]
-        firewall.stop()
+        waagent.restart()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)

@@ -12,7 +12,7 @@ from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
 from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
-from lisa.tools import Ls, Lspci, Make, Service
+from lisa.tools import Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
@@ -177,6 +177,9 @@ class Infiniband(Feature):
             self.install_ofed()
 
         node = self._node
+        # Turn off firewall
+        firewall = node.tools[Firewall]
+        firewall.stop()
         # Disable SELinux
         if not isinstance(node.os, CBLMariner):
             sed = node.tools[Sed]
