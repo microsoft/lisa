@@ -747,7 +747,7 @@ class RemoteNode(Node):
         # should be filtered from the stdout. E.g. image yaseensmarket1645449809728
         # wordpress-red-hat images.
         if not self.has_checked_bash_prompt:
-            process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}")
+            process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}", shell=True)
             result = process.wait_result(10)
             if result.stdout.endswith(f"{constants.LISA_TEST_FOR_BASH_PROMPT}"):
                 bash_prompt = result.stdout.replace(
