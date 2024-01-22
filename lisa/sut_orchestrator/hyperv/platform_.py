@@ -181,8 +181,6 @@ class HypervPlatform(Platform):
 
             vm_name = f"{vm_name_prefix}-{i}"
 
-            print(f"{i} {node_runbook} {node_space.core_count} {node_space.memory_mb}")
-
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
             node.name = vm_name
@@ -206,7 +204,10 @@ class HypervPlatform(Platform):
                 )
                 is_zipped = True
 
+            log.debug("Copying VHD to server")
             self.server_node.shell.copy(node_context.vhd_local_path, remote_path)
+            log.debug("Finished copying VHD to server")
+
             if is_zipped:
                 self._unzip_vhd(node_context, remote_path)
 
