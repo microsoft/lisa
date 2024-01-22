@@ -14,7 +14,7 @@ from lisa.tools import HyperV, PowerShell
 from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
-from .context import get_node_context
+from .context import NodeContext, get_node_context
 from .features import StartStop
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
@@ -231,8 +231,9 @@ class HypervPlatform(Platform):
             com1_pipe_name = f"{vm_name}-com1"
             com1_pipe_path = f"\\\\.\\pipe\\{com1_pipe_name}"
 
-            self.console_logger.start_logging(
-                com1_pipe_name, node_context.console_log_path
+            log.info(f"Serial logs at {node_context.console_log_path}")
+            node_context.serial_log_task_mgr = self.console_logger.start_logging(
+                com1_pipe_name, node_context.console_log_path, log
             )
 
             extra_args = {x.command: x.args for x in self._hyperv_runbook.extra_args}
@@ -266,6 +267,11 @@ class HypervPlatform(Platform):
         for node in environment.nodes.list():
             node_ctx = get_node_context(node)
             vm_name = node_ctx.vm_name
+
             log.debug(f"Deleting VM {vm_name}")
             hv.delete_vm(vm_name)
-            self.console_logger.stop_logging(f"{vm_name}-com1")
+
+            # The script that logs the serial console output exits gracefully
+            # on its own after the VM is deleted. So, wait for that to happen.
+            assert node_ctx.serial_log_task_mgr
+            node_ctx.serial_log_task_mgr.wait_for_all_workers()

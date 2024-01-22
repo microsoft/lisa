@@ -2,10 +2,14 @@
 # Licensed under the MIT license.
 
 import re
+from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
+from typing import Optional
 
 from lisa import RemoteNode, features
 from lisa.tools import PowerShell
+from lisa.util.logger import Logger
+from lisa.util.parallel import TaskManager, run_in_parallel_async
 
 from .context import get_node_context
 
@@ -34,33 +38,42 @@ class SerialConsole(features.SerialConsole):
 
 
 class SerialConsoleLogger:
-    TASK_PATH = "\\LISAHvPlatform\\"
+    SERIAL_LOGGER_SCRIPT = "serial_console_logger.ps1"
 
     def __init__(self, server_node: RemoteNode) -> None:
         self._server = server_node
-        local_script_path = Path(__file__).parent.joinpath("serial_console_helper.ps1")
-        self._script_path = server_node.working_path / "serial_console_helper.ps1"
+        local_script_path = Path(__file__).parent.joinpath(self.SERIAL_LOGGER_SCRIPT)
+        self._script_path = server_node.working_path / self.SERIAL_LOGGER_SCRIPT
         server_node.shell.copy(
             local_script_path,
             self._script_path,
         )
 
-    def start_logging(self, pipe_name: str, log_path: PureWindowsPath) -> None:
-        task_name = f"task_{pipe_name}"
-        self._server.tools[PowerShell].run_cmdlet(
-            f'$action = New-ScheduledTaskAction -Execute "powershell.exe" '
-            f'-Argument "-file {self._script_path} {pipe_name} {log_path}"; '
-            f"$task = New-ScheduledTask -Action $action; "
-            f"Register-ScheduledTask {task_name} -InputObject $task "
-            f"-TaskPath {self.TASK_PATH}; "
-            f"Start-ScheduledTask -TaskPath {self.TASK_PATH} -TaskName {task_name};",
-            force_run=True,
-        )
+    def start_logging(
+        self, pipe_name: str, log_path: PureWindowsPath, logger: Logger
+    ) -> TaskManager[None]:
+        def _ignore_result(result: None) -> None:
+            pass
 
-    def stop_logging(self, pipe_name: str) -> None:
-        task_name = f"task_{pipe_name}"
-        self._server.tools[PowerShell].run_cmdlet(
-            f"Unregister-ScheduledTask -TaskPath {self.TASK_PATH} "
-            f"-TaskName {task_name} -Confirm:$false",
-            force_run=True,
+        def _run_logger_script(
+            server: RemoteNode, script_path: str, pipe_name: str, out_file: str
+        ) -> None:
+            server.tools[PowerShell].run_cmdlet(
+                f'{script_path} "{pipe_name}" "{out_file}"',
+                timeout=36000,
+                fail_on_error=True,
+            )
+
+        return run_in_parallel_async(
+            [
+                partial(
+                    _run_logger_script,
+                    self._server,
+                    self._script_path,
+                    pipe_name,
+                    log_path,
+                )
+            ],
+            _ignore_result,
+            logger,
         )
