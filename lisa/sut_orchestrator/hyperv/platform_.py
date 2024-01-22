@@ -223,7 +223,9 @@ class HypervPlatform(Platform):
                 com1_pipe_name, node_context.console_log_path, log
             )
 
-            extra_args = {x.command: x.args for x in self._hyperv_runbook.extra_args}
+            extra_args = {
+                x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
+            }
 
             hv.create_vm(
                 name=vm_name,
