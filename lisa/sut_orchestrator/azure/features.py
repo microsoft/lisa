@@ -693,6 +693,9 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
             # Upgrade to v2.9.0.4 since the latest v2.9.1.1 version
             # does not successfully assign IP over the IB interface
             waagent.upgrade_from_source("v2.9.0.4")
+
+            # Mark the node as dirty
+            self._node.mark_dirty()
         # Update waagent.conf
         sed = self._node.tools[Sed]
         rdma_config = "OS.EnableRDMA=y"
