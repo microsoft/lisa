@@ -167,7 +167,6 @@ class HypervPlatform(Platform):
         vm_name_prefix = f"lisa-{test_suffix}"
 
         hv = self.server_node.tools[HyperV]
-        pwsh = self.server_node.tools[PowerShell]
         default_switch = hv.get_first_switch()
 
         if environment.runbook.nodes_requirement is None:
@@ -209,21 +208,7 @@ class HypervPlatform(Platform):
 
             self.server_node.shell.copy(node_context.vhd_local_path, remote_path)
             if is_zipped:
-                extraction_path = remote_path.parent.joinpath("extracted")
-                self.server_node.tools[PowerShell].run_cmdlet(
-                    f"Expand-Archive -Path {remote_path} "
-                    f"-DestinationPath {extraction_path} -Force"
-                )
-                extracted_vhd = self.server_node.tools[PowerShell].run_cmdlet(
-                    f"Get-ChildItem -Path {extraction_path} "
-                    f"| Select -First 1 -ExpandProperty Name"
-                )
-                extracted_vhd = str(extraction_path.joinpath(extracted_vhd))
-                pwsh.run_cmdlet(
-                    f"Copy-Item -Path {extracted_vhd} "
-                    f"-Destination {node_context.vhd_remote_path}"
-                )
-                self.server_node.shell.remove(remote_path)
+                self._unzip_vhd(node_context, remote_path)
 
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
@@ -258,6 +243,26 @@ class HypervPlatform(Platform):
             node.set_connection_info(
                 address=ip_addr, username=username, password=password
             )
+
+    def _unzip_vhd(
+        self, node_context: NodeContext, zipped_vhd_path: PureWindowsPath
+    ) -> None:
+        pwsh = self.server_node.tools[PowerShell]
+        extraction_path = zipped_vhd_path.parent.joinpath("extracted")
+        pwsh.run_cmdlet(
+            f"Expand-Archive -Path {zipped_vhd_path} "
+            f"-DestinationPath {extraction_path} -Force"
+        )
+        extracted_vhd = pwsh.run_cmdlet(
+            f"Get-ChildItem -Path {extraction_path} "
+            f"| Select -First 1 -ExpandProperty Name"
+        )
+        extracted_vhd = str(extraction_path.joinpath(extracted_vhd))
+        pwsh.run_cmdlet(
+            f"Copy-Item -Path {extracted_vhd} "
+            f"-Destination {node_context.vhd_remote_path}"
+        )
+        self.server_node.shell.remove(zipped_vhd_path)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
