@@ -56,7 +56,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             name="AzureMonitorLinuxAgent",
             publisher="Microsoft.Azure.Monitor",
             type_="AzureMonitorLinuxAgent",
-            type_handler_version="1.28",
+            type_handler_version="1.0",
             auto_upgrade_minor_version=True,
         )
 
