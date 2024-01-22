@@ -280,15 +280,11 @@ class Gpu(Feature):
             and self._node.os.get_kernel_information().hardware_platform
             == CpuArchitecture.X64
         ):
-            # Replace "5.15.131.1-2.cm2" with "5.15.131.1.2.cm2"
-            kernel_ver = self._node.os.get_kernel_information().raw_version.replace(
-                "-", "."
+            self._node.os.add_repository(
+                "https://raw.githubusercontent.com/microsoft/CBL-Mariner/2.0/"
+                "toolkit/docs/nvidia/mariner-nvidia.repo"
             )
-            self._node.os._install_package_from_url(
-                "https://packages.microsoft.com/cbl-mariner/2.0/prod/nvidia/x86_64/"
-                f"Packages/c/cuda-525.85.12-3_{kernel_ver}.x86_64.rpm",
-                signed=False,
-            )
+            self._node.os.install_packages("cuda", signed=False)
         else:
             raise SkippedException(
                 f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
