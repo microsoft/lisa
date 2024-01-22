@@ -1891,13 +1891,22 @@ def check_or_create_gallery_image(
                     "offer": gallery_image_offer,
                     "sku": gallery_image_sku,
                 },
+                "features": {
+                    
+                }
             }
+            image_post_body["features"] = [
+                {
+                    "name":"DiskControllerTypes",
+                    "value":"NVMe,SCSI"
+                }
+            ]
             if gallery_image_securitytype:
-                image_post_body["features"] = [
+                image_post_body["features"] += [
                     {
                         "name": "SecurityType",
                         "value": gallery_image_securitytype,
-                    }
+                    },
                 ]
             operation = compute_client.gallery_images.begin_create_or_update(
                 gallery_resource_group_name,
