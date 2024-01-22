@@ -210,6 +210,8 @@ class HypervPlatform(Platform):
             if is_zipped:
                 self._unzip_vhd(node_context, remote_path)
 
+            self._resize_vhd_if_needed(node_context.vhd_remote_path, node_runbook)
+
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
 
@@ -263,6 +265,17 @@ class HypervPlatform(Platform):
             f"-Destination {node_context.vhd_remote_path}"
         )
         self.server_node.shell.remove(zipped_vhd_path)
+
+    def _resize_vhd_if_needed(
+        self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
+    ) -> None:
+        pwsh = self.server_node.tools[PowerShell]
+        vhd_size = int(pwsh.run_cmdlet(f"(Get-VHD -Path {vhd_path}).Size"))
+        if vhd_size < node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024:
+            pwsh.run_cmdlet(
+                f"Resize-VHD -Path {vhd_path} "
+                f"-SizeBytes {node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024}"
+            )
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)

@@ -34,3 +34,4 @@ class HypervPlatformSchema:
 class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: str = ""
+    osdisk_size_in_gb: int = 30
