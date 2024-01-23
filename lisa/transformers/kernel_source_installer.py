@@ -503,6 +503,6 @@ def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
     if path:
         code_path = node.get_pure_path(path)
     else:
-        code_path = node.working_path / default_name
+        code_path = node.get_working_path_with_required_space(10).joinpath(default_name)
 
     return code_path
