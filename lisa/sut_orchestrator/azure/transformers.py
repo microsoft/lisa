@@ -482,6 +482,7 @@ class SigTransformerSchema(schema.Transformer):
             ),
         ),
     )
+    osdisk_size_in_gb: int = field(default=30)
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -503,6 +504,20 @@ class SharedGalleryImageTransformer(Transformer):
     def _output_names(self) -> List[str]:
         return [self.__sig_name]
 
+    def _prepare_virtual_machine(self, node: RemoteNode) -> None:
+        runbook: VhdTransformerSchema = self.runbook
+        if not runbook.public_address:
+            runbook.public_address = node.public_address
+
+        # prepare vm for exporting
+        wa = node.tools[Waagent]
+        node.execute("export HISTSIZE=0", shell=True)
+        wa.deprovision()
+
+        # stop the vm
+        startstop = node.features[StartStop]
+        startstop.stop()
+
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
@@ -520,6 +535,8 @@ class SharedGalleryImageTransformer(Transformer):
             )
             node = list(environment.nodes.list())[0]
             vm_resource_id = get_vm(platform=platform, node=node).id
+            assert isinstance(node, RemoteNode)
+            self._prepare_virtual_machine(node)
 
         else:
             vhd_path = get_deployable_vhd_path(
@@ -579,6 +596,10 @@ class SharedGalleryImageTransformer(Transformer):
             gallery_image_disk_controller=disk_controller_type,
         )
         if runbook.vm_resource_group:
+            if runbook.osdisk_size_in_gb:
+                osdisk_size_in_gb = runbook.osdisk_size_in_gb
+            else:
+                osdisk_size_in_gb = 30
             check_or_create_gallery_image_version_from_vm(
                 platform=platform,
                 gallery_resource_group_name=runbook.gallery_resource_group_name,
@@ -591,6 +612,7 @@ class SharedGalleryImageTransformer(Transformer):
                 host_caching_type=runbook.host_caching_type,
                 gallery_image_target_regions=runbook.gallery_image_location,
                 vm_resource_id=vm_resource_id,
+                size_in_gb=osdisk_size_in_gb,
             )
         else:
             check_or_create_gallery_image_version_from_vhd(
