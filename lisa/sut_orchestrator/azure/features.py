@@ -689,21 +689,51 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if len(devices) > 1:
             # upgrade waagent to latest version to resolve
             # multiple ib devices not getting ip address issue
-            waagent.upgrade_from_source()
+
+            # Upgrade to v2.9.0.4 since the latest v2.9.1.1 version
+            # does not successfully assign IP over the IB interface
+            waagent.upgrade_from_source("v2.9.0.4")
+
+            # Mark the node as dirty
+            self._node.mark_dirty()
         # Update waagent.conf
         sed = self._node.tools[Sed]
+        rdma_config = "OS.EnableRDMA=y"
+        waagent_config_path = "/etc/waagent.conf"
+
+        # CBLMariner's waagent configuration does not specify OS.EnableRDMA
+        # and thus need to manually append it for RDMA support
+        if isinstance(self._node.os, CBLMariner):
+            # Check whether OS.EnableRDMA=y is already specified
+            cat = self._node.tools[Cat]
+            if rdma_config not in cat.read(waagent_config_path, sudo=True):
+                sed.append(
+                    text=rdma_config,
+                    file=waagent_config_path,
+                    sudo=True,
+                )
+
         sed.substitute(
-            regexp="# OS.EnableRDMA=y",
-            replacement="OS.EnableRDMA=y",
-            file="/etc/waagent.conf",
+            regexp=f"# {rdma_config}",
+            replacement=rdma_config,
+            file=waagent_config_path,
             sudo=True,
         )
         sed.substitute(
             regexp="# AutoUpdate.Enabled=y",
             replacement="AutoUpdate.Enabled=y",
-            file="/etc/waagent.conf",
+            file=waagent_config_path,
             sudo=True,
         )
+
+        # For systems using the Mellanox inbox driver, need to make sure
+        # the following kernel modules are loaded in order to successfully
+        # make WALinuxAgent enable RDMA support
+        modprobe = self._node.tools[Modprobe]
+        for module in ["ib_uverbs", "ib_umad", "rdma_ucm", "ib_ipoib"]:
+            if modprobe.module_exists(module):
+                modprobe.load(module)
+
         waagent.restart()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:

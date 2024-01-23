@@ -11,7 +11,7 @@ from retry import retry
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -181,13 +181,14 @@ class Infiniband(Feature):
         firewall = node.tools[Firewall]
         firewall.stop()
         # Disable SELinux
-        sed = node.tools[Sed]
-        sed.substitute(
-            regexp="SELINUX=enforcing",
-            replacement="SELINUX=disabled",
-            file="/etc/selinux/config",
-            sudo=True,
-        )
+        if not isinstance(node.os, CBLMariner):
+            sed = node.tools[Sed]
+            sed.substitute(
+                regexp="SELINUX=enforcing",
+                replacement="SELINUX=disabled",
+                file="/etc/selinux/config",
+                sudo=True,
+            )
 
         # for non-hpc images, add net.ifnames=0 biosdevname=0 in boot kernel parameter
         # to make ib device name consistent across reboots
@@ -277,6 +278,17 @@ class Infiniband(Feature):
             "pciutils",
             "lsof",
         ]
+        cblmariner_required_packages = [
+            "rdma-core",
+            "rdma-core-devel",
+            "libibverbs",
+            "libibverbs-utils",
+            "build-essential",
+            "ucx",
+            "ucx-ib",
+            "ucx-rdmacm",
+            "ucx-cma",
+        ]
         if isinstance(node.os, CentOs):
             node.execute(
                 "yum install -y https://partnerpipelineshare.blob.core.windows.net"
@@ -324,11 +336,14 @@ class Infiniband(Feature):
                 if node.os.is_package_in_repo(package):
                     ubuntu_required_packages.append(package)
             node.os.install_packages(ubuntu_required_packages)
+        elif isinstance(node.os, CBLMariner):
+            node.os.install_packages(cblmariner_required_packages)
         else:
             raise UnsupportedDistroException(
                 node.os,
-                "Only CentOS 7.6-8.3 and Ubuntu 18.04-20.04 distros are "
-                "supported by the HCP team",
+                "Only CentOS 7.6-8.3, Ubuntu 18.04-22.04 distros are "
+                "supported by the HPC team. Also supports CBLMariner 2.0 "
+                "distro which uses the Mellanox inbox driver",
             )
 
     def install_ofed(self) -> None:
@@ -338,6 +353,10 @@ class Infiniband(Feature):
         kernel = node.tools[Uname].get_linux_information().kernel_version_raw
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
+
+        # CBLMariner uses the Mellanox inbox driver instead of the OFED driver
+        if isinstance(node.os, CBLMariner):
+            return
 
         # Install OFED
         ofed_version = self._get_ofed_version()
@@ -400,7 +419,8 @@ class Infiniband(Feature):
                 kernel_src = kernel_dirs[0]
             else:
                 raise UnsupportedKernelException(
-                    node.os, "Cannot install OFED drivers without kernel-devel package"
+                    node.os,
+                    "Cannot install OFED drivers without kernel-devel package",
                 )
 
             extra_params = (
@@ -544,8 +564,10 @@ class Infiniband(Feature):
             f"{self.resource_disk_path}/mvapich2-2.3.7-1"
         )
 
-        if isinstance(node.os, Ubuntu) or (
-            isinstance(node.os, Redhat) and node.os.information.version.major >= 9
+        if (
+            isinstance(node.os, Ubuntu)
+            or isinstance(node.os, CBLMariner)
+            or (isinstance(node.os, Redhat) and node.os.information.version.major >= 9)
         ):
             params = "--disable-fortran --disable-mcast"
         else:
