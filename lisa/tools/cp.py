@@ -63,7 +63,7 @@ class WindowsCp(Cp):
         src: PurePath,
         dest: PurePath,
         sudo: bool = False,
-        cwd: PurePath | None = None,
+        cwd: Optional[PurePath] = None,
         recur: bool = False,
         timeout: int = 600,
     ) -> None:
