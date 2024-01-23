@@ -1927,6 +1927,7 @@ def check_or_create_gallery_image_version_from_vm(
     host_caching_type: str,
     gallery_image_target_regions: List[str],
     vm_resource_id: str,
+    size_in_gb: int = 30,
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -1955,6 +1956,7 @@ def check_or_create_gallery_image_version_from_vm(
                     "source": {
                         "id": (vm_resource_id),
                     },
+                    "os_disk_image": {"size_in_gb": size_in_gb},
                 },
             }
             operation = compute_client.gallery_image_versions.begin_create_or_update(
