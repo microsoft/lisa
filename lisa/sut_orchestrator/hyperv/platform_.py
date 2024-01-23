@@ -10,7 +10,7 @@ from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
-from lisa.tools import HyperV, PowerShell
+from lisa.tools import Cp, HyperV, Ls, PowerShell, Unzip
 from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
@@ -252,21 +252,18 @@ class HypervPlatform(Platform):
     def _unzip_vhd(
         self, node_context: NodeContext, zipped_vhd_path: PureWindowsPath
     ) -> None:
-        pwsh = self.server_node.tools[PowerShell]
         extraction_path = zipped_vhd_path.parent.joinpath("extracted")
-        pwsh.run_cmdlet(
-            f"Expand-Archive -Path {zipped_vhd_path} "
-            f"-DestinationPath {extraction_path} -Force"
+        self.server_node.tools[Unzip].extract(
+            str(zipped_vhd_path), str(extraction_path)
         )
-        extracted_vhd = pwsh.run_cmdlet(
-            f"Get-ChildItem -Path {extraction_path} "
-            f"| Select -First 1 -ExpandProperty Name"
-        )
-        extracted_vhd = str(extraction_path.joinpath(extracted_vhd))
-        pwsh.run_cmdlet(
-            f"Copy-Item -Path {extracted_vhd} "
-            f"-Destination {node_context.vhd_remote_path}"
-        )
+
+        extracted_files = self.server_node.tools[Ls].list(str(extraction_path))
+        assert len(extracted_files) == 1
+
+        extracted_vhd = PureWindowsPath(extracted_files[0])
+        extracted_vhd = extraction_path.joinpath(extracted_vhd)
+
+        self.server_node.tools[Cp].copy(extracted_vhd, node_context.vhd_remote_path)
         self.server_node.shell.remove(zipped_vhd_path)
 
     def _resize_vhd_if_needed(
