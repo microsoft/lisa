@@ -482,6 +482,7 @@ class SigTransformerSchema(schema.Transformer):
             ),
         ),
     )
+    osdisk_size_in_gb: int = field(default=30)
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -503,6 +504,16 @@ class SharedGalleryImageTransformer(Transformer):
     def _output_names(self) -> List[str]:
         return [self.__sig_name]
 
+    def _prepare_virtual_machine(self, node: RemoteNode) -> None:
+        # prepare vm for exporting
+        wa = node.tools[Waagent]
+        node.execute("export HISTSIZE=0", shell=True)
+        wa.deprovision()
+
+        # stop the vm
+        startstop = node.features[StartStop]
+        startstop.stop()
+
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
@@ -519,7 +530,18 @@ class SharedGalleryImageTransformer(Transformer):
                 log=self._log,
             )
             node = list(environment.nodes.list())[0]
-            vm_resource_id = get_vm(platform=platform, node=node).id
+            assert isinstance(node, RemoteNode)
+            vm = get_vm(platform=platform, node=node)
+            vm_resource_id = vm.id
+            vm_name = vm.name
+            compute_client = get_compute_client(platform=platform)
+            # stop VM before generalizing
+            node.features[StartStop].stop()
+            # generalize the VM with the Azure SDK, stamps it so the SIG image is
+            # correctly registered as generalized.
+            compute_client.virtual_machines.generalize(
+                resource_group_name=runbook.vm_resource_group, vm_name=vm_name
+            )
 
         else:
             vhd_path = get_deployable_vhd_path(
@@ -564,21 +586,29 @@ class SharedGalleryImageTransformer(Transformer):
 
         check_or_create_gallery_image(
             platform,
-            runbook.gallery_resource_group_name,
-            runbook.gallery_name,
-            runbook.gallery_image_name,
-            image_location,
-            gallery_image_publisher,
-            gallery_image_offer,
-            gallery_image_sku,
-            runbook.gallery_image_ostype,
-            runbook.gallery_image_osstate,
-            runbook.gallery_image_hyperv_generation,
-            runbook.gallery_image_architecture,
-            runbook.gallery_image_securitytype,
+            gallery_resource_group_name=runbook.gallery_resource_group_name,
+            gallery_name=runbook.gallery_name,
+            gallery_image_name=runbook.gallery_image_name,
+            gallery_image_location=image_location,
+            gallery_image_publisher=gallery_image_publisher,
+            gallery_image_offer=gallery_image_offer,
+            gallery_image_sku=gallery_image_sku,
+            gallery_image_ostype=runbook.gallery_image_ostype,
+            gallery_image_osstate=runbook.gallery_image_osstate,
+            gallery_image_hyperv_generation=runbook.gallery_image_hyperv_generation,
+            gallery_image_architecture=runbook.gallery_image_architecture,
+            gallery_image_securitytype=runbook.gallery_image_securitytype,
             gallery_image_disk_controller=disk_controller_type,
         )
         if runbook.vm_resource_group:
+            if runbook.osdisk_size_in_gb:
+                osdisk_size_in_gb = runbook.osdisk_size_in_gb
+            else:
+                osdisk_size_in_gb = 30
+            target_regions_str = str(" ".join(runbook.gallery_image_location))
+            node.log.debug(
+                f"SIG_IMAGE: region: {image_location} target_regions: {target_regions_str}"
+            )
             check_or_create_gallery_image_version_from_vm(
                 platform=platform,
                 gallery_resource_group_name=runbook.gallery_resource_group_name,
@@ -591,6 +621,7 @@ class SharedGalleryImageTransformer(Transformer):
                 host_caching_type=runbook.host_caching_type,
                 gallery_image_target_regions=runbook.gallery_image_location,
                 vm_resource_id=vm_resource_id,
+                size_in_gb=osdisk_size_in_gb,
             )
         else:
             check_or_create_gallery_image_version_from_vhd(
