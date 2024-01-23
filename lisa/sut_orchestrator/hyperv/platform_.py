@@ -163,14 +163,18 @@ class HypervPlatform(Platform):
         self._deploy_nodes(environment, log)
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
+        if environment.runbook.nodes_requirement is None:
+            return  # nothing to deploy?
+
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
 
         hv = self.server_node.tools[HyperV]
         default_switch = hv.get_first_switch()
 
-        if environment.runbook.nodes_requirement is None:
-            return  # nothing to deploy?
+        extra_args = {
+            x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
+        }
 
         self.console_logger = SerialConsoleLogger(self.server_node)
 
@@ -183,6 +187,7 @@ class HypervPlatform(Platform):
 
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
+
             node.name = vm_name
 
             node_context = get_node_context(node)
@@ -223,10 +228,6 @@ class HypervPlatform(Platform):
             node_context.serial_log_task_mgr = self.console_logger.start_logging(
                 com1_pipe_name, node_context.console_log_path, log
             )
-
-            extra_args = {
-                x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
-            }
 
             hv.create_vm(
                 name=vm_name,
