@@ -190,7 +190,7 @@ class HypervPlatform(Platform):
             node_context.server_node = self.server_node
             node_context.vhd_local_path = PurePosixPath(node_runbook.vhd)
             node_context.vhd_remote_path = PureWindowsPath(
-                f"C:/Users/Administrator/lisa_test/{vm_name}-vhd.vhdx"
+                self.server_node.working_path / f"{vm_name}-vhd.vhdx"
             )
             node_context.console_log_path = PureWindowsPath(
                 self.server_node.working_path / f"{vm_name}-console.log"
@@ -200,7 +200,7 @@ class HypervPlatform(Platform):
             is_zipped = False
             if node_context.vhd_local_path.suffix == ".zip":
                 remote_path = PureWindowsPath(
-                    f"C:/Users/Administrator/lisa_test/{vm_name}-vhd.zip"
+                    self.server_node.working_path / f"{vm_name}-vhd.zip"
                 )
                 is_zipped = True
 
