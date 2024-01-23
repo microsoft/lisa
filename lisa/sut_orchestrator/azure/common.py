@@ -1868,7 +1868,7 @@ def check_or_create_gallery_image(
     gallery_image_hyperv_generation: int,
     gallery_image_architecture: str,
     gallery_image_securitytype: str,
-    gallery_image_disk_controller:str="SCSI"
+    gallery_image_disk_controller: str = "SCSI",
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -1952,11 +1952,8 @@ def check_or_create_gallery_image_version_from_vm(
                 "location": gallery_image_location,
                 "publishing_profile": {"target_regions": target_regions},
                 "storageProfile": {
-                    "osDiskImage": {
-                        "hostCaching": host_caching_type,
-                        "source": {
-                            "id": (vm_resource_id),
-                        },
+                    "source": {
+                        "id": (vm_resource_id),
                     },
                 },
             }
