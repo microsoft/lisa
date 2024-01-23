@@ -576,7 +576,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_hyperv_generation,
             runbook.gallery_image_architecture,
             runbook.gallery_image_securitytype,
-            disk_controller_type=disk_controller_type,
+            gallery_image_disk_controller=disk_controller_type,
         )
         if runbook.vm_resource_group:
             check_or_create_gallery_image_version_from_vm(
