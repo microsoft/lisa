@@ -710,7 +710,11 @@ class DpdkTestpmd(Tool):
             build_flags += ["-Dbuildtype=debugoptimized"]
 
         # shrink build
-        build_flags += ["-Ddisable_drivers=event/*,net/tap"]
+        build_flags += [
+            "-Denable_drivers=net/mlx*,net/mana",
+            "-Denable_apps=app/test-pmd",
+        ]
+
         node.execute(
             f"meson setup {' '.join(build_flags)} build",
             shell=True,
@@ -723,6 +727,7 @@ class DpdkTestpmd(Tool):
             ),
         )
         self.dpdk_build_path = self.dpdk_path.joinpath("build")
+        node.log.debug(f"Building DPDK in dir: {self.dpdk_build_path}")
         node.execute(
             "ninja",
             cwd=self.dpdk_build_path,
@@ -743,6 +748,7 @@ class DpdkTestpmd(Tool):
                 "ninja install failed for dpdk binaries."
             ),
         )
+
         node.execute(
             "ldconfig",
             cwd=self.dpdk_build_path,
