@@ -4,7 +4,6 @@
 import re
 from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
-from typing import Optional
 
 from lisa import RemoteNode, features
 from lisa.tools import PowerShell
