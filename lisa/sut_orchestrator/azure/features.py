@@ -1303,6 +1303,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             "os_disk_type",
         )
         result.merge(
+            search_space.check_countspace(self.os_disk_size, capability.os_disk_size),
+            "os_disk_size",
+        )
+        result.merge(
             search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
             "disk_type",
         )
@@ -1403,6 +1407,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         else:
             raise LisaException(
                 f"unknown disk type on capability, type: {cap_disk_type}"
+            )
+
+        if self.os_disk_size is not None or capability.os_disk_size is not None:
+            value.os_disk_size = getattr(search_space, f"{method.value}_countspace")(
+                self.os_disk_size, capability.os_disk_size
             )
 
         value.data_disk_type = getattr(
