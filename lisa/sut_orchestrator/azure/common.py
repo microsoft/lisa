@@ -1966,7 +1966,7 @@ def check_or_create_gallery_image(
                 "features": {},
             }
             image_post_body["features"] = [
-                {"name": "DiskControllerTypes", "value": "NVMe,SCSI"}
+                {"name": "DiskControllerTypes", "value": gallery_image_disk_controller}
             ]
             if gallery_image_securitytype:
                 image_post_body["features"] += [
@@ -1986,64 +1986,6 @@ def check_or_create_gallery_image(
             raise LisaException(ex)
 
 
-def check_or_create_gallery_image_version_from_vm(
-    platform: "AzurePlatform",
-    gallery_resource_group_name: str,
-    gallery_name: str,
-    gallery_image_name: str,
-    gallery_image_version: str,
-    gallery_image_location: str,
-    regional_replica_count: int,
-    storage_account_type: str,
-    host_caching_type: str,
-    gallery_image_target_regions: List[str],
-    vm_resource_id: str,
-    size_in_gb: int = 30,
-) -> None:
-    try:
-        compute_client = get_compute_client(platform)
-        compute_client.gallery_image_versions.get(
-            gallery_resource_group_name,
-            gallery_name,
-            gallery_image_name,
-            gallery_image_version,
-        )
-    except Exception as ex:
-        # create the gallery if specified gallery name doesn't exist
-        if "ResourceNotFound" in str(ex):
-            target_regions: List[Dict[str, str]] = []
-            for target_region in gallery_image_target_regions:
-                target_regions.append(
-                    {
-                        "name": target_region,
-                        "regional_replica_count": str(regional_replica_count),
-                        "storage_account_type": storage_account_type,
-                        "exclude_from_latest": False,
-                    }
-                )
-            image_version_post_body = {
-                "location": gallery_image_location,
-                "publishing_profile": {"target_regions": target_regions},
-                "storageProfile": {
-                    "source": {
-                        "id": (vm_resource_id),
-                    },
-                    "os_disk_image": {"size_in_gb": size_in_gb},
-                },
-                "osState": "Generalized",
-            }
-            operation = compute_client.gallery_image_versions.begin_create_or_update(
-                gallery_resource_group_name,
-                gallery_name,
-                gallery_image_name,
-                gallery_image_version,
-                image_version_post_body,
-            )
-            wait_operation(operation)
-        else:
-            raise LisaException(ex)
-
-
 def check_or_create_gallery_image_version_from_vhd(
     platform: "AzurePlatform",
     gallery_resource_group_name: str,
@@ -2054,11 +1996,23 @@ def check_or_create_gallery_image_version_from_vhd(
     regional_replica_count: int,
     storage_account_type: str,
     host_caching_type: str,
-    vhd_path: str,
-    vhd_resource_group_name: str,
-    vhd_storage_account_name: str,
     gallery_image_target_regions: List[str],
+    vhd_path: str,
+    vhd_resource_group_name: str = "",
+    vhd_storage_account_name: str = "",
 ) -> None:
+    if vhd_resource_group_name and vhd_storage_account_name:
+        vhd_source_info = {
+            "uri": vhd_path,
+            "id": (
+                f"/subscriptions/{platform.subscription_id}/"
+                f"resourceGroups/{vhd_resource_group_name}"
+                "/providers/Microsoft.Storage/storageAccounts/"
+                f"{vhd_storage_account_name}"
+            ),
+        }
+    else:
+        vhd_source_info = {"id": vhd_path}
     try:
         compute_client = get_compute_client(platform)
         compute_client.gallery_image_versions.get(
@@ -2085,15 +2039,7 @@ def check_or_create_gallery_image_version_from_vhd(
                 "storageProfile": {
                     "osDiskImage": {
                         "hostCaching": host_caching_type,
-                        "source": {
-                            "uri": vhd_path,
-                            "id": (
-                                f"/subscriptions/{platform.subscription_id}/"
-                                f"resourceGroups/{vhd_resource_group_name}"
-                                "/providers/Microsoft.Storage/storageAccounts/"
-                                f"{vhd_storage_account_name}"
-                            ),
-                        },
+                        "source": vhd_source_info,
                     },
                 },
             }
