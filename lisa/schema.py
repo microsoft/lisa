@@ -425,7 +425,7 @@ disk_type_priority: List[DiskType] = [
 
 class DiskControllerType(str, Enum):
     SCSI = "SCSI"
-    NVME = "NVMe"
+    NVME = "NVMe,SCSI"
 
 
 disk_controller_type_priority: List[DiskControllerType] = [
