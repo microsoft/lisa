@@ -425,14 +425,12 @@ disk_type_priority: List[DiskType] = [
 
 class DiskControllerType(str, Enum):
     SCSI = "SCSI"
-    NVME = "NVMe"
-    SCSI_NVME = "SCSI,NVMe"
+    NVME = "SCSI,NVMe"
 
 
 disk_controller_type_priority: List[DiskControllerType] = [
     DiskControllerType.SCSI,
     DiskControllerType.NVME,
-    DiskControllerType.SCSI_NVME,
 ]
 
 
@@ -526,7 +524,6 @@ class DiskOptionSettings(FeatureSettings):
             items=[
                 DiskControllerType.SCSI,
                 DiskControllerType.NVME,
-                DiskControllerType.SCSI_NVME,
             ],
         ),
         metadata=field_metadata(
@@ -539,7 +536,6 @@ class DiskOptionSettings(FeatureSettings):
                     items=[
                         DiskControllerType.SCSI,
                         DiskControllerType.NVME,
-                        DiskControllerType.SCSI_NVME,
                     ]
                 )
             )
