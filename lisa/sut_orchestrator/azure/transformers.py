@@ -501,10 +501,6 @@ class SharedGalleryImageTransformer(Transformer):
         return [self.__sig_name]
 
     def _prepare_virtual_machine(self, node: RemoteNode) -> None:
-        runbook: VhdTransformerSchema = self.runbook
-        if not runbook.public_address:
-            runbook.public_address = node.public_address
-
         # prepare vm for exporting
         wa = node.tools[Waagent]
         node.execute("export HISTSIZE=0", shell=True)
