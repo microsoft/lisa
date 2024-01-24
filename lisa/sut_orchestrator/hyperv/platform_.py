@@ -15,7 +15,6 @@ from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
 from .context import NodeContext, get_node_context
-from .features import StartStop
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
 
@@ -39,7 +38,7 @@ class HypervPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole]
+        return [SerialConsole]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)

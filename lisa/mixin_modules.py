@@ -63,7 +63,6 @@ if platform.system() == "Linux":
         print(f"libvirt package is not installed. [{e}]")
 
 try:
-    import lisa.sut_orchestrator.hyperv.features  # noqa: F401
     import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
     import lisa.sut_orchestrator.hyperv.schema  # noqa: F401
 except ModuleNotFoundError as e:
