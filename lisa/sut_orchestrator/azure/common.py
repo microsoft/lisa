@@ -2029,6 +2029,7 @@ def check_or_create_gallery_image_version_from_vm(
                     },
                     "os_disk_image": {"size_in_gb": size_in_gb},
                 },
+                "osState": "Generalized",
             }
             operation = compute_client.gallery_image_versions.begin_create_or_update(
                 gallery_resource_group_name,
