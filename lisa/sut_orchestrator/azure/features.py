@@ -1610,7 +1610,9 @@ class Disk(AzureFeatureMixin, features.Disk):
     def get_hardware_disk_controller_type(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         vm = get_vm(azure_platform, self._node)
-        return vm.storage_profile.disk_controller_type
+        if vm.storage_profile.disk_controller_type == 'SCSI,NVMe':
+            return "NVMe"
+        return 
 
     def get_raw_data_disks(self) -> List[str]:
         # Handle BSD case
