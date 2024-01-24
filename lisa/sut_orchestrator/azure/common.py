@@ -2018,6 +2018,7 @@ def check_or_create_gallery_image_version_from_vm(
                         "name": target_region,
                         "regional_replica_count": str(regional_replica_count),
                         "storage_account_type": storage_account_type,
+                        "exclude_from_latest": False,
                     }
                 )
             image_version_post_body = {
