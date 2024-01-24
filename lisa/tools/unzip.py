@@ -6,7 +6,7 @@ from typing import Optional, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.tools.powershell import PowerShell
+from lisa.tools import Mkdir, PowerShell
 
 
 class Unzip(Tool):
@@ -58,7 +58,7 @@ class WindowsUnzip(Unzip):
         return True
 
     def extract(self, file: str, dest_dir: str, sudo: bool = False) -> None:
-        self.node.tools[PowerShell].run_cmdlet(f"mkdir -p {dest_dir} -Force")
+        self.node.tools[Mkdir].create_directory(dest_dir, sudo=sudo)
         self.node.tools[PowerShell].run_cmdlet(
             f"Expand-Archive -Path {file} -DestinationPath {dest_dir} -Force",
             sudo=sudo,
