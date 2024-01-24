@@ -4,6 +4,7 @@
 import re
 from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
+from typing import Optional
 
 from lisa import RemoteNode, features
 from lisa.tools import PowerShell
@@ -14,7 +15,7 @@ from .context import get_node_context
 
 
 class SerialConsole(features.SerialConsole):
-    def _get_console_log(self, saved_path: Path | None) -> bytes:
+    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         node = self._node
         node_ctx = get_node_context(node)
 
