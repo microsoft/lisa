@@ -582,18 +582,18 @@ class SharedGalleryImageTransformer(Transformer):
 
         check_or_create_gallery_image(
             platform,
-            runbook.gallery_resource_group_name,
-            runbook.gallery_name,
-            runbook.gallery_image_name,
-            image_location,
-            gallery_image_publisher,
-            gallery_image_offer,
-            gallery_image_sku,
-            runbook.gallery_image_ostype,
-            runbook.gallery_image_osstate,
-            runbook.gallery_image_hyperv_generation,
-            runbook.gallery_image_architecture,
-            runbook.gallery_image_securitytype,
+            gallery_resource_group_name=runbook.gallery_resource_group_name,
+            gallery_name=runbook.gallery_name,
+            gallery_image_name=runbook.gallery_image_name,
+            gallery_image_location=image_location,
+            gallery_image_publisher=gallery_image_publisher,
+            gallery_image_offer=gallery_image_offer,
+            gallery_image_sku=gallery_image_sku,
+            gallery_image_ostype=runbook.gallery_image_ostype,
+            gallery_image_osstate=runbook.gallery_image_osstate,
+            gallery_image_hyperv_generation=runbook.gallery_image_hyperv_generation,
+            gallery_image_architecture=runbook.gallery_image_architecture,
+            gallery_image_securitytype=runbook.gallery_image_securitytype,
             gallery_image_disk_controller=disk_controller_type,
         )
         if runbook.vm_resource_group:
@@ -601,6 +601,10 @@ class SharedGalleryImageTransformer(Transformer):
                 osdisk_size_in_gb = runbook.osdisk_size_in_gb
             else:
                 osdisk_size_in_gb = 30
+            target_regions_str = str(" ".join(runbook.gallery_image_location))
+            node.log.debug(
+                f"SIG_IMAGE: region: {image_location} target_regions: {target_regions_str}"
+            )
             check_or_create_gallery_image_version_from_vm(
                 platform=platform,
                 gallery_resource_group_name=runbook.gallery_resource_group_name,
