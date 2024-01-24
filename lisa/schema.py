@@ -426,11 +426,13 @@ disk_type_priority: List[DiskType] = [
 class DiskControllerType(str, Enum):
     SCSI = "SCSI"
     NVME = "NVMe"
+    SCSI_NVME = "SCSI,NVMe"
 
 
 disk_controller_type_priority: List[DiskControllerType] = [
     DiskControllerType.SCSI,
     DiskControllerType.NVME,
+    DiskControllerType.SCSI_NVME,
 ]
 
 
@@ -515,7 +517,11 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[DiskControllerType.SCSI, DiskControllerType.NVME],
+            items=[
+                DiskControllerType.SCSI,
+                DiskControllerType.NVME,
+                DiskControllerType.SCSI_NVME,
+            ],
         ),
         metadata=field_metadata(
             decoder=lambda input: (
@@ -524,7 +530,11 @@ class DiskOptionSettings(FeatureSettings):
                 )
                 if str(input).strip()
                 else search_space.SetSpace(
-                    items=[DiskControllerType.SCSI, DiskControllerType.NVME]
+                    items=[
+                        DiskControllerType.SCSI,
+                        DiskControllerType.NVME,
+                        DiskControllerType.SCSI_NVME,
+                    ]
                 )
             )
         ),
