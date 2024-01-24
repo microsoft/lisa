@@ -330,15 +330,6 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def convert_vhd(self, src: str, dest: str) -> None:
-        """
-        Convert VHD to VHDX or vice versa
-        """
-        self.node.tools[PowerShell].run_cmdlet(
-            f"Convert-VHD -Path {src} -DestinationPath {dest}",
-            force_run=True,
-        )
-
     def _check_exists(self) -> bool:
         try:
             self.node.tools[PowerShell].run_cmdlet(
