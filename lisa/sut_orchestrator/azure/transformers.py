@@ -526,9 +526,18 @@ class SharedGalleryImageTransformer(Transformer):
                 log=self._log,
             )
             node = list(environment.nodes.list())[0]
-            vm_resource_id = get_vm(platform=platform, node=node).id
             assert isinstance(node, RemoteNode)
-            self._prepare_virtual_machine(node)
+            vm = get_vm(platform=platform, node=node)
+            vm_resource_id = vm.id
+            vm_name = vm.name
+            compute_client = get_compute_client(platform=platform)
+            # stop VM before generalizing
+            node.features[StartStop].stop()
+            # generalize the VM with the Azure SDK, stamps it so the SIG image is
+            # correctly registered as generalized.
+            compute_client.virtual_machines.generalize(
+                resource_group_name=runbook.vm_resource_group, vm_name=vm_name
+            )
 
         else:
             vhd_path = get_deployable_vhd_path(
