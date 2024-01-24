@@ -1966,7 +1966,7 @@ def check_or_create_gallery_image(
                 "features": {},
             }
             image_post_body["features"] = [
-                {"name": "DiskControllerTypes", "value": "NVMe,SCSI"}
+                {"name": "DiskControllerTypes", "value": gallery_image_disk_controller}
             ]
             if gallery_image_securitytype:
                 image_post_body["features"] += [
