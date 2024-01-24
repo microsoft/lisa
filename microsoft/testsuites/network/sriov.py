@@ -35,6 +35,8 @@ from lisa.tools import (
     Iperf3,
     Journalctl,
     Lscpu,
+    Sed,
+    Service,
 )
 from lisa.util import (
     LisaException,
@@ -663,6 +665,55 @@ class Sriov(TestSuite):
         dest_cat = client_node.tools[Cat]
         iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).does_not_contain("error")
+
+    @TestCaseMetadata(
+        description="""
+        This test case verifies that irq rebalance is running.
+        When irqbalance is in debug mode, it will log “Selecting irq xxx for
+        rebalancing” when it selects an irq for rebalancing. We expect to see
+        this irq rebalancing when VM is under heavy network load.
+
+        An issue was previously seen in irqbalance 1.8.0-1build1 on Ubuntu.
+        When IRQ rebalance is not running, we expect to see poor network
+        performance and high package loss. Contact the distro publisher if
+        this is the case.
+
+        Steps,
+        1. Set irqbalance logging level to debug.
+        2. Generate some network traffic.
+        3. Check check logs for “Selecting irq xxx for rebalancing”.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=4,
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_irqbalance(self, environment: Environment) -> None:
+        server_node = cast(RemoteNode, environment.nodes[0])
+        client_node = cast(RemoteNode, environment.nodes[1])
+
+        server_node.tools[Sed].append(
+            "IRQBALANCE_ARGS='--debug'", "/etc/default/irqbalance", True
+        )
+        server_node.tools[Service].restart_service("irqbalance")
+
+        server_iperf3 = server_node.tools[Iperf3]
+        client_iperf3 = client_node.tools[Iperf3]
+
+        server_iperf3.run_as_server_async()
+        client_iperf3.run_as_client(
+            server_ip=server_node.internal_address,
+            run_time_seconds=240,
+            parallel_number=128,
+            client_ip=client_node.internal_address,
+        )
+
+        assert re.search(
+            "Selecting irq [0-9]+ for rebalancing",
+            server_node.tools[Journalctl].logs_for_unit("irqbalance"),
+        ), "irqbalance is not rebalancing irqs"
 
     @TestCaseMetadata(
         description="""
