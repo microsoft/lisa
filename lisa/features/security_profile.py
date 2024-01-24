@@ -17,6 +17,7 @@ FEATURE_NAME_SECURITY_PROFILE = "Security_Profile"
 class SecurityProfileType(str, Enum):
     Standard = constants.SECURITY_PROFILE_NONE
     CVM = constants.SECURITY_PROFILE_CVM
+    Stateless = constants.SECURITY_PROFILE_STATELESS
     SecureBoot = constants.SECURITY_PROFILE_BOOT
 
 
@@ -24,6 +25,7 @@ security_profile_priority: List[SecurityProfileType] = [
     SecurityProfileType.Standard,
     SecurityProfileType.SecureBoot,
     SecurityProfileType.CVM,
+    SecurityProfileType.Stateless,
 ]
 
 
@@ -40,6 +42,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 SecurityProfileType.Standard,
                 SecurityProfileType.SecureBoot,
                 SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
             ],
         ),
         metadata=field_metadata(
@@ -53,6 +56,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                         SecurityProfileType.Standard,
                         SecurityProfileType.SecureBoot,
                         SecurityProfileType.CVM,
+                        SecurityProfileType.Stateless,
                     ]
                 )
             )
@@ -64,7 +68,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
         return hash(self._get_key())
 
     def _get_key(self) -> str:
-        return f"{self.type}/{self.security_profile}"
+        return f"{self.type}/{self.security_profile}/{self.encrypt_disk}"
 
     def _call_requirement_method(
         self, method: search_space.RequirementMethod, capability: Any

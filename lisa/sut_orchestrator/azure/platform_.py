@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
+import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -50,17 +51,20 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.features import Disk
+from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import PATTERN_GUID, add_secret
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
+    KernelPanicException,
     LisaException,
     LisaTimeoutException,
     NotMeetRequirementException,
     ResourceAwaitableException,
     SkippedException,
+    check_panic,
     constants,
     dump_file,
     field_metadata,
@@ -87,6 +91,7 @@ from .common import (
     AZURE_SHARED_RG_NAME,
     AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
+    SAS_URL_PATTERN,
     AzureArmParameter,
     AzureNodeArmParameter,
     AzureNodeSchema,
@@ -283,9 +288,15 @@ class AzurePlatformSchema:
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
         default=None
     )
-    use_availability_sets: Optional[bool] = field(default=None)
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
+    availability_zones: Optional[List[int]] = field(default=None)
+    availability_type: str = field(
+        default=AvailabilityType.Default.value,
+        metadata=field_metadata(
+            validate=validate.OneOf([type.value for type in AvailabilityType])
+        ),
+    )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     locations: Optional[Union[str, List[str]]] = field(default=None)
     use_public_address: bool = field(default=True)
@@ -451,9 +462,12 @@ class AzurePlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
+        # This list also determines the order of calls to on_before_deploy
+        # Hibernation depends on Availability
         return [
             features.Disk,
             features.AzureExtension,
+            features.AzureFileShare,
             features.Gpu,
             features.Nvme,
             features.NestedVirtualization,
@@ -464,14 +478,15 @@ class AzurePlatform(Platform):
             features.Resize,
             features.StartStop,
             features.IaaS,
-            features.Infiniband,
-            features.Hibernation,
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
             features.VhdGeneration,
             features.Architecture,
             features.Nfs,
+            features.Availability,
+            features.Infiniband,
+            features.Hibernation,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -667,8 +682,12 @@ class AzurePlatform(Platform):
             else:
                 log.debug("not wait deleting")
 
-    def _save_console_log(
-        self, resource_group_name: str, environment: Environment, log: Logger
+    def _save_console_log_and_check_panic(
+        self,
+        resource_group_name: str,
+        environment: Environment,
+        log: Logger,
+        check_serial_console: bool = False,
     ) -> None:
         compute_client = get_compute_client(self)
         vms = compute_client.virtual_machines.list(resource_group_name)
@@ -685,6 +704,8 @@ class AzurePlatform(Platform):
             )
             log_file_name = saved_path / f"{vm.name}_serial_console.log"
             log_file_name.write_bytes(log_response_content)
+            if check_serial_console is True:
+                check_panic(log_response_content.decode("utf-8"), "provision", log)
 
     def _delete_boot_diagnostic_container(
         self, resource_group_name: str, log: Logger
@@ -735,7 +756,10 @@ class AzurePlatform(Platform):
                     )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
+        platform_runbook = cast(schema.Platform, self.runbook)
         information: Dict[str, Any] = {}
+        if platform_runbook.capture_vm_information is False:
+            return information
         for key, method in self._environment_information_hooks.items():
             node.log.debug(f"detecting {key} ...")
             try:
@@ -1129,11 +1153,20 @@ class AzurePlatform(Platform):
         # construct parameters
         arm_parameters = AzureArmParameter()
         copied_fields = [
-            "availability_set_tags",
-            "availability_set_properties",
             "vm_tags",
         ]
+        availability_copied_fields = [
+            "availability_set_tags",
+            "availability_set_properties",
+            "availability_zones",
+            "availability_type",
+        ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
+        set_filtered_fields(
+            self._azure_runbook,
+            arm_parameters.availability_options,
+            availability_copied_fields,
+        )
 
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
@@ -1188,6 +1221,14 @@ class AzurePlatform(Platform):
             node_arm_parameters = self._create_node_arm_parameters(node.capability, log)
             nodes_parameters.append(node_arm_parameters)
 
+            arm_parameters.is_ultradisk = any(
+                [
+                    x
+                    for x in nodes_parameters
+                    if x.data_disk_type
+                    == features.get_azure_disk_type(schema.DiskType.UltraSSDLRS)
+                ]
+            )
             # Set data disk array
             arm_parameters.data_disks = self._generate_data_disks(
                 node, node_arm_parameters
@@ -1242,16 +1283,6 @@ class AzurePlatform(Platform):
             self.subscription_id, arm_parameters.location, "t"
         )
 
-        if self._azure_runbook.use_availability_sets is None:
-            arm_parameters.use_availability_sets = bool(
-                self._azure_runbook.availability_set_properties
-                or self._azure_runbook.availability_set_tags
-            )
-        else:
-            arm_parameters.use_availability_sets = (
-                self._azure_runbook.use_availability_sets
-            )
-
         # In Azure, each VM should have only one nic in one subnet. So calculate
         # the max nic count, and set to subnet count.
         arm_parameters.subnet_count = max(x.nic_count for x in arm_parameters.nodes)
@@ -1268,14 +1299,18 @@ class AzurePlatform(Platform):
         )
 
         # change deployment for each feature.
-        for f in features_settings.values():
-            feature_type = next(
-                x for x in self.supported_features() if x.name() == f.type
-            )
+        # Order of execution is guaranteed to match
+        # the order of supported_features()
+        for feature_type, setting in [
+            (t, s)
+            for t in self.supported_features()
+            for s in features_settings.values()
+            if t.name() == s.type
+        ]:
             feature_type.on_before_deployment(
                 arm_parameters=arm_parameters,
                 template=template,
-                settings=f,
+                settings=setting,
                 environment=environment,
                 log=log,
             )
@@ -1556,7 +1591,9 @@ class AzurePlatform(Platform):
                         deployment_operation, time_out=300, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
-                    self._save_console_log(resource_group_name, environment, log)
+                    self._save_console_log_and_check_panic(
+                        resource_group_name, environment, log, False
+                    )
                     continue
                 break
         except HttpResponseError as identifier:
@@ -1595,6 +1632,18 @@ class AzurePlatform(Platform):
                     f"Exception: {error_message}"
                 )
             else:
+                try:
+                    self._save_console_log_and_check_panic(
+                        resource_group_name, environment, log, True
+                    )
+                except KernelPanicException as ex:
+                    if (
+                        "OSProvisioningTimedOut: OS Provisioning for VM"
+                        in error_message
+                    ):
+                        error_message = (
+                            f"OSProvisioningTimedOut: {type(ex).__name__}: {ex}"
+                        )
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
 
@@ -1726,13 +1775,48 @@ class AzurePlatform(Platform):
 
         # fill supported features
         azure_raw_capabilities: Dict[str, str] = {}
+        # "locationInfo": [
+        #     {
+        #         "location": "southcentralus",
+        #         "zoneDetails": [
+        #         {
+        #             //Represents the zones which support
+        #             //the feature (UltraSSDAvailabile)
+        #             "Name": [
+        #             "3"
+        #             ],
+        #             "capabilities": [
+        #             {
+        #                 "name": "UltraSSDAvailable",
+        #                 "value": "True"
+        #             }
+        #             ],
+        #             "name": null
+        #         }
+        #         ],
+        #         //Represents the zones which support
+        #         //the SKU without any features
+        #         "zones": [
+        #         "2",
+        #         "3",
+        #         "1"
+        #         ]
+        #     }
+        # ],
         if resource_sku.location_info:
             for location_info in resource_sku.location_info:
+                # Default zones supported
+                azure_raw_capabilities["availability_zones"] = location_info.zones
                 for zone_details in location_info.zone_details:
                     for location_capability in zone_details.capabilities:
                         azure_raw_capabilities[
                             location_capability.name
                         ] = location_capability.value
+                        # Zones supporting the feature
+                        if zone_details.additional_properties["Name"]:
+                            azure_raw_capabilities[
+                                "availability_zones"
+                            ] = zone_details.additional_properties["Name"]
 
         if resource_sku.capabilities:
             for sku_capability in resource_sku.capabilities:
@@ -1796,9 +1880,10 @@ class AzurePlatform(Platform):
             # Check if CachedDiskBytes is greater than 30GB
             # We use diff disk as cache disk for ephemeral OS disk
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
-            cached_disk_bytes_gb = int(cached_disk_bytes) / 1024 / 1024 / 1024
+            cached_disk_bytes_gb = int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
             if cached_disk_bytes_gb >= 30:
                 node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+                node_space.disk.os_disk_size = cached_disk_bytes_gb
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -2205,6 +2290,18 @@ class AzurePlatform(Platform):
                     DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY,
                 )
             )
+        runbook = node.capability.get_extended_runbook(AzureNodeSchema)
+        if node.capability.disk and isinstance(
+            node.capability.disk.max_data_disk_count, int
+        ):
+            max_data_disk_count = node.capability.disk.max_data_disk_count
+            if len(data_disks) > max_data_disk_count:
+                raise SkippedException(
+                    f"image {runbook.get_image_name()} "
+                    f"needs {len(data_disks)} data disks, "
+                    f"current VM size {runbook.vm_size} "
+                    f"only offers {node.capability.disk.max_data_disk_count} data disks"
+                )
         return data_disks
 
     @lru_cache(maxsize=10)  # noqa: B019
@@ -2290,6 +2387,17 @@ class AzurePlatform(Platform):
         log.dump_json(logging.DEBUG, result)
 
     def _get_vhd_os_disk_size(self, blob_url: str) -> int:
+        matches = SAS_URL_PATTERN.match(blob_url)
+        if matches:
+            response = requests.head(blob_url, timeout=60)
+            if response and response.status_code == 200:
+                size_in_bytes = int(response.headers["Content-Length"])
+                vhd_os_disk_size = math.ceil(size_in_bytes / 1024 / 1024 / 1024)
+                assert isinstance(
+                    vhd_os_disk_size, int
+                ), f"actual: {type(vhd_os_disk_size)}"
+                return vhd_os_disk_size
+
         result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
@@ -2737,8 +2845,43 @@ class AzurePlatform(Platform):
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
             )
+
+        if node_space.disk:
+            assert node_space.disk.os_disk_type
+            if (
+                isinstance(node_space.disk.os_disk_type, schema.DiskType)
+                and schema.DiskType.Ephemeral == node_space.disk.os_disk_type
+            ) or (
+                isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
+                and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
+            ):
+                node_space.disk.os_disk_size = search_space.IntRange(
+                    min=self._get_os_disk_size(azure_runbook)
+                )
+
+    def _get_os_disk_size(self, azure_runbook: AzureNodeSchema) -> int:
+        assert azure_runbook
+        if azure_runbook.marketplace:
+            for location in self._find_marketplace_image_location():
+                image_info = self._get_image_info(location, azure_runbook.marketplace)
+                if image_info:
+                    break
+            if image_info and image_info.os_disk_image:
+                return _get_disk_size_in_gb(
+                    image_info.os_disk_image.additional_properties
+                )
+            else:
+                # if no image info, use default size 30
+                return 30
+        elif azure_runbook.shared_gallery:
+            azure_runbook.shared_gallery = self._parse_shared_gallery_image(
+                azure_runbook.shared_gallery
+            )
+            return self._get_sig_os_disk_size(azure_runbook.shared_gallery)
         else:
-            ...
+            assert azure_runbook.vhd
+            assert azure_runbook.vhd.vhd_path
+            return self._get_vhd_os_disk_size(azure_runbook.vhd.vhd_path)
 
     def _check_image_capability(self, node_space: schema.NodeSpace) -> None:
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)

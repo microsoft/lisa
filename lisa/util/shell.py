@@ -223,6 +223,7 @@ class SshShell(InitializableMixin):
         self._jump_box_sock: Any = None
         self.is_sudo_required_password: bool = False
         self.password_prompts: List[str] = []
+        self.bash_prompt: str = ""
         self.spawn_initialization_error_string = ""
 
         paramiko_logger = logging.getLogger("paramiko")
@@ -425,9 +426,9 @@ class SshShell(InitializableMixin):
                 self.spawn(command=["mkdir", "-p", path_str])
         except OSError as e:
             if not self.is_posix and parents:
-                # spurplus is unable to handle Windows style paths properly. As a
-                # result, it is unable to create parent directories when parents=True
-                # is passed. So, mkdir ultimately fails. In such cases, use command
+                # spurplus doesn't handle Windows style paths properly. As a result,
+                # it is unable to create parent directories when parents=True is
+                # passed. So, mkdir ultimately fails. In such cases, use command
                 # instead. On Windows, mkdir creates parent directories by default;
                 # no additional parameter is needed.
                 self._inner_shell.run(command=["mkdir", path_str])

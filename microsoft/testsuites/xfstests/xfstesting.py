@@ -20,13 +20,7 @@ from lisa import (
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE
-from lisa.sut_orchestrator.azure.common import (
-    check_or_create_storage_account,
-    delete_file_share,
-    delete_storage_account,
-    get_or_create_file_share,
-    get_storage_credential,
-)
+from lisa.sut_orchestrator.azure.features import AzureFileShare
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
@@ -442,60 +436,29 @@ class Xfstesting(TestSuite):
                 node.os, "current distro not enable cifs module."
             )
         xfstests = self._install_xfstests(node)
-        version = _get_smb_version(node)
-        fstab_info = (
-            f"nofail,vers={version},credentials=/etc/smbcredentials/lisa.cred"
-            ",dir_mode=0777,file_mode=0777,serverino"
-        )
+
+        azure_file_share = node.features[AzureFileShare]
+        version = azure_file_share.get_smb_version()
         mount_opts = (
             f"-o vers={version},credentials=/etc/smbcredentials/lisa.cred"
             ",dir_mode=0777,file_mode=0777,serverino"
         )
-        platform = environment.platform
-        information = environment.get_information()
-        resource_group_name = information["resource_group_name"]
-        location = information["location"]
+
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
-        storage_account_name = f"lisasc{random_str}"
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
-        fs_url_dict: Dict[str, str] = {file_share_name: "", scratch_name: ""}
+
+        # fs_url_dict: Dict[str, str] = {file_share_name: "", scratch_name: ""}
         try:
-            check_or_create_storage_account(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=storage_account_name,
-                resource_group_name=resource_group_name,
-                location=location,
-                log=log,
+            fs_url_dict = azure_file_share.create_file_share(
+                file_share_names=[file_share_name, scratch_name],
+                environment=environment,
             )
-            for share_name, _ in fs_url_dict.items():
-                fs_url_dict[share_name] = get_or_create_file_share(
-                    credential=platform.credential,
-                    subscription_id=platform.subscription_id,
-                    cloud=platform.cloud,
-                    account_name=storage_account_name,
-                    file_share_name=share_name,
-                    resource_group_name=resource_group_name,
-                    log=log,
-                )
-            account_credential = get_storage_credential(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=storage_account_name,
-                resource_group_name=resource_group_name,
-            )
-            _prepare_azure_file_share(
-                node,
-                account_credential,
-                {
-                    _test_folder: fs_url_dict[file_share_name],
-                    _scratch_folder: fs_url_dict[scratch_name],
-                },
-                fstab_info,
-            )
+            test_folders_share_dict = {
+                _test_folder: fs_url_dict[file_share_name],
+                _scratch_folder: fs_url_dict[scratch_name],
+            }
+            azure_file_share.create_fileshare_folders(test_folders_share_dict)
 
             self._execute_xfstests(
                 log_path,
@@ -508,26 +471,7 @@ class Xfstesting(TestSuite):
             )
         finally:
             # clean up resources after testing.
-            for share_name in [file_share_name, scratch_name]:
-                delete_file_share(
-                    credential=platform.credential,
-                    subscription_id=platform.subscription_id,
-                    cloud=platform.cloud,
-                    account_name=storage_account_name,
-                    file_share_name=share_name,
-                    resource_group_name=resource_group_name,
-                    log=log,
-                )
-            delete_storage_account(
-                credential=platform.credential,
-                subscription_id=platform.subscription_id,
-                cloud=platform.cloud,
-                account_name=storage_account_name,
-                resource_group_name=resource_group_name,
-                log=log,
-            )
-            # revert file into original status after testing.
-            node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+            azure_file_share.delete_azure_fileshare([file_share_name, scratch_name])
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         try:

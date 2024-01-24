@@ -397,15 +397,9 @@ class Process:
         if self._is_posix and self._sudo:
             self._result.stdout = self._filter_sudo_result(self._result.stdout)
 
-        if (
-            isinstance(self._shell, SshShell)
-            and self._shell._inner_shell
-            and self._shell._inner_shell._spur._shell_type
-            == spur.ssh.ShellTypes.minimal
-        ):
-            self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._result.stdout = self._filter_bash_prompt(self._result.stdout)
         self._check_if_need_input_password(self._result.stdout)
-
         self._result.stdout = self._filter_sudo_required_password_info(
             self._result.stdout
         )
@@ -519,6 +513,9 @@ class Process:
         if (
             isinstance(self._shell, SshShell)
             and self._shell.spawn_initialization_error_string
+            and self._shell._inner_shell
+            and self._shell._inner_shell._spur._shell_type
+            == spur.ssh.ShellTypes.minimal
         ):
             raw_input = raw_input.replace(
                 rf"{self._shell.spawn_initialization_error_string}\n", ""
@@ -530,6 +527,16 @@ class Process:
                 "filter the profile error string: "
                 f"{self._shell.spawn_initialization_error_string}"
             )
+        return raw_input
+
+    def _filter_bash_prompt(self, raw_input: str) -> str:
+        # some images have bash prompt in stdout, remove it.
+        # E.g. yaseensmarket1645449809728 wordpress-red-hat
+        # ----------------------------------------------------------------------
+        # Use the this command 'sudo bash ~/getcert.sh' to install a certificate
+        # ----------------------------------------------------------------------
+        if isinstance(self._shell, SshShell) and self._shell.bash_prompt:
+            raw_input = raw_input.replace(self._shell.bash_prompt, "")
         return raw_input
 
     def _check_if_need_input_password(self, raw_input: str) -> None:

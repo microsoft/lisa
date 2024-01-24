@@ -328,6 +328,9 @@ class SetSpace(RequirementMixin, Set[T]):
         super().remove(element)
         self.items.remove(element)
 
+    def isunique(self, element: T) -> bool:
+        return len(self.items) == 1 and self.items[0] == element
+
     def update(self, *s: Iterable[T]) -> None:
         super().update(*s)
         self.items.extend(*s)

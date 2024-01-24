@@ -5,13 +5,13 @@ from __future__ import annotations
 import re
 from typing import List, Pattern, Type
 
-from lisa.base_tools import Systemctl
+from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.util import find_patterns_in_lines
 
-from .dmesg import Dmesg
 from .git import Git
+from .ls import Ls
 from .make import Make
 
 
@@ -74,9 +74,14 @@ class HibernationSetup(Tool):
         return self._check_exists()
 
     def _check(self, pattern: Pattern[str]) -> int:
-        dmesg = self.node.tools[Dmesg]
-        dmesg_output = dmesg.get_output(force_run=True)
-        matched_lines = find_patterns_in_lines(dmesg_output, [pattern])
+        cat = self.node.tools[Cat]
+        log_output = ""
+        ls = self.node.tools[Ls]
+        if ls.path_exists("/var/log/syslog", sudo=True):
+            log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
+        if ls.path_exists("/var/log/messages", sudo=True):
+            log_output = cat.read("/var/log/messages", force_run=True, sudo=True)
+        matched_lines = find_patterns_in_lines(log_output, [pattern])
         if not matched_lines:
             return 0
         return len(matched_lines[0])

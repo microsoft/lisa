@@ -106,9 +106,15 @@ ENVIRONMENT_KEEP_ALWAYS = "always"
 ENVIRONMENT_KEEP_NO = "no"
 ENVIRONMENT_KEEP_FAILED = "failed"
 
+AVAILABILITY_DEFAULT = "default"
+AVAILABILITY_NONE = "none"
+AVAILABILITY_SET = "availability_set"
+AVAILABILITY_ZONE = "availability_zone"
+
 SECURITY_PROFILE_NONE = "none"
 SECURITY_PROFILE_BOOT = "secureboot"
 SECURITY_PROFILE_CVM = "cvm"
+SECURITY_PROFILE_STATELESS = "stateless"
 
 PLATFORM = "platform"
 PLATFORM_READY = "ready"
@@ -158,6 +164,7 @@ NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD = "dpdk-testpmd"
 
 # Test for command with sudo
 LISA_TEST_FOR_SUDO = "lisa test for sudo"
+LISA_TEST_FOR_BASH_PROMPT = "lisa test for bash prompt"
 
 # linux signals
 SIGINT = 2

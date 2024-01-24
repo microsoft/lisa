@@ -10,8 +10,9 @@ from assertpy import assert_that
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
 from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian, Redhat
-from lisa.tools import Gcc, Git, Modinfo, PowerShell, Sed, Service, Uname
+from lisa.tools import Gcc, Git, Ln, Modinfo, PowerShell, Sed, Service, Uname
 from lisa.tools.ls import Ls
+from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
     UnsupportedDistroException,
@@ -62,14 +63,17 @@ class Waagent(Tool):
 
     def get_version(self) -> str:
         result = self.run("-version")
-        if result.exit_code != 0:
+        if isinstance(self.node.os, CBLMariner):
+            self._command = "/usr/bin/waagent"
+        else:
             self._command = "/usr/sbin/waagent"
+        if result.exit_code != 0:
             result = self.run("-version")
         # When the default command python points to python2,
         # we need specify python3 clearly.
         # e.g. bt-americas-inc diamondip-sapphire-v5 v5-9 9.0.53.
         if result.exit_code != 0:
-            self._command = "python3 /usr/sbin/waagent"
+            self._command = f"python3 {self._command}"
             result = self.run("-version")
         return get_matched_str(result.stdout, self.__version_pattern)
 
@@ -80,9 +84,14 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def upgrade_from_source(self) -> None:
+    def upgrade_from_source(self, source_version: str = "") -> None:
         git = self.node.tools[Git]
         git.clone(self._src_url, cwd=self.node.working_path)
+        if source_version:
+            git.checkout(
+                ref=source_version,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+            )
         python_cmd, _ = self.get_python_cmd()
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
@@ -183,6 +192,14 @@ class Waagent(Tool):
 
         self._python_cmd = python_cmd
         self._python_use_sudo = use_sudo
+
+        if (
+            isinstance(self.node.os, CBLMariner)
+            and not self.node.tools[Ls].path_exists(path="/usr/bin/python")
+            and self._python_cmd
+        ):
+            ln = self.node.tools[Ln]
+            ln.create_link("/usr/bin/python3", "/usr/bin/python")
 
         return self._python_cmd, self._python_use_sudo
 
@@ -299,7 +316,6 @@ class LisDriver(Tool):
         if not self.node.shell.exists(self.node.working_path.joinpath("LISISO")):
             wget_tool = self.node.tools[Wget]
             lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
-            from lisa.tools import Tar
 
             tar = self.node.tools[Tar]
             tar.extract(file=lis_path, dest_dir=str(self.node.working_path))

@@ -40,12 +40,14 @@ from retry import retry
 from lisa import Logger, features, schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.features.availability import AvailabilityType
 from lisa.features.gpu import ComputeSDK
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import (
     FEATURE_NAME_SECURITY_PROFILE,
     SecurityProfileType,
 )
+from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -63,6 +65,8 @@ from lisa.tools import (
     Rm,
     Sed,
 )
+from lisa.tools.echo import Echo
+from lisa.tools.kernel_config import KernelConfig
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
@@ -83,6 +87,7 @@ if TYPE_CHECKING:
 
 from .. import AZURE
 from .common import (
+    AvailabilityArmParameter,
     AzureArmParameter,
     AzureNodeSchema,
     check_or_create_storage_account,
@@ -104,6 +109,7 @@ from .common import (
     get_node_context,
     get_or_create_file_share,
     get_primary_ip_addresses,
+    get_storage_credential,
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
@@ -124,6 +130,13 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
+    azure_vm_status_map = {
+        "VM deallocated": VMStatus.Deallocated,
+        "VM running": VMStatus.Running,
+        "Provisioning succeeded": VMStatus.ProvisionSucceeded,
+        # Add more Azure-specific mappings as needed
+    }
+
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -176,6 +189,23 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         )
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
+
+    def get_status(self) -> VMStatus:
+        try:
+            platform: AzurePlatform = self._platform  # type: ignore
+            compute_client = get_compute_client(platform)
+            status = (
+                compute_client.virtual_machines.get(
+                    self._resource_group_name, self._vm_name, expand="instanceView"
+                )
+                .instance_view.statuses[1]
+                .display_status
+            )
+            assert isinstance(status, str), f"actual: {type(status)}"
+            assert self.azure_vm_status_map.get(status) is not None, "unknown vm status"
+            return cast(VMStatus, self.azure_vm_status_map.get(status))
+        except Exception as e:
+            raise LisaException(f"fail to get status of vm {self._vm_name}") from e
 
 
 class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
@@ -618,9 +648,15 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
 
-        arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
-        arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
-        arm_parameters.use_availability_sets = True
+        arm_parameters.availability_options.availability_set_properties[
+            "platformFaultDomainCount"
+        ] = 1
+        arm_parameters.availability_options.availability_set_properties[
+            "platformUpdateDomainCount"
+        ] = 1
+        arm_parameters.availability_options.availability_type = (
+            AvailabilityType.AvailabilitySet.value
+        )
 
     @classmethod
     def create_setting(
@@ -653,21 +689,51 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if len(devices) > 1:
             # upgrade waagent to latest version to resolve
             # multiple ib devices not getting ip address issue
-            waagent.upgrade_from_source()
+
+            # Upgrade to v2.9.0.4 since the latest v2.9.1.1 version
+            # does not successfully assign IP over the IB interface
+            waagent.upgrade_from_source("v2.9.0.4")
+
+            # Mark the node as dirty
+            self._node.mark_dirty()
         # Update waagent.conf
         sed = self._node.tools[Sed]
+        rdma_config = "OS.EnableRDMA=y"
+        waagent_config_path = "/etc/waagent.conf"
+
+        # CBLMariner's waagent configuration does not specify OS.EnableRDMA
+        # and thus need to manually append it for RDMA support
+        if isinstance(self._node.os, CBLMariner):
+            # Check whether OS.EnableRDMA=y is already specified
+            cat = self._node.tools[Cat]
+            if rdma_config not in cat.read(waagent_config_path, sudo=True):
+                sed.append(
+                    text=rdma_config,
+                    file=waagent_config_path,
+                    sudo=True,
+                )
+
         sed.substitute(
-            regexp="# OS.EnableRDMA=y",
-            replacement="OS.EnableRDMA=y",
-            file="/etc/waagent.conf",
+            regexp=f"# {rdma_config}",
+            replacement=rdma_config,
+            file=waagent_config_path,
             sudo=True,
         )
         sed.substitute(
             regexp="# AutoUpdate.Enabled=y",
             replacement="AutoUpdate.Enabled=y",
-            file="/etc/waagent.conf",
+            file=waagent_config_path,
             sudo=True,
         )
+
+        # For systems using the Mellanox inbox driver, need to make sure
+        # the following kernel modules are loaded in order to successfully
+        # make WALinuxAgent enable RDMA support
+        modprobe = self._node.tools[Modprobe]
+        for module in ["ib_uverbs", "ib_umad", "rdma_ucm", "ib_ipoib"]:
+            if modprobe.module_exists(module):
+                modprobe.load(module)
+
         waagent.restart()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -1237,6 +1303,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             "os_disk_type",
         )
         result.merge(
+            search_space.check_countspace(self.os_disk_size, capability.os_disk_size),
+            "os_disk_size",
+        )
+        result.merge(
             search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
             "disk_type",
         )
@@ -1337,6 +1407,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         else:
             raise LisaException(
                 f"unknown disk type on capability, type: {cap_disk_type}"
+            )
+
+        if self.os_disk_size is not None or capability.os_disk_size is not None:
+            value.os_disk_size = getattr(search_space, f"{method.value}_countspace")(
+                self.os_disk_size, capability.os_disk_size
             )
 
         value.data_disk_type = getattr(
@@ -2003,16 +2078,29 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
 
-        if raw_capabilities.get("HibernationSupported", None) == "True":
+        if (
+            resource_sku.family
+            in [
+                "standardDSv5Family",
+                "standardDDSv5Family",
+                "standardDASv5Family",
+                "standardDADSv5Family",
+            ]
+            or raw_capabilities.get("HibernationSupported", None) == "True"
+        ):
             return schema.FeatureSettings.create(cls.name())
 
         return None
 
     @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
-        parameters: Any = kwargs.get("arm_parameters")
-        if parameters.use_availability_sets:
+        parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        if (
+            parameters.availability_options.availability_type
+            == AvailabilityType.AvailabilitySet
+        ):
             raise SkippedException(
                 "Hibernation cannot be enabled on Virtual Machines created in an"
                 " Availability Set."
@@ -2068,6 +2156,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         SecurityProfileType.Standard: "",
         SecurityProfileType.SecureBoot: "TrustedLaunch",
         SecurityProfileType.CVM: "ConfidentialVM",
+        SecurityProfileType.Stateless: "ConfidentialVM",
     }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -2108,8 +2197,20 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             "standardDCADSv5Family",
             "standardECASv5Family",
             "standardECADSv5Family",
+            "standardDCEv5Family",
+            "standardDCEDv5Family",
+            "standardECEv5Family",
+            "standardECEDv5Family",
         ]:
             capabilities.append(SecurityProfileType.CVM)
+
+        if cvm_value == "TDX" and resource_sku.family in [
+            "standardDCEv5Family",
+            "standardDCEDv5Family",
+            "standardECEv5Family",
+            "standardECEDv5Family",
+        ]:
+            capabilities.append(SecurityProfileType.Stateless)
 
         return SecurityProfileSettings(
             security_profile=search_space.SetSpace(True, capabilities)
@@ -2135,11 +2236,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile[
                     "security_type"
                 ] = cls._security_profile_mapping[settings.security_profile]
-                node_parameters.security_profile["encryption_type"] = (
-                    "DiskWithVMGuestState"
-                    if settings.encrypt_disk
-                    else "VMGuestStateOnly"
-                )
+                if settings.security_profile == SecurityProfileType.Stateless:
+                    node_parameters.security_profile["secure_boot"] = False
+                    node_parameters.security_profile[
+                        "encryption_type"
+                    ] = "NonPersistedTPM"
+                else:
+                    node_parameters.security_profile["secure_boot"] = True
+                    node_parameters.security_profile["encryption_type"] = (
+                        "DiskWithVMGuestState"
+                        if settings.encrypt_disk
+                        else "VMGuestStateOnly"
+                    )
                 node_parameters.security_profile[
                     "disk_encryption_set_id"
                 ] = settings.disk_encryption_set_id
@@ -2151,6 +2259,159 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         f"{settings.security_profile} "
                         "can only be set on gen2 image/vhd."
                     )
+
+
+availability_type_priority: List[AvailabilityType] = [
+    AvailabilityType.NoRedundancy,
+    AvailabilityType.AvailabilitySet,
+    AvailabilityType.AvailabilityZone,
+]
+
+
+class AvailabilitySettings(features.AvailabilitySettings):
+    def _resolve_availability_type_by_priority(
+        self, arm_parameters: Optional[AvailabilityArmParameter] = None
+    ) -> AvailabilityType:
+        if isinstance(self.availability_type, AvailabilityType):
+            return self.availability_type
+        if arm_parameters:
+            if (
+                arm_parameters.availability_set_properties
+                or arm_parameters.availability_set_tags
+            ) and AvailabilityType.AvailabilitySet in self.availability_type:
+                return AvailabilityType.AvailabilitySet
+            elif (
+                arm_parameters.availability_zones
+                and AvailabilityType.AvailabilityZone in self.availability_type
+            ):
+                return AvailabilityType.AvailabilityZone
+        for option in availability_type_priority:
+            if option in self.availability_type:
+                return option
+        raise LisaException(
+            "Could not resolve availability option."
+            f"Availability Options: {self.availability_type}"
+        )
+
+
+class Availability(AzureFeatureMixin, features.Availability):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return AvailabilitySettings
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        availability_settings: AvailabilitySettings = AvailabilitySettings()
+        availability_settings.availability_type = search_space.SetSpace(
+            True,
+            [
+                AvailabilityType.NoRedundancy,
+                AvailabilityType.AvailabilitySet,
+            ],
+        )
+
+        availability_zones = raw_capabilities.get("availability_zones", None)
+        if availability_zones:
+            availability_settings.availability_type.add(
+                AvailabilityType.AvailabilityZone
+            )
+            availability_settings.availability_zones = search_space.SetSpace(
+                is_allow_set=True, items=availability_zones
+            )
+
+        return availability_settings
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        settings = cast(AvailabilitySettings, kwargs.get("settings"))
+        params = arm_parameters.availability_options
+
+        try:
+            assert environment.runbook.nodes_requirement
+            assert environment.runbook.nodes_requirement[0].extended_schemas
+            is_maximize_capability = environment.runbook.nodes_requirement[
+                0
+            ].extended_schemas["azure"]["maximize_capability"]
+        except (KeyError, IndexError, AssertionError):
+            is_maximize_capability = False
+
+        if not is_maximize_capability:
+            assert isinstance(settings.availability_type, search_space.SetSpace)
+
+            # Ultra Disk does not support Availability Sets
+            assert environment.capability.nodes
+            assert environment.capability.nodes[0].disk
+            is_ultra_disk = (
+                environment.capability.nodes[0].disk.data_disk_type
+                == schema.DiskType.UltraSSDLRS
+            )
+            if is_ultra_disk:
+                settings.availability_type.discard(AvailabilityType.AvailabilitySet)
+                # If a region supports Ultra Disk in availability zones,
+                # then availability zones must be used
+                if AvailabilityType.AvailabilityZone in settings.availability_type:
+                    settings.availability_type.discard(AvailabilityType.NoRedundancy)
+
+            # Set ARM parameters based on min capability
+            if params.availability_type == AvailabilityType.Default:
+                params.availability_type = (
+                    settings._resolve_availability_type_by_priority(params).value
+                )
+            if (
+                params.availability_zones
+                and params.availability_type == AvailabilityType.AvailabilityZone
+            ):
+                params.availability_zones = [
+                    zone
+                    for zone in params.availability_zones
+                    if zone in settings.availability_zones
+                ]
+                assert params.availability_zones, (
+                    "Invalid zones provided. "
+                    "This SKU in this location supports zones: "
+                    f"{settings.availability_zones}. "
+                )
+            elif settings.availability_zones:
+                params.availability_zones = [settings.availability_zones.items[0]]
+
+            assert params.availability_type in [
+                type.value for type in AvailabilityType
+            ], ("Not a valid Availability Type: " f"{params.availability_type}")
+
+            assert (
+                AvailabilityType(params.availability_type) in settings.availability_type
+            ), (
+                f"Availability Type "
+                f"'{params.availability_type}' "
+                "is not supported in the current configuration. Please select one of "
+                f"{[type.value for type in settings.availability_type.items]}. "
+                "Or consider changing the disk type or location."
+            )
+
+        # Once the availability type has been determined, clear the unecessary
+        # fields for clarity
+        if params.availability_type == AvailabilityType.AvailabilitySet:
+            params.availability_zones.clear()
+        elif params.availability_type == AvailabilityType.AvailabilityZone:
+            assert (
+                params.availability_zones
+            ), "Availability Zone is selected, but no zone was provided."
+            params.availability_zones = [params.availability_zones[0]]
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+        else:
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+            params.availability_zones.clear()
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
@@ -2542,7 +2803,8 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
+        if hasattr(self._node, "os"):
+            self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
@@ -2759,3 +3021,140 @@ class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
         assert_that(result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
+
+
+class AzureFileShare(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def get_smb_version(self) -> str:
+        if self._node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
+            version = "3.1.1"
+        else:
+            version = "3.0"
+        return version
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        self._initialize_fileshare_information()
+
+    def _initialize_fileshare_information(self) -> None:
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+        self._storage_account_name = f"lisasc{random_str}"
+        self._fstab_info = (
+            f"nofail,vers={self.get_smb_version()},"
+            "credentials=/etc/smbcredentials/lisa.cred"
+            ",dir_mode=0777,file_mode=0777,serverino"
+        )
+
+    def create_file_share(
+        self, file_share_names: List[str], environment: Environment
+    ) -> Dict[str, str]:
+        platform: AzurePlatform = self._platform  # type: ignore
+        information = environment.get_information()
+        resource_group_name = self._resource_group_name
+        location = information["location"]
+        storage_account_name = self._storage_account_name
+
+        fs_url_dict: Dict[str, str] = {}
+
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=self._log,
+        )
+
+        for share_name in file_share_names:
+            fs_url_dict[share_name] = get_or_create_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        return fs_url_dict
+
+    def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
+        """
+        test_folders_share_dict is of the form
+            {
+            "foldername": "fileshareurl",
+            "foldername2": "fileshareurl2",
+            }
+        """
+        platform: AzurePlatform = self._platform  # type: ignore
+        account_credential = get_storage_credential(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=self._storage_account_name,
+            resource_group_name=self._resource_group_name,
+        )
+        self._prepare_azure_file_share(
+            self._node,
+            account_credential,
+            test_folders_share_dict,
+            self._fstab_info,
+        )
+
+    def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
+        resource_group_name = self._resource_group_name
+        storage_account_name = self._storage_account_name
+        platform: AzurePlatform = self._platform  # type: ignore
+        for share_name in file_share_names:
+            delete_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        delete_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            log=self._log,
+        )
+        # revert file into original status after testing.
+        self._node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
+    def _prepare_azure_file_share(
+        self,
+        node: Node,
+        account_credential: Dict[str, str],
+        test_folders_share_dict: Dict[str, str],
+        fstab_info: str,
+    ) -> None:
+        folder_path = node.get_pure_path("/etc/smbcredentials")
+        if node.shell.exists(folder_path):
+            node.execute(f"rm -rf {folder_path}", sudo=True)
+        node.shell.mkdir(folder_path)
+        file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+        echo = node.tools[Echo]
+        username = account_credential["account_name"]
+        password = account_credential["account_key"]
+        echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
+        echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
+        node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+        for folder_name, share in test_folders_share_dict.items():
+            node.execute(f"mkdir {folder_name}", sudo=True)
+            echo.write_to_file(
+                f"{share} {folder_name} cifs {fstab_info}",
+                node.get_pure_path("/etc/fstab"),
+                sudo=True,
+                append=True,
+            )

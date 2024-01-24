@@ -28,8 +28,8 @@ class CloudHypervisorTests(Tool):
     # Slightly higher case timeout to give the case a window to
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
-    CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    PERF_CMD_TIME_OUT = 900
+    CASE_TIME_OUT = CMD_TIME_OUT + 2400
+    PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -37,7 +37,6 @@ class CloudHypervisorTests(Tool):
     }
 
     ms_clh_repo = ""
-    ms_igvm_parser_repo = ""
     use_ms_clh_repo = False
     ms_access_token = ""
     clh_guest_vm_type = ""
@@ -224,11 +223,6 @@ class CloudHypervisorTests(Tool):
                 clone_path,
                 auth_token=self.ms_access_token,
             )
-            git.clone(
-                self.ms_igvm_parser_repo,
-                clone_path,
-                auth_token=self.ms_access_token,
-            )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
             if self.use_ms_guest_kernel:
                 self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
@@ -262,6 +256,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             no_info_log=False,
             shell=True,
+            update_envs=self.env_vars,
         )
         # e.g. "integration::test_vfio: test"
         matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
@@ -351,6 +346,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             shell=True,
             expected_exit_code=0,
+            update_envs=self.env_vars,
         )
 
         stdout = result.stdout
@@ -408,7 +404,7 @@ class CloudHypervisorTests(Tool):
         else:
             dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
             dmesg_path = log_path / "dmesg"
-            with open(str(dmesg_path), "w") as f:
+            with open(str(dmesg_path), "w", encoding="utf-8") as f:
                 f.write(dmesg_str)
 
 

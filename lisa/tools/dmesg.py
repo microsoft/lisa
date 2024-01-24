@@ -18,6 +18,8 @@ class Dmesg(Tool):
         re.compile("rcu_sched self-detected stall on CPU"),
         re.compile("rcu_sched detected stalls on"),
         re.compile("BUG: soft lockup"),
+        re.compile("Hibernate inconsistent memory map detected"),
+        re.compile("check_flush_dependency"),
     ]
 
     # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
