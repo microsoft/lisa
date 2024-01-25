@@ -322,7 +322,8 @@ class DpdkTestpmd(Tool):
 
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} --loglevel mana,debug --loglevel netvsc,debug "
+            f" -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
@@ -361,8 +362,7 @@ class DpdkTestpmd(Tool):
     def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
-        proc_result = self.node.tools[Timeout].run_with_timeout(
+        proc_result = self.node.tools[Timeout].start_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
         return self.process_testpmd_output(proc_result)
