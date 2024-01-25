@@ -608,45 +608,21 @@ class SharedGalleryImageTransformer(Transformer):
             gallery_image_securitytype=runbook.gallery_image_securitytype,
             gallery_image_disk_controller=disk_controller_type,
         )
-        if runbook.vm_resource_group:
-            if runbook.osdisk_size_in_gb:
-                osdisk_size_in_gb = runbook.osdisk_size_in_gb
-            else:
-                osdisk_size_in_gb = 30
-            target_regions_str = str(" ".join(runbook.gallery_image_location))
-            node.log.debug(
-                f"SIG_IMAGE: region: {image_location} target_regions: {target_regions_str}"
-            )
-            check_or_create_gallery_image_version_from_vm(
-                platform=platform,
-                gallery_resource_group_name=runbook.gallery_resource_group_name,
-                gallery_name=runbook.gallery_name,
-                gallery_image_name=runbook.gallery_image_name,
-                gallery_image_version=gallery_image_version,
-                gallery_image_location=image_location,
-                regional_replica_count=runbook.regional_replica_count,
-                storage_account_type=runbook.storage_account_type,
-                host_caching_type=runbook.host_caching_type,
-                gallery_image_target_regions=runbook.gallery_image_location,
-                vm_resource_id=vm_resource_id,
-                size_in_gb=osdisk_size_in_gb,
-            )
-        else:
-            check_or_create_gallery_image_version_from_vhd(
-                platform,
-                runbook.gallery_resource_group_name,
-                runbook.gallery_name,
-                runbook.gallery_image_name,
-                gallery_image_version,
-                image_location,
-                runbook.regional_replica_count,
-                runbook.storage_account_type,
-                runbook.host_caching_type,
-                vhd_path,
-                vhd_details["resource_group_name"],
-                vhd_details["account_name"],
-                runbook.gallery_image_location,
-            )
+        check_or_create_gallery_image_version_from_vhd(
+            platform,
+            runbook.gallery_resource_group_name,
+            runbook.gallery_name,
+            runbook.gallery_image_name,
+            gallery_image_version,
+            image_location,
+            runbook.regional_replica_count,
+            runbook.storage_account_type,
+            runbook.host_caching_type,
+            vhd_path,
+            vhd_details["resource_group_name"],
+            vhd_details["account_name"],
+            runbook.gallery_image_location,
+        )
 
         sig_url = (
             f"{runbook.gallery_name}/"
