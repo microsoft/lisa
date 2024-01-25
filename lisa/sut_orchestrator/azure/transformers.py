@@ -504,20 +504,18 @@ class SharedGalleryImageTransformer(Transformer):
     def _output_names(self) -> List[str]:
         return [self.__sig_name]
 
-    def _prepare_virtual_machine(self, node: RemoteNode) -> None:
-        # prepare vm for exporting
-        wa = node.tools[Waagent]
-        node.execute("export HISTSIZE=0", shell=True)
-        wa.deprovision()
-
-        # stop the vm
-        startstop = node.features[StartStop]
-        startstop.stop()
-
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
         image_location = runbook.gallery_image_location[0]
+        disk_resource_id: str = ""
+        (
+            gallery_image_publisher,
+            gallery_image_offer,
+            gallery_image_sku,
+            gallery_image_version,
+        ) = tuple(runbook.gallery_image_fullname.split())
+
         if not runbook.gallery_resource_group_location:
             runbook.gallery_resource_group_location = image_location
         if not runbook.gallery_location:
@@ -534,6 +532,7 @@ class SharedGalleryImageTransformer(Transformer):
             vm = get_vm(platform=platform, node=node)
             vm_resource_id = vm.id
             vm_name = vm.name
+
             compute_client = get_compute_client(platform=platform)
             # stop VM before generalizing
             node.features[StartStop].stop()
@@ -542,6 +541,22 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
+            disk_resource_id = "/".join(
+                vm_resource_id.split("/")[:-2]
+                + [
+                    "images",
+                    gallery_image_publisher + gallery_image_offer,
+                ]
+            )
+            response = compute_client.images.begin_create_or_update(
+                resource_group_name=runbook.vm_resource_group,
+                image_name=gallery_image_publisher + gallery_image_offer,
+                parameters={
+                    "location": runbook.gallery_location,
+                    "properties": {"sourceVirtualMachine": {"id": vm_resource_id}},
+                },
+            ).result()
+            node.log.debug(response)
 
         else:
             vhd_path = get_deployable_vhd_path(
@@ -557,12 +572,6 @@ class SharedGalleryImageTransformer(Transformer):
             ):
                 raise LisaException(f"{vhd_path} doesn't exist.")
 
-        (
-            gallery_image_publisher,
-            gallery_image_offer,
-            gallery_image_sku,
-            gallery_image_version,
-        ) = tuple(runbook.gallery_image_fullname.split())
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
             platform.credential,
@@ -620,7 +629,7 @@ class SharedGalleryImageTransformer(Transformer):
                 storage_account_type=runbook.storage_account_type,
                 host_caching_type=runbook.host_caching_type,
                 gallery_image_target_regions=runbook.gallery_image_location,
-                vm_resource_id=vm_resource_id,
+                managed_disk_id=disk_resource_id,
                 size_in_gb=osdisk_size_in_gb,
             )
         else:
