@@ -541,13 +541,8 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
-            vhd_path = "/".join(
-                vm_resource_id.split("/")[:-2]
-                + [
-                    "images",
-                    gallery_image_publisher + gallery_image_offer,
-                ]
-            )
+            node.log.debug(repr(vm))
+            vhd_path = vm.properties["osDisk"].managed_disk.id
         else:
             vhd_path = get_deployable_vhd_path(
                 platform, runbook.vhd, image_location, self._log
