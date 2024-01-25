@@ -1926,7 +1926,7 @@ def check_or_create_gallery_image_version_from_vm(
     storage_account_type: str,
     host_caching_type: str,
     gallery_image_target_regions: List[str],
-    managed_disk_id: str,
+    vm_resource_id: str,
     size_in_gb: int = 30,
 ) -> None:
     try:
@@ -1947,7 +1947,7 @@ def check_or_create_gallery_image_version_from_vm(
                         "name": target_region,
                         "regional_replica_count": str(regional_replica_count),
                         "storage_account_type": storage_account_type,
-                        "exclude_from_latest": False,
+                        "exclude_from_latest": "false",
                     }
                 )
             image_version_post_body = {
@@ -1955,8 +1955,9 @@ def check_or_create_gallery_image_version_from_vm(
                 "publishing_profile": {"target_regions": target_regions},
                 "storageProfile": {
                     "source": {
-                        "id": managed_disk_id,
+                        "id": (vm_resource_id),
                     },
+                    "os_disk_image": {"size_in_gb": size_in_gb},
                 },
                 "osState": "Generalized",
             }
