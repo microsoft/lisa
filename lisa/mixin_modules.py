@@ -62,12 +62,10 @@ if platform.system() == "Linux":
     except ModuleNotFoundError as e:
         print(f"libvirt package is not installed. [{e}]")
 
-try:
-    import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
-    import lisa.sut_orchestrator.hyperv.schema  # noqa: F401
-except ModuleNotFoundError as e:
-    print(f"hyperv package is not installed. [{e}]")
+# Hyper-V platform
+import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
 
+# Transformers
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.file_uploader  # noqa: F401
