@@ -22,6 +22,7 @@ from lisa.tools import (
     KernelConfig,
     Kill,
     Lscpu,
+    Lsmod,
     Lspci,
     Modprobe,
     Pidof,
@@ -778,16 +779,17 @@ class DpdkTestpmd(Tool):
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.vf_helper.is_mana():
             network_drivers = []
-            mana_builtin = self.node.tools[KernelConfig].is_built_in(
-                "CONFIG_MICROSOFT_MANA"
-            )
-            if not mana_builtin:
-                network_drivers += ["mana"]
-            mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
-                "CONFIG_MANA_INFINIBAND"
-            )
-            if not mana_ib_builtin:
-                network_drivers.append("mana_ib")
+            if not node.tools[Lsmod].module_exists("mana_ib"):
+                mana_builtin = self.node.tools[KernelConfig].is_built_in(
+                    "CONFIG_MICROSOFT_MANA"
+                )
+                if not mana_builtin:
+                    network_drivers += ["mana"]
+                mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
+                    "CONFIG_MANA_INFINIBAND"
+                )
+                if not mana_ib_builtin:
+                    network_drivers.append("mana_ib")
         else:
             network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]

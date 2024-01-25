@@ -260,20 +260,24 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     echo = node.tools[Echo]
     lsmod = node.tools[Lsmod]
     modprobe = node.tools[Modprobe]
-    kconfig = node.tools[KernelConfig]
     uname = node.tools[Uname]
 
     # check if kernel config for Hyper-V VMBus is enabled
-    config = "CONFIG_UIO_HV_GENERIC"
-    if not kconfig.is_enabled(config):
-        kversion = uname.get_linux_information().kernel_version
-        if kversion < "4.10.0":
-            raise UnsupportedKernelException(node.os)
-        else:
-            raise LisaException(
-                f"The kernel config {config} is not set in kernel version {kversion}."
-            )
-
+    try:
+        kconfig = node.tools[KernelConfig]
+        config = "CONFIG_UIO_HV_GENERIC"
+        if not kconfig.is_enabled(config):
+            kversion = uname.get_linux_information().kernel_version
+            if kversion < "4.10.0":
+                raise UnsupportedKernelException(node.os)
+            else:
+                raise LisaException(
+                    f"The kernel config {config} is not set in kernel version {kversion}."
+                )
+    except LisaException:
+        node.log.debug(
+            "Attempt to check for CONFIG_UIO_HV_GENERIC failed. Proceeding..."
+        )
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
