@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from assertpy import assert_that
 from retry import retry
 
-from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Tee
+from lisa.tools import Cat, Ip, KernelConfig, Ls, Lsmod, Lspci, Modprobe, Tee
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
+from lisa.util.constants import DEVICE_TYPE_SRIOV
 
 if TYPE_CHECKING:
     from lisa import Node
@@ -453,7 +454,20 @@ class Nics(InitializableMixin):
         return all_mana_devices
 
     def is_mana_driver_enabled(self) -> bool:
-        return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+        # check the config first
+        try:
+            self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+        except LisaException:
+            # check the pci devices if the config tool is
+            # not implemented or broken for this image (sig, vhd, etc)
+            any(
+                [
+                    "Microsoft" in device.vendor
+                    for device in self._node.tools[Lspci].get_devices_by_type(
+                        device_type=DEVICE_TYPE_SRIOV
+                    )
+                ]
+            ) and self._node.tools[Lsmod].module_exists("mana_ib", force_run=True)
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
