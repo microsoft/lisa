@@ -508,6 +508,7 @@ class SharedGalleryImageTransformer(Transformer):
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
         image_location = runbook.gallery_image_location[0]
+        disk_resource_id: str = ""
         (
             gallery_image_publisher,
             gallery_image_offer,
@@ -540,22 +541,13 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
-            # disk_resource_id = "/".join(
-            #     vm_resource_id.split("/")[:-2]
-            #     + [
-            #         "images",
-            #         gallery_image_publisher + gallery_image_offer,
-            #     ]
-            # )
-            # response = compute_client.images.begin_create_or_update(
-            #     resource_group_name=runbook.vm_resource_group,
-            #     image_name=gallery_image_publisher + gallery_image_offer,
-            #     parameters={
-            #         "location": runbook.gallery_location,
-            #         "properties": {"sourceVirtualMachine": {"id": vm_resource_id}},
-            #     },
-            # ).result()
-            # node.log.debug(response)
+            vhd_path = "/".join(
+                vm_resource_id.split("/")[:-2]
+                + [
+                    "images",
+                    gallery_image_publisher + gallery_image_offer,
+                ]
+            )
 
         else:
             vhd_path = get_deployable_vhd_path(
@@ -588,7 +580,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_description,
         )
         if runbook.vm_resource_group:
-            disk_controller_type = "SCSI,NVMe"
+            disk_controller_type = "SCSI.NVMe"
         else:
             disk_controller_type = "SCSI"
 
