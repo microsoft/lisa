@@ -542,6 +542,9 @@ class SharedGalleryImageTransformer(Transformer):
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
             node.log.debug(repr(vm))
+            node.log.debug(str(vm))
+            for thing in vm:
+                node.log.debug(str(thing))
             vhd_path = vm.properties["osDisk"].managed_disk.id
         else:
             vhd_path = get_deployable_vhd_path(
