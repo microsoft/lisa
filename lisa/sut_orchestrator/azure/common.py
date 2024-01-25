@@ -1926,7 +1926,7 @@ def check_or_create_gallery_image_version_from_vm(
     storage_account_type: str,
     host_caching_type: str,
     gallery_image_target_regions: List[str],
-    vm_resource_id: str,
+    managed_disk_id: str,
     size_in_gb: int = 30,
 ) -> None:
     try:
@@ -1955,9 +1955,8 @@ def check_or_create_gallery_image_version_from_vm(
                 "publishing_profile": {"target_regions": target_regions},
                 "storageProfile": {
                     "source": {
-                        "id": (vm_resource_id),
+                        "id": managed_disk_id,
                     },
-                    "os_disk_image": {"size_in_gb": size_in_gb},
                 },
                 "osState": "Generalized",
             }
