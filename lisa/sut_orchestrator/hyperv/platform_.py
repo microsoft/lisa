@@ -53,10 +53,10 @@ class HypervPlatform(Platform):
 
         server = self._hyperv_runbook.servers[0]
         self.server_node = RemoteNode(
-            runbook=schema.Node(name="hyperv-server"),
+            runbook=schema.Node(name="hyperv"),
             index=-1,
-            logger_name="hyperv-server",
-            parent_logger=get_logger("hyperv-platform"),
+            logger_name="hyperv",
+            parent_logger=get_logger("hyperv"),
         )
         self.server_node.set_connection_info(
             address=server.address, username=server.username, password=server.password
