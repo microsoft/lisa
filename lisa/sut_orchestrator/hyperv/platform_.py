@@ -46,9 +46,9 @@ class HypervPlatform(Platform):
         self._hyperv_runbook = hyperv_runbook
 
         if len(self._hyperv_runbook.servers) > 1:
-            self._log.warning(
+            self._log.info(
                 "Multiple servers are currently not supported. "
-                "Only the server host will be used."
+                "Only the first server will be used."
             )
 
         server = self._hyperv_runbook.servers[0]
