@@ -508,7 +508,6 @@ class SharedGalleryImageTransformer(Transformer):
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
         image_location = runbook.gallery_image_location[0]
-        disk_resource_id: str = ""
         (
             gallery_image_publisher,
             gallery_image_offer,
@@ -541,22 +540,22 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
-            disk_resource_id = "/".join(
-                vm_resource_id.split("/")[:-2]
-                + [
-                    "images",
-                    gallery_image_publisher + gallery_image_offer,
-                ]
-            )
-            response = compute_client.images.begin_create_or_update(
-                resource_group_name=runbook.vm_resource_group,
-                image_name=gallery_image_publisher + gallery_image_offer,
-                parameters={
-                    "location": runbook.gallery_location,
-                    "properties": {"sourceVirtualMachine": {"id": vm_resource_id}},
-                },
-            ).result()
-            node.log.debug(response)
+            # disk_resource_id = "/".join(
+            #     vm_resource_id.split("/")[:-2]
+            #     + [
+            #         "images",
+            #         gallery_image_publisher + gallery_image_offer,
+            #     ]
+            # )
+            # response = compute_client.images.begin_create_or_update(
+            #     resource_group_name=runbook.vm_resource_group,
+            #     image_name=gallery_image_publisher + gallery_image_offer,
+            #     parameters={
+            #         "location": runbook.gallery_location,
+            #         "properties": {"sourceVirtualMachine": {"id": vm_resource_id}},
+            #     },
+            # ).result()
+            # node.log.debug(response)
 
         else:
             vhd_path = get_deployable_vhd_path(
@@ -589,7 +588,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_description,
         )
         if runbook.vm_resource_group:
-            disk_controller_type = "NVMe,SCSI"
+            disk_controller_type = "NVMe"
         else:
             disk_controller_type = "SCSI"
 
@@ -629,7 +628,7 @@ class SharedGalleryImageTransformer(Transformer):
                 storage_account_type=runbook.storage_account_type,
                 host_caching_type=runbook.host_caching_type,
                 gallery_image_target_regions=runbook.gallery_image_location,
-                managed_disk_id=disk_resource_id,
+                vm_resource_id=vm_resource_id,
                 size_in_gb=osdisk_size_in_gb,
             )
         else:
