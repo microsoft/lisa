@@ -44,8 +44,6 @@ class HypervPlatform(Platform):
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
         assert hyperv_runbook, "platform runbook cannot be empty"
         self._hyperv_runbook = hyperv_runbook
-        print("Hyperv platform initialize")
-        print(f"{self._hyperv_runbook}")
 
         if len(self._hyperv_runbook.servers) > 1:
             self._log.warning(
