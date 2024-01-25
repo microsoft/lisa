@@ -126,7 +126,7 @@ class CloudHypervisorTestSuite(TestSuite):
             Runs cloud-hypervisor performance metrics tests.
         """,
         priority=3,
-        timeout=CloudHypervisorTests.CASE_TIME_OUT,
+        timeout=CloudHypervisorTests.PERF_CASE_TIME_OUT,
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
