@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
 from typing import Optional
 
 from lisa import RemoteNode, features
 from lisa.tools import PowerShell
+from lisa.util import filter_ansi_escape
 from lisa.util.logger import Logger
 from lisa.util.parallel import TaskManager, run_in_parallel_async
 
@@ -30,8 +30,7 @@ class SerialConsole(features.SerialConsole):
         with open(console_log_local_path, mode="r", encoding="utf-8") as f:
             log = f.read()
 
-        # Remove ANSI control codes.
-        log = re.sub("\x1b\\[[0-9;]*[mGKF]", "", log)
+        log = filter_ansi_escape(log)
 
         log_bytes = log.encode("utf-8")
         return log_bytes
