@@ -412,7 +412,6 @@ class SshShell(InitializableMixin):
         path_str = self._purepath_to_str(path)
         self.initialize()
         assert self._inner_shell
-
         try:
             self._inner_shell.mkdir(
                 path_str, mode=mode, parents=parents, exist_ok=exist_ok
