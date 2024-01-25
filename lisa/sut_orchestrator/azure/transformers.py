@@ -588,7 +588,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_description,
         )
         if runbook.vm_resource_group:
-            disk_controller_type = "NVMe"
+            disk_controller_type = "SCSI,NVMe"
         else:
             disk_controller_type = "SCSI"
 
