@@ -545,7 +545,6 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
-<<<<<<< HEAD
             node.log.debug(f"Deplying SIG image from VM: {str(vm)}")
             # working around a bug where image deployment from VM won't validate
             # NVMe disk controllers in a way that LISA can handle.
@@ -560,14 +559,6 @@ class SharedGalleryImageTransformer(Transformer):
             # which includes the sub and rg guids.
             resoure_group_name = ""
             account_name = ""
-=======
-            node.log.debug(repr(vm))
-            node.log.debug(str(vm))
-
-            vhd_path = "/".join(
-                str(vm.id).split("/")[:-2] + ["disks", vm.name + "-osDisk"]
-            )
->>>>>>> ba6c7573 (get vhd id)
         else:
             vhd_path = get_deployable_vhd_path(
                 platform, runbook.vhd, image_location, self._log
@@ -581,8 +572,9 @@ class SharedGalleryImageTransformer(Transformer):
                 vhd_details["blob_name"],
             ):
                 raise LisaException(f"{vhd_path} doesn't exist.")
-            resoure_group_name = vhd_details["resource_group_name"]
-            account_name = vhd_details["account_name"]
+                resoure_group_name = vhd_details["resource_group_name"]
+                account_name = vhd_details["account_name"]
+
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
             platform.credential,
