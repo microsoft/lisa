@@ -477,7 +477,7 @@ class DpdkTestpmd(Tool):
         super().__init__(*args, **kwargs)
         # set source args for builds if needed, first for dpdk
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
-        self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        self._dpdk_branch: str = kwargs.pop("dpdk_branch", "")
         # then for rdma-core
         rdma_core_source = kwargs.pop("rdma_core_source", "")
         rdma_core_ref = kwargs.pop("rdma_core_ref", "")
@@ -687,6 +687,7 @@ class DpdkTestpmd(Tool):
                 self._dpdk_source,
                 cwd=self.current_work_path,
                 dir_name=self._dpdk_repo_path_name,
+                ref=self._dpdk_branch.strip(),
             )
             if not self._dpdk_branch:
                 # dpdk stopped using a default branch
@@ -695,7 +696,7 @@ class DpdkTestpmd(Tool):
                     self.dpdk_path, filter_=r"^v.*"  # starts w 'v'
                 )
 
-            git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
+                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
 
         self._load_drivers_for_dpdk()
 
