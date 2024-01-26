@@ -1880,6 +1880,8 @@ def check_or_create_gallery_image(
     except Exception as ex:
         # create the gallery image if specified gallery name doesn't exist
         if "ResourceNotFound" in str(ex):
+            if gallery_image_disk_controller == "NVMe":
+                gallery_image_disk_controller = "NVMe,SCSI"
             image_post_body: Dict[str, Any] = {}
             image_post_body = {
                 "location": gallery_image_location,
