@@ -551,15 +551,15 @@ class SharedGalleryImageTransformer(Transformer):
             vhd_path = get_deployable_vhd_path(
                 platform, runbook.vhd, image_location, self._log
             )
-        vhd_details = get_vhd_details(platform, vhd_path)
-        if not check_blob_exist(
-            platform,
-            vhd_details["account_name"],
-            vhd_details["container_name"],
-            vhd_details["resource_group_name"],
-            vhd_details["blob_name"],
-        ):
-            raise LisaException(f"{vhd_path} doesn't exist.")
+            vhd_details = get_vhd_details(platform, vhd_path)
+            if not check_blob_exist(
+                platform,
+                vhd_details["account_name"],
+                vhd_details["container_name"],
+                vhd_details["resource_group_name"],
+                vhd_details["blob_name"],
+            ):
+                raise LisaException(f"{vhd_path} doesn't exist.")
 
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
