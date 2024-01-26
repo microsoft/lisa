@@ -543,6 +543,8 @@ class SharedGalleryImageTransformer(Transformer):
             vhd_path = "/".join(
                 str(vm.id).split("/")[:-2] + ["disks", vm.name + "-osDisk"]
             )
+            resoure_group_name = ""
+            account_name = ""
         else:
             vhd_path = get_deployable_vhd_path(
                 platform, runbook.vhd, image_location, self._log
@@ -556,7 +558,8 @@ class SharedGalleryImageTransformer(Transformer):
                 vhd_details["blob_name"],
             ):
                 raise LisaException(f"{vhd_path} doesn't exist.")
-
+            resoure_group_name = vhd_details["resource_group_name"]
+            account_name = vhd_details["account_name"]
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
             platform.credential,
@@ -604,10 +607,10 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.regional_replica_count,
             runbook.storage_account_type,
             runbook.host_caching_type,
-            vhd_path,
-            vhd_details["resource_group_name"],
-            vhd_details["account_name"],
             runbook.gallery_image_location,
+            vhd_path,
+            resoure_group_name,
+            account_name,
         )
 
         sig_url = (

@@ -1985,11 +1985,23 @@ def check_or_create_gallery_image_version_from_vhd(
     regional_replica_count: int,
     storage_account_type: str,
     host_caching_type: str,
-    vhd_path: str,
-    vhd_resource_group_name: str,
-    vhd_storage_account_name: str,
     gallery_image_target_regions: List[str],
+    vhd_path: str,
+    vhd_resource_group_name: str = "",
+    vhd_storage_account_name: str = "",
 ) -> None:
+    if vhd_resource_group_name and vhd_storage_account_name:
+        vhd_source_info = {
+            "uri": vhd_path,
+            "id": (
+                f"/subscriptions/{platform.subscription_id}/"
+                f"resourceGroups/{vhd_resource_group_name}"
+                "/providers/Microsoft.Storage/storageAccounts/"
+                f"{vhd_storage_account_name}"
+            ),
+        }
+    else:
+        vhd_source_info = {"id": vhd_path}
     try:
         compute_client = get_compute_client(platform)
         compute_client.gallery_image_versions.get(
@@ -2016,15 +2028,7 @@ def check_or_create_gallery_image_version_from_vhd(
                 "storageProfile": {
                     "osDiskImage": {
                         "hostCaching": host_caching_type,
-                        "source": {
-                            "uri": vhd_path,
-                            "id": (
-                                f"/subscriptions/{platform.subscription_id}/"
-                                f"resourceGroups/{vhd_resource_group_name}"
-                                "/providers/Microsoft.Storage/storageAccounts/"
-                                f"{vhd_storage_account_name}"
-                            ),
-                        },
+                        "source": vhd_source_info,
                     },
                 },
             }
