@@ -322,7 +322,7 @@ class DpdkTestpmd(Tool):
 
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} --loglevel mana,debug --loglevel netvsc,debug "
+            f"{nic_include_info} --log-level mana,debug --log-level netvsc,debug "
             f" -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
@@ -780,7 +780,7 @@ class DpdkTestpmd(Tool):
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.vf_helper.is_mana():
             network_drivers = []
-            if not node.tools[Lsmod].module_exists("mana_ib"):
+            if not self.node.tools[Lsmod].module_exists("mana_ib"):
                 mana_builtin = self.node.tools[KernelConfig].is_built_in(
                     "CONFIG_MICROSOFT_MANA"
                 )
