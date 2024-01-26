@@ -120,6 +120,9 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+        result.assert_exit_code(
+            message=f"failed to checkout ref {ref}. {result.stdout}"
+        )
 
         result = self.run(
             f"checkout -b {checkout_branch}",
