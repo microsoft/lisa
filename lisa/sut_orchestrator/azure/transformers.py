@@ -572,9 +572,8 @@ class SharedGalleryImageTransformer(Transformer):
                 vhd_details["blob_name"],
             ):
                 raise LisaException(f"{vhd_path} doesn't exist.")
-                resoure_group_name = vhd_details["resource_group_name"]
-                account_name = vhd_details["account_name"]
-
+            resoure_group_name = vhd_details["resource_group_name"]
+            account_name = vhd_details["account_name"]
         # create resource group if specified resource group doesn't exist
         check_or_create_resource_group(
             platform.credential,
