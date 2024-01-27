@@ -366,8 +366,14 @@ class AzurePlatformSchema:
                     "should be specified either both or not."
                 )
 
-        if not self.locations:
-            self.locations = LOCATIONS
+        self.locations_list: List[str] = []
+        if self.locations:
+            if isinstance(self.locations, str):
+                self.locations_list = [self.locations]
+            else:
+                self.locations_list = self.locations
+        else:
+            self.locations_list = LOCATIONS
 
     @property
     def cloud(self) -> Cloud:
@@ -518,7 +524,9 @@ class AzurePlatform(Platform):
         is_success: bool = False
 
         # get eligible locations
-        allowed_locations = _get_allowed_locations(nodes_requirement)
+        allowed_locations = _get_allowed_locations(
+            nodes_requirement, self._azure_runbook
+        )
         log.debug(f"allowed locations: {allowed_locations}")
 
         # Any to wait for resource
@@ -2940,7 +2948,9 @@ def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
         )
 
 
-def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
+def _get_allowed_locations(
+    nodes_requirement: List[schema.NodeSpace], azure_runbook: AzurePlatformSchema
+) -> List[str]:
     existing_locations_str: str = ""
     for req in nodes_requirement:
         # check locations
@@ -2963,7 +2973,7 @@ def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[st
         existing_locations = existing_locations_str.split(",")
         existing_locations = [x.strip() for x in existing_locations]
     else:
-        existing_locations = LOCATIONS[:]
+        existing_locations = azure_runbook.locations_list
 
     return existing_locations
 
