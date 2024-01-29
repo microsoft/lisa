@@ -16,7 +16,6 @@ from lisa.features import StartStop
 from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
-from lisa.schema import DiskControllerType
 from lisa.transformer import Transformer
 from lisa.util import (
     LisaException,
@@ -485,9 +484,9 @@ class SigTransformerSchema(schema.Transformer):
     )
     osdisk_size_in_gb: int = field(default=30)
     gallery_image_disk_controller_type: str = field(
-        default=DiskControllerType.SCSI,
+        default="SCSI",
         metadata=field_metadata(
-            validate=validate.OneOf([DiskControllerType.SCSI, DiskControllerType.NVME])
+            validate=validate.OneOf(["SCSI", "NVMe,SCSI", "SCSI,NVMe"])
         ),
     )
 
