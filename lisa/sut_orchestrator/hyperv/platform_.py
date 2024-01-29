@@ -4,7 +4,7 @@
 import random
 import string
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import Any, List, Optional, Type
+from typing import Any, List, Type, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
@@ -41,10 +41,17 @@ class HypervPlatform(Platform):
         return [SerialConsole]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._host_cap: Optional[_HostCapabilities] = None
+        self._hyperv_runbook = self._get_hyperv_runbook()
+        self.server_node = self._initialize_server_node()
+        self._host_capabilities = self._init_host_capabilities(self._log)
+
+    def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
         assert hyperv_runbook, "platform runbook cannot be empty"
-        self._hyperv_runbook = hyperv_runbook
+        return cast(HypervPlatformSchema, hyperv_runbook)
+
+    def _initialize_server_node(self) -> RemoteNode:
+        assert self._hyperv_runbook, "hyperv runbook cannot be empty"
 
         if len(self._hyperv_runbook.servers) > 1:
             self._log.info(
@@ -53,15 +60,18 @@ class HypervPlatform(Platform):
             )
 
         server = self._hyperv_runbook.servers[0]
-        self.server_node = RemoteNode(
+        server_node = RemoteNode(
             runbook=schema.Node(name="hyperv"),
             index=-1,
             logger_name="hyperv",
             parent_logger=get_logger("hyperv"),
         )
-        self.server_node.set_connection_info(
+
+        server_node.set_connection_info(
             address=server.address, username=server.username, password=server.password
         )
+
+        return server_node
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         return self._configure_node_capabilities(environment, log)
@@ -72,8 +82,7 @@ class HypervPlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
-        host_capabilities = self._get_host_capabilities(log)
-        nodes_capabilities = self._create_node_capabilities(host_capabilities)
+        nodes_capabilities = self._create_node_capabilities()
 
         nodes_requirement = []
         for node_space in environment.runbook.nodes_requirement:
@@ -86,10 +95,7 @@ class HypervPlatform(Platform):
         environment.runbook.nodes_requirement = nodes_requirement
         return True
 
-    def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
-        if self._host_cap:
-            return self._host_cap
-
+    def _init_host_capabilities(self, log: Logger) -> _HostCapabilities:
         host_cap = _HostCapabilities()
 
         free_mem_bytes = self.server_node.tools[PowerShell].run_cmdlet(
@@ -107,9 +113,7 @@ class HypervPlatform(Platform):
             f"{host_cap.free_memory_mib} MiB free memory"
         )
 
-        self._host_cap = host_cap
-
-        return self._host_cap
+        return host_cap
 
     # Check that the VM requirements can be fulfilled by the host.
     def _check_host_capabilities(
@@ -135,9 +139,8 @@ class HypervPlatform(Platform):
 
         return True
 
-    def _create_node_capabilities(
-        self, host_capabilities: _HostCapabilities
-    ) -> schema.NodeSpace:
+    def _create_node_capabilities(self) -> schema.NodeSpace:
+        host_capabilities = self._host_capabilities
         node_capabilities = schema.NodeSpace()
         node_capabilities.name = "Hyper-V"
         node_capabilities.node_count = 1
