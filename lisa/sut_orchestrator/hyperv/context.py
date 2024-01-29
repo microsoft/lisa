@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass
-from pathlib import PurePosixPath, PureWindowsPath
+from pathlib import PureWindowsPath
 from typing import Optional
 
 from lisa import Node, RemoteNode
@@ -13,10 +13,13 @@ from lisa.util.parallel import TaskManager
 class NodeContext:
     vm_name: str = ""
     host: Optional[RemoteNode] = None
-    vhd_local_path = PurePosixPath()  # Local path on the machine where LISA is running
-    vhd_remote_path = PureWindowsPath()  # Path on the hyperv server
-    console_log_path = PureWindowsPath()  # Remote path with serial console output
+    working_dir = PureWindowsPath()
+    vhd_path = PureWindowsPath()
     serial_log_task_mgr: Optional["TaskManager[None]"] = None
+
+    @property
+    def console_log_path(self) -> PureWindowsPath:
+        return self.working_dir / f"{self.vm_name}-console.log"
 
 
 def get_node_context(node: Node) -> NodeContext:

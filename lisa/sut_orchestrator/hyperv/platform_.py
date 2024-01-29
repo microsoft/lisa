@@ -3,14 +3,14 @@
 
 import random
 import string
-from pathlib import PurePath, PurePosixPath, PureWindowsPath
+from pathlib import PurePath, PureWindowsPath
 from typing import Any, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
-from lisa.tools import Cp, HyperV, Ls, PowerShell, Unzip
+from lisa.tools import Cp, HyperV, Ls, Mkdir, PowerShell, Unzip
 from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
@@ -168,7 +168,7 @@ class HypervPlatform(Platform):
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         self._deploy_nodes(environment, log)
 
-    def _prepare_common_vhd(self, vhd_local_path: PurePath) -> None:
+    def _prepare_common_vhd(self, vhd_local_path: PurePath, log: Logger) -> None:
         if self._common_vhd_path:
             return
 
@@ -183,7 +183,9 @@ class HypervPlatform(Platform):
                 self.server_node.working_path / "zipped_vhd.zip"
             )
 
+        log.debug("Copying VHD to server")
         self.server_node.shell.copy(vhd_local_path, vhd_remote_path)
+        log.debug("Finished copying VHD to server")
 
         if is_zipped:
             vhd_remote_path = self._unzip_vhd(vhd_remote_path)
@@ -216,26 +218,33 @@ class HypervPlatform(Platform):
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
 
+            self._prepare_common_vhd(PurePath(node_runbook.vhd), log)
+            assert self._common_vhd_path
+
             node.name = vm_name
 
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
             node_context.host = self.server_node
-            node_context.vhd_local_path = PurePosixPath(node_runbook.vhd)
-            node_context.vhd_remote_path = PureWindowsPath(
-                self.server_node.working_path / f"{vm_name}-vhd.vhdx"
-            )
-            node_context.console_log_path = PureWindowsPath(
-                self.server_node.working_path / f"{vm_name}-console.log"
+
+            node_context.working_dir = PureWindowsPath(
+                self.server_node.working_path / f"{vm_name}"
             )
 
-            self._prepare_common_vhd(PurePath(node_runbook.vhd))
-            assert self._common_vhd_path
+            vm_vhd_name = f"{vm_name}.{self._common_vhd_path.suffix}"
+            node_context.vhd_path = PureWindowsPath(
+                self.server_node.working_path / f"{vm_vhd_name}"
+            )
+
+            self.server_node.tools[Mkdir].create_directory(
+                str(node_context.working_dir)
+            )
+
             self.server_node.tools[Cp].copy(
-                self._common_vhd_path, node_context.vhd_remote_path
+                self._common_vhd_path, node_context.vhd_path
             )
 
-            self._resize_vhd_if_needed(node_context.vhd_remote_path, node_runbook)
+            self._resize_vhd_if_needed(node_context.vhd_path, node_runbook)
 
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
@@ -250,7 +259,7 @@ class HypervPlatform(Platform):
 
             hv.create_vm(
                 name=vm_name,
-                guest_image_path=str(node_context.vhd_remote_path),
+                guest_image_path=str(node_context.vhd_path),
                 switch_name=default_switch,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,
@@ -270,7 +279,7 @@ class HypervPlatform(Platform):
             )
 
     def _unzip_vhd(self, zipped_vhd_path: PureWindowsPath) -> PureWindowsPath:
-        extraction_path = zipped_vhd_path.parent.joinpath("extracted")
+        extraction_path = zipped_vhd_path.parent.joinpath("common_vhd")
         self.server_node.tools[Unzip].extract(
             str(zipped_vhd_path), str(extraction_path)
         )
