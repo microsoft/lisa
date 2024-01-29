@@ -26,6 +26,7 @@ from lisa import (
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
+from lisa.operating_system import Posix
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import (
     Cat,
@@ -35,7 +36,6 @@ from lisa.tools import (
     Iperf3,
     Journalctl,
     Lscpu,
-    Sed,
     Service,
 )
 from lisa.util import (
@@ -679,9 +679,10 @@ class Sriov(TestSuite):
         this is the case.
 
         Steps,
-        1. Set irqbalance logging level to debug.
-        2. Generate some network traffic.
-        3. Check check logs for “Selecting irq xxx for rebalancing”.
+        1. Stop irqbalance service.
+        2. Start irqbalance as a background process with debug mode.
+        3. Generate some network traffic.
+        4. Check irqbalance output for “Selecting irq xxx for rebalancing”.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -690,14 +691,31 @@ class Sriov(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_irqbalance(self, environment: Environment) -> None:
+    def verify_irqbalance(self, environment: Environment, log: Logger) -> None:
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        server_node.tools[Sed].append(
-            "IRQBALANCE_ARGS='--debug'", "/etc/default/irqbalance", True
-        )
-        server_node.tools[Service].restart_service("irqbalance")
+        if (
+            server_node.execute(
+                "command -v irqbalance", shell=True, sudo=True
+            ).exit_code
+            != 0
+        ):
+            raise SkippedException("irqbalance is not installed")
+
+        # Get the irqbalance version if we can
+        if isinstance(server_node.os, Posix):
+            try:
+                log.debug(
+                    "irqbalance version: "
+                    f"{server_node.os.get_package_information('irqbalance')}"
+                )
+            except Exception:
+                log.debug("irqbalance version: not found")
+
+        server_node.tools[Service].stop_service("irqbalance")
+
+        irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
 
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]
@@ -710,9 +728,11 @@ class Sriov(TestSuite):
             client_ip=client_node.internal_address,
         )
 
+        irqbalance.kill()
+        result = irqbalance.wait_result()
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
-            server_node.tools[Journalctl].logs_for_unit("irqbalance"),
+            result.stdout,
         ), "irqbalance is not rebalancing irqs"
 
     @TestCaseMetadata(
