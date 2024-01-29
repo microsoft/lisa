@@ -149,7 +149,7 @@ class WindowsReboot(Reboot):
     def _check_exists(self) -> bool:
         return True
 
-    def reboot(self, time_out: int = 600) -> None:
+    def reboot(self, time_out: int = 1200) -> None:
         last_boot_time = self.node.tools[Uptime].since_time()
         self.node.tools[PowerShell].run_cmdlet(
             "Restart-Computer -Force", force_run=True
@@ -162,7 +162,7 @@ class WindowsReboot(Reboot):
 
         timeout_start = time.time()
         is_ready = False
-        self._log.debug("Waiting for VM to reboot")
+        self._log.debug(f"Waiting for VM to reboot, time_out: {time_out}")
         while time.time() - timeout_start < time_out:
             try:
                 # check that vm has accessible ssh port

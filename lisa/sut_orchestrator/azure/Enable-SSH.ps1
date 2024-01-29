@@ -31,6 +31,11 @@ $acl | Set-Acl
 Start-Service sshd
 
 # enable key authentication and restart for effective.
-$sshd_config = "C:\ProgramData\ssh\sshd_config" 
-(Get-Content $sshd_config) -replace '#PubkeyAuthentication', 'PubkeyAuthentication' | Out-File -encoding ASCII $sshd_config
+$ssh_server = Get-Service sshd | Where-Object { $_.Name -like 'sshd' -and $_.Status -like "Running" }
+if ($ssh_server)
+{
+    Write-Output "sshd server is running"
+    $sshd_config = "C:\ProgramData\ssh\sshd_config"
+    (Get-Content $sshd_config) -replace '#PubkeyAuthentication', 'PubkeyAuthentication' | Out-File -encoding ASCII $sshd_config
+}
 Restart-Service sshd
