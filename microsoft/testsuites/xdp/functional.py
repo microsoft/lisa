@@ -78,6 +78,7 @@ class XdpFunctional(TestSuite):
         3. Test in Synthetic mode.
         """,
         priority=2,
+        timeout=6000,
         requirement=simple_requirement(min_count=2, network_interface=Sriov()),
     )
     def verify_xdp_sriov_failsafe(self, environment: Environment) -> None:
@@ -339,6 +340,7 @@ class XdpFunctional(TestSuite):
         6. Run xdp dump to drop and count packets.
         """,
         priority=3,
+        timeout=6000,
         requirement=simple_requirement(network_interface=Sriov()),
     )
     def verify_xdp_remove_add_vf(self, node: Node, log: Logger) -> None:

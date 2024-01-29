@@ -265,6 +265,7 @@ class Sriov(TestSuite):
         5. Do step 2 ~ step 4 for 2 times.
         """,
         priority=1,
+        timeout=6000,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
@@ -525,6 +526,7 @@ class Sriov(TestSuite):
          check the scatter-gather feature status keep consistent in VF.
         """,
         priority=2,
+        timeout=6000,
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
