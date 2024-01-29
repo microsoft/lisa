@@ -13,6 +13,7 @@ from retry import retry
 from lisa import schema
 from lisa.environment import Environments, EnvironmentSpace
 from lisa.features import StartStop
+from lisa.features.disks import DiskControllerType
 from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
@@ -483,6 +484,12 @@ class SigTransformerSchema(schema.Transformer):
         ),
     )
     osdisk_size_in_gb: int = field(default=30)
+    disk_controller_type: str = field(
+        default=DiskControllerType.SCSI,
+        metadata=field_metadata(
+            validate=validate.OneOf([DiskControllerType.SCSI, DiskControllerType.NVME])
+        ),
+    )
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -507,8 +514,8 @@ class SharedGalleryImageTransformer(Transformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
+        disk_controller_type: str = self.runbook.disk_controller_type
         image_location = runbook.gallery_image_location[0]
-        disk_resource_id: str = ""
         (
             gallery_image_publisher,
             gallery_image_offer,
@@ -530,9 +537,7 @@ class SharedGalleryImageTransformer(Transformer):
             node = list(environment.nodes.list())[0]
             assert isinstance(node, RemoteNode)
             vm = get_vm(platform=platform, node=node)
-            vm_resource_id = vm.id
             vm_name = vm.name
-
             compute_client = get_compute_client(platform=platform)
             # stop VM before generalizing
             node.features[StartStop].stop()
@@ -541,12 +546,18 @@ class SharedGalleryImageTransformer(Transformer):
             compute_client.virtual_machines.generalize(
                 resource_group_name=runbook.vm_resource_group, vm_name=vm_name
             )
-            node.log.debug(repr(vm))
-            node.log.debug(str(vm))
-
+            node.log.debug(f"Deplying SIG image from VM: {str(vm)}")
+            # working around a bug where image deployment from VM won't validate
+            # NVMe disk controllers in a way that LISA can handle.
+            # Controller must be NVMe,SCSI or SCSI,NVME while LISA is deploying NVME.
+            # Instead, deploy the SIG from the OS disk directly after generalizing
+            # and stopping the VM.
+            # FIXME:  a little bootleg, relying on the LISA name convention
             vhd_path = "/".join(
                 str(vm.id).split("/")[:-2] + ["disks", vm.name + "-osDisk"]
             )
+            # don't need either of these for OS disk, just pass the os disk resource ID
+            # which includes the sub and rg guids.
             resoure_group_name = ""
             account_name = ""
         else:
@@ -580,10 +591,6 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_location,
             runbook.gallery_description,
         )
-        if runbook.vm_resource_group:
-            disk_controller_type = "SCSI,NVMe"
-        else:
-            disk_controller_type = "SCSI"
 
         check_or_create_gallery_image(
             platform,
