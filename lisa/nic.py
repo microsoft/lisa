@@ -456,11 +456,11 @@ class Nics(InitializableMixin):
     def is_mana_driver_enabled(self) -> bool:
         # check the config first
         try:
-            self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+            return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
         except LisaException:
             # check the pci devices if the config tool is
             # not implemented or broken for this image (sig, vhd, etc)
-            any(
+            return any(
                 [
                     "Microsoft" in device.vendor
                     for device in self._node.tools[Lspci].get_devices_by_type(
