@@ -19,10 +19,10 @@ class SerialConsole(features.SerialConsole):
         node = self._node
         node_ctx = get_node_context(node)
 
-        assert node_ctx.server_node, "server node is not set"
+        assert node_ctx.host, "host node is not set"
 
         vm_name = node_ctx.vm_name
-        server_node = node_ctx.server_node
+        server_node = node_ctx.host
         console_log_path = node_ctx.console_log_path
         console_log_local_path = server_node.local_log_path / f"{vm_name}-console.log"
         server_node.shell.copy_back(console_log_path, PurePath(console_log_local_path))

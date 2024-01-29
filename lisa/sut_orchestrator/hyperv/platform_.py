@@ -197,7 +197,7 @@ class HypervPlatform(Platform):
 
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
-            node_context.server_node = self.server_node
+            node_context.host = self.server_node
             node_context.vhd_local_path = PurePosixPath(node_runbook.vhd)
             node_context.vhd_remote_path = PureWindowsPath(
                 self.server_node.working_path / f"{vm_name}-vhd.vhdx"
