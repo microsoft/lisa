@@ -480,7 +480,7 @@ class SigTransformerSchema(schema.Transformer):
         ),
     )
     osdisk_size_in_gb: int = field(default=30)
-    disk_controller_type: str = field(
+    gallery_image_disk_controller_type: str = field(
         default=DiskControllerType.SCSI,
         metadata=field_metadata(
             validate=validate.OneOf([DiskControllerType.SCSI, DiskControllerType.NVME])
@@ -510,7 +510,7 @@ class SharedGalleryImageTransformer(Transformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
-        disk_controller_type: str = self.runbook.disk_controller_type
+        disk_controller_type: str = self.runbook.gallery_image_disk_controller_type
         image_location = runbook.gallery_image_location[0]
         (
             gallery_image_publisher,
