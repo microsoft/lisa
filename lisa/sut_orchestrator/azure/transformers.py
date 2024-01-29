@@ -13,6 +13,7 @@ from retry import retry
 from lisa import schema
 from lisa.environment import Environments, EnvironmentSpace
 from lisa.features import StartStop
+from lisa.features.disks import DiskControllerType
 from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
@@ -482,10 +483,10 @@ class SigTransformerSchema(schema.Transformer):
         ),
     )
     osdisk_size_in_gb: int = field(default=30)
-    gallery_image_disk_controller_type: str = field(
-        default="SCSI",
+    disk_controller_type: str = field(
+        default=DiskControllerType.SCSI,
         metadata=field_metadata(
-            validate=validate.OneOf(["SCSI", "NVMe,SCSI", "SCSI,NVMe"])
+            validate=validate.OneOf([DiskControllerType.SCSI, DiskControllerType.NVME])
         ),
     )
 
