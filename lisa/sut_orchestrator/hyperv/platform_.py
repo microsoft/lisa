@@ -3,8 +3,8 @@
 
 import random
 import string
-from pathlib import PurePosixPath, PureWindowsPath
-from typing import Any, List, Type, cast
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
+from typing import Any, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
@@ -14,7 +14,7 @@ from lisa.tools import Cp, HyperV, Ls, PowerShell, Unzip
 from lisa.util.logger import Logger, get_logger
 
 from .. import HYPERV
-from .context import NodeContext, get_node_context
+from .context import get_node_context
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
 
@@ -44,6 +44,7 @@ class HypervPlatform(Platform):
         self._hyperv_runbook = self._get_hyperv_runbook()
         self.server_node = self._initialize_server_node()
         self._host_capabilities = self._init_host_capabilities(self._log)
+        self._common_vhd_path: Optional[PureWindowsPath] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -167,6 +168,28 @@ class HypervPlatform(Platform):
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         self._deploy_nodes(environment, log)
 
+    def _prepare_common_vhd(self, vhd_local_path: PurePath) -> None:
+        if self._common_vhd_path:
+            return
+
+        vhd_remote_path = PureWindowsPath(
+            self.server_node.working_path / f"common_vhd.{vhd_local_path.suffix}"
+        )
+
+        is_zipped = False
+        if vhd_local_path.suffix == ".zip":
+            is_zipped = True
+            vhd_remote_path = PureWindowsPath(
+                self.server_node.working_path / "zipped_vhd.zip"
+            )
+
+        self.server_node.shell.copy(vhd_local_path, vhd_remote_path)
+
+        if is_zipped:
+            vhd_remote_path = self._unzip_vhd(vhd_remote_path)
+
+        self._common_vhd_path = vhd_remote_path
+
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
@@ -206,20 +229,11 @@ class HypervPlatform(Platform):
                 self.server_node.working_path / f"{vm_name}-console.log"
             )
 
-            remote_path = node_context.vhd_remote_path
-            is_zipped = False
-            if node_context.vhd_local_path.suffix == ".zip":
-                remote_path = PureWindowsPath(
-                    self.server_node.working_path / f"{vm_name}-vhd.zip"
-                )
-                is_zipped = True
-
-            log.debug("Copying VHD to server")
-            self.server_node.shell.copy(node_context.vhd_local_path, remote_path)
-            log.debug("Finished copying VHD to server")
-
-            if is_zipped:
-                self._unzip_vhd(node_context, remote_path)
+            self._prepare_common_vhd(PurePath(node_runbook.vhd))
+            assert self._common_vhd_path
+            self.server_node.tools[Cp].copy(
+                self._common_vhd_path, node_context.vhd_remote_path
+            )
 
             self._resize_vhd_if_needed(node_context.vhd_remote_path, node_runbook)
 
@@ -255,9 +269,7 @@ class HypervPlatform(Platform):
                 address=ip_addr, username=username, password=password
             )
 
-    def _unzip_vhd(
-        self, node_context: NodeContext, zipped_vhd_path: PureWindowsPath
-    ) -> None:
+    def _unzip_vhd(self, zipped_vhd_path: PureWindowsPath) -> PureWindowsPath:
         extraction_path = zipped_vhd_path.parent.joinpath("extracted")
         self.server_node.tools[Unzip].extract(
             str(zipped_vhd_path), str(extraction_path)
@@ -269,8 +281,9 @@ class HypervPlatform(Platform):
         extracted_vhd = PureWindowsPath(extracted_files[0])
         extracted_vhd = extraction_path.joinpath(extracted_vhd)
 
-        self.server_node.tools[Cp].copy(extracted_vhd, node_context.vhd_remote_path)
         self.server_node.shell.remove(zipped_vhd_path)
+
+        return extracted_vhd
 
     def _resize_vhd_if_needed(
         self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
