@@ -39,6 +39,7 @@ from lisa.tools import (
     Mount,
     Ntttcp,
     Ping,
+    Tee,
     Timeout,
 )
 from lisa.tools.mkfs import FileSystem
@@ -111,7 +112,7 @@ def init_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
 
 
 def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    echo = node.tools[Echo]
+    tee = node.tools[Tee]
 
     meminfo = node.tools[Free]
     nics_count = len(node.nics.get_nic_names())
@@ -148,7 +149,7 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
 
     for i in range(numa_nodes):
         if enable_gibibyte_hugepages:
-            echo.write_to_file(
+            tee.write_to_file(
                 f"{request_pages_1gb}",
                 node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
@@ -157,7 +158,7 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
                 sudo=True,
             )
         else:
-            echo.write_to_file(
+            tee.write_to_file(
                 f"{request_pages_2mb}",
                 node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
@@ -257,7 +258,7 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # you to enable to uio_hv_generic driver, steps are found:
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
 
-    echo = node.tools[Echo]
+    tee = node.tools[Tee]
     lsmod = node.tools[Lsmod]
     modprobe = node.tools[Modprobe]
     uname = node.tools[Uname]
@@ -282,7 +283,7 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
     # vmbus magic to enable uio_hv_generic
-    echo.write_to_file(
+    tee.write_to_file(
         hv_uio_generic_uuid,
         node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
         sudo=True,
