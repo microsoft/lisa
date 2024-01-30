@@ -31,7 +31,6 @@ from .common import (
     check_or_create_gallery,
     check_or_create_gallery_image,
     check_or_create_gallery_image_version_from_vhd,
-    check_or_create_gallery_image_version_from_vm,
     check_or_create_resource_group,
     check_or_create_storage_account,
     get_compute_client,
