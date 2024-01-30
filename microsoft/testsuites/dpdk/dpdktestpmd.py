@@ -713,7 +713,11 @@ class DpdkTestpmd(Tool):
 
         # shrink build
         build_flags += [
-            "-Denable_drivers=net/mlx*,net/mana",
+            (
+                "-Denable_drivers=*/mlx*,net/mana,bus/vmbus,"
+                "net/*netvsc,net/ring,net/virtio,net/bonding,"
+                "bus/auxiliary,common/*"
+            ),
             "-Denable_apps=app/test-pmd",
         ]
 
