@@ -510,6 +510,7 @@ class SharedGalleryImageTransformer(Transformer):
         runbook: SigTransformerSchema = self.runbook
         platform = _load_platform(self._runbook_builder, self.type_name())
         disk_controller_type: str = self.runbook.gallery_image_disk_controller_type
+        self._log.debug(f"Found disk controller type: {disk_controller_type}")
         image_location = runbook.gallery_image_location[0]
         (
             gallery_image_publisher,
