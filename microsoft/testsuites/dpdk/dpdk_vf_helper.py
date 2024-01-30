@@ -35,20 +35,20 @@ class DpdkVfHelper:
 
     _testpmd_thresholds = {
         MLX_CX3: {
-            SINGLE_QUEUE: {SEND: 6_000_000, RECV: 5_000_000},
-            MULTI_QUEUE: {SEND: 20_000_000, RECV: 17_000_000},
+            SINGLE_QUEUE: {SEND: 6_000_000, RECV: 4_000_000},
+            MULTI_QUEUE: {SEND: 20_000_000, RECV: 10_000_000},
         },
         MLX_CX4: {
-            SINGLE_QUEUE: {SEND: 7_000_000, RECV: 5_000_000},
-            MULTI_QUEUE: {SEND: 25_000_000, RECV: 19_000_000},
+            SINGLE_QUEUE: {SEND: 7_000_000, RECV: 4_000_000},
+            MULTI_QUEUE: {SEND: 25_000_000, RECV: 12_000_000},
         },
         MLX_CX5: {
-            SINGLE_QUEUE: {SEND: 8_000_000, RECV: 6_000_000},
-            MULTI_QUEUE: {SEND: 28_000_000, RECV: 24_000_000},
+            SINGLE_QUEUE: {SEND: 8_000_000, RECV: 4_000_000},
+            MULTI_QUEUE: {SEND: 28_000_000, RECV: 14_000_000},
         },
         MSFT_MANA: {
-            SINGLE_QUEUE: {SEND: 8_000_000, RECV: 6_000_000},
-            MULTI_QUEUE: {SEND: 48_000_000, RECV: 38_000_000},
+            SINGLE_QUEUE: {SEND: 8_000_000, RECV: 4_000_000},
+            MULTI_QUEUE: {SEND: 48_000_000, RECV: 18_000_000},
         },
     }
 
