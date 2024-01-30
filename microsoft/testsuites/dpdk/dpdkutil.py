@@ -598,6 +598,9 @@ def verify_dpdk_send_receive(
     if multiple_queues:
         sender.testpmd.vf_helper.set_multiple_queue()
         receiver.testpmd.vf_helper.set_multiple_queue()
+    else:
+        sender.testpmd.vf_helper.set_single_queue()
+        receiver.testpmd.vf_helper.set_single_queue()
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
