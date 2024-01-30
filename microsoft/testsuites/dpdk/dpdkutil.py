@@ -613,7 +613,19 @@ def verify_dpdk_send_receive(
         constants.SIGINT,
         kill_timeout=receive_timeout,
     )
-    receive_result.wait_output("start packet forwarding")
+    found_error = False
+    try:
+        receive_result.wait_output("EAL: Error", timeout=5)
+        found_error = True
+    except LisaException:
+        # we actually want this to be missing, so continue if it's not present.
+        found_error = False
+    if found_error:
+        raise LisaException(
+            "DPDK EAL hit an error during startup. Check program output for errors."
+        )
+
+    receive_result.wait_output("start packet forwarding", timeout=10)
     sender_result = sender.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[sender],
         test_duration,
