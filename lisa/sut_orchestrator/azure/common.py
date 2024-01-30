@@ -1951,8 +1951,6 @@ def check_or_create_gallery_image(
     except Exception as ex:
         # create the gallery image if specified gallery name doesn't exist
         if "ResourceNotFound" in str(ex):
-            if gallery_image_disk_controller == "NVMe":
-                gallery_image_disk_controller = "NVMe,SCSI"
             image_post_body: Dict[str, Any] = {}
             image_post_body = {
                 "location": gallery_image_location,
@@ -1982,64 +1980,6 @@ def check_or_create_gallery_image(
                 gallery_name,
                 gallery_image_name,
                 image_post_body,
-            )
-            wait_operation(operation)
-        else:
-            raise LisaException(ex)
-
-
-def check_or_create_gallery_image_version_from_vm(
-    platform: "AzurePlatform",
-    gallery_resource_group_name: str,
-    gallery_name: str,
-    gallery_image_name: str,
-    gallery_image_version: str,
-    gallery_image_location: str,
-    regional_replica_count: int,
-    storage_account_type: str,
-    host_caching_type: str,
-    gallery_image_target_regions: List[str],
-    vm_resource_id: str,
-    size_in_gb: int = 30,
-) -> None:
-    try:
-        compute_client = get_compute_client(platform)
-        compute_client.gallery_image_versions.get(
-            gallery_resource_group_name,
-            gallery_name,
-            gallery_image_name,
-            gallery_image_version,
-        )
-    except Exception as ex:
-        # create the gallery if specified gallery name doesn't exist
-        if "ResourceNotFound" in str(ex):
-            target_regions: List[Dict[str, str]] = []
-            for target_region in gallery_image_target_regions:
-                target_regions.append(
-                    {
-                        "name": target_region,
-                        "regional_replica_count": str(regional_replica_count),
-                        "storage_account_type": storage_account_type,
-                        "exclude_from_latest": "false",
-                    }
-                )
-            image_version_post_body = {
-                "location": gallery_image_location,
-                "publishing_profile": {"target_regions": target_regions},
-                "storageProfile": {
-                    "source": {
-                        "id": (vm_resource_id),
-                    },
-                    "os_disk_image": {"size_in_gb": size_in_gb},
-                },
-                "osState": "Generalized",
-            }
-            operation = compute_client.gallery_image_versions.begin_create_or_update(
-                gallery_resource_group_name,
-                gallery_name,
-                gallery_image_name,
-                gallery_image_version,
-                image_version_post_body,
             )
             wait_operation(operation)
         else:
