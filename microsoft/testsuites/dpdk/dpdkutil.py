@@ -839,7 +839,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         and forwarder.os.information.version >= "22.4.0"
     )
     is_recent_rhel = (
-        isinstance(forwarder.os, Fedora) and forwarder.os.information.version >= "9.3.0"
+        isinstance(forwarder.os, Fedora) and forwarder.os.information.version >= "8.9.0"
     )
     if not (is_recent_ubuntu or is_recent_rhel):
         raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
