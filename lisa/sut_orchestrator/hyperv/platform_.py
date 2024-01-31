@@ -102,6 +102,8 @@ class HypervPlatform(Platform):
         )
         host_cap.free_memory_mib = int(free_mem_bytes) // 1024
 
+        host_cap.free_memory_mib -= 2048  # reserve 2 GiB for host
+
         lp_count = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors"
         )
@@ -121,6 +123,7 @@ class HypervPlatform(Platform):
         log: Logger,
     ) -> bool:
         total_required_memory_mib = 0
+        total_required_cpus = 0
         host_capabilities = self._host_capabilities
 
         for node_requirements in nodes_requirements:
@@ -128,11 +131,23 @@ class HypervPlatform(Platform):
             assert isinstance(node_requirements.memory_mb, int)
             total_required_memory_mib += node_requirements.memory_mb
 
+            # Calculate total number of CPUs required for all the VMs.
+            assert isinstance(node_requirements.core_count, int)
+            total_required_cpus += node_requirements.core_count
+
         # Ensure host has enough memory for all the VMs.
         if total_required_memory_mib > host_capabilities.free_memory_mib:
             log.error(
                 f"Nodes require a total of {total_required_memory_mib} MiB memory. "
                 f"Host only has {host_capabilities.free_memory_mib} MiB free."
+            )
+            return False
+
+        # Ensure host has enough CPUs for all the VMs.
+        if total_required_cpus > host_capabilities.core_count:
+            log.error(
+                f"Nodes require a total of {total_required_cpus} CPUs. "
+                f"Host only has {host_capabilities.core_count} CPUs."
             )
             return False
 
