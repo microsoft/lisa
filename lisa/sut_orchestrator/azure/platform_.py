@@ -1438,7 +1438,8 @@ class AzurePlatform(Platform):
                 arm_parameters.osdisk_size_in_gb,
                 self._get_vhd_os_disk_size(arm_parameters.vhd.vhd_path),
             )
-            # purchase plan is needed for vhds created using marketplace images with purchase plans.
+            # purchase plan is needed for vhds created using marketplace images with
+            # purchase plans.
             if runbook.purchase_plan:
                 arm_parameters.purchase_plan = runbook.purchase_plan
         elif arm_parameters.shared_gallery:
