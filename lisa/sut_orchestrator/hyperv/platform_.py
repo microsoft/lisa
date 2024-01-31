@@ -74,6 +74,10 @@ class HypervPlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
+        if len(environment.runbook.nodes_requirement) > 1:
+            log.error("Multiple nodes are currently not supported.")
+            return False
+
         nodes_capabilities = self._create_node_capabilities()
 
         nodes_requirement = []
