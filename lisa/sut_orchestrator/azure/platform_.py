@@ -1896,11 +1896,11 @@ class AzurePlatform(Platform):
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
             assert resource_sku.family, "'resource_sku.family' must not be 'None'"
-            if resource_sku.family not in [
-                "standardDCSv2Family",
-                "standardNCSv2Family",
-                "standardNCSv3Family",
-                "standardNDSFamily",
+            if resource_sku.family.casefold() not in [
+                "standarddcsv2family",
+                "standardncsv2family",
+                "standardncsv3family",
+                "standardndsfamily",
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
