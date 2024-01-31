@@ -232,15 +232,13 @@ class HypervPlatform(Platform):
             )
 
             vm_vhd_name = f"{vm_name}.{self._source_vhd.suffix}"
-            node_context.vhd_path = PureWindowsPath(
-                self._server.working_path / f"{vm_vhd_name}"
-            )
+            vhd_path = PureWindowsPath(self._server.working_path / f"{vm_vhd_name}")
 
             self._server.tools[Mkdir].create_directory(str(node_context.working_path))
 
-            self._server.tools[Cp].copy(self._source_vhd, node_context.vhd_path)
+            self._server.tools[Cp].copy(self._source_vhd, vhd_path)
 
-            self._resize_vhd_if_needed(node_context.vhd_path, node_runbook)
+            self._resize_vhd_if_needed(vhd_path, node_runbook)
 
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
@@ -255,7 +253,7 @@ class HypervPlatform(Platform):
 
             hv.create_vm(
                 name=vm_name,
-                guest_image_path=str(node_context.vhd_path),
+                guest_image_path=str(vhd_path),
                 switch_name=default_switch,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,

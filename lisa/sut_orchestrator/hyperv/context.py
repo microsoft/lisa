@@ -14,7 +14,6 @@ class NodeContext:
     vm_name: str = ""
     host: Optional[RemoteNode] = None
     working_path = PureWindowsPath()
-    vhd_path = PureWindowsPath()
     serial_log_task_mgr: Optional["TaskManager[None]"] = None
 
     @property
