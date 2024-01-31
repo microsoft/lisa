@@ -363,8 +363,6 @@ class AzureNodeSchema:
                             f"The purchase_plan parameter should be in the format: "
                             f"'<name> <product> <publisher>' "
                         )
-            # if not purchase_plan.name.strip():
-            #    purchase_plan = None
             self._purchase_plan = purchase_plan
         return purchase_plan
 
