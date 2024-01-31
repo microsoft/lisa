@@ -102,7 +102,7 @@ class HypervPlatform(Platform):
         free_mem_bytes = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance -ClassName Win32_OperatingSystem).FreePhysicalMemory"
         )
-        host_cap.free_memory_mib = int(free_mem_bytes) // (1024 * 1024)
+        host_cap.free_memory_mib = int(free_mem_bytes) // 1024
 
         lp_count = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors"
