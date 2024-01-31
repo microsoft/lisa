@@ -26,12 +26,6 @@ class _HostCapabilities:
 
 
 class HypervPlatform(Platform):
-    def __init__(
-        self,
-        runbook: schema.Platform,
-    ) -> None:
-        super().__init__(runbook=runbook)
-
     @classmethod
     def type_name(cls) -> str:
         return HYPERV
