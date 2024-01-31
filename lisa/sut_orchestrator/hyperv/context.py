@@ -13,13 +13,13 @@ from lisa.util.parallel import TaskManager
 class NodeContext:
     vm_name: str = ""
     host: Optional[RemoteNode] = None
-    working_dir = PureWindowsPath()
+    working_path = PureWindowsPath()
     vhd_path = PureWindowsPath()
     serial_log_task_mgr: Optional["TaskManager[None]"] = None
 
     @property
     def console_log_path(self) -> PureWindowsPath:
-        return self.working_dir / f"{self.vm_name}-console.log"
+        return self.working_path / f"{self.vm_name}-console.log"
 
 
 def get_node_context(node: Node) -> NodeContext:

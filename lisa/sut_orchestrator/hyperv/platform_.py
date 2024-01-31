@@ -42,9 +42,9 @@ class HypervPlatform(Platform):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
-        self.server_node = self._initialize_server_node()
-        self._host_capabilities = self._init_host_capabilities(self._log)
-        self._common_vhd_path: Optional[PureWindowsPath] = None
+        self._server = self._initialize_server_node()
+        self._host_capabilities = self._get_host_capabilities(self._log)
+        self._source_vhd: Optional[PureWindowsPath] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -60,7 +60,7 @@ class HypervPlatform(Platform):
                 "Only the first server will be used."
             )
 
-        server = self._hyperv_runbook.servers[0]
+        server_runbook = self._hyperv_runbook.servers[0]
         server_node = RemoteNode(
             runbook=schema.Node(name="hyperv"),
             index=-1,
@@ -69,7 +69,9 @@ class HypervPlatform(Platform):
         )
 
         server_node.set_connection_info(
-            address=server.address, username=server.username, password=server.password
+            address=server_runbook.address,
+            username=server_runbook.username,
+            password=server_runbook.password,
         )
 
         return server_node
@@ -94,15 +96,15 @@ class HypervPlatform(Platform):
         environment.runbook.nodes_requirement = nodes_requirement
         return True
 
-    def _init_host_capabilities(self, log: Logger) -> _HostCapabilities:
+    def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
         host_cap = _HostCapabilities()
 
-        free_mem_bytes = self.server_node.tools[PowerShell].run_cmdlet(
+        free_mem_bytes = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance -ClassName Win32_OperatingSystem).FreePhysicalMemory"
         )
         host_cap.free_memory_mib = int(free_mem_bytes) // (1024 * 1024)
 
-        lp_count = self.server_node.tools[PowerShell].run_cmdlet(
+        lp_count = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors"
         )
         host_cap.core_count = int(lp_count)
@@ -167,28 +169,28 @@ class HypervPlatform(Platform):
         self._deploy_nodes(environment, log)
 
     def _prepare_common_vhd(self, vhd_local_path: PurePath, log: Logger) -> None:
-        if self._common_vhd_path:
+        if self._source_vhd:
             return
 
         vhd_remote_path = PureWindowsPath(
-            self.server_node.working_path / f"common_vhd.{vhd_local_path.suffix}"
+            self._server.working_path / f"common_vhd.{vhd_local_path.suffix}"
         )
 
         is_zipped = False
         if vhd_local_path.suffix == ".zip":
             is_zipped = True
             vhd_remote_path = PureWindowsPath(
-                self.server_node.working_path / "zipped_vhd.zip"
+                self._server.working_path / "zipped_vhd.zip"
             )
 
         log.debug("Copying VHD to server")
-        self.server_node.shell.copy(vhd_local_path, vhd_remote_path)
+        self._server.shell.copy(vhd_local_path, vhd_remote_path)
         log.debug("Finished copying VHD to server")
 
         if is_zipped:
             vhd_remote_path = self._unzip_vhd(vhd_remote_path)
 
-        self._common_vhd_path = vhd_remote_path
+        self._source_vhd = vhd_remote_path
 
     def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         if environment.runbook.nodes_requirement is None:
@@ -197,14 +199,14 @@ class HypervPlatform(Platform):
         test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
         vm_name_prefix = f"lisa-{test_suffix}"
 
-        hv = self.server_node.tools[HyperV]
+        hv = self._server.tools[HyperV]
         default_switch = hv.get_first_switch()
 
         extra_args = {
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
         }
 
-        self.console_logger = SerialConsoleLogger(self.server_node)
+        self._console_logger = SerialConsoleLogger(self._server)
 
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
@@ -217,30 +219,26 @@ class HypervPlatform(Platform):
             assert isinstance(node, RemoteNode)
 
             self._prepare_common_vhd(PurePath(node_runbook.vhd), log)
-            assert self._common_vhd_path
+            assert self._source_vhd
 
             node.name = vm_name
 
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
-            node_context.host = self.server_node
+            node_context.host = self._server
 
-            node_context.working_dir = PureWindowsPath(
-                self.server_node.working_path / f"{vm_name}"
+            node_context.working_path = PureWindowsPath(
+                self._server.working_path / f"{vm_name}"
             )
 
-            vm_vhd_name = f"{vm_name}.{self._common_vhd_path.suffix}"
+            vm_vhd_name = f"{vm_name}.{self._source_vhd.suffix}"
             node_context.vhd_path = PureWindowsPath(
-                self.server_node.working_path / f"{vm_vhd_name}"
+                self._server.working_path / f"{vm_vhd_name}"
             )
 
-            self.server_node.tools[Mkdir].create_directory(
-                str(node_context.working_dir)
-            )
+            self._server.tools[Mkdir].create_directory(str(node_context.working_path))
 
-            self.server_node.tools[Cp].copy(
-                self._common_vhd_path, node_context.vhd_path
-            )
+            self._server.tools[Cp].copy(self._source_vhd, node_context.vhd_path)
 
             self._resize_vhd_if_needed(node_context.vhd_path, node_runbook)
 
@@ -251,7 +249,7 @@ class HypervPlatform(Platform):
             com1_pipe_path = f"\\\\.\\pipe\\{com1_pipe_name}"
 
             log.info(f"Serial logs at {node_context.console_log_path}")
-            node_context.serial_log_task_mgr = self.console_logger.start_logging(
+            node_context.serial_log_task_mgr = self._console_logger.start_logging(
                 com1_pipe_name, node_context.console_log_path, log
             )
 
@@ -278,24 +276,22 @@ class HypervPlatform(Platform):
 
     def _unzip_vhd(self, zipped_vhd_path: PureWindowsPath) -> PureWindowsPath:
         extraction_path = zipped_vhd_path.parent.joinpath("common_vhd")
-        self.server_node.tools[Unzip].extract(
-            str(zipped_vhd_path), str(extraction_path)
-        )
+        self._server.tools[Unzip].extract(str(zipped_vhd_path), str(extraction_path))
 
-        extracted_files = self.server_node.tools[Ls].list(str(extraction_path))
+        extracted_files = self._server.tools[Ls].list(str(extraction_path))
         assert len(extracted_files) == 1
 
         extracted_vhd = PureWindowsPath(extracted_files[0])
         extracted_vhd = extraction_path.joinpath(extracted_vhd)
 
-        self.server_node.shell.remove(zipped_vhd_path)
+        self._server.shell.remove(zipped_vhd_path)
 
         return extracted_vhd
 
     def _resize_vhd_if_needed(
         self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
     ) -> None:
-        pwsh = self.server_node.tools[PowerShell]
+        pwsh = self._server.tools[PowerShell]
         vhd_size = int(pwsh.run_cmdlet(f"(Get-VHD -Path {vhd_path}).Size"))
         if vhd_size < node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024:
             pwsh.run_cmdlet(
@@ -307,7 +303,7 @@ class HypervPlatform(Platform):
         self._delete_nodes(environment, log)
 
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
-        hv = self.server_node.tools[HyperV]
+        hv = self._server.tools[HyperV]
         for node in environment.nodes.list():
             node_ctx = get_node_context(node)
             vm_name = node_ctx.vm_name
