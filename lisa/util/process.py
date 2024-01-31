@@ -518,10 +518,10 @@ class Process:
             == spur.ssh.ShellTypes.minimal
         ):
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\n", ""
+                f"{self._shell.spawn_initialization_error_string}\n", ""
             )
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\r\n", ""
+                f"{self._shell.spawn_initialization_error_string}\r\n", ""
             )
             self._log.debug(
                 "filter the profile error string: "

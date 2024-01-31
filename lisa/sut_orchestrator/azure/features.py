@@ -592,7 +592,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         value = raw_capabilities.get("GPUs", None)
         # refer https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu
         # NVv4 VMs currently support only Windows guest operating system.
-        if value and resource_sku.family not in ["standardNVSv4Family"]:
+        if value and resource_sku.family.casefold() not in ["standardnvsv4family"]:
             node_space.gpu_count = int(value)
             return schema.FeatureSettings.create(cls.name())
 
@@ -2081,12 +2081,12 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         resource_sku: Any = kwargs.get("resource_sku")
 
         if (
-            resource_sku.family
+            resource_sku.family.casefold()
             in [
-                "standardDSv5Family",
-                "standardDDSv5Family",
-                "standardDASv5Family",
-                "standardDADSv5Family",
+                "standarddsv5family",
+                "standardddsv5family",
+                "standarddasv5family",
+                "standarddadsv5family",
             ]
             or raw_capabilities.get("HibernationSupported", None) == "True"
         ):
@@ -2178,11 +2178,11 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
         # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#limitations # noqa: E501
-        if resource_sku.family not in [
-            "standardMSFamily",
-            "standardMDSMediumMemoryv2Family",
-            "standardMSMediumMemoryv2Family",
-            "standardMSv2Family",
+        if resource_sku.family.casefold() not in [
+            "standardmsfamily",
+            "standardmdsmediummemoryv2family",
+            "standardmsmediummemoryv2family",
+            "standardmsv2family",
         ]:
             # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#how-can-i-find-vm-sizes-that-support-trusted-launch # noqa: E501
             if (
@@ -2192,23 +2192,23 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             ):
                 capabilities.append(SecurityProfileType.SecureBoot)
         # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview # noqa: E501
-        if cvm_value and resource_sku.family in [
-            "standardDCASv5Family",
-            "standardDCADSv5Family",
-            "standardECASv5Family",
-            "standardECADSv5Family",
-            "standardDCEv5Family",
-            "standardDCEDv5Family",
-            "standardECEv5Family",
-            "standardECEDv5Family",
+        if cvm_value and resource_sku.family.casefold() in [
+            "standarddcasv5family",
+            "standarddcadsv5family",
+            "standardecasv5family",
+            "standardecadsv5family",
+            "standarddcev5family",
+            "standarddcedv5family",
+            "standardecev5family",
+            "standardecedv5family",
         ]:
             capabilities.append(SecurityProfileType.CVM)
 
-        if cvm_value == "TDX" and resource_sku.family in [
-            "standardDCEv5Family",
-            "standardDCEDv5Family",
-            "standardECEv5Family",
-            "standardECEDv5Family",
+        if cvm_value == "TDX" and resource_sku.family.casefold() in [
+            "standarddcev5family",
+            "standarddcedv5family",
+            "standardecev5family",
+            "standardecedv5family",
         ]:
             capabilities.append(SecurityProfileType.Stateless)
 
@@ -2453,7 +2453,10 @@ class ACC(AzureFeatureMixin, features.ACC):
     ) -> Optional[schema.FeatureSettings]:
         resource_sku: Any = kwargs.get("resource_sku")
 
-        if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
+        if resource_sku.family.casefold() in [
+            "standarddcsv2family",
+            "standarddcsv3family",
+        ]:
             return schema.FeatureSettings.create(cls.name())
         return None
 
@@ -2468,11 +2471,11 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
         # add vm which support nested confidential virtualization
         # https://learn.microsoft.com/en-us/azure/virtual-machines/dcasccv5-dcadsccv5-series
         # https://learn.microsoft.com/en-us/azure/virtual-machines/ecasccv5-ecadsccv5-series
-        if resource_sku.family in [
-            "standardDCACCV5Family",
-            "standardECACCV5Family",
-            "standardDCADCCV5Family",
-            "standardECADCCV5Family",
+        if resource_sku.family.casefold() in [
+            "standarddcaccv5family",
+            "standardecaccv5family",
+            "standarddcadccv5family",
+            "standardecadccv5family",
         ]:
             return schema.FeatureSettings.create(cls.name())
         return None
@@ -2487,42 +2490,42 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
 
         # add vm which support nested virtualization
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family in [
-            "standardDDSv5Family",
-            "standardDDv4Family",
-            "standardDDv5Family",
-            "standardDSv3Family",
-            "standardDSv4Family",
-            "standardDSv5Family",
-            "standardDv3Family",
-            "standardDv4Family",
-            "standardDv5Family",
-            "standardDADSv5Family",
-            "standardDASv5Family",
-            "standardDDSv4Family",
-            "standardEIv5Family",
-            "standardEADSv5Family",
-            "standardEASv5Family",
-            "standardEDSv4Family",
-            "standardEDSv5Family",
-            "standardESv3Family",
-            "standardESv4Family",
-            "standardESv5Family",
-            "standardEBDSv5Family",
-            "standardEBSv5Family",
-            "standardEDv4Family",
-            "standardEv4Family",
-            "standardEDv5Family",
-            "standardEv3Family",
-            "standardEv5Family",
-            "standardXEIDSv4Family",
-            "standardXEISv4Family",
-            "standardFSv2Family",
-            "standardFXMDVSFamily",
-            "standardLASv3Family",
-            "standardLSv3Family",
-            "standardMSFamily",
-            "standardMSMediumMemoryv2Family",
+        if resource_sku.family.casefold() in [
+            "standardddsv5family",
+            "standardddv4family",
+            "standardddv5family",
+            "standarddsv3family",
+            "standarddsv4family",
+            "standarddsv5family",
+            "standarddv3family",
+            "standarddv4family",
+            "standarddv5family",
+            "standarddadsv5family",
+            "standarddasv5family",
+            "standardddsv4family",
+            "standardeiv5family",
+            "standardeadsv5family",
+            "standardeasv5family",
+            "standardedsv4family",
+            "standardedsv5family",
+            "standardesv3family",
+            "standardesv4family",
+            "standardesv5family",
+            "standardebdsv5family",
+            "standardebsv5family",
+            "standardedv4family",
+            "standardev4family",
+            "standardedv5family",
+            "standardev3family",
+            "standardev5family",
+            "standardxeidsv4family",
+            "standardxeisv4family",
+            "standardfsv2family",
+            "standardfxmdvsfamily",
+            "standardlasv3family",
+            "standardlsv3family",
+            "standardmsfamily",
+            "standardmsmediummemoryv2family",
         ]:
             return schema.FeatureSettings.create(cls.name())
         return None
@@ -2539,8 +2542,8 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
         # add vm which support nested virtualization
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family in [
-            "standardLSv2Family",
+        if resource_sku.family.casefold() in [
+            "standardlsv2family",
         ]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
             # NVMe disk count = vCPU / 8

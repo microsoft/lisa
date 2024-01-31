@@ -75,6 +75,16 @@ def perf_disk(
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
     numjobiterator = 0
+    # In fio test, numjob*max_iodepth (aio-nr) should always be less than aio-max-nr.
+    # The default value of aio-max-nr is 65536.
+    # As max_iodepth is 256, numjob which is equal to 'nproc' should not exceed 256.
+    # /proc/sys/fs/aio-nr is the number of events currently active.
+    # /proc/sys/fs/aio-max-nr is the maximum number of events that can be queued.
+    # If aio-nr reaches aio-max-nr the io performance will drop and io_setup will
+    # fail with EAGAIN.
+    # read: https://www.kernel.org/doc/Documentation/sysctl/fs.txt
+    # So we set numjob to 256 if numjob is larger than 256.
+    numjob = min(numjob, 256)
     for mode in FIOMODES:
         iodepth = start_iodepth
         numjobindex = 0

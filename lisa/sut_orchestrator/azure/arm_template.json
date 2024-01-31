@@ -367,7 +367,7 @@
             "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), json('null'))]"
         },
         {
-            "apiVersion": "2022-08-01",
+            "apiVersion": "2023-09-01",
             "type": "Microsoft.Compute/virtualMachines",
             "copy": {
                 "name": "vmCopy",
