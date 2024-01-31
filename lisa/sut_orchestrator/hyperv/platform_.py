@@ -75,11 +75,6 @@ class HypervPlatform(Platform):
         return server_node
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
-        return self._configure_node_capabilities(environment, log)
-
-    def _configure_node_capabilities(
-        self, environment: Environment, log: Logger
-    ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
@@ -92,6 +87,9 @@ class HypervPlatform(Platform):
 
             requirement = node_space.generate_min_capability(nodes_capabilities)
             nodes_requirement.append(requirement)
+
+        if not self._check_host_capabilities(nodes_requirement, log):
+            return False
 
         environment.runbook.nodes_requirement = nodes_requirement
         return True
@@ -120,10 +118,10 @@ class HypervPlatform(Platform):
     def _check_host_capabilities(
         self,
         nodes_requirements: List[schema.NodeSpace],
-        host_capabilities: _HostCapabilities,
         log: Logger,
     ) -> bool:
         total_required_memory_mib = 0
+        host_capabilities = self._host_capabilities
 
         for node_requirements in nodes_requirements:
             # Calculate the total amount of memory required for all the VMs.
