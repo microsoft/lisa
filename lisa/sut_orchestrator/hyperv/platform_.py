@@ -179,33 +179,6 @@ class HypervPlatform(Platform):
         return node_capabilities
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        self._deploy_nodes(environment, log)
-
-    def _prepare_common_vhd(self, vhd_local_path: PurePath, log: Logger) -> None:
-        if self._source_vhd:
-            return
-
-        vhd_remote_path = PureWindowsPath(
-            self._server.working_path / f"common_vhd.{vhd_local_path.suffix}"
-        )
-
-        is_zipped = False
-        if vhd_local_path.suffix == ".zip":
-            is_zipped = True
-            vhd_remote_path = PureWindowsPath(
-                self._server.working_path / "zipped_vhd.zip"
-            )
-
-        log.debug("Copying VHD to server")
-        self._server.shell.copy(vhd_local_path, vhd_remote_path)
-        log.debug("Finished copying VHD to server")
-
-        if is_zipped:
-            vhd_remote_path = self._unzip_vhd(vhd_remote_path)
-
-        self._source_vhd = vhd_remote_path
-
-    def _deploy_nodes(self, environment: Environment, log: Logger) -> None:
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
 
@@ -284,6 +257,30 @@ class HypervPlatform(Platform):
             node.set_connection_info(
                 address=ip_addr, username=username, password=password
             )
+
+    def _prepare_common_vhd(self, vhd_local_path: PurePath, log: Logger) -> None:
+        if self._source_vhd:
+            return
+
+        vhd_remote_path = PureWindowsPath(
+            self._server.working_path / f"common_vhd.{vhd_local_path.suffix}"
+        )
+
+        is_zipped = False
+        if vhd_local_path.suffix == ".zip":
+            is_zipped = True
+            vhd_remote_path = PureWindowsPath(
+                self._server.working_path / "zipped_vhd.zip"
+            )
+
+        log.debug("Copying VHD to server")
+        self._server.shell.copy(vhd_local_path, vhd_remote_path)
+        log.debug("Finished copying VHD to server")
+
+        if is_zipped:
+            vhd_remote_path = self._unzip_vhd(vhd_remote_path)
+
+        self._source_vhd = vhd_remote_path
 
     def _unzip_vhd(self, zipped_vhd_path: PureWindowsPath) -> PureWindowsPath:
         extraction_path = zipped_vhd_path.parent.joinpath("common_vhd")
