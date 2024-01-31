@@ -278,7 +278,7 @@ class AzureNodeSchema:
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
     # for marketplace image, which need to accept terms
-    _purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+    _purchase_plan: InitVar[Optional[AzureVmPurchasePlanSchema]] = None
 
     # the linux and Windows has different settings. If it's not specified, it's
     # True by default for SIG and vhd, and is parsed from marketplace
