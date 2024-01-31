@@ -218,7 +218,7 @@ class HypervPlatform(Platform):
             )
 
             vm_vhd_name = f"{vm_name}.{self._source_vhd.suffix}"
-            vhd_path = PureWindowsPath(self._server.working_path / f"{vm_vhd_name}")
+            vhd_path = PureWindowsPath(node_context.working_path / f"{vm_vhd_name}")
 
             self._server.tools[Mkdir].create_directory(str(node_context.working_path))
 
