@@ -102,7 +102,7 @@ class Nvme(Feature):
         # They should be removed from the list of namespaces for NVMe tests as they are
         # not actual NVMe devices.
         # OS disk and all remote disks are connected to the same NVMe controller.
-        # Excluding the OS disk's namespace from the list of namespaces will exclude 
+        # Excluding the OS disk's namespace from the list of namespaces will exclude
         # all remote disks.
         get_os_partition_namespace = self.get_os_partition_namespace()
         nvme_namespaces.remove(get_os_partition_namespace)
