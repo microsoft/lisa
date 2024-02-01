@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import random
-import string
 from pathlib import PurePath, PureWindowsPath
 from typing import Any, List, Optional, Type, cast
 
@@ -182,8 +180,7 @@ class HypervPlatform(Platform):
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
 
-        test_suffix = "".join(random.choice(string.ascii_uppercase) for _ in range(5))
-        vm_name_prefix = f"lisa-{test_suffix}"
+        vm_name_prefix = f"lisa-{environment.name}"
 
         hv = self._server.tools[HyperV]
         default_switch = hv.get_first_switch()
@@ -199,7 +196,7 @@ class HypervPlatform(Platform):
                 HypervNodeSchema, type(self).type_name()
             )
 
-            vm_name = f"{vm_name_prefix}-{i}"
+            vm_name = f"{vm_name_prefix}-n{i}"
 
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
