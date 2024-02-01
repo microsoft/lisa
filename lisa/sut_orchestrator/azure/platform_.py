@@ -566,7 +566,9 @@ class AzurePlatform(Platform):
 
         # resolve Latest to specified version
         if is_success:
-            self._resolve_marketplace_image_version(nodes_requirement)
+            self._resolve_marketplace_image_version(
+                environment.runbook.nodes_requirement
+            )
 
         return is_success
 
