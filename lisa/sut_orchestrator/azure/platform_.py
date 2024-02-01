@@ -298,7 +298,6 @@ class AzurePlatformSchema:
         ),
     )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
-    locations: Optional[Union[str, List[str]]] = field(default=None)
     use_public_address: bool = field(default=True)
 
     virtual_network_resource_group: str = field(default="")
@@ -365,9 +364,6 @@ class AzurePlatformSchema:
                     "service_principal_client_id and service_principal_key "
                     "should be specified either both or not."
                 )
-
-        if not self.locations:
-            self.locations = LOCATIONS
 
     @property
     def cloud(self) -> Cloud:
