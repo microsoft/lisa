@@ -261,7 +261,7 @@ class HypervPlatform(Platform):
             return
 
         vhd_remote_path = PureWindowsPath(
-            self._server.working_path / f"common_vhd.{vhd_local_path.suffix}"
+            self._server.working_path / f"common_vhd{vhd_local_path.suffix}"
         )
 
         is_zipped = False
