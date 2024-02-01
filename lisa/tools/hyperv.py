@@ -3,14 +3,22 @@
 
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 from assertpy import assert_that
+from dataclasses_json import config, dataclass_json
 
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
+
+
+@dataclass_json
+@dataclass
+class VMSwitch:
+    name: str = field(metadata=config(field_name="Name"))
 
 
 class HyperV(Tool):
@@ -156,11 +164,17 @@ class HyperV(Tool):
         if not is_ready:
             raise LisaException(f"VM {name} did not start")
 
-    def get_first_switch(self) -> str:
-        return self.node.tools[PowerShell].run_cmdlet(
-            "Get-VMSwitch | Select -First 1 -ExpandProperty Name",
+    def get_default_external_switch(self) -> Optional[VMSwitch]:
+        switch_json = self.node.tools[PowerShell].run_cmdlet(
+            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
+            "| Select -First 1 | select Name | ConvertTo-Json",
             force_run=True,
         )
+
+        if not switch_json:
+            return None
+
+        return VMSwitch.from_json(switch_json)  # type: ignore
 
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
