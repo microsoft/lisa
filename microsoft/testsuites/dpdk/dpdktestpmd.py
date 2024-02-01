@@ -489,6 +489,10 @@ class DpdkTestpmd(Tool):
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
+        self._pkg_config_envs = {
+            "PKG_CONFIG_PATH": "${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/usr/local/lib64/",
+        }
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
             work_path = self.node.find_partition_with_freespace(20, raise_error=False)
@@ -512,12 +516,18 @@ class DpdkTestpmd(Tool):
         self.vf_helper = DpdkVfHelper(
             should_enforce=enforce_hw_threshold, node=self.node
         )
+
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
-            if pkgconfig.package_info_exists(self._dpdk_lib_name):
+            if pkgconfig.package_info_exists(
+                self._dpdk_lib_name,
+                update_envs=self._pkg_config_envs,
+            ):
                 self._dpdk_version_info = pkgconfig.get_package_version(
-                    self._dpdk_lib_name
+                    self._dpdk_lib_name,
+                    update_cached=True,
+                    update_envs=self._pkg_config_envs,
                 )
         check_custom_kernel = self.node.tools[CustomKernelBuildCheck]
         self._is_custom_kernel = check_custom_kernel.was_kernel_built_by_lisa()
@@ -774,7 +784,7 @@ class DpdkTestpmd(Tool):
 
         self.find_testpmd_binary(check_path="/usr/local/bin")
         self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
-            self._dpdk_lib_name, update_cached=True
+            self._dpdk_lib_name, update_cached=True, update_envs=self._pkg_config_envs
         )
         return True
 
