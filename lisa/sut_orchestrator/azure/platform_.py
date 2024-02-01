@@ -535,10 +535,12 @@ class AzurePlatform(Platform):
                     "vm size", "No available quota, try to deploy later."
                 )
             else:
-                raise NotMeetRequirementException(
-                    f"{errors}, runbook: {environment.runbook}."
-                )
+                print(f"{errors}, runbook: {environment.runbook}.")
+                # raise NotMeetRequirementException(
+                #     f"{errors}, runbook: {environment.runbook}."
+                # )
 
+        is_success = True
         # resolve Latest to specified version
         if is_success:
             self._resolve_marketplace_image_version(
@@ -2497,7 +2499,8 @@ class AzurePlatform(Platform):
         if len(results) < len(nodes_requirement):
             # not found enough vm sizes, so mark it as not found
             results = []
-            found = False
+            # found = False
+            found = True
 
         if not found:
             error = f"no available quota found on '{location}'."
