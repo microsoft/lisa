@@ -183,7 +183,8 @@ class HypervPlatform(Platform):
         vm_name_prefix = f"lisa-{environment.name}"
 
         hv = self._server.tools[HyperV]
-        default_switch = hv.get_first_switch()
+        default_switch = hv.get_default_external_switch()
+        assert default_switch, "No external switch found"
 
         extra_args = {
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
@@ -237,7 +238,7 @@ class HypervPlatform(Platform):
             hv.create_vm(
                 name=vm_name,
                 guest_image_path=str(vhd_path),
-                switch_name=default_switch,
+                switch_name=default_switch.name,
                 generation=node_runbook.hyperv_generation,
                 cores=node.capability.core_count,
                 memory=node.capability.memory_mb,
