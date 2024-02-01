@@ -98,8 +98,12 @@ class Nvme(Feature):
 
     def get_raw_nvme_disks(self) -> List[str]:
         nvme_namespaces = self.get_namespaces()
-        # With disk controller type NVMe, the OS partition shows up as an NVMe disk
-        # so we need to remove it from the list of namespaces as this is not an actual NVMe disk
+        # With disk controller type NVMe, OS disk and all remote disks appear as NVMes.
+        # They should be removed from the list of namespaces for NVMe tests as they are
+        # not actual NVMe devices.
+        # OS disk and all remote disks are connected to the same NVMe controller.
+        # Excluding the OS disk's namespace from the list of namespaces will exclude 
+        # all remote disks.
         get_os_partition_namespace = self.get_os_partition_namespace()
         nvme_namespaces.remove(get_os_partition_namespace)
         return nvme_namespaces
