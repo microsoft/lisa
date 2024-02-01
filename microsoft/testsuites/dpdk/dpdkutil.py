@@ -975,9 +975,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # get binary path and dpdk device include args
-    examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
-    server_app_path = examples_path.joinpath(l3fwd_app_name)
-    # generate the dpdk include arguments to add to our commandline
+    l3fwd_check = forwarder.execute("command -v dpdk-l3fwd", sudo=True, shell=True)
+    if l3fwd_check.exit_code == 0:
+        server_app_path = l3fwd_check.stdout.strip()
+    else:
+        examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
+        server_app_path = examples_path.joinpath(
+            l3fwd_app_name
+        )  # generate the dpdk include arguments to add to our commandline
+
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
             subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
