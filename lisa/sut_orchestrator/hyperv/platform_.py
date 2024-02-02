@@ -89,7 +89,7 @@ class HypervPlatform(Platform):
             requirement = node_space.generate_min_capability(nodes_capabilities)
             nodes_requirement.append(requirement)
 
-        if not self._check_host_capabilities(nodes_requirement, log):
+        if not self._is_host_resources_enough(nodes_requirement, log):
             return False
 
         environment.runbook.nodes_requirement = nodes_requirement
@@ -118,7 +118,7 @@ class HypervPlatform(Platform):
         return host_cap
 
     # Check that the VM requirements can be fulfilled by the host.
-    def _check_host_capabilities(
+    def _is_host_resources_enough(
         self,
         nodes_requirements: List[schema.NodeSpace],
         log: Logger,
