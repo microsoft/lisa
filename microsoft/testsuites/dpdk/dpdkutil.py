@@ -975,7 +975,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # get binary path and dpdk device include args
-    l3fwd_check = forwarder.execute("command -v dpdk-l3fwd", sudo=True, shell=True)
+    l3fwd_check = forwarder.execute(
+        "command -v /usr/local/bin/dpdk-l3fwd", sudo=True, shell=True
+    )
     if l3fwd_check.exit_code == 0:
         server_app_path = l3fwd_check.stdout.strip()
     else:
