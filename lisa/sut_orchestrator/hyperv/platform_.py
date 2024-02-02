@@ -35,7 +35,7 @@ class HypervPlatform(Platform):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
         self._server = self._initialize_server_node()
-        self._host_capabilities = self._get_host_capabilities(self._log)
+        self._host_capabilities = self._is_host_resources_enough(self._log)
         self._source_vhd: Optional[PureWindowsPath] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
@@ -92,7 +92,7 @@ class HypervPlatform(Platform):
         environment.runbook.nodes_requirement = nodes_requirement
         return True
 
-    def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
+    def _is_host_resources_enough(self, log: Logger) -> _HostCapabilities:
         host_cap = _HostCapabilities()
 
         free_mem_bytes = self._server.tools[PowerShell].run_cmdlet(
