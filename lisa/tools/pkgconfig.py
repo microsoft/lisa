@@ -39,7 +39,9 @@ class Pkgconfig(Tool):
         update_cached: bool = False,
         update_envs: Optional[Dict[str, str]] = None,
     ) -> str:
-        info_exists = self.package_info_exists(package_name=package_name)
+        info_exists = self.package_info_exists(
+            package_name=package_name, update_envs=update_envs
+        )
         assert_that(info_exists).described_as(
             (
                 f"pkg-config information was not available for {package_name}. "
