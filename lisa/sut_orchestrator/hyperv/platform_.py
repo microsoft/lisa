@@ -1,20 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from pathlib import PurePath, PureWindowsPath
+from pathlib import PureWindowsPath
 from typing import Any, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
-from lisa.tools import Cp, HyperV, Ls, Mkdir, PowerShell, Unzip
+from lisa.tools import Cp, HyperV, Mkdir, PowerShell
 from lisa.util.logger import Logger, get_logger
+from lisa.util.subclasses import Factory
 
 from .. import HYPERV
 from .context import get_node_context
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
+from .source import VHDSource
 
 
 class _HostCapabilities:
@@ -37,6 +39,7 @@ class HypervPlatform(Platform):
         self._server = self._initialize_server_node()
         self._host_capabilities = self._is_host_resources_enough(self._log)
         self._source_vhd: Optional[PureWindowsPath] = None
+        self._vhd_source_factory = Factory[VHDSource](VHDSource)
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -202,7 +205,11 @@ class HypervPlatform(Platform):
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
 
-            self._prepare_common_vhd(PurePath(node_runbook.vhd), log)
+            source = self._vhd_source_factory.create_by_runbook(
+                self._hyperv_runbook.vhd_source
+            )
+
+            self._prepare_source_vhd(source)
             assert self._source_vhd
 
             node.name = vm_name
@@ -215,7 +222,7 @@ class HypervPlatform(Platform):
                 self._server.working_path / f"{vm_name}"
             )
 
-            vm_vhd_name = f"{vm_name}.{self._source_vhd.suffix}"
+            vm_vhd_name = f"{vm_name}{self._source_vhd.suffix}"
             vhd_path = PureWindowsPath(node_context.working_path / f"{vm_vhd_name}")
 
             self._server.tools[Mkdir].create_directory(str(node_context.working_path))
@@ -256,43 +263,14 @@ class HypervPlatform(Platform):
                 address=ip_addr, username=username, password=password
             )
 
-    def _prepare_common_vhd(self, vhd_local_path: PurePath, log: Logger) -> None:
+    def _prepare_source_vhd(self, source: VHDSource) -> None:
         if self._source_vhd:
             return
 
-        vhd_remote_path = PureWindowsPath(
-            self._server.working_path / f"common_vhd{vhd_local_path.suffix}"
-        )
+        paths = source.download(self._server)
+        assert len(paths) == 1
 
-        is_zipped = False
-        if vhd_local_path.suffix == ".zip":
-            is_zipped = True
-            vhd_remote_path = PureWindowsPath(
-                self._server.working_path / "zipped_vhd.zip"
-            )
-
-        log.debug("Copying VHD to server")
-        self._server.shell.copy(vhd_local_path, vhd_remote_path)
-        log.debug("Finished copying VHD to server")
-
-        if is_zipped:
-            vhd_remote_path = self._unzip_vhd(vhd_remote_path)
-
-        self._source_vhd = vhd_remote_path
-
-    def _unzip_vhd(self, zipped_vhd_path: PureWindowsPath) -> PureWindowsPath:
-        extraction_path = zipped_vhd_path.parent.joinpath("common_vhd")
-        self._server.tools[Unzip].extract(str(zipped_vhd_path), str(extraction_path))
-
-        extracted_files = self._server.tools[Ls].list(str(extraction_path))
-        assert len(extracted_files) == 1
-
-        extracted_vhd = PureWindowsPath(extracted_files[0])
-        extracted_vhd = extraction_path.joinpath(extracted_vhd)
-
-        self._server.shell.remove(zipped_vhd_path)
-
-        return extracted_vhd
+        self._source_vhd = paths[0]
 
     def _resize_vhd_if_needed(
         self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
