@@ -20,7 +20,7 @@ from .serial_console import SerialConsole, SerialConsoleLogger
 class _HostCapabilities:
     def __init__(self) -> None:
         self.core_count = 0
-        self.free_memory_mib = 0
+        self.allocable_memory_mib = 0
 
 
 class HypervPlatform(Platform):
@@ -98,9 +98,9 @@ class HypervPlatform(Platform):
         free_mem_bytes = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance -ClassName Win32_OperatingSystem).FreePhysicalMemory"
         )
-        host_cap.free_memory_mib = int(free_mem_bytes) // 1024
+        free_mem_mib = int(free_mem_bytes) // 1024
 
-        host_cap.free_memory_mib -= 2048  # reserve 2 GiB for host
+        host_cap.allocable_memory_mib = free_mem_mib - 2048  # reserve 2 GiB for host
 
         lp_count = self._server.tools[PowerShell].run_cmdlet(
             "(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors"
@@ -109,7 +109,7 @@ class HypervPlatform(Platform):
 
         log.debug(
             f"Host capabilities: {host_cap.core_count} cores, "
-            f"{host_cap.free_memory_mib} MiB free memory"
+            f"{host_cap.allocable_memory_mib} MiB free memory"
         )
 
         return host_cap
@@ -134,10 +134,10 @@ class HypervPlatform(Platform):
             total_required_cpus += node_requirements.core_count
 
         # Ensure host has enough memory for all the VMs.
-        if total_required_memory_mib > host_capabilities.free_memory_mib:
+        if total_required_memory_mib > host_capabilities.allocable_memory_mib:
             log.error(
                 f"Nodes require a total of {total_required_memory_mib} MiB memory. "
-                f"Host only has {host_capabilities.free_memory_mib} MiB free."
+                f"Host only has {host_capabilities.allocable_memory_mib} MiB free."
             )
             return False
 
