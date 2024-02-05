@@ -6,6 +6,7 @@ import json
 import re
 import string
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import partial
 from pathlib import Path
 from random import randint
@@ -34,7 +35,6 @@ from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignor
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
 from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
 from dataclasses_json import dataclass_json
-from marshmallow import validate
 from retry import retry
 
 from lisa import Logger, features, schema, search_space
@@ -2913,15 +2913,32 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         return True
 
 
+class ArchitectureType(str, Enum):
+    x64 = "x64"
+    Arm64 = "Arm64"
+
+
 @dataclass_json()
 @dataclass()
 class ArchitectureSettings(schema.FeatureSettings):
     type: str = "Architecture"
     # Architecture in hyper-v
-    arch: str = field(
-        default="x64",
+    arch: Union[
+        ArchitectureType, search_space.SetSpace[ArchitectureType]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace, items=[ArchitectureType.x64, ArchitectureType.Arm64]
+        ),
         metadata=field_metadata(
-            validate=validate.OneOf(["x64", "Arm64"]),
+            decoder=lambda input: (
+                search_space.decode_set_space_by_type(
+                    data=input, base_type=ArchitectureType
+                )
+                if str(input).strip()
+                else search_space.SetSpace(
+                    items=[ArchitectureType.x64, ArchitectureType.Arm64]
+                )
+            )
         ),
     )
 
@@ -2949,12 +2966,10 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
-        if self.arch != capability.arch:
-            result.result = False
-            result.reasons.append(
-                f"image arch {self.arch} should be consistent with"
-                f" vm size arch {capability.arch}"
-            )
+        result.merge(
+            search_space.check_setspace(self.arch, capability.arch),
+            "architecture type",
+        )
 
         return result
 
@@ -2965,12 +2980,12 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
 
-        assert_that(self.arch).described_as(
-            "req and capability should be the same"
-        ).is_equal_to(capability.arch)
-
         value = ArchitectureSettings()
-        value.arch = self.arch
+        value.arch = getattr(search_space, f"{method.value}_setspace_by_priority")(
+            self.arch,
+            capability.arch,
+            [ArchitectureType.x64, ArchitectureType.Arm64],
+        )
         return value
 
 
