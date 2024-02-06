@@ -252,6 +252,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
+    set_rmem_1mib: bool = False,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -304,7 +305,7 @@ def perf_ntttcp(  # noqa: C901
             client_sriov_count = len(client.nics.get_lower_nics())
             server_sriov_count = len(server.nics.get_lower_nics())
         for ntttcp in [client_ntttcp, server_ntttcp]:
-            ntttcp.setup_system(udp_mode, set_task_max)
+            ntttcp.setup_system(udp_mode, set_task_max, set_rmem_1mib=set_rmem_1mib)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
@@ -334,9 +335,11 @@ def perf_ntttcp(  # noqa: C901
             )
             dev_differentiator = "Hypervisor callback interrupts"
         server_lagscope.run_as_server_async(
-            ip=lagscope_server_ip
-            if lagscope_server_ip is not None
-            else server.internal_address
+            ip=(
+                lagscope_server_ip
+                if lagscope_server_ip is not None
+                else server.internal_address
+            )
         )
         max_server_threads = 64
         perf_ntttcp_message_list: List[

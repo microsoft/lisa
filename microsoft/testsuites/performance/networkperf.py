@@ -184,6 +184,25 @@ class NetworkPerformace(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case uses ntttcp to test sriov tcp network throughput.
+        Modifies the test to set rmem_default and rmem_max to 1MiB, rather 
+        than using the default value.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=2,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Sriov(),
+            )
+        ),
+    )
+    def perf_tcp_ntttcp_sriov_rmem_mib(self, result: TestResult) -> None:
+        perf_ntttcp(result, set_rmem_1mib=True)
+
+    @TestCaseMetadata(
+        description="""
         This test case uses ntttcp to test synthetic udp network throughput.
         """,
         priority=3,

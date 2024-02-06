@@ -134,6 +134,10 @@ class Ntttcp(Tool):
         {"vm.max_map_count": "655300"},
         {"net.ipv4.ip_local_port_range": "1024 65535"},
     ]
+    sys_list_tcp_mib = [
+        {"net.core.rmem_max": "1048576"},
+        {"net.core.rmem_default": "1048576"},
+    ]
     sys_list_udp = [
         {"net.core.rmem_max": "67108864"},
         {"net.core.rmem_default": "67108864"},
@@ -158,7 +162,12 @@ class Ntttcp(Tool):
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDNtttcp
 
-    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+    def setup_system(
+        self,
+        udp_mode: bool = False,
+        set_task_max: bool = True,
+        set_rmem_1mib: bool = True,
+    ) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
         if udp_mode:
@@ -166,6 +175,10 @@ class Ntttcp(Tool):
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
+        if set_rmem_1mib:
+            for pair in self.sys_list_tcp_mib:
+                for variable, value in pair.items():
+                    sysctl.write(variable, value)
         if set_task_max:
             self._set_tasks_max()
         firewall = self.node.tools[Firewall]
@@ -444,7 +457,7 @@ class Ntttcp(Tool):
         self._original_settings_tcp: List[Dict[str, str]] = []
         self._original_settings_udp: List[Dict[str, str]] = []
         sysctl = self.node.tools[Sysctl]
-        for tcp_sys in self.sys_list_tcp:
+        for tcp_sys in self.sys_list_tcp + self.sys_list_tcp_mib:
             for variable, _ in tcp_sys.items():
                 self._original_settings_tcp.append({variable: sysctl.get(variable)})
         for udp_sys in self.sys_list_udp:
@@ -531,7 +544,12 @@ class BSDNtttcp(Ntttcp):
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
-    def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
+    def setup_system(
+        self,
+        udp_mode: bool = False,
+        set_task_max: bool = True,
+        set_rmem_1mib: bool = False,
+    ) -> None:
         # No additional setup is needed for FreeBSD
         return
 
