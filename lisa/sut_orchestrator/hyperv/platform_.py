@@ -9,6 +9,7 @@ from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
 from lisa.tools import Cp, HyperV, Mkdir, PowerShell
+from lisa.util import LisaException
 from lisa.util.logger import Logger, get_logger
 from lisa.util.subclasses import Factory
 
@@ -16,7 +17,7 @@ from .. import HYPERV
 from .context import get_node_context
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
-from .source import VHDSource
+from .source import Source
 
 
 class _HostCapabilities:
@@ -39,7 +40,8 @@ class HypervPlatform(Platform):
         self._server = self._initialize_server_node()
         self._host_capabilities = self._get_host_capabilities(self._log)
         self._source_vhd: Optional[PureWindowsPath] = None
-        self._vhd_source_factory = Factory[VHDSource](VHDSource)
+        self._source_factory = Factory[Source](Source)
+        self._artifact_paths: Optional[List[PureWindowsPath]] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -179,6 +181,31 @@ class HypervPlatform(Platform):
 
         return node_capabilities
 
+    def _download_sources(self) -> None:
+        if self._artifact_paths:
+            return
+
+        if not self._hyperv_runbook.source:
+            return
+
+        source = self._source_factory.create_by_runbook(self._hyperv_runbook.source)
+        self._artifact_paths = source.download(self._server)
+
+    def _prepare_source_vhd(self, node_runbook: HypervNodeSchema) -> None:
+        if self._source_vhd:
+            return
+
+        if node_runbook.vhd and node_runbook.vhd.vhd_path:
+            self._source_vhd = PureWindowsPath(node_runbook.vhd.vhd_path)
+        elif self._artifact_paths:
+            for artifact_path in self._artifact_paths:
+                if artifact_path.suffix == ".vhd" or artifact_path.suffix == ".vhdx":
+                    self._source_vhd = artifact_path
+                    break
+
+        if not self._source_vhd:
+            raise LisaException("No VHD found in node runbook or sources.")
+
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
@@ -193,6 +220,8 @@ class HypervPlatform(Platform):
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
         }
 
+        self._download_sources()
+
         self._console_logger = SerialConsoleLogger(self._server)
 
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
@@ -205,11 +234,7 @@ class HypervPlatform(Platform):
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
 
-            source = self._vhd_source_factory.create_by_runbook(
-                self._hyperv_runbook.vhd_source
-            )
-
-            self._prepare_source_vhd(source)
+            self._prepare_source_vhd(node_runbook)
             assert self._source_vhd
 
             node.name = vm_name
@@ -262,15 +287,6 @@ class HypervPlatform(Platform):
             node.set_connection_info(
                 address=ip_addr, username=username, password=password
             )
-
-    def _prepare_source_vhd(self, source: VHDSource) -> None:
-        if self._source_vhd:
-            return
-
-        paths = source.download(self._server)
-        assert len(paths) == 1
-
-        self._source_vhd = paths[0]
 
     def _resize_vhd_if_needed(
         self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
