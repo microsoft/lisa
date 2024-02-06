@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 
@@ -47,6 +47,13 @@ class HypervPlatformSchema:
 
 @dataclass_json
 @dataclass
+class VhdSchema(schema.ImageSchema):
+    vhd_path: Optional[str] = None
+
+
+@dataclass_json
+@dataclass
 class HypervNodeSchema:
     hyperv_generation: int = 2
+    vhd: Optional[VhdSchema] = None
     osdisk_size_in_gb: int = 30
