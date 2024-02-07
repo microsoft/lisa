@@ -159,7 +159,7 @@ class HypervPlatform(Platform):
     def _create_node_capabilities(self) -> schema.NodeSpace:
         host_capabilities = self._host_capabilities
         node_capabilities = schema.NodeSpace()
-        node_capabilities.name = "Hyper-V"
+        node_capabilities.name = "hyperv"
         node_capabilities.node_count = 1
         node_capabilities.core_count = search_space.IntRange(
             min=1, max=host_capabilities.core_count
