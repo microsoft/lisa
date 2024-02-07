@@ -2397,6 +2397,15 @@ class Availability(AzureFeatureMixin, features.Availability):
                 "Or consider changing the disk type or location."
             )
 
+        # If the availability_type is still set to Default, then
+        # resolve the default without considering capabilities
+        if params.availability_type == AvailabilityType.Default:
+            params.availability_type = (
+                AvailabilityType.AvailabilitySet
+                if params.availability_set_tags or params.availability_set_properties
+                else AvailabilityType.NoRedundancy
+            )
+
         # Once the availability type has been determined, clear the unecessary
         # fields for clarity
         if params.availability_type == AvailabilityType.AvailabilitySet:
