@@ -28,7 +28,7 @@ class ExtraArgs:
 @dataclass_json
 @dataclass
 class SourceFileSchema:
-    source: str = field(default="", metadata=field_metadata(required=True))
+    source: str = field(metadata=field_metadata(required=True))
     # if destination is not provided by user, the source implementation will decide
     # the destination.
     destination: Optional[str] = None
