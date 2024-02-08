@@ -41,7 +41,7 @@ class HypervPlatform(Platform):
         self._host_capabilities = self._get_host_capabilities(self._log)
         self._source_vhd: Optional[PureWindowsPath] = None
         self._source_factory = Factory[Source](Source)
-        self._artifact_paths: Optional[List[PureWindowsPath]] = None
+        self._source_files: Optional[List[PureWindowsPath]] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -182,14 +182,14 @@ class HypervPlatform(Platform):
         return node_capabilities
 
     def _download_sources(self) -> None:
-        if self._artifact_paths:
+        if self._source_files:
             return
 
         if not self._hyperv_runbook.source:
             return
 
         source = self._source_factory.create_by_runbook(self._hyperv_runbook.source)
-        self._artifact_paths = source.download(self._server)
+        self._source_files = source.download(self._server)
 
     def _prepare_source_vhd(self, node_runbook: HypervNodeSchema) -> None:
         if self._source_vhd:
@@ -197,8 +197,8 @@ class HypervPlatform(Platform):
 
         if node_runbook.vhd and node_runbook.vhd.vhd_path:
             self._source_vhd = PureWindowsPath(node_runbook.vhd.vhd_path)
-        elif self._artifact_paths:
-            for artifact_path in self._artifact_paths:
+        elif self._source_files:
+            for artifact_path in self._source_files:
                 if artifact_path.suffix == ".vhd" or artifact_path.suffix == ".vhdx":
                     self._source_vhd = artifact_path
                     break
