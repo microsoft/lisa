@@ -986,15 +986,26 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             l3fwd_app_name
         )  # generate the dpdk include arguments to add to our commandline
 
-    include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
-        ),
-    ]
+    # another MANA special case, provide pci slot and multiple macs instead of seperate vdev args
+    if fwd_kit.testpmd.vf_helper.is_mana():
+        vdev_combined = ",".join(
+            [
+                subnet_a_nics[forwarder].pci_slot,
+                f"mac={subnet_a_nics[forwarder].mac_addr}",
+                f"mac={subnet_b_nics[forwarder].mac_addr}",
+            ]
+        )
+        include_devices = [f'--vdev="{vdev_combined}"']
 
+    else:
+        include_devices = [
+            fwd_kit.testpmd.generate_testpmd_include(
+                subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+            ),
+            fwd_kit.testpmd.generate_testpmd_include(
+                subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+            ),
+        ]
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
     # Each port P has N queues (really queue pairs for tx/rx)
