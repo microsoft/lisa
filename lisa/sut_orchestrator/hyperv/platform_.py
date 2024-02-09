@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from functools import partial
 from pathlib import PureWindowsPath
 from typing import Any, List, Optional, Type, cast
 
@@ -11,10 +12,11 @@ from lisa.platform_ import Platform
 from lisa.tools import Cp, HyperV, Mkdir, PowerShell
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger, get_logger
+from lisa.util.parallel import run_in_parallel
 from lisa.util.subclasses import Factory
 
 from .. import HYPERV
-from .context import get_node_context
+from .context import NodeContext, get_node_context
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
 from .source import Source
@@ -304,15 +306,19 @@ class HypervPlatform(Platform):
         self._delete_nodes(environment, log)
 
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
-        hv = self._server.tools[HyperV]
-        for node in environment.nodes.list():
-            node_ctx = get_node_context(node)
+        def _delete_node(node_ctx: NodeContext) -> None:
+            hv = self._server.tools[HyperV]
             vm_name = node_ctx.vm_name
-
-            log.debug(f"Deleting VM {vm_name}")
             hv.delete_vm(vm_name)
 
             # The script that logs the serial console output exits gracefully
             # on its own after the VM is deleted. So, wait for that to happen.
             assert node_ctx.serial_log_task_mgr
             node_ctx.serial_log_task_mgr.wait_for_all_workers()
+
+        run_in_parallel(
+            [
+                partial(_delete_node, get_node_context(node))
+                for node in environment.nodes.list()
+            ]
+        )
