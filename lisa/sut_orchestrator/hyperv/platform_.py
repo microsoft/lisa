@@ -9,7 +9,7 @@ from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
 from lisa.tools import Cp, HyperV, Mkdir, PowerShell
-from lisa.util import LisaException
+from lisa.util import LisaException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.subclasses import Factory
 
@@ -210,7 +210,8 @@ class HypervPlatform(Platform):
         if environment.runbook.nodes_requirement is None:
             return  # nothing to deploy?
 
-        vm_name_prefix = f"lisa-{environment.name}"
+        normalized_name = constants.NORMALIZE_PATTERN.sub("-", constants.RUN_NAME)
+        vm_name_prefix = f"{normalized_name}-e{environment.id}"
 
         hv = self._server.tools[HyperV]
         default_switch = hv.get_default_external_switch()
