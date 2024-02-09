@@ -298,7 +298,6 @@ class AzurePlatformSchema:
         ),
     )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
-    locations: Optional[Union[str, List[str]]] = field(default=None)
     use_public_address: bool = field(default=True)
 
     virtual_network_resource_group: str = field(default="")
@@ -365,9 +364,6 @@ class AzurePlatformSchema:
                     "service_principal_client_id and service_principal_key "
                     "should be specified either both or not."
                 )
-
-        if not self.locations:
-            self.locations = LOCATIONS
 
     @property
     def cloud(self) -> Cloud:
@@ -566,7 +562,9 @@ class AzurePlatform(Platform):
 
         # resolve Latest to specified version
         if is_success:
-            self._resolve_marketplace_image_version(nodes_requirement)
+            self._resolve_marketplace_image_version(
+                environment.runbook.nodes_requirement
+            )
 
         return is_success
 
@@ -1459,6 +1457,10 @@ class AzurePlatform(Platform):
                 arm_parameters.osdisk_size_in_gb,
                 self._get_vhd_os_disk_size(arm_parameters.vhd.vhd_path),
             )
+            # purchase plan is needed for vhds created using marketplace images with
+            # purchase plans.
+            if runbook.purchase_plan:
+                arm_parameters.purchase_plan = runbook.purchase_plan
         elif arm_parameters.shared_gallery:
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,

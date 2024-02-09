@@ -66,6 +66,7 @@ if platform.system() == "Linux":
 import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
 
 # Transformers
+import lisa.transformers.disable_cloud_components  # noqa: F401
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.file_uploader  # noqa: F401

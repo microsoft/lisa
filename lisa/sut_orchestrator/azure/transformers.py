@@ -93,6 +93,9 @@ class VhdTransformerSchema(schema.Transformer):
     # restore environment or not
     restore: bool = False
 
+    # deprovision the VM or not
+    deprovision: bool = True
+
 
 @dataclass_json
 @dataclass
@@ -165,10 +168,11 @@ class VhdTransformer(Transformer):
         if not runbook.public_address:
             runbook.public_address = node.public_address
 
-        # prepare vm for exporting
-        wa = node.tools[Waagent]
-        node.execute("export HISTSIZE=0", shell=True)
-        wa.deprovision()
+        if runbook.deprovision:
+            # prepare vm for exporting
+            wa = node.tools[Waagent]
+            node.execute("export HISTSIZE=0", shell=True)
+            wa.deprovision()
 
         # stop the vm
         startstop = node.features[StartStop]
