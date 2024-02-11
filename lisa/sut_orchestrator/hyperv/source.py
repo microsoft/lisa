@@ -85,18 +85,11 @@ class LocalSource(Source):
             else:
                 defined_destination = PureWindowsPath(server.working_path / destination)
 
-        if unzip:
-            dest_path = (
-                PureWindowsPath(server.working_path)
-                / "zipped_sources_tmp"
-                / local_path.name
-            )
-        else:
-            dest_path = PureWindowsPath(
-                defined_destination / local_path.name
-                if defined_destination
-                else server.working_path / "sources" / local_path.name
-            )
+        dest_path = PureWindowsPath(
+            defined_destination / local_path.name
+            if defined_destination
+            else server.working_path / "sources" / local_path.name
+        )
 
         server.tools[Mkdir].create_directory(str(dest_path.parent))
 
@@ -111,10 +104,10 @@ class LocalSource(Source):
                 else PureWindowsPath(server.working_path) / "sources"
             )
 
-            server.tools[Unzip].extract(str(dest_path), str(final_destination))
+            server.tools[Unzip].extract(str(dest_path), str(dest_path.parent))
             server.shell.remove(dest_path)
 
-            extracted_files = server.tools[Ls].list(str(final_destination))
+            extracted_files = server.tools[Ls].list(str(dest_path.parent))
 
             return [final_destination.joinpath(f) for f in extracted_files]
 
