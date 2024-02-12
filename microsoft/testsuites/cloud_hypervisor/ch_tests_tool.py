@@ -43,6 +43,8 @@ class CloudHypervisorTests(Tool):
     ms_access_token = ""
     clh_guest_vm_type = ""
     use_ms_guest_kernel = ""
+    use_ms_hypervisor_fw = ""
+    use_ms_ovmf_fw = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -228,6 +230,10 @@ class CloudHypervisorTests(Tool):
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
             if self.use_ms_guest_kernel:
                 self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+            if self.use_ms_hypervisor_fw:
+                self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
+            if self.use_ms_ovmf_fw:
+                self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
         else:
             git.clone(self.upstream_repo, clone_path)
 
