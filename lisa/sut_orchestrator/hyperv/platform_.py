@@ -303,13 +303,17 @@ class HypervPlatform(Platform):
             )
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        self._delete_nodes(environment, log)
+        self._delete_nodes(environment)
 
-    def _delete_nodes(self, environment: Environment, log: Logger) -> None:
-        def _delete_node(node_ctx: NodeContext) -> None:
+    def _delete_nodes(self, environment: Environment) -> None:
+        def _delete_node(node_ctx: NodeContext, wait_delete: bool) -> None:
             hv = self._server.tools[HyperV]
             vm_name = node_ctx.vm_name
-            hv.delete_vm(vm_name)
+
+            if wait_delete:
+                hv.delete_vm(vm_name)
+            else:
+                hv.delete_vm_async(vm_name)
 
             # The script that logs the serial console output exits gracefully
             # on its own after the VM is deleted. So, wait for that to happen.
@@ -318,7 +322,11 @@ class HypervPlatform(Platform):
 
         run_in_parallel(
             [
-                partial(_delete_node, get_node_context(node))
+                partial(
+                    _delete_node,
+                    get_node_context(node),
+                    self._hyperv_runbook.wait_delete,
+                )
                 for node in environment.nodes.list()
             ]
         )

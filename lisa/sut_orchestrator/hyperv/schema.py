@@ -53,6 +53,7 @@ class HypervPlatformSchema:
     source: Optional[SourceSchema] = None
     servers: List[HypervServer] = field(default_factory=list)
     extra_args: List[ExtraArgs] = field(default_factory=list)
+    wait_delete: bool = False
 
 
 @dataclass_json
