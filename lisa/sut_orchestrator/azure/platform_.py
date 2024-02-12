@@ -521,34 +521,34 @@ class AzurePlatform(Platform):
         all_awaitable: bool = False
         errors: List[str] = []
 
-        for location in allowed_locations:
-            caps, error = self._get_azure_capabilities(
-                location=location, nodes_requirement=nodes_requirement, log=log
-            )
+        caps, error = self._get_azure_capabilities(
+            allowed_locations=allowed_locations,
+            nodes_requirement=nodes_requirement,
+            log=log,
+        )
 
-            if error:
-                errors.append(error)
+        if error:
+            errors.append(error)
 
-            # If returns non-zero length array, it means found either available
-            # or awaitable for all nodes.
-            if caps:
-                all_awaitable = True
+        # If returns non-zero length array, it means found either available
+        # or awaitable for all nodes.
+        if caps:
+            all_awaitable = True
 
-                # check to return value or raise WaitForMoreResource
-                if all(isinstance(x, schema.NodeSpace) for x in caps):
-                    # With above condition, all types are NodeSpace. Ignore the
-                    # mypy check.
-                    environment.runbook.nodes_requirement = caps  # type: ignore
-                    environment.cost = sum(
-                        x.cost for x in caps if isinstance(x, schema.NodeSpace)
-                    )
-                    is_success = True
-                    log.debug(
-                        f"requirement meet, "
-                        f"cost: {environment.cost}, "
-                        f"cap: {environment.runbook.nodes_requirement}"
-                    )
-                    break
+            # check to return value or raise WaitForMoreResource
+            if all(isinstance(x, schema.NodeSpace) for x in caps):
+                # With above condition, all types are NodeSpace. Ignore the
+                # mypy check.
+                environment.runbook.nodes_requirement = caps  # type: ignore
+                environment.cost = sum(
+                    x.cost for x in caps if isinstance(x, schema.NodeSpace)
+                )
+                is_success = True
+                log.debug(
+                    f"requirement meet, "
+                    f"cost: {environment.cost}, "
+                    f"cap: {environment.runbook.nodes_requirement}"
+                )
 
         if not is_success:
             if all_awaitable:
@@ -2528,66 +2528,78 @@ class AzurePlatform(Platform):
         return False
 
     def _get_azure_capabilities(
-        self, location: str, nodes_requirement: List[schema.NodeSpace], log: Logger
+        self,
+        allowed_locations: List[str],
+        nodes_requirement: List[schema.NodeSpace],
+        log: Logger,
     ) -> Tuple[List[Union[AzureCapability, bool]], str]:
         # one of errors for all requirements. It's enough for troubleshooting.
         error: str = ""
-
-        # All candidates for each requirement. The values are node_requirement,
-        # capabilities.
-        available_candidates: List[Any] = []
-        awaitable_candidates: List[Any] = []
-
-        # get allowed vm sizes. Either it's from the runbook defined, or
-        # from subscription supported.
-        for req in nodes_requirement:
-            candidate_caps, sub_error = self._get_allowed_capabilities(
-                req, location, log
-            )
-            if sub_error:
-                # no candidate found, so try next one.
-                error = sub_error
-                continue
-
-            # filter vm sizes and return two list. 1st is deployable, 2nd is
-            # wait able for released resource.
-            (
-                available_capabilities,
-                awaitable_capabilities,
-            ) = self._get_available_azure_capabilities(candidate_caps, log)
-
-            # Sort available vm sizes to match. Awaitable doesn't need to be
-            # sorted.
-            available_capabilities = self.get_sorted_vm_sizes(
-                available_capabilities, log
-            )
-            available_candidates.append([req, available_capabilities])
-            awaitable_candidates.append(
-                [req, available_capabilities + awaitable_capabilities]
-            )
-
+        found: bool = False
         results: List[Union[AzureCapability, bool]] = []
 
-        # get available vm sizes
-        found = get_first_combination(
-            items=available_candidates,
-            index=0,
-            results=results,
-            check=partial(
-                self._check_environment_available, location=location, log=log
-            ),
-            next_value=self._get_meet_capabilities,
-            can_early_stop=True,
-        )
+        location_awaitable_candidates: Dict[str, List[Any]] = dict()
 
-        if len(results) < len(nodes_requirement):
-            # not found enough vm sizes, so mark it as not found
-            results = []
-            found = False
+        for location in allowed_locations:
+            # All candidates for each requirement. The values are node_requirement,
+            # capabilities.
+            available_candidates: List[Any] = []
+            awaitable_candidates: List[Any] = []
 
-        # if no available vm size, get awaitable vm sizes, It doesn't need to
-        # check quota again, because it's already checked in _get_meet_capabilities.
-        if not found:
+            # get allowed vm sizes. Either it's from the runbook defined, or
+            # from subscription supported.
+            for req in nodes_requirement:
+                candidate_caps, sub_error = self._get_allowed_capabilities(
+                    req, location, log
+                )
+                if sub_error:
+                    # no candidate found, so try next one.
+                    error = sub_error
+                    continue
+
+                # filter vm sizes and return two list. 1st is deployable, 2nd is
+                # wait able for released resource.
+                (
+                    available_capabilities,
+                    awaitable_capabilities,
+                ) = self._get_available_azure_capabilities(candidate_caps, log)
+
+                # Sort available vm sizes to match. Awaitable doesn't need to be
+                # sorted.
+                available_capabilities = self.get_sorted_vm_sizes(
+                    available_capabilities, log
+                )
+                available_candidates.append([req, available_capabilities])
+                awaitable_candidates.append(
+                    [req, available_capabilities + awaitable_capabilities]
+                )
+
+            location_awaitable_candidates[location] = awaitable_candidates
+
+            # get available vm sizes
+            found = get_first_combination(
+                items=available_candidates,
+                index=0,
+                results=results,
+                check=partial(
+                    self._check_environment_available, location=location, log=log
+                ),
+                next_value=self._get_meet_capabilities,
+                can_early_stop=True,
+            )
+
+            if len(results) < len(nodes_requirement):
+                # not found enough vm sizes, so mark it as not found
+                results = []
+                found = False
+
+            if found:
+                return results, error
+
+        for location in allowed_locations:
+            awaitable_candidates = location_awaitable_candidates[location]
+            # if no available vm size, get awaitable vm sizes, It doesn't need to
+            # check quota again, because it's already checked in _get_meet_capabilities.
             found = get_first_combination(
                 items=awaitable_candidates,
                 index=0,
@@ -2597,13 +2609,16 @@ class AzurePlatform(Platform):
                 can_early_stop=True,
             )
 
-        if len(results) < len(nodes_requirement):
-            # not found enough vm sizes, so mark it as not found
-            results = []
-            found = False
+            if len(results) < len(nodes_requirement):
+                # not found enough vm sizes, so mark it as not found
+                results = []
+                found = False
+
+            if found:
+                return results, error
 
         if not found:
-            error = f"no available quota found on '{location}'."
+            error = f"no available quota found on '{allowed_locations}'."
 
         return results, error
 
