@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.operating_system import Posix
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Ls, Sed
 from lisa.transformers.deployment_transformer import (
@@ -45,10 +44,8 @@ class DisableCloudComponentsTransformer(DeploymentTransformer):
         ls = node.tools[Ls]
 
         node.tools[Waagent].deprovision()
-        if isinstance(node.os, Posix):
-            node.os.uninstall_packages(["walinuxagent"])
 
-        node.execute("touch /var/lib/waagent/diable_agent", sudo=True)
+        node.execute("touch /var/lib/waagent/disable_agent", sudo=True)
         node.execute("touch /var/lib/waagent/provisioned", sudo=True)
         node.execute("touch /etc/cloud/cloud-init.disabled", sudo=True)
 
