@@ -2597,6 +2597,11 @@ class AzurePlatform(Platform):
                 can_early_stop=True,
             )
 
+            if found:
+                # for awaitable resources, it returns true. So it can be different
+                # with available resources in the caller.
+                results = [True] * len(results)
+
         if len(results) < len(nodes_requirement):
             # not found enough vm sizes, so mark it as not found
             results = []
