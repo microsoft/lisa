@@ -739,21 +739,25 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
 def reroute_traffic_and_disable_nic(
-    node: Node, src_nic: NicInfo, dst_nic: NicInfo, new_gateway_nic: NicInfo
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
 ) -> None:
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
 
     # remove any routes through those devices
-    ip_tool.remove_all_routes_for_device(src_nic.name)
+    # ip_tool.remove_all_routes_for_device(src_nic.name)
+    # ip_tool.addr_flush(src_nic.name)
 
-    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
+    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=new_gateway_nic.name
+            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
-    ip_tool.down(src_nic.name)
+    # ip_tool.down(src_nic.name)
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
@@ -784,6 +788,19 @@ def get_l3fwd_queue_count(
     if is_mana:
         queue_count *= 2
     return queue_count
+
+
+def _find_common_subnet_nic(
+    first: Node, second: Node, nic: NicInfo
+) -> Union[NicInfo, None]:
+    # given a nic on the first node,
+    # get the nic on the second node which shares the same subnet
+
+    subnet = ipv4_to_lpm(nic.ip_addr)
+    for nic_info in second.nics.nics.values():
+        if subnet == ipv4_to_lpm(nic_info.ip_addr):
+            return nic_info
+    return None
 
 
 def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -864,9 +881,25 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         node.mark_dirty()
 
     # enable ip forwarding on secondary and tertiary nics
+    # run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
+    __enable_ip_forwarding(forwarder)
+
+    # We use ntttcp for snd/rcv which will respect the kernel route table.
+    # SO: remove the unused interfaces and routes which could skip the forwarder
+
+    def _run_removal(node: Node, index: int) -> None:
+        return node.features[NetworkInterface].remove_extra_nics(keep_index=index)
+
     run_in_parallel(
-        [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
+        [
+            partial(_run_removal, node=node, index=index)
+            for node, index in [(sender, 1), (receiver, 2)]
+        ]
     )
+    sender.close()
+    receiver.close()
+    sender.nics.reload()
+    receiver.nics.reload()
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
@@ -874,36 +907,44 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Subnet A is actually the secondary NIC.
     #  Subnet B is actually the tertiary NIC.
     # For the test, don't sweat it. A is send side, B is receive side.
-    subnet_a_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(send_side),
-        sender: sender.nics.get_nic_by_index(send_side),
-        receiver: receiver.nics.get_nic_by_index(send_side),
-    }
-    subnet_b_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(receive_side),
-        receiver: receiver.nics.get_nic_by_index(receive_side),
-        sender: sender.nics.get_nic_by_index(receive_side),
-    }
+    fwd_send_nic = forwarder.nics.get_nic_by_index(send_side)
+    fwd_receiver_nic = forwarder.nics.get_nic_by_index(receive_side)
+    subnet_a_snd = _find_common_subnet_nic(forwarder, sender, fwd_send_nic)
+    subnet_b_rcv = _find_common_subnet_nic(forwarder, receiver, fwd_receiver_nic)
+    if subnet_a_snd == None or subnet_b_rcv == None:
+        raise LisaException(
+            "Could not find subnet pairs for all nics on the test nodes."
+        )
 
-    # We use ntttcp for snd/rcv which will respect the kernel route table.
-    # SO: remove the unused interfaces and routes which could skip the forwarder
-    unused_nics = {
-        sender: subnet_b_nics[sender],
-        receiver: subnet_a_nics[receiver],
-    }
     reroute_traffic_and_disable_nic(
         node=sender,
-        src_nic=unused_nics[sender],
-        dst_nic=subnet_b_nics[receiver],
-        new_gateway_nic=subnet_a_nics[forwarder],
+        src_nic=subnet_a_snd,
+        dst_nic=subnet_b_rcv,
+        new_gateway_nic=fwd_send_nic,
     )
     reroute_traffic_and_disable_nic(
         node=receiver,
-        src_nic=unused_nics[receiver],
-        dst_nic=subnet_a_nics[sender],
-        new_gateway_nic=subnet_b_nics[forwarder],
+        src_nic=subnet_b_rcv,
+        dst_nic=subnet_a_snd,
+        new_gateway_nic=fwd_receiver_nic,
     )
+    subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
+    subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
 
+    sender.log.info(
+        f"{subnet_a_nics[forwarder].ip_addr} < {subnet_a_nics[sender].name}"
+        f" {subnet_a_nics[sender].ip_addr} "
+    )
+    sender.tools[Ping].ping(
+        subnet_a_nics[forwarder].ip_addr, subnet_a_nics[sender].name
+    )
+    sender.log.info(
+        f"{subnet_b_nics[forwarder].ip_addr} < {subnet_b_nics[receiver].name} "
+        f"{subnet_b_nics[receiver].ip_addr} "
+    )
+    receiver.tools[Ping].ping(
+        subnet_b_nics[forwarder].ip_addr, subnet_b_nics[receiver].name
+    )
     # AZ ROUTING TABLES
     # The kernel routes are not sufficient, since Azure also manages
     # the VNETs for the VMS. Azure doesn't really care about ethernet
@@ -948,12 +989,25 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.vf_helper.is_mana():
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
-        dpdk_port_a = 2
-        dpdk_port_b = 3
+    # if fwd_kit.testpmd.vf_helper.is_mana():
+
+    # NOTE: ports for DPDK are available for each interface.
+    # This gets a little weird because Azure offers upper/lower pairs
+    # by default for AccelNet. A synthetic interface may appear as a
+    # usable port, even though we don't want to bind to them normally.
+    # There isn't a good example of how to pick a port for a given interface.
+    # see note above. On MANA and MLX we unbind the test interfaces.
+    # We leave a single AccelNet interface open for SSH between LISA
+    # and the test VM. This results in 4 interfaces for l3fwd.
+    # 0 : synthetic or VF for eth0
+    # 1 : synthetic or VF for eth0
+    # 2: VF for eth1  <- nics used for testing
+    # 3: VF for eth2  <- nics used for testing
+    # Q: How do we know those numbers are accurate?
+    # A: We do not. It's called cheating, it doesn't work every time.
+
+    dpdk_port_a = 2
+    dpdk_port_b = 3
 
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
@@ -1144,6 +1198,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             f"l3fwd strict throughput check failed, for hw {hw_name} "
             f"expected throughput >= {threshold} GBps!"
         ).is_greater_than_or_equal_to(threshold)
+    try:
+        sender.tools[Ping].ping(
+            subnet_b_nics[receiver].ip_addr, nic_name=subnet_a_nics[sender].name
+        )
+    except AssertionError:
+        sender.log.debug(
+            "Confirmed sender/receiver cannot reach each other after "
+            "l3fwd is disabled. Ending test."
+        )
+        return
+    raise LisaException(
+        "Sender and receiver can communicate after l3fwd had stopped! "
+        "Check network and node configuration."
+    )
 
 
 def create_l3fwd_rules_files(
