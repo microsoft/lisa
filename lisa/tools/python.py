@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, List, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
+
 if TYPE_CHECKING:
     from lisa.node import Node
 
@@ -129,8 +130,9 @@ class PythonVenv(Tool):
     def _check_exists(self) -> bool:
         venv = self.python.run("-m venv --help", force_run=True)
         ensurepip = self.python.run("-m ensurepip", force_run=True)
-        return (venv.exit_code == 0
-                and "No module named ensurepip" not in ensurepip.stdout)
+        return (
+            venv.exit_code == 0 and "No module named ensurepip" not in ensurepip.stdout
+        )
 
     def _install(self) -> bool:
         if isinstance(self.node.os, Posix):
