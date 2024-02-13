@@ -949,9 +949,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
     if fwd_kit.testpmd.vf_helper.is_mana():
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
         dpdk_port_a = 2
         dpdk_port_b = 3
 
