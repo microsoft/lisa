@@ -13,6 +13,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
+from lisa.util.process import Process
 
 
 @dataclass_json
@@ -42,21 +43,25 @@ class HyperV(Tool):
 
         return output.strip() != ""
 
-    def delete_vm(self, name: str) -> None:
+    def delete_vm_async(self, name: str) -> Optional[Process]:
         # check if vm is present
         if not self.exists_vm(name):
-            return
+            return None
 
         # stop and delete vm
         powershell = self.node.tools[PowerShell]
-        powershell.run_cmdlet(
-            f"Stop-VM -Name {name} -Force",
+        return powershell.run_cmdlet_async(
+            f"Stop-VM -Name {name} -Force; Remove-VM -Name {name} -Force",
             force_run=True,
         )
-        powershell.run_cmdlet(
-            f"Remove-VM -Name {name} -Force",
-            force_run=True,
-        )
+
+    def delete_vm(self, name: str) -> None:
+        process = self.delete_vm_async(name)
+
+        if process is None:
+            return
+
+        process.wait_result(expected_exit_code=0)
 
     def create_vm(
         self,

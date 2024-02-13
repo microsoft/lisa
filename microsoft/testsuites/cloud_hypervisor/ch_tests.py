@@ -182,10 +182,12 @@ class CloudHypervisorTestSuite(TestSuite):
         # Get GUEST VM type, set default to NON-CVM
         clh_guest_vm_type = variables.get("clh_guest_vm_type", "NON-CVM")
 
-        # Check if MS Guest kernel need to be used
-        # Dom0 VHD is shipped with it now
-        # Default, we will use upstream guest kernel only
+        # Check if MS Guest kernel/hypervisor-fw/OVMF-fw need to be used
+        # Dom0 VHD is shipped with those binaries now
+        # Default, we will use upstream CLH binaries only
         use_ms_guest_kernel = variables.get("use_ms_guest_kernel", "NO")
+        use_ms_hypervisor_fw = variables.get("use_ms_hypervisor_fw", "NO")
+        use_ms_ovmf_fw = variables.get("use_ms_ovmf_fw", "NO")
 
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
@@ -198,6 +200,10 @@ class CloudHypervisorTestSuite(TestSuite):
         CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
         if use_ms_guest_kernel == "YES":
             CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
+        if use_ms_hypervisor_fw == "YES":
+            CloudHypervisorTests.use_ms_hypervisor_fw = use_ms_hypervisor_fw
+        if use_ms_ovmf_fw == "YES":
+            CloudHypervisorTests.use_ms_ovmf_fw = use_ms_ovmf_fw
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:
