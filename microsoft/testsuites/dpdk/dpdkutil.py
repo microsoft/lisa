@@ -948,9 +948,25 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.vf_helper.is_mana():
-        dpdk_port_a = 2
-        dpdk_port_b = 3
+    # if fwd_kit.testpmd.vf_helper.is_mana():
+
+    # NOTE: ports for DPDK are available for each interface.
+    # This gets a little weird because Azure offers upper/lower pairs
+    # by default for AccelNet. A synthetic interface may appear as a
+    # usable port, even though we don't want to bind to them normally.
+    # There isn't a good example of how to pick a port for a given interface.
+    # see note above. On MANA and MLX we unbind the test interfaces.
+    # We leave a single AccelNet interface open for SSH between LISA
+    # and the test VM. This results in 4 interfaces for l3fwd.
+    # 0 : synthetic or VF for eth0
+    # 1 : synthetic or VF for eth0
+    # 2: VF for eth1  <- nics used for testing
+    # 3: VF for eth2  <- nics used for testing
+    # Q: How do we know those numbers are accurate?
+    # A: We do not. It's called cheating, it doesn't work every time.
+
+    dpdk_port_a = 2
+    dpdk_port_b = 3
 
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
