@@ -266,14 +266,11 @@ class GpuTestSuite(TestSuite):
         # Step 1, pytorch/CUDA needs 8GB to download & install, increase to 16GB
         torch_required_space = 16
         work_path = node.get_working_path_with_required_space(torch_required_space)
-        use_new_path = work_path != str(node.working_path)
 
         # Step 2, Install cudnn and pyTorch
         _install_cudnn(node, log, work_path)
 
-        pythonvenv = node.tools[PythonVenv]
-        if use_new_path:
-            pythonvenv.create_venv(work_path)
+        pythonvenv = node.tools.create(PythonVenv, venv_path=work_path)
 
         pythonvenv.install_packages("torch")
 

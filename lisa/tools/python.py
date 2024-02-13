@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from lisa.operating_system import Posix
 from lisa.tools.mkdir import Mkdir
-from lisa.util import UnsupportedDistroException, get_matched_str
+from lisa.util import LisaException, UnsupportedDistroException, get_matched_str
 
 
 class Python(Tool):
@@ -100,33 +100,15 @@ class PythonVenv(Tool):
     def command(self) -> str:
         return f"{self.get_venv_path()}/bin/{self.python.command}"
 
-    def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
-        super().__init__(node, *args, **kwargs)
-        self.python: Python = self.node.tools[Python]
-
-    def _check_exists(self) -> bool:
-        # _super = type(super())
-        # assert isinstance(super(), Python)
-        return self.python.run("-m venv --help").exit_code == 0
-        # return self.node.execute("python3 -m venv --help").exit_code == 0
-
-    def _install(self) -> bool:
-        if isinstance(self.node.os, Posix):
-            self.node.os.install_packages("python3-venv")
-        return self._check_exists()
+    @property
+    def can_install(self) -> bool:
+        return True
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
         return [Python]
 
-    # if get_venv_path is invoked before create_venv, it will create
-    # a venv in the node working path
-    def get_venv_path(self) -> PurePath:
-        if not hasattr(self, "_venv_path"):
-            self._venv_path = self.create_venv()
-        return self._venv_path
-
-    def create_venv(self, venv_path: str = "", sudo: bool = False) -> PurePath:
+    def _create_venv(self, venv_path: str = "", sudo: bool = False) -> PurePath:
         _venv_path: PurePath = (
             PurePath(venv_path) if venv_path else self.node.working_path / "venv"
         )
@@ -137,6 +119,29 @@ class PythonVenv(Tool):
             cmd_result.exit_code, f"fail to create venv: {_venv_path}"
         ).is_equal_to(0)
         self._venv_path = _venv_path
+        return self._venv_path
+
+    def __init__(self, node: "Node", venv_path: str = "") -> None:
+        super().__init__(node)
+        self.python: Python = self.node.tools[Python]
+        self._venv_installation_path = venv_path if venv_path else ""
+
+    def _check_exists(self) -> bool:
+        venv = self.python.run("-m venv --help", force_run=True)
+        ensurepip = self.python.run("-m ensurepip", force_run=True)
+        return (venv.exit_code == 0
+                and "No module named ensurepip" not in ensurepip.stdout)
+
+    def _install(self) -> bool:
+        if isinstance(self.node.os, Posix):
+            self.node.os.install_packages("python3-venv")
+        return self._check_exists()
+
+    # if get_venv_path is invoked before create_venv, it will create
+    # a venv in the node working path
+    def get_venv_path(self) -> PurePath:
+        if not hasattr(self, "_venv_path"):
+            self._venv_path = self._create_venv(self._venv_installation_path)
         return self._venv_path
 
     def install_packages(self, packages_name: str, sudo: bool = False) -> None:
@@ -156,3 +161,10 @@ class PythonVenv(Tool):
             f"-m pip uninstall {package_name} -y", force_run=True, sudo=sudo
         )
         return result.exit_code == 0
+
+    def delete_venv(self) -> None:
+        if hasattr(self, "_venv_path"):
+            self.node.execute(f"rm -rf {self._venv_path}")
+            delattr(self, "_venv_path")
+        else:
+            self._log.warning("venv path not found, nothing to delete")
