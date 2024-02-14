@@ -1053,6 +1053,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         primary_nic = network_client.network_interfaces.get(
             self._resource_group_name, nic_name
         )
+        self._node.log.debug(f"Found primary nic: {nic_name} {primary_nic.id}")
         network_interfaces_section = []
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
         startstop = self._node.features[StartStop]
@@ -2233,14 +2234,14 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 settings = security_profile[0]
                 assert isinstance(settings, SecurityProfileSettings)
                 assert isinstance(settings.security_profile, SecurityProfileType)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["security_type"] = (
+                    cls._security_profile_mapping[settings.security_profile]
+                )
                 if settings.security_profile == SecurityProfileType.Stateless:
                     node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+                    node_parameters.security_profile["encryption_type"] = (
+                        "NonPersistedTPM"
+                    )
                 else:
                     node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
@@ -2248,9 +2249,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         if settings.encrypt_disk
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
+                node_parameters.security_profile["disk_encryption_set_id"] = (
+                    settings.disk_encryption_set_id
+                )
 
                 if node_parameters.security_profile["security_type"] == "":
                     node_parameters.security_profile.clear()
