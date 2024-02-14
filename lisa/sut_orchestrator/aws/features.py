@@ -253,7 +253,7 @@ class NetworkInterface(AwsFeatureMixin, features.NetworkInterface):
 
             index += 1
 
-    def remove_extra_nics(self) -> None:
+    def remove_extra_nics(self, keep_index: int = 0) -> None:
         aws_platform: AwsPlatform = self._platform  # type: ignore
         instance = boto3.resource("ec2").Instance(self._instance_id)
 

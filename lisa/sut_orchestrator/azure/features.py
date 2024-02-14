@@ -1039,7 +1039,16 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             ]
         )
 
-    def remove_extra_nics(self) -> None:
+    def _get_interface_by_id(
+        self, id: int, interfaces: List[NetworkInterfaceReference]
+    ) -> NetworkInterfaceReference:
+        for interface in interfaces:
+            self._node.log.debug(f"Checking nic: {interface.id}")
+            if str(interface.id).endswith(f"nic-{id}"):
+                return interface
+        raise LisaException(f"Could not find interface nic-{id}")
+
+    def remove_extra_nics(self, keep_index: int = 0) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         compute_client = get_compute_client(azure_platform)
@@ -1056,6 +1065,17 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         self._node.log.debug(f"Found primary nic: {nic_name} {primary_nic.id}")
         network_interfaces_section = []
         network_interfaces_section.append({"id": primary_nic.id, "primary": True})
+        if keep_index != 0:
+            keep_interface = self._get_interface_by_id(
+                keep_index, vm.network_profile.network_interfaces
+            )
+            assert keep_interface.id, "'nic.id' must not be 'None'"
+            nic_name = keep_interface.id.split("/")[-1]
+            keep_nic = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            self._node.log.debug(f"Found secondary nic: {nic_name} {keep_nic.id}")
+            network_interfaces_section.append({"id": keep_nic.id, "primary": False})
         startstop = self._node.features[StartStop]
         startstop.stop()
         compute_client.virtual_machines.begin_update(
