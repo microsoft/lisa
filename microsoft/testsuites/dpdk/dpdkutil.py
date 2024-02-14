@@ -1158,6 +1158,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             f"l3fwd strict throughput check failed, for hw {hw_name} "
             f"expected throughput >= {threshold} GBps!"
         ).is_greater_than_or_equal_to(threshold)
+    try:
+        sender.tools[Ping].ping(
+            subnet_b_nics[receiver].ip_addr, nic_name=subnet_a_nics[sender].name
+        )
+    except AssertionError:
+        sender.log.debug(
+            "Confirmed sender/receiver cannot reach each other after "
+            "l3fwd is disabled. Ending test."
+        )
+        return
+    raise LisaException(
+        "Sender and receiver can communicate after l3fwd had stopped! "
+        "Check network and node configuration."
+    )
 
 
 def create_l3fwd_rules_files(
