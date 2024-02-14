@@ -270,6 +270,12 @@ class Process:
             f"encoding: {encoding}"
         )
 
+        if self._is_posix and self._shell.is_remote:
+            # only enable pty on remote Linux
+            use_pty = True
+        else:
+            use_pty = False
+
         try:
             self._timer = create_timer()
             self._process = self._shell.spawn(
@@ -281,7 +287,7 @@ class Process:
                 allow_error=True,
                 store_pid=self._is_posix,
                 encoding=encoding,
-                use_pty=self._is_posix,
+                use_pty=use_pty,
             )
             # save for logging.
             self._cmd = split_command
