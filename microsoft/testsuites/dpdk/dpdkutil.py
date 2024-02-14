@@ -739,7 +739,10 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
 def reroute_traffic_and_disable_nic(
-    node: Node, src_nic: NicInfo, dst_nic: NicInfo, new_gateway_nic: NicInfo
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
 ) -> None:
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
@@ -864,9 +867,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         node.mark_dirty()
 
     # enable ip forwarding on secondary and tertiary nics
-    run_in_parallel(
-        [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
-    )
+    run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
