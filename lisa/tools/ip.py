@@ -369,7 +369,7 @@ class Ip(Tool):
             cmd += f" via {via}"
         if dev:
             cmd += f" dev {dev}"
-        cmd += " proto kernel scope link"
+        cmd += " scope link"
         if src:
             cmd += f" src {src}"
         cmd += " metric 99"

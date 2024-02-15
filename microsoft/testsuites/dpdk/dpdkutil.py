@@ -756,7 +756,7 @@ def reroute_traffic_and_disable_nic(
             dest=forbidden_subnet,
             via=new_gateway_nic.ip_addr,
             dev=src_nic.name,
-            src=src_nic.ip_addr,
+            # src=src_nic.ip_addr,
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
