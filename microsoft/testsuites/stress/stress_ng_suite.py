@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from lisa import Logger
 from pathlib import Path, PurePath
 from typing import Any, Dict, List, cast
 
@@ -21,7 +22,7 @@ from lisa.util.process import Process
     """,
 )
 class StressNgTestSuite(TestSuite):
-    TIME_OUT = 3600
+    TIME_OUT = 10800
     CONFIG_VARIABLE = "stress_ng_jobs"
 
     @TestCaseMetadata(
@@ -88,21 +89,41 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'network' class stressors for 60s each.",
         priority=4,
+        timeout=14400
     )
     def stress_ng_network_stressors(
         self,
         environment: Environment,
+        variables: Dict[str, Any],
+        log: Logger
     ) -> None:
-        self._run_stressor_class(environment, "network")
+        stressng_timeout_secs = variables.get("stressng_timeout_secs", 10800)
+        log.info(f" stressng_timeout_secs: {stressng_timeout_secs} ")
+        self._run_stressor_class(
+            environment, "network", stressng_timeout_secs=stressng_timeout_secs
+        )
 
-    def _run_stressor_class(self, environment: Environment, class_name: str) -> None:
+    def _run_stressor_class(
+        self,
+        environment: Environment,
+        class_name: str,
+        stressng_timeout_secs: int = 60,
+    ) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         procs: List[Process] = []
         try:
             for node in nodes:
-                procs.append(node.tools[StressNg].launch_class_async(class_name))
+                procs.append(
+                    node.tools[StressNg].launch_class_async(
+                        class_name,
+                        timeout_secs=stressng_timeout_secs,
+                    )
+                )
             for proc in procs:
-                proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
+                proc.wait_result(
+                    timeout=self.TIME_OUT,
+                    expected_exit_code=0,
+                )
         except Exception as e:
             self._check_panic(nodes)
             raise e
