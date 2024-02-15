@@ -833,6 +833,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             subnet_name = subnet.split("/")[-1]
             # update the subnet, there will only be one since they cannot
             # share address spaces.
+
             if self._do_update_subnet(
                 virtual_network_name=virtual_network_name,
                 subnet_name=subnet_name,
@@ -840,10 +841,10 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 route_table=route_table,
             ):
                 return
-        # if we're through the loop and didn't find the subnet, fail
+
         raise LisaException(
-            "routing table was not assigned to any subnet! "
-            f"targeted subnet: {subnet_mask} with route table: {route_table}"
+            "Could not associate route table with provided "
+            f"subnets: {','.join(subnet_mask)}"
         )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:

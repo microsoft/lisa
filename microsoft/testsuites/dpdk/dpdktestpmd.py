@@ -307,9 +307,13 @@ class DpdkTestpmd(Tool):
             extra_args = extra_args.strip()
         else:
             extra_args = ""
-        # mana pmd needs tx/rx descriptors declared.
+
+        # set log args and mana-specific options
+        log_level_args = "--log-level netvsc,debug "
         if self.vf_helper.is_mana():
+            # mana pmd needs tx/rx descriptors declared.
             extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
+            log_level_args += "--log-level mana,debug "
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -322,7 +326,7 @@ class DpdkTestpmd(Tool):
 
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} --log-level mana,debug --log-level netvsc,debug "
+            f"{nic_include_info} {log_level_args}"
             f" -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
@@ -721,13 +725,18 @@ class DpdkTestpmd(Tool):
         else:
             build_flags += ["-Dbuildtype=debugoptimized"]
 
+        # build specific drivers to avoid building entire DPDK project
+        drivers_to_build = (
+            "*/mlx*,bus/vmbus,"
+            "net/*netvsc,net/ring,net/virtio,net/bonding,"
+            "bus/auxiliary,common/*"
+        )
+        # add mana driver to build if needed
+        if self.vf_helper.is_mana():
+            drivers_to_build += ",net/mana"
         # shrink build
         build_flags += [
-            (
-                "-Denable_drivers=*/mlx*,net/mana,bus/vmbus,"
-                "net/*netvsc,net/ring,net/virtio,net/bonding,"
-                "bus/auxiliary,common/*"
-            ),
+            f"-Denable_drivers={drivers_to_build}",
             "-Denable_apps=app/test-pmd",
         ]
 
