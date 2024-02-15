@@ -1502,6 +1502,14 @@ class AzurePlatform(Platform):
         arm_parameters.os_disk_type = features.get_azure_disk_type(
             capability.disk.os_disk_type
         )
+        if (
+            arm_parameters.os_disk_caching_type != constants.DATADISK_CACHING_TYPE_READONLY
+            and arm_parameters.os_disk_type == schema.DiskType.Ephemeral
+        ):
+            raise SkippedException(
+                "Caching type for Ephemeal OS Disk should be ReadOnly,"
+                f"got {arm_parameters.os_disk_caching_type}"
+            )
         assert isinstance(capability.disk.data_disk_type, schema.DiskType)
         arm_parameters.data_disk_type = features.get_azure_disk_type(
             capability.disk.data_disk_type

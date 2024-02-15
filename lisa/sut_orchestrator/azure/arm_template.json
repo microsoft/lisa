@@ -577,7 +577,7 @@
                                 "storageAccountType": "[parameters('node')['os_disk_type']]",
                                 "securityProfile": "[if(or(empty(parameters('node')['security_profile']), not(equals(parameters('node')['security_profile']['security_type'], 'ConfidentialVM'))), json('null'), json(concat('{\"securityEncryptionType\": \"', parameters('node')['security_profile']['encryption_type'], '\"', if(empty(parameters('node')['security_profile']['disk_encryption_set_id']), '', concat(', \"diskEncryptionSet\": {\"id\": \"', parameters('node')['security_profile']['disk_encryption_set_id'], '\"}')), '}')))]"
                             },
-                            "caching": "[if(equals(parameters('node')['os_disk_type'], 'Ephemeral'), 'ReadOnly', 'ReadWrite')]",
+                            "caching": "[parameters('node')['os_disk_caching_type']]",
                             "createOption": "FromImage",
                             "diskSizeGB": "[parameters('node')['osdisk_size_in_gb']]"
                         }

@@ -253,6 +253,18 @@ class AzureNodeSchema:
     # may be larger than this depending on other requirements set by VHD, marketplace
     # image etc but it will never be smaller.
     osdisk_size_in_gb: int = 30
+    os_disk_caching_type: str = field(
+        default=constants.DATADISK_CACHING_TYPE_NONE,
+        metadata=field_metadata(
+            validate=validate.OneOf(
+                [
+                    constants.DATADISK_CACHING_TYPE_NONE,
+                    constants.DATADISK_CACHING_TYPE_READONLY,
+                    constants.DATADISK_CACHING_TYPE_READYWRITE,
+                ]
+            )
+        ),
+    )
     # Force to maximize capability of the vm size. It bypass requirements on
     # test cases, and uses to force run performance tests on any vm size.
     maximize_capability: bool = False
