@@ -356,13 +356,16 @@ class Ip(Tool):
         assert_that(dev_match.groups()).is_length(1)
         return dev_match.group(1), dev_match.group()
 
-    def add_route_to(self, dest: str, via: str, dev: str) -> None:
+    def add_route_to(self, dest: str, via: str, dev: str = "") -> None:
         # Add a route to a specific destination (prefix or ip addr)
         # via an IP and a specific interface.
         # useful for l3fwd test where we send traffic to an NVA-like
         # router/forwarder
+        cmd = f"route add {dest} via {via}"
+        if dev:
+            cmd += f" dev {dev}"
         self.run(
-            f"route add {dest} via {via} dev {dev}",
+            cmd,
             sudo=True,
             force_run=True,
             expected_exit_code=0,

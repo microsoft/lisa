@@ -753,7 +753,7 @@ def reroute_traffic_and_disable_nic(
 
     if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=src_nic.name
+            dest=forbidden_subnet, via=new_gateway_nic.ip_addr  # , dev=src_nic.name
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
