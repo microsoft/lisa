@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from datetime import datetime
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Any, List, Type
+from typing import TYPE_CHECKING, List, Type
 
 from assertpy import assert_that
 
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 
 from lisa.operating_system import Posix
 from lisa.tools.mkdir import Mkdir
-from lisa.util import LisaException, UnsupportedDistroException, get_matched_str
+from lisa.util import UnsupportedDistroException, get_matched_str
 
 
 class Python(Tool):
@@ -99,7 +100,7 @@ class Pip(Tool):
 class PythonVenv(Tool):
     @property
     def command(self) -> str:
-        return f"{self.get_venv_path()}/bin/{self.python.command}"
+        return f"{self.get_venv_path()}/bin/{self._python.command}"
 
     @property
     def can_install(self) -> bool:
@@ -109,12 +110,14 @@ class PythonVenv(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Python]
 
-    def _create_venv(self, venv_path: str = "", sudo: bool = False) -> PurePath:
+    def _create_venv(self, venv_path: str = "") -> PurePath:
         _venv_path: PurePath = (
-            PurePath(venv_path) if venv_path else self.node.working_path / "venv"
+            PurePath(venv_path)
+            if venv_path
+            else self.node.working_path / f"venv-{datetime.utcnow().isoformat()}"
         )
-        cmd_result = self.python.run(
-            f"-m venv {_venv_path}", force_run=True, sudo=sudo, shell=True
+        cmd_result = self._python.run(
+            f"-m venv {_venv_path}", force_run=True, shell=True
         )
         assert_that(
             cmd_result.exit_code, f"fail to create venv: {_venv_path}"
@@ -124,12 +127,12 @@ class PythonVenv(Tool):
 
     def __init__(self, node: "Node", venv_path: str = "") -> None:
         super().__init__(node)
-        self.python: Python = self.node.tools[Python]
+        self._python: Python = self.node.tools[Python]
         self._venv_installation_path = venv_path if venv_path else ""
 
     def _check_exists(self) -> bool:
-        venv = self.python.run("-m venv --help", force_run=True)
-        ensurepip = self.python.run("-m ensurepip", force_run=True)
+        venv = self._python.run("-m venv --help", force_run=True)
+        ensurepip = self._python.run("-m ensurepip", force_run=True)
         return (
             venv.exit_code == 0 and "No module named ensurepip" not in ensurepip.stdout
         )
@@ -146,10 +149,8 @@ class PythonVenv(Tool):
             self._venv_path = self._create_venv(self._venv_installation_path)
         return self._venv_path
 
-    def install_packages(self, packages_name: str, sudo: bool = False) -> None:
-        cmd_result = self.run(
-            f"-m pip -q install {packages_name}", force_run=True, shell=True, sudo=sudo
-        )
+    def install_packages(self, packages_name: str) -> None:
+        cmd_result = self.run(f"-m pip -q install {packages_name}", force_run=True)
         assert_that(
             cmd_result.exit_code, f"fail to install {packages_name}"
         ).is_equal_to(0)
@@ -158,10 +159,8 @@ class PythonVenv(Tool):
         result = self.run(f"-m pip show {package_name}")
         return result.exit_code == 0
 
-    def uninstall_package(self, package_name: str, sudo: bool = False) -> bool:
-        result = self.run(
-            f"-m pip uninstall {package_name} -y", force_run=True, sudo=sudo
-        )
+    def uninstall_package(self, package_name: str) -> bool:
+        result = self.run(f"-m pip uninstall {package_name} -y", force_run=True)
         return result.exit_code == 0
 
     def delete_venv(self) -> None:
@@ -169,4 +168,4 @@ class PythonVenv(Tool):
             self.node.execute(f"rm -rf {self._venv_path}")
             delattr(self, "_venv_path")
         else:
-            self._log.warning("venv path not found, nothing to delete")
+            self._log.info("venv path not found, nothing to delete")

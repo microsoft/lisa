@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
 import re
 from pathlib import Path
 from typing import Any, List
@@ -22,7 +21,7 @@ from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
 from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
+from lisa.tools import Lspci, Mkdir, NvidiaSmi, Reboot, Service, Tar, Wget
 from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
