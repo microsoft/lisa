@@ -751,9 +751,9 @@ def reroute_traffic_and_disable_nic(
     # ip_tool.remove_all_routes_for_device(src_nic.name)
     # ip_tool.addr_flush(src_nic.name)
 
-    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
+    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=new_gateway_nic.name
+            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
@@ -916,18 +916,18 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "Could not find subnet pairs for all nics on the test nodes."
         )
 
-    # reroute_traffic_and_disable_nic(
-    #     node=sender,
-    #     src_nic=unused_nics[sender],
-    #     dst_nic=subnet_b_rcv,
-    #     new_gateway_nic=fwd_send_nic,
-    # )
-    # reroute_traffic_and_disable_nic(
-    #     node=receiver,
-    #     src_nic=unused_nics[receiver],
-    #     dst_nic=subnet_a_snd,
-    #     new_gateway_nic=fwd_receiver_nic,
-    # )
+    reroute_traffic_and_disable_nic(
+        node=sender,
+        src_nic=subnet_a_snd,
+        dst_nic=subnet_b_rcv,
+        new_gateway_nic=fwd_send_nic,
+    )
+    reroute_traffic_and_disable_nic(
+        node=receiver,
+        src_nic=subnet_b_rcv,
+        dst_nic=subnet_a_snd,
+        new_gateway_nic=fwd_receiver_nic,
+    )
     subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
 
