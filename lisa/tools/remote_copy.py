@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.tools.chown import Chown
@@ -29,16 +29,20 @@ class RemoteCopy(Tool):
         src: PurePath,
         dest: PurePath,
         recurse: bool = False,
-    ) -> None:
-        self._copy_internal(src=src, dest=dest, recurse=recurse, is_copy_to_local=True)
+    ) -> List[PurePath]:
+        return self._copy_internal(
+            src=src, dest=dest, recurse=recurse, is_copy_to_local=True
+        )
 
     def copy_to_remote(
         self,
         src: PurePath,
         dest: PurePath,
         recurse: bool = False,
-    ) -> None:
-        self._copy_internal(src=src, dest=dest, recurse=recurse, is_copy_to_local=False)
+    ) -> List[PurePath]:
+        return self._copy_internal(
+            src=src, dest=dest, recurse=recurse, is_copy_to_local=False
+        )
 
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
@@ -56,7 +60,7 @@ class RemoteCopy(Tool):
         dest: PurePath,
         recurse: bool = False,
         is_copy_to_local: bool = True,
-    ) -> None:
+    ) -> List[PurePath]:
         is_file = self._is_file(
             self._get_source_node(is_copy_to_local=is_copy_to_local), src
         )
@@ -65,7 +69,7 @@ class RemoteCopy(Tool):
         recurse = recurse and not is_file
 
         try:
-            self._copy(
+            return self._copy(
                 src,
                 dest,
                 recurse=recurse,
@@ -88,7 +92,7 @@ class RemoteCopy(Tool):
 
             # copy files from the temp directory and remove the temp directory
             try:
-                self._copy(tmp_location, dest, recurse=recurse, is_file=is_file)
+                return self._copy(tmp_location, dest, recurse=recurse, is_file=is_file)
             finally:
                 self.node.tools[Rm].remove_directory(
                     self.node.get_str_path(tmp_location), sudo=True
@@ -161,7 +165,9 @@ class RemoteCopy(Tool):
         is_file: bool = False,
         recurse: bool = False,
         is_copy_to_local: bool = True,
-    ) -> None:
+    ) -> List[PurePath]:
+        dest_files: List[PurePath] = []
+
         if is_copy_to_local:
             src_node = self.node
             dest_node = self._local_node
@@ -195,6 +201,7 @@ class RemoteCopy(Tool):
 
         # copy files
         for source_file in source_files:
+            dest_files.append(destination_dir / source_file.name)
             if is_copy_to_local:
                 self.node.shell.copy_back(
                     source_file,
@@ -205,7 +212,9 @@ class RemoteCopy(Tool):
 
         # copy sub folders
         for dir_ in dirs:
-            self._copy(dir_, destination_dir, recurse=recurse)
+            dest_files.extend(self._copy(dir_, destination_dir, recurse=recurse))
+
+        return dest_files
 
 
 class WindowsRemoteCopy(RemoteCopy):
