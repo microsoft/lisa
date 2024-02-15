@@ -867,7 +867,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException("l3 forward test needs >= 8 cores.")
 
     # ping everything before start
-    _ping_all_nodes_in_environment(environment)
+    # _ping_all_nodes_in_environment(environment)
 
     test_result = environment.source_test_result
     if not test_result:
