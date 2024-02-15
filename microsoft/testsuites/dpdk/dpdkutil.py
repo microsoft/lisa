@@ -738,7 +738,7 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
-def reroute_traffic_and_disable_nic(
+def setup_kernel_route_tables(
     node: Node,
     src_nic: NicInfo,
     dst_nic: NicInfo,
@@ -884,8 +884,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         node.mark_dirty()
 
     # enable ip forwarding on secondary and tertiary nics
-    # run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
-    __enable_ip_forwarding(forwarder)
+    run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
+    # __enable_ip_forwarding(forwarder)
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
@@ -903,6 +903,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
+    # create sender/receiver ntttcp instances
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
@@ -919,18 +921,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "Could not find subnet pairs for all nics on the test nodes."
         )
 
-    reroute_traffic_and_disable_nic(
-        node=sender,
-        src_nic=subnet_a_snd,
-        dst_nic=subnet_b_rcv,
-        new_gateway_nic=fwd_send_nic,
-    )
-    reroute_traffic_and_disable_nic(
-        node=receiver,
-        src_nic=subnet_b_rcv,
-        dst_nic=subnet_a_snd,
-        new_gateway_nic=fwd_receiver_nic,
-    )
     subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
 
@@ -1011,9 +1001,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     dpdk_port_a = 2
     dpdk_port_b = 3
-
-    # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
@@ -1128,12 +1115,29 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "core dumps, or other setup/init issues."
         )
 
+    setup_kernel_route_tables(
+        node=sender,
+        src_nic=subnet_a_snd,
+        dst_nic=subnet_b_rcv,
+        new_gateway_nic=fwd_send_nic,
+    )
+    setup_kernel_route_tables(
+        node=receiver,
+        src_nic=subnet_b_rcv,
+        dst_nic=subnet_a_snd,
+        new_gateway_nic=fwd_receiver_nic,
+    )
+
     # after starting DPDK, check for known driver errors
     fwd_kit.testpmd.check_for_driver_regressions()
 
     # start ntttcp client and server
     ntttcp_threads_count = 64
     # start the receiver
+
+    receiver.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
+    sender.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
+
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
         run_time_seconds=30,
