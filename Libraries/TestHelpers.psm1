@@ -820,8 +820,8 @@ Function Get-SSHKey ($XMLSecretFile) {
 			}
 			catch {
 				write-host "Failed to download from 'privateSSHKey' to $temp_Folder/$privateSSHKeyName, please double check the path."
-				ls "$temp_Folder"
-				#Throw "Failed to download from '$privateSSHKey', please double check the path."
+				Get-ChildItem "$temp_Folder"
+				Throw "Failed to download from '$privateSSHKey', please double check the path."
 			}
 			$sshKeyPath = "$temp_Folder/$privateSSHKeyName"
 		}
