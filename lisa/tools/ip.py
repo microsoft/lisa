@@ -370,8 +370,8 @@ class Ip(Tool):
         if dev:
             cmd += f" dev {dev}"
         # cmd += " scope link"
-        # if src:
-        #    cmd += f" src {src}"
+        if src:
+            cmd += f" src {src}"
         # cmd += " metric 99"
         self.run(
             cmd,
