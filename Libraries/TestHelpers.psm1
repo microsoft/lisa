@@ -803,14 +803,15 @@ Function Get-SSHKey ($XMLSecretFile) {
 		if ($privateSSHKey -match "^(http|https)://") {
 			$WebClient = New-Object System.Net.WebClient
 			try {
-				if ($headerAuthInfo) {
-					$privateSSHKeyName = $privateSSHKey.Split('&')[0].Split('=')[-1]
-					$WebClient.Headers['Authorization'] = "Basic $headerAuthInfo"
-				}
-				else {
-					$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
-				}
-				$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
+				#if ($headerAuthInfo) {
+				#	$privateSSHKeyName = $privateSSHKey.Split('&')[0].Split('=')[-1]
+				#	$WebClient.Headers['Authorization'] = "Basic $headerAuthInfo"
+				#}
+				#else {
+				#	$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
+				#}
+				#$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
+				Invoke-WebRequest "$privateSSHKey" -OutFile "$temp_Folder/$privateSSHKeyName"
 			}
 			catch {
 				Throw "Failed to download from $privateSSHKey, please double check the path."
