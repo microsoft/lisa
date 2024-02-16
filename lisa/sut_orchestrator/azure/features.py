@@ -781,6 +781,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         route_name: str,
         subnet_mask: str,
         dest_hop: str,
+        associate_with_subnets: List[str],
         em_first_hop: str = "",
         next_hop_type: str = "",
     ) -> None:
@@ -826,25 +827,29 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         virtual_network_name = vnet_id.split("/")[-1]
 
         # Step 3: Look for the subnet we'll assign this routing table entry to.
-        for subnet in subnet_ids:
-            # get the az resource name for the subnet
-            # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
-            #     .../subnet_resource_name
-            subnet_name = subnet.split("/")[-1]
-            # update the subnet, there will only be one since they cannot
-            # share address spaces.
-            if self._do_update_subnet(
-                virtual_network_name=virtual_network_name,
-                subnet_name=subnet_name,
-                subnet_mask=subnet_mask,
-                route_table=route_table,
-            ):
-                return
-        # if we're through the loop and didn't find the subnet, fail
-        raise LisaException(
-            "routing table was not assigned to any subnet! "
-            f"targeted subnet: {subnet_mask} with route table: {route_table}"
-        )
+        associated = 0
+        for associate_subnet in associate_with_subnets:
+            for subnet in subnet_ids:
+                # get the az resource name for the subnet
+                # ex /subscriptions/[sub_id]/resourceGroups/rg_name/providers/...
+                #     .../subnet_resource_name
+                subnet_name = subnet.split("/")[-1]
+                # update the subnet, there will only be one since they cannot
+                # share address spaces.
+
+                if self._do_update_subnet(
+                    virtual_network_name=virtual_network_name,
+                    subnet_name=subnet_name,
+                    subnet_mask=associate_subnet,
+                    route_table=route_table,
+                ):
+                    associated += 1
+                    break
+        if associated != len(associate_with_subnets):
+            raise LisaException(
+                "Could not associate route table with provided "
+                f"subnets: {','.join(associate_with_subnets)}"
+            )
 
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore

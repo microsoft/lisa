@@ -749,12 +749,11 @@ def setup_kernel_route_tables(
 
     # remove any routes through those devices
     # ip_tool.remove_all_routes_for_device(src_nic.name)
-    # ip_tool.addr_flush(src_nic.name)
 
     if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
             dest=forbidden_subnet,
-            via=new_gateway_nic.ip_addr,
+            # via=new_gateway_nic.ip_addr,
             dev=src_nic.name,
             # src=src_nic.ip_addr,
         )
@@ -903,6 +902,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
+
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
@@ -924,20 +924,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
 
-    sender.log.info(
-        f"{subnet_a_nics[forwarder].ip_addr} < {subnet_a_nics[sender].name}"
-        f" {subnet_a_nics[sender].ip_addr} "
+    # ping forwarder from sender and receiver
+    ping_forwarder(
+        forwarder,
+        [
+            sender,
+            receiver,
+        ],
+        [subnet_a_nics, subnet_b_nics],
     )
-    sender.tools[Ping].ping(
-        subnet_a_nics[forwarder].ip_addr, subnet_a_nics[sender].name
+
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after initial subnet setup"
     )
-    sender.log.info(
-        f"{subnet_b_nics[forwarder].ip_addr} < {subnet_b_nics[receiver].name} "
-        f"{subnet_b_nics[receiver].ip_addr} "
-    )
-    receiver.tools[Ping].ping(
-        subnet_b_nics[forwarder].ip_addr, subnet_b_nics[receiver].name
-    )
+
     # AZ ROUTING TABLES
     # The kernel routes are not sufficient, since Azure also manages
     # the VNETs for the VMS. Azure doesn't really care about ethernet
@@ -949,20 +949,33 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     sender.features[NetworkInterface].create_route_table(
         nic_name=subnet_a_nics[forwarder].name,
         route_name="fwd-rx",
-        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
+        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        associate_with_subnets=[
+            ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
+            ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
+        ],
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_a_nics[forwarder].ip_addr,
     )
     receiver.features[NetworkInterface].create_route_table(
         nic_name=subnet_b_nics[forwarder].name,
         route_name="fwd-tx",
-        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
+        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        associate_with_subnets=[
+            ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
+            ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
+        ],
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_b_nics[forwarder].ip_addr,
     )
+    # again, verify receiver is unreachable without dpdk forwarding
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after route table creation"
+    )
 
+    # ping_forwader(forwarder, sender, receiver, subnet_a_nics, subnet_b_nics)
     # Do actual DPDK initialization, compile l3fwd and apply setup to
     # the extra forwarding nic
     fwd_kit = initialize_node_resources(
@@ -1007,6 +1020,27 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # see https://doc.dpdk.org/guides/sample_app_ug/
     #               l3_forward.html#parse-rules-from-file
     # for additional context
+    setup_kernel_route_tables(
+        node=sender,
+        src_nic=subnet_a_snd,
+        dst_nic=subnet_b_rcv,
+        new_gateway_nic=fwd_send_nic,
+    )
+    setup_kernel_route_tables(
+        node=receiver,
+        src_nic=subnet_b_rcv,
+        dst_nic=subnet_a_snd,
+        new_gateway_nic=fwd_receiver_nic,
+    )
+
+    # again, check receiver is unreachable before l3fwd starts!
+    check_receiver_is_unreachable(
+        sender,
+        receiver,
+        subnet_a_nics,
+        subnet_b_nics,
+        "after kernel route creation, before l3fwd.",
+    )
 
     create_l3fwd_rules_files(
         forwarder,
@@ -1100,6 +1134,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
+
     # START THE TEST
     # finally, start the forwarder
     fwd_proc = forwarder.execute_async(
@@ -1114,19 +1149,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
-
-    setup_kernel_route_tables(
-        node=sender,
-        src_nic=subnet_a_snd,
-        dst_nic=subnet_b_rcv,
-        new_gateway_nic=fwd_send_nic,
-    )
-    setup_kernel_route_tables(
-        node=receiver,
-        src_nic=subnet_b_rcv,
-        dst_nic=subnet_a_snd,
-        new_gateway_nic=fwd_receiver_nic,
-    )
 
     # after starting DPDK, check for known driver errors
     fwd_kit.testpmd.check_for_driver_regressions()
@@ -1205,20 +1227,49 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             f"l3fwd strict throughput check failed, for hw {hw_name} "
             f"expected throughput >= {threshold} GBps!"
         ).is_greater_than_or_equal_to(threshold)
-    try:
-        sender.tools[Ping].ping(
-            subnet_b_nics[receiver].ip_addr, nic_name=subnet_a_nics[sender].name
-        )
-    except AssertionError:
-        sender.log.debug(
-            "Confirmed sender/receiver cannot reach each other after "
-            "l3fwd is disabled. Ending test."
-        )
-        return
-    raise LisaException(
-        "Sender and receiver can communicate after l3fwd had stopped! "
-        "Check network and node configuration."
+
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
     )
+
+
+def check_receiver_is_unreachable(
+    sender: Node,
+    receiver: Node,
+    subnet_a_nics: Dict[Node, NicInfo],
+    subnet_b_nics: Dict[Node, NicInfo],
+    test_phase: str,
+):
+    if sender.tools[Ping].ping(
+        subnet_b_nics[receiver].ip_addr,
+        nic_name=subnet_a_nics[sender].name,
+        ignore_error=True,
+    ):
+        raise LisaException(
+            f"Sender and receiver can communicate {test_phase}! "
+            f"{subnet_a_nics[sender].ip_addr} and {subnet_b_nics[receiver].ip_addr} "
+            "must be on seperate, unreachable subnets!"
+        )
+
+    else:
+        sender.log.debug(
+            f"Confirmed sender/receiver cannot reach each other {test_phase}. "
+        )
+
+
+def ping_forwarder(
+    ping_target: Node,
+    ping_sources: List[Node],
+    shared_subnets: List[Dict[Node, NicInfo]],
+    test_phase: str = "",
+) -> None:
+    for source, subnet in zip(ping_sources, shared_subnets):
+        source.log.debug(
+            f"PING {test_phase}: {ping_target.name}:{subnet[ping_target].ip_addr} "
+            f"< {source.name}:{subnet[source].name}"
+            f":{subnet[source].ip_addr} "
+        )
+        source.tools[Ping].ping(subnet[ping_target].ip_addr, subnet[source].name)
 
 
 def create_l3fwd_rules_files(
