@@ -812,6 +812,8 @@ Function Get-SSHKey ($XMLSecretFile) {
 				#}
 				#$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
 				Invoke-WebRequest $privateSSHKey -OutFile "$temp_Folder/$privateSSHKeyName"
+				echo "Downloaded $privateSSHKey to $temp_Folder/$privateSSHKeyName"
+				ls "$temp_Folder"
 			}
 			catch {
 				Throw "Failed to download from '$privateSSHKey', please double check the path."
