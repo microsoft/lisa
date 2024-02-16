@@ -816,7 +816,7 @@ Function Get-SSHKey ($XMLSecretFile) {
 				ls "$temp_Folder"
 			}
 			catch {
-				Write-Host "Downloaded $privateSSHKey to $temp_Folder/$privateSSHKeyName"
+				write-host "Failed to download from 'privateSSHKey' to $temp_Folder/$privateSSHKeyName, please double check the path."
 				ls "$temp_Folder"
 				#Throw "Failed to download from '$privateSSHKey', please double check the path."
 			}
