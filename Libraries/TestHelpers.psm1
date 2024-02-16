@@ -811,11 +811,13 @@ Function Get-SSHKey ($XMLSecretFile) {
 				#	$privateSSHKeyName = $privateSSHKey.Split('?')[0].Split('/')[-1]
 				#}
 				#$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
+				echo "Downloading privateSSHKey to $temp_Folder/$privateSSHKeyName"
 				Invoke-WebRequest $privateSSHKey -OutFile "$temp_Folder/$privateSSHKeyName"
-				echo "Downloaded $privateSSHKey to $temp_Folder/$privateSSHKeyName"
 				ls "$temp_Folder"
 			}
 			catch {
+				echo "Downloaded $privateSSHKey to $temp_Folder/$privateSSHKeyName"
+				ls "$temp_Folder"
 				Throw "Failed to download from '$privateSSHKey', please double check the path."
 			}
 			$sshKeyPath = "$temp_Folder/$privateSSHKeyName"
