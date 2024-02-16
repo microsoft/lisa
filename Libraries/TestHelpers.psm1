@@ -812,8 +812,11 @@ Function Get-SSHKey ($XMLSecretFile) {
 				#}
 				#$WebClient.DownloadFile("$privateSSHKey", "$temp_Folder/$privateSSHKeyName")
 				Write-Host "Downloading privateSSHKey to $temp_Folder/$privateSSHKeyName"
-				Invoke-WebRequest $privateSSHKey -OutFile "$temp_Folder/$privateSSHKeyName"
-				ls "$temp_Folder"
+				# Invoke-WebRequest $privateSSHKey -OutFile "$temp_Folder/$privateSSHKeyName"
+				$wc = New-Object System.Net.WebClient
+				$wc.Headers['User-Agent'] = 'chrome';
+				$wc.DownloadFile($privateSSHKey, $temp_Folder/$privateSSHKeyName)
+				Get-ChildItem "$temp_Folder"
 			}
 			catch {
 				write-host "Failed to download from 'privateSSHKey' to $temp_Folder/$privateSSHKeyName, please double check the path."
