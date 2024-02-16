@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from functools import partial
 from pathlib import Path, PurePath, PureWindowsPath
 from typing import Optional
 
@@ -9,7 +8,7 @@ from lisa import RemoteNode, features
 from lisa.tools import PowerShell
 from lisa.util import filter_ansi_escape
 from lisa.util.logger import Logger
-from lisa.util.parallel import TaskManager, run_in_parallel_async
+from lisa.util.process import Process
 
 from .context import get_node_context
 
@@ -50,29 +49,7 @@ class SerialConsoleLogger:
 
     def start_logging(
         self, pipe_name: str, log_path: PureWindowsPath, logger: Logger
-    ) -> TaskManager[None]:
-        def _ignore_result(result: None) -> None:
-            pass
-
-        def _run_logger_script(
-            server: RemoteNode, script_path: str, pipe_name: str, out_file: str
-        ) -> None:
-            server.tools[PowerShell].run_cmdlet(
-                f'{script_path} "{pipe_name}" "{out_file}"',
-                timeout=36000,
-                fail_on_error=True,
-            )
-
-        return run_in_parallel_async(
-            [
-                partial(
-                    _run_logger_script,
-                    self._server,
-                    self._script_path,
-                    pipe_name,
-                    log_path,
-                )
-            ],
-            _ignore_result,
-            logger,
+    ) -> Process:
+        return self._server.tools[PowerShell].run_cmdlet_async(
+            f'{self._script_path} "{pipe_name}" "{log_path}"', force_run=True
         )

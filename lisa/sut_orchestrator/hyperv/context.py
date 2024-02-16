@@ -6,7 +6,7 @@ from pathlib import PureWindowsPath
 from typing import Optional
 
 from lisa import Node, RemoteNode
-from lisa.util.parallel import TaskManager
+from lisa.util.process import Process
 
 
 @dataclass
@@ -14,7 +14,7 @@ class NodeContext:
     vm_name: str = ""
     host: Optional[RemoteNode] = None
     working_path = PureWindowsPath()
-    serial_log_task_mgr: Optional["TaskManager[None]"] = None
+    serial_log_process: Optional[Process] = None
 
     @property
     def console_log_path(self) -> PureWindowsPath:

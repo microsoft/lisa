@@ -266,7 +266,7 @@ class HypervPlatform(Platform):
             com1_pipe_path = f"\\\\.\\pipe\\{com1_pipe_name}"
 
             log.info(f"Serial logs at {node_context.console_log_path}")
-            node_context.serial_log_task_mgr = self._console_logger.start_logging(
+            node_context.serial_log_process = self._console_logger.start_logging(
                 com1_pipe_name, node_context.console_log_path, log
             )
 
@@ -303,9 +303,9 @@ class HypervPlatform(Platform):
             )
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        self._delete_nodes(environment)
+        self._delete_nodes(environment, log)
 
-    def _delete_nodes(self, environment: Environment) -> None:
+    def _delete_nodes(self, environment: Environment, log: Logger) -> None:
         def _delete_node(node_ctx: NodeContext, wait_delete: bool) -> None:
             hv = self._server.tools[HyperV]
             vm_name = node_ctx.vm_name
@@ -315,10 +315,12 @@ class HypervPlatform(Platform):
             else:
                 hv.delete_vm_async(vm_name)
 
-            # The script that logs the serial console output exits gracefully
-            # on its own after the VM is deleted. So, wait for that to happen.
-            assert node_ctx.serial_log_task_mgr
-            node_ctx.serial_log_task_mgr.wait_for_all_workers()
+            assert node_ctx.serial_log_process
+            result = node_ctx.serial_log_process.wait_result()
+            log.debug(
+                f"{vm_name} serial log process exited with {result.exit_code}. "
+                f"stdout: {result.stdout}"
+            )
 
         run_in_parallel(
             [
