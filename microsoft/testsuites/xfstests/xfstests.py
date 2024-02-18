@@ -31,6 +31,7 @@ class XfstestsResult:
 
 class Xfstests(Tool):
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+    branch = "v2024.02.09"
     common_dep = [
         "acl",
         "attr",
@@ -274,7 +275,7 @@ class Xfstests(Tool):
         self._add_test_users()
         tool_path = self.get_tool_path(use_global=True)
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
+        git.clone(url=self.repo, cwd=tool_path, ref=self.branch)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
         make.make_install(code_path)
