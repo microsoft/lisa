@@ -190,8 +190,8 @@ func getVMOsDisk(node object) object => isCvm(node) ? getOSDisk('${node.name}-di
 : getOSImage(node))
 
 func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS')
-? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
-: getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
+? getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
+: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
 module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): {
   name: '${nodes[i].name}-nics'
