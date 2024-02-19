@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.25.53.49325",
-      "templateHash": "7831284764801157946"
+      "templateHash": "10680786673699350721"
     }
   },
   "functions": [
@@ -390,7 +390,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
+            "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getAttachDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
           }
         }
       }
