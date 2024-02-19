@@ -268,8 +268,8 @@ class GpuTestSuite(TestSuite):
 
         # Step 2, Install cudnn and pyTorch
         _install_cudnn(node, log, work_path)
-
-        pythonvenv = node.tools.create(PythonVenv, venv_path=work_path)
+        pythonvenv_path = work_path + "/gpu_pytorch"
+        pythonvenv = node.tools.create(PythonVenv, venv_path=pythonvenv_path)
 
         pythonvenv.install_packages("torch")
 

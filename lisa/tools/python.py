@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from datetime import datetime
 from pathlib import PurePath
 from typing import TYPE_CHECKING, List, Type
 
@@ -100,7 +99,11 @@ class Pip(Tool):
 class PythonVenv(Tool):
     @property
     def command(self) -> str:
-        return f"{self.get_venv_path()}/bin/{self._python.command}"
+        path = self.get_venv_path().joinpath(f"bin/{self._python.command}")
+        if self.node.os.is_posix:
+            return path.as_posix()
+        else:
+            return str(path)
 
     @property
     def can_install(self) -> bool:
@@ -110,25 +113,20 @@ class PythonVenv(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Python]
 
-    def _create_venv(self, venv_path: str = "") -> PurePath:
-        _venv_path: PurePath = (
-            PurePath(venv_path)
-            if venv_path
-            else self.node.working_path / f"venv-{datetime.utcnow().isoformat()}"
-        )
+    def _create_venv(self, venv_path: str) -> PurePath:
         cmd_result = self._python.run(
-            f"-m venv {_venv_path}", force_run=True, shell=True
+            f"-m venv {venv_path}", force_run=True, shell=True
         )
         assert_that(
-            cmd_result.exit_code, f"fail to create venv: {_venv_path}"
+            cmd_result.exit_code, f"fail to create venv: {venv_path}"
         ).is_equal_to(0)
-        self._venv_path = _venv_path
+        self._venv_path = PurePath(venv_path)
         return self._venv_path
 
-    def __init__(self, node: "Node", venv_path: str = "") -> None:
+    def __init__(self, node: "Node", venv_path: str) -> None:
         super().__init__(node)
         self._python: Python = self.node.tools[Python]
-        self._venv_installation_path = venv_path if venv_path else ""
+        self._venv_installation_path = venv_path
 
     def _check_exists(self) -> bool:
         venv = self._python.run("-m venv --help", force_run=True)
@@ -142,8 +140,6 @@ class PythonVenv(Tool):
             self.node.os.install_packages("python3-venv")
         return self._check_exists()
 
-    # if get_venv_path is invoked before create_venv, it will create
-    # a venv in the node working path
     def get_venv_path(self) -> PurePath:
         if not hasattr(self, "_venv_path"):
             self._venv_path = self._create_venv(self._venv_installation_path)
