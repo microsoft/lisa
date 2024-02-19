@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.25.53.49325",
-      "templateHash": "14394100479278364168"
+      "templateHash": "7831284764801157946"
     }
   },
   "functions": [
@@ -619,7 +619,6 @@
         "name": "nodes_data_disks",
         "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
       },
-      "condition": "[parameters('is_ultradisk')]",
       "type": "Microsoft.Compute/disks",
       "apiVersion": "2022-03-02",
       "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
@@ -694,6 +693,7 @@
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
       "dependsOn": [
         "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name_value'))]",
+        "nodes_data_disks",
         "nodes_disk",
         "nodes_image",
         "nodes_nics",

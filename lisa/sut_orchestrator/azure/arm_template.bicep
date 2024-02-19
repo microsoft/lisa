@@ -285,7 +285,7 @@ resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, no
 }]
 
 resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): if (is_ultradisk) {
+  for i in range(0, (length(data_disks) * node_count)): {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
     properties: {
@@ -346,5 +346,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
   ]
 }]
