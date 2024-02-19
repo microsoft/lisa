@@ -30,9 +30,8 @@ class Source(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 class LocalSource(Source):
     def __init__(self, runbook: LocalSourceSchema) -> None:
         super().__init__(runbook)
-        self.local_runbook: LocalSourceSchema = self.runbook
+        self._local_runbook: LocalSourceSchema = self.runbook
         self._log = get_logger("local", self.__class__.__name__)
-        self.downloaded_files: Optional[List[PureWindowsPath]] = None
 
     @classmethod
     def type_name(cls) -> str:
@@ -43,13 +42,12 @@ class LocalSource(Source):
         return LocalSourceSchema
 
     def download(self, server: RemoteNode) -> List[PureWindowsPath]:
-        if not self.downloaded_files:
-            self.downloaded_files = []
+        _downloaded_files = []
 
-        for file in self.local_runbook.files:
-            self.downloaded_files += self._download_file(file, server)
+        for file in self._local_runbook.files:
+            _downloaded_files += self._download_file(file, server)
 
-        return self.downloaded_files
+        return _downloaded_files
 
     def _download_file(
         self, file: SourceFileSchema, server: RemoteNode
