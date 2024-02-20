@@ -1631,8 +1631,14 @@ class Disk(AzureFeatureMixin, features.Disk):
             # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
             os_boot_partition = node_disk.get_os_boot_partition()
             if os_boot_partition:
-                os_disk_namespace = get_matched_str(os_boot_partition, NVME_NAMESPACE_PATTERN)
-                os_disk_controller = get_matched_str(os_boot_partition, NVME_CONTROLLER_PATTERN)
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN
+                )
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN
+                )
 
             # With NVMe disc controller type, all remote SCSI disks are connected to
             # same NVMe controller. The same controller is used by OS disc.
