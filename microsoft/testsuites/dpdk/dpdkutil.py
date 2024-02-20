@@ -39,6 +39,7 @@ from lisa.tools import (
     Mount,
     Ntttcp,
     Ping,
+    Sysctl,
     Tee,
     Timeout,
 )
@@ -753,7 +754,7 @@ def setup_kernel_route_tables(
     if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
             dest=forbidden_subnet,
-            # via=new_gateway_nic.ip_addr,
+            via=new_gateway_nic.ip_addr,
             dev=src_nic.name,
             # src=src_nic.ip_addr,
         )
@@ -950,7 +951,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         nic_name=subnet_a_nics[forwarder].name,
         route_name="fwd-rx",
         subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        em_first_hop=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
         associate_with_subnets=[
             ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
             ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
@@ -962,7 +963,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         nic_name=subnet_b_nics[forwarder].name,
         route_name="fwd-tx",
         subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        em_first_hop=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
         associate_with_subnets=[
             ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
             ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
