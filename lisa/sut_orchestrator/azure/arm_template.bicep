@@ -92,7 +92,7 @@ func getEphemeralOSImage(node object) object => {
   diskSizeGB: node.osdisk_size_in_gb
 }
 
-func getCreateDisk(disk object, diskName string, index int) object => {
+func getDataDisk(disk object, diskName string, index int, useAvailabilityZones bool, availabilityZones object) object => {
   name: diskName
   createOption: disk.create_option
   caching: disk.caching_type
@@ -101,15 +101,7 @@ func getCreateDisk(disk object, diskName string, index int) object => {
   managedDisk: {
       storageAccountType: disk.type
   }
-}
-
-func getAttachDisk(disk object, diskName string, index int) object => {
-  lun: index
-  createOption: 'attach'
-  caching: disk.caching_type
-  managedDisk: {
-      id: resourceId('Microsoft.Compute/disks', diskName)
-  }
+  zones: (useAvailabilityZones ? availabilityZones : null)
 }
 
 func getOsDiskSharedGallery(node object) object => {
@@ -188,10 +180,6 @@ func getVMOsDisk(node object) object => isCvm(node) ? getOSDisk('${node.name}-di
 : ((node.os_disk_type == 'Ephemeral')
 ? getEphemeralOSImage(node)
 : getOSImage(node))
-
-func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDisk.type == 'UltraSSD_LRS')
-? getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
-: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
 module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): {
   name: '${nodes[i].name}-nics'
@@ -284,24 +272,24 @@ resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, no
   zones: (use_availability_zones ? availability_zones : null)
 }]
 
-resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
-  for i in range(0, (length(data_disks) * node_count)): {
-    name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
-    location: location
-    properties: {
-      diskSizeGB: data_disks[(i % length(data_disks))].size
-      creationData: {
-        createOption: data_disks[(i % length(data_disks))].create_option
-      }
-      diskIOPSReadWrite: data_disks[(i % length(data_disks))].iops
-      diskMBpsReadWrite: data_disks[(i % length(data_disks))].throughput
-    }
-    sku: {
-      name: data_disks[(i % length(data_disks))].type
-    }
-    zones: (use_availability_zones ? availability_zones : null)
-  }
-]
+// resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
+//   for i in range(0, (length(data_disks) * node_count)): {
+//     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
+//     location: location
+//     properties: {
+//       diskSizeGB: data_disks[(i % length(data_disks))].size
+//       creationData: {
+//         createOption: data_disks[(i % length(data_disks))].create_option
+//       }
+//       diskIOPSReadWrite: data_disks[(i % length(data_disks))].iops
+//       diskMBpsReadWrite: data_disks[(i % length(data_disks))].throughput
+//     }
+//     sku: {
+//       name: data_disks[(i % length(data_disks))].type
+//     }
+//     zones: (use_availability_zones ? availability_zones : null)
+//   }
+// ]
 
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in range(0, node_count): {
   name: nodes[i].name
@@ -318,7 +306,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
       imageReference: getImageReference(nodes[i])
       osDisk:  getVMOsDisk(nodes[i])
       diskControllerType: (nodes[i].disk_controller_type == 'SCSI') ? null : nodes[i].disk_controller_type
-      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j)]
+      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j, use_availability_zones, availability_zones)]
     }
     networkProfile: {
       networkInterfaces: [for j in range(0, nodes[i].nic_count): {
@@ -346,6 +334,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
-    nodes_data_disks
   ]
 }]
+

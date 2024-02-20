@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.25.53.49325",
-      "templateHash": "18173614279622129680"
+      "templateHash": "1738691354251147104"
     }
   },
   "functions": [
@@ -96,7 +96,7 @@
             }
           }
         },
-        "getCreateDisk": {
+        "getDataDisk": {
           "parameters": [
             {
               "type": "object",
@@ -109,6 +109,14 @@
             {
               "type": "int",
               "name": "index"
+            },
+            {
+              "type": "bool",
+              "name": "useAvailabilityZones"
+            },
+            {
+              "type": "object",
+              "name": "availabilityZones"
             }
           ],
           "output": {
@@ -121,34 +129,8 @@
               "lun": "[parameters('index')]",
               "managedDisk": {
                 "storageAccountType": "[parameters('disk').type]"
-              }
-            }
-          }
-        },
-        "getAttachDisk": {
-          "parameters": [
-            {
-              "type": "object",
-              "name": "disk"
-            },
-            {
-              "type": "string",
-              "name": "diskName"
-            },
-            {
-              "type": "int",
-              "name": "index"
-            }
-          ],
-          "output": {
-            "type": "object",
-            "value": {
-              "lun": "[parameters('index')]",
-              "createOption": "attach",
-              "caching": "[parameters('disk').caching_type]",
-              "managedDisk": {
-                "id": "[resourceId('Microsoft.Compute/disks', parameters('diskName'))]"
-              }
+              },
+              "zones": "[if(parameters('useAvailabilityZones'), parameters('availabilityZones'), null())]"
             }
           }
         },
@@ -371,26 +353,6 @@
           "output": {
             "type": "object",
             "value": "[if(__bicep.isCvm(parameters('node')), __bicep.getOSDisk(format('{0}-disk', parameters('node').name)), if(equals(parameters('node').os_disk_type, 'Ephemeral'), __bicep.getEphemeralOSImage(parameters('node')), __bicep.getOSImage(parameters('node'))))]"
-          }
-        },
-        "getDataDisk": {
-          "parameters": [
-            {
-              "type": "string",
-              "name": "nodeName"
-            },
-            {
-              "type": "object",
-              "name": "dataDisk"
-            },
-            {
-              "type": "int",
-              "name": "index"
-            }
-          ],
-          "output": {
-            "type": "object",
-            "value": "[if(equals(parameters('dataDisk').type, 'UltraSSD_LRS'), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')), __bicep.getCreateDisk(parameters('dataDisk'), format('{0}-data-disk-{1}', parameters('nodeName'), parameters('index')), parameters('index')))]"
           }
         }
       }
@@ -616,28 +578,6 @@
     },
     {
       "copy": {
-        "name": "nodes_data_disks",
-        "count": "[length(range(0, mul(length(parameters('data_disks')), variables('node_count'))))]"
-      },
-      "type": "Microsoft.Compute/disks",
-      "apiVersion": "2022-03-02",
-      "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "diskSizeGB": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].size]",
-        "creationData": {
-          "createOption": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].create_option]"
-        },
-        "diskIOPSReadWrite": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].iops]",
-        "diskMBpsReadWrite": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].throughput]"
-      },
-      "sku": {
-        "name": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].type]"
-      },
-      "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
-    },
-    {
-      "copy": {
         "name": "nodes_vms",
         "count": "[length(range(0, variables('node_count')))]"
       },
@@ -658,7 +598,7 @@
             {
               "name": "dataDisks",
               "count": "[length(parameters('data_disks'))]",
-              "input": "[__bicep.getDataDisk(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, parameters('data_disks')[copyIndex('dataDisks')], copyIndex('dataDisks'))]"
+              "input": "[__bicep.getDataDisk(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, parameters('data_disks')[copyIndex('dataDisks')], copyIndex('dataDisks'), variables('use_availability_zones'), variables('availability_zones'))]"
             }
           ],
           "imageReference": "[__bicep.getImageReference(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]",
@@ -693,7 +633,6 @@
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
       "dependsOn": [
         "[resourceId('Microsoft.Compute/availabilitySets', variables('availability_set_name_value'))]",
-        "nodes_data_disks",
         "nodes_disk",
         "nodes_image",
         "nodes_nics",
