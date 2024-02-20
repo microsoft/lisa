@@ -101,7 +101,6 @@ func getDataDisk(disk object, diskName string, index int, useAvailabilityZones b
   managedDisk: {
       storageAccountType: disk.type
   }
-  zones: (useAvailabilityZones ? availabilityZones : null)
 }
 
 func getOsDiskSharedGallery(node object) object => {

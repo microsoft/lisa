@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.25.53.49325",
-      "templateHash": "1738691354251147104"
+      "templateHash": "4949079090496293558"
     }
   },
   "functions": [
@@ -129,8 +129,7 @@
               "lun": "[parameters('index')]",
               "managedDisk": {
                 "storageAccountType": "[parameters('disk').type]"
-              },
-              "zones": "[if(parameters('useAvailabilityZones'), parameters('availabilityZones'), null())]"
+              }
             }
           }
         },
