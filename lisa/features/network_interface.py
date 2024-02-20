@@ -36,7 +36,6 @@ class NetworkInterface(Feature):
         route_name: str,
         subnet_mask: str,
         dest_hop: str,
-        associate_with_subnets: List[str],
         em_first_hop: str = "",
         next_hop_type: str = "",
     ) -> None:

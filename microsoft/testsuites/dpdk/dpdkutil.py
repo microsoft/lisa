@@ -952,24 +952,16 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         route_name="fwd-rx",
         subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
         em_first_hop=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        associate_with_subnets=[
-            ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-            ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        ],
         next_hop_type="VirtualAppliance",
-        dest_hop=subnet_a_nics[forwarder].ip_addr,
+        dest_hop=subnet_b_nics[forwarder].ip_addr,
     )
     receiver.features[NetworkInterface].create_route_table(
         nic_name=subnet_b_nics[forwarder].name,
         route_name="fwd-tx",
         subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
         em_first_hop=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-        associate_with_subnets=[
-            ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-            ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        ],
         next_hop_type="VirtualAppliance",
-        dest_hop=subnet_b_nics[forwarder].ip_addr,
+        dest_hop=subnet_a_nics[forwarder].ip_addr,
     )
     # again, verify receiver is unreachable without dpdk forwarding
     check_receiver_is_unreachable(
