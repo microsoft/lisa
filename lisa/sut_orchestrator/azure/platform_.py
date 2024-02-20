@@ -1184,6 +1184,13 @@ class AzurePlatform(Platform):
             )
         arm_parameters.admin_password = self.runbook.admin_password
 
+        # TipNode.SessionId is defined under vm_tags for availability_type none
+        # but it conflicts with the tags defined under availability_set_tags
+        if (
+            arm_parameters.availability_options.availability_type
+            != constants.AVAILABILITY_NONE
+        ):
+            arm_parameters.vm_tags.pop("TipNode.SessionId", None)
         environment_context = get_environment_context(environment=environment)
         arm_parameters.vm_tags["RG"] = environment_context.resource_group_name
 
