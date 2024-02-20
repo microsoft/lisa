@@ -92,7 +92,7 @@ func getEphemeralOSImage(node object) object => {
   diskSizeGB: node.osdisk_size_in_gb
 }
 
-func getDataDisk(disk object, diskName string, index int, useAvailabilityZones bool, availabilityZones object) object => {
+func getCreateDisk(disk object, diskName string, index int, useAvailabilityZones bool, availabilityZones object) object => {
   name: diskName
   createOption: disk.create_option
   caching: disk.caching_type
@@ -101,7 +101,21 @@ func getDataDisk(disk object, diskName string, index int, useAvailabilityZones b
   managedDisk: {
       storageAccountType: disk.type
   }
+  zones: (useAvailabilityZones ? availabilityZones : null)
 }
+
+func getAttachDisk(disk object, diskName string, index int) object => {
+  lun: index
+  createOption: 'attach'
+  caching: disk.caching_type
+  managedDisk: {
+      id: resourceId('Microsoft.Compute/disks', diskName)
+  }
+}
+
+func getDataDisk(nodeName string, dataDisk object, index int, useAvailabilityZones bool, availabilityZones object) object => (dataDisk.type == 'UltraSSD_LRS')
+? getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index, useAvailabilityZones, availabilityZones)
+: getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index, useAvailabilityZones, availabilityZones)
 
 func getOsDiskSharedGallery(node object) object => {
   id: resourceId(node.subscription_id, empty(node.resource_group_name) ? 'None' : node.resource_group_name, 'Microsoft.Compute/galleries/images/versions', node.image_gallery, node.image_definition, node.image_version)
@@ -286,7 +300,7 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
       imageReference: getImageReference(nodes[i])
       osDisk:  getVMOsDisk(nodes[i])
       diskControllerType: (nodes[i].disk_controller_type == 'SCSI') ? null : nodes[i].disk_controller_type
-      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j, use_availability_zones, availability_zones)]
+      dataDisks: [for (item, j) in data_disks: getDataDisk(nodes[i].name, item, j, use_availability_set, availability_zones)]
     }
     networkProfile: {
       networkInterfaces: [for j in range(0, nodes[i].nic_count): {
@@ -314,6 +328,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
     nodes_nics
     virtual_network_name_resource
     nodes_disk
+    nodes_data_disks
   ]
 }]
-
