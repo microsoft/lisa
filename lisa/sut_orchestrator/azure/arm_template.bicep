@@ -272,25 +272,6 @@ resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, no
   zones: (use_availability_zones ? availability_zones : null)
 }]
 
-// resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
-//   for i in range(0, (length(data_disks) * node_count)): {
-//     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
-//     location: location
-//     properties: {
-//       diskSizeGB: data_disks[(i % length(data_disks))].size
-//       creationData: {
-//         createOption: data_disks[(i % length(data_disks))].create_option
-//       }
-//       diskIOPSReadWrite: data_disks[(i % length(data_disks))].iops
-//       diskMBpsReadWrite: data_disks[(i % length(data_disks))].throughput
-//     }
-//     sku: {
-//       name: data_disks[(i % length(data_disks))].type
-//     }
-//     zones: (use_availability_zones ? availability_zones : null)
-//   }
-// ]
-
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
