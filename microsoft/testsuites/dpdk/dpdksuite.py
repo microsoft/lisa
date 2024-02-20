@@ -836,4 +836,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        # do_parallel_cleanup(environment)
+        do_parallel_cleanup(environment)
