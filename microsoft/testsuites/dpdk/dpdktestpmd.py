@@ -342,10 +342,11 @@ class DpdkTestpmd(Tool):
     def check_for_driver_regressions(self) -> None:
         # check for known mana errors to catch regressions.
         dmesg = self.node.tools[Dmesg]
-        driver_logs = dmesg.get_output(force_run=True)
+        driver_logs = dmesg.get_output(force_run=True, silent=True)
         for error in self._mana_errors:
             found_error = error.search(driver_logs)
             if found_error:
+                self.node.log.debug(driver_logs)
                 raise LisaException(
                     "Found known MANA error in dmesg, indicates a regression "
                     f"or possible test bug: {found_error.group()}"
