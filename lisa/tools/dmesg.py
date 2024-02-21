@@ -35,8 +35,8 @@ class Dmesg(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def get_output(self, force_run: bool = False) -> str:
-        command_output = self._run(force_run=force_run)
+    def get_output(self, force_run: bool = False, silent: bool = False) -> str:
+        command_output = self._run(force_run=force_run, silent=silent)
 
         # Remove the color code from stdout stream
         stdout = filter_ansi_escape(command_output.stdout)
@@ -90,10 +90,10 @@ class Dmesg(Tool):
                 return VersionInfo(int(major), int(minor))
         raise LisaException("No find matched vmbus version in dmesg")
 
-    def _run(self, force_run: bool = False) -> ExecutableResult:
+    def _run(self, force_run: bool = False, silent: bool = False) -> ExecutableResult:
         # sometime it need sudo, we can retry
         # so no_error_log for first time
-        result = self.run(force_run=force_run, no_error_log=True)
+        result = self.run(force_run=force_run, no_error_log=True, no_debug_log=silent)
         if result.exit_code != 0:
             # may need sudo
             result = self.run(sudo=True, force_run=force_run)
