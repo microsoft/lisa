@@ -501,10 +501,20 @@ class DpdkTestpmd(Tool):
         }
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.find_partition_with_freespace(20, raise_error=False)
+            work_path = self.node.find_partition_with_freespace(
+                20, use_os_drive=True, raise_error=False
+            )
+            # don't try to build in root directory.
+            if work_path and work_path == "/":
+                work_path += "tmp/dpdk_build"
+                self.node.shell.mkdir(
+                    self.node.get_pure_path(work_path), exist_ok=False
+                )
             if not work_path:
                 self.node.features[Disk].add_data_disk(count=1, size_in_gb=100)
-                work_path = self.node.get_working_path_with_required_space(20)
+                work_path = self.node.get_working_path_with_required_space(
+                    20, use_os_drive=False
+                )
             else:
                 self.node.tools[Chmod].chmod(work_path, "777", sudo=True)
             self.current_work_path = self.node.get_pure_path(work_path)
