@@ -777,19 +777,11 @@ def get_l3fwd_queue_count(
         queue_count = 4
     elif available_cores <= 32:
         queue_count = 8
+    elif is_mana:
+        queue_count = 32
     else:
         queue_count = 16
-    # MANA supports 32 queues, however we map core/queues 1:1
-    # this is due to a bug in the logic that parses rxq/txq count
-    # MANA will reject configurations where there are more cores
-    # than queues, however we are using 2 ports so have 2x queues
-    # to assign to cores. So, we assign 2 queues per core.
-    # pro: use more queues with less cores
-    # con: 1 core is servicing queue N for both ports.
-    # TODO: change this when the txq/rxq bug is fixed.
-    # You still get much higher throughput than cx5 is capable of.
-    if is_mana:
-        queue_count *= 2
+
     return queue_count
 
 
@@ -1198,6 +1190,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
         notifier.notify(msg)
 
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
+    )
     # check the throughput and fail if it was unexpectedly low.
     # NOTE: only checking 0 and < 1 now. Once we have more data
     # there should be more stringest checks for each NIC type.
@@ -1220,10 +1215,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             f"l3fwd strict throughput check failed, for hw {hw_name} "
             f"expected throughput >= {threshold} GBps!"
         ).is_greater_than_or_equal_to(threshold)
-
-    check_receiver_is_unreachable(
-        sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
-    )
 
 
 def check_receiver_is_unreachable(
