@@ -499,7 +499,9 @@ class DpdkTestpmd(Tool):
         }
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.find_partition_with_freespace(20, raise_error=False)
+            work_path = self.node.find_partition_with_freespace(
+                20, use_os_drive=False, raise_error=False
+            )
             if not work_path:
                 self.node.features[Disk].add_data_disk(count=1, size_in_gb=100)
                 work_path = self.node.get_working_path_with_required_space(20)
