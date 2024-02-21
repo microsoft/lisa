@@ -20,13 +20,13 @@ class DpdkVfHelper:
     # single queue is implemented but unused to avoid test bloat
     _l3fwd_thresholds = {
         MLX_CX3: {
-            MULTI_QUEUE: {SEND: 20},
+            MULTI_QUEUE: {SEND: 10},
         },
         MLX_CX4: {
-            MULTI_QUEUE: {FWD: 24},
+            MULTI_QUEUE: {FWD: 15},
         },
         MLX_CX5: {
-            MULTI_QUEUE: {FWD: 28},
+            MULTI_QUEUE: {FWD: 20},
         },
         MSFT_MANA: {
             MULTI_QUEUE: {FWD: 160},
@@ -47,8 +47,8 @@ class DpdkVfHelper:
             MULTI_QUEUE: {SEND: 28_000_000, RECV: 14_000_000},
         },
         MSFT_MANA: {
-            SINGLE_QUEUE: {SEND: 12_000_000, RECV: 8_000_000},
-            MULTI_QUEUE: {SEND: 48_000_000, RECV: 46_000_000},
+            SINGLE_QUEUE: {SEND: 18_000_000, RECV: 8_000_000},
+            MULTI_QUEUE: {SEND: 49_000_000, RECV: 48_000_000},
         },
     }
 
@@ -99,7 +99,7 @@ class DpdkVfHelper:
         self._queue_type = self.MULTI_QUEUE
 
     def set_single_queue(self) -> None:
-        self._queue_type = self.MULTI_QUEUE
+        self._queue_type = self.SINGLE_QUEUE
 
     def is_mana(self) -> bool:
         return self._hardware == self.MSFT_MANA
