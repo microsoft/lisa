@@ -269,13 +269,13 @@ class RepoInstaller(BaseInstaller):
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = runbook.source
-        self._log.info(f"installing kernel package: {full_package_name}")
         if full_package_name == "linux-azure-fips":
-            # Remove default fips repository
+            # Remove default fips repository.
+            self._log.info(f"Removing repo: https://esm.ubuntu.com/fips/ubuntu")
             ubuntu.remove_repository("https://esm.ubuntu.com/fips/ubuntu")
 
+        self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
-
         kernel_version = self._get_kernel_version(runbook.source, node)
 
         return kernel_version
