@@ -83,7 +83,10 @@ class Nvme(Feature):
         # Sample os_boot_partition when disc controller type is NVMe:
         # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
         if os_boot_partition:
-            os_partition_namespace = get_matched_str(os_boot_partition, self.NVME_NAMESPACE_PATTERN)
+            os_partition_namespace = get_matched_str(
+                os_boot_partition.name,
+                self.NVME_NAMESPACE_PATTERN
+            )
         return os_partition_namespace
 
     def get_devices_from_lspci(self) -> List[PciDevice]:
