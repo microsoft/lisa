@@ -51,7 +51,10 @@ from lisa.util import (
 from .logger import Logger, get_logger
 from .perf_timer import create_timer
 
-T = TypeVar('T')
+T = TypeVar(
+    'T'
+)
+
 
 class ReconnectingSFTP:
     """Open automatically a new paramiko.SFTP on connection failure."""
@@ -86,7 +89,7 @@ class ReconnectingSFTP:
         """Return self prepared in a constructor upon enter."""
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Close upon exist."""
         self.close()
 
@@ -94,7 +97,8 @@ class ReconnectingSFTP:
         """
         Wrap the SFTP method in a retry loop.
 
-        Open an SFTP connection, if necessary, and change to the last recorded working directory before
+        Open an SFTP connection, if necessary,
+        and change to the last recorded working directory before
         executing the method.
 
         :param method: to be wrapped
@@ -129,20 +133,25 @@ class ReconnectingSFTP:
 
         if not success:
             raise ConnectionError(
-                "Failed to execute an SFTP command after {} retries due to connection failure: {}".format(
+                "Failed to execute an SFTP command after {} retries"
+                " due to connection failure: {}".format(
                     self.max_retries, last_err))
 
-        return method(self._sftp) # type: ignore
+        return method(self._sftp)  # type: ignore
 
-    def chmod(self, path: str, mode: int):
+    def chmod(self, path: str, mode: int) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.chmod(path, mode))
 
-    def stat(self, path: str):
+    def chown(self, path: str, uid: int, gid: int) -> None:
+        """See paramiko.SFTP documentation."""
+        return self.__wrap(method=lambda sftp: sftp.chown(path, uid, gid))
+
+    def stat(self, path: str) -> paramiko.sftp_attr.SFTPAttributes:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.stat(path))
-    
-    def rmdir(self, path: str):
+
+    def rmdir(self, path: str) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.rmdir(path))
 
@@ -156,19 +165,19 @@ class ReconnectingSFTP:
 
     unlink = remove
 
-    def posix_rename(self, oldpath: str, newpath: str):
+    def posix_rename(self, oldpath: str, newpath: str) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.posix_rename(oldpath, newpath))
 
-    def mkdir(self, path: str, mode: int = 0o777):
+    def mkdir(self, path: str, mode: int = 0o777) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.mkdir(path, mode))
 
-    def lstat(self, path: str):
+    def lstat(self, path: str) -> paramiko.sftp_attr.SFTPAttributes:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.lstat(path))
 
-    def symlink(self, source: str, dest: str):
+    def symlink(self, source: str, dest: str) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.symlink(source, dest))
 
@@ -178,13 +187,19 @@ class ReconnectingSFTP:
         remotepath: str,
         callback: Optional[Callable[[int, int], Any]] = None,
         confirm: bool = True,
-    ):
+    ) -> paramiko.sftp_attr.SFTPAttributes:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.put(localpath, remotepath, callback, confirm))
 
-    def get(self, remotepath: str, localpath: str, callback: Optional[Callable[[int, int], Any]] = None):
+    def get(
+        self,
+        remotepath: str,
+        localpath: str,
+        callback: Optional[Callable[[int, int], Any]] = None,
+    ) -> None:
         """See paramiko.SFTP documentation."""
         return self.__wrap(method=lambda sftp: sftp.get(remotepath, localpath, callback))
+
 
 class SshShellWithSFTP(icontract.DBC):
     def __init__(self,
@@ -253,6 +268,7 @@ class SshShellWithSFTP(icontract.DBC):
 
         raise AssertionError("Expected to raise before.")
 
+    # flake8: noqa: C901
     def mkdir(self,
               remote_path: Union[str, pathlib.Path],
               mode: int = 0o777,
@@ -260,25 +276,20 @@ class SshShellWithSFTP(icontract.DBC):
               exist_ok: bool = False) -> None:
         """
         Create the remote directory with the given SFTP client.
-
-        :param sftp: SFTP client
-        :param remote_path: to the directory
-        :param mode: directory permission mode
-        :param parents: if set, creates the parent directories
-        :param exist_ok: if set, ignores an existing directory.
-        :return:
         """
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches, too-many-locals
         if isinstance(remote_path, str):
             rmt_pth = pathlib.Path(os.path.normpath(remote_path))
         elif isinstance(remote_path, pathlib.Path):
             rmt_pth = pathlib.Path(os.path.normpath(remote_path.as_posix()))
         else:
-            raise NotImplementedError("Unhandled type of remote path: {}".format(type(remote_path)))
+            raise NotImplementedError(
+                "Unhandled type of remote path: {}".format(type(remote_path)))
 
         if self.exists(remote_path=remote_path):
             if not exist_ok:
-                raise FileExistsError("The remote directory already exists: {}".format(remote_path))
+                raise FileExistsError(
+                    "The remote directory already exists: {}".format(remote_path))
             else:
                 return
 
@@ -328,14 +339,11 @@ class SshShellWithSFTP(icontract.DBC):
                         raise OSError(msg)
 
     @contextlib.contextmanager
-    def _temporary_file_deleted_after_cm_exit() -> Iterator[temppathlib.NamedTemporaryFile]:
+    def _temporary_file_deleted_after_cm_exit(self) -> Iterator[temppathlib.NamedTemporaryFile]:
         """
         Generate a temporary file that is deleted only on context exit.
 
         The file is **not** deleted when you invoke close() on it.
-
-        This context manager is necessary for Windows compatibility. Please see
-        https://bugs.python.org/issue14243 for more details.
 
         :return: context manager around a temporary file
         """
@@ -368,22 +376,28 @@ class SshShellWithSFTP(icontract.DBC):
 
         return result
 
-    def remove(self, remote_path: Union[str, pathlib.Path], recursive: bool = False) -> None:
+    def remove(self,
+        remote_path: Union[str, pathlib.Path],
+        recursive: bool = False,
+    ) -> None:
         """
         Remove a file or a directory.
 
         :param remote_path: to a file or a directory
         :param recursive:
-            if set, removes the directory recursively. This parameter has no effect if remote_path is not a directory.
+            if set, removes the directory recursively. 
+            This parameter has no effect if remote_path is not a directory.
         :return:
         """
         rmt_pth_str = self._path_to_posix_str(path=remote_path)
 
         a_stat = self.stat(remote_path=rmt_pth_str)
         if a_stat is None:
-            raise FileNotFoundError("Remote file does not exist and thus can not be removed: {}".format(rmt_pth_str))
+            raise FileNotFoundError(
+                "Remote file does not exist and thus can not be removed: {}".format(rmt_pth_str)
+            )
 
-        if not stat_module.S_ISDIR(a_stat.st_mode):
+        if a_stat is not None and not stat_module.S_ISDIR(a_stat.st_mode): # type: ignore
             self._sftp.remove(rmt_pth_str)
             return
 
@@ -411,7 +425,7 @@ class SshShellWithSFTP(icontract.DBC):
             for attr in self._sftp.listdir_attr(pth):
                 subpth = posixpath.join(pth, attr.filename)
 
-                if stat_module.S_ISDIR(attr.st_mode):
+                if stat_module.S_ISDIR(attr.st_mode): #type: ignore
                     stack1.append(subpth)
                 else:
                     try:
@@ -438,7 +452,8 @@ class SshShellWithSFTP(icontract.DBC):
         stdout: Optional[TextIO] = None,
         stderr: Optional[TextIO] = None,
         encoding: str = 'utf-8',
-        use_pty: bool = False) -> spur.results.ExecutionResult:
+        use_pty: bool = False,
+    ) -> spur.results.ExecutionResult:
         """
         Run a command on the remote instance and waits for it to complete.
         """
@@ -468,7 +483,7 @@ class SshShellWithSFTP(icontract.DBC):
             self._sftp.chmod(path=rmt_pth_str, mode=mode)
         except FileNotFoundError as err:
             raise FileNotFoundError("Remote file to be chmod'ed does not exist: {}".format(rmt_pth_str)) from err
-    
+
     def is_dir(self, remote_path: Union[str, pathlib.Path]) -> bool:
         """
         Check whether the remote path is a directory.
@@ -483,7 +498,7 @@ class SshShellWithSFTP(icontract.DBC):
         if a_stat is None:
             raise FileNotFoundError("Remote file does not exist: {}".format(rmt_pth_str))
 
-        return stat_module.S_ISDIR(a_stat.st_mode)
+        return stat_module.S_ISDIR(a_stat.st_mode) #type: ignore
 
     def is_symlink(self, remote_path: Union[str, pathlib.Path]) -> bool:
         """
@@ -500,8 +515,9 @@ class SshShellWithSFTP(icontract.DBC):
             return stat_module.S_ISLNK(a_lstat.st_mode) # type: ignore
 
         except FileNotFoundError as err:
-            raise FileNotFoundError("Remote file does not exist: {}".format(rmt_pth_str)) from err
-        
+            raise FileNotFoundError(
+                "Remote file does not exist: {}".format(rmt_pth_str)) from err
+
     def get(self,
             remote_path: Union[str, pathlib.Path],
             local_path: Union[str, pathlib.Path],
@@ -509,16 +525,15 @@ class SshShellWithSFTP(icontract.DBC):
             consistent: bool = True) -> None:
         """
         Get a file from the remote host.
-
-        :param remote_path: to the file
-        :param local_path: to the file
-        :param create_directories: if set, creates the parent directories of the local path with permission mode 0o777
-        :param consistent: if set, copies to a temporary local file first, and then renames it.
-        :return:
         """
-        rmt_pth_str = remote_path if isinstance(remote_path, str) else remote_path.as_posix()
+        rmt_pth_str = (
+            remote_path if isinstance(remote_path, str) else remote_path.as_posix()
+        )
 
-        loc_pth = local_path if isinstance(local_path, pathlib.Path) else pathlib.Path(local_path)
+        loc_pth = (
+            local_path if isinstance(local_path, pathlib.Path)
+            else pathlib.Path(local_path)
+        )
 
         if create_directories:
             loc_pth.parent.mkdir(mode=0o777, exist_ok=True, parents=True)
@@ -535,21 +550,6 @@ class SshShellWithSFTP(icontract.DBC):
             remote_path: Union[str, pathlib.Path],
             create_directories: bool = True,
             consistent: bool = True) -> None:
-        """
-        Put a file on the remote host.
-
-        Mind that if you set consistent to True, the file will be copied to a temporary file and then
-        POSIX rename function will be used to rename it. The ownership and the permissions of the original 'remote_path'
-        are preserved. However, if the original 'remote_path' has read-only permissions and you still have write
-        permissions to the directory, the 'remote_path' will be overwritten nevertheless due to the logic of
-        POSIX rename.
-
-        :param local_path: to the file
-        :param remote_path: to the file
-        :param create_directories: if set, creates the parent directory of the remote path with mode 0o777
-        :param consistent: if set, copies to a temporary remote file first, and then renames it.
-        :return:
-        """
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-statements
         rmt_pth = remote_path if isinstance(remote_path, pathlib.Path) else pathlib.Path(remote_path)
@@ -603,8 +603,8 @@ class SshShellWithSFTP(icontract.DBC):
 
                 if stat is not None:
                     try:
-                        self._sftp.chmod(path=tmp_pth.as_posix(), mode=stat.st_mode)
-                        self._sftp.chown(path=tmp_pth.as_posix(), uid=stat.st_uid, gid=stat.st_gid)
+                        self._sftp.chmod(path=tmp_pth.as_posix(), mode=stat.st_mode) # type: ignore
+                        self._sftp.chown(path=tmp_pth.as_posix(), uid=stat.st_uid, gid=stat.st_gid) # type: ignore
                     except OSError as err:
                         oserr = err
 
@@ -630,7 +630,7 @@ class SshShellWithSFTP(icontract.DBC):
             finally:
                 if not success and self.exists(remote_path=tmp_pth):
                     self._sftp.unlink(path=tmp_pth.as_posix())
-        
+
     def spawn(self,
               command: Sequence[str],
               update_env: Optional[Mapping[str, str]] = None,
@@ -688,7 +688,9 @@ class SshShellWithSFTP(icontract.DBC):
 
         return result
 
+
 _get_jump_box_logger = partial(get_logger, name="jump_box")
+
 
 # (Failed to parse line 'b'/etc/profile.d/vglrun.sh: line 3: lspci: command not found'' as integer)  # noqa: E501
 # (Failed to parse line 'b"touch: cannot touch '/tmp/version-updated': Permission denied"' as integer)  # noqa: E501

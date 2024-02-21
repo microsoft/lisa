@@ -12,7 +12,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-    "temppathlib >= 1.2.0",
+    "temppathlib ~= 1.2.0",
     "icontract ~= 2.6.6",
     "assertpy ~= 1.1",
     "func-timeout ~= 4.3.5",
@@ -28,7 +28,7 @@ dependencies = [
     "simpleeval ~= 0.9.12",
     "websockets ~= 10.3",
     "charset_normalizer ~= 2.1.1",
-    "spur >= 0.3.23",
+    "spur ~= 0.3.23",
 ]
 dynamic = ["version"]
 license = {text = "MIT"}
