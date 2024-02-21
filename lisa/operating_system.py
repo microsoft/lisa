@@ -906,15 +906,13 @@ class Debian(Linux):
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to del apt key",
             )
-        # This command will trigger apt update too, so it doesn't need to update
-        # repos again.
 
         apt_repo = self._node.tools[AptAddRepository]
         apt_repo.remove_repository(repo)
 
-        # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) == Debian:
-            self._node.execute("apt-get update", sudo=True)
+        # Unlike add repository, remove repository doesn't trigger apt update.
+        # So, it's needed to run apt update after remove repository.
+        self._node.execute("apt-get update", sudo=True)
 
     @retry(tries=10, delay=5)
     def add_repository(
