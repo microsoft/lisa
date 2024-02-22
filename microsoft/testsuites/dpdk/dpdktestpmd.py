@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from math import ceil
 from pathlib import PurePosixPath
 from typing import Any, List, Tuple, Type, Union
 
@@ -431,8 +432,8 @@ class DpdkTestpmd(Tool):
             )
         )
         cast_to_ints = list(map(int, matches))
-        cast_to_ints = _discard_first_zeroes(cast_to_ints)
-        return _discard_first_and_last_sample(cast_to_ints)
+        cast_to_ints = _trim_zeroes(cast_to_ints)
+        return _discard_warmup_and_cooldown_samples(cast_to_ints)
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -1172,32 +1173,45 @@ class DpdkTestpmd(Tool):
 
 
 # filter functions for processing testpmd data
-def _discard_first_zeroes(data: List[int]) -> List[int]:
+def _trim_zeroes(data: List[int]) -> List[int]:
     # NOTE: we occasionally get a 0 for the first pps result sample,
     # it's annoying to factor it into the average when
     # there are only like 10 samples so discard any
-    # leading 0's if they're present.
+    # leading and trailing 0's if they're present.
 
+    # confirm data is not all zero
+    all_zeroes = all([x == 0 for x in data])
+    if all_zeroes:
+        return data
+
+    # leading:
     for i in range(len(data)):
         if data[i] != 0:
-            return data[i:]
+            data = data[i:]
+            break
+    # trailing (same but reverse the list)
+    data = data[::-1]
+    for i in range(len(data)):
+        if data[i] != 0:
+            data = data[i:]
+            break
 
-    # leave list as-is if data is all zeroes
-    return data
+    return data[::-1]
 
 
-def _discard_first_and_last_sample(data: List[int]) -> List[int]:
+def _discard_warmup_and_cooldown_samples(data: List[int]) -> List[int]:
     # NOTE: first and last sample can be unreliable after switch messages
     # We're sampling for an order-of-magnitude difference so it
-    # can mess up the average since we're using an unweighted mean
-
-    # discard first and last sample so long as there are enough to
-    # practically, we expect there to be > 20 unless rescind
-    # performance is hugely improved in the cloud
-    if len(data) < 3:
+    # can mess up the average since we're using a straight mean.
+    if len(data) < 5:
         return data
     else:
-        return data[1:-1]
+        # count the samples in the dataset
+        samples = len(data)
+        # plan to discard 25% to avoid cooldown and warmup junk
+        discard = ceil(samples * 0.125)
+        # return the trimmed dataset
+        return data[discard:-discard]
 
 
 def _mean(data: List[int]) -> int:
