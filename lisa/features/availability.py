@@ -38,19 +38,15 @@ class AvailabilitySettings(schema.FeatureSettings):
             ],
         ),
         metadata=field_metadata(
-            decoder=lambda input: (
-                search_space.decode_set_space_by_type(
-                    data=input, base_type=AvailabilityType
-                )
-                if str(input).strip()
-                else search_space.SetSpace(
-                    is_allow_set=True,
-                    items=[
-                        AvailabilityType.NoRedundancy,
-                        AvailabilityType.AvailabilitySet,
-                        AvailabilityType.AvailabilityZone,
-                    ],
-                )
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=AvailabilityType,
+                default_values=[
+                    AvailabilityType.NoRedundancy,
+                    AvailabilityType.AvailabilitySet,
+                    AvailabilityType.AvailabilityZone,
+                ],
+                is_allow_set=True,
             )
         ),
     )
@@ -61,11 +57,12 @@ class AvailabilitySettings(schema.FeatureSettings):
             items=[],
         ),
         metadata=field_metadata(
-            decoder=lambda input: (
-                search_space.decode_set_space_by_type(data=input, base_type=int)
-                if str(input).strip()
-                else (search_space.SetSpace[int](is_allow_set=True, items=[]))
-            ),
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=int,
+                default_values=[],
+                is_allow_set=True,
+            )
         ),
     )
 

@@ -434,6 +434,21 @@ disk_controller_type_priority: List[DiskControllerType] = [
 ]
 
 
+os_disk_types: List[DiskType] = [
+    DiskType.StandardHDDLRS,
+    DiskType.StandardSSDLRS,
+    DiskType.Ephemeral,
+    DiskType.PremiumSSDLRS,
+]
+
+data_disk_types: List[DiskType] = [
+    DiskType.StandardHDDLRS,
+    DiskType.StandardSSDLRS,
+    DiskType.PremiumSSDLRS,
+    DiskType.UltraSSDLRS,
+]
+
+
 @dataclass_json()
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
@@ -443,12 +458,7 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[
-                DiskType.StandardHDDLRS,
-                DiskType.StandardSSDLRS,
-                DiskType.Ephemeral,
-                DiskType.PremiumSSDLRS,
-            ],
+            items=os_disk_types,
         ),
         metadata=field_metadata(
             decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
@@ -465,15 +475,14 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[
-                DiskType.StandardHDDLRS,
-                DiskType.StandardSSDLRS,
-                DiskType.PremiumSSDLRS,
-                DiskType.UltraSSDLRS,
-            ],
+            items=data_disk_types,
         ),
         metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=DiskType,
+                default_values=data_disk_types,
+            )
         ),
     )
     data_disk_count: search_space.CountSpace = field(
@@ -524,14 +533,10 @@ class DiskOptionSettings(FeatureSettings):
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
         ),
         metadata=field_metadata(
-            decoder=lambda input: (
-                search_space.decode_set_space_by_type(
-                    data=input, base_type=DiskControllerType
-                )
-                if str(input).strip()
-                else search_space.SetSpace(
-                    items=[DiskControllerType.SCSI, DiskControllerType.NVME]
-                )
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=DiskControllerType,
+                default_values=[DiskControllerType.SCSI, DiskControllerType.NVME],
             )
         ),
     )

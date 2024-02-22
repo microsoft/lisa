@@ -2932,14 +2932,10 @@ class ArchitectureSettings(schema.FeatureSettings):
             search_space.SetSpace, items=[ArchitectureType.x64, ArchitectureType.Arm64]
         ),
         metadata=field_metadata(
-            decoder=lambda input: (
-                search_space.decode_set_space_by_type(
-                    data=input, base_type=ArchitectureType
-                )
-                if str(input).strip()
-                else search_space.SetSpace(
-                    items=[ArchitectureType.x64, ArchitectureType.Arm64]
-                )
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=ArchitectureType,
+                default_values=[ArchitectureType.x64, ArchitectureType.Arm64],
             )
         ),
     )
