@@ -2109,6 +2109,8 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         log = cast(Logger, kwargs.get("log"))
         log.debug("updating arm template to support vm hibernation.")
         resources = template["resources"]
+        if isinstance(resources, dict):
+            resources = list(resources.values())
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
         virtual_machines["properties"].update(json.loads(cls._hibernation_properties))
 
