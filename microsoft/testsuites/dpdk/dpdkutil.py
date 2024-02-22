@@ -673,6 +673,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     pmd: str,
     use_service_cores: int = 1,
     build_release: bool = False,
+    gb_hugepages: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -684,6 +685,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         use_service_cores=1,
         multiple_queues=True,
         build_release=build_release,
+        gibibyte_hugepages=gb_hugepages,
     )
 
 
