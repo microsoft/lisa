@@ -32,3 +32,12 @@ class AptAddRepository(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to add repository",
         )
+
+    def remove_repository(self, repo: str) -> None:
+        self.run(
+            f'--remove -y "{repo}"',
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to remove repository",
+        )
