@@ -710,3 +710,15 @@ def create_set_space(
     else:
         set_space = None
     return set_space
+
+
+def decode_nullable_set_space(
+    data: Any, base_type: Any, default_values: Any, is_allow_set: bool = False
+) -> Any:
+    if str(data).strip():
+        return decode_set_space_by_type(data, base_type=base_type)
+    else:
+        return decode_set_space_by_type(
+            SetSpace(is_allow_set=is_allow_set, items=default_values),
+            base_type=base_type,
+        )
