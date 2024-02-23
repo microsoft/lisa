@@ -332,7 +332,7 @@ class AzurePlatformSchema:
     # the AzCopy path can be specified if use this tool to copy blob
     azcopy_path: str = field(default="")
     # use bicep to deploy, it's a new way to deploy azure resources
-    use_bicep: bool = False
+    use_bicep: bool = True
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
