@@ -400,7 +400,6 @@ class NvmeTestSuite(TestSuite):
         #  compare the count of nvme namespaces and nvme devices.
         nvme = node.features[Nvme]
         nvme_device = nvme.get_devices()
-        nvme_namespace = nvme.get_namespaces()
         nvme_namespace = nvme.get_raw_nvme_disks()
         assert_that(nvme_device).described_as(
             "nvme devices count should be equal to namespace count by listing devices "
