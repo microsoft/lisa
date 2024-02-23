@@ -99,7 +99,7 @@ class DpdkVfHelper:
         self._queue_type = self.MULTI_QUEUE
 
     def set_single_queue(self) -> None:
-        self._queue_type = self.MULTI_QUEUE
+        self._queue_type = self.SINGLE_QUEUE
 
     def is_mana(self) -> bool:
         return self._hardware == self.MSFT_MANA
