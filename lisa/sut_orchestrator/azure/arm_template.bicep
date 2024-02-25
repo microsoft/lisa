@@ -204,6 +204,9 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     existing_subnet_ref: existing_subnet_ref
     enable_sriov: nodes[i].enable_sriov
   }
+  dependsOn: [
+    nodes_public_ip[i]
+  ]
 }]
 
 resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2020-05-01' = if (empty(virtual_network_resource_group)) {
