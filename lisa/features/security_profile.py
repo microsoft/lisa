@@ -117,12 +117,17 @@ class SecurityProfile(Feature):
 
 SecureBootEnabled = partial(
     SecurityProfileSettings,
-    security_profile=search_space.SetSpace(
-        True, [SecurityProfileType.SecureBoot, SecurityProfileType.CVM]
-    ),
+    security_profile=search_space.SetSpace(True, [SecurityProfileType.SecureBoot]),
 )
 
 CvmEnabled = partial(
     SecurityProfileSettings,
     security_profile=search_space.SetSpace(True, [SecurityProfileType.CVM]),
+)
+
+CvmDisabled = partial(
+    SecurityProfileSettings,
+    security_profile=search_space.SetSpace(
+        True, [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+    ),
 )
