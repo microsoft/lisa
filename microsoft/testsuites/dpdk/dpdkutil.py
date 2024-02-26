@@ -779,9 +779,10 @@ def get_l3fwd_queue_count(
         queue_count = 4
     elif available_cores <= 32:
         queue_count = 8
-    else:
+    elif not is_mana:
         queue_count = 16
-
+    else:
+        queue_count = 32
     return queue_count
 
 
