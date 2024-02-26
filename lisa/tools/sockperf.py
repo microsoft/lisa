@@ -187,6 +187,17 @@ class Sockperf(Tool):
         test_case_name: str,
         test_result: "TestResult",
     ) -> None:
+        other_fields = self.process_sockperf_output(sockperf_output)
+        message = create_perf_message(
+            NetworkLatencyPerformanceMessage,
+            self.node,
+            test_result,
+            test_case_name,
+            other_fields,
+        )
+        notifier.notify(message)
+
+    def process_sockperf_output(self, sockperf_output: str) -> Dict[str, Any]:
         matched_results = self.sockperf_result_regex.search(sockperf_output)
         assert matched_results, "Could not find sockperf latency results in output."
 
@@ -215,14 +226,8 @@ class Sockperf(Tool):
             f'25.000: {matched_results.group("latency_us_25")}\n'
             f'MIN   :  {matched_results.group("min_latency_us")}\n'
         )
-        message = create_perf_message(
-            NetworkLatencyPerformanceMessage,
-            self.node,
-            test_result,
-            test_case_name,
-            other_fields,
-        )
-        notifier.notify(message)
+
+        return other_fields
 
     def get_average_latency(self, sockperf_output: str) -> Decimal:
         matched_results = self.sockperf_average_latency.search(sockperf_output)

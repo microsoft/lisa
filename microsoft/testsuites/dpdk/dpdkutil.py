@@ -39,11 +39,12 @@ from lisa.tools import (
     Mount,
     Ntttcp,
     Ping,
-    Sysctl,
+    Sockperf,
     Tee,
     Timeout,
 )
 from lisa.tools.mkfs import FileSystem
+from lisa.tools.sockperf import SOCKPERF_TCP
 from lisa.util.constants import SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -899,7 +900,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
-
+    sockperf = {sender: sender.tools[Sockperf], receiver: receiver.tools[Sockperf]}
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
     #  to service the ssh connection.
@@ -1166,6 +1167,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
     log.debug(f"result: {receiver_result.stdout}")
     log.debug(f"result: {sender_result.stdout}")
+
+    sockperf_results: Dict[Node, str] = dict()
+    rcv_sockperf = sockperf[receiver].start_server_async(SOCKPERF_TCP, timeout=30)
+    sockperf_results[sender] = sockperf[sender].run_client(
+        SOCKPERF_TCP, subnet_b_nics[receiver].ip_addr
+    )
+    sockperf_results[receiver] = rcv_sockperf.wait_result(timeout=30).stdout
+    pps_info = sockperf[sender].process_sockperf_output(sockperf_results[sender])
+
     # kill l3fwd on forwarder
     forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
     forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
@@ -1177,7 +1187,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # check for driver regressions again after running the test
     fwd_kit.testpmd.check_for_driver_regressions()
-
+    forwarder.log.info(f"Found latency data: {str(pps_info)}")
     # send result to notifier if we found a test result to report with
     if test_result and is_perf_test:
         msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
