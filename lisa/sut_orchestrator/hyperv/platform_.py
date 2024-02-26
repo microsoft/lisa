@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from pathlib import PureWindowsPath
+from pathlib import PurePath, PureWindowsPath
 from typing import Any, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
@@ -43,7 +43,7 @@ class HypervPlatform(Platform):
         self._host_capabilities = self._get_host_capabilities(self._log)
         self._source_vhd: Optional[PureWindowsPath] = None
         self._source_factory = Factory[Source](Source)
-        self._source_files: Optional[List[PureWindowsPath]] = None
+        self._source_files: Optional[List[PurePath]] = None
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -183,14 +183,16 @@ class HypervPlatform(Platform):
 
         return node_capabilities
 
-    def _download_sources(self) -> None:
+    def _download_sources(self, log: Logger) -> None:
         if self._source_files:
             return
 
         if not self._hyperv_runbook.source:
             return
 
-        source = self._source_factory.create_by_runbook(self._hyperv_runbook.source)
+        source = self._source_factory.create_by_runbook(
+            self._hyperv_runbook.source, parent_logger=log
+        )
         self._source_files = source.download(self._server)
 
     def _prepare_source_vhd(self, node_runbook: HypervNodeSchema) -> None:
@@ -202,7 +204,7 @@ class HypervPlatform(Platform):
         elif self._source_files:
             for artifact_path in self._source_files:
                 if artifact_path.suffix == ".vhd" or artifact_path.suffix == ".vhdx":
-                    self._source_vhd = artifact_path
+                    self._source_vhd = PureWindowsPath(artifact_path)
                     break
 
         if not self._source_vhd:
@@ -223,7 +225,7 @@ class HypervPlatform(Platform):
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
         }
 
-        self._download_sources()
+        self._download_sources(log)
 
         self._console_logger = SerialConsoleLogger(self._server)
 
