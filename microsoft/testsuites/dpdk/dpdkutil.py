@@ -579,7 +579,7 @@ def verify_dpdk_send_receive(
 
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
+    test_duration: int = variables.get("dpdk_test_duration", 30)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
         environment,
@@ -767,14 +767,10 @@ def setup_kernel_route_tables(
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
-def get_l3fwd_queue_count(
-    available_cores: int, force_single_queue: bool = False, is_mana: bool = False
-) -> int:
+def get_l3fwd_queue_count(available_cores: int, is_mana: bool = False) -> int:
     # select queue amount based on size, allow force single queue
     queue_count = 1
-    if force_single_queue:
-        return queue_count
-    elif available_cores <= 8:
+    if available_cores <= 8:
         queue_count = 2
     elif available_cores <= 16:
         queue_count = 4
@@ -863,8 +859,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     if available_cores < 8:
         raise SkippedException("l3 forward test needs >= 8 cores.")
 
-    # ping everything before start
-    # _ping_all_nodes_in_environment(environment)
+    # fetch the test duration
+    test_duration: int = variables.get("dpdk_test_duration", 30)
 
     test_result = environment.source_test_result
     if not test_result:
@@ -1047,11 +1043,169 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         server_app_path = l3fwd_check.stdout.strip()
     else:
         examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
-        server_app_path = examples_path.joinpath(
-            l3fwd_app_name
+        server_app_path = str(
+            examples_path.joinpath(l3fwd_app_name)
         )  # generate the dpdk include arguments to add to our commandline
 
-    # another MANA special case, provide pci slot and multiple macs instead of seperate vdev args
+    results: List[DpdkL3fwdResult] = []
+    for queue_count in [2, 4, 8, 16, 32]:
+        fwd_cmd = generate_l3fwd_invocation(
+            fwd_kit,
+            subnet_a_nics,
+            subnet_b_nics,
+            dpdk_port_a,
+            dpdk_port_b,
+            server_app_path,
+            queues=queue_count,
+        )
+
+        # START THE TEST
+        # finally, start the forwarder
+        fwd_proc = forwarder.execute_async(
+            fwd_cmd,
+            sudo=True,
+            shell=True,
+        )
+        try:
+            fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
+        except LisaException:
+            raise LisaException(
+                "L3fwd did not start. Check command output for incorrect flags, "
+                "core dumps, or other setup/init issues."
+            )
+
+        # after starting DPDK, check for known driver errors
+        fwd_kit.testpmd.check_for_driver_regressions()
+
+        # start ntttcp client and server
+        ntttcp_threads_count = 64
+
+        # start the receiver
+        receiver_proc = ntttcp[receiver].run_as_server_async(
+            subnet_b_nics[receiver].name,
+            run_time_seconds=test_duration + 15,
+            buffer_size=1024,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+        )
+
+        # start the sender
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=test_duration,
+        )
+
+        # collect, log, and process results
+        receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
+        log.debug(f"result: {receiver_result.stdout}")
+        log.debug(f"result: {sender_result.stdout}")
+
+        sockperf_results: Dict[Node, str] = dict()
+        rcv_sockperf = sockperf[receiver].start_server_async(SOCKPERF_TCP, timeout=30)
+        sockperf_results[sender] = sockperf[sender].run_client(
+            SOCKPERF_TCP, subnet_b_nics[receiver].ip_addr
+        )
+        sockperf_results[receiver] = rcv_sockperf.wait_result(timeout=30).stdout
+        latency_info = sockperf[sender].process_sockperf_output(
+            sockperf_results[sender]
+        )
+
+        # kill l3fwd on forwarder
+        forwarder.tools[Kill].by_name(
+            l3fwd_app_name, signum=SIGINT, ignore_not_exist=True
+        )
+        forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
+        forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
+        ntttcp_results = {
+            receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
+            sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
+        }
+
+        # check for driver regressions again after running the test
+        fwd_kit.testpmd.check_for_driver_regressions()
+        forwarder.log.info(f"Found latency data: {str(latency_info)}")
+        # send result to notifier if we found a test result to report with
+        if test_result and is_perf_test:
+            msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
+                server_result=ntttcp_results[receiver],
+                client_result=ntttcp_results[sender],
+                latency=Decimal(0),
+                connections_num="64",
+                buffer_size=64,
+                test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
+                test_result=test_result,
+            )
+            notifier.notify(msg)
+
+        check_receiver_is_unreachable(
+            sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
+        )
+        result = DpdkL3fwdResult(
+            queues=queue_count,
+            client=ntttcp_results[sender].throughput_in_gbps,
+            server=ntttcp_results[receiver].throughput_in_gbps,
+            latency=latency_info["latency99_percentile_us"],
+        )
+        results.append(result)
+
+    for result in results:
+        forwarder.log.info(str(result) + "\n\n")
+
+    # check the throughput and fail if it was unexpectedly low.
+    # NOTE: only checking 0 and < 1 now. Once we have more data
+    # there should be more stringest checks for each NIC type.
+    throughput = results[-1].client_throughput
+    assert_that(throughput).described_as(
+        "l3fwd test found 0Gbps througput. "
+        "Either the test or DPDK forwarding is broken."
+    ).is_greater_than(0)
+
+    assert_that(throughput).described_as(
+        f"l3fwd has very low throughput: {throughput}Gbps! "
+        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "and the DPDK port IDs were correct."
+    ).is_greater_than_or_equal_to(1)
+
+    threshold = fwd_kit.testpmd.vf_helper.get_threshold_l3fwd()
+    hw_name = fwd_kit.testpmd.vf_helper.get_hw_name()
+    if fwd_kit.testpmd.vf_helper.use_strict_checks:
+        assert_that(throughput).described_as(
+            f"l3fwd strict throughput check failed, for hw {hw_name} "
+            f"expected throughput >= {threshold} GBps!"
+        ).is_greater_than_or_equal_to(threshold)
+
+
+class DpdkL3fwdResult:
+
+    def __init__(
+        self, queues: int, client: Decimal, server: Decimal, latency: Decimal
+    ) -> None:
+        self.queues = 0
+        self.client_throughput = client
+        self.server_throuhgput = server
+        self.latency = latency
+
+    def __str__(self) -> str:
+        return (
+            f"queues:{self.queues}\n"
+            f"client:{self.client_throughput}\n"
+            f"server:{self.server_throuhgput}\n"
+            f"latency:{self.latency}"
+        )
+
+
+def generate_l3fwd_invocation(
+    fwd_kit: DpdkTestResources,
+    subnet_a_nics: Dict[Node, NicInfo],
+    subnet_b_nics: Dict[Node, NicInfo],
+    dpdk_port_a: int,
+    dpdk_port_b: int,
+    server_app_path: str,
+    queues: int = 0,
+):
+    forwarder = fwd_kit.node
+    available_cores = forwarder.tools[Lscpu].get_core_count()
     if fwd_kit.testpmd.vf_helper.is_mana():
         vdev_combined = ",".join(
             [
@@ -1079,11 +1233,13 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Create a set of tuples (PortID,QueueID,CoreID)
     # These are minimally error checked, you can accidentally assign
     # cores and queues to unused ports etc. and only get runtime spew.
-    queue_count = get_l3fwd_queue_count(
-        available_cores,
-        force_single_queue=force_single_queue,
-        is_mana=fwd_kit.testpmd.vf_helper.is_mana(),
-    )
+    if queues:
+        queue_count = queues
+    else:
+        queue_count = get_l3fwd_queue_count(
+            available_cores,
+            is_mana=fwd_kit.testpmd.vf_helper.is_mana(),
+        )
     # signal multiq run to vf helper to adjust pass/fail threshold
     if queue_count > 1:
         fwd_kit.testpmd.vf_helper.set_multiple_queue()
@@ -1122,110 +1278,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
 
-    # START THE TEST
-    # finally, start the forwarder
-    fwd_proc = forwarder.execute_async(
-        fwd_cmd,
-        sudo=True,
-        shell=True,
-    )
-    try:
-        fwd_proc.wait_output("L3FWD: entering main loop", timeout=30)
-    except LisaException:
-        raise LisaException(
-            "L3fwd did not start. Check command output for incorrect flags, "
-            "core dumps, or other setup/init issues."
-        )
-
-    # after starting DPDK, check for known driver errors
-    fwd_kit.testpmd.check_for_driver_regressions()
-
-    # start ntttcp client and server
-    ntttcp_threads_count = 64
-    # start the receiver
-
-    receiver.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
-    sender.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
-
-    receiver_proc = ntttcp[receiver].run_as_server_async(
-        subnet_b_nics[receiver].name,
-        run_time_seconds=30,
-        buffer_size=1024,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-    )
-
-    # start the sender
-
-    sender_result = ntttcp[sender].run_as_client(
-        nic_name=subnet_a_nics[sender].name,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-        threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
-    )
-
-    # collect, log, and process results
-    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
-    log.debug(f"result: {receiver_result.stdout}")
-    log.debug(f"result: {sender_result.stdout}")
-
-    sockperf_results: Dict[Node, str] = dict()
-    rcv_sockperf = sockperf[receiver].start_server_async(SOCKPERF_TCP, timeout=30)
-    sockperf_results[sender] = sockperf[sender].run_client(
-        SOCKPERF_TCP, subnet_b_nics[receiver].ip_addr
-    )
-    sockperf_results[receiver] = rcv_sockperf.wait_result(timeout=30).stdout
-    pps_info = sockperf[sender].process_sockperf_output(sockperf_results[sender])
-
-    # kill l3fwd on forwarder
-    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
-    forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
-    forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
-    ntttcp_results = {
-        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
-        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
-    }
-
-    # check for driver regressions again after running the test
-    fwd_kit.testpmd.check_for_driver_regressions()
-    forwarder.log.info(f"Found latency data: {str(pps_info)}")
-    # send result to notifier if we found a test result to report with
-    if test_result and is_perf_test:
-        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
-            server_result=ntttcp_results[receiver],
-            client_result=ntttcp_results[sender],
-            latency=Decimal(0),
-            connections_num="64",
-            buffer_size=64,
-            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
-            test_result=test_result,
-        )
-        notifier.notify(msg)
-
-    check_receiver_is_unreachable(
-        sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
-    )
-    # check the throughput and fail if it was unexpectedly low.
-    # NOTE: only checking 0 and < 1 now. Once we have more data
-    # there should be more stringest checks for each NIC type.
-    throughput = ntttcp_results[receiver].throughput_in_gbps
-    assert_that(throughput).described_as(
-        "l3fwd test found 0Gbps througput. "
-        "Either the test or DPDK forwarding is broken."
-    ).is_greater_than(0)
-
-    assert_that(throughput).described_as(
-        f"l3fwd has very low throughput: {throughput}Gbps! "
-        "Verify netvsc was used over failsafe, check netvsc init was succesful "
-        "and the DPDK port IDs were correct."
-    ).is_greater_than_or_equal_to(1)
-
-    threshold = fwd_kit.testpmd.vf_helper.get_threshold_l3fwd()
-    hw_name = fwd_kit.testpmd.vf_helper.get_hw_name()
-    if fwd_kit.testpmd.vf_helper.use_strict_checks:
-        assert_that(throughput).described_as(
-            f"l3fwd strict throughput check failed, for hw {hw_name} "
-            f"expected throughput >= {threshold} GBps!"
-        ).is_greater_than_or_equal_to(threshold)
+    return fwd_cmd
 
 
 def check_receiver_is_unreachable(
