@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from pathlib import Path, PurePath, PureWindowsPath
+from pathlib import Path, PurePath
 from typing import Optional
 
 from lisa import RemoteNode, features
@@ -48,7 +48,7 @@ class SerialConsoleLogger:
         )
 
     def start_logging(
-        self, pipe_name: str, log_path: PureWindowsPath, logger: Logger
+        self, pipe_name: str, log_path: PurePath, logger: Logger
     ) -> Process:
         return self._server.tools[PowerShell].run_cmdlet_async(
             f'{self._script_path} "{pipe_name}" "{log_path}"', force_run=True

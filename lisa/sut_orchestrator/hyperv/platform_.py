@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from pathlib import PurePath, PureWindowsPath
+from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
 
 from lisa import feature, schema, search_space
@@ -41,7 +41,7 @@ class HypervPlatform(Platform):
         self._hyperv_runbook = self._get_hyperv_runbook()
         self._server = self._initialize_server_node()
         self._host_capabilities = self._get_host_capabilities(self._log)
-        self._source_vhd: Optional[PureWindowsPath] = None
+        self._source_vhd: Optional[PurePath] = None
         self._source_factory = Factory[Source](Source)
         self._source_files: Optional[List[PurePath]] = None
 
@@ -200,11 +200,11 @@ class HypervPlatform(Platform):
             return
 
         if node_runbook.vhd and node_runbook.vhd.vhd_path:
-            self._source_vhd = PureWindowsPath(node_runbook.vhd.vhd_path)
+            self._source_vhd = PurePath(node_runbook.vhd.vhd_path)
         elif self._source_files:
             for artifact_path in self._source_files:
                 if artifact_path.suffix == ".vhd" or artifact_path.suffix == ".vhdx":
-                    self._source_vhd = PureWindowsPath(artifact_path)
+                    self._source_vhd = PurePath(artifact_path)
                     break
 
         if not self._source_vhd:
@@ -248,12 +248,12 @@ class HypervPlatform(Platform):
             node_context.vm_name = vm_name
             node_context.host = self._server
 
-            node_context.working_path = PureWindowsPath(
+            node_context.working_path = PurePath(
                 self._server.working_path / f"{vm_name}"
             )
 
             vm_vhd_name = f"{vm_name}{self._source_vhd.suffix}"
-            vhd_path = PureWindowsPath(node_context.working_path / f"{vm_vhd_name}")
+            vhd_path = PurePath(node_context.working_path / f"{vm_vhd_name}")
 
             self._server.tools[Mkdir].create_directory(str(node_context.working_path))
 
@@ -294,7 +294,7 @@ class HypervPlatform(Platform):
             )
 
     def _resize_vhd_if_needed(
-        self, vhd_path: PureWindowsPath, node_runbook: HypervNodeSchema
+        self, vhd_path: PurePath, node_runbook: HypervNodeSchema
     ) -> None:
         pwsh = self._server.tools[PowerShell]
         vhd_size = int(pwsh.run_cmdlet(f"(Get-VHD -Path {vhd_path}).Size"))
