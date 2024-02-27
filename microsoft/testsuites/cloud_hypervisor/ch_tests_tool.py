@@ -14,6 +14,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
+from lisa.util import find_groups_in_lines
 
 
 @dataclass
@@ -89,8 +90,7 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
         result = self.run(
-            f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
-            " -Z unstable-options --format json",
+            f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}",
             timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
@@ -277,50 +277,30 @@ class CloudHypervisorTests(Tool):
         results: List[CloudHypervisorTestResult] = []
         subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
 
-        # Cargo will output test status for each test separately in JSON format. Parse
-        # the output line by line to obtain the list of all tests run along with their
-        # outcomes.
-        #
         # Example output:
-        # { "type": "test", "event": "ok", "name": "integration::test_vfio" }
-        lines = output.split("\n")
-        for line in lines:
-            try:
-                json_results = [json.loads(line)]
-            except json.decoder.JSONDecodeError:
-                json_results = extract_jsons(line)
+        # test common_parallel::test_snapshot_restore_basic ... ok
+        # test common_parallel::test_virtio_balloon_deflate_on_oom ... FAILED
 
-            for result in json_results:
-                if type(result) is not dict:
-                    continue
-                if "type" not in result or result["type"] != "test":
-                    continue
-                if "event" not in result or result["event"] not in [
-                    "started",
-                    "ok",
-                    "failed",
-                    "ignored",
-                ]:
-                    continue
-                if result["event"] == "started":
-                    status = TestStatus.RUNNING
-                elif result["event"] == "ok":
-                    status = TestStatus.PASSED
-                elif result["event"] == "failed":
-                    status = TestStatus.FAILED
-                elif result["event"] == "ignored":
-                    status = TestStatus.SKIPPED
+        pattern = re.compile(r"test (?P<test_name>[^\s]+) \.{3} (?P<status>\w+)")
+        test_results = find_groups_in_lines(
+            lines=output,
+            pattern=pattern,
+        )
 
-                subtest_status[result["name"]] = status
+        for test_result in test_results:
+            test_status = test_result["status"].strip().lower()
+            test_name = test_result["test_name"].strip().lower()
 
-                # store stdout of failed subtests
-                if status == TestStatus.FAILED:
-                    # test case names have ':'s in them (e.g. "integration::test_vfio").
-                    #  ':'s are not allowed in file names in Windows.
-                    testcase = result["name"].replace(":", "-")
-                    testcase_log_file = log_path / f"{testcase}.log"
-                    with open(testcase_log_file, "w") as f:
-                        f.write(result["stdout"])
+            if test_status == "started":
+                status = TestStatus.RUNNING
+            elif test_status == "ok":
+                status = TestStatus.PASSED
+            elif test_status == "failed":
+                status = TestStatus.FAILED
+            elif test_status == "ignored":
+                status = TestStatus.SKIPPED
+
+            subtest_status[test_name] = status
 
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
