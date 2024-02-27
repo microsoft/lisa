@@ -289,6 +289,7 @@ class AzurePlatformSchema:
         default=None
     )
     availability_set_tags: Optional[Dict[str, str]] = field(default=None)
+    no_redundancy_vm_tags: Optional[Dict[str, str]] = field(default=None)
     availability_set_properties: Optional[Dict[str, Any]] = field(default=None)
     availability_zones: Optional[List[int]] = field(default=None)
     availability_type: str = field(
@@ -1165,6 +1166,7 @@ class AzurePlatform(Platform):
             "availability_set_properties",
             "availability_zones",
             "availability_type",
+            "no_redundancy_vm_tags",
         ]
         set_filtered_fields(self._azure_runbook, arm_parameters, copied_fields)
         set_filtered_fields(

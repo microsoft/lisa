@@ -695,6 +695,7 @@ class AvailabilityArmParameter:
     availability_set_tags: Dict[str, str] = field(default_factory=dict)
     availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     availability_zones: List[int] = field(default_factory=list)
+    no_redundancy_vm_tags: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass_json()

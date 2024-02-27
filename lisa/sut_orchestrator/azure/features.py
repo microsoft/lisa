@@ -2408,10 +2408,13 @@ class Availability(AzureFeatureMixin, features.Availability):
                 else AvailabilityType.NoRedundancy
             )
 
+        if params.availability_type == AvailabilityType.NoRedundancy:
+            arm_parameters.vm_tags.update(params.no_redundancy_vm_tags)
         # Once the availability type has been determined, clear the unecessary
         # fields for clarity
         if params.availability_type == AvailabilityType.AvailabilitySet:
             params.availability_zones.clear()
+            params.no_redundancy_vm_tags.clear()
         elif params.availability_type == AvailabilityType.AvailabilityZone:
             assert (
                 params.availability_zones
@@ -2419,6 +2422,7 @@ class Availability(AzureFeatureMixin, features.Availability):
             params.availability_zones = [params.availability_zones[0]]
             params.availability_set_tags.clear()
             params.availability_set_properties.clear()
+            params.no_redundancy_vm_tags.clear()
         else:
             params.availability_set_tags.clear()
             params.availability_set_properties.clear()
