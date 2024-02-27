@@ -30,9 +30,6 @@ class Source(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
 
 class LocalSource(Source):
-    def __init__(self, runbook: LocalSourceSchema, **kwargs: Any) -> None:
-        super().__init__(runbook, kwargs=kwargs)
-
     @classmethod
     def type_name(cls) -> str:
         return "local"
