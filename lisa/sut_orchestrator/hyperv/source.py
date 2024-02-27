@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import PurePath
-from typing import Any, List, Type
+from typing import List, Type
 
 from lisa import schema
 from lisa.node import RemoteNode
@@ -9,17 +9,15 @@ from lisa.tools.ls import Ls
 from lisa.tools.remote_copy import RemoteCopy
 from lisa.tools.unzip import Unzip
 from lisa.util import InitializableMixin, subclasses
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 
 from .schema import LocalSourceSchema, SourceFileSchema, SourceSchema
 
 
 class Source(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
-    def __init__(self, runbook: SourceSchema, **kwargs: Any) -> None:
+    def __init__(self, runbook: SourceSchema, parent_logger: Logger) -> None:
         super().__init__(runbook=runbook)
-        self._log = get_logger(
-            "source", self.__class__.__name__, parent=kwargs.get("parent_logger")
-        )
+        self._log = get_logger("source", self.__class__.__name__, parent=parent_logger)
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
