@@ -1599,6 +1599,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
     )
 
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
+
+    # /dev/nvme0n1p15 -> /dev/nvme0
+    NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1617,15 +1623,37 @@ class Disk(AzureFeatureMixin, features.Disk):
         if isinstance(self._node.os, BSD):
             return self._get_raw_data_disks_bsd()
 
-        if (
-            self._node.capability.disk
-            and self._node.capability.disk.disk_controller_type
-            == schema.DiskControllerType.NVME
-        ):
+        # disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            # Getting OS disk nvme namespace and disk controller used by OS disk.
+            # Sample os_boot_partition:
+            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN,
+                )
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN,
+                )
+
+            # With NVMe disc controller type, all remote SCSI disks are connected to
+            # same NVMe controller. The same controller is used by OS disc.
+            # This loop collects all the SCSI remote disks except OS disk.
             nvme = self._node.features[Nvme]
-            # Skip OS disk which is '[0]' in namespaces list
-            disk_array = nvme.get_namespaces()[1:]
+            nvme_namespaces = nvme.get_namespaces()
+            disk_array = []
+            for name_space in nvme_namespaces:
+                if (
+                    name_space.startswith(os_disk_controller)
+                    and name_space != os_disk_namespace
+                ):
+                    disk_array.append(name_space)
             return disk_array
+
         # disk_controller_type == SCSI
         # refer here to get data disks from folder /dev/disk/azure/scsi1
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
