@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.25.53.49325",
-      "templateHash": "16372165633240242402"
+      "version": "0.24.24.22086",
+      "templateHash": "15795965431406700912"
     }
   },
   "functions": [
@@ -746,8 +746,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.25.53.49325",
-              "templateHash": "15038849300358134397"
+              "version": "0.24.24.22086",
+              "templateHash": "4605637987818789188"
             }
           },
           "functions": [
@@ -828,6 +828,7 @@
         }
       },
       "dependsOn": [
+        "[format('nodes_public_ip[{0}]', range(0, variables('node_count'))[copyIndex()])]",
         "virtual_network_name_resource"
       ]
     }
