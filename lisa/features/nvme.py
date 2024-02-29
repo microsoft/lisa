@@ -105,12 +105,16 @@ class Nvme(Feature):
     def get_raw_nvme_disks(self) -> List[str]:
         # This routine returns Local NVMe devices as a list.
         nvme_namespaces = self.get_namespaces()
+
         # With disk controller type NVMe, OS disk appears as NVMe.
         # It should be removed from the list of disks for NVMe tests as it is
         # not an actual NVMe device.
-        os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
-        # Removing OS disk from the list.
-        nvme_namespaces.remove(os_disk_nvme_namespace)
+        # disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+            # Removing OS disk from the list.
+            nvme_namespaces.remove(os_disk_nvme_namespace)
         return nvme_namespaces
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:
