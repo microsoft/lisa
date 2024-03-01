@@ -113,27 +113,10 @@ class PythonVenv(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Python]
 
-    def _create_venv(self, venv_path: str) -> PurePath:
-        cmd_result = self._python.run(
-            f"-m venv {venv_path}", force_run=True, shell=True
-        )
-        assert_that(
-            cmd_result.exit_code, f"fail to create venv: {venv_path}"
-        ).is_equal_to(0)
-        self._venv_path = PurePath(venv_path)
-        return self._venv_path
-
     def __init__(self, node: "Node", venv_path: str) -> None:
         super().__init__(node)
         self._python: Python = self.node.tools[Python]
         self._venv_installation_path = venv_path
-
-    def _check_exists(self) -> bool:
-        venv = self._python.run("-m venv --help", force_run=True)
-        ensurepip = self._python.run("-m ensurepip", force_run=True)
-        return (
-            venv.exit_code == 0 and "No module named ensurepip" not in ensurepip.stdout
-        )
 
     def _install(self) -> bool:
         if isinstance(self.node.os, Posix):
@@ -165,3 +148,20 @@ class PythonVenv(Tool):
             delattr(self, "_venv_path")
         else:
             self._log.info("venv path not found, nothing to delete")
+
+    def _create_venv(self, venv_path: str) -> PurePath:
+        cmd_result = self._python.run(
+            f"-m venv {venv_path}", force_run=True, shell=True
+        )
+        assert_that(
+            cmd_result.exit_code, f"fail to create venv: {venv_path}"
+        ).is_equal_to(0)
+        self._venv_path = PurePath(venv_path)
+        return self._venv_path
+
+    def _check_exists(self) -> bool:
+        venv = self._python.run("-m venv --help", force_run=True)
+        ensurepip = self._python.run("-m ensurepip", force_run=True)
+        return (
+            venv.exit_code == 0 and "No module named ensurepip" not in ensurepip.stdout
+        )
