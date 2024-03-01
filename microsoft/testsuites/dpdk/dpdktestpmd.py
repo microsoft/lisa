@@ -267,7 +267,7 @@ class DpdkTestpmd(Tool):
         # our tests use equal amounts for rx and tx
         if multiple_queues:
             if self.vf_helper.is_mana():
-                queues = 8
+                queues = 16
             else:
                 queues = 4
         else:
