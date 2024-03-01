@@ -119,6 +119,7 @@ SECURITY_PROFILE_STATELESS = "stateless"
 PLATFORM = "platform"
 PLATFORM_READY = "ready"
 PLATFORM_BAREMETAL = "baremetal"
+PLATFORM_HYPERV = "hyperv"
 PLATFORM_MOCK = "mock"
 
 TESTCASE = "testcase"
