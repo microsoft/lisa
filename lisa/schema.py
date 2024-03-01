@@ -706,7 +706,12 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         ),
         metadata=field_metadata(
             decoder=partial(
-                search_space.decode_set_space_by_type, base_type=NetworkDataPath
+                search_space.decode_nullable_set_space,
+                base_type=NetworkDataPath,
+                default_values=[
+                    NetworkDataPath.Synthetic,
+                    NetworkDataPath.Sriov,
+                ],
             )
         ),
     )
