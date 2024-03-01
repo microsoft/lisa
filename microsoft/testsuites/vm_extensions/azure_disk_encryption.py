@@ -164,9 +164,9 @@ class AzureDiskEncryption(TestSuite):
         location = node_capability.location
         shared_resource_group = runbook.shared_resource_group_name
 
-        # Create key vault if there is not available adelisa key vault for that region
+        # Create key vault if there is not available lisa-ade key vault for that region
         existing_vault = get_matching_key_vault_name(
-            platform, location, shared_resource_group, r"adelisa-\w{5}"
+            platform, location, shared_resource_group, r"lisa-ade-\w{5}"
         )
         if existing_vault:
             vault_name = existing_vault
@@ -174,7 +174,7 @@ class AzureDiskEncryption(TestSuite):
             random_str = generate_random_chars(
                 string.ascii_lowercase + string.digits, 5
             )
-            vault_name = f"adelisa-{random_str}"
+            vault_name = f"lisa-ade-{random_str}"
 
         vault_properties = VaultProperties(
             tenant_id=tenant_id,

@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import random
 import re
+import string
 from typing import Any, List
 
 from assertpy import assert_that
@@ -36,7 +36,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult
 from lisa.tools.ls import Ls
-from lisa.util import LisaException, SkippedException
+from lisa.util import LisaException, SkippedException, generate_random_chars
 
 
 def _check_system_status(node: Node, log: Logger) -> None:
@@ -101,7 +101,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         resource_group_name = runbook.shared_resource_group_name
         application_id = runbook.service_principal_client_id
         node_context = get_node_context(node)
-        vault_name = f"kve-{platform.subscription_id[-5:]}-{node_context.location}"
+        vault_name = f"lisa-kve-{platform.subscription_id[-5:]}-{node_context.location}"
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
@@ -155,8 +155,11 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         log.info(f"Created Key Vault {keyvault_result.properties.vault_uri}")
 
         certificates_secret_id: List[str] = []
-        # Providing a random Cert name format is: Cert-xxx
-        for cert_name in [f"Cert-{random.randint(1, 10000):04}" for _ in range(2)]:
+        cert_names = [
+            generate_random_chars(string.ascii_lowercase + string.digits, 6)
+            for _ in range(2)
+        ]
+        for cert_name in cert_names:
             certificate_secret_id = create_certificate(
                 platform=platform,
                 vault_url=keyvault_result.properties.vault_uri,
