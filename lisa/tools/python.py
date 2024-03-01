@@ -99,11 +99,8 @@ class Pip(Tool):
 class PythonVenv(Tool):
     @property
     def command(self) -> str:
-        path = self.get_venv_path().joinpath(f"bin/{self._python.command}")
-        if self.node.os.is_posix:
-            return path.as_posix()
-        else:
-            return str(path)
+        path = self.get_venv_path() / "bin" / self._python.command
+        return str(path)
 
     @property
     def can_install(self) -> bool:
@@ -156,7 +153,7 @@ class PythonVenv(Tool):
         assert_that(
             cmd_result.exit_code, f"fail to create venv: {venv_path}"
         ).is_equal_to(0)
-        self._venv_path = PurePath(venv_path)
+        self._venv_path = self.node.get_pure_path(venv_path)
         return self._venv_path
 
     def _check_exists(self) -> bool:
