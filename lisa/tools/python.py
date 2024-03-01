@@ -126,7 +126,15 @@ class PythonVenv(Tool):
         return self._venv_path
 
     def install_packages(self, packages_name: str) -> None:
-        cmd_result = self.run(f"-m pip -q install {packages_name}", force_run=True)
+        venv_path = self.get_venv_path()
+        cache_dir = venv_path.joinpath("cache")
+        self.node.tools[Mkdir].create_directory(str(cache_dir))
+        envs = {"TMPDIR": str(cache_dir)}
+        cmd_result = self.run(
+            f"-m pip install -q {packages_name} --cache-dir={cache_dir}",
+            force_run=True,
+            update_envs=envs,
+        )
         assert_that(
             cmd_result.exit_code, f"fail to install {packages_name}"
         ).is_equal_to(0)
