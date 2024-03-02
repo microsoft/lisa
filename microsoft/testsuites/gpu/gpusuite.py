@@ -19,7 +19,16 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
+from lisa.operating_system import (
+    BSD,
+    AlmaLinux,
+    Debian,
+    Linux,
+    Oracle,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.tools import Lspci, Mkdir, NvidiaSmi, Reboot, Service, Tar, Wget
 from lisa.tools.python import PythonVenv
@@ -270,6 +279,11 @@ class GpuTestSuite(TestSuite):
         _install_cudnn(node, log, work_path)
         pythonvenv_path = work_path + "/gpu_pytorch"
         pythonvenv = node.tools.create(PythonVenv, venv_path=pythonvenv_path)
+
+        # Pip downloads .whl and other tmp files to root disk.
+        # Clean package cache to avoid disk full issue.
+        if isinstance(node.os, Linux):
+            node.os.clean_package_cache()
 
         pythonvenv.install_packages("torch")
 
