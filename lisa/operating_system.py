@@ -400,6 +400,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._update_packages(package_names)
 
+    def clean_package_cache(self) -> None:
+        raise NotImplementedError()
+
     def capture_system_information(self, saved_path: Path) -> None:
         # avoid to involve node, it's ok if some command doesn't exist.
         self._node.execute("uname -vrmo").save_stdout_to_file(saved_path / "uname.txt")
@@ -891,6 +894,9 @@ class Debian(Linux):
                 )
 
         return repositories
+
+    def clean_package_cache(self) -> None:
+        self._node.execute("apt-get clean", sudo=True, shell=True)
 
     @retry(tries=10, delay=5)
     def remove_repository(
@@ -1476,6 +1482,9 @@ class RPMDistro(Linux):
     ) -> None:
         self.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
 
+    def clean_package_cache(self) -> None:
+        self._node.execute(f"{self._dnf_tool()} clean all", sudo=True, shell=True)
+
     def _get_package_information(self, package_name: str) -> VersionInfo:
         rpm_info = self._node.execute(
             f"rpm -q {package_name}",
@@ -1988,6 +1997,9 @@ class Suse(Linux):
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
             self._log.debug(f"repo {repo_name} already exist")
+
+    def clean_package_cache(self) -> None:
+        self._node.execute("zypper clean --all", sudo=True, shell=True)
 
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
