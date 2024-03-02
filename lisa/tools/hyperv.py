@@ -109,7 +109,8 @@ class HyperV(Tool):
         )
 
         # disable secure boot if requested
-        if not secure_boot:
+        # secure boot is only supported for generation 2 VMs
+        if not secure_boot and generation == 2:
             self._run_hyperv_cmdlet(
                 "Set-VMFirmware",
                 f"-VMName {name} -EnableSecureBoot Off",
