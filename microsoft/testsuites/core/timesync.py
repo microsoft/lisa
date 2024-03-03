@@ -1,5 +1,6 @@
 import time
 from copy import deepcopy
+from datetime import timedelta
 from pathlib import PurePosixPath
 from time import sleep
 from typing import List, Optional, Union, cast
@@ -418,7 +419,7 @@ class TimeSync(TestSuite):
             date = node.tools[Date]
             node_time = date.current()
             modified_time = deepcopy(node_time)
-            modified_time = modified_time.replace(year=node_time.year - 2)
+            modified_time = modified_time - timedelta(days=2)
             date.set(modified_time)
 
             # Poll every second and check if the time drift is corrected
