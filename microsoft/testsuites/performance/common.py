@@ -367,7 +367,7 @@ def perf_ntttcp(  # noqa: C901
             client_lagscope_process = client_lagscope.run_as_client_async(
                 server_ip=server.internal_address,
                 ping_count=0,
-                run_time_seconds=10,
+                run_time_seconds=500,
                 print_histogram=False,
                 print_percentile=False,
                 histogram_1st_interval_start_value=0,

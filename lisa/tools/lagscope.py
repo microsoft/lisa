@@ -150,7 +150,7 @@ class Lagscope(Tool, KillableMixin):
         self,
         server_ip: str,
         test_interval: int = 0,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 500,
         ping_count: int = 0,
         print_histogram: bool = True,
         print_percentile: bool = True,

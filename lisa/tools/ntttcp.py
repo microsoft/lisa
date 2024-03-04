@@ -196,7 +196,7 @@ class Ntttcp(Tool):
     def run_as_server_async(
         self,
         nic_name: str,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 500,
         ports_count: int = 64,
         buffer_size: int = 64,
         cool_down_time_seconds: int = 1,
@@ -290,7 +290,7 @@ class Ntttcp(Tool):
         nic_name: str,
         server_ip: str,
         threads_count: int,
-        run_time_seconds: int = 10,
+        run_time_seconds: int = 500,
         ports_count: int = 64,
         buffer_size: int = 64,
         cool_down_time_seconds: int = 1,
@@ -317,7 +317,7 @@ class Ntttcp(Tool):
         # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
         # interrupts
         cmd = (
-            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
+            f" -V -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )

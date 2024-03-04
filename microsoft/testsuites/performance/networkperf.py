@@ -44,7 +44,7 @@ from microsoft.testsuites.performance.common import (
     """,
 )
 class NetworkPerformace(TestSuite):
-    TIMEOUT = 12000
+    TIMEOUT = 120000
     PPS_TIMEOUT = 3000
 
     @TestCaseMetadata(
