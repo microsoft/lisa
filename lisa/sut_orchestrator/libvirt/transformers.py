@@ -141,7 +141,7 @@ class QemuInstallerTransformer(Transformer):
             installer.validate()
             qemu_version = installer.install()
             self._log.info(f"installed qemu version: {qemu_version}")
-            node.reboot()
+            node.reboot(time_out=900)
         else:
             qemu_version = installer._get_version()
             self._log.info(f"Already installed! qemu version: {qemu_version}")
@@ -182,7 +182,7 @@ class CloudHypervisorInstallerTransformer(Transformer):
             installer.validate()
             ch_version = installer.install()
             self._log.info(f"installed cloud-hypervisor version: {ch_version}")
-            node.reboot()
+            node.reboot(time_out=900)
         else:
             ch_version = installer._get_version()
             self._log.info(f"Already installed! cloud-hypervisor version: {ch_version}")
@@ -559,7 +559,7 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
         if isinstance(node.os, Ubuntu):
             node.execute("systemctl disable apparmor", shell=True, sudo=True)
         node.execute("systemctl enable libvirtd", shell=True, sudo=True)
-        node.reboot()
+        node.reboot(time_out=900)
         if isinstance(node.os, CBLMariner):
             # After reboot, libvirtd service is in failed state and needs to
             # be restarted manually. Doing it immediately after restart
