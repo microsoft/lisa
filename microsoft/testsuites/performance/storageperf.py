@@ -44,7 +44,7 @@ from microsoft.testsuites.performance.common import (
     """,
 )
 class StoragePerformance(TestSuite):
-    TIME_OUT = 12000
+    TIME_OUT = 15000
 
     @TestCaseMetadata(
         description="""
@@ -310,7 +310,7 @@ class StoragePerformance(TestSuite):
                     num_jobs.append(min(iodepth_iter, core_count))
                     iodepth_iter = iodepth_iter * 2
 
-                time = testcase.get("time", 240)
+                time = testcase.get("time", 3600)
                 block_size = testcase.get("block_size", 4)
                 size_mb = testcase.get("size_mb", 512)
                 overwrite = testcase.get("overwrite", False)
