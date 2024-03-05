@@ -269,6 +269,7 @@ class Sriov(TestSuite):
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
         ),
+        timeout=6000
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
         sriov_disable_enable(environment)
@@ -532,6 +533,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
+        timeout=6000
     )
     def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
         client_iperf3_log = "iperfResults.log"
