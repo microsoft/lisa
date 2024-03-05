@@ -57,7 +57,7 @@ class XdpDump(Tool):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
             else:
-                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-15"
+                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-18"
 
             self.node.os.add_repository(
                 repo=(
