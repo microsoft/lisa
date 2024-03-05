@@ -71,7 +71,7 @@ class StressNg(Tool):
         v_flag = "-v" if verbose else ""
         return self.run_async(
             f"{v_flag} --sequential {num_workers} --class {class_name} "
-            f"--timeout {timeout_secs}",
+            f"--timeout {timeout_secs} --log-file {self.node.working_path}/stress-ng.log",
             sudo=sudo,
         )
 
