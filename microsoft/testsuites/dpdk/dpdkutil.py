@@ -351,9 +351,6 @@ def initialize_node_resources(
         # forward message from distro exception
         raise SkippedException(err)
 
-    # reboot to clear any leftover changes
-    node.reboot()
-
     # verify SRIOV is setup as-expected on the node after compat check
     node.nics.check_pci_enabled(pci_enabled=True)
 
