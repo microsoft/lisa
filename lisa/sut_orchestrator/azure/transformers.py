@@ -13,7 +13,6 @@ from retry import retry
 from lisa import schema
 from lisa.environment import Environments, EnvironmentSpace
 from lisa.features import StartStop
-from lisa.features.disks import DiskControllerType
 from lisa.node import Node, RemoteNode
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.platform_ import load_platform_from_builder
