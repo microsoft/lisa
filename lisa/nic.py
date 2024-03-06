@@ -233,6 +233,7 @@ class Nics(InitializableMixin):
         # when there are more than one nic on the system
         number_of_nics = len(self.get_nic_names())
         assert_that(number_of_nics).is_greater_than(0)
+        self._node.log.info("Found nics: " + ",".join(self.get_nic_names()))
         try:
             nic_name = self.get_nic_names()[index]
         except IndexError:
