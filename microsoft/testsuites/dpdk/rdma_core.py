@@ -231,7 +231,7 @@ class RdmaCoreManager:
             # if there wasn't a ref provided, check out the latest tag
             if not self._rdma_core_ref:
                 git_ref = git.get_tag(cwd=source_path)
-            git.checkout(git_ref, cwd=source_path)
+                git.checkout(git_ref, cwd=source_path)
         elif self.is_from_tarball():
             tar_path = wget.get(
                 url=(self._rdma_core_source),
