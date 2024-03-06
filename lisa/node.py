@@ -435,7 +435,9 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         return ""
 
-    def get_working_path_with_required_space(self, required_size_in_gb: int) -> str:
+    def get_working_path_with_required_space(
+        self, required_size_in_gb: int, use_os_disk: bool = True
+    ) -> str:
         work_path = str(self.working_path)
         df = self.tools[Df]
         lisa_path_space = df.get_filesystem_available_space(work_path, force_run=True)
@@ -894,8 +896,7 @@ class GuestNode(Node):
 
         self.capture_system_information("started")
 
-    def _provision(self) -> None:
-        ...
+    def _provision(self) -> None: ...
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -1180,8 +1181,7 @@ def quick_connect(
 
 class NodeHookSpec:
     @hookspec
-    def get_node_information(self, node: Node) -> Dict[str, str]:
-        ...
+    def get_node_information(self, node: Node) -> Dict[str, str]: ...
 
 
 class NodeHookImpl:
