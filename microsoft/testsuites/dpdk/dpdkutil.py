@@ -3,7 +3,7 @@ import time
 from collections import deque
 from decimal import Decimal
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -788,7 +788,7 @@ def get_l3fwd_queue_count(
 
 def _find_common_subnet_nic(
     first: Node, second: Node, nic: NicInfo
-) -> Union[NicInfo, None]:
+) -> Optional[NicInfo]:
     # given a nic on the first node,
     # get the nic on the second node which shares the same subnet
 
