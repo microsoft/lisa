@@ -754,7 +754,7 @@ class DpdkTestpmd(Tool):
         ]
 
         node.execute(
-            f"meson {' '.join(build_flags)} build",
+            f"meson setup {' '.join(build_flags)} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
