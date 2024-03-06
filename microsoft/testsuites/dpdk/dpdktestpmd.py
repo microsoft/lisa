@@ -513,7 +513,7 @@ class DpdkTestpmd(Tool):
             if not work_path:
                 self.node.features[Disk].add_data_disk(count=1, size_in_gb=100)
                 work_path = self.node.get_working_path_with_required_space(
-                    20, use_os_disk=False
+                    20, use_os_drive=False
                 )
             else:
                 self.node.tools[Chmod].chmod(work_path, "777", sudo=True)

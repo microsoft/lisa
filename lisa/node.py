@@ -436,14 +436,17 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         return ""
 
     def get_working_path_with_required_space(
-        self, required_size_in_gb: int, use_os_disk: bool = True
+        self, required_size_in_gb: int, use_os_drive: bool = True
     ) -> str:
         work_path = str(self.working_path)
         df = self.tools[Df]
         lisa_path_space = df.get_filesystem_available_space(work_path, force_run=True)
         if lisa_path_space < required_size_in_gb:
-            work_path = self.find_partition_with_freespace(required_size_in_gb)
-            self.tools[Chmod].chmod(work_path, "777", sudo=True)
+            work_path = self.find_partition_with_freespace(
+                required_size_in_gb, use_os_drive=use_os_drive
+            )
+            if work_path != "/":
+                self.tools[Chmod].chmod(work_path, "777", sudo=True)
         return work_path
 
     def get_working_path(self) -> PurePath:
