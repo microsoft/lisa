@@ -3,7 +3,7 @@ import time
 from collections import deque
 from decimal import Decimal
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -351,6 +351,9 @@ def initialize_node_resources(
         # forward message from distro exception
         raise SkippedException(err)
 
+    # reboot to clear any leftover changes
+    node.reboot()
+
     # verify SRIOV is setup as-expected on the node after compat check
     node.nics.check_pci_enabled(pci_enabled=True)
 
@@ -366,6 +369,7 @@ def initialize_node_resources(
         enforce_strict_threshold=enforce_strict_threshold,
         build_release=build_release,
     )
+
     # init and enable hugepages (required by dpdk)
     init_hugepages(node, enable_gibibyte_hugepages)
 
@@ -788,7 +792,7 @@ def get_l3fwd_queue_count(
 
 def _find_common_subnet_nic(
     first: Node, second: Node, nic: NicInfo
-) -> Union[NicInfo, None]:
+) -> Optional[NicInfo]:
     # given a nic on the first node,
     # get the nic on the second node which shares the same subnet
 
