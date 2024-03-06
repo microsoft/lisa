@@ -278,10 +278,10 @@ class CPUSuite(TestSuite):
             # reset max and current channel count into original ones
             # by reloading hv_netvsc driver if hv_netvsc can be reload
             # otherwise reboot vm
-            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
-                node.tools[Modprobe].reload(["hv_netvsc"])
-            else:
-                node.tools[Reboot].reboot()
+            # if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
+            #     node.tools[Modprobe].reload(["hv_netvsc"])
+            # else:
+            node.tools[Reboot].reboot()
 
             # change the combined channels count after all cpus online
             second_channel_count = random.randint(1, min(cpu_count, 64))
