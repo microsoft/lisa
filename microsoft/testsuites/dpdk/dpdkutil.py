@@ -366,6 +366,7 @@ def initialize_node_resources(
         enforce_strict_threshold=enforce_strict_threshold,
         build_release=build_release,
     )
+
     # init and enable hugepages (required by dpdk)
     init_hugepages(node, enable_gibibyte_hugepages)
 
