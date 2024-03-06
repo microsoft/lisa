@@ -484,9 +484,9 @@ class SigTransformerSchema(schema.Transformer):
     )
     osdisk_size_in_gb: int = field(default=30)
     gallery_image_disk_controller_type: str = field(
-        default=DiskControllerType.SCSI,
+        default="SCSI",
         metadata=field_metadata(
-            validate=validate.OneOf([DiskControllerType.SCSI, DiskControllerType.NVME])
+            validate=validate.OneOf(["SCSI", "NVMe,SCSI", "SCSI,NVMe"])
         ),
     )
 
