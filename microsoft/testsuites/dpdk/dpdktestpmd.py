@@ -482,7 +482,7 @@ class DpdkTestpmd(Tool):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # set source args for builds if needed, first for dpdk
-        self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
+        self._dpdk_source: str = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch: str = kwargs.pop("dpdk_branch", "")
         # then for rdma-core
         rdma_core_source = kwargs.pop("rdma_core_source", "")
@@ -682,7 +682,8 @@ class DpdkTestpmd(Tool):
         ):  # tools are already installed
             # version info must already be set from __init__
             return True
-
+        if self.node.shell.exists(self.node.get_pure_path("/DPDK_BUILD_BY_LISA")):
+            self.node.log
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
 
@@ -807,6 +808,21 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
             self._dpdk_lib_name, update_cached=True, update_envs=self._pkg_config_envs
         )
+        self.node.tools[Echo].write_to_file(
+            value=",".join([self._dpdk_source, self._dpdk_branch]),
+            file=self.node.get_pure_path("/DPDK_BUILD_BY_LISA"),
+            sudo=True,
+        )
+
+        # try to copy over the sample apps as well.
+        for app in self._sample_apps_to_build:
+            app_name = self.dpdk_build_path.joinpath("examples").joinpath(
+                f"dpdk-{str(app)}"
+            )
+            self.node.execute(
+                f"cp {str(app_name)} /usr/local/bin/{str(app_name)}", sudo=True
+            )
+
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
@@ -1095,7 +1111,7 @@ class DpdkTestpmd(Tool):
             if check_path:
                 bin_path = PurePosixPath(check_path).joinpath(bin_name)
                 bin_name = str(bin_path)
-            result = node.execute(f"which {bin_name}")
+            result = node.execute(f"which {bin_name}", shell=True, sudo=True)
             if result.exit_code == 0:
                 self._testpmd_install_path = result.stdout.strip()
                 break
