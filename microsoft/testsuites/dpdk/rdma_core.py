@@ -143,7 +143,10 @@ class RdmaCoreManager:
         distro = node.os
 
         # avoid second build
-        if node.shell.exists(node.get_pure_path("/.rdma-core-built")):
+        if (
+            node.execute("test -f /.rdma-core-built", shell=True, sudo=True).exit_code
+            == 0
+        ):
             return
 
         # setup looks at options and selects some reasonable defaults
