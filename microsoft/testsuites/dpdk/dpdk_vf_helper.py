@@ -20,7 +20,7 @@ class DpdkVfHelper:
     # single queue is implemented but unused to avoid test bloat
     _l3fwd_thresholds = {
         MLX_CX3: {
-            MULTI_QUEUE: {SEND: 10},
+            MULTI_QUEUE: {FWD: 10},
         },
         MLX_CX4: {
             MULTI_QUEUE: {FWD: 15},
