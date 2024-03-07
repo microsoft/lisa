@@ -898,9 +898,27 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
+    for nic in sender.nics.nics.values():
+        sender.log.info(f"Sender has nic: {str(nic)}")
+    for nic in receiver.nics.nics.values():
+        receiver.log.info(f"Receiver has nic: {str(nic)}")
+    for nic in forwarder.nics.nics.values():
+        forwarder.log.info(f"Receiver has nic: {str(nic)}")
+
+    fwd_send_nic = forwarder.nics.get_nic_by_index(send_side)
+    fwd_receiver_nic = forwarder.nics.get_nic_by_index(receive_side)
+    subnet_a_snd = _find_common_subnet_nic(forwarder, sender, fwd_send_nic)
+    subnet_b_rcv = _find_common_subnet_nic(forwarder, receiver, fwd_receiver_nic)
+    if subnet_a_snd == None or subnet_b_rcv == None:
+        raise LisaException(
+            "Could not find subnet pairs for all nics on the test nodes."
+        )
 
     forwarder.log.info("Running second ping...")
-    _ping_all_nodes_in_environment(environment)
+    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_send_nic.name)
+    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_receiver_nic.name)
+    sender.tools[Ping].ping(fwd_send_nic.ip_addr, subnet_a_snd.name)
+    receiver.tools[Ping].ping(fwd_receiver_nic.ip_addr, subnet_b_rcv.name)
 
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
@@ -911,14 +929,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Subnet A is actually the secondary NIC.
     #  Subnet B is actually the tertiary NIC.
     # For the test, don't sweat it. A is send side, B is receive side.
-    fwd_send_nic = forwarder.nics.get_nic_by_index(send_side)
-    fwd_receiver_nic = forwarder.nics.get_nic_by_index(receive_side)
-    subnet_a_snd = _find_common_subnet_nic(forwarder, sender, fwd_send_nic)
-    subnet_b_rcv = _find_common_subnet_nic(forwarder, receiver, fwd_receiver_nic)
-    if subnet_a_snd == None or subnet_b_rcv == None:
-        raise LisaException(
-            "Could not find subnet pairs for all nics on the test nodes."
-        )
 
     subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
