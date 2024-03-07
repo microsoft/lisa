@@ -692,11 +692,11 @@ def verify_dpdk_send_receive_multi_txrx_queue(
 
 def do_parallel_cleanup(environment: Environment) -> None:
     def _parallel_cleanup(node: Node) -> None:
+        node.reboot()
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
             # cleanup temporary hugepage and driver changes
-        node.reboot()
 
     run_in_parallel(
         [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
@@ -792,10 +792,16 @@ def _find_common_subnet_nic(
 ) -> Optional[NicInfo]:
     # given a nic on the first node,
     # get the nic on the second node which shares the same subnet
-
+    first.log.info(
+        f"Looking for nic matching {nic.name} on {nic.ip_addr} {nic.module_name}"
+    )
+    first.tools[Ip].get_info(nic.name)
     subnet = ipv4_to_lpm(nic.ip_addr)
     for nic_info in second.nics.nics.values():
-        if subnet == ipv4_to_lpm(nic_info.ip_addr):
+        if nic_info.lower and subnet == ipv4_to_lpm(nic_info.ip_addr):
+            first.log.info(
+                f"found matching nic {nic_info.name} {nic_info.ip_addr} {nic_info.module_name}"
+            )
             return nic_info
     return None
 
