@@ -870,6 +870,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException("l3 forward test needs >= 8 cores.")
 
     # ping everything before start
+    forwarder.log.info("Running first ping...")
     _ping_all_nodes_in_environment(environment)
 
     test_result = environment.source_test_result
@@ -893,25 +894,14 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     def _run_removal(node: Node, index: int) -> None:
         return node.features[NetworkInterface].remove_extra_nics(keep_index=index)
 
-    run_in_parallel(
-        [
-            partial(_run_removal, node=node, index=index)
-            for node, index in [(sender, 1), (receiver, 2)]
-        ]
-    )
     sender.close()
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
-    ping_forwarder(
-        forwarder,
-        [
-            sender,
-            receiver,
-        ],
-        [subnet_a_nics, subnet_b_nics],
-        test_phase="after nic removal",
-    )
+
+    forwarder.log.info("Running second ping...")
+    _ping_all_nodes_in_environment(environment)
+
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
@@ -941,6 +931,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             receiver,
         ],
         [subnet_a_nics, subnet_b_nics],
+        test_phase="After removal",
     )
 
     check_receiver_is_unreachable(
