@@ -3,8 +3,8 @@
 
 import re
 from math import ceil
-from pathlib import PurePosixPath
-from typing import Any, List, Tuple, Type, Union
+from pathlib import PurePath, PurePosixPath
+from typing import Any, List, Optional, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -482,6 +482,7 @@ class DpdkTestpmd(Tool):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # set source args for builds if needed, first for dpdk
+        self.dpdk_build_path: Optional[PurePath] = None
         self._dpdk_source: str = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch: str = kwargs.pop("dpdk_branch", "")
         # then for rdma-core
@@ -666,6 +667,20 @@ class DpdkTestpmd(Tool):
             self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
+        else:
+            if (
+                isinstance(distro, Debian)
+                or isinstance(distro, (Fedora, Suse))
+                and distro.package_exists("dpdk")
+            ):
+                # if not using package manager and dpdk is already installed, uninstall it
+                # in preperation for source build
+                distro.uninstall_packages("dpdk")
+            else:
+                raise NotImplementedError(
+                    "Dpdk package names are missing in dpdktestpmd.install"
+                    f" for os {distro.name}"
+                )
 
         # otherwise install from source tarball or git
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")

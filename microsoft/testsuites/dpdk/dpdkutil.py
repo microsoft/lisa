@@ -169,15 +169,24 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
             )
 
 
-def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+def _set_forced_source_by_distro(
+    node: Node, variables: Dict[str, Any], examples: Optional[List[str]]
+) -> None:
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    if (
+        isinstance(node.os, Ubuntu)
+        and node.os.information.version < "20.4.0"
+        or examples != None
+    ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+        if node.nics.is_mana_device_present():
+            variables["dpdk_branch"] = variables.get("dpdk_branch", "v23.11")
+        else:
+            variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def _ping_all_nodes_in_environment(environment: Environment) -> None:
@@ -319,7 +328,7 @@ def initialize_node_resources(
     extra_nics: Union[List[NicInfo], None] = None,
     build_release: bool = False,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
+    _set_forced_source_by_distro(node, variables, examples=sample_apps)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_core_source = variables.get("rdma_core_source", "")
@@ -892,15 +901,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
 
-    def _run_removal(node: Node, index: int) -> None:
-        return node.features[NetworkInterface].remove_extra_nics(keep_index=index)
+    def _run_removal(node: Node, keep_index: int) -> None:
+        return node.features[NetworkInterface].remove_extra_nics(keep_index=keep_index)
 
     _print_all_nics(forwarder, sender, receiver)
 
     run_in_parallel(
         [
-            partial(_run_removal, node, index)
-            for node, index in [(sender, send_side), (receiver, receive_side)]
+            partial(_run_removal, node, keep_index)
+            for node, keep_index in [(sender, send_side), (receiver, receive_side)]
         ]
     )
     sender.close()
@@ -1065,6 +1074,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     if l3fwd_check.exit_code == 0:
         server_app_path = l3fwd_check.stdout.strip()
     else:
+        assert (
+            fwd_kit.testpmd.dpdk_build_path != None
+        ), "DPDK build was not found, dpdk l3fwd was not found."
         examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
         server_app_path = examples_path.joinpath(
             l3fwd_app_name
