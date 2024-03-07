@@ -795,6 +795,7 @@ def _find_common_subnet_nic(
     first.log.info(
         f"Looking for nic matching {nic.name} on {nic.ip_addr} {nic.module_name}"
     )
+    first.tools[Ip].get_info()
     first.tools[Ip].get_info(nic.name)
     subnet = ipv4_to_lpm(nic.ip_addr)
     for nic_info in second.nics.nics.values():
