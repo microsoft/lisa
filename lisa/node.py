@@ -445,8 +445,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             work_path = self.find_partition_with_freespace(
                 required_size_in_gb, use_os_drive=use_os_drive
             )
-            if work_path != "/":
-                self.tools[Chmod].chmod(work_path, "777", sudo=True)
+            if work_path == "/":
+                work_path += "lisa_work_" + hex(randint(0, 0xFFFFFFFF))[2:]
+                self.shell.mkdir(self.get_pure_path(work_path), exist_ok=False)
+            self.tools[Chmod].chmod(work_path, "774", sudo=True)
         return work_path
 
     def get_working_path(self) -> PurePath:

@@ -23,14 +23,12 @@ from .kernel_installer import BaseInstaller, BaseInstallerSchema
 
 @dataclass_json()
 @dataclass
-class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin): ...
 
 
 @dataclass_json()
 @dataclass
-class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin): ...
 
 
 @dataclass_json()
@@ -422,6 +420,7 @@ class RepoLocation(BaseLocation):
 
         # create and give permission on code folder
         self._node.execute(f"mkdir -p {code_path}", sudo=True)
+        assert code_path != "/" "You're about to set WRX on the root dir! '/'"
         self._node.execute(f"chmod -R 777 {code_path}", sudo=True)
 
         self._log.info(f"cloning code from {runbook.repo} to {code_path}...")

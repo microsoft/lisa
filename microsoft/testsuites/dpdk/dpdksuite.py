@@ -867,3 +867,8 @@ class Dpdk(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         do_parallel_cleanup(environment)
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        environment: Environment = kwargs.pop("environment")
+        for node in environment.nodes.list():
+            node.nics.reload()

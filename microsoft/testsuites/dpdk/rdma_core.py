@@ -29,12 +29,15 @@ class RdmaCoreManager:
         self._rdma_core_source = rdma_core_source
         self._rdma_core_ref = rdma_core_ref
         # add space if none is available
-        build_location = node.find_partition_with_freespace(10, raise_error=False)
+        build_location = node.get_working_path_with_required_space(
+            10, use_os_drive=True
+        )
         if not build_location:
             node.features[Disk].add_data_disk(count=1, size_in_gb=20)
-            build_location = node.get_working_path_with_required_space(10)
-        else:
-            node.tools[Chmod].chmod(build_location, "777", sudo=True)
+            build_location = node.get_working_path_with_required_space(
+                10, use_os_drive=False
+            )
+        assert build_location, "Could not find a location to build rdma-core"
         self._build_location = node.get_pure_path(build_location).joinpath("rdma")
 
     def get_missing_distro_packages(self) -> str:
