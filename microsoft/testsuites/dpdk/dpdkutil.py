@@ -878,7 +878,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "LISA environment does not have a pointer to the test result object."
             "performance data reporting for this test will be broken!"
         )
-
+    ping_forwarder(
+        forwarder,
+        [
+            sender,
+            receiver,
+        ],
+        [subnet_a_nics, subnet_b_nics],
+        test_phase="before_test_starts",
+    )
     # we're about to fully ruin this environment, so mark these dirty before we start
     for node in [forwarder, sender, receiver]:
         node.mark_dirty()
@@ -889,6 +897,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
+    ping_forwarder(
+        forwarder,
+        [
+            sender,
+            receiver,
+        ],
+        [subnet_a_nics, subnet_b_nics],
+        test_phase="after_enable_ip_fwding",
+    )
 
     def _run_removal(node: Node, index: int) -> None:
         return node.features[NetworkInterface].remove_extra_nics(keep_index=index)
@@ -903,7 +920,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
-
+    ping_forwarder(
+        forwarder,
+        [
+            sender,
+            receiver,
+        ],
+        [subnet_a_nics, subnet_b_nics],
+        test_phase="after nic removal",
+    )
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
