@@ -16,12 +16,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import fnmatch
 import os
 import os.path
 import string
 import subprocess
 import sys
-import fnmatch
+
 
 def get_folders_with_string(root_path, folder_name_contains):
     matching_folders = [] 
@@ -41,11 +42,11 @@ for folder in matching_folders:
     break
 os.chdir(folder)
 
-from Utils import HandlerUtil 
-from patch import GetMyPatching
 from backuplogger import Backuplogger
 from common import CommonVariables
-from Utils import SizeCalculation
+from patch import GetMyPatching
+from Utils import HandlerUtil, SizeCalculation
+
 try:
     from unittest.mock import MagicMock
 except ImportError:
