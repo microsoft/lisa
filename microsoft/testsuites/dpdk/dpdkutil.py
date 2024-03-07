@@ -864,15 +864,24 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
+    forwarder_distro = forwarder.os
     is_recent_ubuntu = (
-        isinstance(forwarder.os, Ubuntu)
-        and forwarder.os.information.version >= "22.4.0"
+        isinstance(forwarder_distro, Ubuntu)
+        and forwarder_distro.information.version >= "22.4.0"
     )
     is_recent_rhel = (
-        isinstance(forwarder.os, Fedora) and forwarder.os.information.version >= "8.9.0"
+        isinstance(forwarder_distro, Fedora)
+        and forwarder_distro.information.version >= "8.9.0"
     )
     if not (is_recent_ubuntu or is_recent_rhel):
         raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+
+    # uninstall DPDK if it exists, l3fwd requires a source build.
+    if (
+        isinstance(forwarder_distro, Ubuntu) or isinstance(forwarder_distro, Fedora)
+    ) and forwarder_distro.package_exists("dpdk"):
+        forwarder_distro.uninstall_packages("dpdk")
+        _set_forced_source_by_distro(forwarder, variables=variables, examples=["l3fwd"])
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
