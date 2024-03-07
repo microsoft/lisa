@@ -115,7 +115,7 @@ class Waagent(Tool):
         waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
-        cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
+        cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run, sudo=True).stdout
         for line in cfg.splitlines():
             matched = self._key_value_regex.fullmatch(line)
             if matched:
