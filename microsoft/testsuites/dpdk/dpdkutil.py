@@ -894,16 +894,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     def _run_removal(node: Node, index: int) -> None:
         return node.features[NetworkInterface].remove_extra_nics(keep_index=index)
 
+    _print_all_nics(forwarder, sender, receiver)
+
+    run_in_parallel(
+        [
+            partial(_run_removal, node, index)
+            for node, index in [(sender, send_side), (receiver, receive_side)]
+        ]
+    )
     sender.close()
     receiver.close()
     sender.nics.reload()
     receiver.nics.reload()
-    for nic in sender.nics.nics.values():
-        sender.log.info(f"Sender has nic: {str(nic)}")
-    for nic in receiver.nics.nics.values():
-        receiver.log.info(f"Receiver has nic: {str(nic)}")
-    for nic in forwarder.nics.nics.values():
-        forwarder.log.info(f"Receiver has nic: {str(nic)}")
+
+    _print_all_nics(forwarder, sender, receiver)
 
     fwd_send_nic = forwarder.nics.get_nic_by_index(send_side)
     fwd_receiver_nic = forwarder.nics.get_nic_by_index(receive_side)
@@ -915,10 +919,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
 
     forwarder.log.info("Running second ping...")
-    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_send_nic.name)
-    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_receiver_nic.name)
-    sender.tools[Ping].ping(fwd_send_nic.ip_addr, subnet_a_snd.name)
-    receiver.tools[Ping].ping(fwd_receiver_nic.ip_addr, subnet_b_rcv.name)
+    check_forwarder_is_reachable(
+        (forwarder, fwd_send_nic, fwd_receiver_nic),
+        (sender, subnet_a_snd),
+        (receiver, subnet_b_rcv),
+        test_phase="after removal",
+    )
 
     # create sender/receiver ntttcp instances
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
@@ -934,14 +940,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
 
     # ping forwarder from sender and receiver
-    ping_forwarder(
-        forwarder,
-        [
-            sender,
-            receiver,
-        ],
-        [subnet_a_nics, subnet_b_nics],
-        test_phase="After removal",
+    check_forwarder_is_reachable(
+        (forwarder, fwd_send_nic, fwd_receiver_nic),
+        (sender, subnet_a_snd),
+        (receiver, subnet_b_rcv),
+        test_phase="after ntttcp install...",
     )
 
     check_receiver_is_unreachable(
@@ -1232,6 +1235,31 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             f"l3fwd strict throughput check failed, for hw {hw_name} "
             f"expected throughput >= {threshold} GBps!"
         ).is_greater_than_or_equal_to(threshold)
+
+
+def check_forwarder_is_reachable(
+    forwarder_info: Tuple[Node, NicInfo, NicInfo],
+    sender_info: Tuple[Node, NicInfo],
+    receiver_info: Tuple[Node, NicInfo],
+    test_phase: str = "",
+) -> None:
+    forwarder, fwd_send_nic, fwd_receiver_nic = forwarder_info
+    sender, subnet_a_snd = sender_info
+    receiver, subnet_b_rcv = receiver_info
+    forwarder.log.info(f"Running ping test {test_phase}...")
+    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_send_nic.name)
+    forwarder.tools[Ping].ping(subnet_b_rcv.ip_addr, fwd_receiver_nic.name)
+    sender.tools[Ping].ping(fwd_send_nic.ip_addr, subnet_a_snd.name)
+    receiver.tools[Ping].ping(fwd_receiver_nic.ip_addr, subnet_b_rcv.name)
+
+
+def _print_all_nics(forwarder: Node, sender: Node, receiver: Node):
+    for nic in sender.nics.nics.values():
+        sender.log.info(f"Sender has nic: {str(nic)}")
+    for nic in receiver.nics.nics.values():
+        receiver.log.info(f"Receiver has nic: {str(nic)}")
+    for nic in forwarder.nics.nics.values():
+        forwarder.log.info(f"Receiver has nic: {str(nic)}")
 
 
 def check_receiver_is_unreachable(
