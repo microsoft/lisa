@@ -147,8 +147,10 @@ class DpdkVfHelper:
 
 
 def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
-    if not variables.get("dpdk_source", None):
+    source = variables.get("dpdk_source", None)
+    if not source or source == "package_manager":
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
+        variables["dpdk_branch"] = "v23.11"
 
 
 # rough check for ubuntu supported versions.

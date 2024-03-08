@@ -83,7 +83,7 @@ class DpdkTestpmd(Tool):
     @property
     def command(self) -> str:
         if not self._testpmd_install_path:
-            return "testpmd"
+            return "dpdk-testpmd"
         return self._testpmd_install_path
 
     _ubuntu_packages_1804 = [
