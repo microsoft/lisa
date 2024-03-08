@@ -101,7 +101,10 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         resource_group_name = runbook.shared_resource_group_name
         application_id = runbook.service_principal_client_id
         node_context = get_node_context(node)
-        vault_name = f"lisa-kve-{platform.subscription_id[-5:]}-{node_context.location}"
+        # A vault's name must be between 3-24 alphanumeric characters.
+        vault_name = (
+            f"lisa-kv{platform.subscription_id[-6:]}{node_context.location[:11]}"
+        )
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
