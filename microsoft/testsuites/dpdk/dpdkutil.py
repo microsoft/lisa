@@ -881,7 +881,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         isinstance(forwarder_distro, Ubuntu) or isinstance(forwarder_distro, Fedora)
     ) and forwarder_distro.package_exists("dpdk"):
         forwarder_distro.uninstall_packages("dpdk")
-        _set_forced_source_by_distro(forwarder, variables=variables, examples=["l3fwd"])
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
