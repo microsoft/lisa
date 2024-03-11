@@ -91,6 +91,9 @@ class NetworkSettings(TestSuite):
 
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[BSD],
+        ),
     )
     def verify_ringbuffer_settings_change(self, node: Node) -> None:
         ethtool = node.tools[Ethtool]
