@@ -58,8 +58,6 @@ class Gcc(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(posix_os, BSD):
             posix_os.install_packages("lang/gcc")
-            expected_state = self.get_version()
-            self._log.info(f"GCC Version: {expected_state}")
         else:
             posix_os.install_packages("gcc")
         return self._check_exists()
