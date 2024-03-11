@@ -9,7 +9,7 @@ variable:
   - name: resource_group_name
     value: ""
   - name: marketplace_image
-    value: "thefreebsdfoundation freebsd-13_2 13_2-release 13.2.0"
+    value: ""
   - name: vhd
     value: ""
   - name: vm_size
@@ -48,6 +48,3 @@ platform:
         vhd: $(vhd)
         location: $(location)
         vm_size: $(vm_size)
-testcase:
-  - criteria:
-      name: perf_tcp_ntttcp_synthetic
