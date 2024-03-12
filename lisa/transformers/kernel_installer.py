@@ -159,16 +159,22 @@ class KernelInstallerTransformer(DeploymentTransformer):
 
             if (
                 isinstance(installer, RepoInstaller)
-                and installer.runbook.source != "linux-image-azure-fde"
+                and "fde" not in installer.runbook.source
             ) or (
                 isinstance(installer, SourceInstaller)
                 and not isinstance(installer, Dom0Installer)
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
-            elif isinstance(installer, RepoInstaller):
+            elif (
+                isinstance(installer, RepoInstaller)
+                and "fde" in installer.runbook.source
+            ):
+                # For fde/cvm kernels, it needs to remove the old
+                # kernel.efi files after installing the new kernel
+                # Ex: /boot/efi/EFI/ubuntu/kernel.efi-6.2.0-1019-azure
                 efi_files = node.execute(
-                    "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
+                    "ls -t /boot/efi/EFI/ubuntu/kernel.efi-*",
                     sudo=True,
                     shell=True,
                     expected_exit_code=0,
@@ -177,19 +183,13 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         " linux-image-azure-fde"
                     ),
                 )
-                efi_file = efi_files.stdout.splitlines()[0]
-                node.execute(
-                    (
-                        "cp /boot/efi/EFI/ubuntu/grubx64.efi "
-                        "/boot/efi/EFI/ubuntu/grubx64.efi.bak"
-                    ),
-                    sudo=True,
-                )
-                node.execute(
-                    f"cp {efi_file} /boot/efi/EFI/ubuntu/grubx64.efi",
-                    sudo=True,
-                    shell=True,
-                )
+                for old_efi_file in efi_files.stdout.splitlines()[1:]:
+                    self._log.info(f"Removing old kernel efi file: {old_efi_file}")
+                    node.execute(
+                        f"rm -f {old_efi_file}",
+                        sudo=True,
+                        shell=True,
+                    )
 
             self._log.info("rebooting")
             node.reboot(time_out=900)
