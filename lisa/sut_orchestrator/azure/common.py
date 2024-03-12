@@ -292,6 +292,8 @@ class AzureNodeSchema:
 
     _vhd: InitVar[Optional[VhdSchema]] = None
 
+    _orignal_vhd_path: str = ""
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
         strip_strs(
@@ -553,6 +555,7 @@ class AzureNodeSchema:
                 vhd = None
             else:
                 add_secret(vhd.vhd_path, PATTERN_URL)
+                self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
                 if vhd.vmgs_path:
                     add_secret(vhd.vmgs_path, PATTERN_URL)
                 # this step makes vhd_raw is validated, and
@@ -562,6 +565,7 @@ class AzureNodeSchema:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
             vhd = VhdSchema(vhd_path=self.vhd_raw)
             add_secret(vhd.vhd_path, PATTERN_URL)
+            self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
             self.vhd_raw = vhd.to_dict()  # type: ignore
         self._vhd = vhd
         if vhd:
@@ -579,8 +583,8 @@ class AzureNodeSchema:
 
     def get_image_name(self) -> str:
         result = ""
-        if self.vhd and self.vhd.vhd_path:
-            result = self.vhd.vhd_path
+        if self._orignal_vhd_path:
+            result = self._orignal_vhd_path
         elif self.shared_gallery:
             assert isinstance(
                 self.shared_gallery_raw, dict
