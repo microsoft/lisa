@@ -475,7 +475,7 @@ class DpdkTestpmd(Tool):
 
     def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
         if apps:
-            self._sample_apps_to_build = apps
+            self._sample_apps_to_build += apps
         else:
             self._sample_apps_to_build = []
 
@@ -492,7 +492,7 @@ class DpdkTestpmd(Tool):
             rdma_core_source=rdma_core_source,
             rdma_core_ref=rdma_core_ref,
         )
-        self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        self._sample_apps_to_build = kwargs.pop("sample_apps", list())
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._pkg_config_envs = {
@@ -815,12 +815,10 @@ class DpdkTestpmd(Tool):
         )
 
         # try to copy over the sample apps as well.
-        for app in self._sample_apps_to_build:
-            app_name = self.dpdk_build_path.joinpath("examples").joinpath(
-                f"dpdk-{str(app)}"
-            )
+        if self._sample_apps_to_build:
+            example_path = self.dpdk_build_path.joinpath("examples")
             self.node.execute(
-                f"cp {str(app_name)} /usr/local/bin/{str(app_name)}", sudo=True
+                f"cp {str(example_path)}/* /usr/local/bin/{str(app_name)}", sudo=True
             )
 
         return True
