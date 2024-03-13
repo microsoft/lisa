@@ -4,6 +4,7 @@ import random
 import re
 import string
 import sys
+from copy import deepcopy
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -499,7 +500,9 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
         else:
             raise LisaException(f"field '{field_name}' doesn't exist on src")
         if field_value is not None:
-            setattr(dest, field_name, field_value)
+            # deep copy, to avoid reference issue.
+            copied_value = deepcopy(field_value)
+            setattr(dest, field_name, copied_value)
 
 
 def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[Any]]:
