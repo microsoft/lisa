@@ -1188,8 +1188,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     ntttcp_threads_count = 64
     # start the receiver
 
-    receiver.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
-    sender.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
+    receiver.execute("lspci; ip addr; ip link; ip route;", shell=True, sudo=True)
+    sender.execute("lspci; ip addr; ip link; ip route;", shell=True, sudo=True)
     ports_count = 64
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
@@ -1286,7 +1286,7 @@ def _print_all_nics(forwarder: Node, sender: Node, receiver: Node):
     for nic in receiver.nics.nics.values():
         receiver.log.info(f"Receiver has nic: {str(nic)}")
     for nic in forwarder.nics.nics.values():
-        forwarder.log.info(f"Receiver has nic: {str(nic)}")
+        forwarder.log.info(f"Forwader has nic: {str(nic)}")
 
 
 def check_receiver_is_unreachable(
