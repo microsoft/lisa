@@ -19,6 +19,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.operating_system import Debian
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -144,10 +145,16 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     break
 
         # installing all the required packages
-        # install python3 and pip
+        # install python3
         python = node.tools[Python]
-        pip = node.tools[Pip]
-        pip.install_packages("mock")
+        if isinstance(node.os, Debian):
+            package_name = "python3-mock"
+            node.os.install_packages(package_name)
+        else:
+            # install pip
+            pip = node.tools[Pip]
+            pip.install_packages("mock")
+
         # copy the file into the vm
         self._copy_to_node(node, "handle.txt")
         assert extension_dir, "Unable to find the extension directory."
