@@ -48,6 +48,12 @@ class CloudHypervisorTests(Tool):
     use_ms_hypervisor_fw = ""
     use_ms_ovmf_fw = ""
 
+    # Block perf related env var
+    use_datadisk = ""
+    datadisk_name = ""
+    disable_datadisk_cache = ""
+    block_size_kb = ""
+
     cmd_path: PurePath
     repo_root: PurePath
 
@@ -241,6 +247,15 @@ class CloudHypervisorTests(Tool):
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
             if self.use_ms_ovmf_fw:
                 self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
+
+            if self.use_datadisk:
+                self.env_vars["USE_DATADISK"] = self.use_datadisk
+            if self.datadisk_name:
+                self.env_vars["DATADISK_NAME"] = self.datadisk_name
+            if self.disable_datadisk_cache:
+                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
+            if self.block_size_kb:
+                self.env_vars["PERF_BLOCK_SIZE_KB"] = self.block_size_kb
         else:
             git.clone(self.upstream_repo, clone_path)
 
