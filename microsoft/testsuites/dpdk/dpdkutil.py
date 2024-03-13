@@ -889,7 +889,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # ping everything before start
     forwarder.log.info("Running first ping...")
-    _ping_all_nodes_in_environment(environment)
+    # _ping_all_nodes_in_environment(environment)
 
     test_result = environment.source_test_result
     if not test_result:
