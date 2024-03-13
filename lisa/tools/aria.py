@@ -1,5 +1,7 @@
 from typing import Optional
 
+from retry import retry
+
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -51,6 +53,7 @@ class Aria(Tool):
 
         return self._check_exists()
 
+    @retry(tries=10, delay=1)
     def get(
         self,
         url: str,
@@ -88,6 +91,8 @@ class Aria(Tool):
             sudo=sudo,
             force_run=force_run,
             timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to download file.",
         )
 
         return download_path
