@@ -91,6 +91,8 @@ class Make(Tool):
                 timeout=timeout,
                 force_run=True,
                 update_envs=update_envs,
+                no_debug_log=True,
+                no_info_log=True,
             )
 
         if ignore_error:
@@ -105,5 +107,9 @@ class Make(Tool):
             update_envs=update_envs,
             expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message="Failed to make",
+            no_debug_log=True,
+            no_info_log=True,
         )
+        if result.exit_code == 0:
+            self.node.log.info(f"Succesful make in dir: {str(cwd)}")
         return result

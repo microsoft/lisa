@@ -254,6 +254,8 @@ class RdmaCoreManager:
             shell=True,
             cwd=source_path,
             sudo=True,
+            no_debug_log=True,
+            no_info_log=True,
         )
         make.make_install(source_path)
         node.execute("touch /.rdma-core-built", shell=True, sudo=True)

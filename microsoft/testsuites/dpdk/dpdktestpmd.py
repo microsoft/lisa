@@ -771,6 +771,8 @@ class DpdkTestpmd(Tool):
                 "dpdk build has not changed to eliminate the use of meson or "
                 "meson version is compatible with this dpdk version and OS."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
         self.dpdk_build_path = self.dpdk_path.joinpath("build")
         node.log.debug(f"Building DPDK in dir: {self.dpdk_build_path}")
@@ -784,6 +786,8 @@ class DpdkTestpmd(Tool):
                 "or dependencies. Also check that this ninja version requirement "
                 "has not changed for dpdk."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
         node.execute(
             "ninja install",
@@ -793,6 +797,8 @@ class DpdkTestpmd(Tool):
             expected_exit_code_failure_message=(
                 "ninja install failed for dpdk binaries."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
 
         node.execute(
