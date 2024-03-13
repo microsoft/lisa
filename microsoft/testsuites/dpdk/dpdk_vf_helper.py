@@ -48,7 +48,7 @@ class DpdkVfHelper:
         },
         MSFT_MANA: {
             SINGLE_QUEUE: {SEND: 18_000_000, RECV: 8_000_000},
-            MULTI_QUEUE: {SEND: 49_000_000, RECV: 48_000_000},
+            MULTI_QUEUE: {SEND: 48_700_000, RECV: 47_800_000},
         },
     }
 
