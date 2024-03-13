@@ -817,9 +817,7 @@ class DpdkTestpmd(Tool):
         # try to copy over the sample apps as well.
         if self._sample_apps_to_build:
             example_path = self.dpdk_build_path.joinpath("examples")
-            self.node.execute(
-                f"cp {str(example_path)}/* /usr/local/bin/{str(app_name)}", sudo=True
-            )
+            self.node.execute(f"cp {str(example_path)}/* /usr/local/bin/", sudo=True)
 
         return True
 

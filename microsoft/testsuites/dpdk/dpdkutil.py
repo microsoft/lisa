@@ -918,7 +918,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
     subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
-
+    forwarder.log.info(
+        f"subnet_a: sender {str(subnet_a_snd)} forwarder {str(fwd_send_nic)}"
+    )
+    forwarder.log.info(
+        f"subnet_a: sender {str(subnet_b_rcv)} forwarder {str(fwd_receiver_nic)}"
+    )
     # ping forwarder from sender and receiver
     ping_forwarder(
         forwarder,
@@ -1146,21 +1151,22 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     receiver.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
     sender.tools[Ip].run("route", force_run=True, shell=True, sudo=True)
-
+    ports_count = 64
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
-        run_time_seconds=30,
+        run_time_seconds=300,
         buffer_size=1024,
+        ports_count=ports_count,
         server_ip=subnet_b_nics[receiver].ip_addr,
     )
-
+    receiver_proc.wait_output(f"INFO: {ports_count+1} threads created")
     # start the sender
 
     sender_result = ntttcp[sender].run_as_client(
         nic_name=subnet_a_nics[sender].name,
         server_ip=subnet_b_nics[receiver].ip_addr,
         threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
+        run_time_seconds=260,
     )
 
     # collect, log, and process results
