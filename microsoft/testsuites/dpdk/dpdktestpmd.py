@@ -826,9 +826,9 @@ class DpdkTestpmd(Tool):
         if self._sample_apps_to_build:
             example_path = self.dpdk_build_path.joinpath("examples")
             self.node.execute(
-                f"cp {str(example_path)}/* /usr/local/bin/{str(app_name)}", sudo=True
+                f"cp {str(example_path)}/* /usr/local/bin/", shell=True, sudo=True
             )
-
+            self.node.execute(f"ls -la /usr/local/bin/*", shell=True, sudo=True)
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
