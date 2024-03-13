@@ -1201,13 +1201,21 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver_proc.wait_output(f"INFO: {ports_count+1} threads created")
     # start the sender
 
-    sender_result = ntttcp[sender].run_as_client(
-        nic_name=subnet_a_nics[sender].name,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-        threads_count=ntttcp_threads_count,
-        run_time_seconds=260,
-    )
-
+    try:
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=260,
+        )
+    except AssertionError:
+        sender.log.warn("Retrying start  for sender...")
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=260,
+        )
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
     log.debug(f"result: {receiver_result.stdout}")
