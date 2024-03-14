@@ -667,7 +667,12 @@ class TestSuite:
             )
 
             if case_result.status == TestStatus.FAILED:
-                self.__save_serial_log(environment, case_log_path)
+                try:
+                    self.__save_serial_log(environment, case_log_path)
+                except Exception as e:
+                    suite_log.debug(
+                        f"exception thrown during serial console log read. [{e}]"
+                    )
 
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
