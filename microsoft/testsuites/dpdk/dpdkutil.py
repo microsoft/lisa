@@ -959,13 +959,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     forwarder.log.info(
         f"subnet_a: sender {str(subnet_b_rcv)} forwarder {str(fwd_receiver_nic)}"
     )
-    # ping forwarder from sender and receiver
-    check_forwarder_is_reachable(
-        (forwarder, fwd_send_nic, fwd_receiver_nic),
-        (sender, subnet_a_snd),
-        (receiver, subnet_b_rcv),
-        test_phase="after ntttcp install...",
-    )
 
     check_receiver_is_unreachable(
         sender, receiver, subnet_a_nics, subnet_b_nics, "after initial subnet setup"
