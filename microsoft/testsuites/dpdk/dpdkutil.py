@@ -903,8 +903,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         node.mark_dirty()
 
     # enable ip forwarding on secondary and tertiary nics
-    run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
-    # __enable_ip_forwarding(forwarder)
+    # run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
+    __enable_ip_forwarding(forwarder)
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
@@ -943,9 +943,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         (receiver, subnet_b_rcv),
         test_phase="after removal",
     )
-
-    # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
@@ -1165,6 +1162,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
+
+    # create sender/receiver ntttcp instances
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # START THE TEST
     # finally, start the forwarder
