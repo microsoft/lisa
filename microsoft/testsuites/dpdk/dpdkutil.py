@@ -862,6 +862,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     l3fwd_app_name = "dpdk-l3fwd"
     send_side = 1
     receive_side = 2
+    test_duration: int = variables.get("dpdk_test_duration", 120)
+
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
     forwarder_distro = forwarder.os
@@ -1186,7 +1188,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     ports_count = 64
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
-        run_time_seconds=300,
+        run_time_seconds=test_duration + 15,
         buffer_size=1024,
         ports_count=ports_count,
         server_ip=subnet_b_nics[receiver].ip_addr,
@@ -1199,7 +1201,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             nic_name=subnet_a_nics[sender].name,
             server_ip=subnet_b_nics[receiver].ip_addr,
             threads_count=ntttcp_threads_count,
-            run_time_seconds=260,
+            run_time_seconds=test_duration,
         )
     except AssertionError:
         sender.log.warn("Retrying start  for sender...")
@@ -1207,7 +1209,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             nic_name=subnet_a_nics[sender].name,
             server_ip=subnet_b_nics[receiver].ip_addr,
             threads_count=ntttcp_threads_count,
-            run_time_seconds=260,
+            run_time_seconds=test_duration,
         )
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
