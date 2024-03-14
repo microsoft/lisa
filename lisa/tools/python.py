@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import TYPE_CHECKING, List, Type
+from typing import TYPE_CHECKING, List, Type, cast
 
 from assertpy import assert_that
 
@@ -11,7 +11,7 @@ from lisa.executable import Tool
 if TYPE_CHECKING:
     from lisa.node import Node
 
-from lisa.operating_system import Posix
+from lisa.operating_system import Posix, BSD
 from lisa.tools.mkdir import Mkdir
 from lisa.util import UnsupportedDistroException, get_matched_str
 
@@ -52,8 +52,12 @@ class Pip(Tool):
 
     def _install(self) -> bool:
         package_name = "python3-pip"
+        posix_os: Posix = cast(Posix, self.node.os)
         assert isinstance(self.node.os, Posix)
-        self.node.os.install_packages(package_name)
+        if isinstance(posix_os, BSD):
+            posix_os.install_packages("py38-pip")
+        else:
+            self.node.os.install_packages(package_name)
         return self._check_exists()
 
     def install_packages(self, packages_name: str, install_path: str = "") -> None:
