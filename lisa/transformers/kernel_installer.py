@@ -74,6 +74,11 @@ class KernelInstallerTransformerSchema(DeploymentTransformerSchema):
         default=None, metadata=field_metadata(required=True)
     )
     raise_exception: Optional[bool] = True
+    # Set to False if we don't want to fail the process
+    # when the kernel version is not changed after installing the kernel.
+    # In some scenarios, we don't know the kernel version before the installation and
+    # whether the installed kernel version has been tested or not.
+    check_kernel_version: Optional[bool] = True
 
 
 class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
@@ -197,9 +202,10 @@ class KernelInstallerTransformer(DeploymentTransformer):
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
             self._log.info(f"kernel version after install: " f"{new_kernel_version}")
-            assert_that(
-                new_kernel_version.kernel_version_raw, "Kernel installation Failed"
-            ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
+            if runbook.check_kernel_version:
+                assert_that(
+                    new_kernel_version.kernel_version_raw, "Kernel installation Failed"
+                ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
         except Exception as e:
             message.error_message = str(e)
             if runbook.raise_exception:
