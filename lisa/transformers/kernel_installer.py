@@ -201,8 +201,11 @@ class KernelInstallerTransformer(DeploymentTransformer):
             boot_success = True
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
-            self._log.info(f"kernel version after install: " f"{new_kernel_version}")
-            if runbook.check_kernel_version:
+            self._log.info(
+                f"kernel version after install: {new_kernel_version}, "
+                f"{runbook.check_kernel_version}"
+            )
+            if runbook.check_kernel_version is True:
                 assert_that(
                     new_kernel_version.kernel_version_raw, "Kernel installation Failed"
                 ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
