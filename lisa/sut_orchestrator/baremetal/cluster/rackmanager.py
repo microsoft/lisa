@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Any, Type
+from pathlib import Path
+from typing import Any, Optional, Type
 
 from lisa import features, schema
 from lisa.environment import Environment
@@ -34,6 +35,11 @@ class RackManagerStartStop(features.StartStop):
     def _restart(self, wait: bool = True) -> None:
         self.init_rack_manager()
         self.cluster.reset("reset")
+
+
+class RackManagerSerialConsole(features.SerialConsole):
+    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
+        return b""
 
 
 class RackManager(Cluster):
