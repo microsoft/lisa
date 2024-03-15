@@ -1,15 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 import os
 import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, partial
-from pathlib import Path
+from pathlib import Path, PurePath
 from threading import Lock
-from time import sleep
+from time import sleep, time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import requests
@@ -71,7 +72,7 @@ from azure.storage.blob import (
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
 from marshmallow import validate
-from msrestazure.azure_cloud import Cloud  # type: ignore
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
 from retry import retry
 
@@ -141,6 +142,7 @@ global_credential_access_lock = Lock()
 # to create the same storage account at the same time.
 # add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
+_global_download_blob_lock = Lock()
 
 MARKETPLACE_IMAGE_KEYS = ["publisher", "offer", "sku", "version"]
 SIG_IMAGE_KEYS = [
@@ -1232,50 +1234,72 @@ def generate_sas_token(
 
 
 def get_blob_service_client(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    account_name: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
 ) -> BlobServiceClient:
     """
     Create a Azure Storage container if it does not exist.
     """
-    shared_key_credential = get_storage_credential(
-        credential=credential,
-        subscription_id=subscription_id,
-        cloud=cloud,
-        account_name=account_name,
-        resource_group_name=resource_group_name,
-    )
-    blob_service_client = BlobServiceClient(
-        f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
-        shared_key_credential,
-    )
+    blob_service_client: BlobServiceClient
+    if connection_string:
+        blob_service_client = BlobServiceClient.from_connection_string(
+            connection_string
+        )
+    else:
+        assert (
+            subscription_id
+        ), "subscription_id is required, if connection_string is not set."
+        assert (
+            account_name
+        ), "account_name is required, if connection_string is not set."
+        assert (
+            resource_group_name
+        ), "resource_group_name is required, if connection_string is not set."
+        storage_credential = get_storage_credential(
+            credential=credential,
+            subscription_id=subscription_id,
+            cloud=cloud,
+            account_name=account_name,
+            resource_group_name=resource_group_name,
+        )
+        blob_service_client = BlobServiceClient(
+            f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
+            storage_credential,
+        )
     return blob_service_client
 
 
 def get_or_create_storage_container(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
     container_name: str,
-    resource_group_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    account_name: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+    allow_create: bool = True,
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
     """
     blob_service_client = get_blob_service_client(
+        cloud,
         credential,
         subscription_id,
-        cloud,
         account_name,
         resource_group_name,
+        connection_string,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
-        container_client.create_container()
+        if allow_create:
+            container_client.create_container()
+        else:
+            raise LisaException(f"container {container_name} does not exist.")
     return container_client
 
 
@@ -2065,7 +2089,8 @@ def check_blob_exist(
     container_name: str,
     resource_group_name: str,
     blob_name: str,
-) -> bool:
+    raise_error: bool = True,
+) -> None:
     container_client = get_or_create_storage_container(
         credential=platform.credential,
         subscription_id=platform.subscription_id,
@@ -2073,9 +2098,112 @@ def check_blob_exist(
         account_name=account_name,
         container_name=container_name,
         resource_group_name=resource_group_name,
+        allow_create=False,
     )
     blob_client = container_client.get_blob_client(blob_name)
-    return blob_client.exists()
+    blob_exist = blob_client.exists()
+    if raise_error and not blob_exist:
+        raise LisaException(f"Blob {blob_name} does not exist.")
+
+
+def download_blob(
+    account_name: str,
+    container_name: str,
+    blob_name: str,
+    file_path: Path,
+    log: Logger,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+) -> PurePath:
+    container_client = get_or_create_storage_container(
+        container_name,
+        credential,
+        subscription_id,
+        cloud,
+        account_name,
+        resource_group_name,
+        connection_string,
+        False,
+    )
+    blob_client = container_client.get_blob_client(blob_name)
+    if not blob_client.exists():
+        raise LisaException(f"Blob {blob_name} not found in container {container_name}")
+    try:
+        with _global_download_blob_lock:
+            blob_properties = blob_client.get_blob_properties()
+            if file_path.exists():
+                blob_hash = blob_properties.content_settings.content_md5
+                if blob_hash:
+                    blob_hash_hex = "".join(f"{byte:02x}" for byte in blob_hash)
+                    if _calculate_hash(file_path) == blob_hash_hex:
+                        log.debug(
+                            f"Blob {blob_name} already exists in {file_path}. "
+                            "No need to download again."
+                        )
+                        return file_path
+
+            blob_size = blob_properties["size"]
+            downloaded_size = 0
+            start_time = time()
+            log_interval = 10
+            next_log_time = start_time + log_interval
+            with open(file_path, "wb") as file:
+                download_stream = blob_client.download_blob()
+                for chunk in download_stream.chunks():
+                    file.write(chunk)
+                    downloaded_size += len(chunk)
+                    percentage = (downloaded_size / blob_size) * 100
+                    current_time = time()
+                    if current_time >= next_log_time:
+                        log.debug(
+                            f"Downloaded {downloaded_size}/{blob_size} bytes "
+                            f"({percentage:.2f}% complete)"
+                        )
+                        next_log_time = current_time + log_interval
+
+            log.debug("Blob downloaded successfully.")
+    except Exception as e:
+        raise LisaException("An error occurred during blob download.") from e
+    return file_path
+
+
+def _calculate_hash(file_path: Path) -> str:
+    hash_func = hashlib.md5()
+    with open(file_path, "rb") as file:
+        for chunk in iter(lambda: file.read(4096), b""):
+            hash_func.update(chunk)
+    return hash_func.hexdigest()
+
+
+def list_blobs(
+    account_name: str,
+    container_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+    include: str = "",
+    name_starts_with: str = "",
+) -> List[Any]:
+    container_client = get_or_create_storage_container(
+        container_name=container_name,
+        credential=credential,
+        subscription_id=subscription_id,
+        cloud=cloud,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        connection_string=connection_string,
+        allow_create=False,
+    )
+    if name_starts_with:
+        return list(container_client.list_blobs(name_starts_with=name_starts_with))
+    if include:
+        return list(container_client.list_blobs(include=include))
+    return list(container_client.list_blobs())
 
 
 class DataDisk:

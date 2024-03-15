@@ -58,6 +58,7 @@ from lisa.tools import (
     Dmesg,
     Find,
     IpInfo,
+    LisDriver,
     Ls,
     Lsblk,
     Lspci,
@@ -641,6 +642,16 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             return
         else:
             raise LisaException("GPU Extension Provisioning Failed")
+
+    def install_compute_sdk(self, version: str = "") -> None:
+        try:
+            # install LIS driver if required and not already installed.
+            self._node.tools[LisDriver]
+        except Exception as identifier:
+            self._log.debug(
+                f"LisDriver is not installed. It might not be required. {identifier}"
+            )
+        super().install_compute_sdk(version)
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
