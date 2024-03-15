@@ -28,8 +28,8 @@ from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
     check_or_create_storage_account,
     get_node_context,
-    get_or_create_storage_container,
     get_storage_credential,
+    list_blobs,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -130,17 +130,14 @@ class AzurePerformanceDiagnostics(TestSuite):
         ).is_equal_to("Succeeded")
 
         # Verify report was created and uploaded to the storage account
-        self._container_client = get_or_create_storage_container(
+        blob_iter = list_blobs(
             credential=platform.credential,
             subscription_id=platform.subscription_id,
             cloud=platform.cloud,
             account_name=storage_account_name,
             container_name="azdiagextnresults",
             resource_group_name=resource_group_name,
-        )
-
-        blob_iter = self._container_client.list_blobs(
-            name_starts_with="PerformanceDiagnostics"
+            name_starts_with="PerformanceDiagnostics",
         )
 
         report_exists = False

@@ -14,7 +14,6 @@ from lisa.base_tools import Wget
 from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
 from lisa.operating_system import CBLMariner, CpuArchitecture, Oracle, Redhat, Ubuntu
-from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
 from lisa.util import LisaException, SkippedException, constants
@@ -113,13 +112,6 @@ class Gpu(Feature):
     def install_compute_sdk(self, version: str = "") -> None:
         # install GPU dependencies before installing driver
         self._install_gpu_dep()
-        try:
-            # install LIS driver if required and not already installed.
-            self._node.tools[LisDriver]
-        except Exception as identifier:
-            self._log.debug(
-                f"LisDriver is not installed. It might not be required. {identifier}"
-            )
 
         # install the driver
         supported_driver = self.get_supported_driver()
