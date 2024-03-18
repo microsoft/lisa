@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import TYPE_CHECKING, List, Type, cast
+from typing import TYPE_CHECKING, List, Type
 
 from assertpy import assert_that
 
