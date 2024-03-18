@@ -40,6 +40,8 @@ class Pip(Tool):
 
     @property
     def command(self) -> str:
+        if isinstance(self.node.os, BSD):
+            return "pip"
         return "pip3"
 
     @property
@@ -52,10 +54,9 @@ class Pip(Tool):
 
     def _install(self) -> bool:
         package_name = "python3-pip"
-        posix_os: Posix = cast(Posix, self.node.os)
         assert isinstance(self.node.os, Posix)
-        if isinstance(posix_os, BSD):
-            posix_os.install_packages("py38-pip")
+        if isinstance(self.node.os, BSD):
+            self.node.os.install_packages("py39-pip")
         else:
             self.node.os.install_packages(package_name)
         return self._check_exists()
