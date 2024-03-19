@@ -289,8 +289,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         encoding: str = "",
     ) -> Process:
         self.initialize()
-        # if isinstance(self, RemoteNode):
-        #     self._check_bash_prompt()
+        if isinstance(self, RemoteNode):
+            self._check_bash_prompt()
 
         return self._execute(
             cmd,
@@ -760,7 +760,7 @@ class RemoteNode(Node):
                     )
                     ssh_shell = cast(SshShell, self.shell)
                     ssh_shell.bash_prompt = bash_prompt
-                self.has_checked_bash_prompt = True
+            self.has_checked_bash_prompt = True
 
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension
