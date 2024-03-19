@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 
+import time
 from assertpy.assertpy import assert_that
 from lisa.base_tools.service import Service
 from lisa.sut_orchestrator.azure.common import (
@@ -27,14 +28,11 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     service = node.tools[Service]
     is_vm_agent_running = service.is_service_running("walinuxagent.service") or service.is_service_running("waagent.service")
     
-    if is_vm_agent_running:
-        log.debug("verify walinuxagent or waagent is running")
-        assert_that(is_vm_agent_running).described_as(
-            "Expected walinuxagent or waagent is running"
-        ).is_true()
-    else:
-        log.debug("verify walinuxagent or waagent is not running")
-        raise LisaException("walinuxagent or waagent is not running. Test case failed.")
+    log.debug(f"verify walinuxagent or waagent service is running: {is_vm_agent_running}")
+    
+    assert_that(is_vm_agent_running).described_as(
+        "Expected walinuxagent or waagent service is running"
+    ).is_true()
 
 @TestSuiteMetadata(
     area="vm_extension",
@@ -46,16 +44,16 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 class LinuxPatchExtensionBVT(TestSuite):
     @TestCaseMetadata(
         description="""
-        Verify walinuxagent or waagent is running on virtual machine.
+        Verify walinuxagent or waagent service is running on virtual machine.
         Perform assess patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension creation in a virtual machine.
         Verify status file response for validity.
         """,
         priority=1,
     )
     def verify_vm_assess_patches(self, node:Node, environment:Environment, log:Logger)->None:
-        assert environment.platform
+        assert environment.platform, "platform shouldn't be None."
         platform: AzurePlatform = environment.platform  # type: ignore
-        assert isinstance(platform, AzurePlatform)
+        assert isinstance(platform, AzurePlatform), "platform should be AzurePlatform instance"
         compute_client = get_compute_client(platform)
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
@@ -64,12 +62,14 @@ class LinuxPatchExtensionBVT(TestSuite):
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
-        operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+        try: 
+            operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+            # set wait operation timeout 10 min, status file should be generated before timeout
+            assess_result = wait_operation(operation, 600)
+        except Exception as e:
+                raise e
 
-        # pause fetching operation by 1min, so status file can be generated
-        assess_result =wait_operation(operation, 60000)
-        log.debug(f"assess_result: {assess_result}")
-
+        assert assess_result, "assess_result shouldn't be None"
         assert_that(assess_result["status"]).described_as(
             "Expected the assess patches to succeed"
         ).is_equal_to("Succeeded")
