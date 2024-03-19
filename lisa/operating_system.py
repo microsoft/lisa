@@ -1858,7 +1858,7 @@ class AlmaLinux(Redhat):
 class CBLMariner(RPMDistro):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Common Base Linux Mariner|mariner$")
+        return re.compile("^Common Base Linux Mariner|mariner|azurelinux$")
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
