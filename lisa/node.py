@@ -289,8 +289,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         encoding: str = "",
     ) -> Process:
         self.initialize()
-        if isinstance(self, RemoteNode):
-            self._check_bash_prompt()
+        # if isinstance(self, RemoteNode):
+        #     self._check_bash_prompt()
 
         return self._execute(
             cmd,

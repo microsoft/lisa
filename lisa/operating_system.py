@@ -127,7 +127,7 @@ class OperatingSystem:
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
-    __bmc_release_pattern = re.compile(r".*(Supported WcsCli Commands).*$", re.M)
+    __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
@@ -1858,7 +1858,7 @@ class AlmaLinux(Redhat):
 class CBLMariner(RPMDistro):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Common Base Linux Mariner|mariner$")
+        return re.compile("^Common Base Linux Mariner|mariner|azurelinux$")
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
