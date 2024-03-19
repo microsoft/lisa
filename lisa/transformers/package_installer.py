@@ -53,7 +53,7 @@ class PackageInstaller(DeploymentTransformer):
         self._log.info(f"Installing packages: {runbook.files}")
         directory: PurePath = PurePath(runbook.directory)
         for file in runbook.files:
-            self._install_package(str(directory / file))
+            self._install_package(self._node.get_str_path(directory.joinpath(file)))
 
         if runbook.reboot:
             self._node.reboot(time_out=900)
