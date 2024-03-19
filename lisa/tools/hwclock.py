@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from datetime import datetime
-from typing import cast
+from typing import Optional, Type, cast
 
 from dateutil.parser import parser
 from retry import retry
@@ -12,6 +12,10 @@ from lisa.util import LisaException
 
 
 class Hwclock(Tool):
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return HwclockFreebsd
+
     @property
     def command(self) -> str:
         return "hwclock"
@@ -62,3 +66,19 @@ class Hwclock(Tool):
                 f" error: {command_result.stderr}"
             )
         return parser().parse(command_result.stdout)
+
+
+class HwclockFreebsd(Hwclock):
+    @property
+    def command(self) -> str:
+        return ""
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def set_rtc_clock_to_system_time(self) -> None:
+        self.node.execute(cmd="adjkerntz -i", expected_exit_code=0)
