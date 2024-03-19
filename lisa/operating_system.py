@@ -127,7 +127,7 @@ class OperatingSystem:
     __debian_issue_pattern = re.compile(r"^([^ ]+) ?.*$")
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
-    __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
+    __bmc_release_pattern = re.compile(r".*(Supported WcsCli Commands).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
