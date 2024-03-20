@@ -7,7 +7,7 @@ from typing import List
 from assertpy.assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.util import LisaException, get_matched_str
+from lisa.util import LisaException, find_group_in_lines
 
 
 class PartitionInfo(object):
@@ -33,16 +33,12 @@ class PartitionInfo(object):
 
 class Blkid(Tool):
     # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
-    _get_partition_name = re.compile(r"\s*(?P<name>\S+):.*")
-
-    # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
-    _get_partition_label = re.compile(r"\s+LABEL=\"(?P<label>[^\"]+)\"")
-
-    # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
-    _get_partition_uuid = re.compile(r"\s+UUID=\"(?P<uuid>\S+)\"")
-
-    # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
-    _get_partition_part_uuid = re.compile(r"\s+PARTUUID=\"(?P<part_uuid>\S+)\"")
+    _get_partition_info = re.compile(
+        r"\s*(?P<name>\S+):(?:(?!LABEL=).)*"
+        r"(LABEL=\"(?P<label>[^\"]*)\")?"
+        r"(?:(?!UUID=).)*(UUID=\"(?P<uuid>[^\"]*)\")?"
+        r"(?:(?!PARTUUID=).)*(PARTUUID=\"(?P<part_uuid>[^\"]*)\")?"
+    )
 
     @property
     def command(self) -> str:
@@ -60,18 +56,19 @@ class Blkid(Tool):
         output = self.run(sudo=True).stdout
         partition_info: List[PartitionInfo] = []
         for line in output.splitlines():
-            # get partition name
-            name = get_matched_str(line, self._get_partition_name)
+            # get partition info
+            matched_partition_info = find_group_in_lines(line, self._get_partition_info)
+            name = matched_partition_info["name"]
             assert_that(name, "partition name should not be none.").is_not_none()
 
             # get label. This could be None
-            label = get_matched_str(line, self._get_partition_label)
+            label = matched_partition_info["label"]
 
             # get partion uuid. This could be None.
-            uuid = get_matched_str(line, self._get_partition_uuid)
+            uuid = matched_partition_info["uuid"]
 
             # get partion part_uuid. This could be None.
-            part_uuid = get_matched_str(line, self._get_partition_part_uuid)
+            part_uuid = matched_partition_info["part_uuid"]
 
             partition_info.append(PartitionInfo(name, label, uuid, part_uuid))
 
