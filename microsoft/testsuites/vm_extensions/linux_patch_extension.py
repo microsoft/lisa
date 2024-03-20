@@ -60,12 +60,9 @@ class LinuxPatchExtensionBVT(TestSuite):
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
-        try: 
-            operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
-            # set wait operation timeout 10 min, status file should be generated before timeout
-            assess_result = wait_operation(operation, 600)
-        except Exception as e:
-                raise e
+        operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+        # set wait operation timeout 10 min, status file should be generated before timeout
+        assess_result = wait_operation(operation, 600)
 
         assert assess_result, "assess_result shouldn't be None"
         assert_that(assess_result["status"]).described_as(
@@ -111,12 +108,9 @@ class LinuxPatchExtensionBVT(TestSuite):
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
-        try: 
-            operation = compute_client.virtual_machines.begin_install_patches(resource_group_name=resource_group_name,vm_name=vm_name, install_patches_input=install_patches_input)
-            # set wait operation timeout 10 min, status file should be generated before timeout
-            install_result = wait_operation(operation, 600)
-        except Exception as e:
-                raise e
+        operation = compute_client.virtual_machines.begin_install_patches(resource_group_name=resource_group_name,vm_name=vm_name, install_patches_input=install_patches_input)
+        # set wait operation timeout 10 min, status file should be generated before timeout
+        install_result = wait_operation(operation, 600)
 
         assert install_result, "assess_result shouldn't be None"
         assert_that(install_result["status"]).described_as(
