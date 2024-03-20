@@ -3,12 +3,6 @@
 
 
 from assertpy.assertpy import assert_that
-from lisa.base_tools.service import Service
-from lisa.sut_orchestrator.azure.common import (
-    get_compute_client,
-    get_node_context,
-    wait_operation,
-)
 
 from lisa import (
     Environment,
@@ -19,18 +13,29 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-
+from lisa.base_tools.service import Service
+from lisa.sut_orchestrator.azure.common import (
+    get_compute_client,
+    get_node_context,
+    wait_operation,
+)
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+
 
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     service = node.tools[Service]
-    is_vm_agent_running = service.is_service_running("walinuxagent.service") or service.is_service_running("waagent.service")
-    
-    log.debug(f"verify walinuxagent or waagent service is running: {is_vm_agent_running}")
-    
+    is_vm_agent_running = service.is_service_running(
+        "walinuxagent.service"
+    ) or service.is_service_running("waagent.service")
+
+    log.debug(
+        f"verify walinuxagent or waagent service is running: {is_vm_agent_running}"
+    )
+
     assert_that(is_vm_agent_running).described_as(
         "Expected walinuxagent or waagent service is running"
     ).is_true()
+
 
 @TestSuiteMetadata(
     area="vm_extension",
@@ -38,7 +43,6 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     description="Test for Linux Patch Extension",
     requirement=simple_requirement(unsupported_os=[]),
 )
-
 class LinuxPatchExtensionBVT(TestSuite):
     @TestCaseMetadata(
         description="""
@@ -48,10 +52,14 @@ class LinuxPatchExtensionBVT(TestSuite):
         """,
         priority=1,
     )
-    def verify_vm_assess_patches(self, node:Node, environment:Environment, log:Logger)->None:
+    def verify_vm_assess_patches(
+        self, node: Node, environment: Environment, log: Logger
+    ) -> None:
         assert environment.platform, "platform shouldn't be None."
         platform: AzurePlatform = environment.platform  # type: ignore
-        assert isinstance(platform, AzurePlatform), "platform should be AzurePlatform instance"
+        assert isinstance(
+            platform, AzurePlatform
+        ), "platform should be AzurePlatform instance"
         compute_client = get_compute_client(platform)
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
@@ -60,7 +68,9 @@ class LinuxPatchExtensionBVT(TestSuite):
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
-        operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+        operation = compute_client.virtual_machines.begin_assess_patches(
+            resource_group_name=resource_group_name, vm_name=vm_name
+        )
         # set wait operation timeout 10 min, status file should be generated before timeout
         assess_result = wait_operation(operation, 600)
 
@@ -69,10 +79,9 @@ class LinuxPatchExtensionBVT(TestSuite):
             "Expected the assess patches to succeed"
         ).is_equal_to("Succeeded")
 
-        assert_that(assess_result["error"]['code']).described_as(
+        assert_that(assess_result["error"]["code"]).described_as(
             "Expected no error in assess patches operation"
         ).is_equal_to("0")
-
 
     @TestCaseMetadata(
         description="""
@@ -82,10 +91,14 @@ class LinuxPatchExtensionBVT(TestSuite):
         """,
         priority=2,
     )
-    def verify_vm_install_patches(self, node:Node, environment:Environment, log:Logger)->None:
+    def verify_vm_install_patches(
+        self, node: Node, environment: Environment, log: Logger
+    ) -> None:
         assert environment.platform, "platform shouldn't be None."
         platform: AzurePlatform = environment.platform  # type: ignore
-        assert isinstance(platform, AzurePlatform), "platform should be AzurePlatform instance"
+        assert isinstance(
+            platform, AzurePlatform
+        ), "platform should be AzurePlatform instance"
         compute_client = get_compute_client(platform)
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
@@ -94,21 +107,19 @@ class LinuxPatchExtensionBVT(TestSuite):
             "maximumDuration": "PT3H30M",
             "rebootSetting": "IfRequired",
             "linuxParameters": {
-                "classificationsToInclude": [
-                "Security",
-                "Critical"
-                ],
-                "packageNameMasksToInclude": [
-                "ca-certificates*",
-                "php7-openssl*"
-                ]
-            }
+                "classificationsToInclude": ["Security", "Critical"],
+                "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
+            },
         }
 
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
-        operation = compute_client.virtual_machines.begin_install_patches(resource_group_name=resource_group_name,vm_name=vm_name, install_patches_input=install_patches_input)
+        operation = compute_client.virtual_machines.begin_install_patches(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            install_patches_input=install_patches_input,
+        )
         # set wait operation timeout 10 min, status file should be generated before timeout
         install_result = wait_operation(operation, 600)
 
@@ -117,9 +128,6 @@ class LinuxPatchExtensionBVT(TestSuite):
             "Expected the assess patches to succeed"
         ).is_equal_to("Succeeded")
 
-        assert_that(install_result["error"]['code']).described_as(
+        assert_that(install_result["error"]["code"]).described_as(
             "Expected no error in assess patches operation"
         ).is_equal_to("0")
-    
-    
-    
