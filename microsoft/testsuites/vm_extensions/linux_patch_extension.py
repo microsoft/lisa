@@ -26,9 +26,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
         "walinuxagent.service"
     ) or service.is_service_running("waagent.service")
 
-    log.debug(
-        f"verify walinuxagent or waagent service running:{is_vm_agent_running}"
-    )
+    log.debug(f"verify walinuxagent or waagent running:{is_vm_agent_running}")
 
     assert_that(is_vm_agent_running).described_as(
         "Expected walinuxagent or waagent service is running"
