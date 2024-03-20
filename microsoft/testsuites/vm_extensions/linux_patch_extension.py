@@ -83,7 +83,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         Perform install patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension creation in a virtual machine.
         Verify status file response for validity.
         """,
-        priority=1,
+        priority=2,
     )
     def verify_vm_install_patches(self, node:Node, environment:Environment, log:Logger)->None:
         assert environment.platform, "platform shouldn't be None."
@@ -93,12 +93,26 @@ class LinuxPatchExtensionBVT(TestSuite):
         node_context = get_node_context(node)
         resource_group_name = node_context.resource_group_name
         vm_name = node_context.vm_name
+        install_patches_input = {
+            "maximumDuration": "PT3H30M",
+            "rebootSetting": "IfRequired",
+            "linuxParameters": {
+                "classificationsToInclude": [
+                "Security",
+                "Critical"
+                ],
+                "packageNameMasksToInclude": [
+                "ca-certificates*",
+                "php7-openssl*"
+                ]
+            }
+        }
 
         # verify vm agent is running
         _verify_vm_agent_running(node, log)
 
         try: 
-            operation = compute_client.virtual_machines.begin_install_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+            operation = compute_client.virtual_machines.begin_install_patches(resource_group_name=resource_group_name,vm_name=vm_name, install_patches_input=install_patches_input)
             # set wait operation timeout 10 min, status file should be generated before timeout
             install_result = wait_operation(operation, 600)
         except Exception as e:
