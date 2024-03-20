@@ -15,15 +15,17 @@ class PartitionInfo(object):
     def __init__(
         self,
         name: str,
+        label: str,
         uuid: str,
         part_uuid: str,
     ):
         self.name = name
+        self.label = label
         self.uuid = uuid
         self.part_uuid = part_uuid
 
     def __repr__(self) -> str:
-        return f"{self.name} {self.uuid} {self.part_uuid}"
+        return f"{self.name} {self.label} {self.uuid} {self.part_uuid}"
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -32,6 +34,9 @@ class PartitionInfo(object):
 class Blkid(Tool):
     # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
     _get_partition_name = re.compile(r"\s*(?P<name>\S+):.*")
+
+    # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
+    _get_partition_label = re.compile(r"\s+LABEL=\"(?P<label>[^\"]+)\"")
 
     # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
     _get_partition_uuid = re.compile(r"\s+UUID=\"(?P<uuid>\S+)\"")
@@ -59,13 +64,16 @@ class Blkid(Tool):
             name = get_matched_str(line, self._get_partition_name)
             assert_that(name, "partition name should not be none.").is_not_none()
 
+            # get label. This could be None
+            label = get_matched_str(line, self._get_partition_label)
+
             # get partion uuid. This could be None.
             uuid = get_matched_str(line, self._get_partition_uuid)
 
             # get partion part_uuid. This could be None.
             part_uuid = get_matched_str(line, self._get_partition_part_uuid)
 
-            partition_info.append(PartitionInfo(name, uuid, part_uuid))
+            partition_info.append(PartitionInfo(name, label, uuid, part_uuid))
 
         return partition_info
 
