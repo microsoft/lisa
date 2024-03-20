@@ -63,12 +63,14 @@ class Waagent(Tool):
 
     def get_version(self) -> str:
         result = self.run("-version")
-        if isinstance(self.node.os, CBLMariner):
-            self._command = "/usr/bin/waagent"
-        else:
-            self._command = "/usr/sbin/waagent"
+
         if result.exit_code != 0:
+            if self.node.tools[Ls].path_exists("/usr/bin/waagent", sudo=True):
+                self._command = "/usr/bin/waagent"
+            elif self.node.tools[Ls].path_exists("/usr/sbin/waagent", sudo=True):
+                self._command = "/usr/sbin/waagent"
             result = self.run("-version")
+
         # When the default command python points to python2,
         # we need specify python3 clearly.
         # e.g. bt-americas-inc diamondip-sapphire-v5 v5-9 9.0.53.
