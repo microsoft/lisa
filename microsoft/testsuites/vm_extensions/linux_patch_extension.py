@@ -1,12 +1,6 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
 from assertpy.assertpy import assert_that
-from lisa.base_tools.service import Service
-from lisa.sut_orchestrator.azure.common import (
-    get_compute_client,
-    get_node_context,
-    wait_operation,
-)
 
 from lisa import (
     Environment,
@@ -16,6 +10,12 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
+)
+from lisa.base_tools.service import Service
+from lisa.sut_orchestrator.azure.common import (
+    get_compute_client,
+    get_node_context,
+    wait_operation,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 
