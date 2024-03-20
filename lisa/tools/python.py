@@ -55,7 +55,7 @@ class Pip(Tool):
     def _install(self) -> bool:
         package_name = "python3-pip"
         if isinstance(self.node.os, BSD):
-            package_name = "py39-pip"
+            package_name = "devel/py-pip"
         assert isinstance(self.node.os, Posix)
         self.node.os.install_packages(package_name)
         return self._check_exists()
