@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-
-import time
 from assertpy.assertpy import assert_that
 from lisa.base_tools.service import Service
 from lisa.sut_orchestrator.azure.common import (
@@ -22,7 +20,6 @@ from lisa import (
 )
 
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.util import LisaException
 
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     service = node.tools[Service]
@@ -40,7 +37,6 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     description="Test for Linux Patch Extension",
     requirement=simple_requirement(unsupported_os=[]),
 )
-
 class LinuxPatchExtensionBVT(TestSuite):
     @TestCaseMetadata(
         description="""
@@ -59,15 +55,12 @@ class LinuxPatchExtensionBVT(TestSuite):
         resource_group_name = node_context.resource_group_name
         vm_name = node_context.vm_name
 
-        # verify vm agent is running
+        # verify vm agent service is running, lpe is a dependent of vm agent service
         _verify_vm_agent_running(node, log)
 
-        try: 
-            operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
-            # set wait operation timeout 10 min, status file should be generated before timeout
-            assess_result = wait_operation(operation, 600)
-        except Exception as e:
-                raise e
+        operation = compute_client.virtual_machines.begin_assess_patches(resource_group_name=resource_group_name,vm_name=vm_name)
+        # set wait operation timeout 10 min, status file should be generated before timeout
+        assess_result = wait_operation(operation, 600)
 
         assert assess_result, "assess_result shouldn't be None"
         assert_that(assess_result["status"]).described_as(
@@ -77,5 +70,4 @@ class LinuxPatchExtensionBVT(TestSuite):
         assert_that(assess_result["error"]['code']).described_as(
             "Expected no error in assess patches operation"
         ).is_equal_to("0")
-    
     
