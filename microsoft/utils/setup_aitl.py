@@ -230,6 +230,10 @@ def _set_target_role_parameters(
         # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
+        "Microsoft.Compute/virtualMachines/extensions/delete",
+        # For disk_support_restore_point & verify_vmsnapshot_extension
+        "Microsoft.Compute/restorePointCollections/write",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/write",
         "Microsoft.Network/virtualNetworks/read",
         "Microsoft.Network/virtualNetworks/write",
         "Microsoft.Network/virtualNetworks/subnets/join/action",
