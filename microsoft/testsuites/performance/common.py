@@ -264,8 +264,10 @@ def perf_ntttcp(  # noqa: C901
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
         # set server and client from environment, if not set explicitly
-        server = cast(RemoteNode, environment.nodes[1])
-        client = cast(RemoteNode, environment.nodes[0])
+        server = cast(RemoteNode, environment.nodes[0])
+        clients_list = []
+        for i in range(1, len(environment.nodes)):
+            clients_list.append(cast(RemoteNode, environment.nodes[i]))
 
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
@@ -280,16 +282,27 @@ def perf_ntttcp(  # noqa: C901
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
 
-    client_ntttcp, server_ntttcp = run_in_parallel(
-        [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
-    )
+    #client_ntttcp, server_ntttcp = run_in_parallel(
+    #    [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
+    #)
+    server_ntttcp = server.tools[Ntttcp]
+    client_ntttcp_list = []
+    for client in clients_list:
+        client_ntttcp_list.append(client.tools[Ntttcp])
+
     try:
-        client_lagscope, server_lagscope = run_in_parallel(
-            [
-                lambda: client.tools[Lagscope],  # type: ignore
-                lambda: server.tools[Lagscope],  # type: ignore
-            ]
-        )
+        #client_lagscope, server_lagscope = run_in_parallel(
+        #    [
+        #        lambda: client.tools[Lagscope],  # type: ignore
+        #        lambda: server.tools[Lagscope],  # type: ignore
+        #    ]
+        #)
+        server_lagscope = server.tools[Lagscope]
+        client_lagscope_list = []
+        for client in clients_list:
+            client_lagscope_list.append(client.tools[Lagscope])
+
+
         # no need to set task max and reboot VM when connection less than 20480
         if max(connections) >= 20480 and not isinstance(server.os, BSD):
             set_task_max = True
@@ -301,18 +314,19 @@ def perf_ntttcp(  # noqa: C901
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_lower_nics())
+            client_sriov_count = len(clients_list[0].nics.get_lower_nics())
             server_sriov_count = len(server.nics.get_lower_nics())
-        for ntttcp in [client_ntttcp, server_ntttcp]:
+        for ntttcp in client_ntttcp_list+[server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
-        for lagscope in [client_lagscope, server_lagscope]:
+        for lagscope in client_lagscope_list+[server_lagscope]:
             lagscope.set_busy_poll()
-        data_path = get_nic_datapath(client)
+        data_path = get_nic_datapath(clients_list[0])
         if NetworkDataPath.Sriov.value == data_path:
             if need_reboot:
                 # check sriov count not change after reboot
-                check_sriov_count(client, client_sriov_count)
                 check_sriov_count(server, server_sriov_count)
+                for client in clients_list:            
+                    check_sriov_count(client, client_sriov_count)
             server_nic_name = (
                 server_nic_name
                 if server_nic_name
@@ -364,51 +378,69 @@ def perf_ntttcp(  # noqa: C901
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
             )
-            client_lagscope_process = client_lagscope.run_as_client_async(
-                server_ip=server.internal_address,
-                ping_count=0,
-                run_time_seconds=10,
-                print_histogram=False,
-                print_percentile=False,
-                histogram_1st_interval_start_value=0,
-                length_of_histogram_intervals=0,
-                count_of_histogram_intervals=0,
-                dump_csv=False,
-            )
-            client_ntttcp_result = client_ntttcp.run_as_client(
-                client_nic_name,
-                server.internal_address,
-                buffer_size=buffer_size,
-                threads_count=num_threads_n,
-                ports_count=num_threads_p,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
+
+            for client_lagscope in client_lagscope_list:
+                client_lagscope_process = client_lagscope.run_as_client_async(
+                    server_ip=server.internal_address,
+                    ping_count=0,
+                    run_time_seconds=10,
+                    print_histogram=False,
+                    print_percentile=False,
+                    histogram_1st_interval_start_value=0,
+                    length_of_histogram_intervals=0,
+                    count_of_histogram_intervals=0,
+                    dump_csv=False,
+                )
+            client_ntttcp_process_list=[]
+            for client_ntttcp in client_ntttcp_list:
+                client_ntttcp_process_list.append(
+                    client_ntttcp.run_as_client_async(
+                        client_nic_name,
+                        server.internal_address,
+                        buffer_size=buffer_size,
+                        threads_count=num_threads_n,
+                        ports_count=num_threads_p,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+                )
+            
+
+            client_result_temp = []
+            for client_ntttcp_process in client_ntttcp_process_list:
+                client_ntttcp_result = client_ntttcp_process.wait_result()
+                client_result_temp.append(client_ntttcp_list[i].create_ntttcp_result(
+                    client_ntttcp_result, role="client"
+                ))
+                i += 1
+
             server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
             )
-            client_result_temp = client_ntttcp.create_ntttcp_result(
-                client_ntttcp_result, role="client"
-            )
-            client_sar_result = client_lagscope_process.wait_result()
-            client_average_latency = client_lagscope.get_average(client_sar_result)
+
+            client_sar_result = []
+            client_average_latency = []
+            for client_lagscope in client_lagscope_list:
+                client_sar_result.append(client_lagscope_process.wait_result())
+                client_average_latency.append(client_lagscope.get_average(client_sar_result))
+
             if udp_mode:
                 ntttcp_message: Union[
                     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
-                ] = client_ntttcp.create_ntttcp_udp_performance_message(
+                ] = client_ntttcp_list[0].create_ntttcp_udp_performance_message(
                     server_result_temp,
-                    client_result_temp,
+                    client_result_temp[0],
                     str(test_thread),
                     buffer_size,
                     test_case_name,
                     test_result,
                 )
             else:
-                ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
+                ntttcp_message = client_ntttcp_list[0].create_ntttcp_tcp_performance_message(
                     server_result_temp,
-                    client_result_temp,
+                    client_result_temp[0],
                     client_average_latency,
                     str(test_thread),
                     buffer_size,
@@ -420,16 +452,16 @@ def perf_ntttcp(  # noqa: C901
     finally:
         error_msg = ""
         throw_error = False
-        for node in [client, server]:
+        for node in clients_list + [server]:
             if not node.is_connected:
                 error_msg += f" VM {node.name} can't be connected, "
                 throw_error = True
         if throw_error:
             error_msg += "probably due to VM stuck on reboot stage."
             raise LisaException(error_msg)
-        for ntttcp in [client_ntttcp, server_ntttcp]:
+        for ntttcp in [client_ntttcp_list, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope, server_lagscope]:
+        for lagscope in [client_lagscope_list, server_lagscope]:
             lagscope.kill()
             lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
