@@ -11,7 +11,7 @@ from lisa.executable import Tool
 if TYPE_CHECKING:
     from lisa.node import Node
 
-from lisa.operating_system import Posix
+from lisa.operating_system import BSD, Posix
 from lisa.tools.mkdir import Mkdir
 from lisa.util import UnsupportedDistroException, get_matched_str
 
@@ -40,6 +40,8 @@ class Pip(Tool):
 
     @property
     def command(self) -> str:
+        if isinstance(self.node.os, BSD):
+            return "pip"
         return "pip3"
 
     @property
@@ -52,6 +54,8 @@ class Pip(Tool):
 
     def _install(self) -> bool:
         package_name = "python3-pip"
+        if isinstance(self.node.os, BSD):
+            package_name = "devel/py-pip"
         assert isinstance(self.node.os, Posix)
         self.node.os.install_packages(package_name)
         return self._check_exists()
