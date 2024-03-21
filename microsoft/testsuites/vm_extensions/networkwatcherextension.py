@@ -81,7 +81,7 @@ class NetworkWatcherExtension(TestSuite):
             Ubuntu: [16, 18, 20, 22],
             Suse: [12, 15],
             SLES: [12, 15],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions:
