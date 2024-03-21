@@ -85,7 +85,7 @@ class MetricsExtension(TestSuite):
     def _is_supported(self, node: Node) -> None:
         # MetricsExtension only supports these distributions
         supported_versions: Dict[Any, List[str]] = {
-            CBLMariner: ["1.0", "2.0"],
+            CBLMariner: ["1.0", "2.0", "3.0"],
             Ubuntu: ["18.04", "20.04"],
             Debian: [f"10.{i}" for i in range(0, 14)],
         }

@@ -262,7 +262,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions = {
             Ubuntu: [20, 22],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions:
