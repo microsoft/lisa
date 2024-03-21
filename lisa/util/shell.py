@@ -259,6 +259,7 @@ class SshShell(InitializableMixin):
         # Some windows doesn't end the text stream, so read first line only.
         # it's  enough to detect os.
         stdout_content = stdout.readline()
+        print("[lbh debug] stdout_content:", stdout_content)
         stdout.close()
 
         if stdout_content and "Windows" in stdout_content:
@@ -303,6 +304,10 @@ class SshShell(InitializableMixin):
             # shell token under single quotes anymore. That's an assumption from spur
             # that minimal shells will still be POSIX compliant--not true for some
             # cases for LISA users.
+            print(
+                "[lbh debug] has spur.ssh.ShellTypes.minimal, "
+                "override generate_run_command."
+            )
             func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
             self._inner_shell._spur._shell_type.generate_run_command = func_type(
                 minimal_generate_run_command,
@@ -378,6 +383,11 @@ class SshShell(InitializableMixin):
                 # /etc/profile.d/clover.sh:line 10:/opt/clover/bin/prepare-hostname.sh:
                 # Permission denied'' as integer)"
                 # Except CommandInitializationError then use minimal shell type.
+                print(
+                    "[lbh debug] has spur.errors.CommandInitializationError"
+                    "exception identifier:",
+                    str(identifier)
+                )
                 if not have_tried_minimal_type:
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
                     have_tried_minimal_type = True
