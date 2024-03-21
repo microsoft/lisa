@@ -184,6 +184,23 @@ class NetworkPerformace(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case uses ntttcp to test sriov tcp network throughput.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                node_count=4,
+                memory_mb=search_space.IntRange(min=8192),
+                network_interface=Sriov(),
+            )
+        ),
+    )
+    def perf_tcp_ntttcp_sriov_multiclient(self, result: TestResult) -> None:
+        perf_ntttcp(result)
+
+    @TestCaseMetadata(
+        description="""
         This test case uses ntttcp to test synthetic udp network throughput.
         """,
         priority=3,
