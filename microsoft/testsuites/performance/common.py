@@ -274,13 +274,28 @@ def perf_ntttcp(  # noqa: C901
         test_case_name = inspect.stack()[1][3]
 
     if connections is None:
+        connections = []
         if udp_mode:
-            connections = NTTTCP_UDP_CONCURRENCY
+            for connection in NTTTCP_UDP_CONCURRENCY:
+                connection_temp = connection*len(clients_list)
+                if connection_temp > max(NTTTCP_UDP_CONCURRENCY):
+                    break
+                connections.append()
         else:
             if isinstance(server.os, BSD):
                 connections = NTTTCP_TCP_CONCURRENCY_BSD
+                for connection in NTTTCP_TCP_CONCURRENCY_BSD:
+                    connection_temp = connection*len(clients_list)
+                    if connection_temp > max(NTTTCP_TCP_CONCURRENCY_BSD):
+                        break
+                    connections.append()
             else:
                 connections = NTTTCP_TCP_CONCURRENCY
+                for connection in NTTTCP_TCP_CONCURRENCY:
+                    connection_temp = connection*len(clients_list)
+                    if connection_temp > max(NTTTCP_TCP_CONCURRENCY):
+                        break
+                    connections.append()
 
     #client_ntttcp, server_ntttcp = run_in_parallel(
     #    [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
