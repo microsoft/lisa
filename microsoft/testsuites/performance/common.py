@@ -409,7 +409,8 @@ def perf_ntttcp(  # noqa: C901
                     dump_csv=False,
                 )
             client_ntttcp_process_list=[]
-            num_client_threads_n = int(num_threads_p/len(clients_list))
+            num_client_threads_p = int(num_threads_p/len(clients_list))
+            # num_client_threads_n = int(num_threads_n/len(clients_list))
             i = 0
             for client_ntttcp in client_ntttcp_list:
                 client_ntttcp_process_list.append(
@@ -417,8 +418,8 @@ def perf_ntttcp(  # noqa: C901
                         client_nic_name_list[i],
                         server.internal_address,
                         buffer_size=buffer_size,
-                        threads_count=num_client_threads_n,
-                        ports_count=num_threads_p,
+                        threads_count=num_threads_n,
+                        ports_count=num_client_threads_p,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )
