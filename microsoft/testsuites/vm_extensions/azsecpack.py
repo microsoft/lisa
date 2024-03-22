@@ -329,7 +329,7 @@ class AzSecPack(TestSuite):
             CentOs: [7],
             Debian: [11],
             Ubuntu: [20],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         arch = node.os.get_kernel_information().hardware_platform  # type: ignore
