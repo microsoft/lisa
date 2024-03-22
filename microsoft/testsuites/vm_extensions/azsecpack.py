@@ -322,7 +322,7 @@ class AzSecPack(TestSuite):
             Ubuntu: [20, 22, 18],
             SLES: [15],
             AlmaLinux: [8],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
         supported_major_versions_arm64 = {
             Redhat: [8, 9],
