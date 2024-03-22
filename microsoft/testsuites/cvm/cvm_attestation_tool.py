@@ -12,7 +12,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Echo, Git, Make
 
 
-class CVMAttestationTests(Tool):
+class NestedCVMAttestationTests(Tool):
     repo = "https://github.com/microsoft/confidential-sidecar-containers.git"
     cmd_path: str
     repo_root: PurePath
