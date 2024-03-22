@@ -424,9 +424,11 @@ def perf_ntttcp(  # noqa: C901
                         udp_mode=udp_mode,
                     )
                 )
+                i += 1
             
 
             client_result_temp = []
+            i = 0
             for client_ntttcp_process in client_ntttcp_process_list:
                 client_ntttcp_result = client_ntttcp_process.wait_result()
                 client_result_temp.append(client_ntttcp_list[i].create_ntttcp_result(
