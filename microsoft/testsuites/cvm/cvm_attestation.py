@@ -10,19 +10,70 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    features,
 )
-from lisa.sut_orchestrator.azure import features
+from lisa.features.security_profile import CvmEnabled
+from lisa.operating_system import Ubuntu
+from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls
-from lisa.util import SkippedException
-from microsoft.testsuites.cvm.cvm_attestation_tool import NestedCVMAttestationTests
+from lisa.util import SkippedException, UnsupportedDistroException
+from microsoft.testsuites.cvm.cvm_attestation_tool import (
+    AzureCVMAttestationTests,
+    NestedCVMAttestationTests,
+)
 
 
 @TestSuiteMetadata(
     area="cvm",
     category="functional",
     description="""
-    This test suite is for generating and verifying CVM attestation report.
+    This test suite is for generating CVM attestation report only for azure cvms.
+    """,
+)
+class AzureCVMAttestationTestSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if not isinstance(node.os, Ubuntu):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "CVM attestation report supports only Ubuntu."
+                )
+            )
+
+    @TestCaseMetadata(
+        description="""
+            Runs get-snp-report tool to generate
+            and create attestation report for azure cvm.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[CvmEnabled()],
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_azure_cvm_attestation_report(
+        self,
+        log: Logger,
+        node: Node,
+        environment: Environment,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        node.tools[AzureCVMAttestationTests].run_cvm_attestation(
+            result,
+            environment,
+            log_path,
+        )
+
+
+@TestSuiteMetadata(
+    area="cvm",
+    category="functional",
+    description="""
+    This test suite is for generating and verifying
+    CVM attestation report only for nested cvms.
     """,
 )
 class NestedCVMAttestationTestSuite(TestSuite):
