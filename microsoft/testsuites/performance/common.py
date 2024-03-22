@@ -320,6 +320,7 @@ def perf_ntttcp(  # noqa: C901
         for lagscope in client_lagscope_list+[server_lagscope]:
             lagscope.set_busy_poll()
         data_path = get_nic_datapath(clients_list[0])
+        client_nic_name_list = []
         if NetworkDataPath.Sriov.value == data_path:
             if need_reboot:
                 # check sriov count not change after reboot
@@ -332,19 +333,21 @@ def perf_ntttcp(  # noqa: C901
                 else server.nics.get_primary_nic().pci_device_name
             )
 
-            client_nic_name = (
-                client_nic_name
-                if client_nic_name
-                else client.nics.get_primary_nic().pci_device_name
-            )
+            for client in clients_list:
+                client_nic_name_list.append(
+                    client_nic_name
+                    if client_nic_name
+                    else client.nics.get_primary_nic().pci_device_name
+                )
             dev_differentiator = "mlx"
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
             )
-            client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.default_nic
-            )
+            for client in clients_list:
+                client_nic_name_list.append(
+                    client_nic_name if client_nic_name else client.nics.default_nic
+                )
             dev_differentiator = "Hypervisor callback interrupts"
         server_lagscope.run_as_server_async(
             ip=lagscope_server_ip
@@ -391,13 +394,15 @@ def perf_ntttcp(  # noqa: C901
                     dump_csv=False,
                 )
             client_ntttcp_process_list=[]
+            num_client_threads_n = int(num_threads_p/len(clients_list))
+            i = 0
             for client_ntttcp in client_ntttcp_list:
                 client_ntttcp_process_list.append(
                     client_ntttcp.run_as_client_async(
-                        client_nic_name,
+                        client_nic_name_list[i],
                         server.internal_address,
                         buffer_size=buffer_size,
-                        threads_count=num_threads_n,
+                        threads_count=num_client_threads_n,
                         ports_count=num_threads_p,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
