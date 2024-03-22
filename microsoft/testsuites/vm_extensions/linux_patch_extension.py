@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
+from typing import Any
+
 from assertpy.assertpy import assert_that
 
 from lisa import (
@@ -18,6 +20,23 @@ from lisa.sut_orchestrator.azure.common import (
     wait_operation,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+
+
+def _set_up_vm(node: Node, environment: Environment) -> Any:
+    assert environment.platform, "platform shouldn't be None."
+    platform: AzurePlatform = environment.platform  # type: ignore
+    assert isinstance(
+        platform, AzurePlatform
+    ), "platform should be AzurePlatform instance"
+    assert isinstance(
+        platform, AzurePlatform
+    ), "platform should be AzurePlatform instance"
+    compute_client = get_compute_client(platform)
+    node_context = get_node_context(node)
+    resource_group_name = node_context.resource_group_name
+    vm_name = node_context.vm_name
+
+    return compute_client, resource_group_name, vm_name
 
 
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
@@ -51,15 +70,7 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        assert environment.platform, "platform shouldn't be None."
-        platform: AzurePlatform = environment.platform  # type: ignore
-        assert isinstance(
-            platform, AzurePlatform
-        ), "platform should be AzurePlatform instance"
-        compute_client = get_compute_client(platform)
-        node_context = get_node_context(node)
-        resource_group_name = node_context.resource_group_name
-        vm_name = node_context.vm_name
+        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
 
         # verify vm agent service is running, lpe is a dependent of vm agent
         # service
