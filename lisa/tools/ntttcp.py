@@ -285,6 +285,56 @@ class Ntttcp(Tool):
             expected_exit_code_failure_message="fail to launch ntttcp server",
         )
 
+    def run_as_client_async(
+        self,
+        nic_name: str,
+        server_ip: str,
+        threads_count: int,
+        run_time_seconds: int = 10,
+        ports_count: int = 64,
+        buffer_size: int = 64,
+        cool_down_time_seconds: int = 1,
+        warm_up_time_seconds: int = 1,
+        dev_differentiator: str = "Hypervisor callback interrupts",
+        run_as_daemon: bool = False,
+        udp_mode: bool = False,
+    ) -> ExecutableResult:
+        # -sserver_ip: run as a sender with server ip address
+        # -P: Number of ports listening on receiver side [default: 16] [max: 512]
+        # -n: [sender only] number of threads per each receiver port     [default: 4]
+        # [max: 25600]
+        # -t: Time of test duration in seconds [default: 60]
+        # -e: [receiver only] use epoll() instead of select()
+        # -u: UDP mode     [default: TCP]
+        # -W: Warm-up time in seconds          [default: 0]
+        # -C: Cool-down time in seconds        [default: 0]
+        # -b: <buffer size in n[KMG] Bytes>    [default: 65536 (receiver); 131072
+        # (sender)]
+        # --show-nic-packets <network interface name>: Show number of packets
+        # transferred (tx and rx) through this network interface
+        # --show-dev-interrupts <device differentiator>: Show number of interrupts for
+        # the devices specified by the differentiator
+        # Examples for differentiator: Hyper-V PCIe MSI, mlx4, Hypervisor callback
+        # interrupts
+        cmd = (
+            f" -s{server_ip} -P {ports_count} -n {threads_count} -t {run_time_seconds} "
+            f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
+            f"--show-nic-packets {nic_name} "
+        )
+        if udp_mode:
+            cmd += " -u "
+        if dev_differentiator:
+            cmd += f" --show-dev-interrupts {dev_differentiator} "
+        if run_as_daemon:
+            cmd += " -D "
+        result = self.node.execute_async(
+            f"ulimit -n 204800 && {self.command} {cmd}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
+        )
+        return result
     def run_as_client(
         self,
         nic_name: str,
