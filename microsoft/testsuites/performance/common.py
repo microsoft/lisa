@@ -302,7 +302,6 @@ def perf_ntttcp(  # noqa: C901
         for client in clients_list:
             client_lagscope_list.append(client.tools[Lagscope])
 
-
         # no need to set task max and reboot VM when connection less than 20480
         if max(connections) >= 20480 and not isinstance(server.os, BSD):
             set_task_max = True
@@ -449,6 +448,9 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+    except Exception as e:
+       # By this way we can know about the type of error occurring
+        print("The error is: ",e)
     finally:
         error_msg = ""
         throw_error = False
@@ -459,9 +461,9 @@ def perf_ntttcp(  # noqa: C901
         if throw_error:
             error_msg += "probably due to VM stuck on reboot stage."
             raise LisaException(error_msg)
-        for ntttcp in [client_ntttcp_list, server_ntttcp]:
+        for ntttcp in client_ntttcp_list + [server_ntttcp]:
             ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope_list, server_lagscope]:
+        for lagscope in client_lagscope_list +[server_lagscope]:
             lagscope.kill()
             lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
