@@ -1890,7 +1890,7 @@ class CBLMariner(RPMDistro):
         curl.fetch(
             arg="-o /etc/yum.repos.d/mariner-extras.repo",
             execute_arg="",
-            url=f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/{release}"
+            url="https://raw.githubusercontent.com/microsoft/CBL-Mariner/2.0"
             "/SPECS/mariner-repos/mariner-extras.repo",
             sudo=True,
         )
