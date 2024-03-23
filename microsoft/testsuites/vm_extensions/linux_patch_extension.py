@@ -42,8 +42,8 @@ def _set_up_vm(node: Node, environment: Environment) -> Any:
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     service = node.tools[Service]
     is_vm_agent_running = service.is_service_running(
-        "walinuxagent.service"
-    ) or service.is_service_running("waagent.service")
+        "walinuxagent"
+    ) or service.is_service_running("waagent")
 
     log.debug(f"verify walinuxagent or waagent running:{is_vm_agent_running}")
 
