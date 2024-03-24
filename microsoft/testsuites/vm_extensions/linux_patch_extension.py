@@ -14,6 +14,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
+from lisa.operating_system import BSD
+from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
     get_node_context,
@@ -56,7 +58,9 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     area="vm_extension",
     category="functional",
     description="Test for Linux Patch Extension",
-    requirement=simple_requirement(unsupported_os=[]),
+    requirement=simple_requirement(
+        supported_platform_type=[AZURE], unsupported_os=[BSD]
+    ),
 )
 class LinuxPatchExtensionBVT(TestSuite):
     @TestCaseMetadata(
