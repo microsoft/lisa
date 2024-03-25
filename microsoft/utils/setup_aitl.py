@@ -220,11 +220,20 @@ def _set_target_role_parameters(
         "Microsoft.Compute/disks/delete",
         "Microsoft.Compute/images/read",
         "Microsoft.Compute/images/write",
+        # for testing ARM64 VHD and gallery image
         "Microsoft.Compute/galleries/images/read",
         "Microsoft.Compute/galleries/images/write",
+        "Microsoft.Compute/galleries/images/versions/read",
+        "Microsoft.Compute/galleries/images/versions/write",
+        "Microsoft.Compute/galleries/read",
+        "Microsoft.Compute/galleries/write",
         # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
+        "Microsoft.Compute/virtualMachines/extensions/delete",
+        # For disk_support_restore_point & verify_vmsnapshot_extension
+        "Microsoft.Compute/restorePointCollections/write",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/write",
         "Microsoft.Network/virtualNetworks/read",
         "Microsoft.Network/virtualNetworks/write",
         "Microsoft.Network/virtualNetworks/subnets/join/action",

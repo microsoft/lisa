@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.24.24.22086",
-      "templateHash": "15795965431406700912"
+      "templateHash": "13627176491193451778"
     }
   },
   "functions": [
@@ -503,7 +503,7 @@
     "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]",
     "node_count": "[length(parameters('nodes'))]",
     "availability_set_name_value": "lisa-availabilitySet",
-    "existing_subnet_ref": "[if(empty(parameters('virtual_network_resource_group')), '', resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_resource_group'), parameters('virtual_network_name'), parameters('subnet_prefix')))]",
+    "existing_subnet_ref": "[if(empty(parameters('virtual_network_resource_group')), '', resourceId(parameters('virtual_network_resource_group'), 'Microsoft.Network/virtualNetworks/subnets', parameters('virtual_network_name'), parameters('subnet_prefix')))]",
     "availability_set_tags": "[parameters('availability_options').availability_set_tags]",
     "availability_set_properties": "[parameters('availability_options').availability_set_properties]",
     "availability_zones": "[parameters('availability_options').availability_zones]",

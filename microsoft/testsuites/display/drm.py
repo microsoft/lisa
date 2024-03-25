@@ -13,6 +13,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
+from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot
@@ -39,6 +40,9 @@ class Drm(TestSuite):
         2. Check if hyperv_drm exist in the list.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
         if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
@@ -64,6 +68,9 @@ class Drm(TestSuite):
         2. Verify it contains hyperv_drm string in it.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_dri_node(self, node: Node, log: Logger) -> None:
         cat = node.tools[Cat]
@@ -83,6 +90,9 @@ class Drm(TestSuite):
         2. Check no 'Unable to send packet via vmbus' shown up in dmesg output.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_no_error_output(self, node: Node, log: Logger) -> None:
         assert_that(node.tools[Dmesg].get_output(force_run=True)).described_as(
@@ -99,6 +109,9 @@ class Drm(TestSuite):
         2. Verify the status return from modetest is connected.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_connection_status(self, node: Node, log: Logger) -> None:
         is_status_connected = node.tools[Modetest].is_status_connected("hyperv_drm")

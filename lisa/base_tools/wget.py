@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from retry import retry
 
+from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.tools.ls import Ls
 from lisa.tools.mkdir import Mkdir
@@ -16,9 +17,8 @@ if TYPE_CHECKING:
 
 
 class Wget(Tool):
-    __pattern_path = re.compile(
-        r"([\w\W]*?)(-|File) (‘|')(?P<path>.+?)(’|') (saved|already there)"
-    )
+    # Saving '/home/username/lisa_working/20240323/20240323-070329-867/kvp_client'
+    __pattern_path = re.compile(r"([\w\W]*?)Saving.*(‘|')(?P<path>.+?)(’|')")
 
     @property
     def command(self) -> str:
@@ -59,6 +59,9 @@ class Wget(Tool):
             command = f"{command} -O {download_path}"
         else:
             command = f"{command} -P {download_path}"
+        # in some distro, the output is truncated, so we need to save it to a file.
+        log_file = "wget_temp.log"
+        command = f"{command} -o {log_file}"
         command_result = self.run(
             command,
             no_error_log=True,
@@ -67,7 +70,8 @@ class Wget(Tool):
             force_run=force_run,
             timeout=timeout,
         )
-        matched_result = self.__pattern_path.match(command_result.stdout)
+        temp_log = self.node.tools[Cat].read(log_file, sudo=sudo, force_run=True)
+        matched_result = self.__pattern_path.match(temp_log)
         if matched_result:
             download_file_path = matched_result.group("path")
         else:
@@ -86,7 +90,7 @@ class Wget(Tool):
         )
         if executable:
             self.node.execute(f"chmod +x {actual_file_path}", sudo=sudo)
-
+        self.node.tools[Rm].remove_file(log_file, sudo=sudo)
         return actual_file_path.stdout
 
     def verify_internet_access(self) -> bool:

@@ -54,6 +54,7 @@ from .kdump import KdumpBase
 from .kernel_config import KernelConfig
 from .kill import Kill
 from .lagscope import Lagscope
+from .lisdriver import LisDriver
 from .ln import Ln
 from .ls import Ls
 from .lsblk import Lsblk
@@ -170,6 +171,7 @@ __all__ = [
     "Lagscope",
     "Ln",
     "Ls",
+    "LisDriver",
     "Lsblk",
     "Lscpu",
     "Lsinitrd",
