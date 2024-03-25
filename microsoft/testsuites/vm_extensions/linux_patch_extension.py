@@ -44,8 +44,8 @@ def _set_up_vm(node: Node, environment: Environment) -> Any:
 def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     service = node.tools[Service]
     is_vm_agent_running = service.is_service_running(
-        "walinuxagent.service"
-    ) or service.is_service_running("waagent.service")
+        "walinuxagent"
+    ) or service.is_service_running("waagent")
 
     log.debug(f"verify walinuxagent or waagent running:{is_vm_agent_running}")
 
@@ -87,6 +87,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         assess_result = wait_operation(operation, 600)
 
         assert assess_result, "assess_result shouldn't be None"
+        log.debug(f"assess_result:{assess_result}")
         assert_that(assess_result["status"]).described_as(
             "Expected the assess patches to succeed"
         ).is_equal_to("Succeeded")
@@ -101,7 +102,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension creation in vm.
         Verify status file response for validity.
         """,
-        priority=2,
+        priority=3,
     )
     def verify_vm_install_patches(
         self, node: Node, environment: Environment, log: Logger
@@ -130,6 +131,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         install_result = wait_operation(operation, 600)
 
         assert install_result, "install_result shouldn't be None"
+        log.debug(f"install_result:{install_result}")
         assert_that(install_result["status"]).described_as(
             "Expected the install patches to succeed"
         ).is_equal_to("Succeeded")
