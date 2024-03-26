@@ -131,7 +131,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         )
         # set wait operation max duration 3H30M timeout, status file should be
         # generated before timeout
-        install_result = wait_operation(operation, 12600)
+        install_result = wait_operation(operation, self.TIMEOUT)
 
         assert install_result, "install_result shouldn't be None"
         log.debug(f"install_result:{install_result}")
