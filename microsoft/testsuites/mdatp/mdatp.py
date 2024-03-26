@@ -26,10 +26,6 @@ class MdatpSuite(TestSuite):
         ),
     )
     def verify_mdatp_config(self, node: Node) -> None:
-        # check bash is available
-        if not node.execute("command -v bash", shell=True, sudo=True):
-            raise SkippedException("No bash installation was found! Skipping test...")
-
         # collect some paths before we start the test
         local_path = pathlib.PurePath(__file__).parent.joinpath("check-mdatp.sh")
         working_path = node.get_working_path()

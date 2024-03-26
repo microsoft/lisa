@@ -1,49 +1,21 @@
-#! /bin/bash
+#! /bin/sh
 
-function is_text {
-    # run 'file' and check for ASCII or UTF-8 encoded files
-    IS_ASCII=$( file "$1" | grep 'ASCII' );
-    IS_UTF=$( file "$1" | grep 'UTF-8' );
-    IS_JSON=$( file "$1" | grep 'JSON' );
-
-    # if the files have no text or json content, return false
-    if [[ -z "$IS_ASCII" ]] && [[ -z "$IS_UTF" ]] && [[ -z "$IS_JSON" ]]; then 
-        return 1; 
-    fi
-    return 0; 
-}
-
+# check the following folders for printable files, print them
 FOUND_DEFENDER=1
-if ! shopt -s globstar; then
-    echo "Warning, could not set globstar option! File results might be truncated."
-fi
+MDATP_OPT_DIR='/etc/opt/microsoft/mdatp/'
+MDATP_EXTENSION_DIR='/var/lib/waagent/Microsoft.Azure.AzureDefenderForServers.MDE.Linux'
 
 # check for mdatp installation
-if [[ -e /etc/opt/microsoft/mdatp/ ]]; then
+if [[ -e "$MDATP_OPT_DIR" ]]; then
     # dump all the filenames to console
     FOUND_DEFENDER=0
-    for file in /etc/opt/microsoft/mdatp/** ; do
-        echo "$file ________________________________"
-        # if the file is printable, print it
-        if is_text "$file"; then
-            cat "$file"
-        else
-            file "$file"
-        fi
-    done
+    # find regular files, skip printing them if they are binary
+    sudo find "$MDATP_OPT_DIR" -type f -exec file '{}' ';' -exec grep -Iq . '{}' ';' -exec cat '{}' ';'
 fi
 
-if [[  -e '/var/lib/waagent/Microsoft.Azure.AzureDefenderForServers.MDE.Linux' ]]; then
+if [[  -e "$MDATP_EXTENSION_DIR" ]]; then
     FOUND_DEFENDER=0
-    for file in /var/lib/waagent/Microsoft.Azure.AzureDefenderForServers.MDE.Linux/** ; do
-        echo "$file ________________________________"
-        # if the file is printable, print it
-        if is_text "$file"; then
-            cat "$file"
-        else
-            file "$file"
-        fi
-    done
+    sudo find "$MDATP_EXTENSION_DIR" -type f -exec file '{}' ';' -exec grep -Iq . '{}' ';'  -exec cat '{}' ';'
 fi
 
 exit $FOUND_DEFENDER
