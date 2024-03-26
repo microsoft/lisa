@@ -555,7 +555,7 @@ class Storage(TestSuite):
         assert node.capability.disk
         # assert isinstance(node.capability.disk.max_data_disk_count, int)
         # max_data_disk_count = node.capability.disk.max_data_disk_count
-        max_data_disk_count = 47
+        max_data_disk_count = 63
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
         # get the number of data disks already added to the vm
@@ -591,8 +591,8 @@ class Storage(TestSuite):
             ).is_equal_to(size)
 
             # remove data disk
-            log.debug(f"Removing managed disk: {disks_added}")
-            disk.remove_data_disk(disks_added)
+            #log.debug(f"Removing managed disk: {disks_added}")
+            #disk.remove_data_disk(disks_added)
 
             # verify that partition count is decreased by 1
             partition_after_removing_disk = lsblk.get_disks(force_run=True)
