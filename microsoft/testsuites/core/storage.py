@@ -586,11 +586,13 @@ class Storage(TestSuite):
 
         # get partition info before adding data disk
         partitions_before_adding_disk = lsblk.get_disks(force_run=True)
-
+        added_disk_count = 0
+        disks_added = []
         for _ in range(disks_to_add):
             # add data disk
-            log.debug("Adding 1 managed disk")
-            disks_added = disk.add_data_disk(1, disk_type, size)
+            disks_added.append(disk.add_data_disk(1, disk_type, size))
+            added_disk_count += 1
+            log.debug(f"Added {added_disk_count}'th managed disk")
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
@@ -601,27 +603,31 @@ class Storage(TestSuite):
                 if item not in partitions_before_adding_disk
             ]
             log.debug(f"added_partitions: {added_partitions}")
-            assert_that(added_partitions, "Data disk should be added").is_length(1)
+            assert_that(added_partitions, "Data disk should be added").is_length(
+                added_disk_count
+            )
             assert_that(
-                added_partitions[0].size_in_gb,
-                f"data disk {added_partitions[0].name} size should be equal to "
-                f"{size} GB",
+                added_partitions[added_disk_count - 1].size_in_gb,
+                f"data disk { added_partitions[added_disk_count - 1].name}"
+                f" size should be equal to {size} GB",
             ).is_equal_to(size)
 
+        # Remove all attached data disks
+        for disk_added in disks_added:
             # remove data disk
-            log.debug(f"Removing managed disk: {disks_added}")
-            disk.remove_data_disk(disks_added)
+            log.debug(f"Removing managed disk: {disk_added}")
+            disk.remove_data_disk(disk_added)
 
-            # verify that partition count is decreased by 1
-            partition_after_removing_disk = lsblk.get_disks(force_run=True)
-            added_partitions = [
-                item
-                for item in partitions_before_adding_disk
-                if item not in partition_after_removing_disk
-            ]
-            assert_that(added_partitions, "data disks should not be present").is_length(
-                0
-            )
+        # verify that all the attached disks are removed
+        partitions_after_removing_disks = lsblk.get_disks(force_run=True)
+        partitions_available = [
+            item
+            for item in partitions_before_adding_disk
+            if item not in partitions_after_removing_disks
+        ]
+        assert_that(partitions_available, "data disks should not be present").is_length(
+            0
+        )
 
     def _hot_add_disk_parallel(
         self, log: Logger, node: Node, disk_type: DiskType, size: int
