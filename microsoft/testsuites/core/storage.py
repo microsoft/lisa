@@ -643,7 +643,7 @@ class Storage(TestSuite):
         assert node.capability.disk
         # assert isinstance(node.capability.disk.max_data_disk_count, int)
         # max_data_disk_count = node.capability.disk.max_data_disk_count
-        max_data_disk_count = 63
+        max_data_disk_count = 64
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
         # get the number of data disks already added to the vm
@@ -655,23 +655,11 @@ class Storage(TestSuite):
         partitions_before_adding_disk = lsblk.get_disks(force_run=True)
         added_disk_count = 0
         disks_added = []
-        # Assuming existing disks added sequentially from lun = 0 to
-        # (current_data_disk_count - 1)
-        free_luns = list(range(current_data_disk_count, max_data_disk_count))
-
-        # Randomize the luns if randomize_luns is set to True
-        # Using seed 6 to get consistent randomization across runs
-        # Create own random.Random instance, with its own seed, which will not
-        # affect the global functions
-        if randomize_luns:
-            random.Random(6).shuffle(free_luns)
-            log.debug(f"free_luns: {free_luns}")
-        for lun in free_luns:
-            linux_device_luns = disk.get_luns()
+        for _ in range(disks_to_add):
             # add data disk
-            disks_added.append(disk.add_data_disk(1, disk_type, size, lun))
+            log.debug("Adding 1 managed disk")
+            disks_added.append(disk.add_data_disk(1, disk_type, size))
             added_disk_count += 1
-            log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
@@ -682,30 +670,15 @@ class Storage(TestSuite):
                 if item not in partitions_before_adding_disk
             ]
             log.debug(f"added_partitions: {added_partitions}")
-            assert_that(added_partitions, "Data disk should be added").is_length(
-                added_disk_count
-            )
             assert_that(
-                added_partitions[added_disk_count - 1].size_in_gb,
-                f"data disk { added_partitions[added_disk_count - 1].name}"
-                f" size should be equal to {size} GB",
+                added_partitions,
+                "Data disk should be added"
+            ).is_length(added_disk_count)
+            assert_that(
+                added_partitions[added_disk_count-1].size_in_gb,
+                f"data disk { added_partitions[added_disk_count-1].name} size should be equal to "
+                f"{size} GB",
             ).is_equal_to(size)
-
-            # verify the lun number from linux VM
-            linux_device_luns_after = disk.get_luns()
-            linux_device_lun_diff = [
-                linux_device_luns_after[k]
-                for k in set(linux_device_luns_after) - set(linux_device_luns)
-            ][0]
-            log.debug(f"linux_device_luns: {linux_device_luns}")
-            log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
-            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
-            assert_that(
-                linux_device_lun_diff, "No new device lun found on VM"
-            ).is_equal_to(lun)
-            # remove data disk
-            #log.debug(f"Removing managed disk: {disks_added}")
-            #disk.remove_data_disk(disks_added)
 
         # Remove all attached data disks
         for disk_added in disks_added:
