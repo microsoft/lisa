@@ -585,14 +585,13 @@ class Storage(TestSuite):
                 if item not in partitions_before_adding_disk
             ]
             log.debug(f"added_partitions: {added_partitions}")
+            assert_that(added_partitions, "Data disk should be added").is_length(
+                added_disk_count
+            )
             assert_that(
-                added_partitions,
-                "Data disk should be added"
-            ).is_length(added_disk_count)
-            assert_that(
-                added_partitions[added_disk_count-1].size_in_gb,
-                f"data disk { added_partitions[added_disk_count-1].name} size should be equal to "
-                f"{size} GB",
+                added_partitions[added_disk_count - 1].size_in_gb,
+                f"data disk { added_partitions[added_disk_count - 1].name}"
+                f" size should be equal to {size} GB",
             ).is_equal_to(size)
 
         # Remove all attached data disks
@@ -611,7 +610,6 @@ class Storage(TestSuite):
         assert_that(partitions_available, "data disks should not be present").is_length(
             0
         )
-
 
     def _hot_add_disk_parallel(
         self, log: Logger, node: Node, disk_type: DiskType, size: int
