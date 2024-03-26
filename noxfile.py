@@ -17,7 +17,9 @@ CONFIG = toml.load("pyproject.toml")
 DEPENDENCIES = CONFIG["project"]["dependencies"]
 OPTIONAL_DEPENDENCIES = CONFIG["project"]["optional-dependencies"]
 NOX_DEPENDENCIES = ("nox", "toml")
-
+SPURPLUS_DEPENDENCIES = CONFIG["project"]["optional-dependencies"][
+    "spurplus-dependencies"
+]
 
 # Global options
 nox.options.stop_on_first_error = False
@@ -27,14 +29,23 @@ nox.options.error_on_missing_interpreters = False
 nox.needs_version = ">=2022.8.7"
 
 
+def _session_install(*args: str, session: nox.Session) -> None:
+    session.install(*args)
+    # Update latest packages by no-dep to work around spurplus is too old.
+    session.install(*SPURPLUS_DEPENDENCIES, "--no-deps")
+
+
 # --- Testing ---
 
 
 @nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
 def test(session: nox.Session) -> None:
     """Run tests"""
-    session.install(
-        *DEPENDENCIES, *OPTIONAL_DEPENDENCIES["azure"], *OPTIONAL_DEPENDENCIES["test"]
+    _session_install(
+        *DEPENDENCIES,
+        *OPTIONAL_DEPENDENCIES["azure"],
+        *OPTIONAL_DEPENDENCIES["test"],
+        session=session,
     )
     session.run("python", "-m", "unittest", "discover")
 
@@ -42,18 +53,21 @@ def test(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["test", "all"])
 def example(session: nox.Session) -> None:
     """Run example"""
-    session.install("--editable", ".", "--config-settings", "editable_mode=compat")
+    _session_install(
+        "--editable", ".", "--config-settings", "editable_mode=compat", session=session
+    )
     session.run("lisa", "--debug")
 
 
 @nox.session(python=CURRENT_PYTHON, tags=["all"])
 def coverage(session: nox.Session) -> None:
     """Check test coverage"""
-    session.install(
+    _session_install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["test"],
         "coverage",
+        session=session,
     )
 
     session.run("coverage", "erase")
@@ -96,7 +110,7 @@ def flake8(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["lint", "all"])
 def pylint(session: nox.Session) -> None:
     """Run pylint"""
-    session.install(
+    _session_install(
         *DEPENDENCIES,
         *NOX_DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["aws"],
@@ -105,6 +119,7 @@ def pylint(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["libvirt"],
         *OPTIONAL_DEPENDENCIES["pylint"],
         *OPTIONAL_DEPENDENCIES["typing"],
+        session=session,
     )
     session.run(
         "pylint",
@@ -124,12 +139,13 @@ def pylint(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["typing", "all"])
 def mypy(session: nox.Session) -> None:
     """Run mypy"""
-    session.install(
+    _session_install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["mypy"],
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
+        session=session,
     )
 
     session.run("mypy", "-p", "lisa")
@@ -143,11 +159,12 @@ def mypy(session: nox.Session) -> None:
 @nox.session(python=CURRENT_PYTHON, tags=["all"])
 def docs(session: nox.Session) -> None:
     """Build docs"""
-    session.install(
+    _session_install(
         *DEPENDENCIES,
         *OPTIONAL_DEPENDENCIES["docs"],
         *OPTIONAL_DEPENDENCIES["azure"],
         *OPTIONAL_DEPENDENCIES["aws"],
+        session=session,
     )
 
     session.run("sphinx-build", "-Eab", "html", "docs", "docs/_build/html")
@@ -230,6 +247,11 @@ def dev(session: nox.Session) -> None:
         *OPTIONAL_DEPENDENCIES["typing"],
         *NOX_DEPENDENCIES,
         external=True,
+    )
+
+    # Update latest packages by no-dep to work around spurplus is too old.
+    session.run(
+        venv_python, "-m", "pip", "install", *SPURPLUS_DEPENDENCIES, "--no-deps"
     )
 
     # Instruct user how to activate environment
