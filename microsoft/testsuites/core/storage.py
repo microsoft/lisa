@@ -643,7 +643,7 @@ class Storage(TestSuite):
         assert node.capability.disk
         # assert isinstance(node.capability.disk.max_data_disk_count, int)
         # max_data_disk_count = node.capability.disk.max_data_disk_count
-        max_data_disk_count = 47
+        max_data_disk_count = 63
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
         # get the number of data disks already added to the vm
@@ -703,6 +703,9 @@ class Storage(TestSuite):
             assert_that(
                 linux_device_lun_diff, "No new device lun found on VM"
             ).is_equal_to(lun)
+            # remove data disk
+            #log.debug(f"Removing managed disk: {disks_added}")
+            #disk.remove_data_disk(disks_added)
 
         # Remove all attached data disks
         for disk_added in disks_added:
