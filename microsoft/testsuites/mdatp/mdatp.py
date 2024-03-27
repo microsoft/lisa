@@ -43,6 +43,7 @@ class MdatpSuite(TestSuite):
             cmd=f"bash +x {str(node_script_path)}",
             shell=True,
             sudo=True,
+            no_debug_log=True,
         )
         script_output = result.stdout.strip()
         exit_code = result.exit_code
