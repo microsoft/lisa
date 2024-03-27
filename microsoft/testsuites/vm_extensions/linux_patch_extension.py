@@ -63,7 +63,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     ),
 )
 class LinuxPatchExtensionBVT(TestSuite):
-    TIMEOUT = 12600  # 3H30M
+    TIMEOUT = 14400  # 4H Max install operation duration
 
     @TestCaseMetadata(
         description="""
@@ -112,7 +112,7 @@ class LinuxPatchExtensionBVT(TestSuite):
     ) -> None:
         compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
         install_patches_input = {
-            "maximumDuration": "PT3H30M",
+            "maximumDuration": "PT4H",
             "rebootSetting": "IfRequired",
             "linuxParameters": {
                 "classificationsToInclude": ["Security", "Critical"],
