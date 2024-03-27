@@ -63,7 +63,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     ),
 )
 class LinuxPatchExtensionBVT(TestSuite):
-    TIMEOUT = 14400  # 4H
+    TIMEOUT = 14400  # 4H Max install operation duration
 
     @TestCaseMetadata(
         description="""
