@@ -167,7 +167,7 @@ class AzurePerformanceDiagnostics(TestSuite):
             Suse: [12, 15],
             SLES: [12, 15],
             AlmaLinux: [8],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions:
