@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -91,6 +92,13 @@ class Feature(InitializableMixin):
         override for initializing
         """
         ...
+
+    def get_settings(self) -> schema.FeatureSettings:
+        """
+        Returns a read-only copy of the feature settings.
+        Modifications to the returned settings won't be effective.
+        """
+        return copy.deepcopy(self._settings)
 
 
 T_FEATURE = TypeVar("T_FEATURE", bound=Feature)
