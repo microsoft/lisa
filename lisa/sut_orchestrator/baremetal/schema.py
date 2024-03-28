@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 from dataclasses_json import dataclass_json
 
 from lisa import schema
+from lisa.schema import Artifact
 from lisa.secret import PATTERN_HEADTAIL, add_secret
 from lisa.util import field_metadata
 
@@ -88,13 +89,6 @@ class ClusterSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class SourceSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = field(default="ado", metadata=field_metadata(required=True))
     name: str = ""
-
-
-@dataclass_json()
-@dataclass
-class Artifact:
-    artifact_name: str = ""
-    extract: bool = True
 
 
 @dataclass_json()

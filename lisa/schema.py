@@ -1641,3 +1641,10 @@ def load_by_type_many(schema_type: Type[T], raw_runbook: Any) -> List[T]:
     """
     result = load_by_type(schema_type, raw_runbook=raw_runbook, many=True)
     return cast(List[T], result)
+
+
+@dataclass_json()
+@dataclass
+class Artifact:
+    artifact_name: str = ""
+    extract: bool = True
