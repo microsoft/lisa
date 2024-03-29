@@ -19,7 +19,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import Debian
+from lisa.operating_system import BSD, Debian, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -115,6 +115,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_exclude_disk_support_restore_point(
