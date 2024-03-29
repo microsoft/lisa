@@ -34,10 +34,10 @@ class PartitionInfo(object):
 class Blkid(Tool):
     # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
     _get_partition_info = re.compile(
-        r"\s*(?P<name>\S+):(?:(?!LABEL=).)*"
-        r"(LABEL=\"(?P<label>[^\"]*)\")?"
-        r"(?:(?!UUID=).)*(UUID=\"(?P<uuid>[^\"]*)\")?"
-        r"(?:(?!PARTUUID=).)*(PARTUUID=\"(?P<part_uuid>[^\"]*)\")?"
+        r"\s*(?P<name>\S+):"
+        r"(?:.*?LABEL=\"(?P<label>[^\"]*)\")?"
+        r"(?:.*?UUID=\"(?P<uuid>[^\"]*)\")?"
+        r"(?:.*?PARTUUID=\"(?P<part_uuid>[^\"]*)\")?"
     )
 
     @property
