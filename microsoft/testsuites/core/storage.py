@@ -17,11 +17,17 @@ from lisa import (
 )
 from lisa.base_tools.service import Systemctl
 from lisa.environment import Environment
+from lisa.feature import Feature
 from lisa.features import Disk, Nfs
 from lisa.features.disks import (
     DiskPremiumSSDLRS,
     DiskStandardHDDLRS,
     DiskStandardSSDLRS,
+)
+from lisa.features.security_profile import (
+    SecurityProfile,
+    SecurityProfileSettings,
+    SecurityProfileType,
 )
 from lisa.node import Node
 from lisa.operating_system import BSD, Posix, Windows
@@ -294,21 +300,34 @@ class Storage(TestSuite):
         )
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
+        # check if cvm
+        is_cvm = False
+        settings = Feature.get_feature_settings(
+            node.features[SecurityProfile].get_settings()
+        )
+        assert isinstance(settings, SecurityProfileSettings)
+        if SecurityProfileType.CVM == settings.security_profile:
+            log.debug("Confidential computing is detected to be enabled.")
+            is_cvm = True
+
         # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
         # present in dmesg or journalctl logs
         dmesg = node.tools[Dmesg].run(sudo=True).stdout
-        dmesg_root_present = self._check_root_partition_in_log(dmesg, os_partition_info)
+        dmesg_root_present = self._check_root_partition_in_log(
+            dmesg, os_partition_info, is_cvm
+        )
 
         if not dmesg_root_present:
             journalctl_out = node.tools[Journalctl].first_n_logs_from_boot()
             journal_root_present = self._check_root_partition_in_log(
-                journalctl_out, os_partition_info
+                journalctl_out, os_partition_info, is_cvm
             )
         if not (dmesg_root_present or journal_root_present):
             raise LisaException(
                 f"One of root={os_partition_info.name} or "
                 f"root=UUID={os_partition_info.uuid} or "
-                f"root=PARTUUID={os_partition_info.part_uuid} "
+                f"root=PARTUUID={os_partition_info.part_uuid} or "
+                f"snapd_recovery_mode={os_partition_info.label} "
                 "should be present in dmesg/journalctl output"
             )
 
@@ -585,7 +604,7 @@ class Storage(TestSuite):
             assert_that(added_partitions, "Data disk should be added").is_length(1)
             assert_that(
                 added_partitions[0].size_in_gb,
-                f"data disk { added_partitions[0].name} size should be equal to "
+                f"data disk {added_partitions[0].name} size should be equal to "
                 f"{size} GB",
             ).is_equal_to(size)
 
@@ -677,9 +696,19 @@ class Storage(TestSuite):
         return regex
 
     def _check_root_partition_in_log(
-        self, log: str, os_partition_info: PartitionInfo
+        self, log: str, os_partition_info: PartitionInfo, is_cvm: bool = False
     ) -> bool:
-        if (
+        if is_cvm:
+            # CVM log doesn't have root=/root=UUID/root=PARTUUID info
+            # instead it should have snapd_recovery_mode=<label>
+            if not get_matched_str(
+                log,
+                re.compile(
+                    rf".*snapd_recovery_mode={os_partition_info.label}",
+                ),
+            ):
+                return False
+        elif (
             not get_matched_str(
                 log,
                 re.compile(
