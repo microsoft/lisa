@@ -26,7 +26,7 @@ class Ssh(Tool):
             if self.node.shell.exists(file_path):
                 self.node.shell.remove(file_path)
         self.node.execute(
-            "echo | ssh-keygen -N ''",
+            "echo | ssh-keygen -t rsa -N ''",
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="error on generate key files.",
