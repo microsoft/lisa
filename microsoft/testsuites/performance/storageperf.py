@@ -532,6 +532,7 @@ class StoragePerformance(TestSuite):
             size_mb=8192,
             overwrite=True,
             test_result=test_result,
+            ioengine="io_uring",
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
