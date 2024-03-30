@@ -36,7 +36,7 @@ from .ethtool import Ethtool
 from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
-from .fio import FIOMODES, Fio, FIOResult
+from .fio import FIOMODES, Fio, FIOResult, IoEngine
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
@@ -159,6 +159,7 @@ __all__ = [
     "Ip",
     "IpInfo",
     "Iperf3",
+    "IoEngine",
     "HibernationSetup",
     "Hostname",
     "Hugepages",
