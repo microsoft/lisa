@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, c
 
 import paramiko
 import spur  # type: ignore
-import spurplus  # type: ignore
+import spurplus
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
