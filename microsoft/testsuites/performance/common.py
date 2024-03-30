@@ -70,6 +70,7 @@ def perf_disk(
     size_mb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
+    ioengine: str = "",
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
@@ -102,6 +103,7 @@ def perf_disk(
                 overwrite=overwrite,
                 numjob=numjob,
                 cwd=cwd,
+                ioengine=ioengine,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2

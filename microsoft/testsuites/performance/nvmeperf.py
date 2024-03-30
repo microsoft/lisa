@@ -71,4 +71,5 @@ class NvmePerformace(TestSuite):
             disk_setup_type=DiskSetupType.raw,
             disk_type=DiskType.nvme,
             test_result=result,
+            ioengine="io_uring",
         )

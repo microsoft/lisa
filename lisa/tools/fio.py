@@ -93,6 +93,7 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = self._get_command(
@@ -114,6 +115,7 @@ class Fio(Tool):
             verify_dump,
             verify_fatal,
             verify,
+            ioengine,
         )
         result = self.run(
             cmd,
@@ -149,6 +151,7 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: str = "",
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd = self._get_command(
@@ -170,6 +173,7 @@ class Fio(Tool):
             verify_dump,
             verify_fatal,
             verify,
+            ioengine,
         )
         process = self.run_async(
             cmd,
@@ -264,8 +268,11 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: str = "",
     ) -> str:
-        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
+        if ioengine != "":
+            ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
+
         cmd = (
             f"--ioengine={ioengine} --filename={filename} "
             f"--readwrite={mode} --iodepth={iodepth} "
