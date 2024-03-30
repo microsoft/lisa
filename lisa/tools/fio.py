@@ -270,7 +270,7 @@ class Fio(Tool):
         verify: str = "",
         ioengine: str = "",
     ) -> str:
-        if ioengine != "":
+        if ioengine == "":
             ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
 
         cmd = (
