@@ -8,7 +8,7 @@ from retry import retry
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
-from lisa.operating_system import Cat, CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import BSD, Cat, CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools.ls import Ls
 from lisa.util import LisaException
 
@@ -43,6 +43,7 @@ class Chrony(Tool):
             isinstance(self.node.os, Redhat)
             or isinstance(self.node.os, Suse)
             or isinstance(self.node.os, CBLMariner)
+            or isinstance(self.node.os, BSD)
         ):
             service_name = "chronyd"
         else:
