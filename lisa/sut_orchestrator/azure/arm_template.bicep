@@ -124,6 +124,10 @@ func getOsDiskSharedGallery(shared_gallery object) object => {
   id: resourceId(shared_gallery.subscription_id, empty(shared_gallery.resource_group_name) ? 'None' : shared_gallery.resource_group_name, 'Microsoft.Compute/galleries/images/versions', shared_gallery.image_gallery, shared_gallery.image_definition, shared_gallery.image_version)
 }
 
+func getOSDiskCommunityGalleryImage(community_gallery_image object) object => {
+  communityGalleryImageId: '/CommunityGalleries/${community_gallery_image.image_gallery}/Images/${community_gallery_image.image_definition}/Versions/${community_gallery_image.image_version}'
+}
+
 func getOsDiskMarketplace(marketplace object) object => {
   publisher: marketplace.publisher
   offer: marketplace.offer
@@ -131,10 +135,13 @@ func getOsDiskMarketplace(marketplace object) object => {
   version: marketplace.version
 }
 
-func generateImageReference(node object) object => (isVhd(node) ? getOsDiskVhd(node.name)
-: ((!empty(node.shared_gallery))
+func generateImageReference(node object) object => isVhd(node)
+? getOsDiskVhd(node.name)
+: !empty(node.shared_gallery)
 ? getOsDiskSharedGallery(node.shared_gallery)
-: getOsDiskMarketplace(node.marketplace)))
+: !empty(node.community_gallery_image)
+? getOSDiskCommunityGalleryImage(node.community_gallery_image)
+: getOsDiskMarketplace(node.marketplace)
 
 func getSecurityProfileForOSDisk(node object) object => empty(node.security_profile.disk_encryption_set_id)
 ? {
