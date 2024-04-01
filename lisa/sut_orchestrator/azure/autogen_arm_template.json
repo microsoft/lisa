@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.24.24.22086",
-      "templateHash": "2250159769761272390"
+      "templateHash": "10469517385668739272"
     }
   },
   "functions": [
@@ -211,6 +211,20 @@
             }
           }
         },
+        "getOSDiskCommunityGalleryImage": {
+          "parameters": [
+            {
+              "type": "object",
+              "name": "community_gallery_image"
+            }
+          ],
+          "output": {
+            "type": "object",
+            "value": {
+              "communityGalleryImageId": "[format('/CommunityGalleries/{0}/Images/{1}/Versions/{2}', parameters('community_gallery_image').image_gallery, parameters('community_gallery_image').image_definition, parameters('community_gallery_image').image_version)]"
+            }
+          }
+        },
         "getOsDiskMarketplace": {
           "parameters": [
             {
@@ -237,7 +251,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(__bicep.isVhd(parameters('node')), __bicep.getOsDiskVhd(parameters('node').name), if(not(empty(parameters('node').shared_gallery)), __bicep.getOsDiskSharedGallery(parameters('node').shared_gallery), __bicep.getOsDiskMarketplace(parameters('node').marketplace)))]"
+            "value": "[if(__bicep.isVhd(parameters('node')), __bicep.getOsDiskVhd(parameters('node').name), if(not(empty(parameters('node').shared_gallery)), __bicep.getOsDiskSharedGallery(parameters('node').shared_gallery), if(not(empty(parameters('node').community_gallery_image)), __bicep.getOSDiskCommunityGalleryImage(parameters('node').community_gallery_image), __bicep.getOsDiskMarketplace(parameters('node').marketplace))))]"
           }
         },
         "getSecurityProfileForOSDisk": {
