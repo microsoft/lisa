@@ -102,6 +102,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         application_id = runbook.service_principal_client_id
         node_context = get_node_context(node)
         vault_name = f"lisa-kve-{platform.subscription_id[-5:]}-{node_context.location}"
+        log.info("Key Vault name: %s", vault_name)
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
@@ -120,6 +121,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         vault_properties = VaultProperties(
             tenant_id=tenant_id,
             sku=KeyVaultSku(name="standard"),
+            enable_soft_delete=False,
             access_policies=[
                 AccessPolicyEntry(
                     tenant_id=tenant_id,

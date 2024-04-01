@@ -175,11 +175,12 @@ class AzureDiskEncryption(TestSuite):
                 string.ascii_lowercase + string.digits, 5
             )
             vault_name = f"lisa-ade-{random_str}"
-
+        log.info(f"Key Vault name: {vault_name}")
         vault_properties = VaultProperties(
             tenant_id=tenant_id,
             sku=KeyVaultSku(name="standard"),
             enabled_for_disk_encryption=True,
+            enable_soft_delete=False,
             access_policies=[
                 AccessPolicyEntry(
                     tenant_id=tenant_id,
