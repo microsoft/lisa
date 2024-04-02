@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.24.24.22086",
-      "templateHash": "13627176491193451778"
+      "templateHash": "2250159769761272390"
     }
   },
   "functions": [
@@ -201,13 +201,13 @@
           "parameters": [
             {
               "type": "object",
-              "name": "node"
+              "name": "shared_gallery"
             }
           ],
           "output": {
             "type": "object",
             "value": {
-              "id": "[resourceId(parameters('node').subscription_id, if(empty(parameters('node').resource_group_name), 'None', parameters('node').resource_group_name), 'Microsoft.Compute/galleries/images/versions', parameters('node').image_gallery, parameters('node').image_definition, parameters('node').image_version)]"
+              "id": "[resourceId(parameters('shared_gallery').subscription_id, if(empty(parameters('shared_gallery').resource_group_name), 'None', parameters('shared_gallery').resource_group_name), 'Microsoft.Compute/galleries/images/versions', parameters('shared_gallery').image_gallery, parameters('shared_gallery').image_definition, parameters('shared_gallery').image_version)]"
             }
           }
         },
@@ -215,16 +215,16 @@
           "parameters": [
             {
               "type": "object",
-              "name": "node"
+              "name": "marketplace"
             }
           ],
           "output": {
             "type": "object",
             "value": {
-              "publisher": "[parameters('node').marketplace.publisher]",
-              "offer": "[parameters('node').marketplace.offer]",
-              "sku": "[parameters('node').marketplace.sku]",
-              "version": "[parameters('node').marketplace.version]"
+              "publisher": "[parameters('marketplace').publisher]",
+              "offer": "[parameters('marketplace').offer]",
+              "sku": "[parameters('marketplace').sku]",
+              "version": "[parameters('marketplace').version]"
             }
           }
         },
@@ -237,7 +237,7 @@
           ],
           "output": {
             "type": "object",
-            "value": "[if(__bicep.isVhd(parameters('node')), __bicep.getOsDiskVhd(parameters('node').name), if(not(empty(parameters('node').shared_gallery)), __bicep.getOsDiskSharedGallery(parameters('node').shared_gallery), __bicep.getOsDiskMarketplace(parameters('node'))))]"
+            "value": "[if(__bicep.isVhd(parameters('node')), __bicep.getOsDiskVhd(parameters('node').name), if(not(empty(parameters('node').shared_gallery)), __bicep.getOsDiskSharedGallery(parameters('node').shared_gallery), __bicep.getOsDiskMarketplace(parameters('node').marketplace)))]"
           }
         },
         "getSecurityProfileForOSDisk": {
