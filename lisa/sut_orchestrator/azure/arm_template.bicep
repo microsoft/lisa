@@ -120,21 +120,21 @@ func getDataDisk(nodeName string, dataDisk object, index int) object => (dataDis
 ? getAttachDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 : getCreateDisk(dataDisk, '${nodeName}-data-disk-${index}', index)
 
-func getOsDiskSharedGallery(node object) object => {
-  id: resourceId(node.subscription_id, empty(node.resource_group_name) ? 'None' : node.resource_group_name, 'Microsoft.Compute/galleries/images/versions', node.image_gallery, node.image_definition, node.image_version)
+func getOsDiskSharedGallery(shared_gallery object) object => {
+  id: resourceId(shared_gallery.subscription_id, empty(shared_gallery.resource_group_name) ? 'None' : shared_gallery.resource_group_name, 'Microsoft.Compute/galleries/images/versions', shared_gallery.image_gallery, shared_gallery.image_definition, shared_gallery.image_version)
 }
 
-func getOsDiskMarketplace(node object) object => {
-  publisher: node.marketplace.publisher
-  offer: node.marketplace.offer
-  sku: node.marketplace.sku
-  version: node.marketplace.version
+func getOsDiskMarketplace(marketplace object) object => {
+  publisher: marketplace.publisher
+  offer: marketplace.offer
+  sku: marketplace.sku
+  version: marketplace.version
 }
 
 func generateImageReference(node object) object => (isVhd(node) ? getOsDiskVhd(node.name)
 : ((!empty(node.shared_gallery))
 ? getOsDiskSharedGallery(node.shared_gallery)
-: getOsDiskMarketplace(node)))
+: getOsDiskMarketplace(node.marketplace)))
 
 func getSecurityProfileForOSDisk(node object) object => empty(node.security_profile.disk_encryption_set_id)
 ? {
