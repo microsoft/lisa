@@ -105,6 +105,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         vault_name = (
             f"lisa-kv{platform.subscription_id[-6:]}{node_context.location[:11]}"
         )
+        log.info("Key Vault name: %s", vault_name)
         tenant_id = get_tenant_id(platform.credential)
         if tenant_id is None:
             raise ValueError("Environment variable 'tenant_id' is not set.")
