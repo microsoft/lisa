@@ -176,6 +176,7 @@ class AzureDiskEncryption(TestSuite):
             )
             vault_name = f"lisa-ade-{random_str}"
 
+        log.info("Key Vault name: %s", vault_name)
         vault_properties = VaultProperties(
             tenant_id=tenant_id,
             sku=KeyVaultSku(name="standard"),
