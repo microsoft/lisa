@@ -3,7 +3,14 @@
 
 param
 (
-	[String] $AzureSecretsFile,
+	[String] $ClientId,
+	[String] $ClientSecret,
+	[String] $TenantId,
+	[String] $SubscriptionId,
+	[String] $DatabaseServer,
+	[String] $DatabaseUser,
+	[String] $DatabasePassword,
+	[String] $DatabaseName,
 	[String] $Location,
 	[String] $Publisher,
 	[string] $LogFileName = "GetAllLinuxDistros.log",
@@ -11,12 +18,12 @@ param
 	[string] $ResultFolder = "DistroResults"
 )
 
-function Update-DeletedImages($Date, $Location, $Publisher) {
-	$server = $XmlSecrets.secrets.DatabaseServer
-	$dbuser = $XmlSecrets.secrets.DatabaseUser
-	$dbpassword = $XmlSecrets.secrets.DatabasePassword
-	$database = $XmlSecrets.secrets.DatabaseName
-	
+function Update-DeletedImages($Date, $Location, $Publisher, $DatabaseServer, $DatabaseUser, $DatabasePassword, $DatabaseName) {
+	$server = $DatabaseServer
+	$dbuser = $DatabaseUser
+	$dbpassword = $DatabasePassword
+	$database = $DatabaseName
+
 	# Query if the image exists in the database
 	$sqlQuery = "SELECT ID from $TableName where LastCheckedDate < '$Date' and IsAvailable = 1 and Location='$Location' and Publisher='$Publisher'"
 
@@ -34,21 +41,21 @@ function Update-DeletedImages($Date, $Location, $Publisher) {
 		$sqlQuery += "Update $tableName Set LastCheckedDate='$date', IsAvailable=0, DeletedOn='$date' where ID=$id;"
 		$count++
 		if ($count -ge 20) {
-			Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";")
+			Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";") -DatabaseName $database -DatabasePassword $dbpassword -DatabaseServer $server -DatabaseUser $dbuser
 			$sqlQuery = ""
 			$count = 0
 		}
 	}
 	if ($sqlQuery) {
-		Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";")
+		Upload-TestResultToDatabase -SQLQuery $sqlQuery.Trim(";") -DatabaseName $database -DatabasePassword $dbpassword -DatabaseServer $server -DatabaseUser $dbuser
 	}
 }
 
-function Update-DatabaseRecord($Publisher, $Offer, $Sku, $Version, $Date, $Location) {
-	$server = $XmlSecrets.secrets.DatabaseServer
-	$dbuser = $XmlSecrets.secrets.DatabaseUser
-	$dbpassword = $XmlSecrets.secrets.DatabasePassword
-	$database = $XmlSecrets.secrets.DatabaseName
+function Update-DatabaseRecord($Publisher, $Offer, $Sku, $Version, $Date, $Location, $DatabaseServer, $DatabaseUser, $DatabasePassword, $DatabaseName) {
+	$server = $DatabaseServer
+	$dbuser = $DatabaseUser
+	$dbpassword = $DatabasePassword
+	$database = $DatabaseName
 	
 	# Query if the image exists in the database
 	$sqlQuery = "SELECT ID from $TableName where Location='$Location' and FullName= '$Publisher $Offer $Sku $Version'"
@@ -70,7 +77,7 @@ function Update-DatabaseRecord($Publisher, $Offer, $Sku, $Version, $Date, $Locat
 		$sqlQuery = "INSERT INTO $tableName (LastCheckedDate, Location, Publisher, Offer, SKU, Version, FullName, AvailableOn, IsAvailable) VALUES
 			('$Date', '$Location', '$Publisher', '$Offer', '$Sku', '$Version', '$distroName', '$Date', 1)"
 	}
-	Upload-TestResultToDatabase -SQLQuery $sqlQuery
+	Upload-TestResultToDatabase -SQLQuery $sqlQuery -DatabaseName $database -DatabasePassword $dbpassword -DatabaseServer $server -DatabaseUser $dbuser
 }
 
 $LogFileName = "GetAllLinuxDistros-$($Location.Replace(',','-')).log"
@@ -80,29 +87,6 @@ if (!$global:LogFileName) {
 }
 Get-ChildItem .\Libraries -Recurse | Where-Object { $_.FullName.EndsWith(".psm1") } | ForEach-Object { Import-Module $_.FullName -Force -Global -DisableNameChecking }
 
-#Read secrets file and terminate if not present.
-if ($AzureSecretsFile) {
-	$secretsFile = $AzureSecretsFile
-}
-elseif ($env:Azure_Secrets_File) {
-	$secretsFile = $env:Azure_Secrets_File
-}
-else {
-	 Write-Host "-AzureSecretsFile and env:Azure_Secrets_File are empty. Exiting."
-	 exit 1
-}
-
-if (Test-Path $secretsFile) {
-	Write-Host "Secrets file found."
-	Add-AzureAccountFromSecretsFile -CustomSecretsFilePath $AzureSecretsFile
-	$secrets = [xml](Get-Content -Path $secretsFile)
-	Set-Variable -Name XmlSecrets -Value $secrets -Scope Global -Force
-}
- else {
-	 Write-Host "Secrets file not found. Exiting."
-	 exit 1
-}
-
 $RegionArrayInScope = $Location.Trim(", ").Split(",").Trim()
 $PublisherArrayInScope = $Publisher.Trim(", ").Split(",").Trim()
 
@@ -110,6 +94,11 @@ $PublisherArrayInScope = $Publisher.Trim(", ").Split(",").Trim()
 $RegionDistros = @{}
 # this should be {"Gallery ARM Image Name" -> ("westus2","eastus2")}
 $DistroRegions = @{}
+
+Write-Host "Login to Azure"
+Connect-AzAccount -ServicePrincipal -Credential (New-Object System.Management.Automation.PSCredential ($ClientId, (ConvertTo-SecureString $ClientSecret -AsPlainText -Force))) -Tenant $TenantId
+Set-AzContext -SubscriptionId $SubscriptionId
+Write-Host "Set current SubscriptionId as $SubscriptionId"
 
 $date = (Get-Date).ToUniversalTime()
 $sqlQuery = ""
@@ -151,7 +140,7 @@ foreach ($locName in $allRegions) {
 						$RegionDistros["$locName"]["$pubName"]["$skuName"]["$skuVersion"] = $distroName
 					}
 					if ($image.OSDiskImage.OperatingSystem -eq "Linux") {
-						Update-DatabaseRecord -Publisher $pubName -Offer $offerName -Sku $skuName -Version $skuVersion -Date $date -Location $locName
+						Update-DatabaseRecord -Publisher $pubName -Offer $offerName -Sku $skuName -Version $skuVersion -Date $date -Location $locName -DatabaseName $DatabaseName -DatabasePassword $DatabasePassword -DatabaseServer $DatabaseServer -DatabaseUser $DatabaseUser
 
 						if (!$DistroRegions.$distroName) {
 							$DistroRegions["$distroName"] = [System.Collections.ArrayList]@()
@@ -163,7 +152,7 @@ foreach ($locName in $allRegions) {
 				}
 			}
 		}
-		Update-DeletedImages -Date $date -Location $locName -Publisher $pubName
+		Update-DeletedImages -Date $date -Location $locName -Publisher $pubName -DatabaseName $DatabaseName -DatabasePassword $DatabasePassword -DatabaseServer $DatabaseServer -DatabaseUser $DatabaseUser
 	}
 }
 

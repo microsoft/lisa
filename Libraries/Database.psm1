@@ -164,61 +164,56 @@ Function Invoke-IngestKustoFromTSQL([string]$SQLString) {
 	}
 }
 
-Function Upload-TestResultToDatabase ([String]$SQLQuery) {
-	if ($XmlSecrets) {
-		$dataSource = $XmlSecrets.secrets.DatabaseServer
-		$dbuser = $XmlSecrets.secrets.DatabaseUser
-		$dbpassword = $XmlSecrets.secrets.DatabasePassword
-		$database = $XmlSecrets.secrets.DatabaseName
+Function Upload-TestResultToDatabase ([String]$SQLQuery, [String]$DatabaseServer, [String]$DatabaseUser, [String]$DatabasePassword, [String]$DatabaseName) {
+	$dataSource = $DatabaseServer
+	$dbuser = $DatabaseUser
+	$dbpassword = $DatabasePassword
+	$database = $DatabaseName
 
-		if ($dataSource -and $dbuser -and $dbpassword -and $database) {
-			$retry = 0
-			$maxRetry = 3
-			while ($retry -lt $maxRetry) {
-				$retry++
-				$uploadSucceeded = $true
-				try {
-					Write-LogInfo "SQLQuery:  $SQLQuery"
-					$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-					$connection = New-Object System.Data.SqlClient.SqlConnection
-					$connection.ConnectionString = $connectionString
-					$connection.Open()
-					$command = $connection.CreateCommand()
-					$command.CommandText = $SQLQuery
-					$null = $command.executenonquery()
-					$connection.Close()
-					Write-LogInfo "Uploading test results to database: DONE"
-				}
-				catch {
-					$uploadSucceeded = $false
-					Write-LogErr "Uploading test results to database: ERROR"
-					$line = $_.InvocationInfo.ScriptLineNumber
-					$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
-					$ErrorMessage = $_.Exception.Message
-					Write-LogErr "EXCEPTION : $ErrorMessage"
-					Write-LogErr "Source : Line $line in script $scriptName."
-					if ($retry -lt $maxRetry) {
-						Start-Sleep -Seconds 1
-						Write-LogWarn "Retring, attempt $retry"
-					} else {
-						# throw from catch, in order to be caught by caller module/function
-						throw $_.Exception
-					}
-				}
-				finally {
-					$connection.Close()
-				}
-				if ($uploadSucceeded) {
-					break
+	if ($dataSource -and $dbuser -and $dbpassword -and $database) {
+		$retry = 0
+		$maxRetry = 3
+		while ($retry -lt $maxRetry) {
+			$retry++
+			$uploadSucceeded = $true
+			try {
+				Write-LogInfo "SQLQuery:  $SQLQuery"
+				$connectionString = "Server=$dataSource;uid=$dbuser; pwd=$dbpassword;Database=$database;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+				$connection = New-Object System.Data.SqlClient.SqlConnection
+				$connection.ConnectionString = $connectionString
+				$connection.Open()
+				$command = $connection.CreateCommand()
+				$command.CommandText = $SQLQuery
+				$null = $command.executenonquery()
+				$connection.Close()
+				Write-LogInfo "Uploading test results to database: DONE"
+			}
+			catch {
+				$uploadSucceeded = $false
+				Write-LogErr "Uploading test results to database: ERROR"
+				$line = $_.InvocationInfo.ScriptLineNumber
+				$scriptName = ($_.InvocationInfo.ScriptName).Replace($PWD, ".")
+				$ErrorMessage = $_.Exception.Message
+				Write-LogErr "EXCEPTION : $ErrorMessage"
+				Write-LogErr "Source : Line $line in script $scriptName."
+				if ($retry -lt $maxRetry) {
+					Start-Sleep -Seconds 1
+					Write-LogWarn "Retring, attempt $retry"
+				} else {
+					# throw from catch, in order to be caught by caller module/function
+					throw $_.Exception
 				}
 			}
-		}
-		else {
-			Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"
+			finally {
+				$connection.Close()
+			}
+			if ($uploadSucceeded) {
+				break
+			}
 		}
 	}
 	else {
-		Write-LogErr "Unable to send telemetry data to Azure. XML Secrets file not provided."
+		Write-LogErr "Database details are not provided. Results will not be uploaded to database!!"
 	}
 }
 
