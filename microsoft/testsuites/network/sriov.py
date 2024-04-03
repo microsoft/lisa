@@ -26,7 +26,7 @@ from lisa import (
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
-from lisa.operating_system import Posix
+from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import (
     Cat,
@@ -531,6 +531,7 @@ class Sriov(TestSuite):
                 nic_count=search_space.IntRange(min=3, max=8),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
