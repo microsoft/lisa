@@ -65,11 +65,6 @@ class Dpdk(TestSuite):
     # ex: percentile 99.999 = 12302
     _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
-
     @TestCaseMetadata(
         description="""
             netvsc pmd version.
@@ -867,8 +862,3 @@ class Dpdk(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         do_parallel_cleanup(environment)
-
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        environment: Environment = kwargs.pop("environment")
-        for node in environment.nodes.list():
-            node.nics.reload()
