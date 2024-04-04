@@ -130,9 +130,7 @@ class Nics(InitializableMixin):
     _device_module_map = {
         "mlx5_core": ModuleInformation(["mlx5_ib"], "CONFIG_MLX5_CORE"),
         "mlx4_core": ModuleInformation(["mlx4_en", "mlx4_ib"], "CONFIG_MLX4_CORE"),
-        "mana": ModuleInformation(
-            ["mana", "mana_en", "mana_ib"], "CONFIG_MICROSOFT_MANA"
-        ),
+        "mana": ModuleInformation(["mana_ib"], "CONFIG_MICROSOFT_MANA"),
     }
 
     def __init__(self, node: "Node"):
