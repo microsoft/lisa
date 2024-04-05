@@ -531,6 +531,7 @@ class Sriov(TestSuite):
                 nic_count=search_space.IntRange(min=3, max=8),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
+            # BSD is unsupported since this is testing to patches to the linux kernel
             unsupported_os=[BSD, Windows],
         ),
     )
