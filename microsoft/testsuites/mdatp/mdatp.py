@@ -5,7 +5,7 @@ import pathlib
 from assertpy import fail
 
 from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Posix
+from lisa.operating_system import Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
 
@@ -39,7 +39,7 @@ class MdatpSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Posix], supported_platform_type=[AZURE]
+            unsupported_os=[Windows], supported_platform_type=[AZURE]
         ),
     )
     def verify_mdatp_not_preinstalled(self, node: Node) -> None:
@@ -99,7 +99,8 @@ class MdatpSuite(TestSuite):
             ]
         ):
             raise SkippedException(
-                f"No recognized error code was found: {exit_code} output: {script_output}"
+                "No recognized error code was found: "
+                f"{exit_code} output: {script_output}"
             )
         # set the error message depending on the info found by the script.
 
