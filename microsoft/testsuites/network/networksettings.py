@@ -180,6 +180,8 @@ class NetworkSettings(TestSuite):
 
         """,
         priority=1,
+        # BSD unsupported due to channels being read only at runtime
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_channels_change(self, node: Node, log: Logger) -> None:
         kernel_ver = node.tools[Uname].get_linux_information().kernel_version
@@ -360,6 +362,8 @@ class NetworkSettings(TestSuite):
             5. Revert back the settings to original values.
         """,
         priority=2,
+        # BSD unsupported since hash is read only at run time.
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
         uname = node.tools[Uname]
