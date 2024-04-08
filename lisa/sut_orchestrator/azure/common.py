@@ -12,7 +12,17 @@ from functools import lru_cache, partial
 from pathlib import Path, PurePath
 from threading import Lock
 from time import sleep, time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 import requests
 from assertpy import assert_that
@@ -24,7 +34,11 @@ from azure.keyvault.certificates import (
 )
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import VirtualMachine
+from azure.mgmt.compute.models import (
+    CommunityGalleryImage,
+    GalleryImage,
+    VirtualMachine,
+)
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
     AccessPolicyEntry,
@@ -77,6 +91,7 @@ from retry import retry
 from lisa import feature, schema, search_space
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
+from lisa.features.security_profile import SecurityProfileType
 from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
 from lisa.tools import Ls
@@ -194,12 +209,67 @@ class AzureVmPurchasePlanSchema:
 
 @dataclass_json
 @dataclass
-class AzureImageSchema:
+class AzureImageSchema(schema.ImageSchema):
+    architecture: Union[
+        schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=schema.ArchitectureType,
+                is_allow_set=True,
+                default_values=[
+                    schema.ArchitectureType.x64,
+                    schema.ArchitectureType.Arm64,
+                ],
+            )
+        ),
+    )
+    disk_controller_type: Optional[
+        Union[
+            search_space.SetSpace[schema.DiskControllerType], schema.DiskControllerType
+        ]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[schema.DiskControllerType.SCSI, schema.DiskControllerType.NVME],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=schema.DiskControllerType,
+                is_allow_set=True,
+                default_values=[
+                    schema.DiskControllerType.SCSI,
+                    schema.DiskControllerType.NVME,
+                ],
+            )
+        ),
+    )
+    hyperv_generation: Optional[
+        Union[search_space.SetSpace[int], int]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[1, 2],
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+        ),
+    )
     network_data_path: Optional[
         Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
     ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
+            is_allow_set=True,
             items=[
                 schema.NetworkDataPath.Synthetic,
                 schema.NetworkDataPath.Sriov,
@@ -207,10 +277,140 @@ class AzureImageSchema:
         ),
         metadata=field_metadata(
             decoder=partial(
-                search_space.decode_set_space_by_type, base_type=schema.NetworkDataPath
+                search_space.decode_set_space_by_type,
+                base_type=schema.NetworkDataPath,
             )
         ),
     )
+    security_profile: Union[
+        search_space.SetSpace[SecurityProfileType], SecurityProfileType
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[
+                SecurityProfileType.Standard,
+                SecurityProfileType.SecureBoot,
+                SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=SecurityProfileType,
+                is_allow_set=True,
+                default_values=[
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ],
+            )
+        ),
+    )
+
+    def load_from_platform(self, platform: "AzurePlatform") -> None:
+        """
+        Load image features from Azure platform.
+        Relevant image tags will be used to populate the schema.
+        """
+        raw_features = self._get_info(platform)
+        if raw_features:
+            self._parse_info(raw_features, platform._log)
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        """Get raw image tags from Azure platform."""
+        raise NotImplementedError()
+
+    def _parse_info(self, raw_features: Dict[str, Any], log: Logger) -> None:
+        """Parse raw image tags to AzureImageSchema"""
+        self._parse_architecture(raw_features, log)
+        self._parse_disk_controller_type(raw_features, log)
+        self._parse_hyperv_generation(raw_features, log)
+        self._parse_network_data_path(raw_features, log)
+        self._parse_security_profile(raw_features, log)
+
+    def _parse_architecture(self, raw_features: Dict[str, Any], log: Logger) -> None:
+        arch = raw_features.get("architecture")
+        if arch == "Arm64":
+            self.architecture = schema.ArchitectureType.Arm64
+        elif arch == "x64":
+            self.architecture = schema.ArchitectureType.x64
+
+    def _parse_disk_controller_type(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        disk_controller_type = raw_features.get("DiskControllerTypes")
+        if (
+            isinstance(disk_controller_type, str)
+            and disk_controller_type.lower() == "scsi"
+        ):
+            self.disk_controller_type = schema.DiskControllerType.SCSI
+        elif (
+            isinstance(disk_controller_type, str)
+            and disk_controller_type.lower() == "nvme"
+        ):
+            self.disk_controller_type = schema.DiskControllerType.NVME
+
+    def _parse_hyperv_generation(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        try:
+            gen = raw_features.get("hyper_v_generation")
+            if gen:
+                self.hyperv_generation = int(gen.strip("V"))
+        except (TypeError, ValueError, AttributeError):
+            log.debug(
+                "Failed to parse Hyper-V generation: "
+                f"{raw_features.get('hyper_v_generation')}"
+            )
+
+    def _parse_network_data_path(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        network_data_path = raw_features.get("IsAcceleratedNetworkSupported")
+        if network_data_path == "False":
+            self.network_data_path = schema.NetworkDataPath.Synthetic
+
+    def _parse_security_profile(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        security_profile = raw_features.get("SecurityType")
+        capabilities: List[SecurityProfileType] = [SecurityProfileType.Standard]
+        if security_profile == "TrustedLaunchSupported":
+            capabilities.append(SecurityProfileType.SecureBoot)
+        elif security_profile in (
+            "TrustedLaunchAndConfidentialVmSupported",
+            "ConfidentialVmSupported",
+        ):
+            capabilities.append(SecurityProfileType.SecureBoot)
+            capabilities.append(SecurityProfileType.CVM)
+            capabilities.append(SecurityProfileType.Stateless)
+        self.security_profile = search_space.SetSpace(True, capabilities)
+
+
+def _get_image_tags(image: Any) -> Dict[str, Any]:
+    """
+    Marketplace, Shared Image Gallery, and Community Gallery images
+    have similar structures for image tags. This function extracts
+    the tags and converts to a dictionary.
+    """
+    image_tags: Dict[str, Any] = {}
+    if not image:
+        return image_tags
+    if hasattr(image, "hyper_v_generation") and image.hyper_v_generation:
+        image_tags["hyper_v_generation"] = image.hyper_v_generation
+    if hasattr(image, "architecture") and image.architecture:
+        image_tags["architecture"] = image.architecture
+    if (
+        hasattr(image, "features")
+        and image.features
+        and isinstance(image.features, Iterable)
+    ):
+        for feat in image.features:
+            image_tags[feat.name] = feat.value
+    return image_tags
 
 
 @dataclass_json()
@@ -223,6 +423,13 @@ class AzureVmMarketplaceSchema(AzureImageSchema):
 
     def __hash__(self) -> int:
         return hash(f"{self.publisher}/{self.offer}/{self.sku}/{self.version}")
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        for location in platform.find_marketplace_image_location():
+            image_info = platform.get_image_info(location, self)
+            if image_info:
+                return _get_image_tags(image_info)
+        return {}
 
 
 @dataclass_json()
@@ -242,12 +449,76 @@ class SharedImageGallerySchema(AzureImageSchema):
             f"{self.image_version}"
         )
 
+    def query_platform(self, platform: "AzurePlatform") -> GalleryImage:
+        assert self.resource_group_name, "'resource_group_name' must not be 'None'"
+        compute_client = get_compute_client(platform, self.subscription_id)
+        sig = compute_client.gallery_images.get(
+            resource_group_name=self.resource_group_name,
+            gallery_name=self.image_gallery,
+            gallery_image_name=self.image_definition,
+        )
+        assert isinstance(sig, GalleryImage), f"actual: {type(sig)}"
+        return sig
+
+    def resolve_version(self, platform: "AzurePlatform") -> None:
+        compute_client = get_compute_client(platform, self.subscription_id)
+        if not self.resource_group_name:
+            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
+            # galleries/xxxx
+            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
+            galleries = compute_client.galleries.list()
+            for gallery in galleries:
+                if gallery.name and gallery.name.lower() == self.image_gallery:
+                    assert gallery.id, "'gallery.id' must not be 'None'"
+                    self.resource_group_name = get_matched_str(gallery.id, rg_pattern)
+                    break
+        if not self.resource_group_name:
+            raise LisaException(f"did not find matched gallery {self.image_gallery}")
+
+        if self.image_version.lower() == "latest":
+            gallery_images = (
+                compute_client.gallery_image_versions.list_by_gallery_image(
+                    resource_group_name=self.resource_group_name,
+                    gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                )
+            )
+            time: Optional[datetime] = None
+            for image in gallery_images:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
+                gallery_image = compute_client.gallery_image_versions.get(
+                    resource_group_name=self.resource_group_name,
+                    gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                    gallery_image_version_name=image.name,
+                    expand="ReplicationStatus",
+                )
+                if not time:
+                    time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
+                    self.image_version = image.name
+                elif gallery_image.publishing_profile.published_date > time:
+                    time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
+                    self.image_version = image.name
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        self.resolve_version(platform)
+        sig_info = self.query_platform(platform)
+        return _get_image_tags(sig_info)
+
 
 @dataclass_json()
 @dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     vmgs_path: Optional[str] = None
+
+    def load_from_platform(self, platform: "AzurePlatform") -> None:
+        return
 
 
 @dataclass_json()
@@ -262,6 +533,50 @@ class CommunityGalleryImageSchema(AzureImageSchema):
         return hash(
             f"{self.image_gallery}/{self.image_definition}/{self.image_version}"
         )
+
+    def query_platform(self, platform: "AzurePlatform") -> CommunityGalleryImage:
+        compute_client = get_compute_client(platform)
+        cgi = compute_client.community_gallery_images.get(
+            location=self.location,
+            public_gallery_name=self.image_gallery,
+            gallery_image_name=self.image_definition,
+        )
+        assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
+        return cgi
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        self.resolve_version(platform)
+        cgi_info = self.query_platform(platform)
+        return _get_image_tags(cgi_info)
+
+    def resolve_version(self, platform: "AzurePlatform") -> None:
+        compute_client = get_compute_client(platform)
+        if self.image_version.lower() == "latest":
+            community_gallery_images_list = (
+                compute_client.community_gallery_image_versions.list(
+                    location=self.location,
+                    public_gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                )
+            )
+            time: Optional[datetime] = None
+            for image in community_gallery_images_list:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
+                community_gallery_image_version = (
+                    compute_client.community_gallery_image_versions.get(
+                        location=self.location,
+                        public_gallery_name=self.image_gallery,
+                        gallery_image_name=self.image_definition,
+                        gallery_image_version_name=image.name,
+                    )
+                )
+                if not time:
+                    time = community_gallery_image_version.published_date
+                    self.image_version = image.name
+                elif community_gallery_image_version.published_date > time:
+                    time = community_gallery_image_version.published_date
+                    self.image_version = image.name
 
 
 @dataclass_json()
@@ -596,6 +911,31 @@ class AzureNodeSchema:
     ) -> None:
         self._parse_image_raw("community_gallery_image", value)
 
+    @property
+    def image(self) -> Optional[AzureImageSchema]:
+        if self.marketplace:
+            return self.marketplace
+        elif self.shared_gallery:
+            return self.shared_gallery
+        elif self.community_gallery_image:
+            return self.community_gallery_image
+        elif self.vhd:
+            return self.vhd
+        return None
+
+    @image.setter
+    def image(self, value: Optional[AzureImageSchema]) -> None:
+        if isinstance(value, AzureVmMarketplaceSchema):
+            self.marketplace = value
+        elif isinstance(value, SharedImageGallerySchema):
+            self.shared_gallery = value
+        elif isinstance(value, CommunityGalleryImageSchema):
+            self.community_gallery_image = value
+        elif isinstance(value, VhdSchema):
+            self.vhd = value
+        else:
+            raise LisaException(f"unsupported image type: {type(value)}")
+
     def get_image_name(self) -> str:
         result = ""
         if self._orignal_vhd_path:
@@ -606,7 +946,7 @@ class AzureNodeSchema:
             ), f"actual type: {type(self.shared_gallery_raw)}"
             if self.shared_gallery.resource_group_name:
                 result = "/".join(
-                    [self.shared_gallery_raw.get(k, "") for k in SIG_IMAGE_KEYS]
+                    [getattr(self.shared_gallery, k, "") for k in SIG_IMAGE_KEYS]
                 )
             else:
                 result = (
@@ -629,6 +969,13 @@ class AzureNodeSchema:
                 [self.marketplace_raw.get(k, "") for k in MARKETPLACE_IMAGE_KEYS]
             )
         return result
+
+    def update_raw(self) -> None:
+        self._parse_image_raw("purchase_plan", self.purchase_plan)
+        self._parse_image_raw("marketplace", self.marketplace)
+        self._parse_image_raw("shared_gallery", self.shared_gallery)
+        self._parse_image_raw("vhd", self.vhd)
+        self._parse_image_raw("community_gallery_image", self.community_gallery_image)
 
     def _parse_image(
         self,

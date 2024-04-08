@@ -87,6 +87,16 @@ class Feature(InitializableMixin):
         """
         return None
 
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        It's called in the platform to check if an image restricts the feature or not.
+        If it's restricted, create a setting.
+        """
+        return None
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         override for initializing
