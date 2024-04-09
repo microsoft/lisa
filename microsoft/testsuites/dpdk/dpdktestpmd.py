@@ -911,6 +911,7 @@ class DpdkTestpmd(Tool):
                     )
         else:
             raise UnsupportedDistroException(self.node.os)
+
         if self.vf_helper.is_mana():
             # MANA has less special casing required (for now anyway)
             rdma_drivers = ["ib_uverbs"]
