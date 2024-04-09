@@ -740,15 +740,6 @@ def ipv4_to_ipv6_lpm(addr: str) -> str:
     return "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
 
 
-def get_dpdk_portmask(ports: List[int]) -> str:
-    # helper to take a list of DPDK port IDs and return
-    # the bit mask the EAL uses to enable them.
-    mask = 0
-    for i in ports:
-        mask |= 1 << i
-    return hex(mask)
-
-
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
 def setup_kernel_route_tables(
@@ -1145,7 +1136,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         promiscuous = ""
     else:
         promiscuous = "-P"
-
+    dpdk_port_mask = fwd_kit.testpmd.get_dpdk_portmask([dpdk_port_a, dpdk_port_b])
     # join all our options into strings for use in the commmand
     joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
     joined_include = " ".join(include_devices)
@@ -1153,7 +1144,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
         f"{server_app_path} {joined_include} -l {joined_core_list}  -- "
-        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
+        f" {promiscuous} -p {dpdk_port_mask} "
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )

@@ -324,10 +324,25 @@ class DpdkTestpmd(Tool):
             "Test needs at least 1 core for servicing and one core for forwarding"
         ).is_greater_than(0)
 
+        # NOTE: a bit of a hack, MANA is more stable if you specify
+        # a port mask. DPDK will detect port 0 and 1 for eth0,
+        # since it has a synthetic and lower device.
+        # port 2 will be the VF if we're using netvsc.
+        # port 2 or 3 will be the VF if you're using failsafe.
+        # since this only helps on MANA, we'll check if mana
+        # is present and add the port mask for 2 is it is.
+        # We only support netvsc for MANA, so no other special
+        # case is needed.
+        if self.vf_helper.is_mana():
+            dpdk_port_mask = self.get_dpdk_portmask([2])
+        else:
+            dpdk_port_mask = ""
+
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} {log_level_args}"
             f" -- --forward-mode={mode} "
+            f" --portmask={dpdk_port_mask} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
@@ -477,6 +492,14 @@ class DpdkTestpmd(Tool):
             self._sample_apps_to_build += apps
         else:
             self._sample_apps_to_build = []
+
+    def get_dpdk_portmask(self, ports: List[int]) -> str:
+        # helper to take a list of DPDK port IDs and return
+        # the bit mask the EAL uses to enable them.
+        mask = 0
+        for i in ports:
+            mask |= 1 << i
+        return hex(mask)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
