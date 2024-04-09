@@ -79,6 +79,7 @@ class Wget(Tool):
                 f"cannot find file path in stdout of '{command}', it may be caused "
                 " due to failed download or pattern mismatch."
                 f" stdout: {command_result.stdout}"
+                f" templog: {temp_log}"
             )
         actual_file_path = self.node.execute(
             f"ls {download_file_path}",
