@@ -2,24 +2,28 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePosixPath
-from typing import Any, List, Tuple, Type, Union
+from math import ceil
+from pathlib import PurePath, PurePosixPath
+from typing import Any, List, Optional, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa.base_tools import Mv
 from lisa.executable import ExecutableResult, Tool
+from lisa.features import Disk
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
+    Chmod,
+    Dmesg,
     Echo,
     Git,
     KernelConfig,
     Kill,
     Lscpu,
+    Lsmod,
     Lspci,
-    Make,
     Modprobe,
     Pidof,
     Pkgconfig,
@@ -40,6 +44,8 @@ from microsoft.testsuites.dpdk.common import (
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
 )
+from microsoft.testsuites.dpdk.dpdk_vf_helper import DpdkVfHelper
+from microsoft.testsuites.dpdk.rdma_core import RdmaCoreManager
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
@@ -76,7 +82,7 @@ class DpdkTestpmd(Tool):
     @property
     def command(self) -> str:
         if not self._testpmd_install_path:
-            return "testpmd"
+            return "dpdk-testpmd"
         return self._testpmd_install_path
 
     _ubuntu_packages_1804 = [
@@ -114,8 +120,6 @@ class DpdkTestpmd(Tool):
         "pkgconfig",
         "elfutils-libelf-devel",
         "python3-pip",
-        "kernel-modules-extra",
-        "kernel-headers",
         "gcc-c++",
     ]
     _suse_packages = [
@@ -135,22 +139,6 @@ class DpdkTestpmd(Tool):
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
-
-    def get_rdma_core_package_name(self) -> str:
-        distro = self.node.os
-        package = ""
-        # check if rdma-core is installed already...
-        if self.node.tools[Pkgconfig].package_info_exists("libibuverbs"):
-            return package
-        if isinstance(distro, Debian):
-            package = "rdma-core ibverbs-providers libibverbs-dev"
-        elif isinstance(distro, Suse):
-            package = "rdma-core-devel librdmacm1"
-        elif isinstance(distro, Fedora):
-            package = "librdmacm-devel"
-        else:
-            fail("Invalid OS for rdma-core source installation.")
-        return package
 
     @property
     def can_install(self) -> bool:
@@ -213,7 +201,7 @@ class DpdkTestpmd(Tool):
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-        elif self.is_mana:
+        elif self.vf_helper.is_mana():
             # mana selects by mac, just return the vdev info directly
             if node_nic.module_name == "uio_hv_generic" or force_netvsc:
                 return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
@@ -277,8 +265,8 @@ class DpdkTestpmd(Tool):
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
         if multiple_queues:
-            if self.is_mana:
-                queues = 8
+            if self.vf_helper.is_mana():
+                queues = 16
             else:
                 queues = 4
         else:
@@ -319,9 +307,13 @@ class DpdkTestpmd(Tool):
             extra_args = extra_args.strip()
         else:
             extra_args = ""
-        # mana pmd needs tx/rx descriptors declared.
-        if self.is_mana:
+
+        # set log args and mana-specific options
+        log_level_args = "--log-level netvsc,debug "
+        if self.vf_helper.is_mana():
+            # mana pmd needs tx/rx descriptors declared.
             extra_args += f" --txd={txd} --rxd={txd}  --stats 2"
+            log_level_args += "--log-level mana,debug "
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
 
@@ -334,9 +326,31 @@ class DpdkTestpmd(Tool):
 
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} {log_level_args}"
+            f" -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
+
+    _mana_errors = [
+        re.compile(
+            r"mana [0-9a-fA-F]{4}:[0-9a-fA-F]{2}:"
+            r"[0-9a-fA-F]{2}\.[0-9a-fA-F]{1,4}: "
+            r"HWC: Failed hw_channel req"
+        ),
+    ]
+
+    def check_for_driver_regressions(self) -> None:
+        # check for known mana errors to catch regressions.
+        dmesg = self.node.tools[Dmesg]
+        driver_logs = dmesg.get_output(force_run=True)
+        for error in self._mana_errors:
+            found_error = error.search(driver_logs)
+            if found_error:
+                self.node.log.debug(driver_logs)
+                raise LisaException(
+                    "Found known MANA error in dmesg, indicates a regression "
+                    f"or possible test bug: {found_error.group()}"
+                )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
@@ -346,13 +360,13 @@ class DpdkTestpmd(Tool):
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
         self._last_run_output = proc_result.stdout
+        self.check_for_driver_regressions()
         self.populate_performance_data()
         return proc_result.stdout
 
     def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
-
         proc_result = self.node.tools[Timeout].run_with_timeout(
             cmd, timeout, SIGINT, kill_timeout=timeout + 10
         )
@@ -360,6 +374,7 @@ class DpdkTestpmd(Tool):
 
     def process_testpmd_output(self, result: ExecutableResult) -> str:
         self._last_run_output = result.stdout
+        self.check_for_driver_regressions()
         self.populate_performance_data()
         return result.stdout
 
@@ -416,8 +431,8 @@ class DpdkTestpmd(Tool):
             )
         )
         cast_to_ints = list(map(int, matches))
-        cast_to_ints = _discard_first_zeroes(cast_to_ints)
-        return _discard_first_and_last_sample(cast_to_ints)
+        cast_to_ints = _trim_zeroes(cast_to_ints)
+        return _discard_warmup_and_cooldown_samples(cast_to_ints)
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
@@ -459,40 +474,66 @@ class DpdkTestpmd(Tool):
 
     def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
         if apps:
-            self._sample_apps_to_build = apps
+            self._sample_apps_to_build += apps
         else:
             self._sample_apps_to_build = []
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
-        self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
-        self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        # set source args for builds if needed, first for dpdk
+        self.dpdk_build_path: Optional[PurePath] = None
+        self._dpdk_source: str = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
+        self._dpdk_branch: str = kwargs.pop("dpdk_branch", "")
+        # then for rdma-core
+        rdma_core_source = kwargs.pop("rdma_core_source", "")
+        rdma_core_ref = kwargs.pop("rdma_core_ref", "")
+        self.rdma_core = RdmaCoreManager(
+            node=self.node,
+            rdma_core_source=rdma_core_source,
+            rdma_core_ref=rdma_core_ref,
+        )
+        self._sample_apps_to_build = kwargs.pop("sample_apps", list())
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
+        self._pkg_config_envs = {
+            "PKG_CONFIG_PATH": "${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/usr/local/lib64/",
+        }
         if not self.use_package_manager_install():
             self._dpdk_repo_path_name = "dpdk"
-            work_path = self.node.get_working_path_with_required_space(5)
+            work_path = self.node.get_working_path_with_required_space(20)
+            if not work_path:
+                self.node.features[Disk].add_data_disk(count=1, size_in_gb=100)
+                work_path = self.node.get_working_path_with_required_space(20)
+            assert work_path, "Could not find space to build DPDK"
             self.current_work_path = self.node.get_pure_path(work_path)
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
-        self._determine_network_hardware()
+
+        # signal whether to build the debug or release version
+        self.is_perf_test = kwargs.pop("build_release", False)
+
+        # determine network hardware and whether to enforce the strict
+        # test threshold (based on user argument)
+        enforce_hw_threshold = kwargs.pop("enforce_strict_threshold", False)
+
+        self.vf_helper = DpdkVfHelper(
+            should_enforce=enforce_hw_threshold, node=self.node
+        )
+
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
-            if pkgconfig.package_info_exists(self._dpdk_lib_name):
+            if pkgconfig.package_info_exists(
+                self._dpdk_lib_name,
+                update_envs=self._pkg_config_envs,
+            ):
                 self._dpdk_version_info = pkgconfig.get_package_version(
-                    self._dpdk_lib_name
+                    self._dpdk_lib_name,
+                    update_cached=True,
+                    update_envs=self._pkg_config_envs,
                 )
-
-    def _determine_network_hardware(self) -> None:
-        lspci = self.node.tools[Lspci]
-        device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
-        self.is_connect_x3 = any(
-            ["ConnectX-3" in dev.device_info for dev in device_list]
-        )
-        self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
     def _check_pps_data_exists(self, rx_or_tx: str) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_pps_data"
@@ -522,54 +563,6 @@ class DpdkTestpmd(Tool):
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
-    def _install_upstream_rdma_core_for_mana(self) -> None:
-        node = self.node
-        wget = node.tools[Wget]
-        make = node.tools[Make]
-        tar = node.tools[Tar]
-        distro = node.os
-
-        if isinstance(distro, Debian):
-            distro.install_packages(
-                "cmake libudev-dev "
-                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-                "valgrind python3-dev cython3 python3-docutils pandoc "
-                "libssl-dev libelf-dev python3-pip libnuma-dev"
-            )
-        elif isinstance(distro, Fedora):
-            distro.group_install_packages("Development Tools")
-            distro.install_packages(
-                "cmake gcc libudev-devel "
-                "libnl3-devel pkg-config "
-                "valgrind python3-devel python3-docutils  "
-                "openssl-devel unzip "
-                "elfutils-devel python3-pip libpcap-devel  "
-                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
-            )
-        else:
-            # check occcurs before this function
-            return
-
-        tar_path = wget.get(
-            url=(
-                "https://github.com/linux-rdma/rdma-core/"
-                "releases/download/v46.0/rdma-core-46.0.tar.gz"
-            ),
-            file_path=str(node.working_path),
-        )
-
-        tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-        source_path = node.working_path.joinpath("rdma-core-46.0")
-        node.execute(
-            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
-            shell=True,
-            cwd=source_path,
-            sudo=True,
-        )
-        make.make_install(source_path)
-
     def _set_backport_repo_args(self) -> None:
         distro = self.node.os
         # skip attempting to use backports for latest/prerlease
@@ -597,6 +590,18 @@ class DpdkTestpmd(Tool):
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         node = self.node
+        distro = node.os
+        if not (
+            isinstance(distro, Fedora)
+            or isinstance(distro, Debian)
+            or isinstance(distro, Suse)
+        ):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    distro, "DPDK tests not implemented for this OS."
+                )
+            )
+
         # before doing anything: determine if backport repo needs to be enabled
         self._set_backport_repo_args()
 
@@ -608,45 +613,67 @@ class DpdkTestpmd(Tool):
             self._load_drivers_for_dpdk()
             return True
 
-        # otherwise, install from package manager, git, or tar
+        # if this is mana VM, we don't support other distros yet
+        is_mana_test_supported = isinstance(distro, Ubuntu) or isinstance(
+            distro, Fedora
+        )
+        if self.vf_helper.is_mana() and not is_mana_test_supported:
+            raise SkippedException("MANA DPDK test is not supported on this OS")
 
+        # if we need an rdma-core source install, do it now.
+        if self.rdma_core.can_install_from_source() or (
+            is_mana_test_supported and self.vf_helper.is_mana()
+        ):
+            # ensure no older version is installed
+            distro.uninstall_packages("rdma-core")
+            self.rdma_core.do_source_install()
+
+        # otherwise, install kernel and dpdk deps from package manager, git, or tar
         self._install_dependencies()
-
-        # if this is mana VM, we need an upstream rdma-core package (for now)
-        if self.is_mana:
-            if not (isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)):
-                raise SkippedException("MANA DPDK test is not supported on this OS")
-
-            # ensure no older dependency is installed
-            node.os.uninstall_packages("rdma-core")
-            self._install_upstream_rdma_core_for_mana()
+        # install any missing rdma-core packages
+        rdma_packages = self.rdma_core.get_missing_distro_packages()
+        distro.install_packages(rdma_packages)
 
         # installing from distro package manager
         if self.use_package_manager_install():
             self.node.log.info(
                 "Installing dpdk and dev package from package manager..."
             )
-            if isinstance(node.os, Debian):
-                node.os.install_packages(
+            if isinstance(distro, Debian):
+                distro.install_packages(
                     ["dpdk", "dpdk-dev"],
                     extra_args=self._backport_repo_args,
                 )
-            elif isinstance(node.os, (Fedora, Suse)):
-                node.os.install_packages(["dpdk", "dpdk-devel"])
+            elif isinstance(distro, (Fedora, Suse)):
+                distro.install_packages(["dpdk", "dpdk-devel"])
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
-                    f" for os {node.os.name}"
+                    f" for os {distro.name}"
                 )
             self.node.log.info(
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
 
-            self._dpdk_version_info = node.os.get_package_information("dpdk")
+            self._dpdk_version_info = distro.get_package_information("dpdk")
             self.find_testpmd_binary()
             self._load_drivers_for_dpdk()
             return True
+        else:
+            if (
+                isinstance(distro, Debian)
+                or isinstance(distro, (Fedora, Suse))
+                and distro.package_exists("dpdk")
+            ):
+                # if not using package manager and dpdk is already installed, uninstall it
+                # in preperation for source build
+                distro.uninstall_packages("dpdk")
+            else:
+                raise NotImplementedError(
+                    "Dpdk package names are missing in dpdktestpmd.install"
+                    f" for os {distro.name}"
+                )
 
         # otherwise install from source tarball or git
         self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
@@ -656,13 +683,15 @@ class DpdkTestpmd(Tool):
         ):  # tools are already installed
             # version info must already be set from __init__
             return True
-
+        if self.node.shell.exists(self.node.get_pure_path("/DPDK_BUILD_BY_LISA")):
+            self.node.log
         git_tool = node.tools[Git]
         echo_tool = node.tools[Echo]
 
         if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
             wget_tool = node.tools[Wget]
             tar_tool = node.tools[Tar]
+            node.tools[Chmod]
             if self._dpdk_branch:
                 node.log.warn(
                     (
@@ -686,6 +715,7 @@ class DpdkTestpmd(Tool):
                 self._dpdk_source,
                 cwd=self.current_work_path,
                 dir_name=self._dpdk_repo_path_name,
+                ref=self._dpdk_branch.strip(),
             )
             if not self._dpdk_branch:
                 # dpdk stopped using a default branch
@@ -694,18 +724,38 @@ class DpdkTestpmd(Tool):
                     self.dpdk_path, filter_=r"^v.*"  # starts w 'v'
                 )
 
-            git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
+                git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
 
         self._load_drivers_for_dpdk()
 
         # add sample apps to compilation if they are present
         if self._sample_apps_to_build:
-            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
+            build_flags = [f"-Dexamples={','.join(self._sample_apps_to_build)}"]
         else:
-            sample_apps = ""
+            build_flags = [""]
+
+        if self.is_perf_test:
+            build_flags += ["-Dbuildtype=release"]
+        else:
+            build_flags += ["-Dbuildtype=debugoptimized"]
+
+        # build specific drivers to avoid building entire DPDK project
+        drivers_to_build = (
+            "*/mlx*,bus/vmbus,"
+            "net/*netvsc,net/ring,net/virtio,net/bonding,"
+            "bus/auxiliary,common/*"
+        )
+        # add mana driver to build if needed
+        if self.vf_helper.is_mana():
+            drivers_to_build += ",net/mana"
+        # shrink build
+        build_flags += [
+            f"-Denable_drivers={drivers_to_build}",
+            "-Denable_apps=app/test-pmd",
+        ]
 
         node.execute(
-            f"meson {sample_apps} build",
+            f"meson setup {' '.join(build_flags)} build",
             shell=True,
             cwd=self.dpdk_path,
             expected_exit_code=0,
@@ -714,8 +764,11 @@ class DpdkTestpmd(Tool):
                 "dpdk build has not changed to eliminate the use of meson or "
                 "meson version is compatible with this dpdk version and OS."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
         self.dpdk_build_path = self.dpdk_path.joinpath("build")
+        node.log.debug(f"Building DPDK in dir: {self.dpdk_build_path}")
         node.execute(
             "ninja",
             cwd=self.dpdk_build_path,
@@ -726,6 +779,8 @@ class DpdkTestpmd(Tool):
                 "or dependencies. Also check that this ninja version requirement "
                 "has not changed for dpdk."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
         node.execute(
             "ninja install",
@@ -735,7 +790,10 @@ class DpdkTestpmd(Tool):
             expected_exit_code_failure_message=(
                 "ninja install failed for dpdk binaries."
             ),
+            no_debug_log=True,
+            no_info_log=True,
         )
+
         node.execute(
             "ldconfig",
             cwd=self.dpdk_build_path,
@@ -755,26 +813,40 @@ class DpdkTestpmd(Tool):
 
         self.find_testpmd_binary(check_path="/usr/local/bin")
         self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
-            self._dpdk_lib_name, update_cached=True
+            self._dpdk_lib_name, update_cached=True, update_envs=self._pkg_config_envs
         )
+        self.node.tools[Echo].write_to_file(
+            value=",".join([self._dpdk_source, self._dpdk_branch]),
+            file=self.node.get_pure_path("/DPDK_BUILD_BY_LISA"),
+            sudo=True,
+        )
+
+        # try to copy over the sample apps as well.
+        if self._sample_apps_to_build:
+            example_path = self.dpdk_build_path.joinpath("examples")
+            self.node.execute(
+                f"cp {str(example_path)}/* /usr/local/bin/", shell=True, sudo=True
+            )
+            self.node.execute(f"ls -la /usr/local/bin/*", shell=True, sudo=True)
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
-        if self.is_connect_x3:
+        if self.vf_helper.is_connect_x3():
             network_drivers = ["mlx4_core", "mlx4_ib"]
-        elif self.is_mana:
+        elif self.vf_helper.is_mana():
             network_drivers = []
-            mana_builtin = self.node.tools[KernelConfig].is_built_in(
-                "CONFIG_MICROSOFT_MANA"
-            )
-            if not mana_builtin:
-                network_drivers += ["mana"]
-            mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
-                "CONFIG_MANA_INFINIBAND"
-            )
-            if not mana_ib_builtin:
-                network_drivers.append("mana_ib")
+            if not self.node.tools[Lsmod].module_exists("mana_ib"):
+                mana_builtin = self.node.tools[KernelConfig].is_built_in(
+                    "CONFIG_MICROSOFT_MANA"
+                )
+                if not mana_builtin:
+                    network_drivers += ["mana"]
+                mana_ib_builtin = self.node.tools[KernelConfig].is_built_in(
+                    "CONFIG_MANA_INFINIBAND"
+                )
+                if not mana_ib_builtin:
+                    network_drivers.append("mana_ib")
         else:
             network_drivers = ["mlx5_core", "mlx5_ib"]
         modprobe = self.node.tools[Modprobe]
@@ -801,7 +873,7 @@ class DpdkTestpmd(Tool):
                 self.node.os.install_packages([linux_image_package])
                 self.node.reboot()
         elif isinstance(self.node.os, Fedora):
-            if not self.is_connect_x3:
+            if not self.vf_helper.is_connect_x3():
                 if network_drivers:
                     self.node.execute(
                         (
@@ -816,7 +888,7 @@ class DpdkTestpmd(Tool):
                     )
         else:
             raise UnsupportedDistroException(self.node.os)
-        if self.is_mana:
+        if self.vf_helper.is_mana():
             # MANA has less special casing required (for now anyway)
             rdma_drivers = ["ib_uverbs"]
         else:
@@ -866,10 +938,7 @@ class DpdkTestpmd(Tool):
         else:
             suse.install_packages(self._suse_packages)
             if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
-            rdma_core_packages = self.get_rdma_core_package_name()
-            if rdma_core_packages:
-                suse.install_packages(rdma_core_packages.split())
+                self._install_ninja_meson_and_pyelftools()
 
     def _install_ubuntu_dependencies(self) -> None:
         node = self.node
@@ -895,18 +964,17 @@ class DpdkTestpmd(Tool):
                 extra_args=self._backport_repo_args,
             )
             if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
+                self._install_ninja_meson_and_pyelftools()
         else:
             ubuntu.install_packages(
                 self._ubuntu_packages_2004,
                 extra_args=self._backport_repo_args,
             )
             # MANA tests use linux-modules-extra-azure, install if it's available.
-            if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
+            if self.vf_helper.is_mana() and ubuntu.is_package_in_repo(
+                "linux-modules-extra-azure"
+            ):
                 ubuntu.install_packages("linux-modules-extra-azure")
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            ubuntu.install_packages(rdma_core_packages.split())
 
     def _install_fedora_dependencies(self) -> None:
         node = self.node
@@ -919,25 +987,21 @@ class DpdkTestpmd(Tool):
             return  # appease the type checker
 
         # DPDK is very sensitive to rdma-core/kernel mismatches
-        # update to latest kernel before instaling dependencies
-        rhel.install_packages("kernel")
+        # update to latest kernel before installing dependencies
+        rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
         node.reboot()
+        try:
+            rhel.install_packages("kernel-devel")
+        except MissingPackagesException:
+            node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
             rhel.install_packages(["libmnl-devel", "libbpf-devel"])
 
-        try:
-            rhel.install_packages("kernel-devel-$(uname -r)")
-        except MissingPackagesException:
-            node.log.debug("kernel-devel-$(uname -r) not found. Trying kernel-devel")
-            rhel.install_packages("kernel-devel")
-
         # RHEL 8 doesn't require special cases for installed packages.
         # TODO: RHEL9 may require updates upon release
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            self._fedora_packages += rdma_core_packages.split()
+        if not self.rdma_core.is_installed_from_source:
             rhel.group_install_packages("Infiniband Support")
 
         rhel.group_install_packages("Development Tools")
@@ -960,11 +1024,61 @@ class DpdkTestpmd(Tool):
             )
 
         if not self.use_package_manager_install():
-            self._install_ninja_and_meson()
+            # ninja from git has been flaky. try pkg install first
+            for pkg in ["ninja-build", "meson", "python3-pyelftools"]:
+                try:
+                    rhel.install_packages(pkg)
+                except LisaException:
+                    continue
+            self._install_ninja_meson_and_pyelftools()
 
-    def _install_ninja_and_meson(self) -> None:
+    def _install_ninja_meson_and_pyelftools(self) -> None:
         node = self.node
+        ninja_available = node.execute("command -v ninja", shell=True).exit_code == 0
+        meson_available = node.execute("command -v meson", shell=True).exit_code == 0
+        if not ninja_available:
+            self._install_ninja()
+        if not meson_available:
+            self._install_meson()
+        self._install_pyelftools()
 
+    def _install_pyelftools(self) -> None:
+        node = self.node
+        node.execute(
+            "pip3 install --upgrade pyelftools",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not upgrade pyelftools with pip3."
+            ),
+        )
+
+    def _install_ninja(self) -> None:
+        # NOTE: finding latest ninja is a pain,
+        # so just fetch latest from github here
+        node = self.node
+        git_tool = node.tools[Git]
+        git_tool.clone(
+            self._ninja_url,
+            cwd=node.working_path,
+        )
+        node.execute(
+            "./configure.py --bootstrap",
+            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to run ./configure.py --bootstrap"
+            ),
+        )
+        node.tools[Mv].move(
+            f"{node.working_path}/ninja/ninja",
+            "/usr/bin/ninja",
+            overwrite=True,
+            sudo=True,
+        )
+
+    def _install_meson(self) -> None:
+        node = self.node
         node.execute(
             "pip3 install --upgrade meson",
             sudo=True,
@@ -988,37 +1102,6 @@ class DpdkTestpmd(Tool):
                 ),
             )
 
-        # NOTE: finding latest ninja is a pain,
-        # so just fetch latest from github here
-        git_tool = self.node.tools[Git]
-        git_tool.clone(
-            self._ninja_url,
-            cwd=node.working_path,
-        )
-        node.execute(
-            "./configure.py --bootstrap",
-            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to run ./configure.py --bootstrap"
-            ),
-        )
-        node.tools[Mv].move(
-            f"{node.working_path}/ninja/ninja",
-            "/usr/bin/ninja",
-            overwrite=True,
-            sudo=True,
-        )
-
-        node.execute(
-            "pip3 install --upgrade pyelftools",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not upgrade pyelftools with pip3."
-            ),
-        )
-
     def find_testpmd_binary(
         self, check_path: str = "", assert_on_fail: bool = True
     ) -> bool:
@@ -1029,7 +1112,7 @@ class DpdkTestpmd(Tool):
             if check_path:
                 bin_path = PurePosixPath(check_path).joinpath(bin_name)
                 bin_name = str(bin_path)
-            result = node.execute(f"which {bin_name}")
+            result = node.execute(f"which {bin_name}", shell=True, sudo=True)
             if result.exit_code == 0:
                 self._testpmd_install_path = result.stdout.strip()
                 break
@@ -1115,32 +1198,45 @@ class DpdkTestpmd(Tool):
 
 
 # filter functions for processing testpmd data
-def _discard_first_zeroes(data: List[int]) -> List[int]:
+def _trim_zeroes(data: List[int]) -> List[int]:
     # NOTE: we occasionally get a 0 for the first pps result sample,
     # it's annoying to factor it into the average when
     # there are only like 10 samples so discard any
-    # leading 0's if they're present.
+    # leading and trailing 0's if they're present.
 
+    # confirm data is not all zero
+    all_zeroes = all([x == 0 for x in data])
+    if all_zeroes:
+        return data
+
+    # leading:
     for i in range(len(data)):
         if data[i] != 0:
-            return data[i:]
+            data = data[i:]
+            break
+    # trailing (same but reverse the list)
+    data = data[::-1]
+    for i in range(len(data)):
+        if data[i] != 0:
+            data = data[i:]
+            break
 
-    # leave list as-is if data is all zeroes
-    return data
+    return data[::-1]
 
 
-def _discard_first_and_last_sample(data: List[int]) -> List[int]:
+def _discard_warmup_and_cooldown_samples(data: List[int]) -> List[int]:
     # NOTE: first and last sample can be unreliable after switch messages
     # We're sampling for an order-of-magnitude difference so it
-    # can mess up the average since we're using an unweighted mean
-
-    # discard first and last sample so long as there are enough to
-    # practically, we expect there to be > 20 unless rescind
-    # performance is hugely improved in the cloud
-    if len(data) < 3:
+    # can mess up the average since we're using a straight mean.
+    if len(data) < 5:
         return data
     else:
-        return data[1:-1]
+        # count the samples in the dataset
+        samples = len(data)
+        # plan to discard 25% to avoid cooldown and warmup junk
+        discard = ceil(samples * 0.125)
+        # return the trimmed dataset
+        return data[discard:-discard]
 
 
 def _mean(data: List[int]) -> int:

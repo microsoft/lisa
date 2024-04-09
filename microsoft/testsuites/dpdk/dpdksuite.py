@@ -19,7 +19,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
-from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
+from lisa.operating_system import BSD, CBLMariner, Redhat, Ubuntu, Windows
 from lisa.testsuite import simple_requirement
 from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.util.constants import SIGINT
@@ -65,11 +65,6 @@ class Dpdk(TestSuite):
     # ex: percentile 99.999 = 12302
     _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
-
     @TestCaseMetadata(
         description="""
             netvsc pmd version.
@@ -84,7 +79,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -106,7 +101,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_gb_hugepages_netvsc(
@@ -128,7 +123,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_failsafe(
@@ -150,7 +145,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_gb_hugepages_failsafe(
@@ -167,7 +162,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=64),
@@ -217,7 +212,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -243,7 +238,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -268,7 +263,7 @@ class Dpdk(TestSuite):
             ],
         )
 
-        if test_kit.testpmd.is_connect_x3:
+        if test_kit.testpmd.vf_helper.is_connect_x3():
             raise SkippedException(
                 "Unsupported Hardware: ConnectX3 does not support secondary process RX"
             )
@@ -339,7 +334,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
             supported_features=[IsolatedResource],
         ),
@@ -378,7 +373,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -435,7 +430,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_vpp(
@@ -482,7 +477,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -556,7 +551,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -582,7 +577,37 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # #unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_multi_txrx_queue_gb_hugepages_netvsc(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                gb_hugepages=True,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            # #unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -608,7 +633,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -634,7 +659,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_failsafe(
@@ -659,7 +684,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -685,7 +710,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # #unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_netvsc(
@@ -697,6 +722,16 @@ class Dpdk(TestSuite):
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
+
+    def _check_l3fwd_support(self, environment: Environment) -> None:
+        nodes = list(environment.nodes.list())
+        distro = nodes[0].os
+        if not isinstance(distro, (Ubuntu, Redhat)):
+            raise SkippedException(
+                UnsupportedDistroException(
+                    distro, "OS is not supported on this platform"
+                )
+            )
 
     @TestCaseMetadata(
         description=(
@@ -712,17 +747,17 @@ class Dpdk(TestSuite):
         ),
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # #unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        self._check_l3fwd_support(environment=environment)
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
@@ -739,17 +774,17 @@ class Dpdk(TestSuite):
             """,
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # #unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        self._check_l3fwd_support(environment=environment)
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
@@ -769,7 +804,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )

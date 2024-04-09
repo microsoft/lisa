@@ -3,7 +3,7 @@ import time
 from collections import deque
 from decimal import Decimal
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -23,7 +23,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import Fedora, OperatingSystem, Ubuntu
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -39,6 +39,8 @@ from lisa.tools import (
     Mount,
     Ntttcp,
     Ping,
+    Sysctl,
+    Tee,
     Timeout,
 )
 from lisa.tools.mkfs import FileSystem
@@ -111,7 +113,7 @@ def init_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
 
 
 def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    echo = node.tools[Echo]
+    tee = node.tools[Tee]
 
     meminfo = node.tools[Free]
     nics_count = len(node.nics.get_nic_names())
@@ -148,7 +150,7 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
 
     for i in range(numa_nodes):
         if enable_gibibyte_hugepages:
-            echo.write_to_file(
+            tee.write_to_file(
                 f"{request_pages_1gb}",
                 node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
@@ -157,7 +159,7 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
                 sudo=True,
             )
         else:
-            echo.write_to_file(
+            tee.write_to_file(
                 f"{request_pages_2mb}",
                 node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
@@ -167,15 +169,24 @@ def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> No
             )
 
 
-def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+def _set_forced_source_by_distro(
+    node: Node, variables: Dict[str, Any], examples: Optional[List[str]]
+) -> None:
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    if (
+        isinstance(node.os, Ubuntu)
+        and node.os.information.version < "20.4.0"
+        or examples != None
+    ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+        if node.nics.is_mana_device_present():
+            variables["dpdk_branch"] = variables.get("dpdk_branch", "v23.11")
+        else:
+            variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def _ping_all_nodes_in_environment(environment: Environment) -> None:
@@ -216,6 +227,9 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    if multiple_queues:
+        sender.testpmd.vf_helper.set_multiple_queue()
+        receiver.testpmd.vf_helper.set_multiple_queue()
 
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
@@ -254,28 +268,32 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
     # you to enable to uio_hv_generic driver, steps are found:
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
 
-    echo = node.tools[Echo]
+    tee = node.tools[Tee]
     lsmod = node.tools[Lsmod]
     modprobe = node.tools[Modprobe]
-    kconfig = node.tools[KernelConfig]
     uname = node.tools[Uname]
 
     # check if kernel config for Hyper-V VMBus is enabled
-    config = "CONFIG_UIO_HV_GENERIC"
-    if not kconfig.is_enabled(config):
-        kversion = uname.get_linux_information().kernel_version
-        if kversion < "4.10.0":
-            raise UnsupportedKernelException(node.os)
-        else:
-            raise LisaException(
-                f"The kernel config {config} is not set in kernel version {kversion}."
-            )
-
+    try:
+        kconfig = node.tools[KernelConfig]
+        config = "CONFIG_UIO_HV_GENERIC"
+        if not kconfig.is_enabled(config):
+            kversion = uname.get_linux_information().kernel_version
+            if kversion < "4.10.0":
+                raise UnsupportedKernelException(node.os)
+            else:
+                raise LisaException(
+                    f"The kernel config {config} is not set in kernel version {kversion}."
+                )
+    except LisaException:
+        node.log.debug(
+            "Attempt to check for CONFIG_UIO_HV_GENERIC failed. Proceeding..."
+        )
     # enable if it is not already enabled
     if not lsmod.module_exists("uio_hv_generic", force_run=True):
         modprobe.load("uio_hv_generic")
     # vmbus magic to enable uio_hv_generic
-    echo.write_to_file(
+    tee.write_to_file(
         hv_uio_generic_uuid,
         node.get_pure_path("/sys/bus/vmbus/drivers/uio_hv_generic/new_id"),
         sudo=True,
@@ -294,7 +312,7 @@ def do_pmd_driver_setup(
 
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
-    if testpmd.is_mana:
+    if testpmd.vf_helper.is_mana():
         ip = node.tools[Ip]
         if test_nic.lower and ip.is_device_up(test_nic.lower):
             ip.down(test_nic.lower)
@@ -308,11 +326,15 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     enable_gibibyte_hugepages: bool = False,
     extra_nics: Union[List[NicInfo], None] = None,
+    build_release: bool = False,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
+    _set_forced_source_by_distro(node, variables, examples=sample_apps)
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    rdma_core_source = variables.get("rdma_core_source", "")
+    rdma_core_ref = variables.get("rdma_core_git_ref", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
+    enforce_strict_threshold = variables.get("dpdk_enforce_strict_threshold", False)
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
@@ -348,6 +370,10 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        rdma_core_source=rdma_core_source,
+        rdma_core_ref=rdma_core_ref,
+        enforce_strict_threshold=enforce_strict_threshold,
+        build_release=build_release,
     )
 
     # init and enable hugepages (required by dpdk)
@@ -461,6 +487,7 @@ def init_nodes_concurrent(
     pmd: str,
     enable_gibibyte_hugepages: bool = False,
     sample_apps: Union[List[str], None] = None,
+    build_release: bool = False,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
@@ -478,6 +505,7 @@ def init_nodes_concurrent(
                 pmd,
                 enable_gibibyte_hugepages=enable_gibibyte_hugepages,
                 sample_apps=sample_apps,
+                build_release=build_release,
             )
             for node in environment.nodes.list()
         ],
@@ -493,12 +521,22 @@ def verify_dpdk_build(
     pmd: str,
     multiple_queues: bool = False,
     gibibyte_hugepages: bool = False,
+    build_release: bool = False,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     test_kit = initialize_node_resources(
-        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        node,
+        log,
+        variables,
+        pmd,
+        enable_gibibyte_hugepages=gibibyte_hugepages,
+        build_release=build_release,
     )
     testpmd = test_kit.testpmd
+    # designate node as sender
+    testpmd.vf_helper.set_sender()
+    if multiple_queues:
+        testpmd.vf_helper.set_multiple_queue()
 
     # grab a nic and run testpmd
     test_nic = node.nics.get_secondary_nic()
@@ -512,9 +550,18 @@ def verify_dpdk_build(
         f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
-    assert_that(tx_pps).described_as(
-        f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-    ).is_greater_than(2**20)
+
+    threshold = testpmd.vf_helper.get_threshold_testpmd()
+    hw_name = testpmd.vf_helper.get_hw_name()
+
+    failure_msg = (
+        f"TX-PPS ({tx_pps}) for {hw_name} should have been greater "
+        f"than {threshold} PPS."
+    )
+    if testpmd.vf_helper.use_strict_checks:
+        failure_msg = "STRICT CHECK ENABLED: " + failure_msg
+    assert_that(tx_pps).described_as(failure_msg).is_greater_than(threshold)
+
     return DpdkTestResources(node, testpmd)
 
 
@@ -526,6 +573,7 @@ def verify_dpdk_send_receive(
     use_service_cores: int = 1,
     multiple_queues: bool = False,
     gibibyte_hugepages: bool = False,
+    build_release: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -543,12 +591,27 @@ def verify_dpdk_send_receive(
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        environment,
+        log,
+        variables,
+        pmd,
+        enable_gibibyte_hugepages=gibibyte_hugepages,
+        build_release=build_release,
     )
 
     check_send_receive_compatibility(test_kits)
 
     sender, receiver = test_kits
+    # designate sender/receiver before run
+    sender.testpmd.vf_helper.set_sender()
+    receiver.testpmd.vf_helper.set_receiver()
+    # signal multiqueue run to vf helper
+    if multiple_queues:
+        sender.testpmd.vf_helper.set_multiple_queue()
+        receiver.testpmd.vf_helper.set_multiple_queue()
+    else:
+        sender.testpmd.vf_helper.set_single_queue()
+        receiver.testpmd.vf_helper.set_single_queue()
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
@@ -564,7 +627,19 @@ def verify_dpdk_send_receive(
         constants.SIGINT,
         kill_timeout=receive_timeout,
     )
-    receive_result.wait_output("start packet forwarding")
+    found_error = False
+    try:
+        receive_result.wait_output("EAL: Error", timeout=5)
+        found_error = True
+    except LisaException:
+        # we actually want this to be missing, so continue if it's not present.
+        found_error = False
+    if found_error:
+        raise LisaException(
+            "DPDK EAL hit an error during startup. Check program output for errors."
+        )
+
+    receive_result.wait_output("start packet forwarding", timeout=10)
     sender_result = sender.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[sender],
         test_duration,
@@ -587,13 +662,16 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    rx_threshold = receiver.testpmd.vf_helper.get_threshold_testpmd()
+    tx_threshold = sender.testpmd.vf_helper.get_threshold_testpmd()
+    hw_name = sender.testpmd.vf_helper.get_hw_name()
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2**20)
+        f"Throughput for RECEIVE on {hw_name} was below the expected threshold: {rx_threshold}"
+    ).is_greater_than_or_equal_to(rx_threshold)
     assert_that(snd_tx_pps).described_as(
-        "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2**20)
+        f"Throughput for SEND on {hw_name} was below the expected threshold: {tx_threshold}"
+    ).is_greater_than(tx_threshold)
 
     return sender, receiver
 
@@ -604,21 +682,30 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     variables: Dict[str, Any],
     pmd: str,
     use_service_cores: int = 1,
+    build_release: bool = False,
+    gb_hugepages: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     return verify_dpdk_send_receive(
-        environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
+        environment,
+        log,
+        variables,
+        pmd,
+        use_service_cores=1,
+        multiple_queues=True,
+        build_release=build_release,
+        gibibyte_hugepages=gb_hugepages,
     )
 
 
 def do_parallel_cleanup(environment: Environment) -> None:
     def _parallel_cleanup(node: Node) -> None:
+        node.reboot()
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
             # cleanup temporary hugepage and driver changes
-        node.reboot()
 
     run_in_parallel(
         [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
@@ -664,22 +751,28 @@ def get_dpdk_portmask(ports: List[int]) -> str:
 
 # disconnect two subnets
 # add a new gateway from subnets a -> b through an arbitrary ip address
-def reroute_traffic_and_disable_nic(
-    node: Node, src_nic: NicInfo, dst_nic: NicInfo, new_gateway_nic: NicInfo
+def setup_kernel_route_tables(
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
 ) -> None:
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
 
     # remove any routes through those devices
-    ip_tool.remove_all_routes_for_device(src_nic.name)
+    # ip_tool.remove_all_routes_for_device(src_nic.name)
 
-    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
+    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
-            dest=forbidden_subnet, via=new_gateway_nic.ip_addr, dev=new_gateway_nic.name
+            dest=forbidden_subnet,
+            via=new_gateway_nic.ip_addr,
+            dev=src_nic.name,
+            # src=src_nic.ip_addr,
         )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
-    ip_tool.down(src_nic.name)
+    # ip_tool.down(src_nic.name)
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
@@ -696,20 +789,31 @@ def get_l3fwd_queue_count(
         queue_count = 4
     elif available_cores <= 32:
         queue_count = 8
-    else:
+    elif not is_mana:
         queue_count = 16
-    # MANA supports 32 queues, however we map core/queues 1:1
-    # this is due to a bug in the logic that parses rxq/txq count
-    # MANA will reject configurations where there are more cores
-    # than queues, however we are using 2 ports so have 2x queues
-    # to assign to cores. So, we assign 2 queues per core.
-    # pro: use more queues with less cores
-    # con: 1 core is servicing queue N for both ports.
-    # TODO: change this when the txq/rxq bug is fixed.
-    # You still get much higher throughput than cx5 is capable of.
-    if is_mana:
-        queue_count *= 2
+    else:
+        queue_count = 32
     return queue_count
+
+
+def _find_common_subnet_nic(
+    first: Node, second: Node, nic: NicInfo
+) -> Optional[NicInfo]:
+    # given a nic on the first node,
+    # get the nic on the second node which shares the same subnet
+    first.log.info(
+        f"Looking for nic matching {nic.name} on {nic.ip_addr} {nic.module_name}"
+    )
+    first.tools[Ip].get_info()
+    first.tools[Ip].get_info(nic.name)
+    subnet = ipv4_to_lpm(nic.ip_addr)
+    for nic_info in second.nics.nics.values():
+        if nic_info.lower and subnet == ipv4_to_lpm(nic_info.ip_addr):
+            first.log.info(
+                f"found matching nic {nic_info.name} {nic_info.ip_addr} {nic_info.module_name}"
+            )
+            return nic_info
+    return None
 
 
 def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -758,13 +862,27 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     l3fwd_app_name = "dpdk-l3fwd"
     send_side = 1
     receive_side = 2
+    test_duration: int = variables.get("dpdk_test_duration", 120)
+
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
-    if (
-        not isinstance(forwarder.os, Ubuntu)
-        or forwarder.os.information.version < "22.4.0"
-    ):
+    forwarder_distro = forwarder.os
+    is_recent_ubuntu = (
+        isinstance(forwarder_distro, Ubuntu)
+        and forwarder_distro.information.version >= "22.4.0"
+    )
+    is_recent_rhel = (
+        isinstance(forwarder_distro, Fedora)
+        and forwarder_distro.information.version >= "8.9.0"
+    )
+    if not (is_recent_ubuntu or is_recent_rhel):
         raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+
+    # uninstall DPDK if it exists, l3fwd requires a source build.
+    if (
+        isinstance(forwarder_distro, Ubuntu) or isinstance(forwarder_distro, Fedora)
+    ) and forwarder_distro.package_exists("dpdk"):
+        forwarder_distro.uninstall_packages("dpdk")
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
@@ -772,7 +890,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException("l3 forward test needs >= 8 cores.")
 
     # ping everything before start
-    _ping_all_nodes_in_environment(environment)
+    forwarder.log.info("Running first ping...")
+    # _ping_all_nodes_in_environment(environment)
 
     test_result = environment.source_test_result
     if not test_result:
@@ -786,8 +905,45 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         node.mark_dirty()
 
     # enable ip forwarding on secondary and tertiary nics
+    # run_in_parallel([partial(__enable_ip_forwarding, node) for node in [forwarder]])
+    __enable_ip_forwarding(forwarder)
+
+    # We use ntttcp for snd/rcv which will respect the kernel route table.
+    # SO: remove the unused interfaces and routes which could skip the forwarder
+
+    def _run_removal(node: Node, keep_index: int) -> None:
+        return node.features[NetworkInterface].remove_extra_nics(keep_index=keep_index)
+
+    _print_all_nics(forwarder, sender, receiver)
+
     run_in_parallel(
-        [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
+        [
+            partial(_run_removal, node, keep_index)
+            for node, keep_index in [(sender, send_side), (receiver, receive_side)]
+        ]
+    )
+    sender.close()
+    receiver.close()
+    sender.nics.reload()
+    receiver.nics.reload()
+
+    _print_all_nics(forwarder, sender, receiver)
+
+    fwd_send_nic = forwarder.nics.get_nic_by_index(send_side)
+    fwd_receiver_nic = forwarder.nics.get_nic_by_index(receive_side)
+    subnet_a_snd = _find_common_subnet_nic(forwarder, sender, fwd_send_nic)
+    subnet_b_rcv = _find_common_subnet_nic(forwarder, receiver, fwd_receiver_nic)
+    if subnet_a_snd == None or subnet_b_rcv == None:
+        raise LisaException(
+            "Could not find subnet pairs for all nics on the test nodes."
+        )
+
+    forwarder.log.info("Running second ping...")
+    check_forwarder_is_reachable(
+        (forwarder, fwd_send_nic, fwd_receiver_nic),
+        (sender, subnet_a_snd),
+        (receiver, subnet_b_rcv),
+        test_phase="after removal",
     )
 
     # organize our nics by subnet.
@@ -796,34 +952,18 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # Subnet A is actually the secondary NIC.
     #  Subnet B is actually the tertiary NIC.
     # For the test, don't sweat it. A is send side, B is receive side.
-    subnet_a_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(send_side),
-        sender: sender.nics.get_nic_by_index(send_side),
-        receiver: receiver.nics.get_nic_by_index(send_side),
-    }
-    subnet_b_nics = {
-        forwarder: forwarder.nics.get_nic_by_index(receive_side),
-        receiver: receiver.nics.get_nic_by_index(receive_side),
-        sender: sender.nics.get_nic_by_index(receive_side),
-    }
 
-    # We use ntttcp for snd/rcv which will respect the kernel route table.
-    # SO: remove the unused interfaces and routes which could skip the forwarder
-    unused_nics = {
-        sender: subnet_b_nics[sender],
-        receiver: subnet_a_nics[receiver],
-    }
-    reroute_traffic_and_disable_nic(
-        node=sender,
-        src_nic=unused_nics[sender],
-        dst_nic=subnet_b_nics[receiver],
-        new_gateway_nic=subnet_a_nics[forwarder],
+    subnet_a_nics = {sender: subnet_a_snd, forwarder: fwd_send_nic}
+    subnet_b_nics = {receiver: subnet_b_rcv, forwarder: fwd_receiver_nic}
+    forwarder.log.info(
+        f"subnet_a: sender {str(subnet_a_snd)} forwarder {str(fwd_send_nic)}"
     )
-    reroute_traffic_and_disable_nic(
-        node=receiver,
-        src_nic=unused_nics[receiver],
-        dst_nic=subnet_a_nics[sender],
-        new_gateway_nic=subnet_b_nics[forwarder],
+    forwarder.log.info(
+        f"subnet_a: sender {str(subnet_b_rcv)} forwarder {str(fwd_receiver_nic)}"
+    )
+
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after initial subnet setup"
     )
 
     # AZ ROUTING TABLES
@@ -837,20 +977,25 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     sender.features[NetworkInterface].create_route_table(
         nic_name=subnet_a_nics[forwarder].name,
         route_name="fwd-rx",
-        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
+        em_first_hop=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
         next_hop_type="VirtualAppliance",
-        dest_hop=subnet_a_nics[forwarder].ip_addr,
+        dest_hop=subnet_b_nics[forwarder].ip_addr,
     )
     receiver.features[NetworkInterface].create_route_table(
         nic_name=subnet_b_nics[forwarder].name,
         route_name="fwd-tx",
-        subnet_mask=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
-        em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
+        subnet_mask=ipv4_to_lpm(subnet_a_nics[sender].ip_addr),
+        em_first_hop=ipv4_to_lpm(subnet_b_nics[receiver].ip_addr),
         next_hop_type="VirtualAppliance",
-        dest_hop=subnet_b_nics[forwarder].ip_addr,
+        dest_hop=subnet_a_nics[forwarder].ip_addr,
+    )
+    # again, verify receiver is unreachable without dpdk forwarding
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after route table creation"
     )
 
+    # ping_forwader(forwarder, sender, receiver, subnet_a_nics, subnet_b_nics)
     # Do actual DPDK initialization, compile l3fwd and apply setup to
     # the extra forwarding nic
     fwd_kit = initialize_node_resources(
@@ -864,24 +1009,58 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # enable hugepages needed for dpdk EAL on forwarder
     init_hugepages(forwarder, enable_gibibyte_hugepages=enable_gibibyte_hugepages)
 
+    # tell threshold helper that we're testing the forwarder
+    fwd_kit.testpmd.vf_helper.set_forwader()
+
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.is_mana:
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
-        dpdk_port_a = 2
-        dpdk_port_b = 3
+    # if fwd_kit.testpmd.vf_helper.is_mana():
 
-    # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+    # NOTE: ports for DPDK are available for each interface.
+    # This gets a little weird because Azure offers upper/lower pairs
+    # by default for AccelNet. A synthetic interface may appear as a
+    # usable port, even though we don't want to bind to them normally.
+    # There isn't a good example of how to pick a port for a given interface.
+    # see note above. On MANA and MLX we unbind the test interfaces.
+    # We leave a single AccelNet interface open for SSH between LISA
+    # and the test VM. This results in 4 interfaces for l3fwd.
+    # 0 : synthetic or VF for eth0
+    # 1 : synthetic or VF for eth0
+    # 2: VF for eth1  <- nics used for testing
+    # 3: VF for eth2  <- nics used for testing
+    # Q: How do we know those numbers are accurate?
+    # A: We do not. It's called cheating, it doesn't work every time.
+
+    dpdk_port_a = 2
+    dpdk_port_b = 3
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
     # see https://doc.dpdk.org/guides/sample_app_ug/
     #               l3_forward.html#parse-rules-from-file
     # for additional context
+    setup_kernel_route_tables(
+        node=sender,
+        src_nic=subnet_a_snd,
+        dst_nic=subnet_b_rcv,
+        new_gateway_nic=fwd_send_nic,
+    )
+    setup_kernel_route_tables(
+        node=receiver,
+        src_nic=subnet_b_rcv,
+        dst_nic=subnet_a_snd,
+        new_gateway_nic=fwd_receiver_nic,
+    )
+
+    # again, check receiver is unreachable before l3fwd starts!
+    check_receiver_is_unreachable(
+        sender,
+        receiver,
+        subnet_a_nics,
+        subnet_b_nics,
+        "after kernel route creation, before l3fwd.",
+    )
 
     create_l3fwd_rules_files(
         forwarder,
@@ -894,18 +1073,40 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # get binary path and dpdk device include args
-    examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
-    server_app_path = examples_path.joinpath(l3fwd_app_name)
-    # generate the dpdk include arguments to add to our commandline
-    include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
-        ),
-    ]
+    l3fwd_check = forwarder.execute(
+        "command -v /usr/local/bin/dpdk-l3fwd", sudo=True, shell=True
+    )
+    if l3fwd_check.exit_code == 0:
+        server_app_path = l3fwd_check.stdout.strip()
+    else:
+        assert (
+            fwd_kit.testpmd.dpdk_build_path != None
+        ), "DPDK build was not found, dpdk l3fwd was not found."
+        examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
+        server_app_path = examples_path.joinpath(
+            l3fwd_app_name
+        )  # generate the dpdk include arguments to add to our commandline
 
+    # another MANA special case, provide pci slot and multiple macs instead of seperate vdev args
+    if fwd_kit.testpmd.vf_helper.is_mana():
+        vdev_combined = ",".join(
+            [
+                subnet_a_nics[forwarder].pci_slot,
+                f"mac={subnet_a_nics[forwarder].mac_addr}",
+                f"mac={subnet_b_nics[forwarder].mac_addr}",
+            ]
+        )
+        include_devices = [f'--vdev="{vdev_combined}"']
+
+    else:
+        include_devices = [
+            fwd_kit.testpmd.generate_testpmd_include(
+                subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+            ),
+            fwd_kit.testpmd.generate_testpmd_include(
+                subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+            ),
+        ]
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
     # Each port P has N queues (really queue pairs for tx/rx)
@@ -917,9 +1118,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     queue_count = get_l3fwd_queue_count(
         available_cores,
         force_single_queue=force_single_queue,
-        is_mana=fwd_kit.testpmd.is_mana,
+        is_mana=fwd_kit.testpmd.vf_helper.is_mana(),
     )
-
+    # signal multiq run to vf helper to adjust pass/fail threshold
+    if queue_count > 1:
+        fwd_kit.testpmd.vf_helper.set_multiple_queue()
     config_tups = []
     included_cores = []
     last_core = 1
@@ -929,7 +1132,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     for q in range(queue_count):
         config_tups.append((dpdk_port_a, q, last_core))
 
-        if not fwd_kit.testpmd.is_mana:
+        if not fwd_kit.testpmd.vf_helper.is_mana():
             included_cores.append(str(last_core))
             last_core += 1
         config_tups.append((dpdk_port_b, q, last_core))
@@ -938,7 +1141,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         last_core += 1
 
     # pick promiscuous mode arg, note mana doesn't support promiscuous mode
-    if fwd_kit.testpmd.is_mana:
+    if fwd_kit.testpmd.vf_helper.is_mana():
         promiscuous = ""
     else:
         promiscuous = "-P"
@@ -954,6 +1157,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         f' --lookup=lpm --config="{joined_configs}" '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
+
+    # create sender/receiver ntttcp instances
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+
     # START THE TEST
     # finally, start the forwarder
     fwd_proc = forwarder.execute_async(
@@ -969,25 +1176,41 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "core dumps, or other setup/init issues."
         )
 
+    # after starting DPDK, check for known driver errors
+    fwd_kit.testpmd.check_for_driver_regressions()
+
     # start ntttcp client and server
     ntttcp_threads_count = 64
     # start the receiver
+
+    receiver.execute("lspci; ip addr; ip link; ip route;", shell=True, sudo=True)
+    sender.execute("lspci; ip addr; ip link; ip route;", shell=True, sudo=True)
+    ports_count = 64
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
-        run_time_seconds=30,
+        run_time_seconds=test_duration + 15,
         buffer_size=1024,
+        ports_count=ports_count,
         server_ip=subnet_b_nics[receiver].ip_addr,
     )
-
+    receiver_proc.wait_output(f"INFO: {ports_count+1} threads created")
     # start the sender
 
-    sender_result = ntttcp[sender].run_as_client(
-        nic_name=subnet_a_nics[sender].name,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-        threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
-    )
-
+    try:
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=test_duration,
+        )
+    except AssertionError:
+        sender.log.warn("Retrying start  for sender...")
+        sender_result = ntttcp[sender].run_as_client(
+            nic_name=subnet_a_nics[sender].name,
+            server_ip=subnet_b_nics[receiver].ip_addr,
+            threads_count=ntttcp_threads_count,
+            run_time_seconds=test_duration,
+        )
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
     log.debug(f"result: {receiver_result.stdout}")
@@ -1000,6 +1223,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
         sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
     }
+
+    # check for driver regressions again after running the test
+    fwd_kit.testpmd.check_for_driver_regressions()
+
     # send result to notifier if we found a test result to report with
     if test_result and is_perf_test:
         msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
@@ -1013,6 +1240,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
         notifier.notify(msg)
 
+    check_receiver_is_unreachable(
+        sender, receiver, subnet_a_nics, subnet_b_nics, "after l3fwd stops"
+    )
     # check the throughput and fail if it was unexpectedly low.
     # NOTE: only checking 0 and < 1 now. Once we have more data
     # there should be more stringest checks for each NIC type.
@@ -1021,11 +1251,84 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         "l3fwd test found 0Gbps througput. "
         "Either the test or DPDK forwarding is broken."
     ).is_greater_than(0)
+
     assert_that(throughput).described_as(
         f"l3fwd has very low throughput: {throughput}Gbps! "
         "Verify netvsc was used over failsafe, check netvsc init was succesful "
         "and the DPDK port IDs were correct."
-    ).is_greater_than(1)
+    ).is_greater_than_or_equal_to(1)
+
+    threshold = fwd_kit.testpmd.vf_helper.get_threshold_l3fwd()
+    hw_name = fwd_kit.testpmd.vf_helper.get_hw_name()
+    if fwd_kit.testpmd.vf_helper.use_strict_checks:
+        assert_that(throughput).described_as(
+            f"l3fwd strict throughput check failed, for hw {hw_name} "
+            f"expected throughput >= {threshold} GBps!"
+        ).is_greater_than_or_equal_to(threshold)
+
+
+def check_forwarder_is_reachable(
+    forwarder_info: Tuple[Node, NicInfo, NicInfo],
+    sender_info: Tuple[Node, NicInfo],
+    receiver_info: Tuple[Node, NicInfo],
+    test_phase: str = "",
+) -> None:
+    forwarder, fwd_send_nic, fwd_receiver_nic = forwarder_info
+    sender, subnet_a_snd = sender_info
+    receiver, subnet_b_rcv = receiver_info
+    forwarder.log.info(f"Running ping test {test_phase}...")
+    forwarder.tools[Ping].ping(subnet_a_snd.ip_addr, fwd_send_nic.name)
+    forwarder.tools[Ping].ping(subnet_b_rcv.ip_addr, fwd_receiver_nic.name)
+    sender.tools[Ping].ping(fwd_send_nic.ip_addr, subnet_a_snd.name)
+    receiver.tools[Ping].ping(fwd_receiver_nic.ip_addr, subnet_b_rcv.name)
+
+
+def _print_all_nics(forwarder: Node, sender: Node, receiver: Node):
+    for nic in sender.nics.nics.values():
+        sender.log.info(f"Sender has nic: {str(nic)}")
+    for nic in receiver.nics.nics.values():
+        receiver.log.info(f"Receiver has nic: {str(nic)}")
+    for nic in forwarder.nics.nics.values():
+        forwarder.log.info(f"Forwader has nic: {str(nic)}")
+
+
+def check_receiver_is_unreachable(
+    sender: Node,
+    receiver: Node,
+    subnet_a_nics: Dict[Node, NicInfo],
+    subnet_b_nics: Dict[Node, NicInfo],
+    test_phase: str,
+):
+    if sender.tools[Ping].ping(
+        subnet_b_nics[receiver].ip_addr,
+        nic_name=subnet_a_nics[sender].name,
+        ignore_error=True,
+    ):
+        raise LisaException(
+            f"Sender and receiver can communicate {test_phase}! "
+            f"{subnet_a_nics[sender].ip_addr} and {subnet_b_nics[receiver].ip_addr} "
+            "must be on seperate, unreachable subnets!"
+        )
+
+    else:
+        sender.log.debug(
+            f"Confirmed sender/receiver cannot reach each other {test_phase}. "
+        )
+
+
+def ping_forwarder(
+    ping_target: Node,
+    ping_sources: List[Node],
+    shared_subnets: List[Dict[Node, NicInfo]],
+    test_phase: str = "",
+) -> None:
+    for source, subnet in zip(ping_sources, shared_subnets):
+        source.log.debug(
+            f"PING {test_phase}: {ping_target.name}:{subnet[ping_target].ip_addr} "
+            f"< {source.name}:{subnet[source].name}"
+            f":{subnet[source].ip_addr} "
+        )
+        source.tools[Ping].ping(subnet[ping_target].ip_addr, subnet[source].name)
 
 
 def create_l3fwd_rules_files(
