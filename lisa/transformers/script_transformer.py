@@ -78,10 +78,8 @@ class ScriptTransformer(Transformer):
                 ) from e
 
             self._log.debug(
-                "script: '%s', variables: %s, result: '%s'",
-                item.script,
-                variables,
-                result[item.name],
+                f"script: '{item.script}', variables: '{variables}', "
+                f"result: '{result[item.name]}'",
             )
 
         return result
