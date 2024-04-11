@@ -35,7 +35,7 @@ class MdatpSuite(TestSuite):
            Check for mdatp endpoint/cloud install, dump config info.
            Fails if mdatp is installed in the image.
            Raises specific error messages depending on the type of info
-           foud
+           found
         """,
         priority=3,
         requirement=simple_requirement(
