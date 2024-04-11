@@ -52,7 +52,7 @@ class DpdkPerformance(TestSuite):
             min_count=1,
             network_interface=Sriov(),
             min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_send_only_failsafe_pmd(
@@ -98,7 +98,7 @@ class DpdkPerformance(TestSuite):
             min_count=1,
             network_interface=Sriov(),
             min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_send_only_netvsc_pmd(
@@ -144,7 +144,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_minimal_failsafe_pmd(
@@ -165,7 +165,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_minimal_netvsc_pmd(
@@ -187,7 +187,7 @@ class DpdkPerformance(TestSuite):
             min_count=2,
             network_interface=Sriov(),
             min_nic_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_multi_queue_failsafe_pmd(
@@ -214,7 +214,7 @@ class DpdkPerformance(TestSuite):
             network_interface=Sriov(),
             min_nic_count=2,
             min_core_count=16,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_multi_queue_netvsc_pmd(
@@ -249,7 +249,7 @@ class DpdkPerformance(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def perf_dpdk_l3fwd_ntttcp_tcp(
