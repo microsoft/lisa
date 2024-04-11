@@ -11,15 +11,15 @@ from lisa.testsuite import simple_requirement
 
 # some constants from  check-mdatp.sh
 # if any mdatp install in /etc/opt is found
-EXIT_MDATP_AGENT_INSTALLED = 1
+EXIT_MDATP_AGENT_INSTALLED = 251
 # if mdatp az extension is installed
-EXIT_MDE_INSTALLED = 2
+EXIT_MDE_INSTALLED = 252
 # if any log dirs are found
-EXIT_MDATP_LOGS_FOUND = 4
+EXIT_MDATP_LOGS_FOUND = 253
 # if an installation log is found
-EXIT_MDATP_INSTALL_LOGS_FOUND = 8
+EXIT_MDATP_INSTALL_LOGS_FOUND = 254
 # if an onboarding blob is found
-EXIT_ONBOARD_INFO_FOUND = 16
+EXIT_ONBOARD_INFO_FOUND = 255
 
 
 @TestSuiteMetadata(
@@ -65,8 +65,7 @@ class MdatpSuite(TestSuite):
         )
         script_output = result.stdout.strip()
         exit_code = result.exit_code
-        if exit_code is None:
-            raise SkippedException("exit code was None after running check-mdatp")
+        assert exit_code is not None, "exit code was None after running check-mdatp"
 
         # pass if no pre-installed copy of defender is found.
         if exit_code == 0:
@@ -78,38 +77,32 @@ class MdatpSuite(TestSuite):
         node.log.debug(f"Found config information: {script_output}")
 
         # check the exit code to determine which info was found.
-        found_onboarding_info = exit_code & EXIT_ONBOARD_INFO_FOUND
-        found_install_logs = exit_code & (
-            EXIT_MDATP_INSTALL_LOGS_FOUND | EXIT_MDATP_LOGS_FOUND
+        found_onboarding_info = exit_code == EXIT_ONBOARD_INFO_FOUND
+        found_install_logs = (
+            exit_code == EXIT_MDATP_INSTALL_LOGS_FOUND
+            or exit_code == EXIT_MDATP_LOGS_FOUND
         )
-        found_mdatp_installed = exit_code & EXIT_MDATP_AGENT_INSTALLED
-        found_mde_extension_install = exit_code & EXIT_MDE_INSTALLED
+
+        found_mdatp_installed = exit_code == EXIT_MDATP_AGENT_INSTALLED
+        found_mde_extension_install = exit_code == EXIT_MDE_INSTALLED
 
         # Add some descriptive text to describe each specific problem.
         error_header = ""
         if found_onboarding_info:
-            error_header += "mdatp onboarding info is present in this image! "
-        if found_install_logs:
-            error_header += "mdatp install logs are present in this image! "
-        if found_mdatp_installed:
-            error_header += "mdatp installation was found on this image! "
-        if found_mde_extension_install:
-            error_header += "MDE extension installation was found in this image! "
-
-        # if exit code is unexpected, something is off with the test.
-        # We can't 'pass', since the image is neither clean nor dirty.
-        # Maybe it's ReactOS? Who knows. We'll find out if we ever hit this path.
-        if not any(
-            [
-                found_onboarding_info,
-                found_install_logs,
-                found_mdatp_installed,
-                found_mde_extension_install,
-            ]
-        ):
+            error_header = "mdatp onboarding info is present in this image! "
+        elif found_install_logs:
+            error_header = "mdatp install logs are present in this image! "
+        elif found_mdatp_installed:
+            error_header = "mdatp installation was found on this image! "
+        elif found_mde_extension_install:
+            error_header = "MDE extension installation was found in this image! "
+        else:
+            # if exit code is unexpected, something is off with the test.
+            # We can't 'pass', since the image is neither clean nor dirty.
+            # Maybe it's ReactOS? Who knows. We'll find out if we ever hit this path.
             raise SkippedException(
-                "No recognized error code was found: "
-                f"{exit_code} output: {script_output}"
+                "Unrecognized exit code (is this a non-posix compliant shell?): "
+                f"{exit_code} script_output: {script_output}"
             )
 
         # set the error message depending on the info found by the script.
@@ -128,7 +121,8 @@ class MdatpSuite(TestSuite):
         fail(str(error_message))
 
 
-# NOTE: it's possible there will be an additional case added
-# to handle filtering the result to check for expected
-# installations. For now, since there are none, we fail for
-# all cases other than 'no mdatp installed by default'
+# NOTE: it's possible there will be an change eventually to support
+# publisher's pre-installing defender without activating it,
+# without an onboarding blob, without a service enabled to auto-start it.
+# This does not happen currently, it's expected (and recommended) people
+# will pick and install their own antivirus.
