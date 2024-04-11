@@ -67,12 +67,17 @@ class MdatpSuite(TestSuite):
         exit_code = result.exit_code
         if exit_code is None:
             raise SkippedException("exit code was None after running check-mdatp")
+
+        # pass if no pre-installed copy of defender is found.
         if exit_code == 0:
             node.log.info("No mdatp onboarding info found, image is clean.")
             return
 
+        # otherwise, some remnant of defender was found in the image.
         node.log.info("Found mdatp installation!")
         node.log.debug(f"Found config information: {script_output}")
+
+        # check the exit code to determine which info was found.
         found_onboarding_info = exit_code & EXIT_ONBOARD_INFO_FOUND
         found_install_logs = exit_code & (
             EXIT_MDATP_INSTALL_LOGS_FOUND | EXIT_MDATP_LOGS_FOUND
@@ -90,6 +95,10 @@ class MdatpSuite(TestSuite):
             error_header += "mdatp installation was found on this image! "
         if found_mde_extension_install:
             error_header += "MDE extension installation was found in this image! "
+
+        # if exit code is unexpected, something is off with the test.
+        # We can't 'pass', since the image is neither clean nor dirty.
+        # Maybe it's ReactOS? Who knows. We'll find out if we ever hit this path.
         if not any(
             [
                 found_onboarding_info,
@@ -102,8 +111,8 @@ class MdatpSuite(TestSuite):
                 "No recognized error code was found: "
                 f"{exit_code} output: {script_output}"
             )
-        # set the error message depending on the info found by the script.
 
+        # set the error message depending on the info found by the script.
         error_message = (
             f"{error_header}"
             "This may indicate the VM used to build this image was "
