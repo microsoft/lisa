@@ -84,7 +84,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_netvsc(
@@ -106,7 +106,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_gb_hugepages_netvsc(
@@ -128,7 +128,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_failsafe(
@@ -150,7 +150,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_build_gb_hugepages_failsafe(
@@ -167,7 +167,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=64),
@@ -217,7 +217,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -243,7 +243,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -339,7 +339,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
             supported_features=[IsolatedResource],
         ),
@@ -378,7 +378,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -435,7 +435,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_vpp(
@@ -482,7 +482,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
@@ -556,7 +556,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -582,7 +582,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -608,7 +608,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -634,7 +634,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_failsafe(
@@ -659,7 +659,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
@@ -685,7 +685,7 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             min_count=2,
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_netvsc(
@@ -717,7 +717,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
@@ -744,7 +744,7 @@ class Dpdk(TestSuite):
             min_count=3,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
@@ -769,7 +769,7 @@ class Dpdk(TestSuite):
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            # unsupported_features=[Gpu, Infiniband],
             supported_features=[IsolatedResource],
         ),
     )
