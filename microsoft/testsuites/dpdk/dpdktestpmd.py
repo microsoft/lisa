@@ -565,13 +565,13 @@ class DpdkTestpmd(Tool):
         tar_path = wget.get(
             url=(
                 "https://github.com/linux-rdma/rdma-core/"
-                "releases/download/v46.0/rdma-core-46.0.tar.gz"
+                "releases/download/v49.1/rdma-core-49.1.tar.gz"
             ),
             file_path=str(node.working_path),
         )
 
         tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-        source_path = node.working_path.joinpath("rdma-core-46.0")
+        source_path = node.working_path.joinpath("rdma-core-49.1")
         node.execute(
             "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
             shell=True,
