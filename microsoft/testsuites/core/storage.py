@@ -724,7 +724,7 @@ class Storage(TestSuite):
         assert node.capability.disk
         # assert isinstance(node.capability.disk.max_data_disk_count, int)
         # max_data_disk_count = node.capability.disk.max_data_disk_count
-        max_data_disk_count = 47
+        max_data_disk_count = 64
 
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
