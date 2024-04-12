@@ -254,6 +254,30 @@ class DpdkTestpmd(Tool):
                 )
             )
 
+    def get_testpmd_queue_count(self, multiple_queues: bool = False) -> int:
+        # select queue amount based on size, allow force single queue
+        queue_count = 1
+        cores_available = self.node.tools[Lscpu].get_core_count()
+        assert_that(cores_available).described_as(
+            "DPDK tests need more than 8 cores"
+        ).is_greater_than(4)
+        if not multiple_queues:
+            return queue_count
+        elif cores_available <= 8:
+            queue_count = 2
+        elif cores_available <= 16:
+            queue_count = 4
+        elif cores_available <= 32:
+            queue_count = 8
+        elif cores_available <= 64:
+            queue_count = 16
+        elif self.is_mana:
+            queue_count = 32
+        else:
+            queue_count = 16
+
+        return queue_count
+
     def generate_testpmd_command(
         self,
         nic_to_include: NicInfo,
@@ -276,13 +300,16 @@ class DpdkTestpmd(Tool):
 
         # pick amount of queues for tx/rx (txq/rxq flag)
         # our tests use equal amounts for rx and tx
-        if multiple_queues:
-            if self.is_mana:
-                queues = 8
-            else:
-                queues = 4
-        else:
-            queues = 1
+        cores_available = self.node.tools[Lscpu].get_core_count()
+        assert_that(cores_available).described_as(
+            "DPDK tests need more than 8 cores"
+        ).is_greater_than(8)
+
+        # core count will always be larger than queue count,
+        # queue count directly maps to closest_pow2(cores)//4
+        queues = self.get_testpmd_queue_count(
+            multiple_queues=multiple_queues,
+        )
 
         # MANA needs a file descriptor argument, mlnx doesn't.
         txd = 128
@@ -290,25 +317,8 @@ class DpdkTestpmd(Tool):
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
 
-        # infer core count to assign based on number of queues
-        cores_available = self.node.tools[Lscpu].get_core_count()
-        assert_that(cores_available).described_as(
-            "DPDK tests need more than 4 cores, recommended more than 8 cores"
-        ).is_greater_than(4)
-
-        queues_and_servicing_core = queues + service_cores
-
-        while queues_and_servicing_core > (cores_available - 2):
-            # if less, split the number of queues
-            queues = queues // 2
-            queues_and_servicing_core = queues + service_cores
-            txd = 64  # txd has to be >= 64 for MANA.
-            assert_that(queues).described_as(
-                "txq value must be greater than 1"
-            ).is_greater_than_or_equal_to(1)
-
         # label core index for future use
-        max_core_index = queues_and_servicing_core
+        max_core_index = queues + 1
 
         # service cores excluded from forwarding cores count
         forwarding_cores = max_core_index - service_cores
