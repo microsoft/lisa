@@ -4,7 +4,7 @@ import pathlib
 
 from assertpy import fail
 
-from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
@@ -100,22 +100,36 @@ class MdatpSuite(TestSuite):
             # if exit code is unexpected, something is off with the test.
             # We can't 'pass', since the image is neither clean nor dirty.
             # Maybe it's ReactOS? Who knows. We'll find out if we ever hit this path.
-            raise SkippedException(
-                "Unrecognized exit code (is this a non-posix compliant shell?): "
-                f"{exit_code} script_output: {script_output}"
+            fail(
+                # make this better
+                "The check for leftover mdatp/defender installations returned an "
+                f"unexpected exit code ({exit_code}). This implies that the image "
+                "may not have a posix-compliant shell, the image itself may be "
+                "unstable, or an OS error occurred while attempting to run "
+                "https://aka.ms/mdatp-check-sh. Our test is unable to certify "
+                "that mdatp/defender was uninstalled before "
+                "generalizing the image. Please verify that you have "
+                "cleared your image of any mdatp/defender data before "
+                "generalizing, then raise an issue at: "
+                "https://www.github.com/microsoft/lisa. "
+                "If your image has a posix shell available, ensure that "
+                "the script at https://aka.ms/mdatp-check-sh runs and "
+                "returns 0 before opening a Github issue. "
+                f"script_output: {script_output}"
             )
 
+        # active voice, explain problem and give clear instructions
         # set the error message depending on the info found by the script.
         error_message = (
             f"{error_header}"
-            "This may indicate the VM used to build this image was "
-            "onboarded to mdatp and the onboarding info was not "
-            "wiped before generalizing the image. Alert the publisher "
-            "that their image contains leftover logs and "
-            "organization info. They can use our script to check "
-            "for leftover config and org info: "
-            "https://github.com/microsoft/lisa/tree/main/microsoft"
-            "/testsuites/mdatp/check-mdatp.sh"
+            "This indicates mdatp/defender was not removed prior to "
+            "generalizing the image. Remove this installation by "
+            "following the steps here: "
+            "https://aka.ms/uninstall-defender-linux."
+            "Before resubmitting this image, validate that the script "
+            "at https://aka.ms/mdatp-check-sh runs and returns 0. "
+            "If you believe this failure is an error, please raise an "
+            "issue at https://www.github.com/microsoft/lisa."
         )
         # fail and raise the error message
         fail(str(error_message))
