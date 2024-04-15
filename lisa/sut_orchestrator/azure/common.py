@@ -23,7 +23,7 @@ from azure.keyvault.certificates import (
 )
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import VirtualMachine
+from azure.mgmt.compute.models import NetworkProfile, VirtualMachine
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
     AccessPolicyEntry,
@@ -101,6 +101,7 @@ if TYPE_CHECKING:
 AZURE_SHARED_RG_NAME = "lisa_shared_resource"
 AZURE_VIRTUAL_NETWORK_NAME = "lisa-virtualNetwork"
 AZURE_SUBNET_PREFIX = "lisa-subnet-"
+
 
 NIC_NAME_PATTERN = re.compile(r"Microsoft.Network/networkInterfaces/(.*)", re.M)
 PATTERN_PUBLIC_IP_NAME = re.compile(
@@ -1737,8 +1738,9 @@ def get_primary_ip_addresses(
     platform: "AzurePlatform", resource_group_name: str, vm: VirtualMachine
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
-
-    assert vm.network_profile, "no network profile found"
+    assert isinstance(
+        vm.network_profile, NetworkProfile
+    ), f"actual: {type(vm.network_profile)}"
     assert isinstance(
         vm.network_profile.network_interfaces, List
     ), f"actual: {type(vm.network_profile.network_interfaces)}"
