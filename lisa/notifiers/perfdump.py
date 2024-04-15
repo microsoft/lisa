@@ -17,7 +17,7 @@ from lisa import constants, messages, notifier, schema
 @dataclass_json()
 @dataclass
 class PerfDumpSchema(schema.Notifier):
-    path: str = "lisa.json"
+    path: str = "perf_results.json"
 
 
 class PerfDump(notifier.Notifier):
