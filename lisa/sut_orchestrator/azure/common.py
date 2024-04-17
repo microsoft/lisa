@@ -1338,12 +1338,12 @@ def get_or_create_storage_container(
     Create a Azure Storage container if it does not exist.
     """
     blob_service_client = get_blob_service_client(
-        cloud,
-        credential,
-        subscription_id,
-        account_name,
-        resource_group_name,
-        connection_string,
+        cloud=cloud,
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        connection_string=connection_string,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
@@ -2177,14 +2177,14 @@ def download_blob(
     connection_string: Optional[str] = None,
 ) -> PurePath:
     container_client = get_or_create_storage_container(
-        container_name,
-        credential,
-        subscription_id,
-        cloud,
-        account_name,
-        resource_group_name,
-        connection_string,
-        False,
+        container_name=container_name,
+        credential=credential,
+        subscription_id=subscription_id,
+        cloud=cloud,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        connection_string=connection_string,
+        allow_create=False,
     )
     blob_client = container_client.get_blob_client(blob_name)
     if not blob_client.exists():
