@@ -8,12 +8,13 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
+from lisa import Node
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
+from lisa.tools import Chmod, Chown, Dmesg, Docker, Echo, Git, Modprobe, Whoami
 from lisa.util import find_groups_in_lines
 
 
@@ -88,6 +89,12 @@ class CloudHypervisorTests(Tool):
         else:
             skip_args = ""
         self._log.debug(f"Final Subtests list to run: {subtests}")
+
+        if isinstance(self.node.os, CBLMariner):
+            # Install dependency to create VDPA Devices
+            self.node.os.install_packages(["iproute", "iproute-devel"])
+            # Load VDPA kernel module and create devices
+            self._configure_vdpa_devices(self.node)
 
         result = self.run(
             f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}",
@@ -394,6 +401,52 @@ class CloudHypervisorTests(Tool):
             dmesg_path = log_path / "dmesg"
             with open(str(dmesg_path), "w", encoding="utf-8") as f:
                 f.write(dmesg_str)
+
+    def _configure_vdpa_devices(self, node: Node) -> None:
+        # Load the VDPA kernel modules
+        node.tools[Modprobe].load("vdpa")
+        node.tools[Modprobe].load("vhost_vdpa")
+        node.tools[Modprobe].load("vdpa_sim")
+        node.tools[Modprobe].load("vdpa_sim_blk")
+        node.tools[Modprobe].load("vdpa_sim_net")
+
+        # Device Config
+        device_config = [
+            {
+                "dev_name": "vdpa-blk0",
+                "mgmtdev_name": "vdpasim_blk",
+                "device_path": "/dev/vhost-vdpa-0",
+                "permission": "660",
+            },
+            {
+                "dev_name": "vdpa-blk1",
+                "mgmtdev_name": "vdpasim_blk",
+                "device_path": "/dev/vhost-vdpa-1",
+                "permission": "660",
+            },
+            {
+                "dev_name": "vdpa-blk2",
+                "mgmtdev_name": "vdpasim_net",
+                "device_path": "/dev/vhost-vdpa-2",
+                "permission": "660",
+            },
+        ]
+
+        # Create VDPA Devices
+        user = node.tools[Whoami].get_username()
+        for device in device_config:
+            dev_name = device["dev_name"]
+            mgmtdev_name = device["mgmtdev_name"]
+            device_path = device["device_path"]
+            permission = device["permission"]
+
+            node.execute(
+                cmd=f"vdpa dev add name {dev_name} mgmtdev {mgmtdev_name}",
+                sudo=True,
+                shell=True,
+            )
+            node.tools[Chown].change_owner(file=PurePath(device_path), user=user)
+            node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
 
 
 def extract_jsons(input_string: str) -> List[Any]:
