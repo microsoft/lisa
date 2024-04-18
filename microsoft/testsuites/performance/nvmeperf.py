@@ -14,7 +14,7 @@ from lisa.messages import DiskSetupType, DiskType
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, Lscpu
 from microsoft.testsuites.performance.common import perf_disk
-
+from lisa.base_tools import Cat, Sed
 
 @TestSuiteMetadata(
     area="nvme",
@@ -56,6 +56,29 @@ class NvmePerformace(TestSuite):
                 node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
                 sudo=True,
             )
+        cfg_file='/etc/default/grub'
+        cmdline='GRUB_CMDLINE_LINUX'
+        cat = node.tools[Cat]
+        sed = node.tools[Sed]
+        result = cat.run(cfg_file, sudo=True, force_run=True)
+        if "nvme.poll_queues" in result.stdout:
+            sed.substitute(
+                match_lines=f"^{cmdline}",
+                regexp='nvme.poll_queues=[^[:space:]"]*',
+                replacement=f"nvme.poll_queues=4",
+                file=cfg_file,
+                sudo=True,
+            )
+        else:
+            sed.substitute(
+                match_lines=f"^{cmdline}",
+                regexp='"$',
+                replacement=f' nvme.poll_queues=4"',
+                file=cfg_file,
+                sudo=True,
+            )
+        node.execute(cmd='update-grub', shell=True, sudo=True, no_info_log=True)
+        node.reboot()
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
