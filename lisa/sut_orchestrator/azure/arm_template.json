@@ -350,7 +350,7 @@
                 "count": "[variables('node_count')]"
             },
             "tags": {
-                "TipNode.SessionId": "6be2157a-0552-45a0-95be-c9a6d7105848"
+                "TipNode.SessionId": "3bd28cdc-3251-40ff-b10b-fabd140eca58"
             },
             "name": "[parameters('nodes')[copyIndex('vmCopy')]['name']]",
             "location": "[parameters('nodes')[copyIndex('vmCopy')]['location']]",
