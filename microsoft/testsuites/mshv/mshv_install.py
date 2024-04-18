@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict
 
+import time
+
 from assertpy import assert_that
 
 from lisa import (
@@ -13,15 +15,11 @@ from lisa import (
     Node,
     TestCaseMetadata,
     TestSuite,
-    TestSuiteMetadata,
-    simple_requirement,
+    TestSuiteMetadata
 )
 # from lisa.features import SerialConsole
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Ls, Service, Reboot
-from lisa.util import SkippedException, TcpConnectionException, constants
-from lisa.util.shell import wait_tcp_port_ready
-
+from lisa.tools import Cp, Dmesg, Ls, Reboot
 
 @TestSuiteMetadata(
     area="mshv",
@@ -60,6 +58,18 @@ class MshvHostInstallSuite(TestSuite):
         Path("/home/cloud")
     )
 
+    _init_path_dst_hvix = (
+        Path("/home/cloud") / f"hvix64.exe"
+    )
+
+    _init_path_dst_kdstub = (
+        Path("/home/cloud") / f"kdstub.dll"
+    )
+
+    _init_path_dst_lxhvloader = (
+        Path("/home/cloud") / f"lxhvloader.dll"
+    )
+
     @TestCaseMetadata(
         description="""
         This test case will
@@ -69,7 +79,6 @@ class MshvHostInstallSuite(TestSuite):
         The test expects the MSHV binaries to be installed to be placed under lisa/microsoft/testsuites/mshv/test_data
         before lisa is executed.
         """,
-        priority=0,
         timeout=60,  # 60 seconds
     )
     def verify_mshv_install_succeeds(
@@ -80,50 +89,31 @@ class MshvHostInstallSuite(TestSuite):
         result: TestResult,
     ) -> None:
         # Copy Hvix64.exe, kdstub.dll, lxhvloader.dll into test machine
-        hvix_path = self._init_path_dst / f"hvix64.exe"
-        node.shell.copy(self._test_hvix_file_path, hvix_path)
-        res = node.shell.spawn(
-            command=['sudo', 'cp', hvix_path.as_posix(), self._test_hvix_file_path_dst.as_posix()],
-            allow_error=False,
-        ).wait_for_result()
-        log.info(f"sudo cp result {res.return_code}")
+        node.shell.copy(self._test_hvix_file_path, self._init_path_dst_hvix)
+        test_sha256_cmd = "sudo sha256sum %s" % self._test_hvix_file_path_dst.as_posix()
+        res = node.execute(
+            test_sha256_cmd,
+            shell=True,
+            sudo=True
+        )
+        time.sleep(5)
+        node.tools[Cp].copy(self._init_path_dst_hvix.as_posix(), self._test_hvix_file_path_dst.as_posix(), sudo=True)
+        res = node.execute(
+            test_sha256_cmd,
+            shell=True,
+            sudo=True
+        )
 
-        assert res.return_code == 0
-
-        # kdstub_path = self._init_path_dst / f"kdstub.dll"
-        # node.shell.copy(self._test_kdstub_file_path, kdstub_path)
-        # res = node.shell.spawn(
-        #     command=['sudo', 'cp', kdstub_path.as_posix(), self._test_hvix_file_path_dst.as_posix()],
-        #     allow_error=False,
-        # ).wait_for_result()
-        # assert res.return_code == 0
+        # node.shell.copy(self._test_kdstub_file_path, self._init_path_dst_kdstub)
+        # node.tools[Cp].copy(self._init_path_dst_kdstub.as_posix(), self._test_hvix_file_path_dst.as_posix(), sudo=True)
         
-        lxhvloader_path = self._init_path_dst / f"lxhvloader.dll"
-        node.shell.copy(self._test_lxhvloader_file_path, lxhvloader_path)
-        res = node.shell.spawn(
-            command=['sudo', 'cp', lxhvloader_path.as_posix(), self._test_lxhvloader_file_path_dst.as_posix()],
-            allow_error=False,
-        ).wait_for_result()
-        assert res.return_code == 0
+        node.shell.copy(self._test_lxhvloader_file_path, self._init_path_dst_lxhvloader)
+        node.tools[Cp].copy(self._init_path_dst_lxhvloader.as_posix(), self._test_lxhvloader_file_path_dst.as_posix(), sudo=True)
+
 
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
 
-        is_ready, tcp_error_code = wait_tcp_port_ready(
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-            log=log,
-        )
-
-        if is_ready:
-            # 2. check that mshv comes up
-            mshvUp = node.tools[Ls].path_exists("/dev/mshv", sudo=True)
-            assert mshvUp
-        else:
-            raise TcpConnectionException(
-                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-                tcp_error_code,
-                "no panic found in serial log",
-            )
-        return
+        # 2. check that mshv comes up
+        mshvUp = node.tools[Ls].path_exists("/dev/mshv", sudo=True)
+        assert mshvUp
