@@ -656,20 +656,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
     @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-
-        arm_parameters.availability_options.availability_set_properties[
-            "platformFaultDomainCount"
-        ] = 1
-        arm_parameters.availability_options.availability_set_properties[
-            "platformUpdateDomainCount"
-        ] = 1
-        arm_parameters.availability_options.availability_type = (
-            AvailabilityType.AvailabilitySet.value
-        )
-
-    @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
