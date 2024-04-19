@@ -189,6 +189,15 @@ class CloudHypervisorTestSuite(TestSuite):
         use_ms_hypervisor_fw = variables.get("use_ms_hypervisor_fw", "NO")
         use_ms_ovmf_fw = variables.get("use_ms_ovmf_fw", "NO")
 
+        # Below three params are for running block_* clh perf test
+        # with no disk caching and with direct mode. By Default, we
+        # will not run it with data-disk and it would not add direct=on
+        # if run_without_cache is not set to YES
+        use_datadisk = variables.get("use_datadisk", "")
+        datadisk_name = variables.get("datadisk_name", "")
+        disable_datadisk_cache = variables.get("disable_datadisk_cache", "")
+        block_size_kb = variables.get("block_size_kb", "")
+
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
         if not ms_clh_repo:
@@ -204,6 +213,15 @@ class CloudHypervisorTestSuite(TestSuite):
             CloudHypervisorTests.use_ms_hypervisor_fw = use_ms_hypervisor_fw
         if use_ms_ovmf_fw == "YES":
             CloudHypervisorTests.use_ms_ovmf_fw = use_ms_ovmf_fw
+
+        if block_size_kb:
+            CloudHypervisorTests.block_size_kb = block_size_kb
+        if use_datadisk:
+            CloudHypervisorTests.use_datadisk = use_datadisk
+        if datadisk_name:
+            CloudHypervisorTests.datadisk_name = datadisk_name
+        if disable_datadisk_cache:
+            CloudHypervisorTests.disable_datadisk_cache = disable_datadisk_cache
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:
