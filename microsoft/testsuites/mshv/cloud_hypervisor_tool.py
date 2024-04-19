@@ -35,7 +35,7 @@ class CloudHypervisor(Tool):
 
         if guest_vm_type == "CVM":
             host_data = secrets.token_hex(32)
-            args = f"{args} --platform snp=on --host-data {host_data} --igvm {igvm_path}"  # noqa: E501
+            args = f"{args} --platform sev_snp=on --host-data {host_data} --igvm {igvm_path}"  # noqa: E501
         else:
             args = f"{args} --kernel {kernel}"
 
