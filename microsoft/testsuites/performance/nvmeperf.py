@@ -61,11 +61,12 @@ class NvmePerformace(TestSuite):
         cat = node.tools[Cat]
         sed = node.tools[Sed]
         result = cat.run(cfg_file, sudo=True, force_run=True)
+        core_count = node.tools[Lscpu].get_core_count()
         if "nvme.poll_queues" in result.stdout:
             sed.substitute(
                 match_lines=f"^{cmdline}",
                 regexp='nvme.poll_queues=[^[:space:]"]*',
-                replacement=f"nvme.poll_queues=4",
+                replacement=f"nvme.poll_queues={core_count}",
                 file=cfg_file,
                 sudo=True,
             )
@@ -73,7 +74,7 @@ class NvmePerformace(TestSuite):
             sed.substitute(
                 match_lines=f"^{cmdline}",
                 regexp='"$',
-                replacement=f' nvme.poll_queues=4"',
+                replacement=f' nvme.poll_queues={core_count}"',
                 file=cfg_file,
                 sudo=True,
             )
