@@ -1020,10 +1020,10 @@ class AzurePlatform(Platform):
                 )
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-            AZURE_TENANT_ID = os.environ["AZURE_TENANT_ID"]
-            AZURE_CLIENT_ID = os.environ["AZURE_CLIENT_ID"]
-            print(f"for debug {AZURE_TENANT_ID}")
-            print(f"for debug {AZURE_CLIENT_ID}")
+            tenant = os.environ["AZURE_TENANT_ID"]
+            client = os.environ["AZURE_CLIENT_ID"]
+            print(f"for debug {tenant}")
+            print(f"for debug {client}")
             credential = DefaultAzureCredential(
                 authority=self.cloud.endpoints.active_directory,
             )
