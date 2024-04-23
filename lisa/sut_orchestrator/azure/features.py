@@ -2474,6 +2474,10 @@ class Availability(AzureFeatureMixin, features.Availability):
         # fields for clarity
         if params.availability_type == AvailabilityType.AvailabilitySet:
             params.availability_zones.clear()
+            if "platformFaultDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformFaultDomainCount"] = 1
+            if "platformUpdateDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformUpdateDomainCount"] = 1
         elif params.availability_type == AvailabilityType.AvailabilityZone:
             assert (
                 params.availability_zones

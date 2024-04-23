@@ -127,3 +127,9 @@ class Availability(Feature):
 
     def enabled(self) -> bool:
         return True
+
+
+AvailabilitySetEnabled = partial(
+    AvailabilitySettings,
+    availability_type=search_space.SetSpace(True, [AvailabilityType.AvailabilitySet]),
+)
