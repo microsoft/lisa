@@ -784,9 +784,9 @@ class AzurePlatform(Platform):
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
             if node.capture_kernel_config:
                 node.log.debug("detecting mana driver enabled...")
-                information[
-                    KEY_MANA_DRIVER_ENABLED
-                ] = node.nics.is_mana_driver_enabled()
+                information[KEY_MANA_DRIVER_ENABLED] = (
+                    node.nics.is_mana_driver_enabled()
+                )
                 node.log.debug(f"mana enabled: {information[KEY_MANA_DRIVER_ENABLED]}")
                 node.log.debug("detecting nvme driver enabled...")
                 _has_nvme_core = node.tools[KernelConfig].is_built_in(
@@ -1011,16 +1011,19 @@ class AzurePlatform(Platform):
             logging.getLogger("azure").setLevel(azure_runbook.log_level)
 
             if azure_runbook.service_principal_tenant_id:
-                os.environ[
-                    "AZURE_TENANT_ID"
-                ] = azure_runbook.service_principal_tenant_id
+                os.environ["AZURE_TENANT_ID"] = (
+                    azure_runbook.service_principal_tenant_id
+                )
             if azure_runbook.service_principal_client_id:
-                os.environ[
-                    "AZURE_CLIENT_ID"
-                ] = azure_runbook.service_principal_client_id
+                os.environ["AZURE_CLIENT_ID"] = (
+                    azure_runbook.service_principal_client_id
+                )
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-
+            AZURE_TENANT_ID = os.environ["AZURE_TENANT_ID"]
+            AZURE_CLIENT_ID = os.environ["AZURE_CLIENT_ID"]
+            print(f"for debug {AZURE_TENANT_ID}")
+            print(f"for debug {AZURE_CLIENT_ID}")
             credential = DefaultAzureCredential(
                 authority=self.cloud.endpoints.active_directory,
             )
@@ -1837,14 +1840,14 @@ class AzurePlatform(Platform):
                 azure_raw_capabilities["availability_zones"] = location_info.zones
                 for zone_details in location_info.zone_details:
                     for location_capability in zone_details.capabilities:
-                        azure_raw_capabilities[
-                            location_capability.name
-                        ] = location_capability.value
+                        azure_raw_capabilities[location_capability.name] = (
+                            location_capability.value
+                        )
                         # Zones supporting the feature
                         if zone_details.additional_properties["Name"]:
-                            azure_raw_capabilities[
-                                "availability_zones"
-                            ] = zone_details.additional_properties["Name"]
+                            azure_raw_capabilities["availability_zones"] = (
+                                zone_details.additional_properties["Name"]
+                            )
 
         if resource_sku.capabilities:
             for sku_capability in resource_sku.capabilities:
