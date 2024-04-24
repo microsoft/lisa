@@ -8,6 +8,8 @@ from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
+from lisa.tools import Df, Mount
+from lisa.tools.lsblk import PartitionInfo
 
 # some constants from  check-mdatp.sh
 # if any mdatp install in /etc/opt is found
@@ -20,6 +22,56 @@ EXIT_MDATP_LOGS_FOUND = 253
 EXIT_MDATP_INSTALL_LOGS_FOUND = 254
 # if an onboarding blob is found
 EXIT_ONBOARD_INFO_FOUND = 255
+
+
+def working_path_workaround(node: Node) -> None:
+    # EXAMPLE WORKAROUND:
+    # - Get the mount point for the path.
+    # - Check if the mount point is mounted noexec.
+    # - if yes, remount with exec flag
+    working_path = node.get_working_path()
+    mount_info = node.tools[Df].get_mount_info_for_dir(
+        directory=working_path.as_posix()
+    )
+    if not mount_info:
+        node.log.warn(
+            f"Could not locate mount info for directory {working_path.as_posix()}. "
+            "Test may fail due to noexec permissions error. "
+            "Or due to the working path not existing."
+        )
+    else:
+        if check_noexec_partition(node, mount_info):
+            node.log.info(
+                f"Working path in {mount_info.mountpoint} is mounted noexec!!"
+            )
+            fix_noexec_working_path(node, mount_info)
+
+
+def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
+    # an example. I don't have time to implement this in mount,
+    # we currently discard the mount options so they're not exposed
+    # in tools.Mount
+    return (
+        node.execute(
+            f"mount | grep noexec | grep -q '{partition.mountpoint}'",
+            sudo=True,
+            shell=True,
+        ).exit_code
+        == 0
+    )
+
+
+def fix_noexec_working_path(node: Node, partition: PartitionInfo) -> None:
+    # Fix issue where working path is created in a partition marked
+    # 'noexec' meaning file permissions for x are ignored.
+    # Attempt to remount the parition to allow executables.
+    # The other fix would just be adding a disk, creating a parition
+    # marking it executable, and using that as the working path.
+    node.tools[Mount].mount(
+        options="remount,exec",
+        point=partition.mountpoint,
+        name=partition.name,
+    )
 
 
 @TestSuiteMetadata(
@@ -51,8 +103,13 @@ class MdatpSuite(TestSuite):
 
         # copy the bash script to the node
         node.shell.copy(local_path=local_path, node_path=script_path)
+
+        # call the example workaround, see function for details.
+        # TODO: remove this when the fix is implemented
+        working_path_workaround(node)
+
         result = node.execute(
-            cmd=f"chmod +x {str(script_path)}",
+            cmd=f"chmod a+x,a+r,a-w {str(script_path)}",
             shell=True,
             sudo=True,
         )
