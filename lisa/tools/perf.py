@@ -5,7 +5,7 @@ import re
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, CentOs, Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools import Uname
 from lisa.util import SkippedException, find_patterns_in_lines
 
@@ -31,12 +31,9 @@ class Perf(Tool):
             kernel_ver = (
                 self.node.tools[Uname].get_linux_information().kernel_version_raw
             )
-            if (
-                isinstance(self.node.os, Redhat)
-                or isinstance(self.node.os, CentOs)
-                or isinstance(self.node.os, CBLMariner)
-                or isinstance(self.node.os, Suse)
-            ):
+            if isinstance(self.node.os, CBLMariner):
+                self.node.os.install_packages("kernel-tools")
+            elif isinstance(self.node.os, (Redhat, Suse)):
                 self.node.os.install_packages("perf")
             elif isinstance(
                 self.node.os, Debian
