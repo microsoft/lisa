@@ -3248,6 +3248,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         echo = node.tools[Echo]
         username = account_credential["account_name"]
         password = account_credential["account_key"]
+        add_secret(password)
         echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
         echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
         node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
