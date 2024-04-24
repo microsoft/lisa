@@ -22,9 +22,21 @@ from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
-from lisa.operating_system import BSD, OperatingSystem
+from lisa.operating_system import BSD, CBLMariner, OperatingSystem
 from lisa.secret import add_secret
-from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
+from lisa.tools import (
+    Chmod,
+    Df,
+    Echo,
+    Lsblk,
+    Mkfs,
+    Mount,
+    Reboot,
+    Uname,
+    Usermod,
+    Whoami,
+    Wsl,
+)
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -516,6 +528,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
         self.capture_system_information("started")
+        if (
+            self._first_initialize
+            and self.is_test_target
+            and isinstance(self.os, CBLMariner)
+        ):
+            self.configure_user_permissions()
+
+    def configure_user_permissions(self) -> None:
+        username = self.tools[Whoami].get_username()
+        self.tools[Usermod].add_user_to_group("wheel", username, sudo=True)
 
     def _execute(
         self,
