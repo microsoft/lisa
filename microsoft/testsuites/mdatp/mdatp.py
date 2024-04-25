@@ -35,7 +35,8 @@ def working_path_workaround(node: Node) -> None:
     )
     if not mount_info:
         node.log.warn(
-            f"Could not locate mount info for directory {working_path.as_posix()}. "
+            f"Could not locate mount info for directory "
+            f"{working_path.as_posix()}. "
             "Test may fail due to noexec permissions error. "
             "Or due to the working path not existing."
         )
@@ -51,14 +52,16 @@ def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
     # an example. I don't have time to implement this in mount,
     # we currently discard the mount options so they're not exposed
     # in tools.Mount
-    return (
-        node.execute(
-            f"mount | grep noexec | grep -q '{partition.mountpoint}'",
-            sudo=True,
-            shell=True,
-        ).exit_code
-        == 0
-    )
+    for part in node.tools[Mount].get_partition_info():
+        node.log.debug(f"checking partition {str(part)}...")
+        if part.mount_point == partition.mountpoint:
+            return "noexec" in part.options
+    # This path would mean that df and mount are returning different
+    # info about the mount points on the VM.
+    # There should be no way for this to happen, assert if it does
+    assert f"Could not find partition info for {partition.mountpoint}!"
+    # appease pylint by returning after assert
+    return False
 
 
 def fix_noexec_working_path(node: Node, partition: PartitionInfo) -> None:

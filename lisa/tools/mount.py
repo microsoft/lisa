@@ -22,18 +22,24 @@ class PartitionInfo(object):
     disk: str
     mount_point: str
     type: str
-
+    options: List[str]
     # /dev/sda1
     # /dev/sdc
     _disk_regex = re.compile(r"\s*\/dev\/(?P<disk>\D+).*")
 
-    def __init__(self, name: str, mount_point: str, fs_type: str) -> None:
+    def __init__(
+        self, name: str, mount_point: str, fs_type: str, options: Optional[List[str]]
+    ) -> None:
         self.name = name
         self.mount_point = mount_point
         self.type = fs_type
         matched = self._disk_regex.fullmatch(name)
         assert matched
         self.disk = matched.group("disk")
+        if options:
+            self.options = options
+        else:
+            self.options = []
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -43,7 +49,8 @@ class PartitionInfo(object):
             f"name: {self.name}, "
             f"disk: {self.disk}, "
             f"mount_point: {self.mount_point}, "
-            f"type: {self.type}"
+            f"type: {self.type}, "
+            f"options: {','.join(self.options)}"
         )
 
 
@@ -57,7 +64,8 @@ class Mount(Tool):
     # /dev/sda1 on / type ext4 (rw,relatime,discard)
     # /dev/sda1 on /mnt/a type ext4 (rw,relatime,discard)
     _partition_info_regex = re.compile(
-        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s+.*"
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type"
+        r"\s+(?P<type>.*)\s+\(?(?P<options>.*)\)?"
     )
     _mount_info_regex = re.compile(
         r"\s*(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s\(+.*"
@@ -65,7 +73,8 @@ class Mount(Tool):
 
     # /dev/da1p1 on /mnt/resource (ufs, local, soft-updates)
     _partition_info_regex_bsd = re.compile(
-        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+(\((?P<type>.*),.*,.*\))"
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+"
+        r"(\((?P<type>.*),(?P<options>.*,.*)\))"
     )
 
     @property
@@ -130,11 +139,18 @@ class Mount(Tool):
                 matched = self._partition_info_regex.fullmatch(line)
             if matched:
                 partition_name = matched.group("name")
+                option_match = matched.group("options")
+                if not option_match:
+                    options = []
+                else:
+                    split_options = option_match.split(",")
+                    options = [option.strip() for option in split_options]
                 partition_info.append(
                     PartitionInfo(
-                        f"/dev/{partition_name}",
-                        matched.group("mount_point"),
-                        matched.group("type"),
+                        name=f"/dev/{partition_name}",
+                        mount_point=matched.group("mount_point"),
+                        fs_type=matched.group("type"),
+                        options=options,
                     )
                 )
 
