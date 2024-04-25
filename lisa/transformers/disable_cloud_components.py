@@ -6,7 +6,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Ls, Sed
+from lisa.tools import Cat, Ls, Sed
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -45,15 +45,31 @@ class DisableCloudComponentsTransformer(DeploymentTransformer):
 
         node.tools[Waagent].deprovision()
 
+        # Disable waagent and cloud-init
         node.execute("touch /var/lib/waagent/disable_agent", sudo=True)
         node.execute("touch /var/lib/waagent/provisioned", sudo=True)
         node.execute("touch /etc/cloud/cloud-init.disabled", sudo=True)
 
+        # Remove macaddress binding
         if ls.path_exists("/etc/netplan/50-cloud-init.yaml"):
             sed.delete_lines(
                 "macaddress",
                 PurePosixPath("/etc/netplan/50-cloud-init.yaml"),
                 sudo=True,
             )
+
+        # Remove 'earlycon' from kernel parameters
+        # This is required by some ARM images
+        node.tools[Cat].run("/etc/default/grub")
+        cmdline = node.tools[Cat].run("/proc/cmdline").stdout
+        self._log.debug(f"cmdline: {cmdline}")
+        if "earlycon=" in cmdline:
+            sed.substitute(
+                "earlycon=\\S*\\s",
+                "",
+                "/etc/default/grub",
+                sudo=True,
+            )
+            node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
 
         return {}

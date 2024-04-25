@@ -11,7 +11,7 @@ from functools import lru_cache, partial
 from pathlib import Path, PurePath
 from threading import Lock
 from time import sleep, time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import requests
 from assertpy import assert_that
@@ -152,6 +152,13 @@ SIG_IMAGE_KEYS = [
     "image_definition",
     "image_version",
 ]
+CG_IMAGE_KEYS = [
+    "location",
+    "image_gallery",
+    "image_definition",
+    "image_version",
+]
+PURCHASE_PLAN_KEYS = ["name", "product", "publisher"]
 
 # IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
 METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
@@ -246,6 +253,20 @@ class VhdSchema(AzureImageSchema):
 
 @dataclass_json()
 @dataclass
+class CommunityGalleryImageSchema(AzureImageSchema):
+    image_gallery: str = ""
+    image_definition: str = ""
+    image_version: str = ""
+    location: str = ""
+
+    def __hash__(self) -> int:
+        return hash(
+            f"{self.image_gallery}/{self.image_definition}/{self.image_version}"
+        )
+
+
+@dataclass_json()
+@dataclass
 class AzureNodeSchema:
     name: str = ""
     # It decides the real computer name. It cannot be too long.
@@ -275,7 +296,9 @@ class AzureNodeSchema:
     vhd_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="vhd")
     )
-
+    community_gallery_image_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="community_gallery_image")
+    )
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
@@ -296,6 +319,8 @@ class AzureNodeSchema:
 
     _orignal_vhd_path: str = ""
 
+    _community_gallery_image: InitVar[Optional[CommunityGalleryImageSchema]] = None
+
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
         strip_strs(
@@ -309,6 +334,7 @@ class AzureNodeSchema:
                 "marketplace_raw",
                 "shared_gallery_raw",
                 "vhd_raw",
+                "community_gallery_image_raw",
                 "data_disk_caching_type",
                 "os_disk_type",
                 "data_disk_type",
@@ -322,226 +348,146 @@ class AzureNodeSchema:
 
     @property
     def purchase_plan(self) -> Optional[AzureVmPurchasePlanSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_purchase_plan"):
-            self._purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
-        purchase_plan: Optional[AzureVmPurchasePlanSchema] = self._purchase_plan
-        if not purchase_plan:
-            if isinstance(self.purchase_plan_raw, dict):
-                purchase_plan = schema.load_by_type(
-                    AzureVmPurchasePlanSchema, self.purchase_plan_raw
-                )
-                if not all(
-                    [
-                        purchase_plan.name.strip(),
-                        purchase_plan.product.strip(),
-                        purchase_plan.publisher.strip(),
-                    ]
-                ):
-                    purchase_plan = None
+        purchase_plan = self._parse_image(
+            "purchase_plan",
+            AzureVmPurchasePlanSchema,
+            PURCHASE_PLAN_KEYS,
+            self.purchase_plan_raw,
+        )
+        if isinstance(self.purchase_plan_raw, str):
+            self.purchase_plan_raw = self.purchase_plan_raw.strip()
+
+            if self.purchase_plan_raw:
+                purchase_plan_strings = re.split(r"[:\s]+", self.purchase_plan_raw)
+
+                if len(purchase_plan_strings) == 3:
+                    purchase_plan = AzureVmPurchasePlanSchema(
+                        name=purchase_plan_strings[0],
+                        product=purchase_plan_strings[1],
+                        publisher=purchase_plan_strings[2],
+                    )
+                    # purchase_plan_raw is used
+                    self.purchase_plan_raw = purchase_plan.to_dict()
                 else:
-                    # this step makes purchase_plan_raw is validated, and
-                    # filter out any unwanted content.
-                    self.purchase_plan_raw = purchase_plan.to_dict()  # type: ignore
-            elif self.purchase_plan_raw:
-                assert isinstance(
-                    self.purchase_plan_raw, str
-                ), f"actual: {type(self.purchase_plan_raw)}"
-
-                self.purchase_plan_raw = self.purchase_plan_raw.strip()
-
-                if self.purchase_plan_raw:
-                    purchase_plan_strings = re.split(r"[:\s]+", self.purchase_plan_raw)
-
-                    if len(purchase_plan_strings) == 3:
-                        purchase_plan = AzureVmPurchasePlanSchema(
-                            name=purchase_plan_strings[0],
-                            product=purchase_plan_strings[1],
-                            publisher=purchase_plan_strings[2],
-                        )
-                        # purchase_plan_raw is used
-                        self.purchase_plan_raw = purchase_plan.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided purchase_plan "
-                            f"parameter: '{self.purchase_plan_raw}'."
-                            f"The purchase_plan parameter should be in the format: "
-                            f"'<name> <product> <publisher>' "
-                        )
-            self._purchase_plan = purchase_plan
-        return purchase_plan
+                    raise LisaException(
+                        f"Invalid value for the provided purchase_plan "
+                        f"parameter: '{self.purchase_plan_raw}'."
+                        f"The purchase_plan parameter should be in the format: "
+                        f"'<name> <product> <publisher>' "
+                    )
+        self._purchase_plan = purchase_plan
+        return (
+            purchase_plan
+            if isinstance(purchase_plan, AzureVmPurchasePlanSchema)
+            else None
+        )
 
     @purchase_plan.setter
     def purchase_plan(self, value: Optional[AzureVmPurchasePlanSchema]) -> None:
-        self._purchase_plan = value
-        if value is None:
-            self.purchase_plan_raw = None
-        else:
-            self.purchase_plan_raw = value.to_dict()  # type: ignore
+        self._parse_image_raw("purchase_plan", value)
 
     @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_marketplace"):
-            self._marketplace: Optional[AzureVmMarketplaceSchema] = None
-        marketplace: Optional[AzureVmMarketplaceSchema] = self._marketplace
-        if not marketplace:
-            if isinstance(self.marketplace_raw, dict):
+        marketplace = self._parse_image(
+            "marketplace",
+            AzureVmMarketplaceSchema,
+            MARKETPLACE_IMAGE_KEYS,
+            self.marketplace_raw,
+        )
+        if isinstance(self.marketplace_raw, str):
+            self.marketplace_raw = self.marketplace_raw.strip()
+
+            if self.marketplace_raw:
                 # Users decide the cases of image names,
                 #  the inconsistent cases cause the mismatched error in notifiers.
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (
-                        (k, v.lower())
-                        if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
-                        else (k, v)
+                marketplace_strings = re.split(r"[:\s]+", self.marketplace_raw.lower())
+
+                if len(marketplace_strings) == 4:
+                    marketplace = AzureVmMarketplaceSchema(
+                        publisher=marketplace_strings[0],
+                        offer=marketplace_strings[1],
+                        sku=marketplace_strings[2],
+                        version=marketplace_strings[3],
                     )
-                    for k, v in self.marketplace_raw.items()
-                )
-                marketplace = schema.load_by_type(
-                    AzureVmMarketplaceSchema, self.marketplace_raw
-                )
-                if not all(
-                    [
-                        marketplace.publisher,
-                        marketplace.offer,
-                        marketplace.sku,
-                        marketplace.version,
-                    ]
-                ):
-                    marketplace = None
+                    # marketplace_raw is used
+                    self.marketplace_raw = marketplace.to_dict()
                 else:
-                    # this step makes marketplace_raw is validated, and
-                    # filter out any unwanted content.
-                    self.marketplace_raw = marketplace.to_dict()  # type: ignore
-            elif self.marketplace_raw:
-                assert isinstance(
-                    self.marketplace_raw, str
-                ), f"actual: {type(self.marketplace_raw)}"
-
-                self.marketplace_raw = self.marketplace_raw.strip()
-
-                if self.marketplace_raw:
-                    # Users decide the cases of image names,
-                    #  the inconsistent cases cause the mismatched error in notifiers.
-                    # The lower() normalizes the image names,
-                    #  it has no impact on deployment.
-                    marketplace_strings = re.split(
-                        r"[:\s]+", self.marketplace_raw.lower()
+                    raise LisaException(
+                        f"Invalid value for the provided marketplace "
+                        f"parameter: '{self.marketplace_raw}'."
+                        f"The marketplace parameter should be in the format: "
+                        f"'<Publisher> <Offer> <Sku> <Version>' "
+                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
                     )
-
-                    if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(
-                            publisher=marketplace_strings[0],
-                            offer=marketplace_strings[1],
-                            sku=marketplace_strings[2],
-                            version=marketplace_strings[3],
-                        )
-                        # marketplace_raw is used
-                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided marketplace "
-                            f"parameter: '{self.marketplace_raw}'."
-                            f"The marketplace parameter should be in the format: "
-                            f"'<Publisher> <Offer> <Sku> <Version>' "
-                            f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                        )
-            self._marketplace = marketplace
-        return marketplace
+        self._marketplace = marketplace
+        return (
+            marketplace if isinstance(marketplace, AzureVmMarketplaceSchema) else None
+        )
 
     @marketplace.setter
     def marketplace(self, value: Optional[AzureVmMarketplaceSchema]) -> None:
-        self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
+        self._parse_image_raw("marketplace", value)
 
     @property
     def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_shared_gallery"):
-            self._shared_gallery: Optional[SharedImageGallerySchema] = None
-        shared_gallery: Optional[SharedImageGallerySchema] = self._shared_gallery
-        if shared_gallery:
-            return shared_gallery
-        if isinstance(self.shared_gallery_raw, dict):
-            # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
-            self.shared_gallery_raw = dict(
-                (k, v.lower()) if isinstance(v, str) and k in SIG_IMAGE_KEYS else (k, v)
-                for k, v in self.shared_gallery_raw.items()
-            )
-            shared_gallery = schema.load_by_type(
-                SharedImageGallerySchema, self.shared_gallery_raw
-            )
-            if not all(
-                [
-                    shared_gallery.image_definition,
-                    shared_gallery.image_version,
-                    shared_gallery.image_gallery,
-                ]
-            ):
-                shared_gallery = None
-            else:
-                if not shared_gallery.subscription_id:
-                    shared_gallery.subscription_id = self.subscription_id
-                # this step makes shared_gallery_raw is validated, and
-                # filter out any unwanted content.
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-        elif self.shared_gallery_raw:
-            assert isinstance(
-                self.shared_gallery_raw, str
-            ), f"actual: {type(self.shared_gallery_raw)}"
-            # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
-            shared_gallery_strings = re.split(
-                r"[/]+", self.shared_gallery_raw.strip().lower()
-            )
-            if len(shared_gallery_strings) == 5:
-                shared_gallery = SharedImageGallerySchema(
-                    subscription_id=shared_gallery_strings[0],
-                    resource_group_name=shared_gallery_strings[1],
-                    image_gallery=shared_gallery_strings[2],
-                    image_definition=shared_gallery_strings[3],
-                    image_version=shared_gallery_strings[4],
+        shared_gallery = self._parse_image(
+            "shared_gallery",
+            SharedImageGallerySchema,
+            SIG_IMAGE_KEYS,
+            self.shared_gallery_raw,
+        )
+        if (
+            isinstance(shared_gallery, SharedImageGallerySchema)
+            and not shared_gallery.subscription_id
+        ):
+            shared_gallery.subscription_id = self.subscription_id
+        if isinstance(self.shared_gallery_raw, str):
+            self.shared_gallery_raw = self.shared_gallery_raw.strip()
+            if self.shared_gallery_raw:
+                # Users decide the cases of image names,
+                #  the inconsistent cases cause the mismatched error in notifiers.
+                # The lower() normalizes the image names,
+                #  it has no impact on deployment.
+                shared_gallery_strings = re.split(
+                    r"[/]+", self.shared_gallery_raw.strip().lower()
                 )
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-            elif len(shared_gallery_strings) == 3:
-                shared_gallery = SharedImageGallerySchema(
-                    subscription_id=self.subscription_id,
-                    image_gallery=shared_gallery_strings[0],
-                    image_definition=shared_gallery_strings[1],
-                    image_version=shared_gallery_strings[2],
-                )
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-            else:
-                raise LisaException(
-                    f"Invalid value for the provided shared gallery "
-                    f"parameter: '{self.shared_gallery_raw}'."
-                    f"The shared gallery parameter should be in the format: "
-                    f"'<subscription_id>/<resource_group_name>/<image_gallery>/"
-                    f"<image_definition>/<image_version>' or '<image_gallery>/"
-                    f"<image_definition>/<image_version>'"
-                )
+                if len(shared_gallery_strings) == 5:
+                    shared_gallery = SharedImageGallerySchema(
+                        subscription_id=shared_gallery_strings[0],
+                        resource_group_name=shared_gallery_strings[1],
+                        image_gallery=shared_gallery_strings[2],
+                        image_definition=shared_gallery_strings[3],
+                        image_version=shared_gallery_strings[4],
+                    )
+                elif len(shared_gallery_strings) == 3:
+                    shared_gallery = SharedImageGallerySchema(
+                        subscription_id=self.subscription_id,
+                        image_gallery=shared_gallery_strings[0],
+                        image_definition=shared_gallery_strings[1],
+                        image_version=shared_gallery_strings[2],
+                    )
+                else:
+                    raise LisaException(
+                        f"Invalid value for the provided shared gallery "
+                        f"parameter: '{self.shared_gallery_raw}'."
+                        f"The shared gallery parameter should be in the format: "
+                        f"'<subscription_id>/<resource_group_name>/<image_gallery>/"
+                        f"<image_definition>/<image_version>' or '<image_gallery>/"
+                        f"<image_definition>/<image_version>'"
+                    )
+                self.shared_gallery_raw = shared_gallery.to_dict()
         self._shared_gallery = shared_gallery
-        return shared_gallery
+        return (
+            shared_gallery
+            if isinstance(shared_gallery, SharedImageGallerySchema)
+            else None
+        )
 
     @shared_gallery.setter
     def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
-        self._shared_gallery = value
-        if value is None:
-            self.shared_gallery_raw = None
-        else:
-            self.shared_gallery_raw = value.to_dict()  # type: ignore
+        self._parse_image_raw("shared_gallery", value)
 
     @property
     def vhd(self) -> Optional[VhdSchema]:
@@ -577,11 +523,50 @@ class AzureNodeSchema:
 
     @vhd.setter
     def vhd(self, value: Optional[VhdSchema]) -> None:
-        self._vhd = value
-        if value is None:
-            self.vhd_raw = None
-        else:
-            self.vhd_raw = self._vhd.to_dict()  # type: ignore
+        self._parse_image_raw("vhd", value)
+
+    @property
+    def community_gallery_image(self) -> Optional[CommunityGalleryImageSchema]:
+        community_gallery_image = self._parse_image(
+            "community_gallery_image",
+            CommunityGalleryImageSchema,
+            CG_IMAGE_KEYS,
+            self.community_gallery_image_raw,
+        )
+        if isinstance(self.community_gallery_image_raw, str):
+            self.community_gallery_image_raw = self.community_gallery_image_raw.strip()
+            if self.community_gallery_image_raw:
+                community_gallery_image_strings = re.split(
+                    r"[/]+", self.community_gallery_image_raw.lower()
+                )
+                if len(community_gallery_image_strings) == 4:
+                    community_gallery_image = CommunityGalleryImageSchema(
+                        location=community_gallery_image_strings[0],
+                        image_gallery=community_gallery_image_strings[1],
+                        image_definition=community_gallery_image_strings[2],
+                        image_version=community_gallery_image_strings[3],
+                    )
+                    self.community_gallery_image_raw = community_gallery_image.to_dict()
+                else:
+                    raise LisaException(
+                        "Invalid value for the provided community gallery image"
+                        f"parameter: '{self.community_gallery_image_raw}'."
+                        "The community gallery image parameter should be in the"
+                        " format: '<location>/<image_gallery>/<image_definition>"
+                        "/<image_version>'"
+                    )
+        self._community_gallery_image = community_gallery_image
+        return (
+            community_gallery_image
+            if isinstance(community_gallery_image, CommunityGalleryImageSchema)
+            else None
+        )
+
+    @community_gallery_image.setter
+    def community_gallery_image(
+        self, value: Optional[CommunityGalleryImageSchema]
+    ) -> None:
+        self._parse_image_raw("community_gallery_image", value)
 
     def get_image_name(self) -> str:
         result = ""
@@ -601,6 +586,13 @@ class AzureNodeSchema:
                     f"{self.shared_gallery.image_definition}/"
                     f"{self.shared_gallery.image_version}"
                 )
+        elif self.community_gallery_image:
+            assert isinstance(
+                self.community_gallery_image_raw, dict
+            ), f"actual type: {type(self.community_gallery_image_raw)}"
+            result = "/".join(
+                [self.community_gallery_image_raw.get(k, "") for k in CG_IMAGE_KEYS]
+            )
         elif self.marketplace:
             assert isinstance(
                 self.marketplace_raw, dict
@@ -609,6 +601,66 @@ class AzureNodeSchema:
                 [self.marketplace_raw.get(k, "") for k in MARKETPLACE_IMAGE_KEYS]
             )
         return result
+
+    def _parse_image(
+        self,
+        prop_name: str,
+        schema_type: Type[
+            Union[
+                VhdSchema,
+                AzureImageSchema,
+                SharedImageGallerySchema,
+                CommunityGalleryImageSchema,
+                AzureVmPurchasePlanSchema,
+            ]
+        ],
+        keys: List[str],
+        raw_data: Optional[Union[Dict[Any, Any], str]],
+    ) -> Any:
+        if not hasattr(self, f"_{prop_name}"):
+            setattr(self, f"_{prop_name}", None)
+        prop_value = getattr(self, f"_{prop_name}")
+
+        if prop_value:
+            return prop_value
+
+        if isinstance(raw_data, dict):
+            normalized_data = {
+                k: (v.lower() if isinstance(v, str) and hasattr(schema_type, k) else v)
+                for k, v in raw_data.items()
+            }
+            prop_value = schema.load_by_type(schema_type, normalized_data)
+
+            # Check if all required keys have values
+            if all(getattr(prop_value, key) for key in keys):
+                setattr(self, f"{prop_name}_raw", prop_value.to_dict())
+            else:
+                setattr(self, f"{prop_name}_raw", None)
+
+        return prop_value
+
+    def _parse_image_raw(
+        self,
+        prop_name: str,
+        value: Optional[
+            Union[
+                VhdSchema,
+                AzureImageSchema,
+                SharedImageGallerySchema,
+                CommunityGalleryImageSchema,
+                AzureVmPurchasePlanSchema,
+            ]
+        ],
+    ) -> None:
+        setattr(self, f"_{prop_name}", value)
+        if value is not None:
+            raw_value = (
+                value.to_dict() if hasattr(value, "to_dict") else value  # type: ignore
+            )
+        else:
+            raw_value = None
+
+        setattr(self, f"{prop_name}_raw", raw_value)
 
 
 @dataclass_json()
@@ -624,18 +676,17 @@ class AzureNodeArmParameter(AzureNodeSchema):
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
         parameters = runbook.to_dict()  # type: ignore
-        if "marketplace" in parameters:
-            parameters["marketplace_raw"] = parameters["marketplace"]
-            del parameters["marketplace"]
-        if "purchase_plan" in parameters:
-            parameters["purchase_plan_raw"] = parameters["purchase_plan"]
-            del parameters["purchase_plan"]
-        if "shared_gallery" in parameters:
-            parameters["shared_gallery_raw"] = parameters["shared_gallery"]
-            del parameters["shared_gallery"]
-        if "vhd" in parameters:
-            parameters["vhd_raw"] = parameters["vhd"]
-            del parameters["vhd"]
+        keys_to_rename = {
+            "marketplace": "marketplace_raw",
+            "purchase_plan": "purchase_plan_raw",
+            "shared_gallery": "shared_gallery_raw",
+            "community_gallery_image": "community_gallery_image_raw",
+            "vhd": "vhd_raw",
+        }
+
+        for old_key, new_key in keys_to_rename.items():
+            if old_key in parameters:
+                parameters[new_key] = parameters.pop(old_key)
 
         arm_parameters = AzureNodeArmParameter(**parameters)
 
@@ -1287,12 +1338,12 @@ def get_or_create_storage_container(
     Create a Azure Storage container if it does not exist.
     """
     blob_service_client = get_blob_service_client(
-        cloud,
-        credential,
-        subscription_id,
-        account_name,
-        resource_group_name,
-        connection_string,
+        cloud=cloud,
+        credential=credential,
+        subscription_id=subscription_id,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        connection_string=connection_string,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
@@ -2126,14 +2177,14 @@ def download_blob(
     connection_string: Optional[str] = None,
 ) -> PurePath:
     container_client = get_or_create_storage_container(
-        container_name,
-        credential,
-        subscription_id,
-        cloud,
-        account_name,
-        resource_group_name,
-        connection_string,
-        False,
+        container_name=container_name,
+        credential=credential,
+        subscription_id=subscription_id,
+        cloud=cloud,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        connection_string=connection_string,
+        allow_create=False,
     )
     blob_client = container_client.get_blob_client(blob_name)
     if not blob_client.exists():

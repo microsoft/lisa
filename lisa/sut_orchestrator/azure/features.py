@@ -1629,51 +1629,18 @@ class Disk(AzureFeatureMixin, features.Disk):
         vm = get_vm(azure_platform, self._node)
         return vm.storage_profile.disk_controller_type
 
-    def get_raw_data_disks(self) -> List[str]:
-        # Handle BSD case
-        if isinstance(self._node.os, BSD):
-            return self._get_raw_data_disks_bsd()
-
-        # disk_controller_type == NVME
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            # Getting OS disk nvme namespace and disk controller used by OS disk.
-            # Sample os_boot_partition:
-            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
-            os_boot_partition = node_disk.get_os_boot_partition()
-            if os_boot_partition:
-                os_disk_namespace = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_NAMESPACE_PATTERN,
-                )
-                os_disk_controller = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_CONTROLLER_PATTERN,
-                )
-
-            # With NVMe disc controller type, all remote SCSI disks are connected to
-            # same NVMe controller. The same controller is used by OS disc.
-            # This loop collects all the SCSI remote disks except OS disk.
-            nvme = self._node.features[Nvme]
-            nvme_namespaces = nvme.get_namespaces()
-            disk_array = []
-            for name_space in nvme_namespaces:
-                if (
-                    name_space.startswith(os_disk_controller)
-                    and name_space != os_disk_namespace
-                ):
-                    disk_array.append(name_space)
-            return disk_array
-
-        # disk_controller_type == SCSI
+    def _get_scsi_data_disks(self) -> List[str]:
+        # This method restuns azure data disks attached to you given VM.
         # refer here to get data disks from folder /dev/disk/azure/scsi1
+        # Example: /dev/disk/azure/scsi1/lun0
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
-        # /dev/disk/azure/scsi1/lun0
         ls_tools = self._node.tools[Ls]
         files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
+        azure_scsi_disks = []
         if len(files) == 0:
             os = self._node.os
+            # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
             # there are known issues on ubuntu 16.04 and rhel 9.0
             # try to workaround it
             if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
@@ -1706,15 +1673,74 @@ class Disk(AzureFeatureMixin, features.Disk):
                     timeout_message="wait for dev rule take effect",
                 )
                 files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+        azure_scsi_disks = [
+            x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""
+        ]
+        return azure_scsi_disks
 
-        assert_that(len(files)).described_as(
+    def get_luns(self) -> Dict[str, int]:
+        # disk_controller_type == SCSI
+        # get azure scsi attached disks
+        azure_scsi_disks = self._get_scsi_data_disks()
+        device_luns = {}
+        lun_number_pattern = re.compile(r"[0-9]+$", re.M)
+        for disk in azure_scsi_disks:
+            # /dev/disk/azure/scsi1/lun20 -> 20
+            device_lun = int(get_matched_str(disk, lun_number_pattern))
+            # readlink -f /dev/disk/azure/scsi1/lun0
+            # /dev/sdc
+            cmd_result = self._node.execute(
+                f"readlink -f {disk}", shell=True, sudo=True
+            )
+            device_luns.update({cmd_result.stdout: device_lun})
+        return device_luns
+
+    def get_raw_data_disks(self) -> List[str]:
+        # Handle BSD case
+        if isinstance(self._node.os, BSD):
+            return self._get_raw_data_disks_bsd()
+
+        # disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            # Getting OS disk nvme namespace and disk controller used by OS disk.
+            # Sample os_boot_partition:
+            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN,
+                )
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN,
+                )
+
+            # With NVMe disk controller type, all remote SCSI disks are connected to
+            # same NVMe controller. The same controller is used by OS disk.
+            # This loop collects all the SCSI remote disks except OS disk.
+            nvme = self._node.features[Nvme]
+            nvme_namespaces = nvme.get_namespaces()
+            disk_array = []
+            for name_space in nvme_namespaces:
+                if (
+                    name_space.startswith(os_disk_controller)
+                    and name_space != os_disk_namespace
+                ):
+                    disk_array.append(name_space)
+            return disk_array
+
+        # disk_controller_type == SCSI
+
+        # get azure scsi attached disks
+        azure_scsi_disks = self._get_scsi_data_disks()
+        assert_that(len(azure_scsi_disks)).described_as(
             "no data disks info found under /dev/disk/azure/scsi1"
         ).is_greater_than(0)
-        matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
-        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
-        assert matched, "not find data disks"
-        disk_array = [""] * len(matched)
-        for disk in matched:
+        assert azure_scsi_disks, "not find data disks"
+        disk_array = [""] * len(azure_scsi_disks)
+        for disk in azure_scsi_disks:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
             cmd_result = self._node.execute(
@@ -1741,7 +1767,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         count: int,
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
+        lun: int = -1,
     ) -> List[str]:
+        if lun != -1:
+            assert_that(
+                count,
+                "Data disk add count should be equal to 1"
+                " when 'lun' number is passed by the caller",
+            ).is_equal_to(1)
         disk_sku = _disk_type_mapping.get(disk_type, None)
         assert disk_sku
         assert self._node.capability.disk
@@ -1771,10 +1804,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         vm = get_vm(azure_platform, self._node)
         for i, managed_disk in enumerate(managed_disks):
-            lun = str(i + current_disk_count)
+            if lun != -1:
+                lun_temp = lun
+            else:
+                lun_temp = i + current_disk_count
+            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")
             vm.storage_profile.data_disks.append(
                 {
-                    "lun": lun,
+                    "lun": lun_temp,
                     "name": managed_disk.name,
                     "create_option": DiskCreateOptionTypes.attach,
                     "managed_disk": {"id": managed_disk.id},
@@ -3211,6 +3248,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         echo = node.tools[Echo]
         username = account_credential["account_name"]
         password = account_credential["account_key"]
+        add_secret(password)
         echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
         echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
         node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)

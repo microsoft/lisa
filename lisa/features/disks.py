@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from assertpy.assertpy import assert_that
 
@@ -56,6 +56,7 @@ class Disk(Feature):
         count: int,
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
+        lun: int = -1,
     ) -> List[str]:
         raise NotImplementedError
 
@@ -66,6 +67,9 @@ class Disk(Feature):
         self.disks: List[str] = []
 
     def get_resource_disk_mount_point(self) -> str:
+        raise NotImplementedError
+
+    def get_luns(self) -> Dict[str, int]:
         raise NotImplementedError
 
     # Get boot partition of VM by looking for "/boot" and "/boot/efi"

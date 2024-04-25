@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import random
 import re
 import string
 import time
@@ -439,6 +440,62 @@ class Storage(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case will verify that the standard ssd data disks disks can
+        be added serially on random lun while the vm is running.
+        Steps:
+        1. Get maximum number of data disk for the current vm_size.
+        2. Get the number of data disks already added to the vm.
+        3. Add 1 standard ssd data disks to the VM on random free lun.
+        4. Verify that the disks are added are available in the OS.
+        5. Repeat steps 3 & 4 till max disks supported by VM are attached.
+        6. Remove the disks from the vm from random luns.
+        7. Verify that 1 disk is removed from the OS.
+        8. Repeat steps 6 & 7 till all randomly attached disks are removed.
+        """,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+    )
+    def verify_hot_add_disk_serial_random_lun_standard_ssd(
+        self, log: Logger, node: Node
+    ) -> None:
+        self._hot_add_disk_serial(
+            log,
+            node,
+            DiskType.StandardSSDLRS,
+            self.DEFAULT_DISK_SIZE_IN_GB,
+            randomize_luns=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will verify that the premium ssd data disks disks can
+        be added serially on random lun while the vm is running.
+        Steps:
+        1. Get maximum number of data disk for the current vm_size.
+        2. Get the number of data disks already added to the vm.
+        3. Add 1 premium ssd data disks to the VM on random free lun.
+        4. Verify that the disks are added are available in the OS.
+        5. Repeat steps 3 & 4 till max disks supported by VM are attached.
+        6. Remove the disks from the vm from random luns.
+        7. Verify that 1 disk is removed from the OS.
+        8. Repeat steps 6 & 7 till all randomly attached disks are removed.
+        """,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+    )
+    def verify_hot_add_disk_serial_random_lun_premium_ssd(
+        self, log: Logger, node: Node
+    ) -> None:
+        self._hot_add_disk_serial(
+            log,
+            node,
+            DiskType.PremiumSSDLRS,
+            self.DEFAULT_DISK_SIZE_IN_GB,
+            randomize_luns=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
         This test case will verify that the premium ssd data disks disks can
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_parallel`.
@@ -565,7 +622,12 @@ class Storage(TestSuite):
         posix_os.install_packages("cifs-utils")
 
     def _hot_add_disk_serial(
-        self, log: Logger, node: Node, disk_type: DiskType, size: int
+        self,
+        log: Logger,
+        node: Node,
+        disk_type: DiskType,
+        size: int,
+        randomize_luns: bool = False,
     ) -> None:
         disk = node.features[Disk]
         lsblk = node.tools[Lsblk]
@@ -581,18 +643,27 @@ class Storage(TestSuite):
         current_data_disk_count = node.capability.disk.data_disk_count
         log.debug(f"current_data_disk_count: {current_data_disk_count}")
 
-        # disks to be added to the vm
-        disks_to_add = max_data_disk_count - current_data_disk_count
-
         # get partition info before adding data disk
         partitions_before_adding_disk = lsblk.get_disks(force_run=True)
         added_disk_count = 0
         disks_added = []
-        for _ in range(disks_to_add):
+        # Assuming existing disks added sequentially from lun = 0 to
+        # (current_data_disk_count - 1)
+        free_luns = list(range(current_data_disk_count, max_data_disk_count))
+
+        # Randomize the luns if randomize_luns is set to True
+        # Using seed 6 to get consistent randomization across runs
+        # Create own random.Random instance, with its own seed, which will not
+        # affect the global functions
+        if randomize_luns:
+            random.Random(6).shuffle(free_luns)
+            log.debug(f"free_luns: {free_luns}")
+        for lun in free_luns:
+            linux_device_luns = disk.get_luns()
             # add data disk
-            disks_added.append(disk.add_data_disk(1, disk_type, size))
+            disks_added.append(disk.add_data_disk(1, disk_type, size, lun))
             added_disk_count += 1
-            log.debug(f"Added {added_disk_count}'th managed disk")
+            log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
@@ -611,6 +682,19 @@ class Storage(TestSuite):
                 f"data disk { added_partitions[added_disk_count - 1].name}"
                 f" size should be equal to {size} GB",
             ).is_equal_to(size)
+
+            # verify the lun number from linux VM
+            linux_device_luns_after = disk.get_luns()
+            linux_device_lun_diff = [
+                linux_device_luns_after[k]
+                for k in set(linux_device_luns_after) - set(linux_device_luns)
+            ][0]
+            log.debug(f"linux_device_luns: {linux_device_luns}")
+            log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
+            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
+            assert_that(
+                linux_device_lun_diff, "No new device lun found on VM"
+            ).is_equal_to(lun)
 
         # Remove all attached data disks
         for disk_added in disks_added:

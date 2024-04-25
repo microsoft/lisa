@@ -35,9 +35,9 @@ class Blkid(Tool):
     # /dev/sda1: LABEL="Temporary Storage" UUID="9ED4084BD408285B" TYPE="ntfs" PARTUUID="03e90eae-01" # noqa: E501
     _get_partition_info = re.compile(
         r"\s*(?P<name>\S+):"
-        r"(?:.*?LABEL=\"(?P<label>[^\"]*)\")?"
-        r"(?:.*?UUID=\"(?P<uuid>[^\"]*)\")?"
-        r"(?:.*?PARTUUID=\"(?P<part_uuid>[^\"]*)\")?"
+        r"(?:.*?\bLABEL=\"(?P<label>[^\"]*)\")?"
+        r"(?:.*?\bUUID=\"(?P<uuid>[^\"]*)\")?"
+        r"(?:.*?\bPARTUUID=\"(?P<part_uuid>[^\"]*)\")?"
     )
 
     @property
@@ -52,6 +52,7 @@ class Blkid(Tool):
         /dev/sda15: LABEL_FATBOOT="UEFI" LABEL="UEFI" UUID="0BC7-08EF" TYPE="vfat" PARTUUID="d80ae19a-00f8-4cae-a95e-9bbb761b7e9a" # noqa: E501
         /dev/sdb1: UUID="a88b3ef7-ddc8-4942-8931-253a5f21cae1" TYPE="ext4" PARTUUID="c7c91a5e-01" # noqa: E501
         /dev/loop0: TYPE="squashfs"
+        /dev/sda3: UUID="5d1cdcfe-a342-4ce6-aec1-d6985fb9ceba" BLOCK_SIZE="4096" TYPE="ext4" PARTLABEL="primary" PARTUUID="3cdca255-3270-4cfb-84d4-e80a71677c7c" # noqa: E501
         """
         output = self.run(sudo=True).stdout
         partition_info: List[PartitionInfo] = []

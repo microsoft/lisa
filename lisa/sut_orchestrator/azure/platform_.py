@@ -20,6 +20,8 @@ import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
+    CommunityGalleryImage,
+    CommunityGalleryImageVersion,
     GalleryImage,
     GalleryImageVersion,
     ResourceSku,
@@ -97,6 +99,7 @@ from .common import (
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
     AzureVmPurchasePlanSchema,
+    CommunityGalleryImageSchema,
     DataDiskCreateOption,
     DataDiskSchema,
     SharedImageGallerySchema,
@@ -1402,10 +1405,26 @@ class AzurePlatform(Platform):
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
+            log.debug(
+                f"current vhd generation is {azure_node_runbook.hyperv_generation}."
+            )
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_node_runbook.shared_gallery
+            )
+            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
+                self._get_sig(azure_node_runbook.shared_gallery)
+            )
+        elif azure_node_runbook.community_gallery_image:
+            azure_node_runbook.marketplace = None
+            azure_node_runbook.community_gallery_image = (
+                self._parse_community_gallery_image(
+                    azure_node_runbook.community_gallery_image
+                )
+            )
+            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
+                self._get_cgi(azure_node_runbook.community_gallery_image)
             )
         elif not azure_node_runbook.marketplace:
             # set to default marketplace, if nothing specified
@@ -1431,15 +1450,6 @@ class AzurePlatform(Platform):
                     and image_info.os_disk_image.operating_system == "Windows"
                 ):
                     azure_node_runbook.is_linux = False
-        elif azure_node_runbook.shared_gallery:
-            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
-                self._get_detailed_sig(azure_node_runbook.shared_gallery)
-            )
-        else:
-            log.debug(
-                "there is no way to detect vhd generation, unless user provides it"
-                f" current vhd generation is {azure_node_runbook.hyperv_generation}"
-            )
 
         if azure_node_runbook.is_linux is None:
             # fill it default value
@@ -1476,6 +1486,11 @@ class AzurePlatform(Platform):
             arm_parameters.osdisk_size_in_gb = max(
                 arm_parameters.osdisk_size_in_gb,
                 self._get_sig_os_disk_size(arm_parameters.shared_gallery),
+            )
+        elif arm_parameters.community_gallery_image:
+            arm_parameters.osdisk_size_in_gb = max(
+                arm_parameters.osdisk_size_in_gb,
+                self._get_cgi_os_disk_size(arm_parameters.community_gallery_image),
             )
         else:
             assert (
@@ -2063,6 +2078,41 @@ class AzurePlatform(Platform):
         return new_marketplace
 
     @lru_cache(maxsize=10)  # noqa: B019
+    def _parse_community_gallery_image(
+        self, community_gallery_image: CommunityGalleryImageSchema
+    ) -> CommunityGalleryImageSchema:
+        new_community_gallery_image = copy.copy(community_gallery_image)
+        compute_client = get_compute_client(self)
+        if community_gallery_image.image_version.lower() == "latest":
+            community_gallery_images_list = (
+                compute_client.community_gallery_image_versions.list(
+                    location=community_gallery_image.location,
+                    public_gallery_name=community_gallery_image.image_gallery,
+                    gallery_image_name=community_gallery_image.image_definition,
+                )
+            )
+            image: Optional[CommunityGalleryImageVersion] = None
+            time: Optional[datetime] = None
+            for image in community_gallery_images_list:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
+                community_gallery_image_version = (
+                    compute_client.community_gallery_image_versions.get(
+                        location=community_gallery_image.location,
+                        public_gallery_name=community_gallery_image.image_gallery,
+                        gallery_image_name=community_gallery_image.image_definition,
+                        gallery_image_version_name=image.name,
+                    )
+                )
+                if not time:
+                    time = community_gallery_image_version.published_date
+                    new_community_gallery_image.image_version = image.name
+                if community_gallery_image_version.published_date > time:
+                    time = community_gallery_image_version.published_date
+                    new_community_gallery_image.image_version = image.name
+        return new_community_gallery_image
+
+    @lru_cache(maxsize=10)  # noqa: B019
     def _parse_shared_gallery_image(
         self, shared_image: SharedImageGallerySchema
     ) -> SharedImageGallerySchema:
@@ -2430,33 +2480,64 @@ class AzurePlatform(Platform):
         assert isinstance(vhd_os_disk_size, int), f"actual: {type(vhd_os_disk_size)}"
         return vhd_os_disk_size
 
-    def _get_sig_info(
+    def _get_sig_version(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
         compute_client = get_compute_client(self)
-        sig_info = compute_client.gallery_image_versions.get(
+        sig_version = compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
             gallery_image_version_name=shared_image.image_version,
             expand="ReplicationStatus",
         )
-        assert isinstance(sig_info, GalleryImageVersion), f"actual: {type(sig_info)}"
-        return sig_info
+        assert isinstance(
+            sig_version, GalleryImageVersion
+        ), f"actual: {type(sig_version)}"
+        return sig_version
 
     @lru_cache(maxsize=10)  # noqa: B019
-    def _get_detailed_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
+    def _get_cgi_version(
+        self, community_gallery_image: CommunityGalleryImageSchema
+    ) -> CommunityGalleryImageVersion:
         compute_client = get_compute_client(self)
-        detailed_sig = compute_client.gallery_images.get(
+        cgi_version = compute_client.community_gallery_image_versions.get(
+            location=community_gallery_image.location,
+            public_gallery_name=community_gallery_image.image_gallery,
+            gallery_image_name=community_gallery_image.image_definition,
+            gallery_image_version_name=community_gallery_image.image_version,
+        )
+        assert isinstance(
+            cgi_version, CommunityGalleryImageVersion
+        ), f"actual: {type(cgi_version)}"
+        return cgi_version
+
+    @lru_cache(maxsize=10)  # noqa: B019
+    def _get_cgi(
+        self, community_gallery_image: CommunityGalleryImageSchema
+    ) -> CommunityGalleryImage:
+        compute_client = get_compute_client(self)
+        cgi = compute_client.community_gallery_images.get(
+            location=community_gallery_image.location,
+            public_gallery_name=community_gallery_image.image_gallery,
+            gallery_image_name=community_gallery_image.image_definition,
+        )
+        assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
+        return cgi
+
+    @lru_cache(maxsize=10)  # noqa: B019
+    def _get_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
+        compute_client = get_compute_client(self)
+        sig = compute_client.gallery_images.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
             gallery_image_name=shared_image.image_definition,
         )
-        assert isinstance(detailed_sig, GalleryImage), f"actual: {type(detailed_sig)}"
-        return detailed_sig
+        assert isinstance(sig, GalleryImage), f"actual: {type(sig)}"
+        return sig
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
-        found_image = self._get_sig_info(shared_image)
+        found_image = self._get_sig_version(shared_image)
         assert found_image.storage_profile, "'storage_profile' must not be 'None'"
         assert (
             found_image.storage_profile.os_disk_image
@@ -2465,6 +2546,18 @@ class AzurePlatform(Platform):
             found_image.storage_profile.os_disk_image.size_in_gb
         ), "'size_in_gb' must not be 'None'"
         return int(found_image.storage_profile.os_disk_image.size_in_gb)
+
+    def _get_cgi_os_disk_size(
+        self, community_gallery_image: CommunityGalleryImageSchema
+    ) -> int:
+        found_image = self._get_cgi_version(community_gallery_image)
+        storage_profile = found_image.storage_profile  # type: ignore
+        assert storage_profile, "'storage_profile' must not be 'None'"
+        assert storage_profile.os_disk_image, "'os_disk_image' must not be 'None'"
+        assert (
+            storage_profile.os_disk_image.disk_size_gb
+        ), "'disk_size_gb' must not be 'None'"
+        return int(storage_profile.os_disk_image.disk_size_gb)
 
     def _get_normalized_vm_sizes(
         self, name: str, location: str, log: Logger
@@ -2853,7 +2946,7 @@ class AzurePlatform(Platform):
             azure_runbook.shared_gallery = self._parse_shared_gallery_image(
                 azure_runbook.shared_gallery
             )
-            sig = self._get_detailed_sig(azure_runbook.shared_gallery)
+            sig = self._get_sig(azure_runbook.shared_gallery)
             generation = _get_gallery_image_generation(sig)
             node_space.features.add(features.VhdGenerationSettings(gen=generation))
             node_space.features.add(
@@ -2863,7 +2956,16 @@ class AzurePlatform(Platform):
             node_space.features.add(
                 features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
             )
-
+        elif azure_runbook.community_gallery_image:
+            azure_runbook.community_gallery_image = self._parse_community_gallery_image(
+                azure_runbook.community_gallery_image
+            )
+            cgi = self._get_cgi(azure_runbook.community_gallery_image)
+            generation = _get_gallery_image_generation(cgi)
+            node_space.features.add(features.VhdGenerationSettings(gen=generation))
+            node_space.features.add(
+                features.ArchitectureSettings(arch=cgi.architecture)  # type: ignore
+            )
         if node_space.disk:
             assert node_space.disk.os_disk_type
             if (
@@ -2896,6 +2998,11 @@ class AzurePlatform(Platform):
                 azure_runbook.shared_gallery
             )
             return self._get_sig_os_disk_size(azure_runbook.shared_gallery)
+        elif azure_runbook.community_gallery_image:
+            azure_runbook.community_gallery_image = self._parse_community_gallery_image(
+                azure_runbook.community_gallery_image
+            )
+            return self._get_cgi_os_disk_size(azure_runbook.community_gallery_image)
         else:
             assert azure_runbook.vhd
             assert azure_runbook.vhd.vhd_path
@@ -2994,11 +3101,13 @@ def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
     return vhd_gen
 
 
-def _get_gallery_image_generation(shared_image: GalleryImage) -> int:
+def _get_gallery_image_generation(
+    image: Union[GalleryImage, CommunityGalleryImage]
+) -> int:
     assert (
-        shared_image.hyper_v_generation
-    ), f"no hyper_v_generation property for image {shared_image.name}"
-    return int(shared_image.hyper_v_generation.strip("V"))
+        hasattr(image, "hyper_v_generation") and image.hyper_v_generation
+    ), f"no hyper_v_generation property for image {image.name}"
+    return int(image.hyper_v_generation.strip("V"))
 
 
 def _get_disk_size_in_gb(additional_properties: Dict[str, int]) -> int:

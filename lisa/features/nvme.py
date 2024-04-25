@@ -20,20 +20,23 @@ from lisa.util import field_metadata, get_matched_str
 
 class Nvme(Feature):
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
-    _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]$)", re.MULTILINE)
+    # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme10
+    _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]+$)", re.MULTILINE)
     # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n1
-    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n64
+    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme11n1
     _namespace_pattern = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]+$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]+n[0-9]+$)", re.MULTILINE
     )
-    # '/dev/nvme0n1          351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
+    # '/dev/nvme0n1         351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
+    # '/dev/nvme11n1        351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
     _namespace_cli_pattern = re.compile(
-        r"(?P<namespace>/dev/nvme[0-9]n[0-9])", re.MULTILINE
+        r"(?P<namespace>/dev/nvme[0-9]+n[0-9])", re.MULTILINE
     )
 
     # crw-------  1 root  wheel  0x4e Jul 27 21:16 /dev/nvme0ns1
+    # crw-------  1 root  wheel  0x4e Jul 27 21:16 /dev/nvme12ns1
     _namespace_pattern_bsd = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]ns[0-9]+$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]+ns[0-9]+$)", re.MULTILINE
     )
 
     # /dev/nvme0n1p15 -> /dev/nvme0n1

@@ -734,21 +734,20 @@ class LisaRunner(BaseRunner):
 
     def _get_ignored_features(self, nodes: List[schema.NodeSpace]) -> Set[str]:
         ignored_features: Set[str] = set()
-        for _, node_requirement in enumerate(nodes):
-            if (
-                node_requirement.features
-                and hasattr(self, "platform")
-                and self.platform.runbook.ignored_capability
-            ):
-                for feature in node_requirement.features:
-                    if str(feature).lower() in list(
-                        map(
-                            str.lower,
-                            self.platform.runbook.ignored_capability,
-                        )
-                    ):
-                        node_requirement.features.items.remove(feature)
-                        ignored_features.add(str(feature))
+        if hasattr(self, "platform") and self.platform.runbook.ignored_capability:
+            ignored_capability = set(
+                map(str.lower, self.platform.runbook.ignored_capability)
+            )
+            for node_requirement in nodes:
+                for feature_set in [
+                    node_requirement.features,
+                    node_requirement.excluded_features,
+                ]:
+                    if feature_set:
+                        for feature in list(feature_set):
+                            if str(feature).lower() in ignored_capability:
+                                feature_set.remove(feature)
+                                ignored_features.add(str(feature))
         return ignored_features
 
     def _merge_test_requirements(
