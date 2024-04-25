@@ -79,7 +79,7 @@ def _validate_password(
     message = f"Password not set as intended for user {username}."
     # simple command to determine if username password combination is valid/invalid
     node.execute(
-        cmd=f'echo "{password}" | su --command true - {username}',
+        cmd=f'echo "{password}" | sudo -S -u {username} true',
         shell=True,
         expected_exit_code=0 if valid else 1,
         expected_exit_code_failure_message=message,
