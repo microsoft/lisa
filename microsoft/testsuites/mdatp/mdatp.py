@@ -59,7 +59,14 @@ def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
     # This path would mean that df and mount are returning different
     # info about the mount points on the VM.
     # There should be no way for this to happen, assert if it does
-    assert f"Could not find partition info for {partition.mountpoint}!"
+    node.log.warn(
+        f"Could not find partition info for {partition.mountpoint}! "
+        "This indicates that LISA could not properly parse the output "
+        "of 'mount' and 'df'. It's possible this image does not have "
+        "these tools available. "
+        "Note: This is a non-fatal error for the mdatp test. "
+        "Resuming text execution..."
+    )
     # appease pylint by returning after assert
     return False
 
