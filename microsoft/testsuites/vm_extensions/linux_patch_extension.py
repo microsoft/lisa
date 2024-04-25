@@ -55,7 +55,10 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
 
 def _assert_status_file_result(status_file: Any) -> None:
-    if status_file["error"]["code"] == "PACKAGE_LIST_TRUNCATED":
+    if (
+        len(status_file["error"]["details"]) > 0
+        and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
+    ):
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to CompletedWithWarnings"
         ).is_equal_to("CompletedWithWarnings")
