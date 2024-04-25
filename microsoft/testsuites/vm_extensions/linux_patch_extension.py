@@ -142,7 +142,7 @@ class LinuxPatchExtensionBVT(TestSuite):
             vm_name=vm_name,
             install_patches_input=install_patches_input,
         )
-        # set wait operation max duration 3H30M timeout, status file should be
+        # set wait operation max duration 4H timeout, status file should be
         # generated before timeout
         install_result = wait_operation(operation, self.TIMEOUT)
 
