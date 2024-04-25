@@ -715,6 +715,13 @@ class Sriov(TestSuite):
             except Exception:
                 log.debug("irqbalance version: not found")
 
+        server_node.execute(
+            'for i in `cat /proc/interrupts  | grep "Hyper-V PCIe MSI" | '
+            "cut -d: -f1`; do echo 0 > /proc/irq/$i/smp_affinity_list; done",
+            sudo=True,
+            shell=True,
+        )
+
         server_node.tools[Service].stop_service("irqbalance")
 
         irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
