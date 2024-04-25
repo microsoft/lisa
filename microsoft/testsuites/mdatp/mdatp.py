@@ -24,7 +24,7 @@ EXIT_MDATP_INSTALL_LOGS_FOUND = 254
 EXIT_ONBOARD_INFO_FOUND = 255
 
 
-def working_path_workaround(node: Node) -> None:
+def apply_working_path_noexec_workaround(node: Node) -> None:
     # EXAMPLE WORKAROUND:
     # - Get the mount point for the path.
     # - Check if the mount point is mounted noexec.
@@ -33,19 +33,23 @@ def working_path_workaround(node: Node) -> None:
     mount_info = node.tools[Df].get_mount_info_for_dir(
         directory=working_path.as_posix()
     )
-    if not mount_info:
+    if mount_info and check_noexec_partition(node, mount_info):
+        node.log.info(f"Working path in {mount_info.mountpoint} is mounted noexec!!")
+        remount_without_noexec(node, mount_info)
+    elif not mount_info:
+        # warn only, since nearly all (99.99%) of images do not
+        # require this workaround. An image with weird DF or Mount
+        # output should still be able to run the script, so we
+        # will warn and allow the test to continue.
         node.log.warn(
             f"Could not locate mount info for directory "
             f"{working_path.as_posix()}. "
             "Test may fail due to noexec permissions error. "
             "Or due to the working path not existing."
         )
-    else:
-        if check_noexec_partition(node, mount_info):
-            node.log.info(
-                f"Working path in {mount_info.mountpoint} is mounted noexec!!"
-            )
-            fix_noexec_working_path(node, mount_info)
+
+    # no issues with partition, nothing to fix.
+    return
 
 
 def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
@@ -71,7 +75,7 @@ def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
     return False
 
 
-def fix_noexec_working_path(node: Node, partition: PartitionInfo) -> None:
+def remount_without_noexec(node: Node, partition: PartitionInfo) -> None:
     # Fix issue where working path is created in a partition marked
     # 'noexec' meaning file permissions for x are ignored.
     # Attempt to remount the parition to allow executables.
@@ -116,7 +120,7 @@ class MdatpSuite(TestSuite):
 
         # call the example workaround, see function for details.
         # TODO: remove this when the fix is implemented
-        working_path_workaround(node)
+        apply_working_path_noexec_workaround(node)
 
         result = node.execute(
             cmd=f"chmod a+x,a+r,a-w {str(script_path)}",
