@@ -123,6 +123,7 @@ class Xfstesting(TestSuite):
     # ext4: add check to prevent attempting to resize an fs with sparse_super2
     # VM will hung during running case xfs/520
     # commit d0c7feaf8767 ("xfs: add agf freeblocks verify in xfs_agf_verify")
+    # generic/738 case might cause hang more than 4 hours on old kernel
     # TODO: will figure out the detailed reason of every excluded case.
     excluded_tests = (
         "generic/211 generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
