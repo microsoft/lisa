@@ -1215,8 +1215,10 @@ def create_nics(node: Node) -> Nics:
     """
     Returns a Nics object for the node based on the OS type.
     """
+    # Uses uname instead of the node.os because sometimes node.os has not been
+    # populated when this is called.
     os = node.execute(cmd="uname", no_error_log=True).stdout
-    if os.__contains__("FreeBSD"):
+    if "FreeBSD" in os:
         return NicsBSD(node)
 
     return Nics(node)
