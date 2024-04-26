@@ -715,19 +715,32 @@ class Sriov(TestSuite):
             except Exception:
                 log.debug("irqbalance version: not found")
 
+        server_node.tools[Service].stop_service("irqbalance")
+
+        irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
+
         server_node.execute(
             'for i in `cat /proc/interrupts  | grep "Hyper-V PCIe MSI" | '
             "cut -d: -f1`; do echo 0 > /proc/irq/$i/smp_affinity_list; done",
             sudo=True,
             shell=True,
         )
-
-        server_node.tools[Service].stop_service("irqbalance")
-
-        irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
+        server_node.execute(
+            'for i in `cat /proc/interrupts  | grep "Hyper-V PCIe MSI" | '
+            "cut -d: -f1`; do cat /proc/irq/$i/smp_affinity_list; done",
+            sudo=True,
+            shell=True,
+        )
 
         server_iperf3 = server_node.tools[Iperf3]
         client_iperf3 = client_node.tools[Iperf3]
+
+        server_node.execute(
+            'for i in `cat /proc/interrupts  | grep "Hyper-V PCIe MSI" | '
+            "cut -d: -f1`; do cat /proc/irq/$i/smp_affinity_list; done",
+            sudo=True,
+            shell=True,
+        )
 
         server_iperf3.run_as_server_async()
         client_iperf3.run_as_client(
@@ -735,6 +748,13 @@ class Sriov(TestSuite):
             run_time_seconds=240,
             parallel_number=128,
             client_ip=client_node.internal_address,
+        )
+
+        server_node.execute(
+            'for i in `cat /proc/interrupts  | grep "Hyper-V PCIe MSI" | '
+            "cut -d: -f1`; do cat /proc/irq/$i/smp_affinity_list; done",
+            sudo=True,
+            shell=True,
         )
 
         irqbalance.kill()
