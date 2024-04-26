@@ -54,6 +54,24 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     ).is_true()
 
 
+def _assert_status_file_result(status_file: Any) -> None:
+    if (
+        len(status_file["error"]["details"]) > 0
+        and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
+    ):
+        assert_that(status_file["status"]).described_as(
+            "Expected the status file patches to CompletedWithWarnings"
+        ).is_equal_to("CompletedWithWarnings")
+    else:
+        assert_that(status_file["status"]).described_as(
+            "Expected the status file patches to succeed"
+        ).is_equal_to("Succeeded")
+
+        assert_that(status_file["error"]["code"]).described_as(
+            "Expected no error in status file patches operation"
+        ).is_equal_to("0")
+
+
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
@@ -90,13 +108,8 @@ class LinuxPatchExtensionBVT(TestSuite):
 
         assert assess_result, "assess_result shouldn't be None"
         log.debug(f"assess_result:{assess_result}")
-        assert_that(assess_result["status"]).described_as(
-            "Expected the assess patches to succeed"
-        ).is_equal_to("Succeeded")
 
-        assert_that(assess_result["error"]["code"]).described_as(
-            "Expected no error in assess patches operation"
-        ).is_equal_to("0")
+        _assert_status_file_result(assess_result)
 
     @TestCaseMetadata(
         description="""
@@ -129,16 +142,11 @@ class LinuxPatchExtensionBVT(TestSuite):
             vm_name=vm_name,
             install_patches_input=install_patches_input,
         )
-        # set wait operation max duration 3H30M timeout, status file should be
+        # set wait operation max duration 4H timeout, status file should be
         # generated before timeout
         install_result = wait_operation(operation, self.TIMEOUT)
 
         assert install_result, "install_result shouldn't be None"
         log.debug(f"install_result:{install_result}")
-        assert_that(install_result["status"]).described_as(
-            "Expected the install patches to succeed"
-        ).is_equal_to("Succeeded")
 
-        assert_that(install_result["error"]["code"]).described_as(
-            "Expected no error in install patches operation"
-        ).is_equal_to("0")
+        _assert_status_file_result(install_result)
