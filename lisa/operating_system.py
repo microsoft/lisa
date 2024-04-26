@@ -1988,6 +1988,7 @@ class Suse(Linux):
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
     ) -> None:
+        self._initialize_package_installation()
         cmd = "zypper ar"
         if no_gpgcheck:
             cmd += " -G "
