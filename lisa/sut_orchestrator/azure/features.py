@@ -84,12 +84,13 @@ from lisa.util import (
 )
 
 if TYPE_CHECKING:
-    from .platform_ import AzurePlatform, AzureCapability
+    from .platform_ import AzurePlatform
 
 from .. import AZURE
 from .common import (
     AvailabilityArmParameter,
     AzureArmParameter,
+    AzureCapability,
     AzureNodeSchema,
     check_or_create_storage_account,
     create_update_private_dns_zone_groups,
