@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import hashlib
+import json
 import os
 import re
 import sys
@@ -71,12 +72,12 @@ from azure.storage.blob import (
 )
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
 from dataclasses_json import dataclass_json
-from marshmallow import validate
+from marshmallow import fields, validate
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
 from retry import retry
 
-from lisa import schema, search_space
+from lisa import feature, schema, search_space
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode, local
@@ -85,6 +86,7 @@ from lisa.tools import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
+    NotMeetRequirementException,
     check_till_timeout,
     constants,
     field_metadata,
@@ -263,6 +265,35 @@ class CommunityGalleryImageSchema(AzureImageSchema):
         return hash(
             f"{self.image_gallery}/{self.image_definition}/{self.image_version}"
         )
+
+
+@dataclass_json()
+@dataclass
+class AzureCapability:
+    location: str
+    vm_size: str
+    capability: schema.NodeSpace
+    resource_sku: Dict[str, Any]
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        # reload features settings with platform specified types.
+        convert_to_azure_node_space(self.capability)
+
+
+@dataclass_json()
+@dataclass
+class AzureLocation:
+    updated_time: datetime = field(
+        default_factory=datetime.now,
+        metadata=field_metadata(
+            fields.DateTime,
+            encoder=datetime.isoformat,
+            decoder=datetime.fromisoformat,
+            format="iso",
+        ),
+    )
+    location: str = ""
+    capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
 
 
 @dataclass_json()
@@ -2702,3 +2733,63 @@ def is_cloud_init_enabled(node: Node) -> bool:
     ) and ls_tool.path_exists("/var/lib/cloud/instance", sudo=True):
         return True
     return False
+
+
+@retry(tries=10, delay=1, jitter=(0.5, 1))
+def load_location_info_from_file(
+    cached_file_name: Path, log: Logger
+) -> Optional[AzureLocation]:
+    loaded_obj: Optional[AzureLocation] = None
+    if cached_file_name.exists():
+        try:
+            with open(cached_file_name, "r") as f:
+                loaded_data: Dict[str, Any] = json.load(f)
+            loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
+        except Exception as identifier:
+            # if schema changed, There may be exception, remove cache and retry
+            # Note: retry on this method depends on decorator
+            log.debug(f"error on loading cache, delete cache and retry. {identifier}")
+            cached_file_name.unlink()
+            raise identifier
+    return loaded_obj
+
+
+def convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
+    if not node_space:
+        return
+
+    if node_space.features:
+        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+
+        for current_settings in node_space.features.items:
+            # reload to type specified settings
+            try:
+                from .platform_ import AzurePlatform
+
+                settings_type = feature.get_feature_settings_type_by_name(
+                    current_settings.type, AzurePlatform.supported_features()
+                )
+            except NotMeetRequirementException as identifier:
+                raise LisaException(
+                    f"platform doesn't support all features. {identifier}"
+                )
+            new_setting = schema.load_by_type(settings_type, current_settings)
+            existing_setting = feature.get_feature_settings_by_name(
+                new_setting.type, new_settings, True
+            )
+            if existing_setting:
+                new_settings.remove(existing_setting)
+                new_setting = existing_setting.intersect(new_setting)
+
+            new_settings.add(new_setting)
+        node_space.features = new_settings
+    if node_space.disk:
+        from . import features
+
+        node_space.disk = schema.load_by_type(
+            features.AzureDiskOptionSettings, node_space.disk
+        )
+    if node_space.network_interface:
+        node_space.network_interface = schema.load_by_type(
+            schema.NetworkInterfaceOptionSettings, node_space.network_interface
+        )

@@ -39,7 +39,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
 )
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
-from marshmallow import fields, validate
+from marshmallow import validate
 from msrestazure.azure_cloud import (  # type: ignore
     AZURE_CHINA_CLOUD,
     AZURE_GERMAN_CLOUD,
@@ -95,6 +95,8 @@ from .common import (
     AZURE_VIRTUAL_NETWORK_NAME,
     SAS_URL_PATTERN,
     AzureArmParameter,
+    AzureCapability,
+    AzureLocation,
     AzureNodeArmParameter,
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
@@ -105,6 +107,7 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    convert_to_azure_node_space,
     get_compute_client,
     get_deployable_vhd_path,
     get_environment_context,
@@ -117,6 +120,7 @@ from .common import (
     get_vhd_details,
     get_vm,
     global_credential_access_lock,
+    load_location_info_from_file,
     save_console_log,
     wait_operation,
 )
@@ -192,35 +196,6 @@ CLOUD: Dict[str, Dict[str, Any]] = {
     "azuregermancloud": AZURE_GERMAN_CLOUD,
     "azureusgovernment": AZURE_US_GOV_CLOUD,
 }
-
-
-@dataclass_json()
-@dataclass
-class AzureCapability:
-    location: str
-    vm_size: str
-    capability: schema.NodeSpace
-    resource_sku: Dict[str, Any]
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        # reload features settings with platform specified types.
-        _convert_to_azure_node_space(self.capability)
-
-
-@dataclass_json()
-@dataclass
-class AzureLocation:
-    updated_time: datetime = field(
-        default_factory=datetime.now,
-        metadata=field_metadata(
-            fields.DateTime,
-            encoder=datetime.isoformat,
-            decoder=datetime.fromisoformat,
-            format="iso",
-        ),
-    )
-    location: str = ""
-    capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
 
 
 @dataclass_json()
@@ -1065,26 +1040,6 @@ class AzurePlatform(Platform):
                 self._arm_template = json.load(f)
         return self._arm_template
 
-    @retry(tries=10, delay=1, jitter=(0.5, 1))
-    def _load_location_info_from_file(
-        self, cached_file_name: Path, log: Logger
-    ) -> Optional[AzureLocation]:
-        loaded_obj: Optional[AzureLocation] = None
-        if cached_file_name.exists():
-            try:
-                with open(cached_file_name, "r") as f:
-                    loaded_data: Dict[str, Any] = json.load(f)
-                loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
-            except Exception as identifier:
-                # if schema changed, There may be exception, remove cache and retry
-                # Note: retry on this method depends on decorator
-                log.debug(
-                    f"error on loading cache, delete cache and retry. {identifier}"
-                )
-                cached_file_name.unlink()
-                raise identifier
-        return loaded_obj
-
     def get_location_info(self, location: str, log: Logger) -> AzureLocation:
         cached_file_name = constants.CACHE_PATH.joinpath(
             f"azure_locations_{location}.json"
@@ -1093,7 +1048,7 @@ class AzurePlatform(Platform):
         key = self._get_location_key(location)
         location_data = self._locations_data_cache.get(key, None)
         if not location_data:
-            location_data = self._load_location_info_from_file(
+            location_data = load_location_info_from_file(
                 cached_file_name=cached_file_name, log=log
             )
 
@@ -2271,7 +2226,7 @@ class AzurePlatform(Platform):
         node_space.features.update(
             [schema.FeatureSettings.create(x.name()) for x in all_features]
         )
-        _convert_to_azure_node_space(node_space)
+        convert_to_azure_node_space(node_space)
 
         return azure_capability
 
@@ -3020,49 +2975,12 @@ class AzurePlatform(Platform):
                 node_space.network_interface.data_path = data_path
 
     def _set_image_features(self, node_space: schema.NodeSpace) -> None:
-        # This method does the same thing as _convert_to_azure_node_space
+        # This method does the same thing as convert_to_azure_node_space
         # method, and attach the additional features. The additional features
         # need Azure platform, so it needs to be in Azure Platform.
-        _convert_to_azure_node_space(node_space)
+        convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
-
-
-def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
-    if not node_space:
-        return
-
-    if node_space.features:
-        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
-
-        for current_settings in node_space.features.items:
-            # reload to type specified settings
-            try:
-                settings_type = feature.get_feature_settings_type_by_name(
-                    current_settings.type, AzurePlatform.supported_features()
-                )
-            except NotMeetRequirementException as identifier:
-                raise LisaException(
-                    f"platform doesn't support all features. {identifier}"
-                )
-            new_setting = schema.load_by_type(settings_type, current_settings)
-            existing_setting = feature.get_feature_settings_by_name(
-                new_setting.type, new_settings, True
-            )
-            if existing_setting:
-                new_settings.remove(existing_setting)
-                new_setting = existing_setting.intersect(new_setting)
-
-            new_settings.add(new_setting)
-        node_space.features = new_settings
-    if node_space.disk:
-        node_space.disk = schema.load_by_type(
-            features.AzureDiskOptionSettings, node_space.disk
-        )
-    if node_space.network_interface:
-        node_space.network_interface = schema.load_by_type(
-            schema.NetworkInterfaceOptionSettings, node_space.network_interface
-        )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
