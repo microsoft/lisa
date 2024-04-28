@@ -117,6 +117,7 @@ from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
 from .vdsotest import Vdsotest
+from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
 from .wsl import Wsl
@@ -245,6 +246,9 @@ __all__ = [
     "Wget",
     "YumConfigManager",
     "Vdsotest",
+    "VcRunner",
+    "VcTargetInfo",
+    "VirtualClientTool",
     "Who",
     "Whoami",
     "Wsl",
