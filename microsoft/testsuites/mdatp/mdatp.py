@@ -37,11 +37,11 @@ def apply_working_path_noexec_workaround(node: Node) -> None:
         node.log.info(f"Working path in {mount_info.mountpoint} is mounted noexec!!")
         remount_without_noexec(node, mount_info)
     elif not mount_info:
-        # warn only, since nearly all (99.99%) of images do not
+        # info only, since nearly all (99.99%) of images do not
         # require this workaround. An image with weird DF or Mount
         # output should still be able to run the script, so we
-        # will warn and allow the test to continue.
-        node.log.warn(
+        # will info and allow the test to continue.
+        node.log.info(
             f"Could not locate mount info for directory "
             f"{working_path.as_posix()}. "
             "Test may fail due to noexec permissions error. "
@@ -63,7 +63,7 @@ def check_noexec_partition(node: Node, partition: PartitionInfo) -> bool:
     # This path would mean that df and mount are returning different
     # info about the mount points on the VM.
     # There should be no way for this to happen, assert if it does
-    node.log.warn(
+    node.log.info(
         f"Could not find partition info for {partition.mountpoint}! "
         "This indicates that LISA could not properly parse the output "
         "of 'mount' and 'df'. It's possible this image does not have "
