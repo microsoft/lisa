@@ -25,7 +25,7 @@ class Df(Tool):
     def can_install(self) -> bool:
         return True
 
-    def get_mount_info_for_dir(
+    def get_partition_by_path(
         self, directory: str, force_run: bool = False
     ) -> Optional[PartitionInfo]:
         out = self.run(
