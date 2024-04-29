@@ -29,45 +29,30 @@ from lisa.tools import Cp, Dmesg, Ls, Reboot
     """,
 )
 class MshvHostInstallSuite(TestSuite):
+    CONFIG_BINPATH = "mshv_binpath"
 
-    _test_hvix_file_path = (
-        Path(os.path.dirname(__file__)) / "test_data" / f"hvix64.exe"
-    )
-
-    _test_hvix_file_path_dst = (
-        Path("/boot/efi/Windows/System32") / f"hvix64.exe"
-    )
-
-    _test_kdstub_file_path = (
-        Path(os.path.dirname(__file__)) / "test_data" / f"kdstub.dll"
-    )
-
-    _test_kdstub_file_path_dst = (
-        Path("/boot/efi/Windows/System32") / f"kdstub.dll"
-    )
-
-    _test_lxhvloader_file_path = (
-        Path(os.path.dirname(__file__)) / "test_data" / f"lxhvloader.dll"
-    )
-
-    _test_lxhvloader_file_path_dst = (
-        Path("/boot/efi") / f"lxhvloader.dll"
-    )
-
-    _init_path_dst = (
-        Path("/home/cloud")
-    )
-
-    _init_path_dst_hvix = (
+    _test_path_init_hvix = (
         Path("/home/cloud") / f"hvix64.exe"
     )
 
-    _init_path_dst_kdstub = (
+    _init_path_init_kdstub = (
         Path("/home/cloud") / f"kdstub.dll"
     )
 
-    _init_path_dst_lxhvloader = (
+    _init_path_init_lxhvloader = (
         Path("/home/cloud") / f"lxhvloader.dll"
+    )
+
+    _test_path_dst_hvix = (
+        Path("/boot/efi/Windows/System32") / f"hvix64.exe"
+    )
+
+    _test_path_dst_kdstub = (
+        Path("/boot/efi/Windows/System32") / f"kdstub.dll"
+    )
+
+    _test_path_dst_lxhvloader = (
+        Path("/boot/efi") / f"lxhvloader.dll"
     )
 
     @TestCaseMetadata(
@@ -79,37 +64,32 @@ class MshvHostInstallSuite(TestSuite):
         The test expects the MSHV binaries to be installed to be placed under lisa/microsoft/testsuites/mshv/test_data
         before lisa is executed.
         """,
-        timeout=60,  # 60 seconds
+        timeout=120,
     )
     def verify_mshv_install_succeeds(
         self,
         log: Logger,
         node: Node,
+        variables: Dict[str, Any],
         log_path: Path,
         result: TestResult,
     ) -> None:
+        binpath = variables.get(self.CONFIG_BINPATH, "")
+        test_hvix_file_path = Path(binpath) / f"hvix64.exe"
+        test_kdstub_file_path = Path(binpath) / f"kdstub.dll"
+        test_lxhvloader_file_path = Path(binpath) / f"lxhvloader.dll"
+
+        log.info(f"binpath: {binpath}")
+
         # Copy Hvix64.exe, kdstub.dll, lxhvloader.dll into test machine
-        node.shell.copy(self._test_hvix_file_path, self._init_path_dst_hvix)
-        test_sha256_cmd = "sudo sha256sum %s" % self._test_hvix_file_path_dst.as_posix()
-        res = node.execute(
-            test_sha256_cmd,
-            shell=True,
-            sudo=True
-        )
-        time.sleep(5)
-        node.tools[Cp].copy(self._init_path_dst_hvix.as_posix(), self._test_hvix_file_path_dst.as_posix(), sudo=True)
-        res = node.execute(
-            test_sha256_cmd,
-            shell=True,
-            sudo=True
-        )
+        node.shell.copy(test_hvix_file_path, self._test_path_init_hvix)
+        node.tools[Cp].copy(self._test_path_init_hvix.as_posix(), self._test_path_dst_hvix.as_posix(), sudo=True)
 
-        # node.shell.copy(self._test_kdstub_file_path, self._init_path_dst_kdstub)
-        # node.tools[Cp].copy(self._init_path_dst_kdstub.as_posix(), self._test_hvix_file_path_dst.as_posix(), sudo=True)
+        node.shell.copy(test_kdstub_file_path, self._init_path_init_kdstub)
+        node.tools[Cp].copy(self._init_path_init_kdstub.as_posix(), self._test_path_dst_kdstub.as_posix(), sudo=True)
         
-        node.shell.copy(self._test_lxhvloader_file_path, self._init_path_dst_lxhvloader)
-        node.tools[Cp].copy(self._init_path_dst_lxhvloader.as_posix(), self._test_lxhvloader_file_path_dst.as_posix(), sudo=True)
-
+        node.shell.copy(test_lxhvloader_file_path, self._init_path_init_lxhvloader)
+        node.tools[Cp].copy(self._init_path_init_lxhvloader.as_posix(), self._test_path_dst_lxhvloader.as_posix(), sudo=True)
 
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
