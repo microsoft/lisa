@@ -52,8 +52,11 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         # Run VM Extension
         extension = node.features[AzureExtension]
 
-        # Delete VM Extension if already present
-        extension.delete("AzureMonitorLinuxAgent")
+        try:
+            # Delete VM Extension if already present
+            extension.delete("AzureMonitorLinuxAgent")
+        except HttpResponseError as identifier:
+            log.info(f"AzureMonitorLinuxAgent is not already installed")            
 
         extension_result = extension.create_or_update(
             name="AzureMonitorLinuxAgent",
