@@ -52,6 +52,9 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         # Run VM Extension
         extension = node.features[AzureExtension]
 
+        # Delete VM Extension if already present
+        extension.delete("AzureMonitorLinuxAgent")
+
         extension_result = extension.create_or_update(
             name="AzureMonitorLinuxAgent",
             publisher="Microsoft.Azure.Monitor",
