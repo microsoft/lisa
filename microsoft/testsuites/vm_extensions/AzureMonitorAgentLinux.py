@@ -57,10 +57,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             # Delete VM Extension if already present
             extension.delete("AzureMonitorLinuxAgent")
         except HttpResponseError as identifier:
-            if any(
-                s in str(identifier)
-                for s in ["was not found"]
-            ):
+            if any(s in str(identifier) for s in ["was not found"]):
                 log.info("AzureMonitorLinuxAgent is not already installed")
 
         extension_result = extension.create_or_update(
@@ -78,7 +75,9 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         # Delete VM Extension
         extension.delete("AzureMonitorLinuxAgent")
 
-        assert_that(extension.check_exist("AzureMonitorLinuxAgent")).described_as(
+        assert_that(
+            extension.check_exist("AzureMonitorLinuxAgent")
+        ).described_as(
             "Found the VM Extension still unexpectedly exists on the VM after deletion"
         ).is_false()
 
