@@ -107,6 +107,27 @@ class Mount(Tool):
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
+    @retry(tries=24, delay=5)
+    def remount(
+        self,
+        point: str,
+        options: List[str],
+    ) -> None:
+        runline = [self.command]
+        if isinstance(self.node.os, BSD):
+            # BSD allows updating mount options with -u flag
+            # User must specify all options on the commandline
+            runline.append("-u")
+        else:
+            # Linux 'mount' allows remounting using old mount options
+            # ex: mount -o remount,exec /path
+            # will remount path and replace noexec with exec, but keep other any options
+            options = ["remount"] + options
+        runline.append(f"-o {','.join(options)}")
+        runline.append(f"{point}")
+        cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+
     def umount(
         self, disk_name: str, point: str, erase: bool = True, fs_type: str = ""
     ) -> None:
@@ -125,7 +146,7 @@ class Mount(Tool):
         ):
             raise LisaException(f"Fail to umount {point}: {cmd_result.stdout}")
 
-    def get_partition_info(self) -> List[PartitionInfo]:
+    def get_partition_info(self, mountpoint: str = "") -> List[PartitionInfo]:
         # partition entries in the output are of the form
         # /dev/<name> on <mount_point> type <type>
         # Example:
@@ -155,7 +176,16 @@ class Mount(Tool):
                 )
 
         self._log.debug(f"Found disk partitions : {partition_info}")
-        return partition_info
+        if mountpoint:
+            return list(
+                [
+                    partition
+                    for partition in partition_info
+                    if partition.mount_point == mountpoint
+                ]
+            )
+        else:
+            return partition_info
 
     def get_mount_point_for_partition(self, partition_name: str) -> Optional[str]:
         partition_info = self.get_partition_info()

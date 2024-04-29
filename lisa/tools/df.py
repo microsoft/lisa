@@ -33,7 +33,7 @@ class Df(Tool):
         ).stdout
         df_entries = find_patterns_groups_in_lines(out, [self._DF_ENTRY_REGEX])[0]
         if len(df_entries) == 0:
-            self._log.warn(f"Path: {directory} not exist!")
+            self._log.info(f"Path: {directory} not exist!")
             return None
         df_entry = df_entries[0]
         return PartitionInfo(
