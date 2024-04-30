@@ -31,7 +31,6 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
-from lisa.nic import Nics
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
