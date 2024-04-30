@@ -36,6 +36,17 @@ PATTERN_PCI_DEVICE = re.compile(
     re.MULTILINE,
 )
 
+# lspci -n
+# 19e3:00:00.0 0108: 1414:b111 (rev 01)
+# 2b5c:00:00.0 0108: 1414:b111 (rev 01)
+# d2e9:00:00.0 0108: 1414:00a9
+# d3f4:00:02.0 0200: 15b3:101a (rev 80)
+PATTERN_PCI_DEVICE_ID = re.compile(
+    r"^(?P<slot>[^\s]+)\s+(?P<controller_id>[0-9a-fA-F]{4}):\s+"
+    r"(?P<vendor_id>[0-9a-fA-F]{4}):(?P<device_id>[0-9a-fA-F]{4})",
+    re.MULTILINE,
+)
+
 DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: ["Ethernet controller"],
     constants.DEVICE_TYPE_NVME: ["Non-Volatile memory controller"],
@@ -46,6 +57,51 @@ VENDOR_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_GPU: ["NVIDIA Corporation"],
 }
 
+DEVICE_ID_DICT: Dict[str, List[str]] = {
+    constants.DEVICE_TYPE_SRIOV: [
+        "1004", # Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function]
+        "1016", # Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function]
+        "101a", # Mellanox Technologies MT28800 Family [ConnectX-5 Ex Virtual Function]
+    ],
+    constants.DEVICE_TYPE_NVME: [
+        "b111" # Microsoft Corporation Device, Local NVMe discs
+    ],
+    constants.DEVICE_TYPE_ASAP: [
+        "00a9" # Remote discs connected using NVMe disc controller
+    ],
+    constants.DEVICE_TYPE_GPU: [
+        "1db4", # NVIDIA Corporation GV100GL [Tesla V100 PCIe 16GB]
+        "1eb8", # NVIDIA Corporation TU104GL [Tesla T4]
+        "13f2", # NVIDIA Corporation GM204GL [Tesla M60]
+        "74b5", # Advanced Micro Devices, Inc. [AMD/ATI]
+    ],
+}
+
+VENDOR_ID_DICT: Dict[str, List[str]] = {
+    constants.DEVICE_TYPE_SRIOV: [
+        "1414", # Microsoft Corporation
+        "15b3" # Mellanox Technologies
+    ],
+    constants.DEVICE_TYPE_NVME: [
+        "1414" # Microsoft Corporation
+    ],
+    constants.DEVICE_TYPE_GPU: [
+        "10de" # NVIDIA Corporation
+    ],
+}
+
+CONTROLLER_ID_DICT: Dict[str, List[str]] = {
+    constants.DEVICE_TYPE_SRIOV: [
+        "0200", # Ethernet controller
+    ],
+    constants.DEVICE_TYPE_NVME: [
+        "0108", # Non-Volatile memory controller
+    ],
+    constants.DEVICE_TYPE_GPU: [
+        "0302", # VGA compatible controller"
+    ],
+}
+
 # Kernel driver in use: mlx4_core
 # Kernel driver in use: mlx5_core
 # Kernel driver in use: mlx4_core\r
@@ -54,8 +110,8 @@ PATTERN_MODULE_IN_USE = re.compile(r"Kernel driver in use: ([A-Za-z0-9_-]*)", re
 
 
 class PciDevice:
-    def __init__(self, pci_device_raw: str) -> None:
-        self.parse(pci_device_raw)
+    def __init__(self, pci_device_raw: str, pci_ids: Dict[str, Any]) -> None:
+        self.parse(pci_device_raw, pci_ids)
 
     def __str__(self) -> str:
         return (
@@ -63,15 +119,22 @@ class PciDevice:
             f"class {self.device_class} "
             f"vendor {self.vendor} "
             f"info: {self.device_info} "
+            f"vendor_id: {self.device_id} "
+            f"device_id: {self.device_id} "
+            f"controller_id: {self.controller_id} "
         )
 
-    def parse(self, raw_str: str) -> None:
+    def parse(self, raw_str: str, pci_ids: Dict[str, Any]) -> None:
         matched_pci_device_info = PATTERN_PCI_DEVICE.match(raw_str)
         if matched_pci_device_info:
             self.slot = matched_pci_device_info.group("slot")
             self.device_class = matched_pci_device_info.group("device_class")
             self.vendor = matched_pci_device_info.group("vendor")
             self.device_info = matched_pci_device_info.group("device")
+            if pci_ids:
+                self.device_id = pci_ids[self.slot]["device_id"]
+                self.vendor_id = pci_ids[self.slot]["vendor_id"]
+                self.controller_id = pci_ids[self.slot]["controller_id"]
         else:
             raise LisaException("cannot find any matched pci devices")
 
@@ -109,22 +172,63 @@ class Lspci(Tool):
         return devices_slots
 
     def get_devices_by_type(
-        self, device_type: str, force_run: bool = False
+        self, device_type: str, force_run: bool = False, use_pci_ids: bool = False
     ) -> List[PciDevice]:
         if device_type.upper() not in DEVICE_TYPE_DICT.keys():
             raise LisaException(
                 f"pci_type '{device_type}' is not supported to be searched."
             )
-        class_names = DEVICE_TYPE_DICT[device_type.upper()]
         devices_list = self.get_devices(force_run)
-        device_type_list = [x for x in devices_list if x.device_class in class_names]
+        device_type_list = []
+        if use_pci_ids:
+            for device in devices_list:
+                if (
+                    device.controller_id in CONTROLLER_ID_DICT[device_type.upper()]
+                    and device.vendor_id in VENDOR_ID_DICT[device_type.upper()]
+                    and device.device_id in DEVICE_ID_DICT[device_type.upper()]
+                ):
+                    device_type_list.append(device)
+        else:
+            class_names = DEVICE_TYPE_DICT[device_type.upper()]
+            device_type_list = [x for x in devices_list if x.device_class in class_names]
         return device_type_list
 
     def get_devices(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
+            self._pci_ids = {}
             # Ensure pci device ids and name mappings are updated.
-            self.node.execute("update-pciids", sudo=True, shell=True)
+            self.node.execute("update-pciids", sudo=True)
+
+            # Fetching the id information using 'lspci -nnm' is not reliable
+            # due to inconsistencies in device id patterns.
+            # Example output of 'lspci -nnm':
+            # d2e9:00:00.0 "Non-Volatile memory controller [0108]" "Microsoft Corporation [1414]" "Device [00a9]" -p02 "Microsoft Corporation [1414]" "Device [0000]" # noqa: E501
+            # d3f4:00:02.0 "Ethernet controller [0200]" "Mellanox Technologies [15b3]" "MT28800 Family [ConnectX-5 Ex Virtual Function] [101a]" -r80 "Mellanox Technologies [15b3]" "MT28800 Family [ConnectX-5 Ex Virtual Function] [0127]" # noqa: E501
+            # Sample 'lspci -n' output for above devices:
+            # d2e9:00:00.0 0108: 1414:00a9
+            # d3f4:00:02.0 0200: 15b3:101a (rev 80)
+            # Fetch pci ids using 'lspci -n':
+            result = self.run(
+                "-n",
+                force_run=force_run,
+                shell=True,
+                expected_exit_code=0,
+                sudo=True,
+            )
+            for pci_raw in result.stdout.splitlines():
+                pci_device_id_info = {}
+                matched_pci_device_info = PATTERN_PCI_DEVICE_ID.match(pci_raw)
+                if matched_pci_device_info:
+                    pci_device_id_info[matched_pci_device_info.group("slot")] = {
+                        "device_id": matched_pci_device_info.group("device_id"),
+                        "vendor_id": matched_pci_device_info.group("vendor_id"),
+                        "controller_id": matched_pci_device_info.group("controller_id")
+                    }
+                else:
+                    raise LisaException("cannot find any matched pci ids")
+                self._pci_ids.update(pci_device_id_info)
+
             result = self.run(
                 "-m",
                 force_run=force_run,
@@ -133,13 +237,12 @@ class Lspci(Tool):
                 sudo=True,
             )
             for pci_raw in result.stdout.splitlines():
-                pci_device = PciDevice(pci_raw)
+                pci_device = PciDevice(pci_raw, self._pci_ids)
                 self._pci_devices.append(pci_device)
-
         return self._pci_devices
 
-    def disable_devices_by_type(self, device_type: str) -> int:
-        devices = self.get_devices_by_type(device_type, force_run=True)
+    def disable_devices_by_type(self, device_type: str, use_pci_ids: bool = False) -> int:
+        devices = self.get_devices_by_type(device_type, force_run=True, use_pci_ids=use_pci_ids)
         if 0 == len(devices):
             raise LisaException(f"No matched device type {device_type} found.")
         for device in devices:
@@ -234,8 +337,8 @@ class LspciBSD(Lspci):
             self._enable_device(device)
         self._disabled_devices.clear()
 
-    def disable_devices_by_type(self, device_type: str) -> int:
-        devices = self.get_device_names_by_type(device_type, force_run=True)
+    def disable_devices_by_type(self, device_type: str, use_pci_ids: bool = False) -> int:
+        devices = self.get_device_names_by_type(device_type, force_run=True, use_pci_ids=use_pci_ids)
         for device in devices:
             self._disable_device(device)
             self._disabled_devices.add(device)
