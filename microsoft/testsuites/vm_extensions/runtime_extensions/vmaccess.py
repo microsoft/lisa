@@ -14,13 +14,13 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, CBLMariner
+from lisa.secret import add_secret
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.tools import Usermod
+from lisa.util import generate_random_chars
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     create_and_verify_vmaccess_extension_run,
-)
-from lisa.tools import (
-    Usermod,
 )
 
 
@@ -42,6 +42,12 @@ def _generate_and_retrieve_openssh_key(node: Node, filename: str) -> str:
         expected_exit_code_failure_message="Failed to open OpenSSH key file.",
     )
     return result.stdout
+
+
+def _generate_password() -> str:
+    password = generate_random_chars()
+    add_secret(password)
+    return password
 
 
 def _generate_and_retrieve_ssh2_key(node: Node, filename: str) -> str:
@@ -161,8 +167,8 @@ class VMAccessTests(TestSuite):
     )
     def verify_valid_password_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser"
-        password = str(uuid.uuid4())
-        incorrect_password = str(uuid.uuid4())
+        password = _generate_password()
+        incorrect_password = _generate_password()
         protected_settings = {
             "username": username,
             "password": password,
@@ -204,7 +210,7 @@ class VMAccessTests(TestSuite):
     )
     def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-both"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         ssh_filename = f"/tmp/{str(uuid.uuid4())}"
         openssh_key = _generate_and_retrieve_openssh_key(
             node=node, filename=ssh_filename
@@ -233,7 +239,7 @@ class VMAccessTests(TestSuite):
         self, log: Logger, node: Node
     ) -> None:
         username = "vmaccessuser-none"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         protected_settings = {"username": username}
 
         create_and_verify_vmaccess_extension_run(
@@ -286,7 +292,7 @@ class VMAccessTests(TestSuite):
     )
     def verify_remove_username_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-remove"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         protected_settings = {"username": username, "password": password}
 
         create_and_verify_vmaccess_extension_run(
