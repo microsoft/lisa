@@ -89,8 +89,9 @@ def _validate_password(
 
     if isinstance(node.os, CBLMariner):
         if node.os.information.version >= "2.0.0":
-            # In Mariner 2.0, there is a security restriction that only allows wheel group users to use 'su' command
-            # Add current user (specified during VM creation) to wheel group in Mariner
+            # In Mariner 2.0, there is a security restriction that only allows wheel
+            # group users to use 'su' command. Add current user
+            # (specified during VM creation) to wheel group in Mariner
             node.tools[Usermod].add_user_to_group("wheel", sudo=True)
 
     # simple command to determine if username password combination is valid/invalid
