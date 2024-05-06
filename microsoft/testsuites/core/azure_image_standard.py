@@ -900,7 +900,7 @@ class AzureImageStandard(TestSuite):
             f" {node.os.name} {node.os.information.version}"
         ).is_empty()
 
- @TestCaseMetadata(
+    @TestCaseMetadata(
         description="""
         This test will check ERROR, WARNING messages from /var/log/cloud-init.log
         and also check cloud-init exit status.
