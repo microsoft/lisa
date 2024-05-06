@@ -7,13 +7,14 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Ls, Reboot
 from lisa.util import SkippedException
+from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 
 @TestSuiteMetadata(
     area="mshv",
     category="functional",
     description="""
-    This test suite is to test VM working well after updating MSHV on VM
+    This test suite is to test VM working well after updating Microsoft Hyper-V on VM
     and rebooting.
     """,
 )
@@ -41,8 +42,7 @@ class MshvHostInstallSuite(TestSuite):
 
         The test expects the directory containing MSHV binaries to be passed in
         the mshv_binpath variable.
-        """,
-        timeout=120,
+        """
     )
     def verify_mshv_install_succeeds(
         self,
@@ -50,7 +50,6 @@ class MshvHostInstallSuite(TestSuite):
         node: Node,
         variables: Dict[str, Any],
         log_path: Path,
-        result: TestResult,
     ) -> None:
         binpath = variables.get(self.CONFIG_BINPATH, "")
         if not binpath:
@@ -83,6 +82,10 @@ class MshvHostInstallSuite(TestSuite):
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
 
+        node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
+
         # 2. check that mshv comes up
         mshv = node.tools[Ls].path_exists("/dev/mshv", sudo=True)
-        assert mshv
+        assert (
+            mshv
+        ), "/dev/mshv not detected upon reboot. Check dmesg for mshv driver errors."

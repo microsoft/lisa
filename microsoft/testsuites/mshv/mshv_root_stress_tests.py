@@ -120,7 +120,7 @@ class MshvHostStressTestSuite(TestSuite):
                     test_status=TestStatus.FAILED,
                     test_message=repr(e),
                 )
-        self._save_dmesg_logs(node, log_path)
+        node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)
         return
 
@@ -221,9 +221,3 @@ class MshvHostStressTestSuite(TestSuite):
             return PurePath("/mnt")
         else:
             return node.working_path
-
-    def _save_dmesg_logs(self, node: Node, log_path: Path) -> None:
-        dmesg_str = node.tools[Dmesg].get_output()
-        dmesg_path = log_path / "dmesg"
-        with open(str(dmesg_path), "w", encoding="utf-8") as f:
-            f.write(dmesg_str)
