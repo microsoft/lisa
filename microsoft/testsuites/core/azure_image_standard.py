@@ -79,6 +79,9 @@ class AzureImageStandard(TestSuite):
     ]
 
     # pattern to get failure, error, warnings from cloud-init.log
+    # examples from cloud-init.log:
+    # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output: Nothing to do. 
+    # cloud-init[958]: 2024-01-23 17:21:19,844 - photon.py[ERROR]: Error while installing packages: Nothing to do.
     _ERROR_WARNING_pattern: List[Pattern[str]] = [
         re.compile(r"^(.*ERROR.*)$", re.MULTILINE),
         re.compile(r"^(.*WARNING.*)$", re.MULTILINE),
@@ -904,7 +907,6 @@ class AzureImageStandard(TestSuite):
         description="""
         This test will check ERROR, WARNING messages from /var/log/cloud-init.log
         and also check cloud-init exit status.
-
         Steps:
         1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
         2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status 
@@ -933,7 +935,10 @@ class AzureImageStandard(TestSuite):
                 ).is_empty()
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 if 0 != cmd_result.exit_code:
-                    raise LisaException(f"cloud-init status failed with exit_code {cmd_result.exit_code}")
+                    raise LisaException(
+                        f"cloud-init status failed"
+                        "with exit_code {cmd_result.exit_code}."
+                    )
             else:
                 raise LisaException(f"cloud-init.log not exists")
         else:
