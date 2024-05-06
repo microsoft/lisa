@@ -63,24 +63,21 @@ class MshvHostInstallSuite(TestSuite):
         log.info(f"binpath: {binpath}")
 
         # Copy Hvix64.exe, kdstub.dll, lxhvloader.dll into test machine
+        copy_tool = node.tools[Cp]
         node.shell.copy(test_hvix_file_path, self._test_path_init_hvix)
-        node.tools[Cp].copy(
-            self._test_path_init_hvix, self._test_path_dst_hvix, sudo=True
-        )
+        copy_tool.copy(self._test_path_init_hvix, self._test_path_dst_hvix, sudo=True)
 
         node.shell.copy(test_kdstub_file_path, self._init_path_init_kdstub)
-        node.tools[Cp].copy(
+        copy_tool.copy(
             self._init_path_init_kdstub, self._test_path_dst_kdstub, sudo=True
         )
 
         node.shell.copy(test_lxhvloader_file_path, self._init_path_init_lxhvloader)
-        node.tools[Cp].copy(
+        copy_tool.copy(
             self._init_path_init_lxhvloader, self._test_path_dst_lxhvloader, sudo=True
         )
 
-        reboot_tool = node.tools[Reboot]
-        reboot_tool.reboot_and_check_panic(log_path)
-
+        node.tools[Reboot].reboot_and_check_panic(log_path)
         node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
 
         # 2. check that mshv comes up
