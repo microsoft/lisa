@@ -925,13 +925,12 @@ class AzureImageStandard(TestSuite):
                         log_output, self._ERROR_WARNING_pattern
                     )
                     for x in sublist
-                    if x and x not in ignored_candidates
+                    if x 
                 ]
                 assert_that(found_results).described_as(
                     "unexpected ERROR/WARNING shown up in cloud-init.log"
                     f" {node.os.name} {node.os.information.version}"
                 ).is_empty()
-
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 if 0 != cmd_result.exit_code:
                     raise LisaException(f"cloud-init status failed with exit_code {cmd_result.exit_code}")
@@ -939,7 +938,6 @@ class AzureImageStandard(TestSuite):
                 raise LisaException(f"cloud-init.log not exists")
         else:
             return
-
 
     @TestCaseMetadata(
         description="""
