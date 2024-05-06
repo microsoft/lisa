@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.testsuite import TestResult
 from lisa.tools import Cp, Ls, Reboot
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
