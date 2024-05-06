@@ -910,7 +910,7 @@ class AzureImageStandard(TestSuite):
 
         Steps:
         1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
-        2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status 
+        2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status
          fail the case.
         """,
         priority=1,
@@ -928,7 +928,7 @@ class AzureImageStandard(TestSuite):
                         log_output, self._ERROR_WARNING_pattern
                     )
                     for x in sublist
-                    if x 
+                    if x
                 ]
                 assert_that(found_results).described_as(
                     "unexpected ERROR/WARNING shown up in cloud-init.log"
@@ -937,7 +937,7 @@ class AzureImageStandard(TestSuite):
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 if 0 != cmd_result.exit_code:
                     raise LisaException(
-                        "cloud-init status failed with exit_code" 
+                        "cloud-init status failed with exit_code"
                         f" {cmd_result.exit_code}."
                     )
             else:
