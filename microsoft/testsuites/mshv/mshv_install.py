@@ -20,29 +20,17 @@ from lisa.util import SkippedException
 class MshvHostInstallSuite(TestSuite):
     CONFIG_BINPATH = "mshv_binpath"
 
-    _test_path_init_hvix = (
-        Path("/home/cloud") / "hvix64.exe"
-    )
+    _test_path_init_hvix = Path("/home/cloud") / "hvix64.exe"
 
-    _init_path_init_kdstub = (
-        Path("/home/cloud") / "kdstub.dll"
-    )
+    _init_path_init_kdstub = Path("/home/cloud") / "kdstub.dll"
 
-    _init_path_init_lxhvloader = (
-        Path("/home/cloud") / "lxhvloader.dll"
-    )
+    _init_path_init_lxhvloader = Path("/home/cloud") / "lxhvloader.dll"
 
-    _test_path_dst_hvix = (
-        Path("/boot/efi/Windows/System32") / "hvix64.exe"
-    )
+    _test_path_dst_hvix = Path("/boot/efi/Windows/System32") / "hvix64.exe"
 
-    _test_path_dst_kdstub = (
-        Path("/boot/efi/Windows/System32") / "kdstub.dll"
-    )
+    _test_path_dst_kdstub = Path("/boot/efi/Windows/System32") / "kdstub.dll"
 
-    _test_path_dst_lxhvloader = (
-        Path("/boot/efi") / "lxhvloader.dll"
-    )
+    _test_path_dst_lxhvloader = Path("/boot/efi") / "lxhvloader.dll"
 
     @TestCaseMetadata(
         description="""
@@ -78,16 +66,19 @@ class MshvHostInstallSuite(TestSuite):
 
         # Copy Hvix64.exe, kdstub.dll, lxhvloader.dll into test machine
         node.shell.copy(test_hvix_file_path, self._test_path_init_hvix)
-        node.tools[Cp].copy(self._test_path_init_hvix,
-                            self._test_path_dst_hvix, sudo=True)
+        node.tools[Cp].copy(
+            self._test_path_init_hvix, self._test_path_dst_hvix, sudo=True
+        )
 
         node.shell.copy(test_kdstub_file_path, self._init_path_init_kdstub)
-        node.tools[Cp].copy(self._init_path_init_kdstub,
-                            self._test_path_dst_kdstub, sudo=True)
+        node.tools[Cp].copy(
+            self._init_path_init_kdstub, self._test_path_dst_kdstub, sudo=True
+        )
 
         node.shell.copy(test_lxhvloader_file_path, self._init_path_init_lxhvloader)
-        node.tools[Cp].copy(self._init_path_init_lxhvloader,
-                            self._test_path_dst_lxhvloader, sudo=True)
+        node.tools[Cp].copy(
+            self._init_path_init_lxhvloader, self._test_path_dst_lxhvloader, sudo=True
+        )
 
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
