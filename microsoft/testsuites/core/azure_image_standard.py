@@ -911,7 +911,7 @@ class AzureImageStandard(TestSuite):
         Steps:
         1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
         2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status 
-        fail the case.
+         fail the case.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
@@ -937,7 +937,8 @@ class AzureImageStandard(TestSuite):
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 if 0 != cmd_result.exit_code:
                     raise LisaException(
-                        f"cloud-init status failed with exit_code {cmd_result.exit_code}."
+                        "cloud-init status failed with exit_code" 
+                        f" {cmd_result.exit_code}."
                     )
             else:
                 raise LisaException(f"cloud-init.log not exists")
