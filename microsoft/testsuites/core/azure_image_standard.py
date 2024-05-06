@@ -941,7 +941,7 @@ class AzureImageStandard(TestSuite):
                         f" {cmd_result.exit_code}."
                     )
             else:
-                raise LisaException(f"cloud-init.log not exists")
+                raise LisaException("cloud-init.log not exists")
         else:
             return
 
