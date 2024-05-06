@@ -907,6 +907,7 @@ class AzureImageStandard(TestSuite):
         description="""
         This test will check ERROR, WARNING messages from /var/log/cloud-init.log
         and also check cloud-init exit status.
+
         Steps:
         1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
         2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status 
@@ -917,7 +918,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
-        if isinstance(self.node.os, CBLMariner):
+        if isinstance(node.os, CBLMariner):
             if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
                 log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
 
@@ -936,8 +937,7 @@ class AzureImageStandard(TestSuite):
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 if 0 != cmd_result.exit_code:
                     raise LisaException(
-                        f"cloud-init status failed"
-                        "with exit_code {cmd_result.exit_code}."
+                        f"cloud-init status failed with exit_code {cmd_result.exit_code}."
                     )
             else:
                 raise LisaException(f"cloud-init.log not exists")
