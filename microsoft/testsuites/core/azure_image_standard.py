@@ -80,8 +80,8 @@ class AzureImageStandard(TestSuite):
 
     # pattern to get failure, error, warnings from cloud-init.log
     # examples from cloud-init.log:
-    # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output: Nothing to do. 
-    # cloud-init[958]: 2024-01-23 17:21:19,844 - photon.py[ERROR]: Error while installing packages: Nothing to do.
+    # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output.
+    # cloud-init[958]: photon.py[ERROR]: Error while installing packages
     _ERROR_WARNING_pattern: List[Pattern[str]] = [
         re.compile(r"^(.*ERROR.*)$", re.MULTILINE),
         re.compile(r"^(.*WARNING.*)$", re.MULTILINE),
