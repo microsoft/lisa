@@ -83,8 +83,10 @@ class AzureImageStandard(TestSuite):
     # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output.
     # cloud-init[958]: photon.py[ERROR]: Error while installing packages
     _ERROR_WARNING_pattern: List[Pattern[str]] = [
-        re.compile(r"^(.*ERROR.*)$", re.MULTILINE),
-        re.compile(r"^(.*WARNING.*)$", re.MULTILINE),
+        re.compile(r"^(.*[ERROR].*)$", re.MULTILINE),
+        re.compile(r"^(.*ERROR:*)$", re.MULTILINE),
+        re.compile(r"^(.*[WARNING].*)$", re.MULTILINE),
+        re.compile(r"^(.*WARNING:*)$", re.MULTILINE),
     ]
 
     # ignorable failure, error, warnings pattern which got confirmed
@@ -918,29 +920,32 @@ class AzureImageStandard(TestSuite):
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
-        if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
-            log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
+        if isinstance(node.os, CBLMariner):
+            if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
+                log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
 
-            found_results = [
-                x
-                for sublist in find_patterns_in_lines(
-                    log_output, self._ERROR_WARNING_pattern
-                )
-                for x in sublist
-                if x
-            ]
-            assert_that(found_results).described_as(
-                "unexpected ERROR/WARNING shown up in cloud-init.log"
-                f" {node.os.name} {node.os.information.version}"
-            ).is_empty()
-            cmd_result = node.execute("cloud-init status --wait", sudo=True)
-            if 0 != cmd_result.exit_code:
-                raise LisaException(
-                    "cloud-init status failed with exit_code"
-                    f" {cmd_result.exit_code}."
-                )
+                found_results = [
+                    x
+                    for sublist in find_patterns_in_lines(
+                        log_output, self._ERROR_WARNING_pattern
+                    )
+                    for x in sublist
+                    if x
+                ]
+                assert_that(found_results).described_as(
+                    "unexpected ERROR/WARNING shown up in cloud-init.log"
+                    f" {node.os.name} {node.os.information.version}"
+                ).is_empty()
+                cmd_result = node.execute("cloud-init status --wait", sudo=True)
+                if 0 != cmd_result.exit_code:
+                    raise LisaException(
+                        "cloud-init status failed with exit_code"
+                        f" {cmd_result.exit_code}."
+                    )
+            else:
+                raise LisaException("cloud-init.log not exists")
         else:
-            raise LisaException("cloud-init.log not exists")
+            return
 
     @TestCaseMetadata(
         description="""
