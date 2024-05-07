@@ -398,6 +398,7 @@ class DpdkTestpmd(Tool):
         self,
         search_key_constant: str,
         testpmd_output: str,
+        expect_zeroes: bool = False,
     ) -> List[int]:
         # Find all data in the output that matches
         # Apply a list of filters to the data
@@ -416,7 +417,8 @@ class DpdkTestpmd(Tool):
             )
         )
         cast_to_ints = list(map(int, matches))
-        cast_to_ints = _discard_first_zeroes(cast_to_ints)
+        if not expect_zeroes:
+            cast_to_ints = _discard_first_zeroes(cast_to_ints)
         return _discard_first_and_last_sample(cast_to_ints)
 
     def populate_performance_data(self) -> None:
@@ -451,11 +453,19 @@ class DpdkTestpmd(Tool):
         self._check_pps_data("TX")
         return min(self.tx_pps_data)
 
-    def get_mean_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self._tx_pps_key)
+    def get_mean_tx_pps_sriov_rescind(
+        self, using_netvsc_pmd: bool = False
+    ) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(
+            self._tx_pps_key, using_netvsc_pmd=using_netvsc_pmd
+        )
 
-    def get_mean_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_rescind(self._rx_pps_key)
+    def get_mean_rx_pps_sriov_rescind(
+        self, using_netvsc_pmd: bool = False
+    ) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_rescind(
+            self._rx_pps_key, using_netvsc_pmd=using_netvsc_pmd
+        )
 
     def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
         if apps:
@@ -1086,6 +1096,7 @@ class DpdkTestpmd(Tool):
     def _get_pps_sriov_rescind(
         self,
         key_constant: str,
+        using_netvsc_pmd: bool = False,
     ) -> Tuple[int, int, int]:
         if not all(
             [
@@ -1103,6 +1114,7 @@ class DpdkTestpmd(Tool):
         during_rescind = self.get_data_from_testpmd_output(
             key_constant,
             self._testpmd_output_during_rescind,
+            expect_zeroes=using_netvsc_pmd,
         )
         after_reenable = self.get_data_from_testpmd_output(
             key_constant,

@@ -400,18 +400,64 @@ class Dpdk(TestSuite):
         rescind_tx_pps_set = testpmd.get_mean_tx_pps_sriov_rescind()
         self._check_rx_or_tx_pps_sriov_rescind("TX", rescind_tx_pps_set)
 
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (send only version)
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_sriov_rescind_netvsc_send_only(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        test_kit = initialize_node_resources(node, log, variables, "netvsc")
+        testpmd = test_kit.testpmd
+        test_nic = node.nics.get_secondary_nic()
+        testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
+        kit_cmd_pairs = {
+            test_kit: testpmd_cmd,
+        }
+
+        run_testpmd_concurrent(
+            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, rescind_sriov=True
+        )
+
+        rescind_tx_pps_set = testpmd.get_mean_tx_pps_sriov_rescind(
+            using_netvsc_pmd=True
+        )
+        self._check_rx_or_tx_pps_sriov_rescind(
+            "TX", rescind_tx_pps_set, using_netvsc_pmd=True
+        )
+
     def _check_rx_or_tx_pps_sriov_rescind(
-        self, tx_or_rx: str, pps: Tuple[int, int, int]
+        self, tx_or_rx: str, pps: Tuple[int, int, int], using_netvsc_pmd: bool = False
     ) -> None:
         before_rescind, during_rescind, after_reenable = pps
         self._check_rx_or_tx_pps(tx_or_rx, before_rescind, sriov_enabled=True)
-        self._check_rx_or_tx_pps(tx_or_rx, during_rescind, sriov_enabled=False)
+        self._check_rx_or_tx_pps(
+            tx_or_rx, during_rescind, sriov_enabled=False, expect_zero=using_netvsc_pmd
+        )
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
 
     def _check_rx_or_tx_pps(
-        self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
+        self,
+        tx_or_rx: str,
+        pps: int,
+        sriov_enabled: bool = True,
+        expect_zero: bool = False,
     ) -> None:
-        if sriov_enabled:
+        if expect_zero:
+            assert_that(pps).described_as(
+                f"{tx_or_rx}-PPS ({pps}) expected to be close to zero"
+                "during netvsc rescind!"
+            )
+        elif sriov_enabled:
             assert_that(pps).described_as(
                 f"{tx_or_rx}-PPS ({pps}) should have been greater "
                 "than 2^20 (~1m) PPS before sriov disable."
