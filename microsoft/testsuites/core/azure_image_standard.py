@@ -945,8 +945,11 @@ class AzureImageStandard(TestSuite):
                 raise LisaException("cloud-init.log not exists")
         else:
             raise SkippedException(
-                UnsupportedDistroException(node.os, "unsupported distro to run verify_cloud_init_error_status test.")
+                UnsupportedDistroException(
+                    node.os, 
+                    "unsupported distro to run verify_cloud_init_error_status test."
                 )
+            )
 
     @TestCaseMetadata(
         description="""
