@@ -939,8 +939,7 @@ class AzureImageStandard(TestSuite):
                 ).is_empty()
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 cmd_result.assert_exit_code(
-                    0,
-                    f"cloud-init exit status failed with {cmd_result.exit_code}"
+                    0, f"cloud-init exit status failed with {cmd_result.exit_code}"
                 )
             else:
                 raise LisaException("cloud-init.log not exists")
