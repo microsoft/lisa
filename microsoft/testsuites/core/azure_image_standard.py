@@ -922,8 +922,7 @@ class AzureImageStandard(TestSuite):
         cat = node.tools[Cat]
         if isinstance(node.os, CBLMariner):
             if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
-                log_output = cat.read(
-                    "/var/log/cloud-init.log",
+                log_output = cat.read("/var/log/cloud-init.log",
                     force_run=True, sudo=True
                 )
                 found_results = [
