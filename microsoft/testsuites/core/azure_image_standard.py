@@ -946,7 +946,7 @@ class AzureImageStandard(TestSuite):
         else:
             raise SkippedException(
                 UnsupportedDistroException(
-                    node.os, 
+                    node.os,
                     "unsupported distro to run verify_cloud_init_error_status test."
                 )
             )
