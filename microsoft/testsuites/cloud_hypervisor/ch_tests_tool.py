@@ -96,7 +96,7 @@ class CloudHypervisorTests(Tool):
             skip_args = ""
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
-        if isinstance(self.node.os, CBLMariner):
+        if isinstance(self.node.os, CBLMariner) and hypervisor == "mshv":
             # Install dependency to create VDPA Devices
             self.node.os.install_packages(["iproute", "iproute-devel"])
             # Load VDPA kernel module and create devices
