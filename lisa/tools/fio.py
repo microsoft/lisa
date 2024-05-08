@@ -265,7 +265,7 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
     ) -> str:
-        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
+        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "io_uring"
         cmd = (
             f"--ioengine={ioengine} --filename={filename} "
             f"--readwrite={mode} --iodepth={iodepth} "
