@@ -923,7 +923,7 @@ class AzureImageStandard(TestSuite):
         if isinstance(node.os, CBLMariner):
             if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
                 log_output = cat.read(
-                    "/var/log/cloud-init.log", 
+                    "/var/log/cloud-init.log",
                     force_run=True, sudo=True
                 )
                 found_results = [
@@ -941,7 +941,7 @@ class AzureImageStandard(TestSuite):
                 ).is_empty()
                 cmd_result = node.execute("cloud-init status --wait", sudo=True)
                 cmd_result.assert_exit_code(
-                    0, 
+                    0,
                     f"cloud-init exit status failed with {cmd_result.exit_code}"
                 )
             else:
