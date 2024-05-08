@@ -921,12 +921,9 @@ class AzureImageStandard(TestSuite):
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
         if isinstance(node.os, CBLMariner):
-            if node.shell.exists(node.get_pure_path("/var/log/cloud-init.log")):
-                log_output = cat.read(
-                    "/var/log/cloud-init.log",
-                    force_run=True, 
-                    sudo=True
-                )
+            cloud_init_log = "/var/log/cloud-init.log"
+            if node.shell.exists(node.get_pure_path(cloud_init_log)):
+                log_output = cat.read(cloud_init_log, force_run=True, sudo=True)
                 found_results = [
                     x
                     for sublist in find_patterns_in_lines(
