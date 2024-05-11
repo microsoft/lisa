@@ -78,6 +78,17 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*warning.*)$", re.MULTILINE),
     ]
 
+    # pattern to get failure, error, warnings from cloud-init.log
+    # examples from cloud-init.log:
+    # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output.
+    # cloud-init[958]: photon.py[ERROR]: Error while installing packages
+    _ERROR_WARNING_pattern: List[Pattern[str]] = [
+        re.compile(r"^(.*\[ERROR\]*)$", re.MULTILINE),
+        re.compile(r"^(.*ERROR:*)$", re.MULTILINE),
+        re.compile(r"^(.*\[WARNING\]*)$", re.MULTILINE),
+        re.compile(r"^(.*WARNING:*)$", re.MULTILINE),
+    ]
+
     # ignorable failure, error, warnings pattern which got confirmed
     _error_fail_warnings_ignorable_str_list: List[Pattern[str]] = [
         re.compile(r"^(.*Perf event create on CPU 0 failed with -2.*)$", re.M),
@@ -893,6 +904,51 @@ class AzureImageStandard(TestSuite):
             "unexpected error/failure/warnings shown up in bootup log of distro"
             f" {node.os.name} {node.os.information.version}"
         ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
+        This test will check ERROR, WARNING messages from /var/log/cloud-init.log
+        and also check cloud-init exit status.
+
+        Steps:
+        1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
+        2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status
+         fail the case.
+        """,
+        priority=2,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    )
+    def verify_cloud_init_error_status(self, node: Node) -> None:
+        cat = node.tools[Cat]
+        if isinstance(node.os, CBLMariner):
+            cloud_init_log = "/var/log/cloud-init.log"
+            if node.shell.exists(node.get_pure_path(cloud_init_log)):
+                log_output = cat.read(cloud_init_log, force_run=True, sudo=True)
+                found_results = [
+                    x
+                    for sublist in find_patterns_in_lines(
+                        log_output, self._ERROR_WARNING_pattern
+                    )
+                    for x in sublist
+                    if x
+                ]
+                assert_that(found_results).described_as(
+                    "unexpected ERROR/WARNING shown up in cloud-init.log"
+                    f" {found_results}"
+                    f" {node.os.name} {node.os.information.version}"
+                ).is_empty()
+                cmd_result = node.execute("cloud-init status --wait", sudo=True)
+                cmd_result.assert_exit_code(
+                    0, f"cloud-init exit status failed with {cmd_result.exit_code}"
+                )
+            else:
+                raise LisaException("cloud-init.log not exists")
+        else:
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "unsupported distro to run verify_cloud_init test."
+                )
+            )
 
     @TestCaseMetadata(
         description="""
