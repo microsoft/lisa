@@ -1458,7 +1458,7 @@ def copy_vhd_to_storage(
     # get original vhd's hash key for comparing.
     original_key: Optional[bytearray] = None
     print(src_vhd_sas_url)
-    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url, credential=platform.credential)
+    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
     properties = original_blob_client.get_blob_properties()
     if properties.content_settings:
         original_key = properties.content_settings.get(
