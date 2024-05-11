@@ -1310,16 +1310,9 @@ def get_blob_service_client(
         assert (
             resource_group_name
         ), "resource_group_name is required, if connection_string is not set."
-        storage_credential = get_storage_credential(
-            credential=credential,
-            subscription_id=subscription_id,
-            cloud=cloud,
-            account_name=account_name,
-            resource_group_name=resource_group_name,
-        )
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
-            storage_credential,
+            credential,
         )
     return blob_service_client
 
@@ -1464,7 +1457,7 @@ def copy_vhd_to_storage(
 ) -> str:
     # get original vhd's hash key for comparing.
     original_key: Optional[bytearray] = None
-    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
+    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url, credential=platform.credential)
     properties = original_blob_client.get_blob_properties()
     if properties.content_settings:
         original_key = properties.content_settings.get(
