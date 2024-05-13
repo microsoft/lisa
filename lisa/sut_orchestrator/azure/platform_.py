@@ -2070,7 +2070,9 @@ class AzurePlatform(Platform):
         self, shared_image: SharedImageGallerySchema
     ) -> SharedImageGallerySchema:
         new_shared_image = copy.copy(shared_image)
-        compute_client = get_compute_client(self)
+        compute_client = get_compute_client(
+            self, subscription_id=shared_image.subscription_id
+        )
         rg_name = shared_image.resource_group_name
         if not shared_image.resource_group_name:
             # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
@@ -2434,7 +2436,9 @@ class AzurePlatform(Platform):
     def _get_sig_version(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
-        compute_client = get_compute_client(self)
+        compute_client = get_compute_client(
+            self, subscription_id=shared_image.subscription_id
+        )
         sig_version = compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
@@ -2478,7 +2482,9 @@ class AzurePlatform(Platform):
 
     @lru_cache(maxsize=10)  # noqa: B019
     def _get_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
-        compute_client = get_compute_client(self)
+        compute_client = get_compute_client(
+            self, subscription_id=shared_image.subscription_id
+        )
         sig = compute_client.gallery_images.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
