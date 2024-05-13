@@ -1310,16 +1310,10 @@ def get_blob_service_client(
         assert (
             resource_group_name
         ), "resource_group_name is required, if connection_string is not set."
-        storage_credential = get_storage_credential(
-            credential=credential,
-            subscription_id=subscription_id,
-            cloud=cloud,
-            account_name=account_name,
-            resource_group_name=resource_group_name,
-        )
+
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
-            storage_credential,
+            credential,
         )
     return blob_service_client
 
