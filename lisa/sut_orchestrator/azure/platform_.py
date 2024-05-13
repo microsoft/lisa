@@ -742,11 +742,9 @@ class AzurePlatform(Platform):
                 container_name = matched.group("container_name")
                 container_client = get_or_create_storage_container(
                     credential=self.credential,
-                    subscription_id=self.subscription_id,
                     cloud=self.cloud,
                     account_name=storage_name,
                     container_name=container_name,
-                    resource_group_name=self._azure_runbook.shared_resource_group_name,
                 )
                 log.debug(
                     f"deleting boot diagnostic container: {container_name}"
@@ -2464,11 +2462,9 @@ class AzurePlatform(Platform):
         result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
-            subscription_id=self.subscription_id,
             cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
-            resource_group_name=result_dict["resource_group_name"],
         )
 
         vhd_blob = container_client.get_blob_client(result_dict["blob_name"])

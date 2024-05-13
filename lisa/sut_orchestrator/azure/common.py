@@ -60,13 +60,10 @@ from azure.mgmt.storage.models import (  # type: ignore
     StorageAccountCreateParameters,
 )
 from azure.storage.blob import (
-    AccountSasPermissions,
     BlobClient,
     BlobSasPermissions,
     BlobServiceClient,
     ContainerClient,
-    ResourceTypes,
-    generate_account_sas,
     generate_blob_sas,
 )
 from azure.storage.fileshare import ShareServiceClient  # type: ignore
@@ -1226,60 +1223,36 @@ def get_storage_credential(
     return {"account_name": account_name, "account_key": key.value}
 
 
-def generate_blob_sas_token(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
+def generate_user_delegation_sas_token(
     container_name: str,
-    file_name: str,
-    expired_hours: int = 2,
-) -> Any:
-    shared_key_credential = get_storage_credential(
-        credential=credential,
-        subscription_id=subscription_id,
-        cloud=cloud,
-        account_name=account_name,
-        resource_group_name=resource_group_name,
-    )
-
-    sas_token = generate_blob_sas(
-        account_name=shared_key_credential["account_name"],
-        account_key=shared_key_credential["account_key"],
-        container_name=container_name,
-        blob_name=file_name,
-        permission=BlobSasPermissions(read=True),  # type: ignore
-        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
-    )
-    return sas_token
-
-
-def generate_sas_token(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
-    expired_hours: int = 2,
+    blob_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    account_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
     writable: bool = False,
+    expired_hours: int = 1,
 ) -> Any:
-    shared_key_credential = get_storage_credential(
-        credential=credential,
+    blob_service_client = get_blob_service_client(
         cloud=cloud,
-        subscription_id=subscription_id,
+        credential=credential,
         account_name=account_name,
-        resource_group_name=resource_group_name,
+        connection_string=connection_string,
     )
-    resource_types = ResourceTypes(  # type: ignore
-        service=True, container=True, object=True
+    start_time = datetime.now(timezone.utc)
+    expiry_time = start_time + timedelta(hours=expired_hours)
+    user_delegation_key = blob_service_client.get_user_delegation_key(
+        start_time, expiry_time
     )
-    sas_token = generate_account_sas(
-        account_name=shared_key_credential["account_name"],
-        account_key=shared_key_credential["account_key"],
-        resource_types=resource_types,
-        permission=AccountSasPermissions(read=True, write=writable),  # type: ignore
-        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
+    assert account_name, "account_name is required"
+    sas_token = generate_blob_sas(
+        account_name=account_name,
+        container_name=container_name,
+        blob_name=blob_name,
+        user_delegation_key=user_delegation_key,
+        permission=BlobSasPermissions(read=True, write=writable),  # type: ignore
+        expiry=expiry_time,
+        start=start_time,
     )
     return sas_token
 
@@ -1287,9 +1260,7 @@ def generate_sas_token(
 def get_blob_service_client(
     cloud: Cloud = AZURE_PUBLIC_CLOUD,
     credential: Optional[Any] = None,
-    subscription_id: Optional[str] = None,
     account_name: Optional[str] = None,
-    resource_group_name: Optional[str] = None,
     connection_string: Optional[str] = None,
 ) -> BlobServiceClient:
     """
@@ -1302,14 +1273,8 @@ def get_blob_service_client(
         )
     else:
         assert (
-            subscription_id
-        ), "subscription_id is required, if connection_string is not set."
-        assert (
             account_name
         ), "account_name is required, if connection_string is not set."
-        assert (
-            resource_group_name
-        ), "resource_group_name is required, if connection_string is not set."
 
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
@@ -1322,9 +1287,7 @@ def get_or_create_storage_container(
     container_name: str,
     cloud: Cloud = AZURE_PUBLIC_CLOUD,
     credential: Optional[Any] = None,
-    subscription_id: Optional[str] = None,
     account_name: Optional[str] = None,
-    resource_group_name: Optional[str] = None,
     connection_string: Optional[str] = None,
     allow_create: bool = True,
 ) -> ContainerClient:
@@ -1334,9 +1297,7 @@ def get_or_create_storage_container(
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
-        subscription_id=subscription_id,
         account_name=account_name,
-        resource_group_name=resource_group_name,
         connection_string=connection_string,
     )
     container_client = blob_service_client.get_container_client(container_name)
@@ -1467,11 +1428,9 @@ def copy_vhd_to_storage(
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=storage_name,
         container_name=SAS_COPIED_CONTAINER_NAME,
-        resource_group_name=platform._azure_runbook.shared_resource_group_name,
     )
     full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
 
@@ -1511,12 +1470,12 @@ def copy_vhd_to_storage(
                 if not os.path.exists(azcopy_path):
                     raise LisaException(f"{azcopy_path} does not exist")
 
-                sas_token = generate_sas_token(
+                sas_token = generate_user_delegation_sas_token(
+                    container_name=blob_client.container_name,
+                    blob_name=blob_client.blob_name,
                     credential=platform.credential,
-                    subscription_id=platform.subscription_id,
                     cloud=platform.cloud,
                     account_name=storage_name,
-                    resource_group_name=platform._azure_runbook.shared_resource_group_name,  # noqa: E501
                     writable=True,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
@@ -1851,24 +1810,21 @@ def _generate_sas_token_for_vhd(
 ) -> Any:
     sc_name = result_dict["account_name"]
     container_name = result_dict["container_name"]
-    rg = result_dict["resource_group_name"]
     blob_name = result_dict["blob_name"]
 
     source_container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=sc_name,
         container_name=container_name,
-        resource_group_name=rg,
     )
     source_blob = source_container_client.get_blob_client(blob_name)
-    sas_token = generate_sas_token(
+    sas_token = generate_user_delegation_sas_token(
+        container_name=source_blob.container_name,
+        blob_name=source_blob.blob_name,
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=sc_name,
-        resource_group_name=rg,
     )
     source_url = source_blob.url + "?" + sas_token
     return source_url
@@ -2145,11 +2101,9 @@ def check_blob_exist(
 ) -> None:
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=account_name,
         container_name=container_name,
-        resource_group_name=resource_group_name,
         allow_create=False,
     )
     blob_client = container_client.get_blob_client(blob_name)
@@ -2173,10 +2127,8 @@ def download_blob(
     container_client = get_or_create_storage_container(
         container_name=container_name,
         credential=credential,
-        subscription_id=subscription_id,
         cloud=cloud,
         account_name=account_name,
-        resource_group_name=resource_group_name,
         connection_string=connection_string,
         allow_create=False,
     )
@@ -2244,10 +2196,8 @@ def list_blobs(
     container_client = get_or_create_storage_container(
         container_name=container_name,
         credential=credential,
-        subscription_id=subscription_id,
         cloud=cloud,
         account_name=account_name,
-        resource_group_name=resource_group_name,
         connection_string=connection_string,
         allow_create=False,
     )
