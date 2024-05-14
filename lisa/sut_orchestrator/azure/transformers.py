@@ -213,11 +213,9 @@ class VhdTransformer(Transformer):
         )
         container_client = get_or_create_storage_container(
             credential=platform.credential,
-            subscription_id=platform.subscription_id,
             cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             container_name=runbook.container_name,
-            resource_group_name=runbook.shared_resource_group_name,
         )
 
         if runbook.custom_blob_name:
