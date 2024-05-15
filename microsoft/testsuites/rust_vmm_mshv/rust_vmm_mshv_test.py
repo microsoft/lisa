@@ -49,8 +49,9 @@ class RustVmmTestSuite(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         repo = "https://github.com/rust-vmm/mshv.git"
+        ref = variables.get("mshv_crate_ref", "main")
         git = node.tools[Git]
-        repo_root = git.clone(repo, node.get_working_path())
+        repo_root = git.clone(repo, node.get_working_path(), ref=ref)
         mshv_bindings_path = variables.get("mshv_bindings_path", "")
         if mshv_bindings_path:
             git_bindings_path = repo_root / "mshv-bindings" / "src"
