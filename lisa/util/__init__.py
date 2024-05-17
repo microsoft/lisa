@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ipaddress
 import random
 import re
 import string
 import sys
 from copy import deepcopy
+from retry import retry
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -26,8 +28,10 @@ from typing import (
     cast,
 )
 
+
 import paramiko
 import pluggy
+import requests
 from assertpy import assert_that
 from dataclasses_json import config
 from marshmallow import fields
@@ -877,3 +881,12 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
     if panics:
         raise KernelPanicException(stage, panics)
+
+
+@retry(tries=10, delay=0.5)
+def get_external_ip_address(log: "Logger") -> str:
+    response = requests.get("https://api.ipify.org/")
+    result = response.text
+    ipaddress.ip_address(result)
+    log.debug(f"get LISA external ip address: {result}")
+    return result
