@@ -2,12 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "storage_name": {
-            "type": "string",
-            "metadata": {
-                "description": "storage name for boot diagnosis"
-            }
-        },
         "vhd_storage_name": {
             "type": "string",
             "metadata": {
@@ -417,8 +411,7 @@
                 },
                 "diagnosticsProfile": {
                     "bootDiagnostics": {
-                        "enabled": true,
-                        "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints['blob']]"
+                        "enabled": true
                     }
                 },
                 "additionalCapabilities": "[if(equals(parameters('nodes')[copyIndex('vmCopy')]['data_disk_type'], 'UltraSSD_LRS'), json('{\"ultraSSDEnabled\": true}'), json('null'))]",

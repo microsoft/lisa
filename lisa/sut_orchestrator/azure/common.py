@@ -1134,7 +1134,6 @@ class AvailabilityArmParameter:
 @dataclass_json()
 @dataclass
 class AzureArmParameter:
-    storage_name: str = ""
     vhd_storage_name: str = ""
     location: str = ""
     admin_username: str = ""
