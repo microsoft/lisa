@@ -310,8 +310,6 @@ class AzurePlatformSchema:
     wait_delete: bool = False
     # the AzCopy path can be specified if use this tool to copy blob
     azcopy_path: str = field(default="")
-    # use bicep to deploy, it's a new way to deploy azure resources
-    use_bicep: bool = True
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -976,11 +974,7 @@ class AzurePlatform(Platform):
 
     def _load_template(self) -> Any:
         if self._arm_template is None:
-            template_file_name = (
-                "arm_template.json"
-                if not self._azure_runbook.use_bicep
-                else "autogen_arm_template.json"
-            )
+            template_file_name = "autogen_arm_template.json"
             template_file_path = Path(__file__).parent / template_file_name
             with open(template_file_path, "r") as f:
                 self._arm_template = json.load(f)
