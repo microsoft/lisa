@@ -884,9 +884,14 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
 
 @retry(tries=10, delay=0.5)
-def get_external_ip_address(log: "Logger") -> str:
+def get_external_ip_address() -> str:
     response = requests.get("https://api.ipify.org/")
     result = response.text
     ipaddress.ip_address(result)
-    log.debug(f"get LISA external ip address: {result}")
     return result
+
+
+def calculate_ip_range(ip: str):
+    first_octet = ip.split(".")[0]
+    network = f"{first_octet}.0.0.0/8"
+    return network
