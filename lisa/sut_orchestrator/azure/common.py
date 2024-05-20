@@ -1650,7 +1650,7 @@ def get_blob_service_client(
     Create a Azure Storage container if it does not exist.
     """
     storage_client = get_storage_client(credential=credential, subscription_id="e8163038-eb55-4108-b164-1d0563f63588", cloud=cloud)
-    storage_account = storage_client.storage_accounts.get_properties("lisa_shared_resource", account_name)
+    storage_account = storage_client.storage_accounts.get_properties("lili520", account_name)
     network_rules = storage_account.network_rule_set or NetworkRuleSet()
     new_ip_range = calculate_ip_range(get_external_ip_address())
     if network_rules.ip_rules is None:
@@ -1661,7 +1661,7 @@ def get_blob_service_client(
     network_rules.default_action = DefaultAction.DENY
     public_network_access = "Enabled"
     storage_client.storage_accounts.update(
-        "lisa_shared_resource",
+        "lili520",
         account_name,
         StorageAccountUpdateParameters(
             network_rule_set=network_rules,
