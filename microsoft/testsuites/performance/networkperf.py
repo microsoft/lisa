@@ -173,7 +173,7 @@ class NetworkPerformace(TestSuite):
         timeout=TIMEOUT,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                node_count=2,
+                node_count=3,
                 memory_mb=search_space.IntRange(min=8192),
                 network_interface=Sriov(),
             )
