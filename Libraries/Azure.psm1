@@ -248,8 +248,7 @@ Function Move-OsVHDToStorageAccount($OriginalOsVHD, $TargetStorageAccount) {
 	}
 	else {
 		$sc = Get-LISAStorageAccount | Where-Object { $_.StorageAccountName -eq $TargetStorageAccount }
-		$storageKey = (Get-AzStorageAccountKey -ResourceGroupName $sc.ResourceGroupName -Name $TargetStorageAccount)[0].Value
-		$context = New-AzStorageContext -StorageAccountName $TargetStorageAccount -StorageAccountKey $storageKey
+		$context = New-AzStorageContext -StorageAccountName $TargetStorageAccount -UseConnectedAccount
 		$blob = Get-AzStorageBlob -Blob $vhdName -Container "vhds" -Context $context -ErrorAction Ignore
 		if (!$blob) {
 			Throw "OsVHD '$($targetOsVHD)' does not existed, abort testing."

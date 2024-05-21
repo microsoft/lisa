@@ -28,8 +28,7 @@ param
     $filePaths,
     $destinationStorageAccount,
     $destinationContainer,
-    $destinationFolder,
-    $destinationStorageKey
+    $destinationFolder
 )
 
 if (-not (Test-Path -Path Function:\Write-LogInfo)) {
@@ -37,22 +36,9 @@ if (-not (Test-Path -Path Function:\Write-LogInfo)) {
 }
 
 try {
-    if (![string]::IsNullOrEmpty($destinationStorageKey)) {
-        Write-LogInfo "Use provided storage key"
-    } else {
-        Write-LogInfo "Getting $destinationStorageAccount storage account key..."
-        $allResources = Get-AzResource
-        $destSARG = ($allResources | Where { $_.ResourceType -imatch "storageAccounts" -and $_.Name -eq "$destinationStorageAccount" }).ResourceGroupName
-        if ([string]::IsNullOrEmpty($destSARG)) {
-            Write-LogErr "Not found storage account $destinationStorageAccount in current subscription, please provide storage key"
-            return
-        }
-        $keyObj = Get-AzStorageAccountKey -ResourceGroupName $destSARG -Name $destinationStorageAccount
-        $destinationStorageKey = $keyObj[0].Value
-    }
     $containerName = "$destinationContainer"
     $storageAccountName = $destinationStorageAccount
-    $blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -StorageAccountKey $destinationStorageKey
+    $blobContext = New-AzStorageContext -StorageAccountName $storageAccountName -UseConnectedAccount
     $null = New-AzStorageContainer -Name $destinationContainer -Permission Blob -Context $blobContext -ErrorAction SilentlyContinue
     $UploadedFileURLs = @()
     foreach($fileName in $filePaths.Split(",")) {
