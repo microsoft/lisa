@@ -1414,13 +1414,21 @@ def check_or_create_resource_group(
     log: Logger,
     managed_by: str = "",
 ) -> None:
+    log.info(f"Inside fn resource group credential : {credential}")
+    log.info(f"Inside fn resource group subscription_id : {subscription_id}")
+    log.info(f"Inside fn resource group cloud : {cloud}")
+    log.info(f"Inside fn resource group cloud scope : {cloud.endpoints.resource_manager}")
+    log.info(f"Inside fn resource group create1 : {resource_group_name}")
     with get_resource_management_client(
         credential, subscription_id, cloud
     ) as rm_client:
+        log.info(f"Inside fn resource group create2: {resource_group_name}")
         with global_credential_access_lock:
+            log.info(f"Checking resource group existance before: {resource_group_name}")
             az_shared_rg_exists = rm_client.resource_groups.check_existence(
                 resource_group_name
             )
+            log.info(f"Checking resource group existance after {az_shared_rg_exists}")
         if not az_shared_rg_exists:
             log.info(f"Creating Resource group: '{resource_group_name}'")
 
