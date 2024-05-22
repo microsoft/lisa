@@ -328,7 +328,9 @@ class Ntttcp(Tool):
         )
         memstat_delay = run_time_seconds // 2
         self.node.execute_async(
-            f"sleep {memstat_delay} && free -m && w", sudo=True, shell=True
+            f"sleep {memstat_delay + warm_up_time_seconds} && free -m && w",
+            sudo=True,
+            shell=True,
         )
         if udp_mode:
             cmd += " -u "
