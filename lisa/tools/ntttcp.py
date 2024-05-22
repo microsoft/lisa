@@ -276,7 +276,10 @@ class Ntttcp(Tool):
             run_as_daemon,
             udp_mode,
         )
-
+        for _ in range(0, run_time_seconds // 4):
+            self.node.execute_async(
+                f"sleep {run_time_seconds//6} && free -m", sudo=True, shell=True
+            ).wait_result()
         return self.wait_server_result(process)
 
     def wait_server_result(self, process: Process) -> ExecutableResult:
