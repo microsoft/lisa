@@ -51,6 +51,7 @@ class MshvHostStressTestSuite(TestSuite):
             "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img",  # noqa: E501
             file_path=str(working_path),
             filename=f"{self.DISK_IMG_NAME}.img",
+            timeout=1200,
         )
         node.tools[QemuImg].convert(
             "qcow2",
