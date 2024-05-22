@@ -252,6 +252,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
+    set_huge_rmem: bool = False
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -333,6 +334,10 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
+        if set_huge_rmem:
+            for node in [server, client]:
+                server.tools[Sysctl].write("net.core.rmem_max", "10485760")
+                node.tools[Sysctl].write("net.core.rmem_default", "10485760")
         server_lagscope.run_as_server_async(
             ip=lagscope_server_ip
             if lagscope_server_ip is not None

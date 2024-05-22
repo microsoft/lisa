@@ -213,10 +213,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_tcp_ntttcp_sriov_huge_rmem(self, result: TestResult) -> None:
-        for node in result.environment.nodes.list():
-            node.tools[Sysctl].write("net.core.rmem_max", "10485760")
-            node.tools[Sysctl].write("net.core.rmem_default", "10485760")
-        perf_ntttcp(result, connections=[4,8,32,64,1024,20480])
+        perf_ntttcp(result, connections=[4,8,32,64,1024,20480], set_huge_rmem=True)
 
     @TestCaseMetadata(
         description="""

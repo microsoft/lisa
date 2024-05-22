@@ -223,12 +223,7 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
-        for i in range(0, 1, 2):
-            self.node.execute_async(
-                f"sleep {warm_up_time_seconds + ((run_time_seconds//3) * i)} && free -m && w",
-                sudo=True,
-                shell=True,
-            )
+       
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
         )
@@ -238,6 +233,7 @@ class Ntttcp(Tool):
         # 01:16:35 INFO: 65 threads created
         # above output means ntttcp server is ready
         process.wait_output("threads created")
+        
         return process
 
     def run_as_server(
@@ -327,26 +323,27 @@ class Ntttcp(Tool):
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )
-        memstat_delay = run_time_seconds // 2
-        self.node.execute_async(
-            f"sleep {memstat_delay + warm_up_time_seconds + 3} && free -m && w",
-            sudo=True,
-            shell=True,
-        )
+        memstat_delay = run_time_seconds // 3
+        
         if udp_mode:
             cmd += " -u "
         if dev_differentiator:
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
-        result = self.node.execute(
+        proc = self.node.execute_async(
             f"ulimit -n 204800 && {self.command} {cmd}",
             shell=True,
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}",
         )
-        return result
+        proc.wait_output("Test warmup completed")
+        self.node.execute_async(
+            f"sleep {memstat_delay} && free -m && w",
+            sudo=True,
+            shell=True,
+        )
+        return proc.wait_result(expected_exit_code=0,
+            expected_exit_code_failure_message=f"fail to run {self.command} {cmd}")
 
     def create_ntttcp_result(
         self, result: ExecutableResult, role: str = "server"
