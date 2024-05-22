@@ -197,7 +197,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_tcp_ntttcp_sriov_default_rmem(self, result: TestResult) -> None:
-        perf_ntttcp(result, connections=[20480])
+        perf_ntttcp(result, connections=[4,8,32,64,1024,20480])
     @TestCaseMetadata(
         description="""
         This test case uses ntttcp to test sriov tcp network throughput.
@@ -216,7 +216,7 @@ class NetworkPerformace(TestSuite):
         for node in result.environment.nodes.list():
             node.tools[Sysctl].write("net.core.rmem_max", "10485760")
             node.tools[Sysctl].write("net.core.rmem_default", "10485760")
-        perf_ntttcp(result, connections=[20480])
+        perf_ntttcp(result, connections=[4,8,32,64,1024,20480])
 
     @TestCaseMetadata(
         description="""
