@@ -223,6 +223,12 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
+        for i in range(0, 1, 2):
+            self.node.execute_async(
+                f"sleep {warm_up_time_seconds + ((run_time_seconds//3) * i)} && free -m && w",
+                sudo=True,
+                shell=True,
+            )
         process = self.node.execute_async(
             f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
         )
@@ -276,12 +282,7 @@ class Ntttcp(Tool):
             run_as_daemon,
             udp_mode,
         )
-        for i in range(1, 2, 3):
-            self.node.execute_async(
-                f"sleep {warm_up_time_seconds + ((run_time_seconds//3) * i)} && free -m && w",
-                sudo=True,
-                shell=True,
-            )
+        
         return self.wait_server_result(process)
 
     def wait_server_result(self, process: Process) -> ExecutableResult:
@@ -328,7 +329,7 @@ class Ntttcp(Tool):
         )
         memstat_delay = run_time_seconds // 2
         self.node.execute_async(
-            f"sleep {memstat_delay + warm_up_time_seconds} && free -m && w",
+            f"sleep {memstat_delay + warm_up_time_seconds + 3} && free -m && w",
             sudo=True,
             shell=True,
         )
