@@ -321,6 +321,10 @@ class Ntttcp(Tool):
             f"-W {warm_up_time_seconds} -C {cool_down_time_seconds} -b {buffer_size}k "
             f"--show-nic-packets {nic_name} "
         )
+        memstat_delay = run_time_seconds // 2
+        self.node.execute_async(
+            f"sleep {memstat_delay} && free -m", sudo=True, shell=True
+        )
         if udp_mode:
             cmd += " -u "
         if dev_differentiator:
