@@ -276,10 +276,12 @@ class Ntttcp(Tool):
             run_as_daemon,
             udp_mode,
         )
-        for _ in range(0, run_time_seconds // 4):
+        for i in range(1, 2, 3):
             self.node.execute_async(
-                f"sleep {run_time_seconds//6} && free -m", sudo=True, shell=True
-            ).wait_result()
+                f"sleep {warm_up_time_seconds + ((run_time_seconds//3) * i)} && free -m && w",
+                sudo=True,
+                shell=True,
+            )
         return self.wait_server_result(process)
 
     def wait_server_result(self, process: Process) -> ExecutableResult:
@@ -326,7 +328,7 @@ class Ntttcp(Tool):
         )
         memstat_delay = run_time_seconds // 2
         self.node.execute_async(
-            f"sleep {memstat_delay} && free -m", sudo=True, shell=True
+            f"sleep {memstat_delay} && free -m && w", sudo=True, shell=True
         )
         if udp_mode:
             cmd += " -u "
