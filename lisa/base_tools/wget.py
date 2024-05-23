@@ -10,7 +10,7 @@ from lisa.tools.ls import Ls
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.powershell import PowerShell
 from lisa.tools.rm import Rm
-from lisa.util import LisaException, is_valid_url
+from lisa.util import LisaException, LisaTimeoutException, is_valid_url
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
@@ -80,6 +80,10 @@ class Wget(Tool):
                 " due to failed download or pattern mismatch."
                 f" stdout: {command_result.stdout}"
                 f" templog: {temp_log}"
+            )
+        if command_result.is_timeout:
+            raise LisaTimeoutException(
+                f"wget command is timed out after {timeout} seconds."
             )
         actual_file_path = self.node.execute(
             f"ls {download_file_path}",

@@ -1,6 +1,3 @@
-@description('storage name for boot diagnosis')
-param storage_name string
-
 @description('storage name for copied vhds')
 param vhd_storage_name string
 
@@ -345,7 +342,6 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in ra
     diagnosticsProfile: {
       bootDiagnostics: {
         enabled: true
-        storageUri: reference(resourceId(shared_resource_group_name, 'Microsoft.Storage/storageAccounts', storage_name), '2015-06-15').primaryEndpoints.blob
       }
     }
     additionalCapabilities: {

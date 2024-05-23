@@ -11,7 +11,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Infiniband, Sriov
+from lisa.features import AvailabilitySetEnabled, Infiniband, Sriov
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
@@ -169,7 +169,7 @@ class InfinibandSuite(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -238,7 +238,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -332,7 +332,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -432,7 +432,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -531,7 +531,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),

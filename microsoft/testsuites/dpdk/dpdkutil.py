@@ -310,6 +310,9 @@ def initialize_node_resources(
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
+    if pmd == "failsafe" and node.nics.is_mana_device_present():
+        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)

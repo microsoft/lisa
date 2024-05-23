@@ -123,9 +123,10 @@ class Xfstesting(TestSuite):
     # ext4: add check to prevent attempting to resize an fs with sparse_super2
     # VM will hung during running case xfs/520
     # commit d0c7feaf8767 ("xfs: add agf freeblocks verify in xfs_agf_verify")
+    # generic/738 case might cause hang more than 4 hours on old kernel
     # TODO: will figure out the detailed reason of every excluded case.
     excluded_tests = (
-        "generic/211 generic/430 generic/431 generic/434 xfs/438 xfs/490"
+        "generic/211 generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
@@ -534,7 +535,9 @@ class Xfstesting(TestSuite):
             mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
-        xfstests.run_test(test_type, log_path, result, data_disk, self.TIME_OUT)
+        # Reduce run_test timeout by 30s to let it complete before case Timeout
+        # wait_processes interval in run_test is 10s, set to 30 for safety check
+        xfstests.run_test(test_type, log_path, result, data_disk, self.TIME_OUT - 30)
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:

@@ -6,7 +6,6 @@ import json
 import re
 import string
 from dataclasses import dataclass, field
-from enum import Enum
 from functools import partial
 from pathlib import Path
 from random import randint
@@ -84,12 +83,14 @@ from lisa.util import (
 )
 
 if TYPE_CHECKING:
-    from .platform_ import AzurePlatform, AzureCapability
+    from .platform_ import AzurePlatform
 
 from .. import AZURE
 from .common import (
     AvailabilityArmParameter,
     AzureArmParameter,
+    AzureCapability,
+    AzureImageSchema,
     AzureNodeSchema,
     check_or_create_storage_account,
     create_update_private_dns_zone_groups,
@@ -655,20 +656,6 @@ class Gpu(AzureFeatureMixin, features.Gpu):
 
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-
-        arm_parameters.availability_options.availability_set_properties[
-            "platformFaultDomainCount"
-        ] = 1
-        arm_parameters.availability_options.availability_set_properties[
-            "platformUpdateDomainCount"
-        ] = 1
-        arm_parameters.availability_options.availability_type = (
-            AvailabilityType.AvailabilitySet.value
-        )
-
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -1638,7 +1625,9 @@ class Disk(AzureFeatureMixin, features.Disk):
         files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
         azure_scsi_disks = []
-        if len(files) == 0:
+        assert self._node.capability.disk
+        assert isinstance(self._node.capability.disk.max_data_disk_count, int)
+        if len(files) == 0 and self._node.capability.disk.data_disk_count != 0:
             os = self._node.os
             # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
             # there are known issues on ubuntu 16.04 and rhel 9.0
@@ -2163,6 +2152,8 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
                 "standardddsv5family",
                 "standarddasv5family",
                 "standarddadsv5family",
+                "standardebdsv5family",
+                "standardesv5family",
             ]
             or raw_capabilities.get("HibernationSupported", None) == "True"
         ):
@@ -2293,6 +2284,13 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         return SecurityProfileSettings(
             security_profile=search_space.SetSpace(True, capabilities)
         )
+
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return SecurityProfileSettings(security_profile=image.security_profile)
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
@@ -2488,6 +2486,10 @@ class Availability(AzureFeatureMixin, features.Availability):
         # fields for clarity
         if params.availability_type == AvailabilityType.AvailabilitySet:
             params.availability_zones.clear()
+            if "platformFaultDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformFaultDomainCount"] = 1
+            if "platformUpdateDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformUpdateDomainCount"] = 1
         elif params.availability_type == AvailabilityType.AvailabilityZone:
             assert (
                 params.availability_zones
@@ -2980,6 +2982,13 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         return settings
 
     @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return VhdGenerationSettings(gen=image.hyperv_generation)
+
+    @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return VhdGenerationSettings
 
@@ -2991,27 +3000,26 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         return True
 
 
-class ArchitectureType(str, Enum):
-    x64 = "x64"
-    Arm64 = "Arm64"
-
-
 @dataclass_json()
 @dataclass()
 class ArchitectureSettings(schema.FeatureSettings):
     type: str = "Architecture"
     # Architecture in hyper-v
     arch: Union[
-        ArchitectureType, search_space.SetSpace[ArchitectureType]
+        schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]
     ] = field(  # type: ignore
         default_factory=partial(
-            search_space.SetSpace, items=[ArchitectureType.x64, ArchitectureType.Arm64]
+            search_space.SetSpace,
+            items=[schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
         ),
         metadata=field_metadata(
             decoder=partial(
                 search_space.decode_nullable_set_space,
-                base_type=ArchitectureType,
-                default_values=[ArchitectureType.x64, ArchitectureType.Arm64],
+                base_type=schema.ArchitectureType,
+                default_values=[
+                    schema.ArchitectureType.x64,
+                    schema.ArchitectureType.Arm64,
+                ],
             )
         ),
     )
@@ -3058,7 +3066,7 @@ class ArchitectureSettings(schema.FeatureSettings):
         value.arch = getattr(search_space, f"{method.value}_setspace_by_priority")(
             self.arch,
             capability.arch,
-            [ArchitectureType.x64, ArchitectureType.Arm64],
+            [schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
         )
         return value
 
@@ -3070,8 +3078,15 @@ class Architecture(AzureFeatureMixin, Feature):
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
         return ArchitectureSettings(
-            arch=raw_capabilities.get("CpuArchitectureType", "x64")
+            arch=raw_capabilities.get("Cpuschema.ArchitectureType", "x64")
         )
+
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return ArchitectureSettings(arch=image.architecture)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -3248,6 +3263,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         echo = node.tools[Echo]
         username = account_credential["account_name"]
         password = account_credential["account_key"]
+        add_secret(password)
         echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
         echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
         node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)

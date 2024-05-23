@@ -335,7 +335,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[platform_.AzureCapability]:
+    ) -> Optional[common.AzureCapability]:
         matched_vm_size = ""
         location_info = self._platform.get_location_info(location, self._log)
         self.assertEqual(
@@ -350,7 +350,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_eligible_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[platform_.AzureCapability]:
+    ) -> Optional[common.AzureCapability]:
         result = None
 
         location_info = self._platform.get_location_info(location, self._log)

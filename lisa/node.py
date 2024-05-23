@@ -22,7 +22,7 @@ from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
-from lisa.operating_system import BSD, OperatingSystem
+from lisa.operating_system import OperatingSystem
 from lisa.secret import add_secret
 from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
@@ -1215,7 +1215,10 @@ def create_nics(node: Node) -> Nics:
     """
     Returns a Nics object for the node based on the OS type.
     """
-    if isinstance(node.os, BSD):
+    # Uses uname instead of the node.os because sometimes node.os has not been
+    # populated when this is called.
+    os = node.execute(cmd="uname", no_error_log=True).stdout
+    if "FreeBSD" in os:
         return NicsBSD(node)
 
     return Nics(node)

@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.24.24.22086",
-      "templateHash": "10469517385668739272"
+      "version": "0.25.53.49325",
+      "templateHash": "6371934161409477905"
     }
   },
   "functions": [
@@ -415,12 +415,6 @@
     }
   ],
   "parameters": {
-    "storage_name": {
-      "type": "string",
-      "metadata": {
-        "description": "storage name for boot diagnosis"
-      }
-    },
     "vhd_storage_name": {
       "type": "string",
       "metadata": {
@@ -700,8 +694,7 @@
         },
         "diagnosticsProfile": {
           "bootDiagnostics": {
-            "enabled": true,
-            "storageUri": "[reference(resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('storage_name')), '2015-06-15').primaryEndpoints.blob]"
+            "enabled": true
           }
         },
         "additionalCapabilities": {
@@ -760,8 +753,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.24.24.22086",
-              "templateHash": "4605637987818789188"
+              "version": "0.25.53.49325",
+              "templateHash": "15038849300358134397"
             }
           },
           "functions": [

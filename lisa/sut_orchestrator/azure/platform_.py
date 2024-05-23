@@ -39,7 +39,7 @@ from azure.mgmt.resource.resources.models import (  # type: ignore
 )
 from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
-from marshmallow import fields, validate
+from marshmallow import validate
 from msrestazure.azure_cloud import (  # type: ignore
     AZURE_CHINA_CLOUD,
     AZURE_GERMAN_CLOUD,
@@ -95,6 +95,8 @@ from .common import (
     AZURE_VIRTUAL_NETWORK_NAME,
     SAS_URL_PATTERN,
     AzureArmParameter,
+    AzureCapability,
+    AzureLocation,
     AzureNodeArmParameter,
     AzureNodeSchema,
     AzureVmMarketplaceSchema,
@@ -105,6 +107,7 @@ from .common import (
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    convert_to_azure_node_space,
     get_compute_client,
     get_deployable_vhd_path,
     get_environment_context,
@@ -117,6 +120,7 @@ from .common import (
     get_vhd_details,
     get_vm,
     global_credential_access_lock,
+    load_location_info_from_file,
     save_console_log,
     wait_operation,
 )
@@ -192,35 +196,6 @@ CLOUD: Dict[str, Dict[str, Any]] = {
     "azuregermancloud": AZURE_GERMAN_CLOUD,
     "azureusgovernment": AZURE_US_GOV_CLOUD,
 }
-
-
-@dataclass_json()
-@dataclass
-class AzureCapability:
-    location: str
-    vm_size: str
-    capability: schema.NodeSpace
-    resource_sku: Dict[str, Any]
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        # reload features settings with platform specified types.
-        _convert_to_azure_node_space(self.capability)
-
-
-@dataclass_json()
-@dataclass
-class AzureLocation:
-    updated_time: datetime = field(
-        default_factory=datetime.now,
-        metadata=field_metadata(
-            fields.DateTime,
-            encoder=datetime.isoformat,
-            decoder=datetime.fromisoformat,
-            format="iso",
-        ),
-    )
-    location: str = ""
-    capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
 
 
 @dataclass_json()
@@ -335,8 +310,6 @@ class AzurePlatformSchema:
     wait_delete: bool = False
     # the AzCopy path can be specified if use this tool to copy blob
     azcopy_path: str = field(default="")
-    # use bicep to deploy, it's a new way to deploy azure resources
-    use_bicep: bool = True
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         strip_strs(
@@ -667,12 +640,6 @@ class AzurePlatform(Platform):
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
             )
-            try:
-                self._delete_boot_diagnostic_container(resource_group_name, log)
-            except Exception as identifier:
-                log.debug(
-                    f"exception on deleting boot diagnostic container: {identifier}"
-                )
             delete_operation: Any = None
             try:
                 delete_operation = self._rm_client.resource_groups.begin_delete(
@@ -711,54 +678,6 @@ class AzurePlatform(Platform):
             log_file_name.write_bytes(log_response_content)
             if check_serial_console is True:
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
-
-    def _delete_boot_diagnostic_container(
-        self, resource_group_name: str, log: Logger
-    ) -> None:
-        compute_client = get_compute_client(self)
-        vms = compute_client.virtual_machines.list(resource_group_name)
-        for vm in vms:
-            diagnostic_data = (
-                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                    resource_group_name=resource_group_name, vm_name=vm.name
-                )
-            )
-            if not diagnostic_data:
-                continue
-
-            # A sample url,
-            # https://storageaccountname.blob.core.windows.net:443/
-            # bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70/
-            # node-0.30779088-9b10-4074-8c27-98b91f1d8b70.serialconsole.log
-            # ?sv=2018-03-28&sr=b&sig=mJEsvk9WunbKHfBs1lo1jcIBe4owq1brP8Kw3qXTQJA%3d&
-            # se=2021-09-14T08%3a55%3a38Z&sp=r
-            blob_uri = diagnostic_data.console_screenshot_blob_uri
-            if blob_uri:
-                matched = self._diagnostic_storage_container_pattern.match(blob_uri)
-                assert matched
-                # => storageaccountname
-                storage_name = matched.group("storage_name")
-                # => bootdiagnostics-node0-30779088-9b10-4074-8c27-98b91f1d8b70
-                container_name = matched.group("container_name")
-                container_client = get_or_create_storage_container(
-                    credential=self.credential,
-                    subscription_id=self.subscription_id,
-                    cloud=self.cloud,
-                    account_name=storage_name,
-                    container_name=container_name,
-                    resource_group_name=self._azure_runbook.shared_resource_group_name,
-                )
-                log.debug(
-                    f"deleting boot diagnostic container: {container_name}"
-                    f" under storage account {storage_name} of vm {vm.name}"
-                )
-                try:
-                    container_client.delete_container()
-                except Exception as identifier:
-                    log.debug(
-                        f"exception on deleting boot diagnostic container:"
-                        f" {identifier}"
-                    )
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         platform_runbook = cast(schema.Platform, self.runbook)
@@ -1055,35 +974,11 @@ class AzurePlatform(Platform):
 
     def _load_template(self) -> Any:
         if self._arm_template is None:
-            template_file_name = (
-                "arm_template.json"
-                if not self._azure_runbook.use_bicep
-                else "autogen_arm_template.json"
-            )
+            template_file_name = "autogen_arm_template.json"
             template_file_path = Path(__file__).parent / template_file_name
             with open(template_file_path, "r") as f:
                 self._arm_template = json.load(f)
         return self._arm_template
-
-    @retry(tries=10, delay=1, jitter=(0.5, 1))
-    def _load_location_info_from_file(
-        self, cached_file_name: Path, log: Logger
-    ) -> Optional[AzureLocation]:
-        loaded_obj: Optional[AzureLocation] = None
-        if cached_file_name.exists():
-            try:
-                with open(cached_file_name, "r") as f:
-                    loaded_data: Dict[str, Any] = json.load(f)
-                loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
-            except Exception as identifier:
-                # if schema changed, There may be exception, remove cache and retry
-                # Note: retry on this method depends on decorator
-                log.debug(
-                    f"error on loading cache, delete cache and retry. {identifier}"
-                )
-                cached_file_name.unlink()
-                raise identifier
-        return loaded_obj
 
     def get_location_info(self, location: str, log: Logger) -> AzureLocation:
         cached_file_name = constants.CACHE_PATH.joinpath(
@@ -1093,7 +988,7 @@ class AzurePlatform(Platform):
         key = self._get_location_key(location)
         location_data = self._locations_data_cache.get(key, None)
         if not location_data:
-            location_data = self._load_location_info_from_file(
+            location_data = load_location_info_from_file(
                 cached_file_name=cached_file_name, log=log
             )
 
@@ -1288,9 +1183,6 @@ class AzurePlatform(Platform):
             arm_parameters.admin_password = self.runbook.admin_password
 
         arm_parameters.nodes = nodes_parameters
-        arm_parameters.storage_name = get_storage_account_name(
-            self.subscription_id, arm_parameters.location
-        )
         arm_parameters.vhd_storage_name = get_storage_account_name(
             self.subscription_id, arm_parameters.location, "t"
         )
@@ -1405,26 +1297,21 @@ class AzurePlatform(Platform):
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
             azure_node_runbook.shared_gallery = None
+            azure_node_runbook.community_gallery_image = None
             log.debug(
                 f"current vhd generation is {azure_node_runbook.hyperv_generation}."
             )
         elif azure_node_runbook.shared_gallery:
             azure_node_runbook.marketplace = None
-            azure_node_runbook.shared_gallery = self._parse_shared_gallery_image(
-                azure_node_runbook.shared_gallery
-            )
-            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
-                self._get_sig(azure_node_runbook.shared_gallery)
-            )
+            azure_node_runbook.community_gallery_image = None
+            azure_node_runbook.shared_gallery.resolve_version(self)
+            azure_node_runbook.update_raw()
         elif azure_node_runbook.community_gallery_image:
             azure_node_runbook.marketplace = None
-            azure_node_runbook.community_gallery_image = (
-                self._parse_community_gallery_image(
-                    azure_node_runbook.community_gallery_image
-                )
-            )
+            azure_node_runbook.community_gallery_image.resolve_version(self)
+            azure_node_runbook.update_raw()
             azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
-                self._get_cgi(azure_node_runbook.community_gallery_image)
+                azure_node_runbook.community_gallery_image.query_platform(self)
             )
         elif not azure_node_runbook.marketplace:
             # set to default marketplace, if nothing specified
@@ -1438,7 +1325,7 @@ class AzurePlatform(Platform):
             azure_node_runbook.marketplace = self._resolve_marketplace_image(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
-            image_info = self._get_image_info(
+            image_info = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
             # HyperVGenerationTypes return "V1"/"V2", so we need to strip "V"
@@ -1496,7 +1383,7 @@ class AzurePlatform(Platform):
             assert (
                 arm_parameters.marketplace
             ), "not set one of marketplace, shared_gallery or vhd."
-            image_info = self._get_image_info(
+            image_info = self.get_image_info(
                 arm_parameters.location, arm_parameters.marketplace
             )
             if image_info:
@@ -2078,94 +1965,6 @@ class AzurePlatform(Platform):
         return new_marketplace
 
     @lru_cache(maxsize=10)  # noqa: B019
-    def _parse_community_gallery_image(
-        self, community_gallery_image: CommunityGalleryImageSchema
-    ) -> CommunityGalleryImageSchema:
-        new_community_gallery_image = copy.copy(community_gallery_image)
-        compute_client = get_compute_client(self)
-        if community_gallery_image.image_version.lower() == "latest":
-            community_gallery_images_list = (
-                compute_client.community_gallery_image_versions.list(
-                    location=community_gallery_image.location,
-                    public_gallery_name=community_gallery_image.image_gallery,
-                    gallery_image_name=community_gallery_image.image_definition,
-                )
-            )
-            image: Optional[CommunityGalleryImageVersion] = None
-            time: Optional[datetime] = None
-            for image in community_gallery_images_list:
-                assert image, "'image' must not be 'None'"
-                assert image.name, "'image.name' must not be 'None'"
-                community_gallery_image_version = (
-                    compute_client.community_gallery_image_versions.get(
-                        location=community_gallery_image.location,
-                        public_gallery_name=community_gallery_image.image_gallery,
-                        gallery_image_name=community_gallery_image.image_definition,
-                        gallery_image_version_name=image.name,
-                    )
-                )
-                if not time:
-                    time = community_gallery_image_version.published_date
-                    new_community_gallery_image.image_version = image.name
-                if community_gallery_image_version.published_date > time:
-                    time = community_gallery_image_version.published_date
-                    new_community_gallery_image.image_version = image.name
-        return new_community_gallery_image
-
-    @lru_cache(maxsize=10)  # noqa: B019
-    def _parse_shared_gallery_image(
-        self, shared_image: SharedImageGallerySchema
-    ) -> SharedImageGallerySchema:
-        new_shared_image = copy.copy(shared_image)
-        compute_client = get_compute_client(self)
-        rg_name = shared_image.resource_group_name
-        if not shared_image.resource_group_name:
-            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
-            # galleries/xxxx
-            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
-            galleries = compute_client.galleries.list()
-            for gallery in galleries:
-                if gallery.name.lower() == shared_image.image_gallery:
-                    rg_name = get_matched_str(gallery.id, rg_pattern)
-                    break
-            if not rg_name:
-                raise LisaException(
-                    f"not find matched gallery {shared_image.image_gallery}"
-                )
-        new_shared_image.resource_group_name = rg_name
-        if shared_image.image_version.lower() == "latest":
-            gallery_images = (
-                compute_client.gallery_image_versions.list_by_gallery_image(
-                    resource_group_name=new_shared_image.resource_group_name,
-                    gallery_name=new_shared_image.image_gallery,
-                    gallery_image_name=new_shared_image.image_definition,
-                )
-            )
-            image: Optional[GalleryImageVersion] = None
-            time: Optional[datetime] = None
-            for image in gallery_images:
-                assert image, "'image' must not be 'None'"
-                assert image.name, "'image.name' must not be 'None'"
-                gallery_image = compute_client.gallery_image_versions.get(
-                    resource_group_name=new_shared_image.resource_group_name,
-                    gallery_name=new_shared_image.image_gallery,
-                    gallery_image_name=new_shared_image.image_definition,
-                    gallery_image_version_name=image.name,
-                    expand="ReplicationStatus",
-                )
-                if not time:
-                    time = gallery_image.publishing_profile.published_date
-                    assert image, "'image' must not be 'None'"
-                    assert image.name, "'image.name' must not be 'None'"
-                    new_shared_image.image_version = image.name
-                if gallery_image.publishing_profile.published_date > time:
-                    time = gallery_image.publishing_profile.published_date
-                    assert image, "'image' must not be 'None'"
-                    assert image.name, "'image.name' must not be 'None'"
-                    new_shared_image.image_version = image.name
-        return new_shared_image
-
-    @lru_cache(maxsize=10)  # noqa: B019
     def _process_marketplace_image_plan(
         self,
         marketplace: AzureVmMarketplaceSchema,
@@ -2271,7 +2070,7 @@ class AzurePlatform(Platform):
         node_space.features.update(
             [schema.FeatureSettings.create(x.name()) for x in all_features]
         )
-        _convert_to_azure_node_space(node_space)
+        convert_to_azure_node_space(node_space)
 
         return azure_capability
 
@@ -2306,7 +2105,7 @@ class AzurePlatform(Platform):
         data_disks: List[DataDiskSchema] = []
         assert node.capability.disk
         if azure_node_runbook.marketplace:
-            marketplace = self._get_image_info(
+            marketplace = self.get_image_info(
                 azure_node_runbook.location, azure_node_runbook.marketplace
             )
             # some images has data disks by default
@@ -2368,7 +2167,7 @@ class AzurePlatform(Platform):
         return data_disks
 
     @lru_cache(maxsize=10)  # noqa: B019
-    def _get_image_info(
+    def get_image_info(
         self, location: str, marketplace: Optional[AzureVmMarketplaceSchema]
     ) -> Optional[VirtualMachineImage]:
         # resolve "latest" to specified version
@@ -2464,11 +2263,9 @@ class AzurePlatform(Platform):
         result_dict = get_vhd_details(self, blob_url)
         container_client = get_or_create_storage_container(
             credential=self.credential,
-            subscription_id=self.subscription_id,
             cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
-            resource_group_name=result_dict["resource_group_name"],
         )
 
         vhd_blob = container_client.get_blob_client(result_dict["blob_name"])
@@ -2483,7 +2280,9 @@ class AzurePlatform(Platform):
     def _get_sig_version(
         self, shared_image: SharedImageGallerySchema
     ) -> GalleryImageVersion:
-        compute_client = get_compute_client(self)
+        compute_client = get_compute_client(
+            self, subscription_id=shared_image.subscription_id
+        )
         sig_version = compute_client.gallery_image_versions.get(
             resource_group_name=shared_image.resource_group_name,
             gallery_name=shared_image.image_gallery,
@@ -2524,17 +2323,6 @@ class AzurePlatform(Platform):
         )
         assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
         return cgi
-
-    @lru_cache(maxsize=10)  # noqa: B019
-    def _get_sig(self, shared_image: SharedImageGallerySchema) -> GalleryImage:
-        compute_client = get_compute_client(self)
-        sig = compute_client.gallery_images.get(
-            resource_group_name=shared_image.resource_group_name,
-            gallery_name=shared_image.image_gallery,
-            gallery_image_name=shared_image.image_definition,
-        )
-        assert isinstance(sig, GalleryImage), f"actual: {type(sig)}"
-        return sig
 
     def _get_sig_os_disk_size(self, shared_image: SharedImageGallerySchema) -> int:
         found_image = self._get_sig_version(shared_image)
@@ -2885,7 +2673,7 @@ class AzurePlatform(Platform):
                     node_runbook.location, node_runbook.marketplace
                 )
 
-    def _find_marketplace_image_location(self) -> List[str]:
+    def find_marketplace_image_location(self) -> List[str]:
         # locations used to query marketplace image information. Some image is not
         # available in all locations, so try several of them.
         _marketplace_image_locations = [
@@ -2921,69 +2709,76 @@ class AzurePlatform(Platform):
                 is_allow_set=True
             )
 
-        for feature_setting in node_space.features.items:
-            if feature_setting.type == features.VhdGenerationSettings.type:
-                # if requirement exists, not to add it.
-                return
-
         azure_runbook = node_space.get_extended_runbook(AzureNodeSchema, AZURE)
+        image = azure_runbook.image
+        if not image:
+            return
+        # Default to provided hyperv_generation,
+        # but will be overrriden if the image is tagged
+        image.hyperv_generation = azure_runbook.hyperv_generation
+        image.load_from_platform(self)
 
-        if azure_runbook.marketplace:
-            for location in self._find_marketplace_image_location():
-                image_info = self._get_image_info(location, azure_runbook.marketplace)
-                if image_info:
-                    break
+        # Create Image requirements for each Feature
+        for feat in self.supported_features():
+            image_req = feat.create_image_requirement(image)
+            if not image_req:
+                continue
+            # Merge with existing requirements
+            node_cap = node_space._find_feature_by_type(
+                image_req.type, node_space.features
+            )
+            if node_cap:
+                node_space.features.remove(node_cap)
+                node_space.features.add(node_cap.intersect(image_req))
+            else:
+                node_space.features.add(image_req)
 
-            if image_info:
-                generation = _get_vhd_generation(image_info)
-                node_space.features.add(features.VhdGenerationSettings(gen=generation))
-                node_space.features.add(
-                    features.ArchitectureSettings(
-                        arch=image_info.architecture  # type: ignore
-                    )
-                )
-        elif azure_runbook.shared_gallery:
-            azure_runbook.shared_gallery = self._parse_shared_gallery_image(
-                azure_runbook.shared_gallery
-            )
-            sig = self._get_sig(azure_runbook.shared_gallery)
-            generation = _get_gallery_image_generation(sig)
-            node_space.features.add(features.VhdGenerationSettings(gen=generation))
-            node_space.features.add(
-                features.ArchitectureSettings(arch=sig.architecture)  # type: ignore
-            )
-        elif azure_runbook.vhd:
-            node_space.features.add(
-                features.VhdGenerationSettings(gen=azure_runbook.hyperv_generation)
-            )
-        elif azure_runbook.community_gallery_image:
-            azure_runbook.community_gallery_image = self._parse_community_gallery_image(
-                azure_runbook.community_gallery_image
-            )
-            cgi = self._get_cgi(azure_runbook.community_gallery_image)
-            generation = _get_gallery_image_generation(cgi)
-            node_space.features.add(features.VhdGenerationSettings(gen=generation))
-            node_space.features.add(
-                features.ArchitectureSettings(arch=cgi.architecture)  # type: ignore
-            )
+        # Set Disk features
         if node_space.disk:
-            assert node_space.disk.os_disk_type
-            if (
-                isinstance(node_space.disk.os_disk_type, schema.DiskType)
-                and schema.DiskType.Ephemeral == node_space.disk.os_disk_type
-            ) or (
-                isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
-                and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
-            ):
-                node_space.disk.os_disk_size = search_space.IntRange(
-                    min=self._get_os_disk_size(azure_runbook)
-                )
+            self._set_disk_features(node_space, azure_runbook)
+
+    def _set_disk_features(
+        self, node_space: schema.NodeSpace, azure_runbook: AzureNodeSchema
+    ) -> None:
+        assert node_space.disk
+        assert node_space.disk.os_disk_type
+        assert azure_runbook.image
+        if (
+            isinstance(node_space.disk.os_disk_type, schema.DiskType)
+            and schema.DiskType.Ephemeral == node_space.disk.os_disk_type
+        ) or (
+            isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
+            and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
+        ):
+            node_space.disk.os_disk_size = search_space.IntRange(
+                min=self._get_os_disk_size(azure_runbook)
+            )
+
+        # Set Disk Controller Type based on image capabilities
+        if isinstance(node_space.disk.disk_controller_type, schema.DiskControllerType):
+            node_space.disk.disk_controller_type = search_space.SetSpace[
+                schema.DiskControllerType
+            ](is_allow_set=True, items=[node_space.disk.disk_controller_type])
+        if isinstance(
+            azure_runbook.image.disk_controller_type, schema.DiskControllerType
+        ):
+            azure_runbook.image.disk_controller_type = search_space.SetSpace[
+                schema.DiskControllerType
+            ](is_allow_set=True, items=[azure_runbook.image.disk_controller_type])
+
+        allowed_types = azure_runbook.image.disk_controller_type
+        if node_space.disk.disk_controller_type:
+            node_space.disk.disk_controller_type = (
+                node_space.disk.disk_controller_type.intersect(allowed_types)
+            )
+        else:
+            node_space.disk.disk_controller_type = allowed_types
 
     def _get_os_disk_size(self, azure_runbook: AzureNodeSchema) -> int:
         assert azure_runbook
         if azure_runbook.marketplace:
-            for location in self._find_marketplace_image_location():
-                image_info = self._get_image_info(location, azure_runbook.marketplace)
+            for location in self.find_marketplace_image_location():
+                image_info = self.get_image_info(location, azure_runbook.marketplace)
                 if image_info:
                     break
             if image_info and image_info.os_disk_image:
@@ -2994,14 +2789,12 @@ class AzurePlatform(Platform):
                 # if no image info, use default size 30
                 return 30
         elif azure_runbook.shared_gallery:
-            azure_runbook.shared_gallery = self._parse_shared_gallery_image(
-                azure_runbook.shared_gallery
-            )
+            azure_runbook.shared_gallery.resolve_version(self)
+            azure_runbook.update_raw()
             return self._get_sig_os_disk_size(azure_runbook.shared_gallery)
         elif azure_runbook.community_gallery_image:
-            azure_runbook.community_gallery_image = self._parse_community_gallery_image(
-                azure_runbook.community_gallery_image
-            )
+            azure_runbook.community_gallery_image.resolve_version(self)
+            azure_runbook.update_raw()
             return self._get_cgi_os_disk_size(azure_runbook.community_gallery_image)
         else:
             assert azure_runbook.vhd
@@ -3020,49 +2813,12 @@ class AzurePlatform(Platform):
                 node_space.network_interface.data_path = data_path
 
     def _set_image_features(self, node_space: schema.NodeSpace) -> None:
-        # This method does the same thing as _convert_to_azure_node_space
+        # This method does the same thing as convert_to_azure_node_space
         # method, and attach the additional features. The additional features
         # need Azure platform, so it needs to be in Azure Platform.
-        _convert_to_azure_node_space(node_space)
+        convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
-
-
-def _convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
-    if not node_space:
-        return
-
-    if node_space.features:
-        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
-
-        for current_settings in node_space.features.items:
-            # reload to type specified settings
-            try:
-                settings_type = feature.get_feature_settings_type_by_name(
-                    current_settings.type, AzurePlatform.supported_features()
-                )
-            except NotMeetRequirementException as identifier:
-                raise LisaException(
-                    f"platform doesn't support all features. {identifier}"
-                )
-            new_setting = schema.load_by_type(settings_type, current_settings)
-            existing_setting = feature.get_feature_settings_by_name(
-                new_setting.type, new_settings, True
-            )
-            if existing_setting:
-                new_settings.remove(existing_setting)
-                new_setting = existing_setting.intersect(new_setting)
-
-            new_settings.add(new_setting)
-        node_space.features = new_settings
-    if node_space.disk:
-        node_space.disk = schema.load_by_type(
-            features.AzureDiskOptionSettings, node_space.disk
-        )
-    if node_space.network_interface:
-        node_space.network_interface = schema.load_by_type(
-            schema.NetworkInterfaceOptionSettings, node_space.network_interface
-        )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:

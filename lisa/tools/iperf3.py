@@ -17,7 +17,7 @@ from lisa.messages import (
 )
 from lisa.operating_system import Posix
 from lisa.tools import Cat
-from lisa.util import LisaException, check_till_timeout, constants
+from lisa.util import LisaException, check_till_timeout, constants, get_matched_str
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
@@ -78,10 +78,10 @@ class Iperf3(Tool):
         r" Gbits/sec.*receiver([\w\W]*?))",
         re.MULTILINE,
     )
-    _json_pattern = re.compile(
-        r"[\w\W]*?(?P<json>{[\w\W]*.*)",
-        re.MULTILINE,
-    )
+    # warning: Report format (-f) flag ignored with JSON output (-J)\r\n{
+    # ......
+    # }\r\n}\r\niperf3: error - no error
+    _json_pattern = re.compile(r"\{.*\}", re.DOTALL)
 
     @property
     def command(self) -> str:
@@ -466,6 +466,6 @@ class Iperf3(Tool):
 
     def _pre_handle(self, result: str) -> str:
         result = result.replace("-nan", "0")
-        result_matched = self._json_pattern.match(result)
+        result_matched = get_matched_str(result, self._json_pattern)
         assert result_matched, "fail to find json format results"
-        return result_matched.group("json")
+        return result_matched
