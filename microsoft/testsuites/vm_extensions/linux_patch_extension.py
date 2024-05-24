@@ -3,6 +3,7 @@
 from typing import Any
 
 from assertpy.assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Environment,
@@ -22,6 +23,18 @@ from lisa.sut_orchestrator.azure.common import (
     wait_operation,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.util import SkippedException, UnsupportedDistroException
+
+
+def _verify_unsupported_vm_agent(
+    node: Node, status_result: Any, error_code: str
+) -> None:
+    if (
+        error_code == "1"
+        and "Unsupported older Azure Linux Agent version"
+        in status_result["error"]["details"][0]["message"]
+    ):
+        raise SkippedException(UnsupportedDistroException(node.os))
 
 
 def _set_up_vm(node: Node, environment: Environment) -> Any:
@@ -54,7 +67,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     ).is_true()
 
 
-def _assert_status_file_result(status_file: Any) -> None:
+def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     if (
         len(status_file["error"]["details"]) > 0
         and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
@@ -67,7 +80,7 @@ def _assert_status_file_result(status_file: Any) -> None:
             "Expected the status file patches to succeed"
         ).is_equal_to("Succeeded")
 
-        assert_that(status_file["error"]["code"]).described_as(
+        assert_that(error_code).described_as(
             "Expected no error in status file patches operation"
         ).is_equal_to("0")
 
@@ -99,17 +112,28 @@ class LinuxPatchExtensionBVT(TestSuite):
         # service
         _verify_vm_agent_running(node, log)
 
-        operation = compute_client.virtual_machines.begin_assess_patches(
-            resource_group_name=resource_group_name, vm_name=vm_name
-        )
-        # set wait operation timeout 10 min, status file should be generated
-        # before timeout
-        assess_result = wait_operation(operation, 600)
+        try:
+            operation = compute_client.virtual_machines.begin_assess_patches(
+                resource_group_name=resource_group_name, vm_name=vm_name
+            )
+            # set wait operation timeout 10 min, status file should be generated
+            # before timeout
+            assess_result = wait_operation(operation, 600)
+
+        except HttpResponseError as identifier:
+            if any(
+                s in str(identifier) for s in ["The selected VM image is not supported"]
+            ):
+                raise SkippedException(UnsupportedDistroException(node.os))
+            else:
+                raise identifier
 
         assert assess_result, "assess_result shouldn't be None"
         log.debug(f"assess_result:{assess_result}")
+        error_code = assess_result["error"]["code"]
 
-        _assert_status_file_result(assess_result)
+        _verify_unsupported_vm_agent(node, assess_result, error_code)
+        _assert_status_file_result(assess_result, error_code)
 
     @TestCaseMetadata(
         description="""
@@ -137,16 +161,27 @@ class LinuxPatchExtensionBVT(TestSuite):
         # service
         _verify_vm_agent_running(node, log)
 
-        operation = compute_client.virtual_machines.begin_install_patches(
-            resource_group_name=resource_group_name,
-            vm_name=vm_name,
-            install_patches_input=install_patches_input,
-        )
-        # set wait operation max duration 4H timeout, status file should be
-        # generated before timeout
-        install_result = wait_operation(operation, self.TIMEOUT)
+        try:
+            operation = compute_client.virtual_machines.begin_install_patches(
+                resource_group_name=resource_group_name,
+                vm_name=vm_name,
+                install_patches_input=install_patches_input,
+            )
+            # set wait operation max duration 4H timeout, status file should be
+            # generated before timeout
+            install_result = wait_operation(operation, self.TIMEOUT)
+
+        except HttpResponseError as identifier:
+            if any(
+                s in str(identifier) for s in ["The selected VM image is not supported"]
+            ):
+                raise SkippedException(UnsupportedDistroException(node.os))
+            else:
+                raise identifier
 
         assert install_result, "install_result shouldn't be None"
         log.debug(f"install_result:{install_result}")
+        error_code = install_result["error"]["code"]
 
-        _assert_status_file_result(install_result)
+        _verify_unsupported_vm_agent(node, install_result, error_code)
+        _assert_status_file_result(install_result, error_code)
