@@ -3078,7 +3078,7 @@ class Architecture(AzureFeatureMixin, Feature):
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
         return ArchitectureSettings(
-            arch=raw_capabilities.get("Cpuschema.ArchitectureType", "x64")
+            arch=raw_capabilities.get("CpuArchitectureType", "x64")
         )
 
     @classmethod
