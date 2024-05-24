@@ -1697,6 +1697,7 @@ def check_or_create_storage_account(
     sku: str = "Standard_LRS",
     kind: str = "StorageV2",
     enable_https_traffic_only: bool = True,
+    allow_shared_key_access: bool = False,
 ) -> None:
     # check and deploy storage account.
     # storage account can be deployed inside of arm template, but if the concurrent
@@ -1718,6 +1719,7 @@ def check_or_create_storage_account(
                 kind=kind,
                 location=location,
                 enable_https_traffic_only=enable_https_traffic_only,
+                allow_shared_key_access=allow_shared_key_access,
             )
             operation = storage_client.storage_accounts.begin_create(
                 resource_group_name=resource_group_name,
