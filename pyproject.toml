@@ -27,6 +27,7 @@ dependencies = [
     "spurplus ~= 2.3.5",
     "websockets ~= 10.3",
     "charset_normalizer ~= 2.1.1",
+    "requests ~= 2.32.0",
 ]
 dynamic = ["version"]
 license = {text = "MIT"}
@@ -62,7 +63,7 @@ azure = [
 
 ado = [
     "azure-devops ~= 7.1.0b3",
-    "requests",
+    "requests ~= 2.32.0",
 ]
 
 black = [
