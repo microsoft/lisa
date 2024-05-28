@@ -58,11 +58,12 @@ azure = [
     "cachetools ~= 5.2.0",
     "Pillow ~= 10.3.0",
     "PyGObject ~= 3.42.0; platform_system == 'Linux'",
+    "requests ~= 2.32.0",
 ]
 
 ado = [
     "azure-devops ~= 7.1.0b3",
-    "requests",
+    "requests ~= 2.32.0",
 ]
 
 black = [
