@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, Linux, Ubuntu
-from lisa.tools import Git, Sed, Service, Usermod, Wget, Whoami
+from lisa.tools import Chmod, Git, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     UnsupportedDistroException,
@@ -234,7 +234,7 @@ class LibvirtPackageInstaller(LibvirtInstaller):
 class QemuPackageInstaller(QemuInstaller):
     _distro_package_mapping = {
         Ubuntu.__name__: ["qemu-kvm"],
-        CBLMariner.__name__: ["qemu-kvm", "edk2-ovmf"],
+        CBLMariner.__name__: ["qemu-kvm-6.2.0-15.cm2", "edk2-ovmf"],
     }
 
     @classmethod
@@ -372,6 +372,12 @@ class LibvirtSourceInstaller(LibvirtInstaller):
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
         self._log.info("Building source code of Libvirt...")
         self._build_and_install(code_path)
+        self._log.debug(f"libvirt path: {self._node.execute('which libvirtd').stdout}")
+        self._node.tools[Chmod].chmod(
+            self._node.execute('which libvirtd').stdout,
+            "777",
+            True,
+        )
         return self._get_version()
 
 
