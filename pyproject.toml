@@ -27,7 +27,6 @@ dependencies = [
     "spurplus ~= 2.3.5",
     "websockets ~= 10.3",
     "charset_normalizer ~= 2.1.1",
-    "requests ~= 2.32.0",
 ]
 dynamic = ["version"]
 license = {text = "MIT"}
@@ -59,6 +58,7 @@ azure = [
     "cachetools ~= 5.2.0",
     "Pillow ~= 10.3.0",
     "PyGObject ~= 3.42.0; platform_system == 'Linux'",
+    "requests ~= 2.32.0",
 ]
 
 ado = [
