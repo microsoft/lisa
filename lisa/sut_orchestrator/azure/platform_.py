@@ -2768,11 +2768,12 @@ class AzurePlatform(Platform):
 
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:
-            node_space.disk.disk_controller_type = (
-                node_space.disk.disk_controller_type.intersect(allowed_types)
+            allowed_types = search_space.intersect_setspace_by_priority(
+                node_space.disk.disk_controller_type,  # type: ignore
+                azure_runbook.image.disk_controller_type,  # type: ignore
+                [],
             )
-        else:
-            node_space.disk.disk_controller_type = allowed_types
+        node_space.disk.disk_controller_type = allowed_types
 
     def _get_os_disk_size(self, azure_runbook: AzureNodeSchema) -> int:
         assert azure_runbook
