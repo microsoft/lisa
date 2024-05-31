@@ -278,6 +278,7 @@ class AzurePlatformSchema:
     )
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    enable_nsg: bool = field(default=True)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -900,6 +901,7 @@ class AzurePlatform(Platform):
         self.subscription_id = azure_runbook.subscription_id
         self.cloud = azure_runbook.cloud
         self.resource_group_managed_by = azure_runbook.resource_group_managed_by
+        self.enable_nsg = azure_runbook.enable_nsg
 
         self._initialize_credential()
 
