@@ -1730,6 +1730,8 @@ def check_or_create_storage_account(
     # is too big, Azure may not able to delete deployment script on time. so there
     # will be error like below
     # Creating the deployment 'name' would exceed the quota of '800'.
+    account_name = "lili520"
+    resource_group_name = "lili520"
     storage_client = get_storage_client(credential, subscription_id, cloud)
     with _global_storage_account_check_create_lock:
         try:
