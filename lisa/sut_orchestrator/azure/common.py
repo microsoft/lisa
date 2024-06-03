@@ -1649,6 +1649,7 @@ def get_blob_service_client(
     """
     Create a Azure Storage container if it does not exist.
     """
+    account_name = "lili520"
     storage_client = get_storage_client(credential=credential, subscription_id="e8163038-eb55-4108-b164-1d0563f63588", cloud=cloud)
     storage_account = storage_client.storage_accounts.get_properties("lili520", account_name)
     network_rules = storage_account.network_rule_set or NetworkRuleSet()
