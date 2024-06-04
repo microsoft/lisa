@@ -81,7 +81,7 @@ from azure.storage.blob import (
     ContainerClient,
     generate_blob_sas,
 )
-from azure.storage.fileshare import ShareServiceClient  # type: ignore
+from azure.storage.fileshare import ShareServiceClient
 from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
