@@ -59,18 +59,16 @@ def _check_system_status(node: Node, log: Logger) -> None:
     # check certs files
     certa = "/var/lib/waagent/a/symbolinka"
     message = f"File {certa} was not created on the test machine"
-    node.execute(
-        f"ls '{certa}'",
-        shell=True,
+    ls.run(
+        certa,
         expected_exit_code=0,
         expected_exit_code_failure_message=message,
     )
 
     certb = "/var/lib/waagent/a/symbolinkb"
     message = f"File {certb} was not created on the test machine"
-    node.execute(
-        f"ls '{certb}'",
-        shell=True,
+    ls.run(
+        certb,
         expected_exit_code=0,
         expected_exit_code_failure_message=message,
     )
@@ -120,6 +118,8 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         runbook = platform.runbook.get_extended_runbook(AzurePlatformSchema)
         resource_group_name = runbook.shared_resource_group_name
         application_id = runbook.service_principal_client_id
+        node_context = get_node_context(node)
+
         # A vault's name must be between 3-24 alphanumeric characters.
         vault_name = (
             f"lisa-kv{platform.subscription_id[-6:]}{node_context.location[:11]}"
@@ -213,7 +213,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                         "customSymbolicLinkName": "symbolinka",
                         "acls": [
                             {
-                                "user": f"{current_user}"
+                                "user": current_user
                             }
                         ]
                     },
@@ -223,7 +223,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                         "customSymbolicLinkName": "symbolinkb",
                         "acls": [
                             {
-                                "user": f"{current_user}"
+                                "user": current_user
                             }
                         ]
                     }
