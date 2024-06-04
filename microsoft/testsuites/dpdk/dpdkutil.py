@@ -13,10 +13,12 @@ from lisa import (
     LisaException,
     Logger,
     Node,
+    NotEnoughMemoryException,
     RemoteNode,
     SkippedException,
     UnsupportedDistroException,
     UnsupportedKernelException,
+    UnsupportedOperationException,
     constants,
     notifier,
 )
@@ -28,7 +30,7 @@ from lisa.tools import (
     Dmesg,
     Echo,
     Firewall,
-    Free,
+    Hugepages,
     Ip,
     KernelConfig,
     Kill,
@@ -36,12 +38,11 @@ from lisa.tools import (
     Lsmod,
     Lspci,
     Modprobe,
-    Mount,
     Ntttcp,
     Ping,
     Timeout,
 )
-from lisa.tools.mkfs import FileSystem
+from lisa.tools.hugepages import HugePageSize
 from lisa.util.constants import SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -94,77 +95,6 @@ class DpdkTestResources:
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
         self.switch_sriov = True
-
-
-def init_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    mount = node.tools[Mount]
-    if enable_gibibyte_hugepages:
-        mount.mount(
-            name="nodev",
-            point="/mnt/huge-1G",
-            fs_type=FileSystem.hugetlbfs,
-            options="pagesize=1G",
-        )
-    else:
-        mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
-    _enable_hugepages(node, enable_gibibyte_hugepages)
-
-
-def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    echo = node.tools[Echo]
-
-    meminfo = node.tools[Free]
-    nics_count = len(node.nics.get_nic_names())
-
-    numa_nodes = node.tools[Lscpu].get_numa_node_count()
-    request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
-    request_pages_1gb = (nics_count - 1) * numa_nodes
-    memfree_2mb = meminfo.get_free_memory_mb()
-    memfree_1mb = meminfo.get_free_memory_gb()
-
-    # request 2iGB memory per nic, 1 of 2MiB pages and 1 GiB page
-    # check there is enough memory on the device first.
-    # default to enough for one nic if not enough is available
-    # this should be fine for tests on smaller SKUs
-
-    if enable_gibibyte_hugepages:
-        if memfree_1mb < (
-            request_pages_1gb * 2
-        ):  # account for 2MB pages by doubling ask
-            node.log.debug(
-                "WARNING: Not enough 1GB pages available for DPDK! "
-                f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-                "Test may fail if it cannot allocate memory."
-            )
-        request_pages_1gb = 1
-    else:
-        if memfree_2mb < request_pages_2mb:
-            node.log.debug(
-                "WARNING: Not enough 2MB pages available for DPDK! "
-                f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-                "Test may fail if it cannot allocate memory."
-            )
-            request_pages_2mb = 1024
-
-    for i in range(numa_nodes):
-        if enable_gibibyte_hugepages:
-            echo.write_to_file(
-                f"{request_pages_1gb}",
-                node.get_pure_path(
-                    f"/sys/devices/system/node/node{i}/hugepages/"
-                    "hugepages-1048576kB/nr_hugepages"
-                ),
-                sudo=True,
-            )
-        else:
-            echo.write_to_file(
-                f"{request_pages_2mb}",
-                node.get_pure_path(
-                    f"/sys/devices/system/node/node{i}/hugepages/"
-                    "hugepages-2048kB/nr_hugepages"
-                ),
-                sudo=True,
-            )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -305,8 +235,8 @@ def initialize_node_resources(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
-    enable_gibibyte_hugepages: bool = False,
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
@@ -354,7 +284,8 @@ def initialize_node_resources(
     )
 
     # init and enable hugepages (required by dpdk)
-    init_hugepages(node, enable_gibibyte_hugepages)
+    hugepages = node.tools[Hugepages]
+    hugepages.init_hugepages(hugepage_size)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
@@ -462,7 +393,7 @@ def init_nodes_concurrent(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    enable_gibibyte_hugepages: bool = False,
+    hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
@@ -471,21 +402,24 @@ def init_nodes_concurrent(
     _ping_all_nodes_in_environment(environment)
 
     # Use threading module to parallelize the IO-bound node init.
-    test_kits = run_in_parallel(
-        [
-            partial(
-                initialize_node_resources,
-                node,
-                log,
-                variables,
-                pmd,
-                enable_gibibyte_hugepages=enable_gibibyte_hugepages,
-                sample_apps=sample_apps,
-            )
-            for node in environment.nodes.list()
-        ],
-        log,
-    )
+    try:
+        test_kits = run_in_parallel(
+            [
+                partial(
+                    initialize_node_resources,
+                    node,
+                    log,
+                    variables,
+                    pmd,
+                    hugepage_size=hugepage_size,
+                    sample_apps=sample_apps,
+                )
+                for node in environment.nodes.list()
+            ],
+            log,
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
     return test_kits
 
 
@@ -494,13 +428,16 @@ def verify_dpdk_build(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     multiple_queues: bool = False,
-    gibibyte_hugepages: bool = False,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
-    test_kit = initialize_node_resources(
-        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
-    )
+    try:
+        test_kit = initialize_node_resources(
+            node, log, variables, pmd, hugepage_size=hugepage_size
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
     testpmd = test_kit.testpmd
 
     # grab a nic and run testpmd
@@ -526,9 +463,9 @@ def verify_dpdk_send_receive(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
-    gibibyte_hugepages: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -546,7 +483,7 @@ def verify_dpdk_send_receive(
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        environment, log, variables, pmd, hugepage_size=hugepage_size
     )
 
     check_send_receive_compatibility(test_kits)
@@ -611,7 +548,13 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     return verify_dpdk_send_receive(
-        environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
+        environment,
+        log,
+        variables,
+        pmd,
+        HugePageSize.HUGE_2MB,
+        use_service_cores=1,
+        multiple_queues=True,
     )
 
 
@@ -719,8 +662,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
+    hugepage_size: HugePageSize,
     pmd: str = "netvsc",
-    enable_gibibyte_hugepages: bool = False,
     force_single_queue: bool = False,
     is_perf_test: bool = False,
 ) -> None:
@@ -856,16 +799,18 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # Do actual DPDK initialization, compile l3fwd and apply setup to
     # the extra forwarding nic
-    fwd_kit = initialize_node_resources(
-        forwarder,
-        log,
-        variables,
-        pmd,
-        sample_apps=["l3fwd"],
-        extra_nics=[subnet_b_nics[forwarder]],
-    )
-    # enable hugepages needed for dpdk EAL on forwarder
-    init_hugepages(forwarder, enable_gibibyte_hugepages=enable_gibibyte_hugepages)
+    try:
+        fwd_kit = initialize_node_resources(
+            forwarder,
+            log,
+            variables,
+            pmd,
+            hugepage_size,
+            sample_apps=["l3fwd"],
+            extra_nics=[subnet_b_nics[forwarder]],
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
 
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.

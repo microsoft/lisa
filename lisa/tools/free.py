@@ -74,6 +74,9 @@ class Free(Tool):
         # Return total swap size in Mebibytes
         return self._get_field_bytes_kib("Swap", "total") >> 10
 
+    def get_free_memory_kb(self) -> int:
+        return self._get_field_bytes_kib("Mem", "free")
+
     def get_free_memory_mb(self) -> int:
         return self._get_field_bytes_kib("Mem", "free") >> 10
 

@@ -20,6 +20,7 @@ from lisa.messages import (
 )
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
+from lisa.tools.hugepages import HugePageSize
 from lisa.util import constants
 from microsoft.testsuites.dpdk.common import force_dpdk_default_source
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -62,7 +63,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "failsafe")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -106,7 +109,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "netvsc")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -253,7 +258,12 @@ class DpdkPerformance(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, pmd="netvsc", is_perf_test=True
+            environment,
+            log,
+            variables,
+            HugePageSize.HUGE_2MB,
+            pmd="netvsc",
+            is_perf_test=True,
         )
 
     def _run_dpdk_perf_test(
@@ -285,6 +295,7 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
+                    HugePageSize.HUGE_2MB,
                     use_service_cores=service_cores,
                 )
         except UnsupportedPackageVersionException as err:
