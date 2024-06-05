@@ -1656,7 +1656,7 @@ def get_blob_service_client(
         cloud=cloud,
     )
     storage_account = storage_client.storage_accounts.get_properties(
-        "lili640", account_name
+        "lili520", account_name
     )
     network_rules = storage_account.network_rule_set or NetworkRuleSet()
     new_ip_range = calculate_ip_range(get_external_ip_address())
@@ -1668,7 +1668,7 @@ def get_blob_service_client(
     network_rules.default_action = DefaultAction.DENY
     public_network_access = "Enabled"
     storage_client.storage_accounts.update(
-        "lili640",
+        "lili520",
         account_name,
         StorageAccountUpdateParameters(
             network_rule_set=network_rules, public_network_access=public_network_access
@@ -1737,7 +1737,7 @@ def check_or_create_storage_account(
     # will be error like below
     # Creating the deployment 'name' would exceed the quota of '800'.
     account_name = "lili640"
-    resource_group_name = "lili640"
+    resource_group_name = "lili520"
     storage_client = get_storage_client(credential, subscription_id, cloud)
     with _global_storage_account_check_create_lock:
         try:
