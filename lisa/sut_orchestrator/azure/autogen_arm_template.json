@@ -569,7 +569,7 @@
       "name": "[format('{0}-public-ip', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "location": "[parameters('location')]",
       "properties": {
-        "publicIPAllocationMethod": "Static"
+        "publicIPAllocationMethod": "[if(parameters('is_ultradisk'), 'Static', 'Dynamic')]"
       },
       "sku": {
         "name": "[if(parameters('is_ultradisk'), 'Standard', 'Basic')]"

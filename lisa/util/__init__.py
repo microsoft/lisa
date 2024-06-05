@@ -892,6 +892,6 @@ def get_external_ip_address() -> str:
 
 
 def calculate_ip_range(ip: str):
-    first_octet = ip.split(".")[0]
-    network = f"{first_octet}.0.0.0/8"
-    return network
+    # first_octet = ip.split(".")[0]
+    # network = f"{first_octet}.0.0.0/8"
+    return ip
