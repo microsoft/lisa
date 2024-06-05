@@ -1650,30 +1650,30 @@ def get_blob_service_client(
     Create a Azure Storage container if it does not exist.
     """
     account_name = "lili640"
-    storage_client = get_storage_client(
-        credential=credential,
-        subscription_id="e8163038-eb55-4108-b164-1d0563f63588",
-        cloud=cloud,
-    )
-    storage_account = storage_client.storage_accounts.get_properties(
-        "lili520", account_name
-    )
-    network_rules = storage_account.network_rule_set or NetworkRuleSet()
-    new_ip_range = calculate_ip_range(get_external_ip_address())
-    if network_rules.ip_rules is None:
-        network_rules.ip_rules = []
-    existing_ip_ranges = [rule.ip_address_or_range for rule in network_rules.ip_rules]
-    if new_ip_range not in existing_ip_ranges:
-        network_rules.ip_rules.append(IPRule(ip_address_or_range=new_ip_range))
-    network_rules.default_action = DefaultAction.DENY
-    public_network_access = "Enabled"
-    storage_client.storage_accounts.update(
-        "lili520",
-        account_name,
-        StorageAccountUpdateParameters(
-            network_rule_set=network_rules, public_network_access=public_network_access
-        ),
-    )
+    # storage_client = get_storage_client(
+    #     credential=credential,
+    #     subscription_id="e8163038-eb55-4108-b164-1d0563f63588",
+    #     cloud=cloud,
+    # )
+    # storage_account = storage_client.storage_accounts.get_properties(
+    #     "lili520", account_name
+    # )
+    # network_rules = storage_account.network_rule_set or NetworkRuleSet()
+    # new_ip_range = calculate_ip_range(get_external_ip_address())
+    # if network_rules.ip_rules is None:
+    #     network_rules.ip_rules = []
+    # existing_ip_ranges = [rule.ip_address_or_range for rule in network_rules.ip_rules]
+    # if new_ip_range not in existing_ip_ranges:
+    #     network_rules.ip_rules.append(IPRule(ip_address_or_range=new_ip_range))
+    # network_rules.default_action = DefaultAction.DENY
+    # public_network_access = "Enabled"
+    # storage_client.storage_accounts.update(
+    #     "lili520",
+    #     account_name,
+    #     StorageAccountUpdateParameters(
+    #         network_rule_set=network_rules, public_network_access=public_network_access
+    #     ),
+    # )
 
     blob_service_client: BlobServiceClient
     if connection_string:
