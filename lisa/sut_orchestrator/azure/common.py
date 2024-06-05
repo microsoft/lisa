@@ -451,7 +451,9 @@ class SharedImageGallerySchema(AzureImageSchema):
 
     def query_platform(self, platform: "AzurePlatform") -> GalleryImage:
         assert self.resource_group_name, "'resource_group_name' must not be 'None'"
-        compute_client = get_compute_client(platform, self.subscription_id)
+        compute_client = get_compute_client(
+            platform, subscription_id=self.subscription_id
+        )
         sig = compute_client.gallery_images.get(
             resource_group_name=self.resource_group_name,
             gallery_name=self.image_gallery,
@@ -461,7 +463,9 @@ class SharedImageGallerySchema(AzureImageSchema):
         return sig
 
     def resolve_version(self, platform: "AzurePlatform") -> None:
-        compute_client = get_compute_client(platform, self.subscription_id)
+        compute_client = get_compute_client(
+            platform, subscription_id=self.subscription_id
+        )
         if not self.resource_group_name:
             # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
             # galleries/xxxx
