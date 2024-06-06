@@ -135,7 +135,7 @@ class ACCBasicTest(TestSuite):
             libprotobuf = "libprotobuf17"
 
         node.os.install_packages(
-            f"clang-10 libssl-dev gdb libsgx-enclave-common libsgx-quote-ex "
+            f"clang libssl-dev gdb libsgx-enclave-common libsgx-quote-ex "
             f"{libprotobuf} libsgx-dcap-ql libsgx-dcap-ql-dev "
             "az-dcap-client open-enclave"
         )
