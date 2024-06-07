@@ -201,6 +201,26 @@ class CloudHypervisorTests(Tool):
                     status = TestStatus.FAILED
                     trace = f"Testcase '{testcase}' failed: {result.stderr}"
                     failed_testcases.append(testcase)
+                    journalctl = self.node.execute(
+                        cmd="journalctl -u docker.service",
+                        sudo=True,
+                        shell=True,
+                    )
+                    self._log.debug(f"journalctl.stdout: {journalctl.stdout}")
+                    self._log.debug(f"journalctl.stderr: {journalctl.stderr}")
+                    dmesg = self.node.execute(
+                        cmd="dmesg",
+                        sudo=True,
+                    )
+                    self._log.debug(f"dmesg.stdout: {dmesg.stdout}")
+                    self._log.debug(f"dmesg.stderr: {dmesg.stderr}")
+
+                    df = self.node.execute(
+                        cmd="df -kh",
+                        sudo=True,
+                    )
+                    self._log.debug(f"df.stdout: {df.stdout}")
+                    self._log.debug(f"df.stderr: {df.stderr}")
 
             except Exception as e:
                 self._log.info(f"Testcase failed, tescase name: {testcase}")
@@ -355,11 +375,34 @@ class CloudHypervisorTests(Tool):
             force_run=True,
             cwd=self.repo_root,
             shell=True,
-            expected_exit_code=0,
             update_envs=self.env_vars,
         )
 
+        if result.exit_code != 0:
+            journalctl = self.node.execute(
+                cmd="journalctl -u docker.service",
+                sudo=True,
+                shell=True,
+            )
+            self._log.debug(f"journalctl.stdout: {journalctl.stdout}")
+            self._log.debug(f"journalctl.stderr: {journalctl.stderr}")
+            dmesg = self.node.execute(
+                cmd="dmesg",
+                sudo=True,
+            )
+            self._log.debug(f"dmesg.stdout: {dmesg.stdout}")
+            self._log.debug(f"dmesg.stderr: {dmesg.stderr}")
+
+            df = self.node.execute(
+                cmd="df -kh",
+                sudo=True,
+            )
+            self._log.debug(f"df.stdout: {df.stdout}")
+            self._log.debug(f"df.stderr: {df.stderr}")
+
+            raise Exception("listing testcase failed")
         stdout = result.stdout
+
 
         # Ex. String for below regex
         # "boot_time_ms" (test_timeout=2s,test_iterations=10)
