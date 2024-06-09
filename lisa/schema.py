@@ -1620,6 +1620,11 @@ class ImageSchema:
     pass
 
 
+class ArchitectureType(str, Enum):
+    x64 = "x64"
+    Arm64 = "Arm64"
+
+
 def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> T:
     """
     Convert dict, list or base typed schema to specified typed schema.

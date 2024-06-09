@@ -156,7 +156,7 @@ class LibvirtTck(Tool):
                 sudo=True,
             )
 
-            self.node.reboot()
+            self.node.reboot(time_out=900)
 
             # After reboot, libvirtd service is in failed state and needs to
             # be restarted manually. Doing it immediately after restarts

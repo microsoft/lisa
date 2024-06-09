@@ -1,6 +1,7 @@
 from typing import Any
 
 from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Logger,
@@ -51,6 +52,13 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
     def verify_azuremonitoragent_linux(self, log: Logger, node: Node) -> None:
         # Run VM Extension
         extension = node.features[AzureExtension]
+
+        try:
+            # Delete VM Extension if already present
+            extension.delete("AzureMonitorLinuxAgent")
+        except HttpResponseError as identifier:
+            if any(s in str(identifier) for s in ["was not found"]):
+                log.info("AzureMonitorLinuxAgent is not already installed")
 
         extension_result = extension.create_or_update(
             name="AzureMonitorLinuxAgent",

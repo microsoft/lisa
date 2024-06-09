@@ -139,10 +139,11 @@ deployment.
    platform:
    - type: azure
       ...
-      virtual_network_resource_group: $(vnet_resource_group)
-      virtual_network_name: $(vnet_name)
-      subnet_prefix: $(subnet_name)
-      use_public_address: "<true or false>"
+      azure:
+         virtual_network_resource_group: $(vnet_resource_group)
+         virtual_network_name: $(vnet_name)
+         subnet_prefix: $(subnet_name)
+         use_public_address: "<true or false>"
       requirement:
          ...
          ignored_capability:

@@ -13,9 +13,12 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, CBLMariner
+from lisa.secret import add_secret
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
+from lisa.tools import Usermod
+from lisa.util import generate_random_chars
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     create_and_verify_vmaccess_extension_run,
 )
@@ -39,6 +42,12 @@ def _generate_and_retrieve_openssh_key(node: Node, filename: str) -> str:
         expected_exit_code_failure_message="Failed to open OpenSSH key file.",
     )
     return result.stdout
+
+
+def _generate_password() -> str:
+    password = generate_random_chars()
+    add_secret(password)
+    return password
 
 
 def _generate_and_retrieve_ssh2_key(node: Node, filename: str) -> str:
@@ -77,9 +86,17 @@ def _validate_password(
     node: Node, username: str, password: str, valid: bool = True
 ) -> None:
     message = f"Password not set as intended for user {username}."
+
+    if isinstance(node.os, CBLMariner):
+        if node.os.information.version >= "2.0.0":
+            # In Mariner 2.0, there is a security restriction that only allows wheel
+            # group users to use 'su' command. Add current user
+            # (specified during VM creation) to wheel group in Mariner
+            node.tools[Usermod].add_user_to_group("wheel", sudo=True)
+
     # simple command to determine if username password combination is valid/invalid
     node.execute(
-        cmd=f'echo "{password}" | su --command true - {username}',
+        cmd=f'echo "{password}" | su --command true {username}',
         shell=True,
         expected_exit_code=0 if valid else 1,
         expected_exit_code_failure_message=message,
@@ -151,8 +168,8 @@ class VMAccessTests(TestSuite):
     )
     def verify_valid_password_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser"
-        password = str(uuid.uuid4())
-        incorrect_password = str(uuid.uuid4())
+        password = _generate_password()
+        incorrect_password = _generate_password()
         protected_settings = {
             "username": username,
             "password": password,
@@ -194,7 +211,7 @@ class VMAccessTests(TestSuite):
     )
     def verify_password_and_ssh_key_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-both"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         ssh_filename = f"/tmp/{str(uuid.uuid4())}"
         openssh_key = _generate_and_retrieve_openssh_key(
             node=node, filename=ssh_filename
@@ -223,7 +240,7 @@ class VMAccessTests(TestSuite):
         self, log: Logger, node: Node
     ) -> None:
         username = "vmaccessuser-none"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         protected_settings = {"username": username}
 
         create_and_verify_vmaccess_extension_run(
@@ -276,7 +293,7 @@ class VMAccessTests(TestSuite):
     )
     def verify_remove_username_run(self, log: Logger, node: Node) -> None:
         username = "vmaccessuser-remove"
-        password = str(uuid.uuid4())
+        password = _generate_password()
         protected_settings = {"username": username, "password": password}
 
         create_and_verify_vmaccess_extension_run(

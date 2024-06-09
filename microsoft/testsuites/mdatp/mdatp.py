@@ -5,9 +5,10 @@ import pathlib
 from assertpy import fail
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import Windows
+from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import simple_requirement
+from lisa.tools import Df, Mount
 
 # some constants from  check-mdatp.sh
 # if any mdatp install in /etc/opt is found
@@ -20,6 +21,55 @@ EXIT_MDATP_LOGS_FOUND = 253
 EXIT_MDATP_INSTALL_LOGS_FOUND = 254
 # if an onboarding blob is found
 EXIT_ONBOARD_INFO_FOUND = 255
+
+
+def ensure_working_path_allows_executables(node: Node) -> None:
+    # EXAMPLE WORKAROUND:
+    # - Get the mount point for the path.
+    # - Check if the mount point is mounted noexec.
+    # - if yes, remount with exec flag
+    working_path = node.get_working_path()
+    mount_info = node.tools[Df].get_partition_by_path(directory=working_path.as_posix())
+    if not mount_info:
+        # info only, since we have not validated whether the working path is executable.
+        # An image with weird DF or Mount output could still be able to pass, so we
+        # will info log and allow the test to continue.
+        node.log.info(
+            f"Could not locate partition info for directory "
+            f"{working_path.as_posix()}. "
+            "Test may fail due to noexec permissions error, "
+            "or due to the working path not existing."
+        )
+        return
+    mountpoint = mount_info.mountpoint
+    partitions = node.tools[Mount].get_partition_info(mountpoint=mountpoint)
+    if not partitions:
+        # info only, since we have not validated whether the working path is executable.
+        # An image with weird DF or Mount output could still be able to pass, so we
+        # will info log and allow the test to continue.
+        node.log.info(
+            f"Could not locate mount info for directory "
+            f"{working_path.as_posix()}. "
+            "Test may fail due to noexec permissions error, "
+            "or due to the working path not existing."
+        )
+        return
+    # else, we will check the permissions and fix as needed
+    partition = partitions[0]
+    if "noexec" in partition.options:
+        node.log.info(f"Working path in {mount_info.mountpoint} is mounted noexec!!")
+        # handle bsd/linux differences in mount command
+        if isinstance(node.os, BSD):
+            # fetch all mount options for BSD and omit 'noexec'
+            options = [option for option in partition.options if option != "noexec"]
+        else:
+            # Linux allows remounting as exec with other options preserved.
+            # just have to pass 'exec' to remount
+            options = ["exec"]
+        # initiate the remount.
+        node.tools[Mount].remount(point=mountpoint, options=options)
+
+    # otherwise, no issues with partition, nothing to fix.
 
 
 @TestSuiteMetadata(
@@ -51,8 +101,13 @@ class MdatpSuite(TestSuite):
 
         # copy the bash script to the node
         node.shell.copy(local_path=local_path, node_path=script_path)
+
+        # call the example workaround, see function for details.
+        # TODO: remove this when the fix is implemented
+        ensure_working_path_allows_executables(node)
+
         result = node.execute(
-            cmd=f"chmod +x {str(script_path)}",
+            cmd=f"chmod a+x,a+r,a-w {str(script_path)}",
             shell=True,
             sudo=True,
         )

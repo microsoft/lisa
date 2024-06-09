@@ -13,7 +13,7 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
-    generate_blob_sas_token,
+    generate_user_delegation_sas_token,
     get_or_create_storage_container,
     get_storage_account_name,
     get_storage_credential,
@@ -99,11 +99,9 @@ def retrieve_storage_blob_url(
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=subscription_id,
         cloud=platform.cloud,
         account_name=storage_account_name,
         container_name=container_name,
-        resource_group_name=AZURE_SHARED_RG_NAME,
     )
 
     blob = container_client.get_blob_client(blob_name)
@@ -131,15 +129,12 @@ def retrieve_storage_blob_url(
     blob_url = blob.url
 
     if is_sas:
-        sas_token = generate_blob_sas_token(
+        sas_token = generate_user_delegation_sas_token(
+            container_name=blob.container_name,
+            blob_name=blob.blob_name,
             credential=platform.credential,
-            subscription_id=subscription_id,
             cloud=platform.cloud,
             account_name=storage_account_name,
-            resource_group_name=AZURE_SHARED_RG_NAME,
-            container_name=container_name,
-            file_name=blob_name,
-            expired_hours=1,
         )
 
         blob_url = blob_url + "?" + sas_token

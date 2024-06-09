@@ -9,7 +9,7 @@ from assertpy import assert_that
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Dmesg, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
+from lisa.tools import Cp, Free, Ls, Lscpu, QemuImg, Rm, Ssh, Usermod, Wget
 from lisa.util import SkippedException
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
@@ -51,6 +51,7 @@ class MshvHostStressTestSuite(TestSuite):
             "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img",  # noqa: E501
             file_path=str(working_path),
             filename=f"{self.DISK_IMG_NAME}.img",
+            timeout=1200,
         )
         node.tools[QemuImg].convert(
             "qcow2",
@@ -120,7 +121,7 @@ class MshvHostStressTestSuite(TestSuite):
                     test_status=TestStatus.FAILED,
                     test_message=repr(e),
                 )
-        self._save_dmesg_logs(node, log_path)
+        node.tools[CloudHypervisor].save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)
         return
 
@@ -221,9 +222,3 @@ class MshvHostStressTestSuite(TestSuite):
             return PurePath("/mnt")
         else:
             return node.working_path
-
-    def _save_dmesg_logs(self, node: Node, log_path: Path) -> None:
-        dmesg_str = node.tools[Dmesg].get_output()
-        dmesg_path = log_path / "dmesg"
-        with open(str(dmesg_path), "w", encoding="utf-8") as f:
-            f.write(dmesg_str)

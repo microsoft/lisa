@@ -25,6 +25,26 @@ class Df(Tool):
     def can_install(self) -> bool:
         return True
 
+    def get_partition_by_path(
+        self, directory: str, force_run: bool = False
+    ) -> Optional[PartitionInfo]:
+        out = self.run(
+            parameters=f"{directory}", force_run=force_run, shell=True, sudo=True
+        ).stdout
+        df_entries = find_patterns_groups_in_lines(out, [self._DF_ENTRY_REGEX])[0]
+        if len(df_entries) == 0:
+            self._log.info(f"Path: {directory} not exist!")
+            return None
+        df_entry = df_entries[0]
+        return PartitionInfo(
+            name=df_entry["name"],
+            mountpoint=df_entry["mountpoint"],
+            available_blocks=int(df_entry["available"]),
+            used_blocks=int(df_entry["used"]),
+            total_blocks=int(df_entry["total"]),
+            percentage_blocks_used=int(df_entry["percentage_use"]),
+        )
+
     def get_partitions(self, force_run: bool = False) -> List[PartitionInfo]:
         # run df and parse the output
         # The output is in the following format:

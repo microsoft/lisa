@@ -31,7 +31,6 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
-from lisa.nic import Nics
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
@@ -342,7 +341,7 @@ class Provisioning(TestSuite):
         return all_mana_devices
 
     def check_sriov(self, log: Logger, node: RemoteNode) -> None:
-        node_nic_info = Nics(node)
+        node_nic_info = node.nics
         node_nic_info.initialize()
 
         network_interface_feature = node.features[NetworkInterface]

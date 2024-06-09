@@ -736,9 +736,11 @@ class Debian(Linux):
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)\."  # minor
+        r"(?P<minor>[0-9]+)[\-\.]"  # minor
         r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        # '-' is added after minor and made optional before build
+        # due to the formats like 23.11-1build3
     )
     # apt-cache policy git
     # git:
@@ -1988,6 +1990,7 @@ class Suse(Linux):
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
     ) -> None:
+        self._initialize_package_installation()
         cmd = "zypper ar"
         if no_gpgcheck:
             cmd += " -G "

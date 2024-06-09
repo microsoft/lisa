@@ -15,20 +15,4 @@ To achieve this, follow these steps:
 
    Make sure you have the Bicep CLI installed. You can install it `here <https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/bicep-cli>`__. Put bicepconfig.json in the same directory as the Bicep template.
 
-3. **Enable Bicep Generated ARM Template**: Set use_bicep to true in the runbook.
-
-   .. code:: yaml
-
-      platform:
-      - type: azure
-         ...
-         azure:
-            ...
-            use_bicep: true
-         requirement:
-            ...
-            azure:
-               ...
-               location: "<one or multiple locations, split by comma>"
-
 These steps allow you to leverage the benefits of Bicep for defining Azure infrastructure while still utilizing the Azure Python SDK for deployment.
