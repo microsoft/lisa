@@ -32,6 +32,7 @@ class Waagent(Tool):
         "/usr/libexec/platform-python",
         # for flatcar
         "/usr/share/oem/python/bin/python3",
+        "/usr/share/oem/python/bin/python",
     ]
     _src_url = "https://github.com/Azure/WALinuxAgent/"
 
@@ -44,16 +45,17 @@ class Waagent(Tool):
         return False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if isinstance(self.node.os, CoreOs):
-            self._command = (
-                "/usr/share/oem/python/bin/python /usr/share/oem/bin/waagent"
-            )
-        else:
-            self._command = "waagent"
+        self._command = "waagent"
         self._python_cmd: Optional[str] = None
         self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
         self._waagent_conf_path: Optional[str] = None
+        if isinstance(self.node.os, CoreOs):
+            # Flatcar is the successor of CoreOs and current Flatcar
+            # versions ship waagent/python in the standard PATH
+            python_cmd, _ = self.get_python_cmd()
+            if "/usr/share/oem/" in python_cmd:
+                self._command = f"{python_cmd} /usr/share/oem/bin/waagent"
 
     def get_version(self) -> str:
         result = self.run("-version")
