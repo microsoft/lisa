@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Ls, Lscpu, Modprobe, Usermod
+from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
@@ -46,6 +46,17 @@ class CloudHypervisorTestSuite(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         node.tools[Modprobe].remove(["openvswitch"])
+
+        journalctl = node.tools[Journalctl]
+        docker_log = journalctl.logs_for_unit(
+            unit_name="docker",
+            sudo=True,
+        )
+        log.debug(f"Journalctl Docker Logs: {docker_log}")
+
+        dmesg = node.tools[Dmesg]
+        dmesg_log = dmesg.get_output(force_run=True)
+        log.debug(f"Dmesg Logs: {dmesg_log}")
 
     @TestCaseMetadata(
         description="""
