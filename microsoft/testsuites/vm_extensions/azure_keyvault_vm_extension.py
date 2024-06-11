@@ -36,6 +36,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform, AzurePlatformSchema
 from lisa.testsuite import TestResult
 from lisa.tools.ls import Ls
+from lisa.tools.whoami import Whoami
 from lisa.util import LisaException, SkippedException, generate_random_chars
 
 
@@ -50,10 +51,25 @@ def _check_system_status(node: Node, log: Logger) -> None:
 
     # List the contents of the directory
     ls = node.tools[Ls]
-    directory_contents = ls.run(
-        "/var/lib/waagent/Microsoft.Azure.KeyVault -la", sudo=True
-    ).stdout
+    directory_contents = ls.run("/var/lib/waagent -la", sudo=True).stdout
     log.info(f"Directory contents: {directory_contents}")
+
+    # check certs files
+    certa = "/var/lib/waagent/a/symbolinka"
+    message = f"File {certa} was not created on the test machine"
+    ls.run(
+        certa,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=message,
+    )
+
+    certb = "/var/lib/waagent/a/symbolinkb"
+    message = f"File {certb} was not created on the test machine"
+    ls.run(
+        certb,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=message,
+    )
 
 
 @TestSuiteMetadata(
@@ -101,6 +117,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         resource_group_name = runbook.shared_resource_group_name
         application_id = runbook.service_principal_client_id
         node_context = get_node_context(node)
+
         # A vault's name must be between 3-24 alphanumeric characters.
         vault_name = (
             f"lisa-kv{platform.subscription_id[-6:]}{node_context.location[:11]}"
@@ -175,10 +192,12 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             ).is_not_none()
             certificates_secret_id.append(certificate_secret_id)
 
+        current_user = node.tools[Whoami].get_username()
+
         # Extension
         extension_name = "KeyVaultForLinux"
         extension_publisher = "Microsoft.Azure.KeyVault"
-        extension_version = "2.0"
+        extension_version = "3.0"
         settings = {
             "secretsManagementSettings": {
                 "autoUpgradeMinorVersion": True,
@@ -186,8 +205,18 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                 "pollingIntervalInS": "360",
                 "certificateStoreLocation": "/var/lib/waagent/Microsoft.Azure.KeyVault",
                 "observedCertificates": [
-                    certificates_secret_id[0],
-                    certificates_secret_id[1],
+                    {
+                        "url": certificates_secret_id[0],
+                        "certificateStoreLocation": "/var/lib/waagent/a",
+                        "customSymbolicLinkName": "symbolinka",
+                        "acls": [{"user": current_user}],
+                    },
+                    {
+                        "url": certificates_secret_id[1],
+                        "certificateStoreLocation": "/var/lib/waagent/b",
+                        "customSymbolicLinkName": "symbolinkb",
+                        "acls": [{"user": current_user}],
+                    },
                 ],
             }
         }
