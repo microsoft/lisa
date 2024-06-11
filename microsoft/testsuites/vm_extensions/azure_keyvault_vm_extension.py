@@ -51,9 +51,7 @@ def _check_system_status(node: Node, log: Logger) -> None:
 
     # List the contents of the directory
     ls = node.tools[Ls]
-    directory_contents = ls.run(
-        "/var/lib/waagent -la", sudo=True
-    ).stdout
+    directory_contents = ls.run("/var/lib/waagent -la", sudo=True).stdout
     log.info(f"Directory contents: {directory_contents}")
 
     # check certs files
@@ -211,23 +209,15 @@ class AzureKeyVaultExtensionBvt(TestSuite):
                         "url": certificates_secret_id[0],
                         "certificateStoreLocation": "/var/lib/waagent/a",
                         "customSymbolicLinkName": "symbolinka",
-                        "acls": [
-                            {
-                                "user": current_user
-                            }
-                        ]
+                        "acls": [{"user": current_user}],
                     },
                     {
                         "url": certificates_secret_id[1],
                         "certificateStoreLocation": "/var/lib/waagent/b",
                         "customSymbolicLinkName": "symbolinkb",
-                        "acls": [
-                            {
-                                "user": current_user
-                            }
-                        ]
-                    }
-                ]
+                        "acls": [{"user": current_user}],
+                    },
+                ],
             }
         }
         extension = node.features[AzureExtension]
