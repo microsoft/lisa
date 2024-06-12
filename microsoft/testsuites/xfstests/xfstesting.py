@@ -415,6 +415,10 @@ class Xfstesting(TestSuite):
         description="""
         This test case will run cifs xfstests testing against
          azure file share.
+
+        Downgrading priority from 3 to 5. The file share relies on the
+         storage account key, which we cannot use currently.
+        Will change it back once file share works with MSI.
         """,
         requirement=simple_requirement(
             min_core_count=16,
@@ -423,7 +427,7 @@ class Xfstesting(TestSuite):
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
-        priority=3,
+        priority=5,
     )
     def verify_azure_file_share(
         self, log: Logger, log_path: Path, result: TestResult

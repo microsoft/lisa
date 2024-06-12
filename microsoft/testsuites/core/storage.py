@@ -559,13 +559,17 @@ class Storage(TestSuite):
             2. Create an Azure File Share
             3. Mount the VM to Azure File Share
             4. Verify mount is successful
+
+        Downgrading priority from 1 to 5. The file share relies on the
+         storage account key, which we cannot use currently.
+        Will change it back once file share works with MSI.
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
             supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
         use_new_environment=True,
-        priority=1,
+        priority=5,
     )
     def verify_cifs_basic(self, node: Node, environment: Environment) -> None:
         if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
