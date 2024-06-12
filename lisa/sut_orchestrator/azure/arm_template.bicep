@@ -37,6 +37,9 @@ param subnet_prefix string
 @description('tags of virtual machine')
 param vm_tags object
 
+@description('tags of azure resources')
+param tags object
+
 @description('data disk array.')
 param data_disks array
 
@@ -54,6 +57,8 @@ var availability_type = availability_options.availability_type
 var use_availability_set = (availability_type == 'availability_set')
 var use_availability_zones = (availability_type == 'availability_zone')
 var availability_set_value = (use_availability_set ? getAvailabilitySetId(availability_set_name_value): null)
+var combined_vm_tags = union(tags, vm_tags)
+var combined_aset_tags = union(tags, availability_set_tags)
 
 func isCvm(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vmgs_path)))
 
@@ -207,6 +212,7 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     subnet_prefix: subnet_prefix
     existing_subnet_ref: existing_subnet_ref
     enable_sriov: nodes[i].enable_sriov
+    tags: tags
   }
   dependsOn: [
     nodes_public_ip[i]
@@ -215,6 +221,7 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
 
 resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2020-05-01' = if (empty(virtual_network_resource_group)) {
   name: virtual_network_name
+  tags: tags
   location: location
   properties: {
     addressSpace: {
@@ -234,7 +241,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2020-0
 resource availability_set 'Microsoft.Compute/availabilitySets@2019-07-01' = if (use_availability_set) {
   name: availability_set_name_value
   location: location
-  tags: availability_set_tags
+  tags: combined_aset_tags
   sku: {
     name: 'Aligned'
   }
@@ -243,6 +250,7 @@ resource availability_set 'Microsoft.Compute/availabilitySets@2019-07-01' = if (
 
 resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): {
   location: location
+  tags: tags
   name: '${nodes[i].name}-public-ip'
   properties: {
     publicIPAllocationMethod: (is_ultradisk ? 'Static' : 'Dynamic')
@@ -255,6 +263,7 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
 
 resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, node_count): if (isVhd(nodes[i]) && empty(nodes[i].vhd.vmgs_path)) {
   name: '${nodes[i].name}-image'
+  tags: tags
   location: location
   properties: {
     storageProfile: {
@@ -271,6 +280,7 @@ resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, 
 
 resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, node_count): if (isCvm(nodes[i])) {
   name: '${nodes[i].name}-disk'
+  tags: tags
   location: location
   sku: {
     name: 'Standard_LRS'
@@ -299,6 +309,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   for i in range(0, (length(data_disks) * node_count)): if (is_ultradisk) {
     name: '${nodes[(i / length(data_disks))].name}-data-disk-${(i % length(data_disks))}'
     location: location
+    tags: tags
     properties: {
       diskSizeGB: data_disks[(i % length(data_disks))].size
       creationData: {
@@ -317,7 +328,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
-  tags: vm_tags
+  tags: combined_vm_tags
   plan: nodes[i].purchase_plan
   properties: {
     availabilitySet: availability_set_value

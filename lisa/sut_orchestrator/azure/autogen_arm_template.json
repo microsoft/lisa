@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.25.53.49325",
-      "templateHash": "6371934161409477905"
+      "templateHash": "2065527052429800628"
     }
   },
   "functions": [
@@ -493,6 +493,12 @@
         "description": "tags of virtual machine"
       }
     },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "tags of azure resources"
+      }
+    },
     "data_disks": {
       "type": "array",
       "metadata": {
@@ -518,7 +524,9 @@
     "availability_type": "[parameters('availability_options').availability_type]",
     "use_availability_set": "[equals(variables('availability_type'), 'availability_set')]",
     "use_availability_zones": "[equals(variables('availability_type'), 'availability_zone')]",
-    "availability_set_value": "[if(variables('use_availability_set'), __bicep.getAvailabilitySetId(variables('availability_set_name_value')), null())]"
+    "availability_set_value": "[if(variables('use_availability_set'), __bicep.getAvailabilitySetId(variables('availability_set_name_value')), null())]",
+    "combined_vm_tags": "[union(parameters('tags'), parameters('vm_tags'))]",
+    "combined_aset_tags": "[union(parameters('tags'), variables('availability_set_tags'))]"
   },
   "resources": {
     "virtual_network_name_resource": {
@@ -526,6 +534,7 @@
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2020-05-01",
       "name": "[parameters('virtual_network_name')]",
+      "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "properties": {
         "copy": [
@@ -553,7 +562,7 @@
       "apiVersion": "2019-07-01",
       "name": "[variables('availability_set_name_value')]",
       "location": "[parameters('location')]",
-      "tags": "[variables('availability_set_tags')]",
+      "tags": "[variables('combined_aset_tags')]",
       "sku": {
         "name": "Aligned"
       },
@@ -568,6 +577,7 @@
       "apiVersion": "2020-05-01",
       "name": "[format('{0}-public-ip', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
       "properties": {
         "publicIPAllocationMethod": "[if(parameters('is_ultradisk'), 'Static', 'Dynamic')]"
       },
@@ -585,6 +595,7 @@
       "type": "Microsoft.Compute/images",
       "apiVersion": "2019-03-01",
       "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+      "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "properties": {
         "storageProfile": {
@@ -607,6 +618,7 @@
       "type": "Microsoft.Compute/disks",
       "apiVersion": "2021-04-01",
       "name": "[format('{0}-disk', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+      "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
       "sku": {
         "name": "Standard_LRS"
@@ -636,6 +648,7 @@
       "apiVersion": "2022-03-02",
       "name": "[format('{0}-data-disk-{1}', parameters('nodes')[div(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].name, mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks'))))]",
       "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
       "properties": {
         "diskSizeGB": "[parameters('data_disks')[mod(range(0, mul(length(parameters('data_disks')), variables('node_count')))[copyIndex()], length(parameters('data_disks')))].size]",
         "creationData": {
@@ -658,7 +671,7 @@
       "apiVersion": "2022-08-01",
       "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]",
       "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
-      "tags": "[parameters('vm_tags')]",
+      "tags": "[variables('combined_vm_tags')]",
       "plan": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].purchase_plan]",
       "properties": {
         "availabilitySet": "[variables('availability_set_value')]",
@@ -745,6 +758,9 @@
           },
           "enable_sriov": {
             "value": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].enable_sriov]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
           }
         },
         "template": {
@@ -754,7 +770,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.25.53.49325",
-              "templateHash": "15038849300358134397"
+              "templateHash": "16437347877901848310"
             }
           },
           "functions": [
@@ -799,6 +815,9 @@
             },
             "enable_sriov": {
               "type": "bool"
+            },
+            "tags": {
+              "type": "object"
             }
           },
           "variables": {
@@ -814,6 +833,7 @@
               "apiVersion": "2023-06-01",
               "name": "[format('{0}-nic-{1}', parameters('vmName'), range(0, parameters('nic_count'))[copyIndex()])]",
               "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
               "properties": {
                 "ipConfigurations": [
                   {

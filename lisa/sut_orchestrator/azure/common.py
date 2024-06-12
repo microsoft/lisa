@@ -1151,6 +1151,7 @@ class AzureArmParameter:
     nodes: List[AzureNodeArmParameter] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     vm_tags: Dict[str, Any] = field(default_factory=dict)
+    tags: Dict[str, Any] = field(default_factory=dict)
 
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
