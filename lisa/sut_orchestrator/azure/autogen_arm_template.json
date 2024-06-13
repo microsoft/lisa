@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.25.53.49325",
-      "templateHash": "2065527052429800628"
+      "version": "0.28.1.47646",
+      "templateHash": "3745554522443783945"
     }
   },
   "functions": [
@@ -620,6 +620,7 @@
       "name": "[format('{0}-disk', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
+      "managedBy": "test",
       "sku": {
         "name": "Standard_LRS"
       },
@@ -765,12 +766,13 @@
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
           "contentVersion": "1.0.0.0",
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.25.53.49325",
-              "templateHash": "16437347877901848310"
+              "version": "0.28.1.47646",
+              "templateHash": "10740733774987815957"
             }
           },
           "functions": [
@@ -823,8 +825,8 @@
           "variables": {
             "publicIpAddress": "[__bicep.getPublicIpAddress(parameters('vmName'))]"
           },
-          "resources": [
-            {
+          "resources": {
+            "vm_nics": {
               "copy": {
                 "name": "vm_nics",
                 "count": "[length(range(0, parameters('nic_count')))]"
@@ -851,7 +853,7 @@
                 "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
               }
             }
-          ]
+          }
         }
       },
       "dependsOn": [

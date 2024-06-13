@@ -282,6 +282,7 @@ resource nodes_disk 'Microsoft.Compute/disks@2021-04-01' = [for i in range(0, no
   name: '${nodes[i].name}-disk'
   tags: tags
   location: location
+  managedBy: 'test'
   sku: {
     name: 'Standard_LRS'
   }
