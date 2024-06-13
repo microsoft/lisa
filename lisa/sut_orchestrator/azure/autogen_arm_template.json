@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "3745554522443783945"
+      "templateHash": "12111507637332987612"
     }
   },
   "functions": [
@@ -597,6 +597,7 @@
       "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
+      "managedBy": "test",
       "properties": {
         "storageProfile": {
           "osDisk": {

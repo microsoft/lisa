@@ -265,6 +265,7 @@ resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, 
   name: '${nodes[i].name}-image'
   tags: tags
   location: location
+  managedBy: 'test'
   properties: {
     storageProfile: {
       osDisk: {
