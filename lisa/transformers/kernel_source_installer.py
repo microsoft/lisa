@@ -93,6 +93,22 @@ class SourceInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    # Additional build dependencies
+    build_deps: List[str] = field(default_factory=list)
+
+    # Kernel local version
+    kernel_local_version: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+
+    # Config options
+    kernel_config_enable: List[str] = field(default_factory=list)
+    kernel_config_disable: List[str] = field(default_factory=list)
+    kernel_config_module: List[str] = field(default_factory=list)
+
 
 class SourceInstaller(BaseInstaller):
     _code_path: PurePath
@@ -143,7 +159,28 @@ class SourceInstaller(BaseInstaller):
         runbook: SourceInstallerSchema = self.runbook
         assert runbook.location, "the repo must be defined."
 
-        self._install_build_tools(node)
+        self._install_build_tools(node, runbook.build_deps)
+
+        # Ubuntu sort kernels by version. If installed kernel version is lower than default
+        # one extra steps needed to ensure boot into correct kernel.
+        if isinstance(node.os, Ubuntu):
+            result = node.execute(
+                "cat > /tmp/grub-lisa.cfg <<EOF\n" \
+                "GRUB_DEFAULT=saved\n" \
+                "GRUB_DISABLE_SUBMENU=y\n" \
+                "EOF\n",
+                shell=True
+            )
+            result.assert_exit_code()
+
+            result = node.execute(
+                f"cp /tmp/grub-lisa.cfg /etc/default/grub.d/99-lisa.cfg",
+                sudo=True,
+            )
+            result.assert_exit_code()
+
+            # grub.cfg will be regenerated later during make install, so
+            # no need to explicitly regenerate it now.
 
         factory = subclasses.Factory[BaseLocation](BaseLocation)
         source = factory.create_by_runbook(
@@ -159,8 +196,14 @@ class SourceInstaller(BaseInstaller):
         self._modify_code(node=node, code_path=self._code_path)
 
         kconfig_file = runbook.kernel_config_file
+        local_version = runbook.kernel_local_version
+        kconfig_enable = runbook.kernel_config_enable
+        kconfig_disable = runbook.kernel_config_disable
+        kconfig_module = runbook.kernel_config_module
         self._build_code(
-            node=node, code_path=self._code_path, kconfig_file=kconfig_file
+            node=node, code_path=self._code_path, kconfig_file=kconfig_file,
+            local_version=local_version, kconfig_enable=kconfig_enable,
+            kconfig_disable=kconfig_disable, kconfig_module=kconfig_module,
         )
 
         self._install_build(node=node, code_path=self._code_path)
@@ -184,6 +227,20 @@ class SourceInstaller(BaseInstaller):
             sudo=True,
         )
         result.assert_exit_code()
+
+        if isinstance(node.os, Ubuntu):
+            result = node.execute("find /boot -name 'grub.cfg'", sudo=True)
+            result.assert_exit_code()
+
+            grub_config = result.stdout
+            result = node.execute(f"grep 'menuentry ' {grub_config}", sudo=True)
+            result.assert_exit_code()
+
+            for idx, menuentry in enumerate(result.stdout.splitlines()):
+                if kernel_version in menuentry:
+                    node.execute(f"grub-set-default {idx}", sudo=True)
+                    result.assert_exit_code()
+                    break
 
         return kernel_version
 
@@ -227,7 +284,16 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str) -> None:
+    def _build_code(
+            self,
+            node: Node,
+            code_path: PurePath,
+            kconfig_file: str,
+            local_version: str,
+            kconfig_enable: list[str],
+            kconfig_disable: list[str],
+            kconfig_module: list[str],
+        ) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
@@ -261,6 +327,13 @@ class SourceInstaller(BaseInstaller):
             sudo=True,
         )
 
+        result = node.execute(
+            f"scripts/config --set-str LOCALVERSION '{local_version}'",
+            cwd=code_path,
+            shell=True,
+        )
+        result.assert_exit_code()
+
         # workaround failures.
         #
         # make[1]: *** No rule to make target 'debian/canonical-certs.pem',
@@ -286,6 +359,30 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
+        for config_option in kconfig_enable:
+            result = node.execute(
+                f"scripts/config --enable {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
+
+        for config_option in kconfig_disable:
+            result = node.execute(
+                f"scripts/config --disable {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
+
+        for config_option in kconfig_module:
+            result = node.execute(
+                f"scripts/config --module {config_option}",
+                cwd=code_path,
+                shell=True,
+            )
+            result.assert_exit_code()
+
         # the gcc version of Redhat 7.x is too old. Upgrade it.
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
             node.os.install_packages(["devtoolset-8"])
@@ -302,12 +399,12 @@ class SourceInstaller(BaseInstaller):
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
 
-    def _install_build_tools(self, node: Node) -> None:
+    def _install_build_tools(self, node: Node, build_deps: list[str]) -> None:
         os = node.os
         self._log.info("installing build tools")
         if isinstance(os, Redhat):
             for package in list(
-                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
+                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"] + build_deps
             ):
                 if os.is_package_in_repo(package):
                     os.install_packages(package)
@@ -336,7 +433,7 @@ class SourceInstaller(BaseInstaller):
                     "libssl-dev",
                     "bc",
                     "ccache",
-                ]
+                ] + build_deps
             )
         elif isinstance(os, CBLMariner):
             os.install_packages(
@@ -355,7 +452,7 @@ class SourceInstaller(BaseInstaller):
                     "xz-libs",
                     "openssl-libs",
                     "openssl-devel",
-                ]
+                ] + build_deps
             )
         else:
             raise LisaException(
