@@ -388,8 +388,11 @@ class CustomScriptTests(TestSuite):
         description="""
         Runs the Custom Script VM extension with private Azure storage file uri
         without a sas token but with storage account credentials.
+
+        Downgrading priority from 3 to 5. The extension relies on the
+         storage account key, which we cannot use currently.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_private_script_with_storage_credentials_run(
         self, log: Logger, node: Node, environment: Environment
