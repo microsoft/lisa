@@ -55,8 +55,12 @@ class AzurePerformanceDiagnostics(TestSuite):
         Installs and runs the Azure Performance Diagnostics VM Extension.
         Verifies a report was created and uploaded to the storage account.
         Deletes the VM Extension.
+
+        Downgrading priority from 1 to 5. The extension relies on the
+         storage account key, which we cannot use currently.
+        Will change it back once the extension works with MSI.
         """,
-        priority=1,
+        priority=5,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
