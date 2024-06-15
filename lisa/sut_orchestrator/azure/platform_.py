@@ -1308,6 +1308,9 @@ class AzurePlatform(Platform):
             azure_node_runbook.community_gallery_image = None
             azure_node_runbook.shared_gallery.resolve_version(self)
             azure_node_runbook.update_raw()
+            azure_node_runbook.hyperv_generation = _get_gallery_image_generation(
+                azure_node_runbook.shared_gallery.query_platform(self)
+            )
         elif azure_node_runbook.community_gallery_image:
             azure_node_runbook.marketplace = None
             azure_node_runbook.community_gallery_image.resolve_version(self)
