@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
 from functools import partial
 from typing import Any
 
@@ -173,13 +174,15 @@ class NetworkPerformace(TestSuite):
         timeout=TIMEOUT,
         requirement=node_requirement(
             node=schema.NodeSpace(
-                node_count=2,
+                node_count=3,
                 memory_mb=search_space.IntRange(min=8192),
                 network_interface=Sriov(),
             )
         ),
     )
     def perf_tcp_ntttcp_sriov(self, result: TestResult) -> None:
+        print("waiting::")
+        time.sleep(3600)
         perf_ntttcp(result)
 
     @TestCaseMetadata(
