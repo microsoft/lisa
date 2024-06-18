@@ -87,7 +87,6 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*[WARNING]*)$", re.MULTILINE),
     ]
 
-
     # ignorable failure, error, warnings pattern which got confirmed
     _error_fail_warnings_ignorable_str_list: List[Pattern[str]] = [
         re.compile(r"^(.*Perf event create on CPU 0 failed with -2.*)$", re.M),
