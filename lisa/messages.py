@@ -150,7 +150,32 @@ DiskType = Enum(
 
 
 @dataclass
-class DiskPerformanceMessage(PerfMessage):
+class SysbenchPerfMessage:
+    # Sysbench common params
+    min_latency_ms: float = 0.00
+    max_latency_ms: float = 0.00
+    avg_latency_ms: float = 0.00
+    percentile_95_latency_ms: float = 0.00
+    sum_latency_ms: float = 0.00
+    total_time: float = 0.00
+    events_avg: float = 0.00
+    events_stddev: float = 0.00
+    execution_time_avg: float = 0.00
+    execution_time_stddev: float = 0.00
+    total_events: Decimal = Decimal(0)
+    threads: int = 0
+    events: int = 0
+    time_limit_sec: int = 0
+
+
+@dataclass
+class CPUPerformanceMessage(PerfMessage, SysbenchPerfMessage):
+    benchmark: str = ""
+    cpu_speed: Decimal = Decimal(0)
+
+
+@dataclass
+class DiskPerformanceMessage(PerfMessage, SysbenchPerfMessage):
     disk_setup_type: DiskSetupType = DiskSetupType.raw
     block_size: int = 0
     disk_type: DiskType = DiskType.nvme
@@ -167,6 +192,35 @@ class DiskPerformanceMessage(PerfMessage):
     write_lat_usec: Decimal = Decimal(0)
     randwrite_iops: Decimal = Decimal(0)
     randwrite_lat_usec: Decimal = Decimal(0)
+
+    # Sysbench FileIO params
+    read_mib_per_sec: Decimal = Decimal(0)
+    write_mib_per_sec: Decimal = Decimal(0)
+    fsyncs_per_sec: Decimal = Decimal(0)
+    file_fsync_all: str = ""
+    file_fsync_end: str = ""
+    total_file: int = 0
+    file_total_size_in_gb: int = 0
+    file_async_backlog: int = 0
+    file_fsync_freq: int = 0
+    file_merged_requests: int = 0
+    file_rw_ratio: float = 0
+    file_ops: str = ""
+    file_io_mode: str = ""
+    file_fsync_mode: str = ""
+
+
+@dataclass
+class MemoryPerformanceMessage(PerfMessage, SysbenchPerfMessage):
+    total_mib_transferred: int = 0
+    block_size_in_kb: int = 0
+    memory_total_size_in_gb: int = 0
+    mib_per_second: float = 0.0
+    operations_per_second: float = 0
+    scope: str = ""
+    hugetlb_on: bool = False
+    access_mode: str = ""
+    operation: str = ""
 
 
 @dataclass
