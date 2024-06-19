@@ -2477,9 +2477,9 @@ class Availability(AzureFeatureMixin, features.Availability):
         # resolve the default without considering capabilities
         if params.availability_type == AvailabilityType.Default:
             params.availability_type = (
-                AvailabilityType.AvailabilitySet
+                AvailabilityType.AvailabilitySet.value
                 if params.availability_set_tags or params.availability_set_properties
-                else AvailabilityType.NoRedundancy
+                else AvailabilityType.NoRedundancy.value
             )
 
         # Once the availability type has been determined, clear the unecessary
