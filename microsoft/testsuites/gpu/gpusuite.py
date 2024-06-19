@@ -35,8 +35,8 @@ from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
-    "https://partnerpipelineshare.blob.core.windows.net/"
-    "packages/cudnn-10.0-linux-x64-v7.5.0.56.tgz"
+    "https://developer.download.nvidia.com/compute/redist/cudnn/"
+    "v7.5.0/cudnn-10.0-linux-x64-v7.5.0.56.tgz"
 )
 _cudnn_file_name = "cudnn.tgz"
 
