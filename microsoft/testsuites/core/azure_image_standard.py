@@ -83,8 +83,8 @@ class AzureImageStandard(TestSuite):
     # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output.
     # cloud-init[958]: photon.py[ERROR]: Error while installing packages
     _ERROR_WARNING_pattern: List[Pattern[str]] = [
-        re.compile(r"^(.*\[ERROR\]:*)", re.MULTILINE),
-        re.compile(r"^(.*\[WARNING\]:*)", re.MULTILINE),
+        re.compile(r"^(.*\[ERROR\]:.*)", re.MULTILINE),
+        re.compile(r"^(.*\[WARNING\]:.*)", re.MULTILINE),
     ]
 
     # ignorable failure, error, warnings pattern which got confirmed
