@@ -11,7 +11,7 @@ from retry import retry
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -289,12 +289,6 @@ class Infiniband(Feature):
             "ucx-rdmacm",
             "ucx-cma",
         ]
-        if isinstance(node.os, CentOs):
-            node.execute(
-                "yum install -y https://partnerpipelineshare.blob.core.windows.net"
-                f"/kernel-devel-rpms/kernel-devel-{kernel}.rpm",
-                sudo=True,
-            )
 
         if isinstance(node.os, Redhat):
             if node.os.information.version.major >= 9:
