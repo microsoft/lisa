@@ -326,7 +326,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             return
         except websockets.ConnectionClosed as e:  # type: ignore
             # If the connection is closed, we need to reconnect
-            self._log.debug(f"Connection closed: {e}")
+            self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
@@ -340,7 +340,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             return output
         except websockets.ConnectionClosed as e:  # type: ignore
             # If the connection is closed, we need to reconnect
-            self._log.debug(f"Connection closed: {e}")
+            self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
@@ -360,9 +360,17 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             connection_str = self._get_connection_string()
 
             # create websocket connection
-            self._ws = self._get_event_loop().run_until_complete(
+            ws = self._get_event_loop().run_until_complete(
                 websockets.connect(connection_str)  # type: ignore
             )
+
+            token = self._get_access_token()
+            # add to secret in case it's echo back.
+            add_secret(token)
+            # send token to auth
+            self._get_event_loop().run_until_complete(ws.send(token))
+
+            self._ws = ws
 
         return self._ws
 
@@ -402,6 +410,14 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
         return output
 
+    def _get_access_token(self) -> str:
+        platform: AzurePlatform = self._platform  # type: ignore
+        access_token = platform.credential.get_token(
+            "https://management.core.windows.net/.default"
+        ).token
+
+        return access_token
+
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
         return save_console_log(
@@ -414,7 +430,6 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
     def _get_connection_string(self) -> str:
         # setup connection string
-        platform: AzurePlatform = self._platform  # type: ignore
         connection = self._serial_port_operations.connect(
             resource_group_name=self._resource_group_name,
             resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
@@ -422,11 +437,8 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             parent_resource=self._vm_name,
             serial_port=self._serial_port.name,
         )
-        access_token = platform.credential.get_token(
-            "https://management.core.windows.net/.default"
-        ).token
         serial_port_connection_str = (
-            f"{connection.connection_string}?authorization={access_token}"
+            f"{connection.connection_string}?authorization={self._get_access_token()}"
         )
 
         return serial_port_connection_str
@@ -475,6 +487,8 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
                 for serialport in serial_ports.value
                 if int(serialport.name) == port_id
             ][0]
+
+        self._log.debug(f"Serial port {port_id} is enabled: {self._serial_port}")
 
         # setup shared web socket connection variable
         self._ws = None
