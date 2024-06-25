@@ -1,5 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from functools import partial
+from typing import Any, Dict
+
 from assertpy import assert_that
 
 from lisa import (
@@ -437,7 +440,14 @@ class InfinibandSuite(TestSuite):
             unsupported_os=[BSD, Windows],
         ),
     )
-    def verify_ibm_mpi(self, environment: Environment, log: Logger) -> None:
+    def verify_ibm_mpi(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        platform_mpi_url = variables.get("platform_mpi_url", "")
+        if not platform_mpi_url:
+            raise SkippedException(
+                "This case needs to provide the platform MPI installation URL."
+            )
         server_node = environment.nodes[0]
         client_node = environment.nodes[1]
 
@@ -456,7 +466,12 @@ class InfinibandSuite(TestSuite):
         ) as err:
             raise SkippedException(err)
 
-        run_in_parallel([server_ib.install_ibm_mpi, client_ib.install_ibm_mpi])
+        run_in_parallel(
+            [
+                partial(server_ib.install_ibm_mpi, platform_mpi_url),
+                partial(client_ib.install_ibm_mpi, platform_mpi_url),
+            ]
+        )
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
         # to take effect
