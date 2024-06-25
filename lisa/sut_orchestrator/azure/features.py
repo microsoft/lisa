@@ -345,6 +345,12 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             self._get_connection()
             raise e
 
+    def close(self) -> None:
+        if self._ws is not None:
+            self._log.debug("Closing connection to serial console")
+            self._get_event_loop().run_until_complete(self._ws.close())
+            self._ws = None
+
     def _get_event_loop(self) -> asyncio.AbstractEventLoop:
         # create asyncio loop if it doesn't exist
         try:
