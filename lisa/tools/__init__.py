@@ -44,6 +44,7 @@ from .gdb import Gdb
 from .git import Git
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
+from .hugepages import Hugepages
 from .hwclock import Hwclock
 from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
@@ -158,6 +159,7 @@ __all__ = [
     "Iperf3",
     "HibernationSetup",
     "Hostname",
+    "Hugepages",
     "Hwclock",
     "HyperV",
     "InterruptInspector",

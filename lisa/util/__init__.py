@@ -207,6 +207,21 @@ class UnsupportedKernelException(LisaException):
         return message
 
 
+class NotEnoughMemoryException(LisaException):
+    """
+    This exception is used to indicate that that the system does not have enough memory.
+    """
+
+    def __init__(self, message: str = "") -> None:
+        self._extended_message = message
+
+    def __str__(self) -> str:
+        message = "Not enough memory"
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
+
+
 class UnsupportedCpuArchitectureException(LisaException):
     """
     This exception is used to indicate that a test case does not support the
