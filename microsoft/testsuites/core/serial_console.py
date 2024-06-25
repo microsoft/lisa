@@ -37,13 +37,15 @@ class SerialConsoleSuite(TestSuite):
         serial_console = node.features[SerialConsole]
 
         # retry to read serial console output, because it may not be ready
-        for _ in range(180):
+        for i in range(180):
             _ = serial_console.read()
             serial_console.write(command)
             output = serial_console.read()
 
             # check if the output contains the command
             if command in output:
+                serial_console.close()
+                log.debug(f"called {i} times, get output from serial console: {output}")
                 break
 
             # sleep for 1 second
