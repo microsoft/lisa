@@ -450,7 +450,7 @@ class Infiniband(Feature):
         # Install Intel MPI
         wget = node.tools[Wget]
         script_path = wget.get(
-            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/17397/"
             "l_mpi_oneapi_p_2021.1.1.76_offline.sh",
             file_path=self.resource_disk_path,
             executable=True,
@@ -497,7 +497,7 @@ class Infiniband(Feature):
         make.make("", cwd=openmpi_folder, sudo=True)
         make.make_install(cwd=openmpi_folder, sudo=True)
 
-    def install_ibm_mpi(self) -> None:
+    def install_ibm_mpi(self, platform_mpi_url: str) -> None:
         node = self._node
         if isinstance(node.os, Redhat):
             node.os.install_packages("libstdc++.i686")
@@ -513,8 +513,7 @@ class Infiniband(Feature):
         # Install Open MPI
         wget = node.tools[Wget]
         script_path = wget.get(
-            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
-            "platform_mpi-09.01.04.03r-ce.bin",
+            platform_mpi_url,
             file_path=self.resource_disk_path,
             executable=True,
             overwrite=False,
