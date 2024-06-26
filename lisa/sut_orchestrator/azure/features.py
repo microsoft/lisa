@@ -443,11 +443,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             parent_resource=self._vm_name,
             serial_port=self._serial_port.name,
         )
-        serial_port_connection_str = (
-            f"{connection.connection_string}?authorization={self._get_access_token()}"
-        )
-
-        return serial_port_connection_str
+        return str(connection.connection_string)
 
     def _initialize_serial_console(self, port_id: int) -> None:
         if self._serial_console_initialized:
