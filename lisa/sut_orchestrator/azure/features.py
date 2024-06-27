@@ -2170,6 +2170,7 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
                 "standarddadsv5family",
                 "standardebdsv5family",
                 "standardesv5family",
+                "standardBsv2Family",
             ]
             or raw_capabilities.get("HibernationSupported", None) == "True"
         ):
