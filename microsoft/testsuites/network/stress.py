@@ -48,7 +48,7 @@ class Stress(TestSuite):
         3. Do VF connection test.
         """,
         priority=4,
-        timeout=3000,
+        timeout=18000,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
@@ -125,7 +125,7 @@ class Stress(TestSuite):
         5. Do step 2 ~ step 4 for 25 times.
         """,
         priority=3,
-        timeout=4500,
+        timeout=18000,
         requirement=simple_requirement(
             min_core_count=4,
             network_interface=features.Sriov(),

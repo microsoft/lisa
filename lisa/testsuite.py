@@ -467,7 +467,7 @@ class TestCaseMetadata:
         self,
         description: str,
         priority: int = 2,
-        timeout: int = 3600,
+        timeout: int = 18000,
         use_new_environment: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,

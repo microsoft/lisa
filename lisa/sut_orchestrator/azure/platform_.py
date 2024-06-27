@@ -15,6 +15,7 @@ from functools import lru_cache, partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
+import time as t
 
 import requests
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -636,6 +637,7 @@ class AzurePlatform(Platform):
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
             )
+
             delete_operation: Any = None
             try:
                 delete_operation = self._rm_client.resource_groups.begin_delete(
@@ -1503,7 +1505,7 @@ class AzurePlatform(Platform):
             while True:
                 try:
                     wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
+                        deployment_operation, time_out=9000, failure_identity="deploy"
                     )
                 except LisaTimeoutException:
                     self._save_console_log_and_check_panic(

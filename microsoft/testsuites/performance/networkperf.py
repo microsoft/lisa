@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from functools import partial
 from typing import Any
-
+import time
 from lisa import (
     Logger,
     TestCaseMetadata,
