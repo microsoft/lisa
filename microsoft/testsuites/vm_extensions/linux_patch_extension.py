@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -67,14 +67,25 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
     ).is_true()
 
 
-def _assert_status_file_result(status_file: Any, error_code: str) -> None:
-    if (
-        len(status_file["error"]["details"]) > 0
-        and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
-    ):
+def _assert_status_file_result(node: Node, status_file: Any, error_code: str) -> None:
+    error_details_not_empty = len(status_file["error"]["details"]) > 0
+    error_details_code = status_file["error"]["details"][0]["code"]
+    if error_details_not_empty and error_details_code == "PACKAGE_LIST_TRUNCATED":
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to CompletedWithWarnings"
         ).is_equal_to("CompletedWithWarnings")
+    elif (
+        _is_supported_linux_distro(node)
+        and error_details_not_empty
+        and error_details_code == "UA_ESM_REQUIRED"
+    ):
+        assert_that(status_file["status"]).described_as(
+            "Expected the status file patches to succeed"
+        ).is_equal_to("Succeeded")
+        assert_that(error_code).described_as(
+            "Expected 1 error in status file patches operation"
+        ).is_equal_to("1")
+
     else:
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to succeed"
@@ -83,6 +94,24 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
         assert_that(error_code).described_as(
             "Expected no error in status file patches operation"
         ).is_equal_to("0")
+
+
+def _is_supported_linux_distro(node: Node) -> bool:
+    supported_major_versions = {
+        Ubuntu: [18],
+    }
+
+    for distro in supported_major_versions:
+        if isinstance(node.os, distro):
+            version_list = supported_major_versions.get(distro)
+            if (
+                version_list is not None
+                and node.os.information.version.major in version_list
+            ):
+                return True
+            else:
+                return False
+    return False
 
 
 @TestSuiteMetadata(
@@ -103,6 +132,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         vm. Verify status file response for validity.
         """,
         priority=1,
+        timeout=600,
     )
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger
@@ -118,7 +148,7 @@ class LinuxPatchExtensionBVT(TestSuite):
             )
             # set wait operation timeout 10 min, status file should be generated
             # before timeout
-            assess_result = wait_operation(operation, 600)
+            assess_result = wait_operation(operation)
 
         except HttpResponseError as identifier:
             if any(
@@ -133,7 +163,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         error_code = assess_result["error"]["code"]
 
         _verify_unsupported_vm_agent(node, assess_result, error_code)
-        _assert_status_file_result(assess_result, error_code)
+        _assert_status_file_result(node, assess_result, error_code)
 
     @TestCaseMetadata(
         description="""
@@ -184,4 +214,4 @@ class LinuxPatchExtensionBVT(TestSuite):
         error_code = install_result["error"]["code"]
 
         _verify_unsupported_vm_agent(node, install_result, error_code)
-        _assert_status_file_result(install_result, error_code)
+        _assert_status_file_result(node, install_result, error_code)
