@@ -7,7 +7,7 @@ from lisa.environment import Environment
 from lisa.node import Node
 
 from .console_logger import QemuConsoleLogger
-from .schema import DiskImageFormat
+from .schema import DiskImageFormat, LibvirtHostPciDeviceSchema
 
 
 @dataclass
@@ -56,6 +56,12 @@ class NodeContext:
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None
+
+    # Device pass through configuration
+    is_device_passthrough_set: bool = False
+    device_passthrough_configs: List[LibvirtHostPciDeviceSchema] = field(
+        default_factory=list,
+    )
 
 
 def get_environment_context(environment: Environment) -> EnvironmentContext:

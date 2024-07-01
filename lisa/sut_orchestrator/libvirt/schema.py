@@ -52,6 +52,26 @@ class BaseLibvirtPlatformSchema:
     capture_libvirt_debug_logs: bool = False
 
 
+# Configuration options for device-passthrough for the VM.
+@dataclass_json()
+@dataclass
+class LibvirtHostPciDeviceSchema:
+    # This property determines if libvirt would bind/unbind native driver or not
+    # Default is set to "yes" means libvirt will detach the native device driver and
+    # attach it to vfio-pci when vm is create and attach it back on deletion of vm
+    managed: str = "yes"
+
+    # Type of the device. Default is set to "pci"
+    device_type: str = "pci"
+
+    # Host device details for which we want to perform device-passthrough
+    # we can get it using lspci command
+    host_domain: str = ""
+    host_bus: str = ""
+    host_slot: str = ""
+    host_function: str = ""
+
+
 # Possible disk image formats
 class DiskImageFormat(Enum):
     QCOW2 = "qcow2"
@@ -84,6 +104,9 @@ class BaseLibvirtNodeSchema:
     machine_type: str = ""
     # Whether to enable secure boot.
     enable_secure_boot: bool = False
+
+    # Configuration options for device-passthrough.
+    device_passthrough: Optional[List[LibvirtHostPciDeviceSchema]] = None
 
 
 # QEMU orchestrator's per-node configuration options.

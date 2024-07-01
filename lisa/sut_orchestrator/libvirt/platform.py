@@ -34,7 +34,9 @@ from lisa.tools import (
     Iptables,
     Journalctl,
     Ls,
+    Lspci,
     Mkdir,
+    Modprobe,
     QemuImg,
     Sed,
     Service,
@@ -60,6 +62,7 @@ from .schema import (
     BaseLibvirtNodeSchema,
     BaseLibvirtPlatformSchema,
     DiskImageFormat,
+    LibvirtHostPciDeviceSchema,
 )
 from .serial_console import SerialConsole
 from .start_stop import StartStop
@@ -503,6 +506,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
                 node_context.data_disks.append(data_disk)
 
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params for node_context
+        self._configure_device_passthrough(
+            node_runbook.device_passthrough,
+            node_context,
+        )
+
     def restart_domain_and_attach_logger(self, node: Node) -> None:
         node_context = get_node_context(node)
         domain = node_context.domain
@@ -942,6 +952,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         on_crash.text = "destroy"
 
         devices = ET.SubElement(domain, "devices")
+        if node_context.is_device_passthrough_set:
+            devices = self._add_device_passthrough(devices, node_context)
 
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
@@ -1341,3 +1353,104 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
             with open(str(libvirt_log_local_path), "w") as f:
                 f.write(libvirt_log)
+
+    def _configure_device_passthrough(
+        self,
+        device_configs: Optional[List[LibvirtHostPciDeviceSchema]],
+        node_context: NodeContext,
+    ) -> None:
+        if device_configs:
+            for config in device_configs:
+                if self._device_exists(config):
+                    if self._is_kernel_driver_vfio_pci(config):
+                        raise LisaException(
+                            "Kernel Driver associated to Device already is 'vfio-pci'"
+                            f", Device: {config}"
+                        )
+                    node_context.device_passthrough_configs.append(config)
+                else:
+                    raise LisaException(f"Device not found on host: {config}")
+
+            self._check_passthrough_support(self.host_node)
+
+            node_context.is_device_passthrough_set = True
+            modprobe = self.host_node.tools[Modprobe]
+            allow_unsafe_interrupt = modprobe.load(
+                modules="vfio_iommu_type1",
+                options="allow_unsafe_interrupts=1",
+            )
+            if not allow_unsafe_interrupt:
+                raise LisaException("Allowing unsafe interrupt failed")
+
+    def _add_device_passthrough(
+        self,
+        devices: ET.Element,
+        node_context: NodeContext,
+    ) -> ET.Element:
+        for config in node_context.device_passthrough_configs:
+            hostdev = ET.SubElement(devices, "hostdev")
+            hostdev.attrib["mode"] = "subsystem"
+
+            assert config.device_type
+            hostdev.attrib["type"] = config.device_type
+
+            assert config.managed
+            hostdev.attrib["managed"] = config.managed
+            if config.device_type == "pci":
+                source = ET.SubElement(hostdev, "source")
+                src_addrs = ET.SubElement(source, "address")
+
+                source_domain = config.host_domain
+                assert source_domain
+                src_addrs.attrib["domain"] = f"0x{source_domain}"
+
+                source_bus = config.host_bus
+                assert source_bus
+                src_addrs.attrib["bus"] = f"0x{source_bus}"
+
+                source_slot = config.host_slot
+                assert source_slot
+                src_addrs.attrib["slot"] = f"0x{source_slot}"
+
+                source_function = config.host_function
+                assert source_function
+                src_addrs.attrib["function"] = f"0x{source_function}"
+
+                driver = ET.SubElement(hostdev, "driver")
+                driver.attrib["name"] = "vfio"
+        return devices
+
+    def _device_exists(self, device_config: LibvirtHostPciDeviceSchema) -> bool:
+        devices_list = self.host_node.tools[Lspci].get_devices()
+        devices_slots = [x.slot for x in devices_list]
+        if device_config.device_type == "pci":
+            bus = device_config.host_bus
+            slot = device_config.host_slot
+            fn = device_config.host_function
+            device_address = f"{bus}:{slot}.{fn}"
+            if device_address in devices_slots:
+                return True
+        return False
+
+    def _check_passthrough_support(self, node: Node) -> None:
+        ls = node.tools[Ls]
+        path = "/dev/vfio/vfio"
+        err = "Host does not support IOMMU"
+        if not ls.path_exists(path=path, sudo=True):
+            raise LisaException(f"{err} : {path} does not exist")
+
+        path = "/sys/kernel/iommu_groups/"
+        if len(ls.list(path=path, sudo=True)) == 0:
+            raise LisaException(f"{err} : {path} does not have any entry")
+
+    def _is_kernel_driver_vfio_pci(
+        self,
+        device_config: LibvirtHostPciDeviceSchema,
+    ) -> bool:
+        lspci = self.host_node.tools[Lspci]
+        bus = device_config.host_bus
+        slot = device_config.host_slot
+        fn = device_config.host_function
+        device_address = f"{bus}:{slot}.{fn}"
+        kernel_module = lspci.get_used_module(device_address)
+        return kernel_module == "vfio-pci"
