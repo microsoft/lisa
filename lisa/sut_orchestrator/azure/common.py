@@ -627,6 +627,10 @@ class AzureNodeSchema:
     # test cases, and uses to force run performance tests on any vm size.
     maximize_capability: bool = False
 
+    # Coma sepearted string of Features. This is to set the feature as enabled
+    # irrespective of the value returned in capabilities.
+    maximize_feature_capability: str = ""
+
     location: str = ""
     # Required by shared gallery images which are present in
     # subscription different from where LISA is run

@@ -82,6 +82,7 @@ from lisa.util import (
     strip_strs,
     truncate_keep_prefix,
 )
+from lisa.feature import get_feature_settings_type_by_name
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
@@ -2018,6 +2019,31 @@ class AzurePlatform(Platform):
 
         return plan
 
+    def _generate_max_feature_capability(
+        self,
+        maximize_features: str,
+        cap_features: Optional[search_space.SetSpace[schema.FeatureSettings]],
+    ) -> Optional[search_space.SetSpace[schema.FeatureSettings]]:
+        if not cap_features:
+            return cap_features
+
+        maximize_feature = maximize_features.split(",")
+        to_add: List[Any] = []
+
+        for feature_str in maximize_feature:
+            feature_present: bool = False
+            feature_class = getattr(features, feature_str)
+            for attr in cap_features:
+                if str(attr.type).lower() == feature_str.lower():
+                    feature_present = True
+                    break
+            if not feature_present:
+                new_feature = schema.FeatureSettings.create(feature_class.name())
+                to_add.append(new_feature)
+        for attr in to_add:
+            cap_features.update([attr])
+        return cap_features
+
     def _generate_max_capability(self, vm_size: str, location: str) -> AzureCapability:
         # some vm size cannot be queried from API, so use default capability to
         # run with best guess on capability.
@@ -2376,7 +2402,8 @@ class AzurePlatform(Platform):
         return matched_name
 
     def _get_capabilities(
-        self, vm_sizes: List[str], location: str, use_max_capability: bool, log: Logger
+        self, vm_sizes: List[str], location: str, use_max_capability: bool,
+        max_feature_capability: str, log: Logger
     ) -> List[AzureCapability]:
         candidate_caps: List[AzureCapability] = []
         caps = self.get_location_info(location, log).capabilities
@@ -2390,6 +2417,10 @@ class AzurePlatform(Platform):
 
             if vm_size in caps:
                 cap_features = caps[vm_size].capability.features
+                if max_feature_capability:
+                    cap_features = self._generate_max_feature_capability(
+                        max_feature_capability, cap_features
+                    )
                 # Azure platform offers SaaS, PaaS, IaaS.
                 # VMs can only been created with the VM Skus which have IaaS capability.
                 # Below exception will be thrown out
@@ -2538,6 +2569,7 @@ class AzurePlatform(Platform):
             vm_sizes=allowed_vm_sizes,
             location=location,
             use_max_capability=node_runbook.maximize_capability,
+            max_feature_capability=node_runbook.maximize_feature_capability,
             log=log,
         )
 

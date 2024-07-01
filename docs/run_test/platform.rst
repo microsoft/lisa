@@ -154,6 +154,7 @@ deployment.
             location: "<one or multiple locations, split by comma>"
             vm_size: "<vm size>"
             maximize_capability: "<true or false>"
+            maximize_feature_capability: "<FeatureName1>,<FeatureName2>"
             osdisk_size_in_gb: <disk size in gb>
 
 * **virtual_network_resource_group**. Specify if an existing virtual network
@@ -173,6 +174,11 @@ deployment.
   `<subnet_profile>0`, `<subnet_profile>1`, and so on.  If 
   `virtual_network_resource_group` is provided, an existing virtual network and
   subnet, with the name equal to `subnet_prefix`, will be used.
+* **maximize_feature_capability** Accepts a string value with comma sepearted
+  feature names. This will forcefully add the feature as supported for the execution.
+  This is useful when you want to run a test case on a VM Size which has some feature on
+  preview.
+  This does not work with 'maximize_capability'.
 * **use_public_address**. True means to connect to the Azure VMs with their 
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
