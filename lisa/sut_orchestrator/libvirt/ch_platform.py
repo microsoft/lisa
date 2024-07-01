@@ -118,6 +118,8 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel.text = node_context.firmware_path
 
         devices = ET.SubElement(domain, "devices")
+        if node_context.is_device_passthrough_set:
+            devices = self._add_device_passthrough_xml(devices, node_context)
 
         console = ET.SubElement(devices, "console")
         console.attrib["type"] = "pty"
@@ -170,6 +172,14 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context.console_logger.attach(
             node_context.domain, node_context.console_log_file_path
         )
+
+        if node_context.is_device_passthrough_set:
+            # Once libvirt domain is created, check if driver attached to device
+            # on the host is vfio-pci for PCI device passthrough to make sure if
+            # pass-through for PCI device is happened properly or not
+            self._verify_device_passthrough_post_boot(
+                node_context=node_context,
+            )
 
     # Create the OS disk.
     def _create_node_os_disk(

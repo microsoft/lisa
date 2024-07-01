@@ -1,22 +1,29 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import re
 from functools import partial
-from pathlib import PurePath
-from typing import Any, List, Optional, Type, cast
+from pathlib import Path, PurePath
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator.util.device_pool import BaseDevicePoolImpl
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.tools import Cp, HyperV, Mkdir, PowerShell
-from lisa.util import LisaException, constants
+from lisa.util import LisaException, SkippedException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
 from lisa.util.subclasses import Factory
 
 from .. import HYPERV
-from .context import NodeContext, get_node_context
+from .context import (
+    DeviceAddressSchema,
+    DevicePassthroughContext,
+    NodeContext,
+    get_node_context,
+)
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
 from .source import Source
@@ -28,7 +35,19 @@ class _HostCapabilities:
         self.allocable_memory_mib = 0
 
 
-class HypervPlatform(Platform):
+class HypervPlatform(Platform, BaseDevicePoolImpl):
+    # Device Passthrough configs
+    # Mapping of Host Device Passthrough
+    AVAILABLE_HOST_DEVICES: Dict[HostDevicePoolType, List[DeviceAddressSchema]] = {}
+    SUPPORTED_HOST_DEVICE_POOLTYPE = [
+        HostDevicePoolType.PCI_NIC,
+        HostDevicePoolType.PCI_GPU,
+    ]
+    POOL_TYPE_TO_DEVICE_PROPERTY = {
+        HostDevicePoolType.PCI_NIC: DeviceAddressSchema,
+        HostDevicePoolType.PCI_GPU: DeviceAddressSchema,
+    }
+
     @classmethod
     def type_name(cls) -> str:
         return HYPERV
@@ -44,6 +63,15 @@ class HypervPlatform(Platform):
         self._source_vhd: Optional[PurePath] = None
         self._source_factory = Factory[Source](Source)
         self._source_files: Optional[List[PurePath]] = None
+
+        # Copy pwershell script onto host
+        script_name = "get_assignable_devices.ps1"
+        src_path = Path(__file__).parent.joinpath(script_name)
+        self._assignable_devices_script = self._server.working_path / script_name
+        self._server.shell.copy(
+            src_path,
+            self._assignable_devices_script,
+        )
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -97,6 +125,13 @@ class HypervPlatform(Platform):
             return False
 
         environment.runbook.nodes_requirement = nodes_requirement
+
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params
+        self._configure_device_passthrough_pool(
+            self._hyperv_runbook.device_pools,
+            self.SUPPORTED_HOST_DEVICE_POOLTYPE,
+        )
         return True
 
     def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
@@ -229,12 +264,12 @@ class HypervPlatform(Platform):
 
         self._console_logger = SerialConsoleLogger(self._server)
 
-        for i, node_space in enumerate(environment.runbook.nodes_requirement):
+        for record, node_space in enumerate(environment.runbook.nodes_requirement):
             node_runbook = node_space.get_extended_runbook(
                 HypervNodeSchema, type(self).type_name()
             )
 
-            vm_name = f"{vm_name_prefix}-n{i}"
+            vm_name = f"{vm_name_prefix}-n{record}"
 
             node = environment.create_node_from_requirement(node_space)
             assert isinstance(node, RemoteNode)
@@ -286,6 +321,17 @@ class HypervPlatform(Platform):
                 extra_args=extra_args,
             )
 
+            # perform device passthrough for the VM
+            self._set_device_passthrough_node_context(
+                node_context=node_context,
+                node_runbook=node_runbook,
+                hv=hv,
+                vm_name=vm_name,
+            )
+
+            # Start the VM
+            hv.start_vm(name=vm_name, extra_args=extra_args)
+
             ip_addr = hv.get_ip_address(vm_name)
             username = self.runbook.admin_username
             password = self.runbook.admin_password
@@ -312,6 +358,11 @@ class HypervPlatform(Platform):
             hv = self._server.tools[HyperV]
             vm_name = node_ctx.vm_name
 
+            # Reassign passthrough devices to host before VM is deleted
+            # This will be hot-unplug of device
+            if node_ctx.is_device_passthrough_set:
+                self._put_devices_into_pool(node_ctx)
+
             if wait_delete:
                 hv.delete_vm(vm_name)
             else:
@@ -334,3 +385,217 @@ class HypervPlatform(Platform):
                 for node in environment.nodes.list()
             ]
         )
+
+    def _create_device_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        vendor_id: str,
+        device_id: str,
+    ) -> None:
+        self.AVAILABLE_HOST_DEVICES[pool_type] = []
+        powershell = self._server.tools[PowerShell]
+        cmdlet = (
+            f"{self._assignable_devices_script} "
+            f"-vendorId {vendor_id} -deviceId {device_id}"
+        )
+        stdout = powershell.run_cmdlet(
+            cmdlet=cmdlet,
+            sudo=True,
+            force_run=True,
+        ).strip()
+
+        if stdout.find("The list is empty") >= 0:
+            return
+        else:
+            match = re.search(
+                r"Assignable Devices Found:(.*)",
+                stdout,
+                re.DOTALL,
+            )
+            if match:
+                devices_csv_list = match.group(1).strip()
+                primary_nic_id_list = self._get_primary_nic_id()
+                assert len(primary_nic_id_list) != 0
+                for device_record in devices_csv_list.splitlines():
+                    device_attrbs = device_record.strip().split(",")
+                    assert len(device_attrbs) == 3
+                    instance_id = device_attrbs[2].replace('"', "")
+                    if instance_id not in primary_nic_id_list:
+                        device = self.POOL_TYPE_TO_DEVICE_PROPERTY[pool_type]()
+                        device.friendly_name = device_attrbs[0].replace('"', "")
+                        device.location_path = device_attrbs[1].replace('"', "")
+                        device.instance_id = instance_id
+
+                        # add device to the given pool_type
+                        pool = self.AVAILABLE_HOST_DEVICES.get(pool_type, [])
+                        pool.append(device)
+                        self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+
+    def _get_devices_from_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        count: int,
+    ) -> List[DeviceAddressSchema]:
+        pool = self.AVAILABLE_HOST_DEVICES[pool_type]
+        if len(pool) < count:
+            raise SkippedException(
+                f"Not enough devices are available under pool: {pool_type}. "
+                f"Required count is {count}"
+            )
+        devices = pool[:count]
+
+        # Update the pool
+        pool = pool[count:]
+        self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+
+        return devices
+
+    def _put_devices_into_pool(
+        self,
+        node_context: NodeContext,
+    ) -> None:
+        self._remove_devices_from_vm(node_context=node_context)
+
+        # Refresh the pool
+        self._configure_device_passthrough_pool(
+            self._hyperv_runbook.device_pools,
+            self.SUPPORTED_HOST_DEVICE_POOLTYPE,
+        )
+
+    def _remove_devices_from_vm(
+        self,
+        node_context: NodeContext,
+    ) -> None:
+        vm_name = node_context.vm_name
+        devices_ctx = node_context.device_passthrough_context
+        confing_commands = []
+        for ctx in devices_ctx:
+            for device in ctx.device_list:
+                confing_commands.append(
+                    f"Remove-VMAssignableDevice "
+                    f"-LocationPath '{device.location_path}' -VMName '{vm_name}'"
+                )
+                confing_commands.append(
+                    f"Mount-VMHostAssignableDevice -LocationPath "
+                    f"'{device.location_path}'"
+                )
+                confing_commands.append(
+                    f"Enable-PnpDevice -InstanceId '{device.instance_id}' "
+                    "-Confirm:$false"
+                )
+        self._run_powershell_commands(confing_commands)
+
+    def _assign_devices_to_vm(
+        self,
+        vm_name: str,
+        devices: List[DeviceAddressSchema],
+    ) -> None:
+        # Assign the devices to the VM
+        confing_commands = []
+        for device in devices:
+            confing_commands.append(
+                f"Disable-PnpDevice -InstanceId '{device.instance_id}' -Confirm:$false"
+            )
+            confing_commands.append(
+                f"Dismount-VMHostAssignableDevice -Force "
+                f"-LocationPath '{device.location_path}'"
+            )
+            confing_commands.append(
+                f"Add-VMAssignableDevice -LocationPath '{device.location_path}' "
+                f"-VMName '{vm_name}'"
+            )
+        self._run_powershell_commands(confing_commands)
+
+    def _run_powershell_commands(
+        self,
+        command: Union[str, List[str]],
+    ) -> None:
+        requested_cmds = []
+        if isinstance(command, str):
+            requested_cmds.append(command)
+        else:
+            requested_cmds = command
+
+        powershell = self._server.tools[PowerShell]
+        for cmd in requested_cmds:
+            powershell.run_cmdlet(
+                cmdlet=cmd,
+                force_run=True,
+            )
+
+    def _get_primary_nic_id(self) -> List[str]:
+        powershell = self._server.tools[PowerShell]
+        ip: str = self._server.public_address
+
+        # Get the NIC name via IP.
+        # We will get vEthernet switch interface name, not actual NIC for baremetal
+        cmd = (
+            "(Get-NetAdapter | Get-NetIPAddress | Where-Object "
+            f"{{ $_.IPAddress -eq '{ip}' }}).InterfaceAlias"
+        )
+        interface_name = powershell.run_cmdlet(
+            cmdlet=cmd,
+            force_run=True,
+        )
+
+        # Get the MAC for above interface
+        cmd = (
+            "(Get-NetAdapter | Where-Object "
+            f"{{ $_.Name -eq '{interface_name}' }}).MacAddress"
+        )
+        mac_address = powershell.run_cmdlet(
+            cmdlet=cmd,
+            force_run=True,
+        )
+
+        # Get all interfaces for above MAC Address
+        cmd = (
+            "(Get-NetAdapter | Where-Object "
+            f"{{ $_.MacAddress -eq '{mac_address}' }}).Name"
+        )
+        inf_names_str = powershell.run_cmdlet(
+            cmdlet=cmd,
+            force_run=True,
+        )
+        inf_names: List[str] = inf_names_str.strip().splitlines()
+
+        # Get device id for all above interface names we got
+        pnp_device_id_list: List[str] = []
+        for name in inf_names:
+            cmd = (
+                "(Get-NetAdapter | Where-Object "
+                f"{{ $_.Name -eq '{name}' }}).PnPDeviceID"
+            )
+            interface_device_id = powershell.run_cmdlet(
+                cmdlet=cmd,
+                force_run=True,
+            )
+            interface_device_id = interface_device_id.strip()
+            pnp_device_id_list.append(interface_device_id)
+
+        return pnp_device_id_list
+
+    def _set_device_passthrough_node_context(
+        self,
+        node_context: NodeContext,
+        node_runbook: HypervNodeSchema,
+        hv: HyperV,
+        vm_name: str,
+    ) -> None:
+        if node_runbook.device_passthrough:
+            node_context.is_device_passthrough_set = True
+            hv.enable_device_passthrough(name=vm_name)
+
+            for config in node_runbook.device_passthrough:
+                devices = self._get_devices_from_pool(
+                    pool_type=config.pool_type,
+                    count=config.count,
+                )
+                self._assign_devices_to_vm(
+                    vm_name=vm_name,
+                    devices=devices,
+                )
+                device_context = DevicePassthroughContext()
+                device_context.pool_type = config.pool_type
+                device_context.device_list = devices
+                node_context.device_passthrough_context.append(device_context)

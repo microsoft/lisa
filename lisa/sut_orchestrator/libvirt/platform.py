@@ -7,11 +7,13 @@ import io
 import json
 import os
 import random
+import re
 import string
 import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET  # noqa: N817
+from itertools import combinations
 from pathlib import Path, PurePosixPath
 from threading import Lock, Timer
 from typing import Any, Dict, List, Optional, Tuple, Type, cast
@@ -26,6 +28,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator.util.device_pool import BaseDevicePoolImpl
 from lisa.tools import (
     Chmod,
     Chown,
@@ -34,20 +37,29 @@ from lisa.tools import (
     Iptables,
     Journalctl,
     Ls,
+    Lspci,
     Mkdir,
+    Modprobe,
     QemuImg,
     Sed,
     Service,
     Uname,
     Whoami,
 )
-from lisa.util import LisaException, constants, get_public_key_data
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    constants,
+    find_groups_in_lines,
+    get_public_key_data,
+)
 from lisa.util.logger import Logger, filter_ansi_escape, get_logger
 
 from . import libvirt_events_thread
 from .console_logger import QemuConsoleLogger
 from .context import (
     DataDiskContext,
+    DevicePassthroughContext,
     InitSystem,
     NodeContext,
     get_environment_context,
@@ -59,7 +71,10 @@ from .schema import (
     FIRMWARE_TYPE_UEFI,
     BaseLibvirtNodeSchema,
     BaseLibvirtPlatformSchema,
+    DeviceAddressSchema,
     DiskImageFormat,
+    HostDevicePoolSchema,
+    HostDevicePoolType,
 )
 from .serial_console import SerialConsole
 from .start_stop import StartStop
@@ -77,13 +92,26 @@ class _HostCapabilities:
         self.free_memory_kib = 0
 
 
-class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
+class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform, BaseDevicePoolImpl):
     LIBVIRTD_CONF_PATH = PurePosixPath("/etc/libvirt/libvirtd.conf")
     LIBVIRT_DEBUG_LOG_PATH = PurePosixPath("/var/log/libvirt/libvirtd.log")
     # A marker that identifies lines added by lisa in a config file. This can be
     # appended as a comment and then used to identify the line to delete during
     # cleanup.
     CONFIG_FILE_MARKER = "lisa-libvirt-platform"
+
+    # Mapping of Host Device Passthrough
+    AVAILABLE_HOST_DEVICES: Dict[
+        HostDevicePoolType, Dict[str, List[DeviceAddressSchema]]
+    ] = {}
+    SUPPORTED_HOST_DEVICE_POOLTYPE = [
+        HostDevicePoolType.PCI_NIC,
+        HostDevicePoolType.PCI_GPU,
+    ]
+    POOL_TYPE_TO_DEVICE_PROPERTY = {
+        HostDevicePoolType.PCI_NIC: DeviceAddressSchema,
+        HostDevicePoolType.PCI_GPU: DeviceAddressSchema,
+    }
 
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
@@ -218,6 +246,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         environment_context.ssh_public_key = get_public_key_data(
             self.runbook.admin_private_key_file
+        )
+
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params
+        self._configure_device_passthrough_pool(
+            self.platform_runbook.device_pools,
+            self.SUPPORTED_HOST_DEVICE_POOLTYPE,
         )
 
     def _configure_node_capabilities(
@@ -503,6 +538,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
                 node_context.data_disks.append(data_disk)
 
+        self._set_device_passthrough_node_context(node_context, node_runbook)
+
     def restart_domain_and_attach_logger(self, node: Node) -> None:
         node_context = get_node_context(node)
         domain = node_context.domain
@@ -536,6 +573,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Start the VM.
         node_context.domain.resume()
+
+        # Once libvirt domain is created, check if driver attached to device
+        # on the host is vfio-pci for PCI device passthrough to make sure if
+        # pass-through for PCI device is happened properly or not
+        self._verify_device_passthrough_post_boot(
+            node_context=node_context,
+        )
 
     # Create all the VMs.
     def _create_nodes(
@@ -653,6 +697,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             node_context.domain = None
 
         watchdog.cancel()
+
+        # Add passthrough device back in the
+        # list of available device once domain is deleted
+        self._put_devices_into_pool(node_context)
 
     def _get_domain_undefine_flags(self) -> int:
         return int(
@@ -942,6 +990,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         on_crash.text = "destroy"
 
         devices = ET.SubElement(domain, "devices")
+        if node_context.is_device_passthrough_set:
+            devices = self._add_device_passthrough_xml(devices, node_context)
 
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"
@@ -1341,3 +1391,292 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
             with open(str(libvirt_log_local_path), "w") as f:
                 f.write(libvirt_log)
+
+    def _configure_device_passthrough_pool(
+        self,
+        device_configs: Optional[List[HostDevicePoolSchema]],
+        supported_pool_type: List[HostDevicePoolType],
+    ) -> None:
+        if device_configs:
+            # Check if host support device passthrough
+            self._check_passthrough_support(self.host_node)
+
+            super()._configure_device_passthrough_pool(
+                device_configs=device_configs,
+                supported_pool_type=supported_pool_type,
+            )
+
+            modprobe = self.host_node.tools[Modprobe]
+            allow_unsafe_interrupt = modprobe.load(
+                modules="vfio_iommu_type1",
+                options="allow_unsafe_interrupts=1",
+            )
+            if not allow_unsafe_interrupt:
+                raise LisaException("Allowing unsafe interrupt failed")
+
+    def _add_device_passthrough_xml(
+        self,
+        devices: ET.Element,
+        node_context: NodeContext,
+    ) -> ET.Element:
+        for context in node_context.device_passthrough_context:
+            print(context.device_list)
+            for config in context.device_list:
+                hostdev = ET.SubElement(devices, "hostdev")
+                hostdev.attrib["mode"] = "subsystem"
+
+                assert context.managed
+                hostdev.attrib["managed"] = context.managed
+
+                assert context.pool_type
+                if "pci" in context.pool_type.value:
+                    hostdev.attrib["type"] = "pci"
+
+                    source = ET.SubElement(hostdev, "source")
+                    src_addrs = ET.SubElement(source, "address")
+
+                    assert config.domain
+                    src_addrs.attrib["domain"] = f"0x{config.domain}"
+
+                    assert config.bus
+                    src_addrs.attrib["bus"] = f"0x{config.bus}"
+
+                    assert config.slot
+                    src_addrs.attrib["slot"] = f"0x{config.slot}"
+
+                    assert config.function
+                    src_addrs.attrib["function"] = f"0x{config.function}"
+
+                    driver = ET.SubElement(hostdev, "driver")
+                    driver.attrib["name"] = "vfio"
+
+        return devices
+
+    def _get_pci_address_str(
+        self,
+        device_addr: DeviceAddressSchema,
+        with_domain: bool = False,
+    ) -> str:
+        bus = device_addr.bus
+        slot = device_addr.slot
+        fn = device_addr.function
+        domain = device_addr.domain
+        addr = f"{bus}:{slot}.{fn}"
+        if with_domain:
+            addr = f"{domain}:{addr}"
+        return addr
+
+    def _get_devices_from_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        count: int,
+    ) -> List[DeviceAddressSchema]:
+        pool = self.AVAILABLE_HOST_DEVICES.get(pool_type, {})
+
+        # iommu_group: str = ""
+        # min_value = float('inf')
+        # for iommu_group_key, devices_list in pool.items():
+        #     if len(devices_list) >= count and len(devices_list) < min_value:
+        #         min_value = len(devices_list)
+        #         iommu_group = iommu_group_key
+
+        # if not iommu_group:
+        #     raise SkippedException(
+        #         f"Pool {pool_type} running out of devices: {pool}, "
+        #         "No IOMMU Group has sufficient count of devices, "
+        #         f"Refer: {pool}"
+        #     )
+
+        # # Remove the devices and update the pool
+        # # Remove entire iommu group device list so conflict does not happen
+        # devices = pool.pop(iommu_group)
+        # self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+        # return devices
+
+        keys = list(pool.keys())
+        results = []
+        for r in range(1, len(keys) + 1):
+            for combo in combinations(keys, r):
+                if sum(len(pool.get(key, [])) for key in combo) == count:
+                    results.append(combo)
+        if not results:
+            self._log.debug("checking for greate device count")
+            for r in range(1, len(keys) + 1):
+                for combo in combinations(keys, r):
+                    if sum(len(pool.get(key, [])) for key in combo) >= count:
+                        results.append(combo)
+                        break
+                if results:
+                    break
+
+        if not results:
+            raise SkippedException(
+                f"Pool {pool_type} running out of devices: {pool}, "
+                "No IOMMU Group has sufficient count of devices, "
+                f"Refer: {pool}"
+            )
+
+        devices: List[DeviceAddressSchema] = []
+        selected_pools = results[0]
+        for iommu_grp in selected_pools:
+            devices += pool.pop(iommu_grp)
+        self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+        return devices
+
+    def _put_devices_into_pool(
+        self,
+        node_context: NodeContext,
+    ) -> None:
+        device_context = node_context.device_passthrough_context
+        for context in device_context:
+            pool_type = context.pool_type
+            devices_list = context.device_list
+            pool = self.AVAILABLE_HOST_DEVICES.get(pool_type, {})
+            for device in devices_list:
+                iommu_grp = self._get_device_iommu_group(device)
+                pool_devices = pool.get(iommu_grp, [])
+                pool_devices.append(device)
+                pool[iommu_grp] = pool_devices
+            self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+
+    def _verify_device_passthrough_post_boot(
+        self,
+        node_context: NodeContext,
+    ) -> None:
+        device_context = node_context.device_passthrough_context
+        for context in device_context:
+            devices = context.device_list
+            for device in devices:
+                err = f"Kernel driver is not vfio-pci for device: {device}"
+                pool_type = context.pool_type.value
+                if context.managed == "yes" and "pci" in pool_type:
+                    is_vfio_pci = self._is_driver_vfio_pci(device)
+                    assert is_vfio_pci, err
+
+    def _check_passthrough_support(self, node: Node) -> None:
+        ls = node.tools[Ls]
+        path = "/dev/vfio/vfio"
+        err = "Host does not support IOMMU"
+        if not ls.path_exists(path=path, sudo=True):
+            raise LisaException(f"{err} : {path} does not exist")
+
+        path = "/sys/kernel/iommu_groups/"
+        if len(ls.list(path=path, sudo=True)) == 0:
+            raise LisaException(f"{err} : {path} does not have any entry")
+
+    def _is_driver_vfio_pci(
+        self,
+        device_addr: DeviceAddressSchema,
+    ) -> bool:
+        lspci = self.host_node.tools[Lspci]
+        device_addr_str = self._get_pci_address_str(device_addr)
+        kernel_module = lspci.get_used_module(device_addr_str)
+        return kernel_module == "vfio-pci"
+
+    def _set_device_passthrough_node_context(
+        self,
+        node_context: NodeContext,
+        node_runbook: BaseLibvirtNodeSchema,
+    ) -> None:
+        if node_runbook.device_passthrough:
+            node_context.is_device_passthrough_set = True
+            for config in node_runbook.device_passthrough:
+                device_context = DevicePassthroughContext()
+                device_context.managed = config.managed
+                device_context.pool_type = config.pool_type
+                devices = self._get_devices_from_pool(config.pool_type, config.count)
+                device_context.device_list = devices
+                node_context.device_passthrough_context.append(device_context)
+
+    def _create_device_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        vendor_id: str,
+        device_id: str,
+    ) -> None:
+        self.AVAILABLE_HOST_DEVICES[pool_type] = {}
+        lspci = self.host_node.tools[Lspci]
+        device_list = lspci.get_devices_by_vendor_device_id(
+            vendor_id=vendor_id,
+            device_id=device_id,
+        )
+        primary_nic_iommu = self._get_primary_nic_id()
+        for item in device_list:
+            device = self.POOL_TYPE_TO_DEVICE_PROPERTY[pool_type]()
+            slot_info = item.slot.split(":")
+
+            device.domain = item.domain
+            device.bus = slot_info[0]
+            device.slot = slot_info[1].split(".")[0]
+            device.function = slot_info[1].split(".")[1]
+            iommu_group = self._get_device_iommu_group(device)
+            is_vfio_pci = self._is_driver_vfio_pci(device)
+
+            if not is_vfio_pci and iommu_group not in primary_nic_iommu:
+                pool = self.AVAILABLE_HOST_DEVICES.get(pool_type, {})
+                devices = pool.get(iommu_group, [])
+                devices.append(device)
+                pool[iommu_group] = devices
+                self.AVAILABLE_HOST_DEVICES[pool_type] = pool
+
+    def _get_device_iommu_group(self, device: DeviceAddressSchema) -> str:
+        iommu_pattern = re.compile(r"/sys/kernel/iommu_groups/(?P<id>\d+)/devices/.*")
+        device_id = self._get_pci_address_str(device, True)
+        command: str = (
+            "find /sys/kernel/iommu_groups/ -type l | "
+            f"grep $(lspci -Dnn | grep '{device_id}' "
+            "| awk '{print $1}')"
+        )
+        err = f"Can not get IOMMU group for device: {device}"
+        result = self.host_node.execute(
+            cmd=command,
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=err,
+        )
+        iommu_grp_list = find_groups_in_lines(result.stdout.strip(), iommu_pattern)
+        assert len(iommu_grp_list) == 1
+        iommu_grp = iommu_grp_list[0].get("id", "")
+        assert iommu_grp
+        return f"iommu_grp_{iommu_grp}"
+
+    def _get_primary_nic_id(self) -> List[str]:
+        # This is for baremetal. For azure, we have to get private IP
+        host = self.platform_runbook.hosts[0]
+        host_ip = host.address
+        cmd = f"ip -o -4 addr show | awk -v ip='{host_ip}'" + " '$4 ~ ip {print $2}'"
+        err = f"Can not get interface for IP: {host_ip}"
+        result = self.host_node.execute(
+            cmd=cmd,
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=err,
+        )
+        interface_name = result.stdout.strip()
+        result = self.host_node.execute(
+            cmd=f"find /sys/devices/ -name *{interface_name}*",
+            sudo=True,
+            shell=True,
+        )
+        assert len(result.stdout.strip().splitlines()) == 1
+        pci_address_pattern = re.compile(
+            r"/(?P<root>[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F])/"
+            r"(?P<id>[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-9a-fA-F])/"
+        )
+        matches = pci_address_pattern.search(result.stdout.strip())
+        if matches:
+            pci_address = matches.group("id")
+            addr = pci_address.split(":")
+
+            device = DeviceAddressSchema()
+            device.domain = addr[0]
+            device.bus = addr[1]
+            device.slot = addr[2].split(".")[0]
+            device.function = addr[2].split(".")[1]
+
+            iommu_grp = self._get_device_iommu_group(device)
+            return [iommu_grp]
+        else:
+            raise LisaException(f"Can't find pci address of for: {interface_name}")

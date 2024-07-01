@@ -7,7 +7,7 @@ from lisa.environment import Environment
 from lisa.node import Node
 
 from .console_logger import QemuConsoleLogger
-from .schema import DiskImageFormat
+from .schema import DeviceAddressSchema, DiskImageFormat, HostDevicePoolType
 
 
 @dataclass
@@ -34,6 +34,15 @@ class InitSystem:
 
 
 @dataclass
+class DevicePassthroughContext:
+    pool_type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    device_list: List[DeviceAddressSchema] = field(
+        default_factory=list,
+    )
+    managed: str = ""
+
+
+@dataclass
 class NodeContext:
     vm_name: str = ""
     firmware_source_path: str = ""
@@ -56,6 +65,12 @@ class NodeContext:
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None
+
+    # Device pass through configuration
+    is_device_passthrough_set: bool = False
+    device_passthrough_context: List[DevicePassthroughContext] = field(
+        default_factory=list,
+    )
 
 
 def get_environment_context(environment: Environment) -> EnvironmentContext:
