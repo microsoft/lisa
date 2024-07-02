@@ -24,7 +24,7 @@ from lisa.util import (
     LisaException,
     SkippedException,
     UnsupportedDistroException,
-    find_groups_in_lines,
+    find_group_in_lines,
 )
 from lisa.util.perf_timer import create_timer
 
@@ -179,13 +179,13 @@ def _expand_os_partition(node: Node, log: Logger) -> None:
         # The output of pvscan -s is like below.:
         #  /dev/sda4
         #  Total: 1 [299.31 GiB] / in use: 1 [299.31 GiB] / in no VG: 0 [0   ]
-        pattern = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)", re.M)
-        matched = find_groups_in_lines(pv_result, pattern)
+        pattern = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)$", re.M)
+        matched = find_group_in_lines(pv_result, pattern)
         if not matched:
             log.debug("No physical volume found. Does not require partition resize.")
             return
-        disk = matched[0].get("disk")
-        number = matched[0].get("number")
+        disk = matched.get("disk")
+        number = matched.get("number")
         node.execute(f"growpart {disk} {number}", sudo=True)
         node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
         root_partition = node.tools[Mount].get_partition_info("/")[0]
