@@ -2037,6 +2037,10 @@ class AzurePlatform(Platform):
         for feature_str in maximize_feature:
             feature_present: bool = False
             feature_class = getattr(features, feature_str)
+            if not feature_class:
+                raise LisaException(
+                    f"feature '{feature_str}' is not supported in LISA. Please check the feature name"
+                )
             for attr in cap_features:
                 if str(attr.type).lower() == feature_str.lower():
                     feature_present = True
