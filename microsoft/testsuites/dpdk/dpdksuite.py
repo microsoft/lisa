@@ -46,6 +46,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
+    check_sriov_rescind_compatibility,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -364,6 +365,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_sriov_rescind_failover_receiver(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
+        check_sriov_rescind_compatibility(environment.default_node)
         test_kits = init_nodes_concurrent(
             environment, log, variables, "failsafe", HugePageSize.HUGE_2MB
         )

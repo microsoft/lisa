@@ -322,6 +322,29 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
             )
 
 
+def check_sriov_rescind_compatibility(node: Node) -> None:
+    # SRIOV rescind request will sometimes return true from azure
+    # but then fail to change anything in the VM, apparently by design
+    # for some sizes. Rather than find this out later, allow a check
+    # before the test to filter out clusters and sizes which don't
+    # allow rescinding sriov.
+    failure_message = "disable SRIOV"
+    node_network = node.features[NetworkInterface]
+    try:
+        node_network.switch_sriov(enable=False, wait=True)
+        failure_message = "re-enable SRIOV"
+        node_network.switch_sriov(enable=True, wait=True)
+    except AssertionError as err:
+        # we've disabled SRIOV and failed to re-enable, state is unknown.
+        node.mark_dirty()
+        raise SkippedException(
+            f"Cannot {failure_message}  on this VM type or Node. "
+            "Check settings to ensure this size or cluster supports "
+            "AccelNet disabling. Skipping test. Error message was:"
+            f"{str(err)}"
+        )
+
+
 def run_testpmd_concurrent(
     node_cmd_pairs: Dict[DpdkTestResources, str],
     seconds: int,
