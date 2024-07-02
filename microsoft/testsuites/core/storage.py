@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
 )
 from lisa.node import Node
 from lisa.operating_system import BSD, Posix, Windows
-from lisa.schema import DiskControllerType, DiskType
+from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
 from lisa.sut_orchestrator.azure.tools import Waagent
@@ -82,7 +82,10 @@ class Storage(TestSuite):
         `/sys/block/<disk>/device/timeout` file is set to 300.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+            disk=DiskOptionSettings(disk_controller_type=DiskControllerType.SCSI),
+        ),
     )
     def verify_disks_device_timeout_setting(
         self,
