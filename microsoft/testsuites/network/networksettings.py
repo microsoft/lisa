@@ -484,8 +484,14 @@ class NetworkSettings(TestSuite):
                 and name.
             3. Validate changing the message level flag setting.
             4. Revert back the setting to original value.
+
+            Note: BSD does not support the feature tested here and
+            lacks the hv_netvsc module used to support it.
         """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_device_msg_level_change(self, node: Node, log: Logger) -> None:
         # Check if feature is supported by the kernel
