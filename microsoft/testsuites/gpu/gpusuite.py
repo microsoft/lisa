@@ -224,12 +224,10 @@ class GpuTestSuite(TestSuite):
         log_path: Path,
         log: Logger,
     ) -> None:
-        _install_driver(node, log_path, log)
-        _check_driver_installed(node, log)
+        _uninstall_extension(node, log_path)
 
-        lspci = node.tools[Lspci]
         gpu = node.features[Gpu]
-
+        lspci = node.tools[Lspci]
         # 1. Disable GPU devices.
         gpu_devices = lspci.get_gpu_devices()
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
@@ -434,6 +432,13 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     assert_that(len(curr_gpu)).described_as(
         "GPU PCI device count should be same after stop-start"
     ).is_equal_to(len(init_gpu))
+
+
+def _uninstall_extension(node: Node, log_path: Path) -> None:
+    gpu_feature = node.features[Gpu]
+    if gpu_feature._uninstall_driver():
+        reboot_tool = node.tools[Reboot]
+        reboot_tool.reboot_and_check_panic(log_path)
 
 
 def __remove_sources_added_by_extension(

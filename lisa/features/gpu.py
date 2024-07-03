@@ -156,6 +156,9 @@ class Gpu(Feature):
     def get_supported_driver(self) -> List[ComputeSDK]:
         raise NotImplementedError()
 
+    def _uninstall_driver(self) -> bool:
+        raise NotImplementedError()
+
     def _install_driver_using_platform_feature(self) -> None:
         raise NotImplementedError()
 

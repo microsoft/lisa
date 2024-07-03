@@ -663,6 +663,22 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         else:
             raise LisaException("GPU Extension Provisioning Failed")
 
+    def _uninstall_driver(self) -> bool:
+        extension = self._node.features[AzureExtension]
+
+        try:
+            name = extension.get_name("NvidiaGpuDriverLinux")
+            if name:
+                extension.delete(name)
+                self._log.info("uninstall NvidiaGpuDriverLinux successfully")
+                return True
+            else:
+                self._log.info("no NvidiaGpuDriverLinux extension installed")
+                return False
+        except Exception:
+            self._log.info("fail to uninstall NvidiaGpuDriverLinux")
+        return False
+
     def install_compute_sdk(self, version: str = "") -> None:
         try:
             # install LIS driver if required and not already installed.
@@ -2906,6 +2922,17 @@ class AzureExtension(AzureFeatureMixin, Feature):
                 return False
             else:
                 raise ex
+
+    def get_name(self, type_name: str) -> str:
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        extensions = compute_client.virtual_machine_extensions.list(
+            self._resource_group_name, self._vm_name
+        )
+        for extension in list(extensions.value):
+            if extension.type_properties_type == type_name:
+                return str(extension.name)
+        return ""
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
