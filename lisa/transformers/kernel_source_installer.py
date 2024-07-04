@@ -308,9 +308,22 @@ class SourceInstaller(BaseInstaller):
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
 
+    def _fix_mirrorlist_to_vault(self, node: Node) -> None:
+        node.execute(
+            "sed -i '\
+                    s/^mirrorlist=/#mirrorlist=/;\
+                    s/^#baseurl=/baseurl=/;\
+                    /^baseurl=/ s/mirror/vault/\
+                ' /etc/yum.repos.d/CentOS-*.repo",
+            shell=True,
+            sudo=True,
+        )
+
     def _install_build_tools(self, node: Node) -> None:
         os = node.os
         self._log.info("installing build tools")
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            self._fix_mirrorlist_to_vault(node)
         if isinstance(os, Redhat):
             for package in list(
                 ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
