@@ -30,7 +30,7 @@ from lisa.operating_system import (
     Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Lspci, Mkdir, NvidiaSmi, Reboot, Service, Tar, Wget
+from lisa.tools import Lspci, Mkdir, Modprobe, NvidiaSmi, Reboot, Tar, Wget
 from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
@@ -224,25 +224,17 @@ class GpuTestSuite(TestSuite):
         log_path: Path,
         log: Logger,
     ) -> None:
-        _install_driver(node, log_path, log)
-        _check_driver_installed(node, log)
-
         lspci = node.tools[Lspci]
         gpu = node.features[Gpu]
 
-        # 1. Disable GPU devices.
         gpu_devices = lspci.get_gpu_devices()
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
-        # stop the service which uses nvidia module
-        service = node.tools[Service]
-        service_name_list = [
-            "nvidia-persistenced",
-            "nvidia-dcgm",
-            "nvidia-fabricmanager",
-        ]
-        for service_name in service_name_list:
-            service.stop_service(service_name)
 
+        # remove nvidia modules to release the GPU devices in used.
+        modprobe = node.tools[Modprobe]
+        modprobe.remove(["nvidia_drm", "nvidia_uvm", "nvidia_modeset", "nvidia"])
+
+        # 1. Disable GPU devices.
         for device in gpu_devices:
             lspci.disable_device(device)
 
