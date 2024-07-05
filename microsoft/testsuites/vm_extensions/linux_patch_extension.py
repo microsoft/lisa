@@ -79,6 +79,8 @@ def _assert_status_file_result(node: Node, status_file: Any, error_code: str) ->
         and error_details_not_empty
         and error_details_code == "UA_ESM_REQUIRED"
     ):
+        # Ubuntu 1804 OS image has UA patches that needs upgrade OS to Pro version
+        # Set error code to 1 notify customers to upgrade OS to Pro to install patches
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to succeed"
         ).is_equal_to("Succeeded")
