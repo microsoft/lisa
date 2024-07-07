@@ -14,7 +14,7 @@ from lisa.messages import (
     create_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
-from lisa.tools import Firewall, Gcc, Git, Make, Sed
+from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
 from lisa.util import LisaException, constants
 from lisa.util.process import ExecutableResult, Process
 
@@ -148,7 +148,7 @@ class Ntttcp(Tool):
 
     @property
     def command(self) -> str:
-        return "ntttcp"
+        return self._command
 
     @property
     def can_install(self) -> bool:
@@ -439,7 +439,22 @@ class Ntttcp(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
         firewall.stop()
+        self._command = "ntttcp"
+        try:
+            assert self.node.runbook
+            assert self.node.runbook.capability.extended_schemas
+            set_cpu_affinity = self.node.runbook.capability.extended_schemas["azure"]["set_cpu_affinity"]
+        except (KeyError, AssertionError):
+            self._log.debug("Failed to fetch the value of set_cpu_affinity from runbook, defaulting to False.")
+            set_cpu_affinity = False
 
+        if set_cpu_affinity and not isinstance(self.node.os, BSD):
+            # taskset is usable only on Linux
+            # for BSD, cpuset will be added later after testing
+            lscpu = self.node.tools[Lscpu]
+            start_cpu_index, end_cpu_index = lscpu.get_cpu_range_in_numa_node()
+            self._command = f"taskset -c {start_cpu_index}-{end_cpu_index} {self._command}"
+        self._log.debug(f"ntttcp command: {self._command}")
         # save the original value for recovering
         self._original_settings_tcp: List[Dict[str, str]] = []
         self._original_settings_udp: List[Dict[str, str]] = []

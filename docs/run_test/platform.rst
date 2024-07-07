@@ -154,6 +154,7 @@ deployment.
             location: "<one or multiple locations, split by comma>"
             vm_size: "<vm size>"
             maximize_capability: "<true or false>"
+            set_cpu_affinity: "<true or false>"
             osdisk_size_in_gb: <disk size in gb>
 
 * **virtual_network_resource_group**. Specify if an existing virtual network
@@ -198,6 +199,8 @@ deployment.
   run all test cases. Notice, there are some features are conflict by natural,
   so some test cases may not be picked up. This setting is useful to force run
   perf tests on not designed VM sizes.
+* **set_cpu_affinity**. True means to set CPU affinity for the VMs. This is
+  useful for large VM sizes. The default value is false.
 * **osdisk_size_in_gb** is used to specify the size of the OS disk. If the specified
   size is smaller than the default size, the default size will be used.
   For range of disk size `refer <https://learn.microsoft.com/en-us/azure/virtual-machines/linux/expand-disks?tabs=ubuntu>`__

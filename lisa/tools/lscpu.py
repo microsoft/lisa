@@ -286,6 +286,13 @@ class Lscpu(Tool):
         # for 0 indexing
         return max([int(cpu.numa_node) for cpu in self.get_cpu_info()]) + 1
 
+    def get_cpu_range_in_numa_node(self, numa_node_index=0) -> (int, int):
+        cpus = self.get_cpu_info()
+        cpu_indexes = [
+            cpu.cpu for cpu in cpus if cpu.numa_node == numa_node_index
+        ]
+        return min(cpu_indexes), max(cpu_indexes)
+
     def is_virtualization_enabled(self) -> bool:
         result = self.run(sudo=True).stdout
         if ("VT-x" in result) or ("AMD-V" in result):

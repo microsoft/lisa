@@ -283,6 +283,7 @@ def perf_ntttcp(  # noqa: C901
     client_ntttcp, server_ntttcp = run_in_parallel(
         [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
     )
+
     try:
         client_lagscope, server_lagscope = run_in_parallel(
             [

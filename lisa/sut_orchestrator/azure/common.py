@@ -626,7 +626,7 @@ class AzureNodeSchema:
     # Force to maximize capability of the vm size. It bypass requirements on
     # test cases, and uses to force run performance tests on any vm size.
     maximize_capability: bool = False
-
+    set_cpu_affinity: bool = False
     location: str = ""
     # Required by shared gallery images which are present in
     # subscription different from where LISA is run
