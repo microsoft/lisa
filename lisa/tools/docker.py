@@ -127,15 +127,15 @@ class Docker(Tool):
                     repo_name="docker-ce.repo",
                 )
                 self.node.os.add_repository(
-                    repo="http://mirror.centos.org/centos/7/extras/x86_64",
+                    repo="https://vault.centos.org/centos/7/extras/x86_64",
                     repo_name="Centos extras",
                 )
                 self.node.os.add_repository(
-                    repo="http://mirror.centos.org/centos/7/os/x86_64",
+                    repo="https://vault.centos.org/centos/7/os/x86_64",
                     repo_name="Centos extras",
                 )
                 gpg_donwload_path = self.node.tools[Wget].get(
-                    "http://mirror.centos.org/centos/7/os/x86_64/RPM-GPG-KEY-CentOS-7",
+                    "https://vault.centos.org/centos/7/os/x86_64/RPM-GPG-KEY-CentOS-7",
                 )
                 self.node.execute(f"rpm --import {gpg_donwload_path}", sudo=True)
 
