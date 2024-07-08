@@ -26,9 +26,11 @@ class NvidiaSmi(Tool):
     def get_gpu_count(self) -> int:
         result = self.run("-L")
         if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
-            raise LisaException(
-                f"nvidia-smi command exited with exit_code {result.exit_code}"
-            )
+            result = self.run("-L", sudo=True)
+            if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
+                raise LisaException(
+                    f"nvidia-smi command exited with exit_code {result.exit_code}"
+                )
         gpu_types = [x[0] for x in self.gpu_devices]
         device_count = 0
         for gpu_type in gpu_types:
