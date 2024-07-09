@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.25.53.49325",
-      "templateHash": "2065527052429800628"
+      "version": "0.28.1.47646",
+      "templateHash": "1630470125196944168"
     }
   },
   "functions": [
@@ -579,10 +579,10 @@
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
-        "publicIPAllocationMethod": "[if(parameters('is_ultradisk'), 'Static', 'Dynamic')]"
+        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]"
       },
       "sku": {
-        "name": "[if(parameters('is_ultradisk'), 'Standard', 'Basic')]"
+        "name": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Standard', 'Basic')]"
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
     },
@@ -765,12 +765,13 @@
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
           "contentVersion": "1.0.0.0",
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.25.53.49325",
-              "templateHash": "16437347877901848310"
+              "version": "0.28.1.47646",
+              "templateHash": "10740733774987815957"
             }
           },
           "functions": [
@@ -823,8 +824,8 @@
           "variables": {
             "publicIpAddress": "[__bicep.getPublicIpAddress(parameters('vmName'))]"
           },
-          "resources": [
-            {
+          "resources": {
+            "vm_nics": {
               "copy": {
                 "name": "vm_nics",
                 "count": "[length(range(0, parameters('nic_count')))]"
@@ -851,7 +852,7 @@
                 "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
               }
             }
-          ]
+          }
         }
       },
       "dependsOn": [
