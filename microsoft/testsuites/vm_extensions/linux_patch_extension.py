@@ -69,15 +69,17 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
 def _assert_status_file_result(node: Node, status_file: Any, error_code: str) -> None:
     error_details_not_empty = len(status_file["error"]["details"]) > 0
-    error_details_code = status_file["error"]["details"][0]["code"]
-    if error_details_not_empty and error_details_code == "PACKAGE_LIST_TRUNCATED":
+    if (
+        error_details_not_empty
+        and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
+    ):
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to CompletedWithWarnings"
         ).is_equal_to("CompletedWithWarnings")
     elif (
         _is_supported_linux_distro(node)
         and error_details_not_empty
-        and error_details_code == "UA_ESM_REQUIRED"
+        and status_file["error"]["details"][0]["code"] == "UA_ESM_REQUIRED"
     ):
         # Ubuntu 1804 OS image has UA patches that needs upgrade OS to Pro version
         # Set error code to 1 notify customers to upgrade OS to Pro to install patches
