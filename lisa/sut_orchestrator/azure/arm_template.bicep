@@ -253,10 +253,10 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   tags: tags
   name: '${nodes[i].name}-public-ip'
   properties: {
-    publicIPAllocationMethod: (is_ultradisk ? 'Static' : 'Dynamic')
+    publicIPAllocationMethod: ((is_ultradisk || use_availability_zones) ? 'Static' : 'Dynamic')
   }
   sku: {
-    name: (is_ultradisk ? 'Standard' : 'Basic')
+    name: ((is_ultradisk || use_availability_zones) ? 'Standard' : 'Basic')
   }
   zones: (use_availability_zones ? availability_zones : null)
 }]
