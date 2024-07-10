@@ -478,6 +478,9 @@ class Posix(OperatingSystem, BaseClassMixin):
     ) -> None:
         raise NotImplementedError("add_azure_core_repo is not implemented")
 
+    def set_kill_user_processes(self) -> None:
+        raise NotImplementedError("set_kill_user_processes is not implemented")
+
     def _process_extra_package_args(self, extra_args: Optional[List[str]]) -> str:
         if extra_args:
             add_args = " ".join(extra_args)
@@ -1867,6 +1870,8 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name: str
 
     def _initialize_package_installation(self) -> None:
+        self.set_kill_user_processes()
+
         result = self._node.execute("command -v dnf", no_info_log=True, shell=True)
         if result.exit_code == 0:
             self._dnf_tool_name = "dnf"
@@ -1896,6 +1901,17 @@ class CBLMariner(RPMDistro):
             "/SPECS/mariner-repos/mariner-extras.repo",
             sudo=True,
         )
+
+    # Disable KillUserProcesses to avoid test processes being terminated when
+    # the SSH session is reset
+    def set_kill_user_processes(self) -> None:
+        sed = self._node.tools[Sed]
+        sed.append(
+            text="KillUserProcesses=no",
+            file="/etc/systemd/logind.conf",
+            sudo=True,
+        )
+        self._node.tools[Service].restart_service("systemd-logind")
 
 
 @dataclass
