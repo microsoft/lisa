@@ -254,7 +254,7 @@ class Power(TestSuite):
         data_disks_after_hibernation = disk.get_raw_data_disks()
         assert_that(data_disks_before_hibernation).described_as(
             "data disks are inconsistent after hibernation"
-        ).is_length(data_disks_after_hibernation)
+        ).is_length(len(data_disks_after_hibernation))
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
