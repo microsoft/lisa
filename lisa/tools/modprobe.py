@@ -47,6 +47,7 @@ class Modprobe(Tool):
         result = self.run(
             f"-nv {mod_name}",
             sudo=True,
+            shell=True,
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
@@ -69,13 +70,14 @@ class Modprobe(Tool):
         for mod_name in mod_names:
             if ignore_error:
                 # rmmod support the module file, so use it here.
-                self.node.execute(f"rmmod {mod_name}", sudo=True)
+                self.node.execute(f"rmmod {mod_name}", sudo=True, shell=True)
             else:
                 if self.is_module_loaded(mod_name, force_run=True):
                     self.run(
                         f"-r {mod_name}",
                         force_run=True,
                         sudo=True,
+                        shell=True,
                         expected_exit_code=0,
                         expected_exit_code_failure_message="Fail to remove module "
                         f"{mod_name}",
@@ -97,6 +99,7 @@ class Modprobe(Tool):
             command,
             force_run=True,
             sudo=True,
+            shell=True,
         )
         if dry_run:
             return result.exit_code == 0
@@ -134,6 +137,7 @@ class Modprobe(Tool):
         self.node.execute(
             f"insmod {file_name}",
             sudo=True,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"failed to load module {file_name}",
         )
