@@ -388,6 +388,9 @@ class SigTransformerSchema(schema.Transformer):
     # raw vhd URL, it can be the blob under the same subscription of SIG
     # or SASURL
     vhd: str = field(default="", metadata=field_metadata(required=True))
+    # If vhd is a blob fullpath and is in another subscription,
+    # the subscription should be specified
+    subscription: str = ""
     # if not specify gallery_resource_group_name, use shared resource group name
     gallery_resource_group_name: str = field(default=AZURE_SHARED_RG_NAME)
     # if not specified, will use the first location of gallery image
@@ -508,7 +511,7 @@ class SharedGalleryImageTransformer(Transformer):
         if not runbook.gallery_location:
             runbook.gallery_location = image_location
         vhd_path = get_deployable_vhd_path(
-            platform, runbook.vhd, image_location, self._log
+            platform, runbook.vhd, image_location, self._log, runbook.subscription
         )
         vhd_details = get_vhd_details(platform, vhd_path)
         check_blob_exist(
