@@ -124,7 +124,7 @@ class Lspci(Tool):
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
             # Ensure pci device ids and name mappings are updated.
-            self.node.execute("update-pciids", sudo=True)
+            self.node.execute("update-pciids", sudo=True, shell=True)
             result = self.run(
                 "-m",
                 force_run=force_run,

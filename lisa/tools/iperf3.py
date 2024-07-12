@@ -454,7 +454,9 @@ class Iperf3(Tool):
         make = self.node.tools[Make]
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
         make.make_install(code_path)
-        self.node.execute("ldconfig", sudo=True, cwd=code_path).assert_exit_code()
+        self.node.execute(
+            "ldconfig", sudo=True, cwd=code_path, shell=True
+        ).assert_exit_code()
         self.node.execute(
             "ln -fs /usr/local/bin/iperf3 /usr/bin/iperf3", sudo=True, cwd=code_path
         ).assert_exit_code()
