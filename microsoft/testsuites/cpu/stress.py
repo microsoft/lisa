@@ -27,6 +27,7 @@ class CPUStressSuite(TestSuite):
             Detailed steps please refer case verify_cpu_hot_plug.
             """,
         priority=3,
+        set_logical_timeout=True,
         requirement=simple_requirement(
             min_core_count=32,
         ),

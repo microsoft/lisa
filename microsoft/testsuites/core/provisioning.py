@@ -66,6 +66,7 @@ class Provisioning(TestSuite):
         4. Otherwise, fully passed.
         """,
         priority=0,
+        # set_logical_timeout=True,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],

@@ -1496,6 +1496,16 @@ class AzurePlatform(Platform):
         log.info(f"resource group '{resource_group_name}' deployment is in progress...")
         deployment_operation: Any = None
         deployments = self._rm_client.deployments
+
+        try:
+            vm_core_count = int(environment.cost)
+            # vm_size = environment.capability.nodes[0].core_count
+        except (KeyError, IndexError, AssertionError):
+            vm_core_count = None
+
+        deployment_time_out = min(9000, vm_core_count * 300 if vm_core_count else 300)
+        log.info(f"deployment time out: {deployment_time_out}")
+
         try:
             deployment_operation = deployments.begin_create_or_update(
                 **deployment_parameters
@@ -1503,7 +1513,9 @@ class AzurePlatform(Platform):
             while True:
                 try:
                     wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
+                        deployment_operation,
+                        time_out=deployment_time_out,
+                        failure_identity="deploy",
                     )
                 except LisaTimeoutException:
                     self._save_console_log_and_check_panic(

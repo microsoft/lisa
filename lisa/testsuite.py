@@ -20,6 +20,7 @@ from lisa.feature import Feature
 from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
 from lisa.operating_system import OperatingSystem, Windows
+from lisa.tools import Lscpu
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -358,6 +359,14 @@ def node_requirement(
     )
 
 
+def calculate_timeout_based_on_cpu_core_count(cpu_count: int) -> int:
+    # we will remove the cap value once the concept of maximized capability
+    # is removed from the code,
+    # till then we will cap it to 120000.
+    # min(cap, initial setup time including boot time + 60s per core)
+    return min(120000, 60 * cpu_count)
+
+
 def simple_requirement(
     min_count: int = 1,
     min_core_count: int = 1,
@@ -467,6 +476,10 @@ class TestCaseMetadata:
         self,
         description: str,
         priority: int = 2,
+        set_logical_timeout: bool = False,
+        # "set_logical_timeout" vvariable, if true,
+        # will override any
+        # other timeout set for the test case
         timeout: int = 3600,
         use_new_environment: bool = False,
         owner: str = "",
@@ -477,6 +490,7 @@ class TestCaseMetadata:
         self.priority = priority
         self.description = description
         self.timeout = timeout
+        self.set_logical_timeout = set_logical_timeout
         self.use_new_environment = use_new_environment
         if requirement:
             self.requirement = requirement
@@ -630,8 +644,13 @@ class TestSuite:
                 constants.RUN_LOCAL_LOG_PATH
             ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
-            case_timeout = case_result.runtime_data.metadata.timeout
 
+            if case_result.runtime_data.metadata.set_logical_timeout:
+                core_count = environment.nodes[0].tools[Lscpu].get_core_count()
+                case_timeout = calculate_timeout_based_on_cpu_core_count(core_count)
+            else:
+                case_timeout = case_result.runtime_data.metadata.timeout
+            case_log.info(f"case_timeout: {case_timeout}")
             if is_continue:
                 is_continue = self.__before_case(
                     case_result=case_result,
