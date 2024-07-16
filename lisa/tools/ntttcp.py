@@ -14,7 +14,8 @@ from lisa.messages import (
     create_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
-from lisa.tools import Firewall, Gcc, Git, Make, Sed
+from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
+from lisa.tools.taskset import TaskSet
 from lisa.util import LisaException, constants
 from lisa.util.process import ExecutableResult, Process
 
@@ -223,8 +224,11 @@ class Ntttcp(Tool):
             cmd += f" --show-dev-interrupts {dev_differentiator} "
         if run_as_daemon:
             cmd += " -D "
+
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            shell=True,
+            sudo=True,
         )
         # NTTTCP for Linux 1.4.0
         # ---------------------------------------------------------
@@ -328,7 +332,7 @@ class Ntttcp(Tool):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
@@ -439,6 +443,18 @@ class Ntttcp(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
         firewall.stop()
+
+        lscpu = self.node.tools[Lscpu]
+        numa_node_count = lscpu.get_numa_node_count()
+        self.pre_command: str = ""
+        if numa_node_count > 1 and not isinstance(self.node.os, BSD):
+            taskset = self.node.tools[TaskSet]
+            start_cpu_index, end_cpu_index = lscpu.get_cpu_range_in_numa_node()
+            self.pre_command = (
+                f"{taskset.command} -c {start_cpu_index}-{end_cpu_index} "
+            )
+        self._log.debug(f"Numa Node Count: {numa_node_count}")
+        self._log.debug(f"ntttcp command: {self.pre_command}{self.command}")
 
         # save the original value for recovering
         self._original_settings_tcp: List[Dict[str, str]] = []
@@ -570,7 +586,9 @@ class BSDNtttcp(Ntttcp):
 
         # Start the server and wait for the threads to be created
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.command} {cmd}", shell=True, sudo=True
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            shell=True,
+            sudo=True,
         )
         time.sleep(5)
 
@@ -603,7 +621,7 @@ class BSDNtttcp(Ntttcp):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
