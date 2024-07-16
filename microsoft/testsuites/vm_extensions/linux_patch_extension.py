@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, Ubuntu
+from lisa.operating_system import BSD, SLES, CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -26,6 +26,39 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
+def _verify_unsupported_images(node: Node) -> None:
+    # Unsupported detailed versions for x86_64
+    unsupported_versions_x86_64 = {
+        SLES: ["15-sp5 gen1"],
+        CBLMariner: ["2"],
+    }
+
+    # arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+    # if arch == "aarch64":
+    #     # Any arm64 OS images are not supported at this time
+    #     _unsupported_image_exception_msg(node)
+
+    # Get the full version string of the OS
+    full_version = (
+        f"{node.os.information.version.major}-"
+        f"{node.os.information.version.minor} "
+        f"{node.os.information.version.patch} "
+        f"{node.os.information.version.build}"
+    )
+
+    # Handle CBLMariner separately if the full version string is not sufficient
+    if isinstance(node.os, CBLMariner):
+        full_version = str(node.os.information.version.major)
+
+    for distro, version_list in unsupported_versions_x86_64.items():
+        if isinstance(node.os, distro):
+            if full_version in version_list:
+                # Raise an exception for unsupported version
+                _unsupported_image_exception_msg(node)
+        # else:
+        #     _unsupported_image_exception_msg(node)
+
+
 def _verify_unsupported_vm_agent(
     node: Node, status_result: Any, error_code: str
 ) -> None:
@@ -34,7 +67,7 @@ def _verify_unsupported_vm_agent(
         and "Unsupported older Azure Linux Agent version"
         in status_result["error"]["details"][0]["message"]
     ):
-        raise SkippedException(UnsupportedDistroException(node.os))
+        _unsupported_image_exception_msg(node)
 
 
 def _set_up_vm(node: Node, environment: Environment) -> Any:
@@ -118,6 +151,14 @@ def _is_supported_linux_distro(node: Node) -> bool:
     return False
 
 
+def _unsupported_image_exception_msg(node: Node) -> None:
+    raise SkippedException(
+        UnsupportedDistroException(
+            node.os, "Linux Patch Extension doesn't support this Distro version."
+        )
+    )
+
+
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
@@ -142,6 +183,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
         compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
+        _verify_unsupported_images(node)
         # verify vm agent service is running, lpe is a dependent of vm agent
         # service
         _verify_vm_agent_running(node, log)
@@ -158,7 +200,7 @@ class LinuxPatchExtensionBVT(TestSuite):
             if any(
                 s in str(identifier) for s in ["The selected VM image is not supported"]
             ):
-                raise SkippedException(UnsupportedDistroException(node.os))
+                _unsupported_image_exception_msg(node)
             else:
                 raise identifier
 
@@ -190,7 +232,7 @@ class LinuxPatchExtensionBVT(TestSuite):
                 "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
             },
         }
-
+        _verify_unsupported_images(node)
         # verify vm agent service is running, lpe is a dependent of vm agent
         # service
         _verify_vm_agent_running(node, log)
@@ -209,7 +251,7 @@ class LinuxPatchExtensionBVT(TestSuite):
             if any(
                 s in str(identifier) for s in ["The selected VM image is not supported"]
             ):
-                raise SkippedException(UnsupportedDistroException(node.os))
+                _unsupported_image_exception_msg(node)
             else:
                 raise identifier
 
