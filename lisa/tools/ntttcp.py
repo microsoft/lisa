@@ -449,7 +449,10 @@ class Ntttcp(Tool):
         self.pre_command: str = ""
         if numa_node_count > 1 and not isinstance(self.node.os, BSD):
             taskset = self.node.tools[TaskSet]
-            start_cpu_index, end_cpu_index = lscpu.get_cpu_range_in_numa_node()
+            first_numa_node_index = lscpu.get_first_numa_node_index()
+            start_cpu_index, end_cpu_index = lscpu.get_cpu_range_in_numa_node(
+                first_numa_node_index
+            )
             self.pre_command = (
                 f"{taskset.command} -c {start_cpu_index}-{end_cpu_index} "
             )
