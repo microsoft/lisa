@@ -50,13 +50,12 @@ def _verify_unsupported_images(node: Node) -> None:
     if isinstance(node.os, CBLMariner):
         full_version = str(node.os.information.version.major)
 
-    for distro, version_list in unsupported_versions_x86_64.items():
+    for distro in unsupported_versions_x86_64:
         if isinstance(node.os, distro):
-            if full_version in version_list:
+            version_list = unsupported_versions_x86_64.get(distro)
+            if version_list is not None and full_version in version_list:
                 # Raise an exception for unsupported version
                 _unsupported_image_exception_msg(node)
-        # else:
-        #     _unsupported_image_exception_msg(node)
 
 
 def _verify_unsupported_vm_agent(
