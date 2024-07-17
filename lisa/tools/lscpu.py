@@ -3,7 +3,7 @@
 
 import re
 from enum import Enum
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Tuple, Type
 
 from assertpy import assert_that
 
@@ -285,6 +285,11 @@ class Lscpu(Tool):
         # get count of numa nodes on the machine, add 1 to account
         # for 0 indexing
         return max([int(cpu.numa_node) for cpu in self.get_cpu_info()]) + 1
+
+    def get_cpu_range_in_numa_node(self, numa_node_index: int = 0) -> Tuple[int, int]:
+        cpus = self.get_cpu_info()
+        cpu_indexes = [cpu.cpu for cpu in cpus if cpu.numa_node == numa_node_index]
+        return min(cpu_indexes), max(cpu_indexes)
 
     def is_virtualization_enabled(self) -> bool:
         result = self.run(sudo=True).stdout
