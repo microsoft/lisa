@@ -35,11 +35,6 @@ def _verify_unsupported_images(node: Node) -> None:
         CBLMariner: ["2-0 1"],
     }
 
-    # arch = node.os.get_kernel_information().hardware_platform  # type: ignore
-    # if arch == "aarch64":
-    #     # Any arm64 OS images are not supported at this time
-    #     _unsupported_image_exception_msg(node)
-
     # Get the full version string of the OS
     full_version = (
         f"{node.os.information.version.major}-"
