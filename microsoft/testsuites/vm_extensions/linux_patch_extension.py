@@ -23,14 +23,16 @@ from lisa.sut_orchestrator.azure.common import (
     wait_operation,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
 def _verify_unsupported_images(node: Node) -> None:
     # Unsupported detailed versions for x86_64
     unsupported_versions_x86_64 = {
-        SLES: ["15-sp5 gen1"],
-        CBLMariner: ["2"],
+        # major minor gen
+        SLES: ["15-5 1"],
+        CBLMariner: ["2-0 1"],
     }
 
     # arch = node.os.get_kernel_information().hardware_platform  # type: ignore
@@ -42,13 +44,8 @@ def _verify_unsupported_images(node: Node) -> None:
     full_version = (
         f"{node.os.information.version.major}-"
         f"{node.os.information.version.minor} "
-        f"{node.os.information.version.patch} "
-        f"{node.os.information.version.build}"
+        f"{node.tools[VmGeneration].get_generation()}"
     )
-
-    # Handle CBLMariner separately if the full version string is not sufficient
-    if isinstance(node.os, CBLMariner):
-        full_version = str(node.os.information.version.major)
 
     for distro in unsupported_versions_x86_64:
         if isinstance(node.os, distro):
@@ -94,9 +91,13 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
     log.debug(f"verify walinuxagent or waagent running:{is_vm_agent_running}")
 
-    assert_that(is_vm_agent_running).described_as(
-        "Expected walinuxagent or waagent service is running"
-    ).is_true()
+    if is_vm_agent_running is False:
+        raise SkippedException(
+            UnsupportedDistroException(
+                node.os,
+                "Required walinuxagent or waagent service is not running on this vm",
+            )
+        )
 
 
 def _assert_status_file_result(node: Node, status_file: Any, error_code: str) -> None:
