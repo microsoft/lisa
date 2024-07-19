@@ -32,7 +32,7 @@ def _verify_unsupported_images(node: Node) -> None:
     unsupported_versions_x86_64 = {
         # major minor gen
         SLES: ["15-5 1"],
-        CBLMariner: ["2-0 1"],
+        CBLMariner: ["2-0 1", "3-0 1"],
     }
 
     # Get the full version string of the OS
@@ -189,7 +189,7 @@ class LinuxPatchExtensionBVT(TestSuite):
             )
             # set wait operation timeout 10 min, status file should be generated
             # before timeout
-            assess_result = wait_operation(operation)
+            assess_result = wait_operation(operation, 600)
 
         except HttpResponseError as identifier:
             if any(
