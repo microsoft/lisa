@@ -228,8 +228,8 @@ class KdumpBase(Tool):
                 break
         if not kexec_config_present:
             raise LisaException(
-                "The kernel config CONFIG_KEXEC or CONFIG_KEXEC_FILE is not set. Kdump is"
-                "not supported."
+                "The kernel config CONFIG_KEXEC or CONFIG_KEXEC_FILE is not set. "
+                "Kdump is not supported."
             )
         for config in self.required_kernel_config:
             if not self.node.tools[KernelConfig].is_built_in(config):
