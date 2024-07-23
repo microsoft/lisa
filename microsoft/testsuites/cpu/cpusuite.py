@@ -99,6 +99,7 @@ class CPUSuite(TestSuite):
     )
     def verify_cpu_offline_storage_workload(self, log: Logger, node: Node) -> None:
         # run fio process asynchronously on the node
+        time.sleep(1800) # Making the execution sleep for 30 mins before toggling the CPUs on and off
         fio_data_size_in_gb = 1
         try:
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
