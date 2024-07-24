@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from datetime import datetime
+from typing import Optional, Type
 
 from dateutil.parser import parser
 
@@ -9,6 +10,10 @@ from lisa.executable import Tool
 
 
 class Date(Tool):
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return DateFreeBSD
+
     @property
     def command(self) -> str:
         return "date"
@@ -27,6 +32,17 @@ class Date(Tool):
     def set(self, new_date: datetime) -> None:
         self.run(
             f"--set='{new_date.isoformat()}'",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to set date time.",
+        )
+
+
+class DateFreeBSD(Date):
+    def set(self, new_date: datetime) -> None:
+        self.run(
+            f"'{new_date.strftime('%Y%m%d%H%M')}'",
             sudo=True,
             force_run=True,
             expected_exit_code=0,
