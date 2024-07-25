@@ -344,7 +344,7 @@ class Ntttcp(Tool):
         self, result: ExecutableResult, role: str = "server"
     ) -> NtttcpResult:
         matched_results = self.output_pattern.match(result.stdout)
-        assert matched_results, "not found matched ntttcp results."
+        assert matched_results, f"not found matched ntttcp results. output_pattern: {self.output_pattern} and result: {result.stdout}"
         ntttcp_result = NtttcpResult()
         ntttcp_result.role = role
         if "Mbps" == matched_results.group("unit"):
@@ -633,7 +633,7 @@ class BSDNtttcp(Ntttcp):
         self, result: ExecutableResult, role: str = "server"
     ) -> NtttcpResult:
         matched_results = self.output_pattern.match(result.stdout)
-        assert matched_results, "not found matched ntttcp results."
+        assert matched_results, f"not found matched ntttcp results. output_pattern: {self.output_pattern} and result: {result.stdout}"
         ntttcp_result = NtttcpResult()
         ntttcp_result.role = role
         if "Mbps" == matched_results.group("unit"):
