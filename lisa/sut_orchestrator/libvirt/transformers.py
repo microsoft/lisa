@@ -251,9 +251,16 @@ class QemuPackageInstaller(QemuInstaller):
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         if isinstance(node.os, CBLMariner):
-            linux.install_packages(
-                ["mariner-repos-preview.noarch", "mariner-repos-extended"]
-            )
+            node_info = node.get_information()
+            distro = node_info.get("distro_version", "")
+            if distro == "Microsoft Azure Linux 3.0":
+                linux.install_packages(
+                    ["azurelinux-repos-preview.noarch", "azurelinux-repos-extended"]
+                )
+            else:
+                linux.install_packages(
+                    ["mariner-repos-preview.noarch", "mariner-repos-extended"]
+                )
         linux.install_packages(packages_list)
         username = node.tools[Whoami].get_username()
         node.tools[Usermod].add_user_to_group(group=username, user="qemu", sudo=True)
