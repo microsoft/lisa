@@ -95,8 +95,11 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
         )
 
 
-def _assert_status_file_result(node: Node, status_file: Any, error_code: str) -> None:
+def _assert_status_file_result(
+    node: Node, status_file: Any, error_code: str, api_type=None
+) -> None:
     error_details_not_empty = len(status_file["error"]["details"]) > 0
+
     if (
         error_details_not_empty
         and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
@@ -106,6 +109,7 @@ def _assert_status_file_result(node: Node, status_file: Any, error_code: str) ->
         ).is_equal_to("CompletedWithWarnings")
     elif (
         _is_supported_linux_distro(node)
+        and node.os.information.version.major == 18
         and error_details_not_empty
         and status_file["error"]["details"][0]["code"] == "UA_ESM_REQUIRED"
     ):
@@ -114,6 +118,22 @@ def _assert_status_file_result(node: Node, status_file: Any, error_code: str) ->
         assert_that(status_file["status"]).described_as(
             "Expected the status file patches to succeed"
         ).is_equal_to("Succeeded")
+        assert_that(error_code).described_as(
+            "Expected 1 error in status file patches operation"
+        ).is_equal_to("1")
+    elif (
+        api_type is not None
+        and _is_supported_linux_distro(node)
+        and node.os.information.version.major == 16
+        and error_details_not_empty
+        and status_file["error"]["details"][0]["code"] == "UA_ESM_REQUIRED"
+    ):
+        # This only applies on installation api call
+        # Ubuntu 1604 OS image has UA patches that needs upgrade OS to Pro version
+        # Set error code to 1 notify customers to upgrade OS to Pro to install patches
+        assert_that(status_file["status"]).described_as(
+            "Expected the status file patches to CompletedWithWarnings"
+        ).is_equal_to("CompletedWithWarnings")
         assert_that(error_code).described_as(
             "Expected 1 error in status file patches operation"
         ).is_equal_to("1")
@@ -130,7 +150,7 @@ def _assert_status_file_result(node: Node, status_file: Any, error_code: str) ->
 
 def _is_supported_linux_distro(node: Node) -> bool:
     supported_major_versions = {
-        Ubuntu: [18],
+        Ubuntu: [18, 16],
     }
 
     for distro in supported_major_versions:
@@ -182,6 +202,10 @@ class LinuxPatchExtensionBVT(TestSuite):
         # verify vm agent service is running, lpe is a dependent of vm agent
         # service
         _verify_vm_agent_running(node, log)
+
+        log.debug(
+            f"what is node.os.information.major: {node.os.information.version.major}"
+        )
 
         try:
             operation = compute_client.virtual_machines.begin_assess_patches(
@@ -255,4 +279,6 @@ class LinuxPatchExtensionBVT(TestSuite):
         error_code = install_result["error"]["code"]
 
         _verify_unsupported_vm_agent(node, install_result, error_code)
-        _assert_status_file_result(node, install_result, error_code)
+        _assert_status_file_result(
+            node, install_result, error_code, api_type="installation"
+        )
