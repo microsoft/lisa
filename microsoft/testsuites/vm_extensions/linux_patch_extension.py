@@ -203,10 +203,6 @@ class LinuxPatchExtensionBVT(TestSuite):
         # service
         _verify_vm_agent_running(node, log)
 
-        log.debug(
-            f"what is node.os.information.major: {node.os.information.version.major}"
-        )
-
         try:
             operation = compute_client.virtual_machines.begin_assess_patches(
                 resource_group_name=resource_group_name, vm_name=vm_name
