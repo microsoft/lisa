@@ -111,7 +111,7 @@ def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) ->
                 exception_message,
                 f"the test failed leaving cpu{target_cpu} in a bad state.",
             )
-        time.sleep(20) # A sleep of 20 seconds before toggling on again
+        time.sleep(30) # A sleep of 20 seconds before toggling on again
         set_online = set_cpu_state(node, target_cpu, True)
         log.debug(f"set cpu{target_cpu} from offline to online.")
         exception_message = (
