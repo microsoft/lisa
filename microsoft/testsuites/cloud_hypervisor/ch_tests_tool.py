@@ -261,7 +261,12 @@ class CloudHypervisorTests(Tool):
 
         if isinstance(self.node.os, CBLMariner):
             daemon_json_file = PurePath("/etc/docker/daemon.json")
-            daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
+            node_info = self.node.get_information()
+            distro = node_info.get("distro_version", "")
+            if distro == "Microsoft Azure Linux 3.0":
+                daemon_json = '{"userland-proxy": false,"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
+            else:
+                daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
             self.node.tools[Echo].write_to_file(
                 daemon_json, daemon_json_file, sudo=True
             )
