@@ -1644,9 +1644,9 @@ class Disk(AzureFeatureMixin, features.Disk):
         files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
         azure_scsi_disks = []
-        assert self._node.capability.disk
-        assert isinstance(self._node.capability.disk.max_data_disk_count, int)
-        if len(files) == 0 and self._node.capability.disk.data_disk_count != 0:
+        # assert self._node.capability.disk
+        # assert isinstance(self._node.capability.disk.max_data_disk_count, int)
+        if len(files) == 0:
             os = self._node.os
             # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
             # there are known issues on ubuntu 16.04 and rhel 9.0
