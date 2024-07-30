@@ -43,7 +43,6 @@ from lisa.tools.kernel_config import KernelConfig
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
-    SkippedException,
     generate_random_chars,
     get_matched_str,
 )
@@ -642,9 +641,7 @@ class Storage(TestSuite):
 
         # get max data disk count for the node
         assert node.capability.disk
-        assert isinstance(
-            node.capability.disk.max_data_disk_count, int
-        ), f"actual type: {node.capability.disk.max_data_disk_count}"
+        assert isinstance(node.capability.disk.max_data_disk_count, int)
         max_data_disk_count = node.capability.disk.max_data_disk_count
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
@@ -660,12 +657,6 @@ class Storage(TestSuite):
         # Assuming existing disks added sequentially from lun = 0 to
         # (current_data_disk_count - 1)
         free_luns = list(range(current_data_disk_count, max_data_disk_count))
-
-        if len(free_luns) < 1:
-            raise SkippedException(
-                "No data disks can be added. "
-                "Consider manually setting max_data_disk_count in the runbook."
-            )
 
         # Randomize the luns if randomize_luns is set to True
         # Using seed 6 to get consistent randomization across runs
@@ -737,9 +728,7 @@ class Storage(TestSuite):
 
         # get max data disk count for the node
         assert node.capability.disk
-        assert isinstance(
-            node.capability.disk.max_data_disk_count, int
-        ), f"actual type: {node.capability.disk.max_data_disk_count}"
+        assert isinstance(node.capability.disk.max_data_disk_count, int)
         max_data_disk_count = node.capability.disk.max_data_disk_count
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
@@ -750,12 +739,6 @@ class Storage(TestSuite):
 
         # disks to be added to the vm
         disks_to_add = max_data_disk_count - current_data_disk_count
-
-        if disks_to_add < 1:
-            raise SkippedException(
-                "No data disks can be added. "
-                "Consider manually setting max_data_disk_count in the runbook."
-            )
 
         # get partition info before adding data disks
         partitions_before_adding_disks = lsblk.get_disks(force_run=True)
