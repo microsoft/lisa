@@ -38,8 +38,8 @@ TIMEOUT_READING_PASSWORD_PATTERNS = [
 
 @dataclass
 class ExecutableResult:
-    stdout: str
-    stderr: str
+    _stdout: str
+    _stderr: str
     exit_code: Optional[int]
     cmd: Union[str, List[str]]
     elapsed: float
@@ -47,6 +47,22 @@ class ExecutableResult:
 
     def __str__(self) -> str:
         return self.stdout
+
+    @property
+    def stdout(self) -> str:
+        return filter_ansi_escape(self._stdout)
+
+    @stdout.setter
+    def stdout(self, value: str) -> None:
+        self._stdout = value
+
+    @property
+    def stderr(self) -> str:
+        return filter_ansi_escape(self._stderr)
+
+    @stderr.setter
+    def stderr(self, value: str) -> None:
+        self._stderr = value
 
     def assert_exit_code(
         self,
