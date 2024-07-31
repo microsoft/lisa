@@ -180,9 +180,13 @@ class KdumpBase(Tool):
     # Following are the configuration setting required for system and dump-capture
     # kernels for enabling kdump support.
     required_kernel_config = [
-        "CONFIG_KEXEC",
         "CONFIG_CRASH_DUMP",
         "CONFIG_PROC_VMCORE",
+    ]
+
+    kexec_kernel_configs = [
+        "CONFIG_KEXEC",
+        "CONFIG_KEXEC_FILE",
     ]
 
     dump_path = "/var/crash"
@@ -217,6 +221,16 @@ class KdumpBase(Tool):
         raise NotImplementedError()
 
     def check_required_kernel_config(self) -> None:
+        kexec_config_present = False
+        for config in self.kexec_kernel_configs:
+            if self.node.tools[KernelConfig].is_built_in(config):
+                kexec_config_present = True
+                break
+        if not kexec_config_present:
+            raise LisaException(
+                "The kernel config CONFIG_KEXEC or CONFIG_KEXEC_FILE is not set. "
+                "Kdump is not supported."
+            )
         for config in self.required_kernel_config:
             if not self.node.tools[KernelConfig].is_built_in(config):
                 raise LisaException(
