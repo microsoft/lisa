@@ -945,8 +945,8 @@ class AzurePlatform(Platform):
 
             credential = DefaultAzureCredential(
                 authority=self.cloud.endpoints.active_directory,
+                shared_cache_tenant_id=azure_runbook.service_principal_tenant_id,
             )
-
             with SubscriptionClient(
                 credential,
                 base_url=self.cloud.endpoints.resource_manager,
