@@ -335,15 +335,10 @@ class AzurePlatformSchema:
             add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
         if self.subscription_id:
             add_secret(self.subscription_id, mask=PATTERN_GUID)
-
-        if self.service_principal_client_id or self.service_principal_key:
-            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
+        if self.service_principal_key:
             add_secret(self.service_principal_key)
-            if not self.service_principal_client_id or not self.service_principal_key:
-                raise LisaException(
-                    "service_principal_client_id and service_principal_key "
-                    "should be specified either both or not."
-                )
+        if self.service_principal_client_id:
+            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
 
     @property
     def cloud(self) -> Cloud:
