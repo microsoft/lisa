@@ -186,7 +186,7 @@ class KdumpBase(Tool):
 
     kexec_kernel_configs = [
         "CONFIG_KEXEC",
-        "CONFIG_KEXEC_FILE"
+        "CONFIG_KEXEC_FILE",
     ]
 
     dump_path = "/var/crash"
