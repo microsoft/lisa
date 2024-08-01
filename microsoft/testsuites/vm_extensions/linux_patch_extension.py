@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, Optional
 
 from assertpy.assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
@@ -96,7 +96,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
 
 def _assert_status_file_result(
-    node: Node, status_file: Any, error_code: str, api_type=None
+    node: Node, status_file: Any, error_code: str, api_type: Optional[str] = None
 ) -> None:
     error_details_not_empty = len(status_file["error"]["details"]) > 0
 
