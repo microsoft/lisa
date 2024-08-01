@@ -520,7 +520,6 @@ class SharedImageGallerySchema(AzureImageSchema):
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     vmgs_path: Optional[str] = None
-    subscription: str = ""
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         return
@@ -2159,18 +2158,41 @@ def find_by_name(resources: Any, type_name: str) -> Any:
     return next(x for x in resources if x["type"] == type_name)
 
 
-def get_vhd_details(
-    platform: "AzurePlatform", vhd_path: str, subscription: str = ""
-) -> Any:
-    if subscription == "":
-        subscription = platform.subscription_id
+def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
     matched = STORAGE_CONTAINER_BLOB_PATTERN.match(vhd_path)
     assert matched, f"fail to get matched info from {vhd_path}"
     sc_name = matched.group("sc")
     container_name = matched.group("container")
     blob_name = matched.group("blob")
+    subscription_id = platform.subscription_id
+    found_sc = find_storage_account(platform, sc_name, subscription_id)
+    if not found_sc:
+        subscription_client = SubscriptionClient(platform.credential)
+        for subscription in subscription_client.subscriptions.list():
+            found_sc = find_storage_account(
+                platform, sc_name, subscription.subscription_id
+            )
+            if found_sc:
+                subscription_id = subscription.subscription_id
+                break
+    assert found_sc, f"storage account {sc_name} not found in any subscriptions allowed"
+
+    rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
+    return {
+        "location": found_sc.location,
+        "resource_group_name": rg,
+        "account_name": sc_name,
+        "container_name": container_name,
+        "blob_name": blob_name,
+        "subscription": subscription_id,
+    }
+
+
+def find_storage_account(
+    platform: "AzurePlatform", sc_name: str, subscription_id: str
+) -> Any:
     storage_client = get_storage_client(
-        platform.credential, subscription, platform.cloud
+        platform.credential, subscription_id, platform.cloud
     )
     # sometimes it will fail for below reason if list storage accounts like this way
     # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
@@ -2181,18 +2203,7 @@ def get_vhd_details(
         if sc.name.lower() == sc_name.lower():
             found_sc = sc
             break
-    assert (
-        found_sc
-    ), f"storage account {sc_name} not found in subscription {subscription}"
-    rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
-    return {
-        "location": found_sc.location,
-        "resource_group_name": rg,
-        "account_name": sc_name,
-        "container_name": container_name,
-        "blob_name": blob_name,
-        "subscription": subscription,
-    }
+    return found_sc
 
 
 def _generate_sas_token_for_vhd(
@@ -2222,11 +2233,7 @@ def _generate_sas_token_for_vhd(
 
 @lru_cache(maxsize=10)  # noqa: B019
 def get_deployable_vhd_path(
-    platform: "AzurePlatform",
-    vhd_path: str,
-    location: str,
-    log: Logger,
-    subscription: str = "",
+    platform: "AzurePlatform", vhd_path: str, location: str, log: Logger
 ) -> str:
     """
     The sas url is not able to create a vm directly, so this method check if
@@ -2235,7 +2242,7 @@ def get_deployable_vhd_path(
     """
     matches = SAS_URL_PATTERN.match(vhd_path)
     if not matches:
-        vhd_details = get_vhd_details(platform, vhd_path, subscription)
+        vhd_details = get_vhd_details(platform, vhd_path)
         vhd_location = vhd_details["location"]
         if (
             location == vhd_location

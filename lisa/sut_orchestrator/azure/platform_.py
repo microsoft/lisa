@@ -1290,15 +1290,11 @@ class AzurePlatform(Platform):
             # vhd is higher priority
             vhd = azure_node_runbook.vhd
             vhd.vhd_path = get_deployable_vhd_path(
-                self, vhd.vhd_path, azure_node_runbook.location, log, vhd.subscription
+                self, vhd.vhd_path, azure_node_runbook.location, log
             )
             if vhd.vmgs_path:
                 vhd.vmgs_path = get_deployable_vhd_path(
-                    self,
-                    vhd.vmgs_path,
-                    azure_node_runbook.location,
-                    log,
-                    vhd.subscription,
+                    self, vhd.vmgs_path, azure_node_runbook.location, log
                 )
             azure_node_runbook.vhd = vhd
             azure_node_runbook.marketplace = None
