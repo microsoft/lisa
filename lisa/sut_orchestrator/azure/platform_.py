@@ -947,7 +947,7 @@ class AzurePlatform(Platform):
                 authority=self.cloud.endpoints.active_directory,
                 shared_cache_tenant_id=azure_runbook.service_principal_tenant_id,
             )
-            print(os.environ)
+            self._log.info(f"env2 {os.environ}")
             with SubscriptionClient(
                 credential,
                 base_url=self.cloud.endpoints.resource_manager,
@@ -957,6 +957,7 @@ class AzurePlatform(Platform):
                 azure_identity_logger = logging.getLogger("azure.identity")
                 azure_identity_logger.setLevel(logging.ERROR)
                 with global_credential_access_lock:
+                    self._log.info(f"env1 {os.environ}")
                     subscription = self._sub_client.subscriptions.get(
                         self.subscription_id
                     )
