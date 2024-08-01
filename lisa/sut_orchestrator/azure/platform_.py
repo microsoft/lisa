@@ -947,6 +947,7 @@ class AzurePlatform(Platform):
                 authority=self.cloud.endpoints.active_directory,
                 shared_cache_tenant_id=azure_runbook.service_principal_tenant_id,
             )
+            print(os.environ)
             with SubscriptionClient(
                 credential,
                 base_url=self.cloud.endpoints.resource_manager,
