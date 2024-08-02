@@ -20,6 +20,7 @@ from lisa.tools import (
     Lscpu,
     Mount,
 )
+from lisa.tools.uptime import Uptime
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -48,9 +49,7 @@ def is_distro_supported(node: Node) -> None:
 
 
 def verify_hibernation(
-    node: Node,
-    log: Logger,
-    throw_error: bool = True,
+    node: Node, log: Logger, throw_error: bool = True, verify_using_logs: bool = True
 ) -> None:
     if isinstance(node.os, Redhat):
         # Hibernation tests are run with higher os disk size.
@@ -71,6 +70,8 @@ def verify_hibernation(
 
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
+    uptime = node.tools[Uptime]
+    uptime_before_hibernation = uptime.since_time()
 
     try:
         startstop.stop(state=features.StopState.Hibernate)
@@ -95,22 +96,30 @@ def verify_hibernation(
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
+    uptime_after_hibernation = uptime.since_time()
+    assert_that(uptime_after_hibernation).described_as(
+        "Hibernation should not change uptime."
+    ).is_equal_to(uptime_before_hibernation)
+
+    log.info("Hibernation resume is successful. Uptime is not changed.")
+
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()
     uevent_after_hibernation = hibernation_setup_tool.check_uevent()
-    assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
-        "not find 'hibernation entry'."
-    ).is_equal_to(1)
-    assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
-        "not find 'hibernation exit'."
-    ).is_equal_to(1)
-    assert_that(received_after_hibernation - received_before_hibernation).described_as(
-        "not find 'Hibernation request received'."
-    ).is_equal_to(1)
-    assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
-        "not find 'Sent hibernation uevent'."
-    ).is_equal_to(1)
+    if verify_using_logs:
+        assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
+            "not find 'hibernation entry'."
+        ).is_equal_to(1)
+        assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+            "not find 'hibernation exit'."
+        ).is_equal_to(1)
+        assert_that(
+            received_after_hibernation - received_before_hibernation
+        ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
+        assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
+            "not find 'Sent hibernation uevent'."
+        ).is_equal_to(1)
 
     node_nic = node.nics
     node_nic.initialize()
