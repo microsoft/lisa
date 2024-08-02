@@ -55,21 +55,15 @@ def _check_system_status(node: Node, log: Logger) -> None:
     log.info(f"Directory contents: {directory_contents}")
 
     # check certs files
-    certa = "/var/lib/waagent/a/symbolinka"
-    message = f"File {certa} was not created on the test machine"
-    ls.run(
-        certa,
-        expected_exit_code=0,
-        expected_exit_code_failure_message=message,
-    )
+    for path in ["a", "b"]:
+        file_path = f"/var/lib/waagent/{path}/symbolink{path}"
+        message = f"File {file_path} was not created on the test machine"
 
-    certb = "/var/lib/waagent/a/symbolinkb"
-    message = f"File {certb} was not created on the test machine"
-    ls.run(
-        certb,
-        expected_exit_code=0,
-        expected_exit_code_failure_message=message,
-    )
+        ls.run(
+            file_path,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=message,
+        )
 
 
 @TestSuiteMetadata(
