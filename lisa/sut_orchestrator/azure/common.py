@@ -2735,6 +2735,9 @@ def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
 ) -> Any:
     if not application_id:
+        application_id = os.environ.get("AZURE_CLIENT_ID", "")
+
+    if not application_id:
         # if the run machine resides on Azure
         # get the object ID of the managed identity
         if get_resource_group_name() and get_azurevm_name():
