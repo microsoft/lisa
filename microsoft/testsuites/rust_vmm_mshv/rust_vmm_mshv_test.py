@@ -10,7 +10,7 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
-from lisa.tools import Cargo, Git, Ls, RemoteCopy
+from lisa.tools import Cargo, Dmesg, Git, Ls, RemoteCopy
 from lisa.util import SkippedException
 from lisa.util.process import ExecutableResult
 
@@ -33,6 +33,11 @@ class RustVmmTestSuite(TestSuite):
             raise SkippedException(
                 "Rust Vmm MSHV test can be run with MSHV wrapper (/dev/mshv) only."
             )
+
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        dmesg = node.tools[Dmesg]
+        dmesg.get_output(force_run=True)
 
     @TestCaseMetadata(
         description="""
