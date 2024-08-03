@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+
 import os
 import re
 from dataclasses import dataclass
@@ -24,7 +25,6 @@ from lisa.tools import (
     Make,
     Mkdir,
     Pgrep,
-    RemoteCopy,
     Rm,
     Swap,
     Sysctl,
@@ -54,30 +54,53 @@ class Ltp(Tool):
     LTP_DIR_NAME = "ltp"
     DEFAULT_LTP_TESTS_GIT_TAG = "20230929"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
+    LTP_RESULT_FILE = "ltp-results.log"
+    LTP_OUTPUT_FILE = "ltp-output.log"
+    LTP_SKIP_FILE = "skipfile"
+    LTP_RUN_COMMAND = "runltp"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
-    LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
-    LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
-    LTP_SKIP_FILE = "/opt/ltp/skipfile"
     COMPILE_TIMEOUT = 1800
     RUN_TIMEOUT = 12000
 
     @property
     def command(self) -> str:
-        return "/opt/ltp/runltp"
+        return f"{self._command_path}{self.LTP_RUN_COMMAND}"
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Make, Gcc, Git]
+        if self._prebuilt_file:
+            return []
+        else:
+            return [Make, Gcc, Git]
 
     @property
     def can_install(self) -> bool:
         return True
 
-    def __init__(self, node: Node, source_file: str, *args: Any, **kwargs: Any) -> None:
+    @property
+    def result_path(self) -> str:
+        return f"{self._command_path}{self.LTP_RESULT_FILE}"
+
+    @property
+    def output_path(self) -> str:
+        return f"{self._command_path}{self.LTP_OUTPUT_FILE}"
+
+    @property
+    def skip_path(self) -> str:
+        return f"{self._command_path}{self.LTP_SKIP_FILE}"
+
+    def __init__(
+        self, node: Node, prebuilt_file: str, *args: Any, **kwargs: Any
+    ) -> None:
         super().__init__(node, args, kwargs)
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
-        self._source_file = source_file
+
+        self._prebuilt_file = prebuilt_file
+        if self._prebuilt_file:
+            self._command_path = "/tmp/ltp/"
+        else:
+            self._command_path = "/opt/ltp/"
 
     def run_test(
         self,
@@ -94,22 +117,22 @@ class Ltp(Tool):
         rm = self.node.tools[Rm]
 
         # remove skipfile if it exists
-        if ls.path_exists(self.LTP_SKIP_FILE):
-            self._log.debug(f"Removing skipfile: {self.LTP_SKIP_FILE}")
-            rm.remove_file(self.LTP_SKIP_FILE, sudo=True)
+        if ls.path_exists(self.skip_path):
+            self._log.debug(f"Removing skipfile: {self.skip_path}")
+            rm.remove_file(self.skip_path, sudo=True)
 
         # remove results file if it exists
-        if ls.path_exists(self.LTP_RESULT_PATH, sudo=True):
-            self._log.debug(f"Removing {self.LTP_RESULT_PATH}")
-            rm.remove_file(self.LTP_RESULT_PATH, sudo=True)
+        if ls.path_exists(self.result_path, sudo=True):
+            self._log.debug(f"Removing {self.result_path}")
+            rm.remove_file(self.result_path, sudo=True)
 
         # remove output file if it exists
-        if ls.path_exists(self.LTP_OUTPUT_PATH, sudo=True):
-            self._log.debug(f"Removing {self.LTP_OUTPUT_PATH}")
-            rm.remove_file(self.LTP_OUTPUT_PATH, sudo=True)
+        if ls.path_exists(self.output_path, sudo=True):
+            self._log.debug(f"Removing {self.output_path}")
+            rm.remove_file(self.output_path, sudo=True)
 
         # add parameters for the test logging
-        parameters = f"-p -q -l {self.LTP_RESULT_PATH} -o {self.LTP_OUTPUT_PATH} "
+        parameters = f"-p -q -l {self.result_path} -o {self.output_path} "
 
         # add the list of tests to run
         parameters += f"-f {','.join(ltp_tests)} "
@@ -127,9 +150,9 @@ class Ltp(Tool):
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
             self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(self.LTP_SKIP_FILE), sudo=True
+                skip_file_value, PurePosixPath(self.skip_path), sudo=True
             )
-            parameters += f"-S {self.LTP_SKIP_FILE} "
+            parameters += f"-S {self.skip_path} "
 
         # Minimum 4M swap space is needed by some mmp test
         if self.node.tools[Free].get_swap_size() < 4:
@@ -144,20 +167,21 @@ class Ltp(Tool):
         )
 
         pgrep = self.node.tools[Pgrep]
-        pgrep.wait_processes("runltp", timeout=self.RUN_TIMEOUT)
+        pgrep.wait_processes(self.LTP_RUN_COMMAND, timeout=self.RUN_TIMEOUT)
 
-        # to avoid no permission issue when copying back files
-        self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
+        if not self._prebuilt_file:
+            # to avoid no permission issue when copying back files
+            self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
 
         # write output to log path
         self.node.shell.copy_back(
-            PurePosixPath(self.LTP_OUTPUT_PATH), PurePath(log_path) / "ltp-output.log"
+            PurePosixPath(self.output_path), PurePath(log_path) / self.LTP_OUTPUT_FILE
         )
 
         # write results to log path
-        local_ltp_results_path = PurePath(log_path) / "ltp-results.log"
+        local_ltp_results_path = PurePath(log_path) / self.LTP_RESULT_FILE
         self.node.shell.copy_back(
-            PurePosixPath(self.LTP_RESULT_PATH), local_ltp_results_path
+            PurePosixPath(self.result_path), local_ltp_results_path
         )
 
         # parse results from local_ltp_results_path file
@@ -194,170 +218,174 @@ class Ltp(Tool):
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
 
-        # install common dependencies
-        self.node.os.install_packages(
-            [
-                "m4",
-                "bison",
-                "flex",
-                "psmisc",
-                "autoconf",
-                "automake",
-            ]
-        )
-
-        # install distro specific dependencies
-        if isinstance(self.node.os, Fedora):
-            self.node.os.install_packages(
-                [
-                    "libaio-devel",
-                    "libattr",
-                    "libcap-devel",
-                    "libdb",
-                    "pkgconf",
-                    "kernel-headers",
-                    "glibc-headers",
-                ]
+        if self._prebuilt_file:
+            remote_tar_path = self.node.get_pure_path(
+                self._command_path
+            ) / os.path.basename(self._prebuilt_file)
+            ltp_installed_dir = self.node.get_pure_path("/tmp")
+            mkdir = self.node.tools[Mkdir]
+            mkdir.create_directory(remote_tar_path.parent.as_posix())
+            self.node.shell.copy(
+                PurePath(self._prebuilt_file),
+                remote_tar_path,
             )
-
-            # db4-utils and ntp are not available in Redhat >= 8.0
-            # ntp is replaced by chrony in Redhat8 release
-            if not (
-                isinstance(self.node.os, Redhat)
-                and self.node.os.information.version >= "8.0.0"
-            ):
-                self.node.os.install_packages(["db4-utils", "ntp"])
-        elif isinstance(self.node.os, Debian):
-            self.node.os.install_packages(
-                [
-                    "ntp",
-                    "libaio-dev",
-                    "libattr1",
-                    "libcap-dev",
-                    "keyutils",
-                    "libdb4.8",
-                    "libberkeleydb-perl",
-                    "expect",
-                    "dh-autoreconf",
-                    "gdb",
-                    "libnuma-dev",
-                    "quota",
-                    "genisoimage",
-                    "db-util",
-                    "unzip",
-                    "pkgconf",
-                    "libc6-dev",
-                ]
-            )
-
-            # install "exfat-utils"
-            # Note: Package has been renamed to exfatprogs
-            try:
-                self.node.os.install_packages(["exfat-utils"])
-            except Exception as e:
-                self._log.debug(
-                    f"Failed to install exfat-utils: {e}, "
-                    "Trying alternative package: exfatprogs"
-                )
-                self.node.os.install_packages(["exfatprogs"])
-        elif isinstance(self.node.os, Suse):
-            self.node.os.install_packages(
-                [
-                    "ntp",
-                    "git-core",
-                    "db48-utils",
-                    "libaio-devel",
-                    "libattr1",
-                    "libcap-progs",
-                    "libdb-4_8",
-                    "perl-BerkeleyDB",
-                    "pkg-config",
-                    "linux-glibc-devel",
-                    "glibc-devel",
-                ]
-            )
-        elif isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(
-                [
-                    "kernel-headers",
-                    "binutils",
-                    "glibc-devel",
-                    "zlib-devel",
-                ]
-            )
-        else:
-            raise LisaException(f"{self.node.os} is not supported")
-
-        # Some CPU time is assigned to set real-time scheduler and it affects
-        # all cgroup test cases. The values for rt_period_us(1000000us or 1s)
-        # and rt_runtime_us (950000us or 0.95s). This gives 0.05s to be used
-        # by non-RT tasks.
-        if self.node.shell.exists(
-            PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us")
-        ):
-            runtime_us = self.node.tools[Cat].read(
-                "/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us",
-                force_run=True,
+            self.node.tools[Tar].extract(
+                str(remote_tar_path),
+                str(ltp_installed_dir),
                 sudo=True,
             )
-            runtime_us_int = int(runtime_us)
-            if runtime_us_int == 0:
-                self.node.tools[Echo].write_to_file(
-                    "1000000",
-                    PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_period_us"),
-                    sudo=True,
-                )
-                self.node.tools[Echo].write_to_file(
-                    "950000",
-                    PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_runtime_us"),
-                    sudo=True,
-                )
-                self.node.tools[Echo].write_to_file(
-                    "1000000",
-                    PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_period_us"),
-                    sudo=True,
-                )
-                self.node.tools[Echo].write_to_file(
-                    "950000",
-                    PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us"),
-                    sudo=True,
-                )
-
-        # Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
-        sysctl = self.node.tools[Sysctl]
-        sysctl.write("vm.dirty_ratio", "10")
-        sysctl.write("vm.dirty_background_ratio", "5")
-        sysctl.run("-p")
-
-        # find partition to install ltp
-        build_dir = self.node.find_partition_with_freespace(
-            self.BUILD_REQUIRED_DISK_SIZE_IN_GB
-        )
-        top_src_dir = f"{build_dir}/{self.LTP_DIR_NAME}".replace("//", "/")
-
-        # remove build directory if it exists
-        if self.node.tools[Ls].path_exists(top_src_dir, sudo=True):
-            self.node.tools[Rm].remove_directory(top_src_dir, sudo=True)
-
-        # setup build directory
-        self.node.tools[Mkdir].create_directory(top_src_dir, sudo=True)
-        self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=True)
-
-        if self._source_file:
-            self._log.debug(
-                f"Use downloaded source code tar file: {self._source_file}!"
-            )
-            remote_source_file = self.get_tool_path(use_global=True) / os.path.basename(
-                self._source_file
-            )
-
-            copy = self.node.tools[RemoteCopy]
-            copy.copy_to_remote(PurePath(self._source_file), remote_source_file)
-            self.node.tools[Tar].extract(
-                str(remote_source_file), top_src_dir, sudo=True
-            )
-            ltp_path = self.node.get_pure_path(top_src_dir)
+            self._log.debug(f"Extracted tar from path {remote_tar_path}!")
         else:
+            # install common dependencies
+            self.node.os.install_packages(
+                [
+                    "m4",
+                    "bison",
+                    "flex",
+                    "psmisc",
+                    "autoconf",
+                    "automake",
+                ]
+            )
+
+            # install distro specific dependencies
+            if isinstance(self.node.os, Fedora):
+                self.node.os.install_packages(
+                    [
+                        "libaio-devel",
+                        "libattr",
+                        "libcap-devel",
+                        "libdb",
+                        "pkgconf",
+                        "kernel-headers",
+                        "glibc-headers",
+                    ]
+                )
+
+                # db4-utils and ntp are not available in Redhat >= 8.0
+                # ntp is replaced by chrony in Redhat8 release
+                if not (
+                    isinstance(self.node.os, Redhat)
+                    and self.node.os.information.version >= "8.0.0"
+                ):
+                    self.node.os.install_packages(["db4-utils", "ntp"])
+            elif isinstance(self.node.os, Debian):
+                self.node.os.install_packages(
+                    [
+                        "ntp",
+                        "libaio-dev",
+                        "libattr1",
+                        "libcap-dev",
+                        "keyutils",
+                        "libdb4.8",
+                        "libberkeleydb-perl",
+                        "expect",
+                        "dh-autoreconf",
+                        "gdb",
+                        "libnuma-dev",
+                        "quota",
+                        "genisoimage",
+                        "db-util",
+                        "unzip",
+                        "pkgconf",
+                        "libc6-dev",
+                    ]
+                )
+
+                # install "exfat-utils"
+                # Note: Package has been renamed to exfatprogs
+                try:
+                    self.node.os.install_packages(["exfat-utils"])
+                except Exception as e:
+                    self._log.debug(
+                        f"Failed to install exfat-utils: {e}, "
+                        "Trying alternative package: exfatprogs"
+                    )
+                    self.node.os.install_packages(["exfatprogs"])
+            elif isinstance(self.node.os, Suse):
+                self.node.os.install_packages(
+                    [
+                        "ntp",
+                        "git-core",
+                        "db48-utils",
+                        "libaio-devel",
+                        "libattr1",
+                        "libcap-progs",
+                        "libdb-4_8",
+                        "perl-BerkeleyDB",
+                        "pkg-config",
+                        "linux-glibc-devel",
+                        "glibc-devel",
+                    ]
+                )
+            elif isinstance(self.node.os, CBLMariner):
+                self.node.os.install_packages(
+                    [
+                        "kernel-headers",
+                        "binutils",
+                        "glibc-devel",
+                        "zlib-devel",
+                    ]
+                )
+            else:
+                raise LisaException(f"{self.node.os} is not supported")
+
+            # Some CPU time is assigned to set real-time scheduler and it affects
+            # all cgroup test cases. The values for rt_period_us(1000000us or 1s)
+            # and rt_runtime_us (950000us or 0.95s). This gives 0.05s to be used
+            # by non-RT tasks.
+            if self.node.shell.exists(
+                PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us")
+            ):
+                runtime_us = self.node.tools[Cat].read(
+                    "/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us",
+                    force_run=True,
+                    sudo=True,
+                )
+                runtime_us_int = int(runtime_us)
+                if runtime_us_int == 0:
+                    self.node.tools[Echo].write_to_file(
+                        "1000000",
+                        PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_period_us"),
+                        sudo=True,
+                    )
+                    self.node.tools[Echo].write_to_file(
+                        "950000",
+                        PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_runtime_us"),
+                        sudo=True,
+                    )
+                    self.node.tools[Echo].write_to_file(
+                        "1000000",
+                        PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_period_us"),
+                        sudo=True,
+                    )
+                    cpu_file = "/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us"
+                    self.node.tools[Echo].write_to_file(
+                        "950000",
+                        PurePosixPath(cpu_file),
+                        sudo=True,
+                    )
+
+            # Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
+            sysctl = self.node.tools[Sysctl]
+            sysctl.write("vm.dirty_ratio", "10")
+            sysctl.write("vm.dirty_background_ratio", "5")
+            sysctl.run("-p")
+
+            # find partition to install ltp
+            build_dir = self.node.find_partition_with_freespace(
+                self.BUILD_REQUIRED_DISK_SIZE_IN_GB
+            )
+            top_src_dir = f"{build_dir}/{self.LTP_DIR_NAME}".replace("//", "/")
+
+            # remove build directory if it exists
+            if self.node.tools[Ls].path_exists(top_src_dir, sudo=True):
+                self.node.tools[Rm].remove_directory(top_src_dir, sudo=True)
+
+            # setup build directory
+            self.node.tools[Mkdir].create_directory(top_src_dir, sudo=True)
+            self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=True)
+
             # clone ltp
             git = self.node.tools[Git]
             ltp_path = git.clone(
@@ -367,17 +395,17 @@ class Ltp(Tool):
             # checkout tag
             git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
 
-        # build ltp in /opt/ltp since this path is used by some
-        # tests, e.g, block_dev test
-        make = self.node.tools[Make]
-        self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
-        make.make("autotools", cwd=ltp_path, sudo=True)
-        self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
-        make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
+            # build ltp in /opt/ltp since this path is used by some
+            # tests, e.g, block_dev test
+            make = self.node.tools[Make]
+            self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
+            make.make("autotools", cwd=ltp_path, sudo=True)
+            self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
+            make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
 
-        # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
-        # on the remote system's sysroot
-        make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=True)
+            # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
+            # on the remote system's sysroot
+            make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=True)
 
         return self._check_exists()
 
