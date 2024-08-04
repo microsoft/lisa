@@ -2153,17 +2153,17 @@ class AzurePlatform(Platform):
                 )
             )
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        if node.capability.disk and isinstance(
-            node.capability.disk.max_data_disk_count, int
-        ):
-            max_data_disk_count = node.capability.disk.max_data_disk_count
-            if len(data_disks) > max_data_disk_count:
-                raise SkippedException(
-                    f"image {runbook.get_image_name()} "
-                    f"needs {len(data_disks)} data disks, "
-                    f"current VM size {runbook.vm_size} "
-                    f"only offers {node.capability.disk.max_data_disk_count} data disks"
-                )
+        # if node.capability.disk and isinstance(
+        #     node.capability.disk.max_data_disk_count, int
+        # ):
+        #     max_data_disk_count = node.capability.disk.max_data_disk_count
+        #     if len(data_disks) > max_data_disk_count:
+        #         raise SkippedException(
+        #             f"image {runbook.get_image_name()} "
+        #             f"needs {len(data_disks)} data disks, "
+        #             f"current VM size {runbook.vm_size} "
+        #             f"only offers {node.capability.disk.max_data_disk_count} data disks"
+        #         )
         return data_disks
 
     @lru_cache(maxsize=10)  # noqa: B019
