@@ -9,10 +9,12 @@ from lisa.util import LisaException
 class NvidiaSmi(Tool):
     # tuple of gpu device names and their device id pattern
     # e.g. Tesla GPU device has device id "47505500-0001-0000-3130-444531303244"
+    # A10-4Q device id "56475055-0002-0000-3130-444532323336"
     gpu_devices = (
         ("Tesla", "47505500", 0),
         ("A100", "44450000", 6),
         ("H100", "44453233", 0),
+        ("A10-4Q", "56475055", 0),
     )
 
     @property
