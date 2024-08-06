@@ -445,7 +445,14 @@ class Ntttcp(Tool):
         firewall.stop()
 
         lscpu = self.node.tools[Lscpu]
-        numa_node_count = lscpu.get_numa_node_count()
+        numa_node_count = 1
+        try:
+            numa_node_count = lscpu.get_numa_node_count()
+        except Exception:
+            self._log.debug(
+                "failed to get numa node count, ",
+                "continuing with default numa_node_count = 1",
+            )
         self.pre_command: str = ""
         if numa_node_count > 1 and not isinstance(self.node.os, BSD):
             taskset = self.node.tools[TaskSet]
