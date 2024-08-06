@@ -41,11 +41,17 @@ _spawn_initialization_error_pattern = re.compile(
 )
 
 
-def minimal_escape_sh(value: str) -> str:
-    return value.replace("'", "'\\''")
+def _minimal_escape_sh(value: str) -> str:
+    # Tokens iterated here will either have spaces in them, after
+    # tokenized by process_*_command()--process.py--or not. For those
+    # with spaces, we want to inject quotes around them again, on the
+    # minimal shell case--but *only* for those.
+    if re.search(r"\s", value):
+        return f"'{value}'"
+    return value
 
 
-def minimal_generate_run_command(  # type: ignore
+def _minimal_generate_run_command(  # type: ignore
     self,
     command_args: str,
     store_pid: bool,
@@ -53,7 +59,7 @@ def minimal_generate_run_command(  # type: ignore
     update_env: Optional[Dict[str, str]] = None,
     new_process_group: bool = False,
 ) -> str:
-    return " ".join(map(minimal_escape_sh, command_args))
+    return " ".join(map(_minimal_escape_sh, command_args))
 
 
 def wait_tcp_port_ready(
@@ -213,6 +219,20 @@ def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshP
     return shell.spawn(**kwargs)
 
 
+def _minimize_shell(shell: spur.ssh.SshShell) -> None:
+    """
+    Dynamically override that object's method. Here, we don't enclose every
+    shell token under single quotes anymore. That's an assumption from spur
+    that minimal shells will still be POSIX compliant--not true for some
+    cases for LISA users.
+    """
+    func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
+    shell._spur._shell_type.generate_run_command = func_type(
+        _minimal_generate_run_command,
+        shell._spur._shell_type,
+    )
+
+
 class SshShell(InitializableMixin):
     def __init__(self, connection_info: schema.ConnectionInfo) -> None:
         super().__init__()
@@ -267,7 +287,11 @@ class SshShell(InitializableMixin):
         else:
             self.is_posix = True
             shell_type = spur.ssh.ShellTypes.sh
-            # it doesn't support bash. Use minimal shell type
+            # First chance in getting a clue about no POSIX shell
+            # support (still not Windows). Use minimal shell type if
+            # so. Bear in mind we can get silence here (no "Unknown
+            # syntax"), but there will be a second chance of setting a
+            # minimal shell further down the flow
             if stdout_content and "Unknown syntax" in stdout_content:
                 shell_type = spur.ssh.ShellTypes.minimal
 
@@ -299,15 +323,7 @@ class SshShell(InitializableMixin):
         )
         self._inner_shell = spurplus.SshShell(spur_ssh_shell=spur_ssh_shell, sftp=sftp)
         if shell_type == spur.ssh.ShellTypes.minimal:
-            # Dynamically override that object's method. Here, we don't enclose every
-            # shell token under single quotes anymore. That's an assumption from spur
-            # that minimal shells will still be POSIX compliant--not true for some
-            # cases for LISA users.
-            func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
-            self._inner_shell._spur._shell_type.generate_run_command = func_type(
-                minimal_generate_run_command,
-                self._inner_shell._spur._shell_type,
-            )
+            _minimize_shell(self._inner_shell)
 
     def close(self) -> None:
         if self._inner_shell:
@@ -367,6 +383,9 @@ class SshShell(InitializableMixin):
                     "the paramiko/spur not support the shell of node."
                 )
             except spur.errors.CommandInitializationError as identifier:
+                # *Second* chance in getting a clue about no POSIX shell
+                # support (still not Windows). Set minimal shell type if
+                # so, again.
                 # Some publishers images, such as azhpc-desktop, javlinltd and
                 # vfunctiontechnologiesltd, there might have permission errors when
                 # scripts under /etc/profile.d directory are executed at startup of
@@ -380,6 +399,7 @@ class SshShell(InitializableMixin):
                 # Except CommandInitializationError then use minimal shell type.
                 if not have_tried_minimal_type:
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
+                    _minimize_shell(self._inner_shell)
                     have_tried_minimal_type = True
                     matched = _spawn_initialization_error_pattern.search(
                         str(identifier)
