@@ -15,6 +15,7 @@ from lisa.features import Disk
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu, Redhat
 from lisa.tools import (
+    Cat,
     Chmod,
     Dmesg,
     Echo,
@@ -794,11 +795,20 @@ class DpdkTestpmd(Tool):
         # add mana driver to build if needed
         if self.vf_helper.is_mana():
             drivers_to_build += ",net/mana"
-        # shrink build
-        build_flags += [
-            f"-Denable_drivers={drivers_to_build}",
-            "-Denable_apps=app/test-pmd",
-        ]
+
+        # shrink build, if supported
+        cat = node.tools[Cat]
+        meson_options_content = cat.run("meson_options.txt",
+                cwd=self.dpdk_path, shell=True).stdout
+        if "enable_drivers" in meson_options_content:
+            build_flags += [
+                f"-Denable_drivers={drivers_to_build}"
+            ]
+
+        if "enable_apps" in meson_options_content:
+            build_flags += [
+                "-Denable_apps=app/test-pmd"
+            ]
 
         node.execute(
             f"meson setup {' '.join(build_flags)} build",
