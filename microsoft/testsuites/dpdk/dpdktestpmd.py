@@ -13,7 +13,7 @@ from lisa.base_tools import Mv
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import Disk
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Suse, Ubuntu, Redhat
 from lisa.tools import (
     Chmod,
     Dmesg,
@@ -531,7 +531,8 @@ class DpdkTestpmd(Tool):
         )
 
         # if dpdk is already installed, find the binary and check the version
-        if self.find_testpmd_binary(assert_on_fail=False):
+        if self.find_testpmd_binary(assert_on_fail=False) or \
+           self.find_testpmd_binary(check_path='/usr/local/bin', assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
             if pkgconfig.package_info_exists(
                 self._dpdk_lib_name,
@@ -609,6 +610,29 @@ class DpdkTestpmd(Tool):
                     distro, "DPDK tests not implemented for this OS."
                 )
             )
+
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            node.os.install_packages(["centos-release-scl"])
+            devtoolset_version = 8
+            devtoolset_pkg = f"devtoolset-{devtoolset_version}"
+            node.os.install_packages([devtoolset_pkg])
+            links = {
+                    "gcc": ("gcc", "cc"),
+                    "g++": ("g++", "c++"),
+            }
+            for binary in [alias
+                         for aliases in links.values()
+                         for alias in aliases
+                    ]:
+                node.tools[Mv].move(f"/bin/{binary}", f"/bin/{binary}_back",
+                        overwrite=True, sudo=True, ignore_error=None)
+            devtoolset_binpath = f"/opt/rh/{devtoolset_pkg}/root/bin"
+            for binary, aliases in links.items():
+                for alias in aliases:
+                    result = node.execute(
+                        f"ln -s {devtoolset_binpath}/{binary} /bin/{alias}", sudo=True
+                    )
+                    result.assert_exit_code()
 
         # before doing anything: determine if backport repo needs to be enabled
         self._set_backport_repo_args()
