@@ -596,6 +596,13 @@ class DpdkTestpmd(Tool):
         else:
             self._backport_repo_args = []
 
+    def _fix_mirrorlist_to_vault(self, node) -> None:
+        node.execute("""sed -i '
+                    s/^mirrorlist=/#mirrorlist=/;
+                    s/^#[ ]*baseurl=/baseurl=/;
+                    /^baseurl=/ s/mirror/vault/;
+                ' /etc/yum.repos.d/CentOS-*.repo""", shell=True, sudo=True)
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
@@ -615,7 +622,11 @@ class DpdkTestpmd(Tool):
             )
 
         if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            self._fix_mirrorlist_to_vault(node)
             node.os.install_packages(["centos-release-scl"])
+
+            # Fix CentOS-SCL's paths to mirrorlist
+            self._fix_mirrorlist_to_vault(node)
             devtoolset_version = 8
             devtoolset_pkg = f"devtoolset-{devtoolset_version}"
             node.os.install_packages([devtoolset_pkg])
