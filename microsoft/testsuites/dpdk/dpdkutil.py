@@ -23,7 +23,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import Fedora, OperatingSystem, Ubuntu
+from lisa.operating_system import Fedora, OperatingSystem, Ubuntu, CentOs
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -178,8 +178,15 @@ def _set_forced_source_by_distro(
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
     if (
-        isinstance(node.os, Ubuntu)
-        and node.os.information.version < "20.4.0"
+            (
+             isinstance(node.os, Ubuntu)
+             and node.os.information.version < "20.4.0"
+            )
+            or
+            (
+             isinstance(node.os, CentOs)
+             and node.os.information.version < "8.0.0"
+            )
         or examples != None
     ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
