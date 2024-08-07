@@ -326,6 +326,7 @@ class DpdkTestpmd(Tool):
         ).is_greater_than(0)
 
         return (
+            f"env LD_LIBRARY_PATH=/usr/local/lib64 "
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} {log_level_args}"
             f" -- --forward-mode={mode} "
@@ -711,11 +712,11 @@ class DpdkTestpmd(Tool):
             if (
                 isinstance(distro, Debian)
                 or isinstance(distro, (Fedora, Suse))
-                and distro.package_exists("dpdk")
             ):
                 # if not using package manager and dpdk is already installed, uninstall it
                 # in preperation for source build
-                distro.uninstall_packages("dpdk")
+                if distro.package_exists("dpdk"):
+                    distro.uninstall_packages("dpdk")
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
@@ -1064,6 +1065,7 @@ class DpdkTestpmd(Tool):
 
         rhel.group_install_packages("Development Tools")
         rhel.install_packages(self._fedora_packages)
+        rhel.uninstall_packages(["doxygen"])
 
         # ensure RDMA service is started if present.
 
