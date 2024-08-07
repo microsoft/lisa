@@ -488,6 +488,8 @@ class DpdkTestpmd(Tool):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        # do not update kernel on backporting
+        self.update_kernel = kwargs.pop("update_kernel", True)
         # set source args for builds if needed, first for dpdk
         self.dpdk_build_path: Optional[PurePath] = None
         self._dpdk_source: str = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -499,6 +501,7 @@ class DpdkTestpmd(Tool):
             node=self.node,
             rdma_core_source=rdma_core_source,
             rdma_core_ref=rdma_core_ref,
+            update_kernel=self.update_kernel,
         )
         self._sample_apps_to_build = kwargs.pop("sample_apps", list())
         self._dpdk_version_info = VersionInfo(0, 0)
@@ -885,7 +888,7 @@ class DpdkTestpmd(Tool):
         if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
             pass
-        elif isinstance(self.node.os, Debian):
+        elif self.update_kernel and isinstance(self.node.os, Debian):
             # NOTE: debian buster doesn't include rdma and ib drivers
             # on 5.4 specifically for linux-image-cloud:
             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1012639
@@ -984,8 +987,9 @@ class DpdkTestpmd(Tool):
             return  # appease the type checker
 
         # apply update to latest first
-        ubuntu.update_packages("linux-azure")
-        node.reboot()
+        if self.update_kernel:
+            ubuntu.update_packages("linux-azure")
+            node.reboot()
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
                 f"Ubuntu {str(ubuntu.information.version)} is not supported. "
@@ -1004,9 +1008,8 @@ class DpdkTestpmd(Tool):
                 extra_args=self._backport_repo_args,
             )
             # MANA tests use linux-modules-extra-azure, install if it's available.
-            if self.vf_helper.is_mana() and ubuntu.is_package_in_repo(
-                "linux-modules-extra-azure"
-            ):
+            if self.update_kernel and self.vf_helper.is_mana() and \
+                    ubuntu.is_package_in_repo("linux-modules-extra-azure"):
                 ubuntu.install_packages("linux-modules-extra-azure")
 
     def _install_fedora_dependencies(self) -> None:
@@ -1021,12 +1024,13 @@ class DpdkTestpmd(Tool):
 
         # DPDK is very sensitive to rdma-core/kernel mismatches
         # update to latest kernel before installing dependencies
-        rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
-        node.reboot()
-        try:
-            rhel.install_packages("kernel-devel")
-        except MissingPackagesException:
-            node.log.debug("Fedora: kernel-devel not found, attempting to continue")
+        if self.update_kernel:
+            rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
+            node.reboot()
+            try:
+                rhel.install_packages("kernel-devel")
+            except MissingPackagesException:
+                node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7

@@ -333,6 +333,7 @@ def initialize_node_resources(
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_core_source = variables.get("rdma_core_source", "")
     rdma_core_ref = variables.get("rdma_core_git_ref", "")
+    update_kernel = variables.get("dpdk_update_kernel", True)
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     enforce_strict_threshold = variables.get("dpdk_enforce_strict_threshold", False)
     log.info(
@@ -374,6 +375,7 @@ def initialize_node_resources(
         rdma_core_ref=rdma_core_ref,
         enforce_strict_threshold=enforce_strict_threshold,
         build_release=build_release,
+        update_kernel=update_kernel,
     )
 
     # init and enable hugepages (required by dpdk)
