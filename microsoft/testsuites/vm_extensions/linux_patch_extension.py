@@ -33,7 +33,7 @@ def _verify_unsupported_images(node: Node) -> None:
         # major minor gen
         SLES: ["15-5 1", "15-5 2"],
         CBLMariner: ["2-0 1", "2-0 2", "3-0 1"],
-        Debian: ["10-12 1", "10-12 2", "11-6 1", "11-9 2"],
+        Debian: ["10-12 1", "10-12 2", "11-6 1", "11-7 1", "11-7 2", "11-9 2"],
     }
 
     # Get the full version string of the OS
@@ -175,6 +175,72 @@ def _unsupported_image_exception_msg(node: Node) -> None:
     )
 
 
+def _assert_assessment_patch(
+    node: Node, log: Logger, compute_client: any, resource_group_name: any, vm_name: any
+) -> None:
+    try:
+        log.debug("Initiate the API call for the assessment patches.")
+        operation = compute_client.virtual_machines.begin_assess_patches(
+            resource_group_name=resource_group_name, vm_name=vm_name
+        )
+        # set wait operation timeout 10 min, status file should be generated
+        # before timeout
+        assess_result = wait_operation(operation, 600)
+
+    except HttpResponseError as identifier:
+        if any(
+            s in str(identifier) for s in ["The selected VM image is not supported"]
+        ):
+            _unsupported_image_exception_msg(node)
+        else:
+            raise identifier
+
+    assert assess_result, "assess_result shouldn't be None"
+    log.debug(f"assess_result:{assess_result}")
+    error_code = assess_result["error"]["code"]
+
+    _verify_unsupported_vm_agent(node, assess_result, error_code)
+    _assert_status_file_result(node, assess_result, error_code)
+
+
+def _assert_installation_patch(
+    node: Node,
+    log: Logger,
+    compute_client: any,
+    resource_group_name: any,
+    vm_name: any,
+    timeout: any,
+    install_patches_input: any,
+) -> None:
+    try:
+        log.debug("Initiate the API call for the installation patches.")
+        operation = compute_client.virtual_machines.begin_install_patches(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+            install_patches_input=install_patches_input,
+        )
+        # set wait operation max duration 4H timeout, status file should be
+        # generated before timeout
+        install_result = wait_operation(operation, timeout)
+
+    except HttpResponseError as identifier:
+        if any(
+            s in str(identifier) for s in ["The selected VM image is not supported"]
+        ):
+            _unsupported_image_exception_msg(node)
+        else:
+            raise identifier
+
+    assert install_result, "install_result shouldn't be None"
+    log.debug(f"install_result:{install_result}")
+    error_code = install_result["error"]["code"]
+
+    _verify_unsupported_vm_agent(node, install_result, error_code)
+    _assert_status_file_result(
+        node, install_result, error_code, api_type="installation"
+    )
+
+
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
@@ -204,28 +270,9 @@ class LinuxPatchExtensionBVT(TestSuite):
         # service
         _verify_vm_agent_running(node, log)
 
-        try:
-            operation = compute_client.virtual_machines.begin_assess_patches(
-                resource_group_name=resource_group_name, vm_name=vm_name
-            )
-            # set wait operation timeout 10 min, status file should be generated
-            # before timeout
-            assess_result = wait_operation(operation, 600)
-
-        except HttpResponseError as identifier:
-            if any(
-                s in str(identifier) for s in ["The selected VM image is not supported"]
-            ):
-                _unsupported_image_exception_msg(node)
-            else:
-                raise identifier
-
-        assert assess_result, "assess_result shouldn't be None"
-        log.debug(f"assess_result:{assess_result}")
-        error_code = assess_result["error"]["code"]
-
-        _verify_unsupported_vm_agent(node, assess_result, error_code)
-        _assert_status_file_result(node, assess_result, error_code)
+        _assert_assessment_patch(
+            node, log, compute_client, resource_group_name, vm_name
+        )
 
     @TestCaseMetadata(
         description="""
@@ -253,29 +300,16 @@ class LinuxPatchExtensionBVT(TestSuite):
         # service
         _verify_vm_agent_running(node, log)
 
-        try:
-            operation = compute_client.virtual_machines.begin_install_patches(
-                resource_group_name=resource_group_name,
-                vm_name=vm_name,
-                install_patches_input=install_patches_input,
-            )
-            # set wait operation max duration 4H timeout, status file should be
-            # generated before timeout
-            install_result = wait_operation(operation, self.TIMEOUT)
+        _assert_assessment_patch(
+            node, log, compute_client, resource_group_name, vm_name
+        )
 
-        except HttpResponseError as identifier:
-            if any(
-                s in str(identifier) for s in ["The selected VM image is not supported"]
-            ):
-                _unsupported_image_exception_msg(node)
-            else:
-                raise identifier
-
-        assert install_result, "install_result shouldn't be None"
-        log.debug(f"install_result:{install_result}")
-        error_code = install_result["error"]["code"]
-
-        _verify_unsupported_vm_agent(node, install_result, error_code)
-        _assert_status_file_result(
-            node, install_result, error_code, api_type="installation"
+        _assert_installation_patch(
+            node,
+            log,
+            compute_client,
+            resource_group_name,
+            vm_name,
+            self.TIMEOUT,
+            install_patches_input,
         )
