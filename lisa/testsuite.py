@@ -13,7 +13,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry import retry
-from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
@@ -48,11 +47,9 @@ _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
 
 
-def _call_with_retry_and_timeout(
+def _call_with_timeout(
     method: Callable[..., Any],
-    retries: int,
     timeout: int,
-    log: Logger,
     test_kwargs: Dict[str, Any],
 ) -> None:
     try:
@@ -61,25 +58,13 @@ def _call_with_retry_and_timeout(
         # will raise exception, if the timeout value is greater than 7 days. So
         # not to call it, if timeout is not a positive value.
         if timeout > 0:
-            retry_call(
-                func_timeout,
-                fkwargs={
-                    "timeout": timeout,
-                    "func": method,
-                    "kwargs": test_kwargs,
-                },
-                exceptions=Exception,
-                tries=retries + 1,
-                logger=log,
+            func_timeout(
+                timeout=timeout,
+                func=method,
+                kwargs=test_kwargs,
             )
         else:
-            retry_call(
-                f=method,
-                fkwargs=test_kwargs,
-                exceptions=Exception,
-                tries=retries + 1,
-                logger=log,
-            )
+            method(**test_kwargs)
     except FunctionTimedOut:
         # FunctionTimedOut is a special exception. If it's not captured
         # explicitly, it will make the whole program exit.
@@ -748,11 +733,9 @@ class TestSuite:
 
         timer = create_timer()
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 self.before_case,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
@@ -771,11 +754,9 @@ class TestSuite:
     ) -> None:
         timer = create_timer()
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 self.after_case,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
@@ -795,11 +776,9 @@ class TestSuite:
         test_method = getattr(self, case_name)
 
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 test_method,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
             case_result.set_status(TestStatus.PASSED, "")
