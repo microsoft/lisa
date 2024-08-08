@@ -176,7 +176,7 @@ def _unsupported_image_exception_msg(node: Node) -> None:
 
 
 def _assert_assessment_patch(
-    node: Node, log: Logger, compute_client: any, resource_group_name: any, vm_name: any
+    node: Node, log: Logger, compute_client: Any, resource_group_name: Any, vm_name: Any
 ) -> None:
     try:
         log.debug("Initiate the API call for the assessment patches.")
@@ -206,11 +206,11 @@ def _assert_assessment_patch(
 def _assert_installation_patch(
     node: Node,
     log: Logger,
-    compute_client: any,
-    resource_group_name: any,
-    vm_name: any,
-    timeout: any,
-    install_patches_input: any,
+    compute_client: Any,
+    resource_group_name: Any,
+    vm_name: Any,
+    timeout: Any,
+    install_patches_input: Any,
 ) -> None:
     try:
         log.debug("Initiate the API call for the installation patches.")
