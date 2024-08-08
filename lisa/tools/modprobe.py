@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type, Union
 
 from lisa.executable import Tool
 from lisa.tools.kernel_config import KLDStat
+from lisa.util import UnsupportedOperationException
 
 
 class Modprobe(Tool):
@@ -86,13 +87,21 @@ class Modprobe(Tool):
     def load(
         self,
         modules: Union[str, List[str]],
+        parameters: str = "",
         dry_run: bool = False,
     ) -> bool:
         if isinstance(modules, list):
+            if parameters:
+                raise UnsupportedOperationException(
+                    "Modprobe does not support loading multiple modules with parameters"
+                )
             modules_str = "-a " + " ".join(modules)
         else:
             modules_str = modules
-        command = f"{modules_str}"
+        if parameters:
+            command = f"{modules_str} {parameters}"
+        else:
+            command = f"{modules_str}"
         if dry_run:
             command = f"--dry-run {command}"
         result = self.run(
