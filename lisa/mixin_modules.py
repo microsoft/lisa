@@ -31,6 +31,7 @@ try:
     import lisa.sut_orchestrator.azure.notifiers  # noqa: F401
     import lisa.sut_orchestrator.azure.transformers  # noqa: F401
     import lisa.transformers.disable_cloud_components  # noqa: F401
+    import lisa.transformers.hyperv_preparation  # noqa: F401
 except ModuleNotFoundError as e:
     print(f"azure package is not installed. [{e}]")
 

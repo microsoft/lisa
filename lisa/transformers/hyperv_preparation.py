@@ -1,0 +1,63 @@
+from dataclasses import dataclass
+from typing import Any, Dict, List, Type
+
+from dataclasses_json import dataclass_json
+
+from lisa import schema
+from lisa.node import quick_connect
+from lisa.tools import PowerShell
+from lisa.transformers.deployment_transformer import (
+    DeploymentTransformer,
+    DeploymentTransformerSchema,
+)
+
+
+@dataclass_json
+@dataclass
+class HyperVPreparationTransformerSchema(DeploymentTransformerSchema):
+    pass
+
+
+class HyperVPreparationTransformer(DeploymentTransformer):
+    """
+    This Transformer configures Windows Azure VM as a Hyper-V environment.
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "hyperv_preparation"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return HyperVPreparationTransformerSchema
+
+    @property
+    def _output_names(self) -> List[str]:
+        return []
+
+    def _internal_run(self) -> Dict[str, Any]:
+        runbook: HyperVPreparationTransformerSchema = self.runbook
+        assert isinstance(runbook, HyperVPreparationTransformerSchema)
+        assert (
+            runbook.connection
+        ), "'connection' must be defined if not running during deployed phase."
+        node = quick_connect(runbook.connection, runbook.name, parent_logger=self._log)
+        powershell = node.tools[PowerShell]
+        powershell.run_cmdlet(
+            "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
+            force_run=True,
+        )
+        node.reboot()
+        powershell.run_cmdlet(
+            "New-VMSwitch -Name 'InternalNAT' -SwitchType Internal",
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            "New-NetNat -Name 'InternalNAT' -InternalIPInterfaceAddressPrefix '192.168.0.0/24'",  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
+            force_run=True,
+        )
+        return {}
