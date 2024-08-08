@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, Ubuntu
+from lisa.operating_system import BSD, SLES, CBLMariner, Debian, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -31,8 +31,9 @@ def _verify_unsupported_images(node: Node) -> None:
     # Unsupported detailed versions for x86_64
     unsupported_versions_x86_64 = {
         # major minor gen
-        SLES: ["15-5 1"],
+        SLES: ["15-5 1", "15-5 2"],
         CBLMariner: ["2-0 1", "2-0 2", "3-0 1"],
+        Debian: ["10-12 1", "10-12 2", "11-6 1", "11-9 2"],
     }
 
     # Get the full version string of the OS
