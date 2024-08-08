@@ -289,16 +289,6 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
-        # the gcc version of Redhat 7.x is too old. Upgrade it.
-        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
-            node.os.install_packages(["devtoolset-8"])
-            node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
-            result.assert_exit_code()
-            result = node.execute(
-                "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc", sudo=True
-            )
-            result.assert_exit_code()
-
         make = node.tools[Make]
         make.make(arguments="olddefconfig", cwd=code_path)
 
@@ -324,6 +314,23 @@ class SourceInstaller(BaseInstaller):
                 if os.is_package_in_repo(package):
                     os.install_packages(package)
             os.group_install_packages("Development Tools")
+
+            # if the kernel requires devtoolset, install its gcc
+            devtoolsets = [
+                    pkg
+                    for pkg in build_deps
+                    if pkg.startswith("devtoolset")
+            ]
+            if devtoolsets:
+                assert len(devtoolsets) == 1, f"only one devtoolset can be given, instead of {devtoolsets}"
+                devtoolset = devtoolsets[0]
+                node.os.install_packages(devtoolset)
+                node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
+                result.assert_exit_code()
+                result = node.execute(
+                    f"ln -s /opt/rh/{devtoolset}/root/usr/bin/gcc /bin/gcc", sudo=True
+                )
+                result.assert_exit_code(f"can not link {devtoolset} to gcc")
 
             if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
