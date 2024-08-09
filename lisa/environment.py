@@ -440,6 +440,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.remove_context()
 
         self._retries += 1
+        self._is_initialized = False
 
     def _validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
