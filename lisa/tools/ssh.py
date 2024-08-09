@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 import re
 
 from lisa.base_tools import Cat, Sed, Service
@@ -41,7 +42,7 @@ class Ssh(Tool):
     def enable_public_key(self, public_key: str) -> None:
         self.node.tools[Echo].write_to_file(
             public_key,
-            self.node.get_pure_path("~/.ssh/authorized_keys"),
+            self.node.get_pure_path("$HOME/.ssh/id_rsa.pub"),
             append=True,
         )
 
