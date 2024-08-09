@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from lisa.executable import Tool
+from typing import Union
 
 
 class Mv(Tool):
@@ -14,7 +15,8 @@ class Mv(Tool):
         return False
 
     def move(
-        self, src_path: str, dest_path: str, overwrite: bool = False, sudo: bool = False
+        self, src_path: str, dest_path: str, overwrite: bool = False,
+        sudo: bool = False, expected_exit_code: Union[None, int] = 0
     ) -> None:
         args = "-f" if overwrite else ""
         self.run(
@@ -22,5 +24,5 @@ class Mv(Tool):
             sudo=sudo,
             shell=True,
             force_run=True,
-            expected_exit_code=0,
+            expected_exit_code=expected_exit_code,
         )

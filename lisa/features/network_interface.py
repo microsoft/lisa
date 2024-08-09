@@ -28,6 +28,7 @@ class NetworkInterface(Feature):
         raise NotImplementedError
 
     def is_enabled_sriov(self) -> bool:
+        return True # FIXME
         raise NotImplementedError
 
     def create_route_table(

@@ -93,6 +93,9 @@ class SourceInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    # Additional build dependencies
+    build_deps: List[str] = field(default_factory=list)
+
 
 class SourceInstaller(BaseInstaller):
     _code_path: PurePath
@@ -143,7 +146,7 @@ class SourceInstaller(BaseInstaller):
         runbook: SourceInstallerSchema = self.runbook
         assert runbook.location, "the repo must be defined."
 
-        self._install_build_tools(node)
+        self._install_build_tools(node, runbook.build_deps)
 
         factory = subclasses.Factory[BaseLocation](BaseLocation)
         source = factory.create_by_runbook(
@@ -286,32 +289,48 @@ class SourceInstaller(BaseInstaller):
         )
         result.assert_exit_code()
 
-        # the gcc version of Redhat 7.x is too old. Upgrade it.
-        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
-            node.os.install_packages(["devtoolset-8"])
-            node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
-            result.assert_exit_code()
-            result = node.execute(
-                "ln -s /opt/rh/devtoolset-8/root/usr/bin/gcc /bin/gcc", sudo=True
-            )
-            result.assert_exit_code()
-
         make = node.tools[Make]
         make.make(arguments="olddefconfig", cwd=code_path)
 
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
 
-    def _install_build_tools(self, node: Node) -> None:
+    def _fix_mirrorlist_to_vault(self, node: Node) -> None:
+        node.execute("sed -i '\
+                    s/^mirrorlist=/#mirrorlist=/;\
+                    s/^#baseurl=/baseurl=/;\
+                    /^baseurl=/ s/mirror/vault/\
+                ' /etc/yum.repos.d/CentOS-*.repo", shell=True, sudo=True)
+
+    def _install_build_tools(self, node: Node, build_deps: list[str]) -> None:
         os = node.os
         self._log.info("installing build tools")
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            self._fix_mirrorlist_to_vault(node)
         if isinstance(os, Redhat):
             for package in list(
-                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
+                ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"] + build_deps
             ):
                 if os.is_package_in_repo(package):
                     os.install_packages(package)
             os.group_install_packages("Development Tools")
+
+            # if the kernel requires devtoolset, install its gcc
+            has_devtoolset = [
+                    pkg
+                    for pkg in build_deps
+                    if pkg.startswith("devtoolset")
+            ]
+            if has_devtoolset:
+                assert len(has_devtoolset) == 1, "only one devtoolset can be given"
+                devtoolset = has_devtoolset[0]
+                node.os.install_packages([devtoolset])
+                node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
+                result.assert_exit_code()
+                result = node.execute(
+                    f"ln -s /opt/rh/{devtoolset}/root/usr/bin/gcc /bin/gcc", sudo=True
+                )
+                result.assert_exit_code()
 
             if os.information.version < "8.0.0":
                 # git from default CentOS/RedHat 7.x does not support git tag format
@@ -336,7 +355,7 @@ class SourceInstaller(BaseInstaller):
                     "libssl-dev",
                     "bc",
                     "ccache",
-                ]
+                ] + build_deps
             )
         elif isinstance(os, CBLMariner):
             os.install_packages(
@@ -355,7 +374,7 @@ class SourceInstaller(BaseInstaller):
                     "xz-libs",
                     "openssl-libs",
                     "openssl-devel",
-                ]
+                ] + build_deps
             )
         else:
             raise LisaException(
