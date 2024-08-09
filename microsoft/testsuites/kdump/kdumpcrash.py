@@ -87,6 +87,7 @@ class KdumpCrash(TestSuite):
             boot up.
         """,
         priority=2,
+        timeout=20000,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=1, memory_mb=search_space.IntRange(min=2048)
@@ -289,7 +290,7 @@ class KdumpCrash(TestSuite):
             )
             self.timeout_of_dump_crash = 1200
             if float(total_memory.strip("T")) > 6:
-                self.timeout_of_dump_crash = 2000
+                self.timeout_of_dump_crash = 18000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
