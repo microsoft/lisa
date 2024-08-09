@@ -23,6 +23,7 @@ def generate_runner(
     env_runbook: Optional[schema.EnvironmentRoot] = None,
     case_use_new_env: bool = False,
     times: int = 1,
+    retry: int = 0,
     platform_schema: Optional[test_platform.MockPlatformSchema] = None,
 ) -> LisaRunner:
     platform_runbook = schema.Platform(
@@ -40,6 +41,7 @@ def generate_runner(
             criteria=schema.Criteria(priority=[0, 1, 2]),
             use_new_environment=case_use_new_env,
             times=times,
+            retry=retry,
         )
     ]
     runbook.wait_resource_timeout = 0
@@ -549,6 +551,47 @@ class RunnerTestCase(TestCase):
             ],
             expected_message=[no_available_env, no_available_env, no_available_env],
             test_results=test_results,
+        )
+
+    def test_env_retry(self) -> None:
+        # env prepared, but deployment failed, so cases failed
+        platform_schema = test_platform.MockPlatformSchema()
+
+        test_testsuite.generate_cases_metadata()
+        test_testsuite.retry_failed_count = 1
+        env_runbook = generate_env_runbook()
+        runner = generate_runner(env_runbook, platform_schema=platform_schema, retry=2)
+        test_result_messages = self._run_all_tests(runner)
+
+        self.verify_env_results(
+            expected_prepared=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_0",
+            ],
+            expected_deployed_envs=[
+                "generated_0",
+                "generated_0",
+                "generated_2",
+            ],
+            expected_deleted_envs=[
+                "generated_0",
+                "generated_0",
+                "generated_2",
+            ],
+            runner=runner,
+        )
+        self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["generated_0", "generated_0", "generated_2"],
+            expected_status=[
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+                TestStatus.PASSED,
+            ],
+            expected_message=["", "", ""],
+            test_results=test_result_messages,
         )
 
     def test_env_skipped_no_case(self) -> None:
