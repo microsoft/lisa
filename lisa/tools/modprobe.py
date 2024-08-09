@@ -162,3 +162,55 @@ class ModprobeFreeBSD(Modprobe):
                 return False
 
         return True
+
+    def load(
+        self,
+        modules: Union[str, List[str]],
+        parameters: str = "",
+        dry_run: bool = False,
+    ) -> bool:
+        if parameters:
+            raise UnsupportedOperationException(
+                "ModprobeBSD does not support loading modules with parameters"
+            )
+        if dry_run:
+            raise UnsupportedOperationException("ModprobeBSD does not support dry-run")
+        if isinstance(modules, list):
+            for module in modules:
+                if self.module_exists(module):
+                    return True
+                else:
+                    self.node.tools[KLDLoad].load(module)
+        else:
+            if self.module_exists(modules):
+                return True
+            else:
+                self.node.tools[KLDLoad].load(modules)
+        return True
+
+
+class KLDLoad(Tool):
+    _MODULE_DRIVER_MAPPING = {
+        "mlx5_core": "mlx5en",
+        "mlx4_core": "mlx4en",
+        "mlx5_ib": "mlx5ib",
+    }
+
+    @property
+    def command(self) -> str:
+        return "kldload"
+
+    def load(self, module: str) -> bool:
+        if module in self._MODULE_DRIVER_MAPPING:
+            module = self._MODULE_DRIVER_MAPPING[module]
+        result = self.run(
+            f"{module}",
+            sudo=True,
+            shell=True,
+        )
+        result.assert_exit_code(
+            expected_exit_code=0,
+            message=f"Fail to load module: {module}.",
+            include_output=True,
+        )
+        return True
