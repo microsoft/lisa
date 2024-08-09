@@ -39,11 +39,11 @@ PATTERN_PCI_DEVICE = re.compile(
 DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: ["Ethernet controller"],
     constants.DEVICE_TYPE_NVME: ["Non-Volatile memory controller"],
-    constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller"],
+    constants.DEVICE_TYPE_GPU: ["3D controller", "VGA compatible controller", "Processing accelerators"],
 }
 
 VENDOR_TYPE_DICT: Dict[str, List[str]] = {
-    constants.DEVICE_TYPE_GPU: ["NVIDIA Corporation"],
+    constants.DEVICE_TYPE_GPU: ["NVIDIA Corporation", "Advanced Micro Devices, Inc. [AMD/ATI]"],
 }
 
 # Kernel driver in use: mlx4_core
