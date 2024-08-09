@@ -84,6 +84,7 @@ class TestResult:
     information: Dict[str, Any] = field(default_factory=dict)
     log_file: str = ""
     stacktrace: Optional[str] = None
+    retried_times: int = 0
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
