@@ -428,6 +428,28 @@ class LisaRunner(BaseRunner):
                 environment=environment, test_results=test_results
             )
 
+        # Rerun test case, if the test case is not passed (failed or attempted),
+        # and set to retry.
+        if (
+            test_result.status not in [TestStatus.PASSED, TestStatus.SKIPPED]
+            and test_result.retried_times < test_result.runtime_data.retry
+        ):
+            self._log.debug(
+                f"retry test case '{test_result.name}' on "
+                f"environment '{environment.name}'"
+            )
+            self._delete_environment_task(
+                environment=environment, test_results=test_results
+            )
+            environment.status = EnvironmentStatus.New
+
+            test_result.retried_times += 1
+            test_result.set_status(TestStatus.QUEUED, "")
+            # clean up error message by set it to empty explicitly. The
+            # set_status doesn't clean it, since it appends.
+            test_result.message = ""
+            test_result.environment = environment
+
     def _delete_environment_task(
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
