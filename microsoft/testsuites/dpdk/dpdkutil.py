@@ -23,7 +23,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
-from lisa.operating_system import Fedora, OperatingSystem, Ubuntu
+from lisa.operating_system import Fedora, OperatingSystem, Ubuntu, CentOs
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -178,8 +178,15 @@ def _set_forced_source_by_distro(
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
     if (
-        isinstance(node.os, Ubuntu)
-        and node.os.information.version < "20.4.0"
+            (
+             isinstance(node.os, Ubuntu)
+             and node.os.information.version < "20.4.0"
+            )
+            or
+            (
+             isinstance(node.os, CentOs)
+             and node.os.information.version < "8.0.0"
+            )
         or examples != None
     ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
@@ -333,6 +340,7 @@ def initialize_node_resources(
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_core_source = variables.get("rdma_core_source", "")
     rdma_core_ref = variables.get("rdma_core_git_ref", "")
+    update_kernel = variables.get("dpdk_update_kernel", True)
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     enforce_strict_threshold = variables.get("dpdk_enforce_strict_threshold", False)
     log.info(
@@ -374,6 +382,7 @@ def initialize_node_resources(
         rdma_core_ref=rdma_core_ref,
         enforce_strict_threshold=enforce_strict_threshold,
         build_release=build_release,
+        update_kernel=update_kernel,
     )
 
     # init and enable hugepages (required by dpdk)
