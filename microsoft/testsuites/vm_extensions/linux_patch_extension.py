@@ -32,7 +32,7 @@ def _verify_unsupported_images(node: Node) -> None:
     unsupported_versions_x86_64 = {
         # major minor gen
         SLES: ["15-5 1", "15-5 2"],
-        CBLMariner: ["2-0 1", "2-0 2", "3-0 1"],
+        CBLMariner: ["1-0 1", "2-0 1", "2-0 2", "3-0 1"],
         Debian: ["10-12 1", "10-12 2", "11-6 1", "11-7 1", "11-7 2", "11-9 2"],
     }
 
