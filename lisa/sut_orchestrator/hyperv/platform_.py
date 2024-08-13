@@ -285,6 +285,8 @@ class HypervPlatform(Platform):
                 },
                 extra_args=extra_args,
             )
+            # Start the VM
+            hv.start_vm(name=vm_name, extra_args=extra_args)
 
             ip_addr = hv.get_ip_address(vm_name)
             username = self.runbook.admin_username

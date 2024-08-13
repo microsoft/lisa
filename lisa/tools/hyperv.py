@@ -49,9 +49,10 @@ class HyperV(Tool):
             return None
 
         # stop and delete vm
+        self.stop_vm(name=name)
         powershell = self.node.tools[PowerShell]
         return powershell.run_cmdlet_async(
-            f"Stop-VM -Name {name} -Force; Remove-VM -Name {name} -Force",
+            f"Remove-VM -Name {name} -Force",
             force_run=True,
         )
 
@@ -148,6 +149,11 @@ class HyperV(Tool):
                     force_run=True,
                 )
 
+    def start_vm(
+        self,
+        name: str,
+        extra_args: Optional[Dict[str, str]] = None,
+    ) -> None:
         # start vm
         self._run_hyperv_cmdlet(
             "Start-VM", f"-Name {name}", extra_args=extra_args, force_run=True
@@ -169,6 +175,29 @@ class HyperV(Tool):
 
         if not is_ready:
             raise LisaException(f"VM {name} did not start")
+
+    def stop_vm(self, name: str) -> None:
+        # stop vm
+        self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+
+    def restart_vm(
+        self,
+        name: str,
+    ) -> None:
+        # restart vm
+        self._run_hyperv_cmdlet("Restart-VM", f"-Name {name} -Force", force_run=True)
+
+    def enable_device_passthrough(self, name: str, mmio_mb: int = 5120) -> None:
+        self._run_hyperv_cmdlet(
+            "Set-VM",
+            f"-Name {name} -AutomaticStopAction TurnOff",
+            force_run=True,
+        )
+        self._run_hyperv_cmdlet(
+            "Set-VM",
+            f"-HighMemoryMappedIoSpace {mmio_mb}Mb -VMName {name}",
+            force_run=True,
+        )
 
     def get_default_external_switch(self) -> Optional[VMSwitch]:
         switch_json = self.node.tools[PowerShell].run_cmdlet(
