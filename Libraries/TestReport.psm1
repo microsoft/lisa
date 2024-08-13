@@ -161,7 +161,7 @@ Class JUnitReportGenerator
 		if ( $global:BaseOSVHD ) {
 			$newElement.SetAttribute("ImageUnderTest",  $global:BaseOSVHD )
 			if ($global:deviceSoCFWVer.count -gt 0 -and $global:deviceSoCFWVer[0].length -gt 0) {
-				$newElement.SetAttribute("DeviceUnderTest",  $global:deviceInfo[0] )	
+				$newElement.SetAttribute("DeviceUnderTest",  $global:deviceInfo )	
 			}
 		}
 		$testsuiteNode = $this.ReportRootNode.AppendChild($newElement)
