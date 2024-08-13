@@ -903,7 +903,7 @@ Class TestController {
 
 		Write-LogInfo "Prepare test log structure and start testing now ..."
 		# Start JUnit XML report logger.
-		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath)
+		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath,$this.TestCategory)
 		$this.JunitReport.StartLogTestSuite("LISAv2Test-$($this.TestPlatform)")
 		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestNames, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
 

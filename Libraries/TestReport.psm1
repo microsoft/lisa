@@ -123,7 +123,7 @@ Class JUnitReportGenerator
 	[System.Xml.XmlElement] $ReportRootNode
 	[object] $TestSuiteLogTable
 	[object] $TestSuiteCaseLogTable
-
+    [string] $TestCategory
 	JUnitReportGenerator([string]$ReportPath,[string]$TestCategory)
 	{
 		$this.JunitReportPath = $ReportPath
