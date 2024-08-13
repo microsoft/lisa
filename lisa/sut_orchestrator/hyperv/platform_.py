@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -17,6 +16,7 @@ from lisa.util.subclasses import Factory
 
 from .. import HYPERV
 from .context import NodeContext, get_node_context
+from .hyperv_device_pool import HyperVDevicePool
 from .schema import HypervNodeSchema, HypervPlatformSchema
 from .serial_console import SerialConsole, SerialConsoleLogger
 from .source import Source
@@ -44,6 +44,12 @@ class HypervPlatform(Platform):
         self._source_vhd: Optional[PurePath] = None
         self._source_factory = Factory[Source](Source)
         self._source_files: Optional[List[PurePath]] = None
+
+        self.device_pool = HyperVDevicePool(
+            node=self._server,
+            runbook=self._hyperv_runbook,
+            log=self._log,
+        )
 
     def _get_hyperv_runbook(self) -> HypervPlatformSchema:
         hyperv_runbook = self.runbook.get_extended_runbook(HypervPlatformSchema)
@@ -97,6 +103,12 @@ class HypervPlatform(Platform):
             return False
 
         environment.runbook.nodes_requirement = nodes_requirement
+
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params / Refresh the pool
+        self.device_pool.configure_device_passthrough_pool(
+            self._hyperv_runbook.device_pools,
+        )
         return True
 
     def _get_host_capabilities(self, log: Logger) -> _HostCapabilities:
@@ -285,6 +297,13 @@ class HypervPlatform(Platform):
                 },
                 extra_args=extra_args,
             )
+            # perform device passthrough for the VM
+            self.device_pool._set_device_passthrough_node_context(
+                node_context=node_context,
+                node_runbook=node_runbook,
+                hv=hv,
+                vm_name=vm_name,
+            )
             # Start the VM
             hv.start_vm(name=vm_name, extra_args=extra_args)
 
@@ -313,6 +332,11 @@ class HypervPlatform(Platform):
         def _delete_node(node_ctx: NodeContext, wait_delete: bool) -> None:
             hv = self._server.tools[HyperV]
             vm_name = node_ctx.vm_name
+
+            # Reassign passthrough devices to host before VM is deleted
+            # This will be hot-unplug of device
+            if len(node_ctx.passthrough_devices) > 0:
+                self.device_pool.release_devices(node_ctx)
 
             if wait_delete:
                 hv.delete_vm(vm_name)
