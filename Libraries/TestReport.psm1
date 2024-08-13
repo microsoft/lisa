@@ -160,7 +160,6 @@ Class JUnitReportGenerator
 		$newElement.SetAttribute("TestCategory", $this.TestCategory)
 		if ( $global:BaseOSVHD ) {
 			$newElement.SetAttribute("ImageUnderTest",  $global:BaseOSVHD )
-			$newElement.SetAttribute("DeviceUnderTest",  $global:deviceInfo )	
 		}
 		$testsuiteNode = $this.ReportRootNode.AppendChild($newElement)
 
