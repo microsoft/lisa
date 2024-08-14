@@ -212,6 +212,16 @@ def try_connect(
 def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshProcess:
     return shell.spawn(**kwargs)
 
+def _minimize_shell(shell: spur.ssh.SshShell) -> None:
+    # Dynamically override that object's method. Here, we don't enclose every
+    # shell token under single quotes anymore. That's an assumption from spur
+    # that minimal shells will still be POSIX compliant--not true for some
+    # cases for LISA users.
+    func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
+    shell._spur._shell_type.generate_run_command = func_type(
+        minimal_generate_run_command,
+        shell._spur._shell_type,
+    )
 
 class SshShell(InitializableMixin):
     def __init__(self, connection_info: schema.ConnectionInfo) -> None:
@@ -299,15 +309,7 @@ class SshShell(InitializableMixin):
         )
         self._inner_shell = spurplus.SshShell(spur_ssh_shell=spur_ssh_shell, sftp=sftp)
         if shell_type == spur.ssh.ShellTypes.minimal:
-            # Dynamically override that object's method. Here, we don't enclose every
-            # shell token under single quotes anymore. That's an assumption from spur
-            # that minimal shells will still be POSIX compliant--not true for some
-            # cases for LISA users.
-            func_type = type(spur.ssh.ShellTypes.minimal.generate_run_command)
-            self._inner_shell._spur._shell_type.generate_run_command = func_type(
-                minimal_generate_run_command,
-                self._inner_shell._spur._shell_type,
-            )
+            _minimize_shell(self._inner_shell)
 
     def close(self) -> None:
         if self._inner_shell:
@@ -388,6 +390,9 @@ class SshShell(InitializableMixin):
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
                         )
+                    else:
+                        _minimize_shell(self._inner_shell)
+
                 else:
                     raise identifier
         return process
