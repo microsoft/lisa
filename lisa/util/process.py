@@ -326,13 +326,18 @@ class Process:
             and isinstance(self._shell, SshShell)
             and self._shell.is_sudo_required_password
         ):
-            if not self._shell.connection_info.password:
-                raise RequireUserPasswordException(
-                    "Running commands with sudo requires user's password,"
-                    " but no password is provided."
-                )
-            self.input(f"{self._shell.connection_info.password}\n")
-            self._log.debug("The user's password is input")
+            timer = create_timer()
+            while self.is_running():
+                time.sleep(0.01)
+                if timer.elapsed(False) > 0.5:
+                    if not self._shell.connection_info.password:
+                        raise RequireUserPasswordException(
+                            "Running commands with sudo requires user's password,"
+                            " but no password is provided."
+                        )
+                    self.input(f"{self._shell.connection_info.password}\n")
+                    self._log.debug("The user's password is input")
+                    break
 
     def input(self, content: str) -> None:
         assert self._process
@@ -347,13 +352,9 @@ class Process:
     ) -> ExecutableResult:
         timer = create_timer()
         is_timeout = False
-        has_checked_password = False
 
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
-            if timer.elapsed(False) > 0.5 and not has_checked_password:
-                self.check_and_input_password()
-                has_checked_password = True
 
         if timeout < timer.elapsed():
             if self._process is not None:

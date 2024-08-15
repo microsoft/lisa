@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
@@ -39,6 +40,7 @@ from lisa.util import (
     hookspec,
     plugin_manager,
     subclasses,
+    create_timer,
 )
 from lisa.util.constants import PATH_REMOTE_ROOT
 from lisa.util.logger import Logger, create_file_handler, get_logger, remove_handler
@@ -548,6 +550,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             update_envs=update_envs,
             command_splitter=command_splitter,
         )
+        process.check_and_input_password()
         return process
 
     def _get_node_part_path(self) -> PurePath:
