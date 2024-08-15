@@ -1070,7 +1070,7 @@ class Ethtool(Tool):
 class EthtoolFreebsd(Ethtool):
     # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
     _interface_features_pattern = re.compile(
-        r"options=.+<(?P<features>.*)>(.|\n)*ether"
+        r"options=.+<(?P<features>.*)>(?:.|\n)*ether"
     )
 
     _get_bsd_to_linux_features_map = {
@@ -1106,7 +1106,6 @@ class EthtoolFreebsd(Ethtool):
         self, interface: str, force_run: bool = False
     ) -> DeviceFeatures:
         interface_info = self.node.tools[Ip].run(interface).stdout
-
         # Example output:
         # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
         # The features are separated by comma and enclosed by "<>"
@@ -1116,7 +1115,8 @@ class EthtoolFreebsd(Ethtool):
 
         features = []
         for feature in features_pattern:
-            features.append(self._get_bsd_to_linux_features_map[feature])
+            if feature in self._get_bsd_to_linux_features_map:
+                features.append(self._get_bsd_to_linux_features_map[feature])
         device_features = DeviceFeatures(interface, features)
 
         return device_features
