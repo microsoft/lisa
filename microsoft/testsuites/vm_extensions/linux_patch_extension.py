@@ -156,7 +156,7 @@ def _assert_status_file_result(
         ).is_equal_to("0")
 
 
-def _verify_details_code(status_file: list, code: str) -> bool:
+def _verify_details_code(status_file: Any, code: str) -> bool:
     return any(
         code in detail_code["code"]
         for detail_code in status_file["error"]["details"]
