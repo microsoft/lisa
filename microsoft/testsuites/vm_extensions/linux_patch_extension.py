@@ -68,7 +68,6 @@ def _set_up_vm(node: Node, environment: Environment) -> Any:
     assert environment.platform, "platform shouldn't be None."
     platform: AzurePlatform = environment.platform  # type: ignore
     assert isinstance(platform, AzurePlatform), platform_msg
-    assert isinstance(platform, AzurePlatform), platform_msg
     compute_client = get_compute_client(platform)
     node_context = get_node_context(node)
     resource_group_name = node_context.resource_group_name
