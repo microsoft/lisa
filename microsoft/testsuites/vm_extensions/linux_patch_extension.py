@@ -54,23 +54,21 @@ def _verify_unsupported_images(node: Node) -> None:
 def _verify_unsupported_vm_agent(
     node: Node, status_result: Any, error_code: str
 ) -> None:
-    if (
-        error_code == "1"
-        and "Unsupported older Azure Linux Agent version"
-        in status_result["error"]["details"][0]["message"]
+    unspported_msg = "Unsupported older Azure Linux Agent version"
+    if error_code == "1" and any(
+        unspported_msg in details["message"]
+        for details in status_result["error"]["details"]
+        if "message" in details
     ):
         _unsupported_image_exception_msg(node)
 
 
 def _set_up_vm(node: Node, environment: Environment) -> Any:
+    platform_msg = "platform should be AzurePlatform instance"
     assert environment.platform, "platform shouldn't be None."
     platform: AzurePlatform = environment.platform  # type: ignore
-    assert isinstance(
-        platform, AzurePlatform
-    ), "platform should be AzurePlatform instance"
-    assert isinstance(
-        platform, AzurePlatform
-    ), "platform should be AzurePlatform instance"
+    assert isinstance(platform, AzurePlatform), platform_msg
+    assert isinstance(platform, AzurePlatform), platform_msg
     compute_client = get_compute_client(platform)
     node_context = get_node_context(node)
     resource_group_name = node_context.resource_group_name
@@ -99,25 +97,36 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 def _assert_status_file_result(
     node: Node, status_file: Any, error_code: str, api_type: Optional[str] = None
 ) -> None:
+    expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
+    expected_warning_status_msg = (
+        "Expected the status file status to be CompletedWithWarnings"
+    )
     error_details_not_empty = len(status_file["error"]["details"]) > 0
+    truncated_package_code = (
+        _verify_details_code(status_file, "PACKAGE_LIST_TRUNCATED")
+        if error_details_not_empty
+        else False
+    )
 
-    if (
-        error_details_not_empty
-        and status_file["error"]["details"][0]["code"] == "PACKAGE_LIST_TRUNCATED"
-    ):
+    ua_esm_required_code = (
+        _verify_details_code(status_file, "UA_ESM_REQUIRED")
+        if error_details_not_empty
+        else False
+    )
+
+    if truncated_package_code:
         assert_that(status_file["status"]).described_as(
-            "Expected the status file patches to CompletedWithWarnings"
+            expected_warning_status_msg
         ).is_equal_to("CompletedWithWarnings")
     elif (
         _is_supported_linux_distro(node)
         and node.os.information.version.major == 18
-        and error_details_not_empty
-        and status_file["error"]["details"][0]["code"] == "UA_ESM_REQUIRED"
+        and ua_esm_required_code
     ):
         # Ubuntu 1804 OS image has UA patches that needs upgrade OS to Pro version
         # Set error code to 1 notify customers to upgrade OS to Pro to install patches
         assert_that(status_file["status"]).described_as(
-            "Expected the status file patches to succeed"
+            expected_succeeded_status_msg
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
             "Expected 1 error in status file patches operation"
@@ -126,14 +135,13 @@ def _assert_status_file_result(
         api_type is not None
         and _is_supported_linux_distro(node)
         and node.os.information.version.major == 16
-        and error_details_not_empty
-        and status_file["error"]["details"][0]["code"] == "UA_ESM_REQUIRED"
+        and ua_esm_required_code
     ):
         # This only applies on installation api call
         # Ubuntu 1604 OS image has UA patches that needs upgrade OS to Pro version
         # Set error code to 1 notify customers to upgrade OS to Pro to install patches
         assert_that(status_file["status"]).described_as(
-            "Expected the status file patches to CompletedWithWarnings"
+            expected_warning_status_msg
         ).is_equal_to("CompletedWithWarnings")
         assert_that(error_code).described_as(
             "Expected 1 error in status file patches operation"
@@ -141,12 +149,20 @@ def _assert_status_file_result(
 
     else:
         assert_that(status_file["status"]).described_as(
-            "Expected the status file patches to succeed"
+            expected_succeeded_status_msg
         ).is_equal_to("Succeeded")
 
         assert_that(error_code).described_as(
             "Expected no error in status file patches operation"
         ).is_equal_to("0")
+
+
+def _verify_details_code(status_file: list, code: str) -> bool:
+    return any(
+        code in detail_code["code"]
+        for detail_code in status_file["error"]["details"]
+        if "code" in detail_code
+    )
 
 
 def _is_supported_linux_distro(node: Node) -> bool:
