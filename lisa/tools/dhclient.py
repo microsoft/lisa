@@ -18,7 +18,7 @@ class Dhclient(Tool):
 
     @property
     def command(self) -> str:
-        return "dhclient"
+        return "dhcpcd"
 
     @classmethod
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
