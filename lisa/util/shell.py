@@ -42,7 +42,9 @@ _spawn_initialization_error_pattern = re.compile(
 
 
 def minimal_escape_sh(value: str) -> str:
-    return value.replace("'", "'\\''")
+    if re.search(r'\s', value):
+        return f"'{value}'"
+    return value
 
 
 def minimal_generate_run_command(  # type: ignore
@@ -383,6 +385,7 @@ class SshShell(InitializableMixin):
                 if not have_tried_minimal_type:
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
                     have_tried_minimal_type = True
+                    _minimize_shell(self._inner_shell)
                     matched = _spawn_initialization_error_pattern.search(
                         str(identifier)
                     )
@@ -390,9 +393,6 @@ class SshShell(InitializableMixin):
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
                         )
-                    else:
-                        _minimize_shell(self._inner_shell)
-
                 else:
                     raise identifier
         return process
