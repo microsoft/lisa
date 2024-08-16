@@ -54,9 +54,9 @@ def _verify_unsupported_images(node: Node) -> None:
 def _verify_unsupported_vm_agent(
     node: Node, status_result: Any, error_code: str
 ) -> None:
-    unspported_msg = "Unsupported older Azure Linux Agent version"
+    unsupported_agent_msg = "Unsupported older Azure Linux Agent version"
     if error_code == "1" and any(
-        unspported_msg in details["message"]
+        unsupported_agent_msg in details["message"]
         for details in status_result["error"]["details"]
         if "message" in details
     ):
