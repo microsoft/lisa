@@ -166,7 +166,7 @@ def sriov_vf_connection_test(
 
         # copy 200 Mb file from source ip to dest ip
         source_node.execute(
-            f"scp -o BindAddress={source_ip} -i ~/.ssh/id_rsa -o"
+            f"scp -o BindAddress={source_ip} -i $HOME/.ssh/id_rsa -o"
             f" StrictHostKeyChecking=no large_file "
             f"$USER@{dest_ip}:/tmp/large_file",
             shell=True,
