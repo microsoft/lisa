@@ -180,7 +180,7 @@ class KdumpBase(Tool):
     # Following are the configuration setting required for system and dump-capture
     # kernels for enabling kdump support.
     required_kernel_config = [
-        "CONFIG_KEXEC",
+        "CONFIG_KEXEC_CORE",
         "CONFIG_CRASH_DUMP",
         "CONFIG_PROC_VMCORE",
     ]
