@@ -207,8 +207,11 @@ class RunCommandV2Tests(TestSuite):
         description="""
         Runs the Run Command v2 VM extension with a public uri pointing to the
         script in blob storage.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_uri_script_run(
         self, log: Logger, node: Node, environment: Environment
