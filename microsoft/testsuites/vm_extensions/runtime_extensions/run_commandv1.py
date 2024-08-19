@@ -337,8 +337,11 @@ class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Run Command v1 VM extension with a gzip'ed base64 script.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_with_gzip_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
