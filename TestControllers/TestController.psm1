@@ -328,7 +328,7 @@ Class TestController {
 		else {
 			$collectedTCCount = $allTests.Count
 			Write-LogInfo "$collectedTCCount Test Cases have been collected"
-		}
+		
 		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
 		if (($this.TotalCaseNum -eq 0) -or ($allTests.Count -eq 0)) {
 			Write-LogWarn "All collected test cases are skipped, because the test case has native SetupConfig that conflicts with current Run-LISAv2 parameters, or LISAv2 needs more specific parameters to run against selected test cases, please check again"
@@ -364,6 +364,7 @@ Class TestController {
 				$parallelTestsDoc.Save("$parallelTestsFilePath")
 			}
 		}
+	  }
 	}
 
 	[void] PrepareTestImage() {}
