@@ -328,7 +328,7 @@ class KdumpBase(Tool):
                 sed.substitute(
                     match_lines=f"^{cmdline}",
                     regexp='crashkernel=[^[:space:]"]*',
-                    replacement=f"crashkernel={crashkernel}",
+                    replacement=f"crashkernel={crashkernel} kptr_restrict=1",
                     file=cfg_file,
                     sudo=True,
                 )
