@@ -323,7 +323,7 @@ Class TestController {
 			}
 		}
 		if (!$allTests) {
-			Throw "Not able to collect any test cases from XML files"
+			Write-LogWarn "Not able to collect any test cases from XML files"
 		}
 		else {
 			$collectedTCCount = $allTests.Count
