@@ -516,10 +516,13 @@ class Storage(TestSuite):
         description="""
         This test case will verify mount azure nfs 4.1 on guest successfully.
         Refer to https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol#features # noqa: E501
+
+        Downgrading priority from 2 to 5. Creating and deleting file shares
+        with token authentication is unsupported.
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(supported_features=[Nfs]),
-        priority=2,
+        priority=5,
     )
     def verify_azure_file_share_nfs(self, log: Logger, node: Node) -> None:
         nfs = node.features[Nfs]
