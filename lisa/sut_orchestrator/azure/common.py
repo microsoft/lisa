@@ -252,17 +252,17 @@ class AzureImageSchema(schema.ImageSchema):
             )
         ),
     )
-    hyperv_generation: Optional[
-        Union[search_space.SetSpace[int], int]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[1, 2],
-        ),
-        metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
-        ),
+    hyperv_generation: Optional[Union[search_space.SetSpace[int], int]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                is_allow_set=True,
+                items=[1, 2],
+            ),
+            metadata=field_metadata(
+                decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+            ),
+        )
     )
     network_data_path: Optional[
         Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
@@ -1919,30 +1919,20 @@ def wait_copy_blob(
 
 def get_share_service_client(
     credential: Any,
-    subscription_id: str,
     cloud: Cloud,
     account_name: str,
-    resource_group_name: str,
 ) -> ShareServiceClient:
-    shared_key_credential = get_storage_credential(
-        credential=credential,
-        subscription_id=subscription_id,
-        cloud=cloud,
-        account_name=account_name,
-        resource_group_name=resource_group_name,
-    )
     share_service_client = ShareServiceClient(
         f"https://{account_name}.file.{cloud.suffixes.storage_endpoint}",
-        shared_key_credential,
+        credential,
+        token_intent=credential.get_token("https://storage.azure.com/.default"),
     )
     return share_service_client
 
 
 def get_or_create_file_share(
     credential: Any,
-    subscription_id: str,
     cloud: Cloud,
-    account_name: str,
     file_share_name: str,
     resource_group_name: str,
     log: Logger,
@@ -1953,9 +1943,7 @@ def get_or_create_file_share(
     """
     share_service_client = get_share_service_client(
         credential,
-        subscription_id,
         cloud,
-        account_name,
         resource_group_name,
     )
     all_shares = list(share_service_client.list_shares())
@@ -1967,9 +1955,7 @@ def get_or_create_file_share(
 
 def delete_file_share(
     credential: Any,
-    subscription_id: str,
     cloud: Cloud,
-    account_name: str,
     file_share_name: str,
     resource_group_name: str,
     log: Logger,
@@ -1979,9 +1965,7 @@ def delete_file_share(
     """
     share_service_client = get_share_service_client(
         credential,
-        subscription_id,
         cloud,
-        account_name,
         resource_group_name,
     )
     log.debug(f"deleting file share {file_share_name}")

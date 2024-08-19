@@ -2703,9 +2703,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         )
         get_or_create_file_share(
             credential=platform.credential,
-            subscription_id=platform.subscription_id,
             cloud=platform.cloud,
-            account_name=self.storage_account_name,
             file_share_name=self.file_share_name,
             resource_group_name=resource_group_name,
             protocols="NFS",
@@ -2768,9 +2766,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         delete_private_endpoints(platform, resource_group_name, self._log)
         delete_file_share(
             platform.credential,
-            platform.subscription_id,
             platform.cloud,
-            self.storage_account_name,
             self.file_share_name,
             resource_group_name,
             self._log,
@@ -3211,9 +3207,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
-                subscription_id=platform.subscription_id,
                 cloud=platform.cloud,
-                account_name=storage_account_name,
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
@@ -3250,9 +3244,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         for share_name in file_share_names:
             delete_file_share(
                 credential=platform.credential,
-                subscription_id=platform.subscription_id,
                 cloud=platform.cloud,
-                account_name=storage_account_name,
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
