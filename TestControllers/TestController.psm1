@@ -53,6 +53,7 @@ Class TestController {
 	[string] $RGIdentifier
 	[string] $OsVHD
 	[string] $TestCategory
+	[string] $ovlname
 	[string] $TestNames
 	[string] $TestArea
 	[string] $TestTag
@@ -100,6 +101,7 @@ Class TestController {
 		$this.RGIdentifier = $ParamTable["RGIdentifier"]
 		$this.OsVHD = $ParamTable["OsVHD"]
 		$this.TestCategory = $ParamTable["TestCategory"]
+		$this.ovlname=""
 		$this.TestNames = $ParamTable["TestNames"]
 		$this.TestArea = $ParamTable["TestArea"]
 		$this.TestTag = $ParamTable["TestTag"]
@@ -302,11 +304,19 @@ Class TestController {
 				foreach ($CustomParameter in $CustomTestParameters) {
 					$ReplaceThis = $CustomParameter.Split("=")[0]
 					$ReplaceWith = $CustomParameter.Substring($CustomParameter.IndexOf("=") + 1)
+					if($ReplaceThis=="ovlname")
+					{
+                           $this.ovlname=$ReplaceWith
+					}
+					else {
+						<# Action when all if and elseif conditions are false #>
+					
 					$OldValue = ($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 						{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
 					($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 						{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
 					Write-LogInfo "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
+					}
 				}
 				Write-LogInfo "Custom parameter(s) are ready to be injected along with default parameters, if any."
 			}
@@ -904,7 +914,7 @@ Class TestController {
 
 		Write-LogInfo "Prepare test log structure and start testing now ..."
 		# Start JUnit XML report logger.
-		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath,$this.TestCategory)
+		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath,$this.TestCategory,$this.ovlname)
 		$this.JunitReport.StartLogTestSuite("LISAv2Test-$($this.TestPlatform)")
 		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestNames, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
 

@@ -124,7 +124,8 @@ Class JUnitReportGenerator
 	[object] $TestSuiteLogTable
 	[object] $TestSuiteCaseLogTable
     [string] $TestCategory
-	JUnitReportGenerator([string]$ReportPath,[string]$TestCategory)
+	[string] $ovlname
+	JUnitReportGenerator([string]$ReportPath,[string]$TestCategory,[string]$ovlname)
 	{
 		$this.JunitReportPath = $ReportPath
 		$this.JunitReport = New-Object System.Xml.XmlDocument
@@ -133,6 +134,7 @@ Class JUnitReportGenerator
 		$this.TestSuiteLogTable = @{}
 		$this.TestSuiteCaseLogTable = @{}
 		$this.TestCategory=$TestCategory
+		$this.ovlname=$ovlname
 	}
 
 	[void] SaveLogReport()
@@ -158,6 +160,7 @@ Class JUnitReportGenerator
 		$newElement.SetAttribute("skipped", 0)
 		$newElement.SetAttribute("time", 0)
 		$newElement.SetAttribute("TestCategory", $this.TestCategory)
+		$newElement.SetAttribute("ovlname", $this.ovlname)
 		if ( $global:BaseOSVHD ) {
 			$newElement.SetAttribute("ImageUnderTest",  $global:BaseOSVHD )
 		}
