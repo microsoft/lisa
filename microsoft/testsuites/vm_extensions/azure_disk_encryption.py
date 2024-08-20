@@ -232,7 +232,6 @@ class AzureDiskEncryption(TestSuite):
             Oracle: 8,
             Ubuntu: 18,
             CBLMariner: 2,
-            Microsoft Azure Linux: 3,
         }
 
         if self._is_unsupported_minor_version(node):
