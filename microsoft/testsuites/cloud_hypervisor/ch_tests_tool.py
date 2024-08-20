@@ -14,7 +14,18 @@ from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
-from lisa.tools import Chmod, Chown, Dmesg, Docker, Echo, Git, Modprobe, Whoami
+from lisa.tools import (
+    Chmod,
+    Chown,
+    Dmesg,
+    Docker,
+    Echo,
+    Git,
+    Ls,
+    Mkdir,
+    Modprobe,
+    Whoami,
+)
 from lisa.util import find_groups_in_lines
 
 
@@ -260,13 +271,27 @@ class CloudHypervisorTests(Tool):
             git.clone(self.upstream_repo, clone_path)
 
         if isinstance(self.node.os, CBLMariner):
-            daemon_json_file = PurePath("/etc/docker/daemon.json")
+            docker_config_dir = "/etc/docker/"
+
+            docker_config: Dict[str, Any] = {}
+            docker_config["default-ulimits"] = {}
+            nofiles = {"Hard": 65535, "Name": "nofile", "Soft": 65535}
+            docker_config["default-ulimits"]["nofile"] = nofiles
+
+            ls = self.node.tools[Ls]
+            if not ls.path_exists(path=docker_config_dir, sudo=True):
+                self.node.tools[Mkdir].create_directory(
+                    path=docker_config_dir,
+                    sudo=True,
+                )
+
             node_info = self.node.get_information()
             distro = node_info.get("distro_version", "")
             if distro == "Microsoft Azure Linux 3.0":
-                daemon_json = '{"userland-proxy": false,"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
-            else:
-                daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
+                docker_config["userland-proxy"] = False
+
+            daemon_json = json.dumps(docker_config).replace('"', '\\"')
+            daemon_json_file = PurePath(f"{docker_config_dir}/daemon.json")
             self.node.tools[Echo].write_to_file(
                 daemon_json, daemon_json_file, sudo=True
             )
