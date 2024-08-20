@@ -101,7 +101,6 @@ Class TestController {
 		$this.RGIdentifier = $ParamTable["RGIdentifier"]
 		$this.OsVHD = $ParamTable["OsVHD"]
 		$this.TestCategory = $ParamTable["TestCategory"]
-		$this.ovlname=""
 		$this.TestNames = $ParamTable["TestNames"]
 		$this.TestArea = $ParamTable["TestArea"]
 		$this.TestTag = $ParamTable["TestTag"]
@@ -272,6 +271,7 @@ Class TestController {
 		$this.SetupTypeToTestCases = @{}
 		$this.SetupTypeTable = @{}
 		$allTests = $null
+		$this.ovlname=""
 		$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 		foreach ($file in $SetupTypeXMLs.FullName) {
 			$setupXml = [xml]( Get-Content -Path $file)
