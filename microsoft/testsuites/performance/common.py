@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import time
-
 import inspect
 import pathlib
 from functools import partial
@@ -344,6 +343,8 @@ def perf_ntttcp(  # noqa: C901
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+        max_retries = 3
+        retry_delay = 5
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -358,37 +359,45 @@ def perf_ntttcp(  # noqa: C901
             if udp_mode:
                 buffer_size = int(1024 / 1024)
 
-            server_result = server_ntttcp.run_as_server_async(
-                server_nic_name,
-                server_ip=server.internal_address if isinstance(server.os, BSD) else "",
-                ports_count=num_threads_p,
-                buffer_size=buffer_size,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            client_lagscope_process = client_lagscope.run_as_client_async(
-                server_ip=server.internal_address,
-                ping_count=0,
-                run_time_seconds=10,
-                print_histogram=False,
-                print_percentile=False,
-                histogram_1st_interval_start_value=0,
-                length_of_histogram_intervals=0,
-                count_of_histogram_intervals=0,
-                dump_csv=False,
-            )
-            time.sleep(5)
-            client_ntttcp_result = client_ntttcp.run_as_client(
-                client_nic_name,
-                server.internal_address,
-                buffer_size=buffer_size,
-                threads_count=num_threads_n,
-                ports_count=num_threads_p,
-                dev_differentiator=dev_differentiator,
-                udp_mode=udp_mode,
-            )
-            time.sleep(5)
-            server.tools[Kill].by_name(server_ntttcp.command)
+            for attempt in range(max_retries):
+                try:
+                    server_result = server_ntttcp.run_as_server_async(
+                        server_nic_name,
+                        server_ip=server.internal_address if isinstance(server.os, BSD) else "",
+                        ports_count=num_threads_p,
+                        buffer_size=buffer_size,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+                    client_lagscope_process = client_lagscope.run_as_client_async(
+                        server_ip=server.internal_address,
+                        ping_count=0,
+                        run_time_seconds=10,
+                        print_histogram=False,
+                        print_percentile=False,
+                        histogram_1st_interval_start_value=0,
+                        length_of_histogram_intervals=0,
+                        count_of_histogram_intervals=0,
+                        dump_csv=False,
+                    )
+                    client_ntttcp_result = client_ntttcp.run_as_client(
+                        client_nic_name,
+                        server.internal_address,
+                        buffer_size=buffer_size,
+                        threads_count=num_threads_n,
+                        ports_count=num_threads_p,
+                        dev_differentiator=dev_differentiator,
+                        udp_mode=udp_mode,
+                    )
+                    break
+                except Exception as e:
+                    print(f"Attempt {attempt + 1} failed with error: {e}. Retrying...")
+                    time.sleep(retry_delay)
+                    # If we reached the last attempt, raise the error
+                    if attempt == max_retries - 1:
+                        raise e
+                finally:
+                    server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
