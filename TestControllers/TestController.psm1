@@ -304,12 +304,12 @@ Class TestController {
 				foreach ($CustomParameter in $CustomTestParameters) {
 					$ReplaceThis = $CustomParameter.Split("=")[0]
 					$ReplaceWith = $CustomParameter.Substring($CustomParameter.IndexOf("=") + 1)
-					if($ReplaceThis=="ovlname")
+					if($ReplaceThis -eq "ovlname")
 					{
                            $this.ovlname=$ReplaceWith
 					}
 					else {
-						<# Action when all if and elseif conditions are false #>
+					
 					
 					$OldValue = ($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 						{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
