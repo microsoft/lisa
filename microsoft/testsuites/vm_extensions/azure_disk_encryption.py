@@ -232,23 +232,11 @@ class AzureDiskEncryption(TestSuite):
             Oracle: 8,
             Ubuntu: 18,
             CBLMariner: 2,
-        }
-        # Remove after automatic major version support is released to ADE
-        max_supported_major_versions = {
-            Redhat: 9,
-            CentOs: 8,
-            Oracle: 8,
-            Ubuntu: 22,
-            CBLMariner: 2,
+            Microsoft Azure Linux: 3,
         }
 
         if self._is_unsupported_minor_version(node):
             return False
-
-        for distro, max_supported_version in max_supported_major_versions.items():
-            if type(node.os) == distro:
-                if node.os.information.version.major > max_supported_version:
-                    return False
 
         for distro, min_supported_version in minimum_supported_major_versions.items():
             if type(node.os) == distro:
