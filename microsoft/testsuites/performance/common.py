@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
+
 import inspect
 import pathlib
 from functools import partial
@@ -375,6 +377,7 @@ def perf_ntttcp(  # noqa: C901
                 count_of_histogram_intervals=0,
                 dump_csv=False,
             )
+            time.sleep(5)
             client_ntttcp_result = client_ntttcp.run_as_client(
                 client_nic_name,
                 server.internal_address,
@@ -384,6 +387,7 @@ def perf_ntttcp(  # noqa: C901
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
             )
+            time.sleep(5)
             server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(

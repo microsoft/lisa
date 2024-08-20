@@ -332,7 +332,10 @@ class Ntttcp(Tool):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            (
+                f"ulimit -n 204800 && {self.pre_command} timeout {run_time_seconds+60}"
+                f" {self.command} {cmd}"
+            ),
             shell=True,
             sudo=True,
             expected_exit_code=0,
@@ -628,7 +631,10 @@ class BSDNtttcp(Ntttcp):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            (
+                f"ulimit -n 204800 && {self.pre_command} timeout {run_time_seconds+60}"
+                f" {self.command} {cmd}"
+            ),
             shell=True,
             sudo=True,
             expected_exit_code=0,
