@@ -86,6 +86,7 @@ from dataclasses_json import dataclass_json
 from marshmallow import fields, validate
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
+from requests.exceptions import ChunkedEncodingError
 from retry import retry
 
 from lisa import feature, schema, search_space
@@ -2025,12 +2026,22 @@ def save_console_log(
             )
         screenshot_raw_name.unlink()
 
-    log_response = requests.get(diagnostic_data.serial_console_log_blob_uri, timeout=60)
-    if log_response.status_code == 404:
-        log.debug(
-            "The serial console is not generated. "
-            "The reason may be the VM is not started."
+    try:
+        log_response = requests.get(
+            diagnostic_data.serial_console_log_blob_uri, timeout=60
         )
+        if log_response.status_code == 404:
+            log.debug(
+                "The serial console is not generated. "
+                "The reason may be the VM is not started."
+            )
+    except ChunkedEncodingError as ex:
+        log.debug(f"ChunkedEncodingError occurred: {ex}")
+        return b""
+    except Exception as ex:
+        log.debug(f"Failed to save console log: {ex}")
+        return b""
+
     return log_response.content
 
 
