@@ -369,6 +369,7 @@ def perf_ntttcp(  # noqa: C901
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )
+                    time.sleep(20)
                     client_lagscope_process = client_lagscope.run_as_client_async(
                         server_ip=server.internal_address,
                         ping_count=0,
@@ -397,7 +398,9 @@ def perf_ntttcp(  # noqa: C901
                     if attempt == max_retries - 1:
                         raise e
                 finally:
+                    time.sleep(20)
                     server.tools[Kill].by_name(server_ntttcp.command)
+                    client.tools[Kill].by_name(client_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
                 server_ntttcp_result
