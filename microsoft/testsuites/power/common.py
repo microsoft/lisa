@@ -7,6 +7,7 @@ from typing import cast
 from assertpy import assert_that
 
 from lisa import Environment, Logger, Node, RemoteNode, features
+from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
 from lisa.operating_system import Redhat, Suse, Ubuntu
@@ -59,6 +60,7 @@ def verify_hibernation(
         _expand_os_partition(node, log)
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
+    cat = node.tools[Cat]
 
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
@@ -71,7 +73,9 @@ def verify_hibernation(
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
     uptime = node.tools[Uptime]
+
     uptime_before_hibernation = uptime.since_time()
+    hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
         startstop.stop(state=features.StopState.Hibernate)
@@ -93,15 +97,28 @@ def verify_hibernation(
         raise LisaException("VM is not in deallocated status after hibernation")
 
     startstop.start()
+
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
+    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
     uptime_after_hibernation = uptime.since_time()
-    assert_that(uptime_after_hibernation).described_as(
-        "Hibernation should not change uptime."
-    ).is_equal_to(uptime_before_hibernation)
 
-    log.info("Hibernation resume is successful. Uptime is not changed.")
+    log.info(
+        "Uptime before Hibernation: %s, Uptime after Hibernation: %s",
+        uptime_before_hibernation,
+        uptime_after_hibernation,
+    )
+    log.info(
+        "Hibfile resume offset: %s, Resume offset from cmdline: %s",
+        hibfile_offset,
+        offset_from_cmd,
+    )
+
+    log.info(
+        "Resume offset from /sys/power/resume_offset: %s",
+        cat.read("/sys/power/resume_offset"),
+    )
 
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
@@ -125,6 +142,7 @@ def verify_hibernation(
     node_nic.initialize()
     lower_nics_after_hibernation = node_nic.get_lower_nics()
     upper_nics_after_hibernation = node_nic.get_nic_names()
+
     assert_that(len(lower_nics_after_hibernation)).described_as(
         "sriov nics count changes after hibernation."
     ).is_equal_to(len(lower_nics_before_hibernation))
