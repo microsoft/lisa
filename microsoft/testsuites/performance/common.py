@@ -335,16 +335,18 @@ def perf_ntttcp(  # noqa: C901
             )
             dev_differentiator = "Hypervisor callback interrupts"
         server_lagscope.run_as_server_async(
-            ip=lagscope_server_ip
-            if lagscope_server_ip is not None
-            else server.internal_address
+            ip=(
+                lagscope_server_ip
+                if lagscope_server_ip is not None
+                else server.internal_address
+            )
         )
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
-        max_retries = 3
-        retry_delay = 5
+        max_retries = 30
+        retry_delay = 30
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
@@ -363,13 +365,17 @@ def perf_ntttcp(  # noqa: C901
                 try:
                     server_result = server_ntttcp.run_as_server_async(
                         server_nic_name,
-                        server_ip=server.internal_address if isinstance(server.os, BSD) else "",
+                        server_ip=(
+                            server.internal_address
+                            if isinstance(server.os, BSD)
+                            else ""
+                        ),
                         ports_count=num_threads_p,
                         buffer_size=buffer_size,
                         dev_differentiator=dev_differentiator,
                         udp_mode=udp_mode,
                     )
-                    time.sleep(20)
+                    time.sleep(30)
                     client_lagscope_process = client_lagscope.run_as_client_async(
                         server_ip=server.internal_address,
                         ping_count=0,
@@ -398,7 +404,7 @@ def perf_ntttcp(  # noqa: C901
                     if attempt == max_retries - 1:
                         raise e
                 finally:
-                    time.sleep(20)
+                    time.sleep(30)
                     server.tools[Kill].by_name(server_ntttcp.command)
                     client.tools[Kill].by_name(client_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
