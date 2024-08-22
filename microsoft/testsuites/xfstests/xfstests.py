@@ -19,7 +19,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep
+from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep, Rm, Sed
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -282,6 +282,14 @@ class Xfstests(Tool):
         git.clone(url=self.repo, cwd=tool_path, ref=self.branch)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
+
+        self.node.tools[Rm].remove_file(str(code_path / "src" / "splice2pipe.c"))
+        self.node.tools[Sed].substitute(
+            regexp="splice2pipe",
+            replacement="",
+            file=str(code_path / "src" / "Makefile"),
+        )
+
         make.make_install(code_path)
         return True
 
