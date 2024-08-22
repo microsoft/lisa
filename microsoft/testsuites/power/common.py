@@ -72,29 +72,34 @@ def verify_hibernation(
     hibernation_setup_tool.start()
     uptime = node.tools[Uptime]
     uptime_before_hibernation = uptime.since_time()
+    log.info("Uptime before hibernation: %s", uptime_before_hibernation)
 
-    try:
-        startstop.stop(state=features.StopState.Hibernate)
-    except Exception as ex:
+    for i in range(10):
+        log.info(f"hibernation test iteration {i + 1}")
         try:
-            node.tools[Dmesg].get_output(force_run=True)
-        except Exception as e:
-            log.debug(f"error on get dmesg output: {e}")
-        raise LisaException(f"fail to hibernate: {ex}")
+            startstop.stop(state=features.StopState.Hibernate)
+        except Exception as ex:
+            try:
+                node.tools[Dmesg].get_output(force_run=True)
+            except Exception as e:
+                log.debug(f"error on get dmesg output: {e}")
+            raise LisaException(f"fail to hibernate: {ex}")
 
-    is_ready = True
-    timeout = 900
-    timer = create_timer()
-    while timeout > timer.elapsed(False):
-        if startstop.get_status() == VMStatus.Deallocated:
-            is_ready = False
-            break
-    if is_ready:
-        raise LisaException("VM is not in deallocated status after hibernation")
+        is_ready = True
+        timeout = 900
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            if startstop.get_status() == VMStatus.Deallocated:
+                is_ready = False
+                break
+        if is_ready:
+            raise LisaException("VM is not in deallocated status after hibernation")
 
-    startstop.start()
-    dmesg = node.tools[Dmesg]
-    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+        startstop.start()
+        dmesg = node.tools[Dmesg]
+        dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+        uptime_after_hibernation = uptime.since_time()
+        log.info("Uptime after hibernation: %s", uptime_after_hibernation)
 
     uptime_after_hibernation = uptime.since_time()
     assert_that(uptime_after_hibernation).described_as(
