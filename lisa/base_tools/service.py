@@ -8,6 +8,7 @@ from lisa.util import (
     UnsupportedDistroException,
     filter_ansi_escape,
     find_group_in_lines,
+    find_patterns_in_lines,
 )
 
 
@@ -116,6 +117,10 @@ class Systemctl(Tool):
     def can_install(self) -> bool:
         return False
 
+    def start_service(self, name: str) -> None:
+        cmd_result = self.run(f"start {name}", shell=True, sudo=True, force_run=True)
+        cmd_result.assert_exit_code()
+
     def stop_service(self, name: str) -> None:
         if self._check_service_running(name):
             cmd_result = self.run(f"stop {name}", shell=True, sudo=True, force_run=True)
@@ -128,6 +133,19 @@ class Systemctl(Tool):
     def enable_service(self, name: str) -> None:
         cmd_result = self.run(f"enable {name}", shell=True, sudo=True, force_run=True)
         cmd_result.assert_exit_code()
+
+    def status(self, name: str) -> str:
+        cmd_result = self.run(
+            f"status {name} -l --no-page", shell=True, sudo=True, force_run=True
+        )
+        return cmd_result.stdout
+
+    def check_in_status(self, name: str, pattern: re.Pattern[str]) -> int:
+        status = self.status(name)
+        matched_lines = find_patterns_in_lines(status, [pattern])
+        if not matched_lines:
+            return 0
+        return len(matched_lines[0])
 
     def hibernate(self) -> None:
         self.run_async("hibernate", sudo=True, force_run=True)

@@ -7,6 +7,7 @@ from typing import cast
 from assertpy import assert_that
 
 from lisa import Environment, Logger, Node, RemoteNode, features
+from lisa.base_tools.service import Systemctl
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
 from lisa.operating_system import Redhat, Suse, Ubuntu
@@ -59,6 +60,7 @@ def verify_hibernation(
         _expand_os_partition(node, log)
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
+    _hibernation_setup_tool_service = "hibernation-setup-tool"
 
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()

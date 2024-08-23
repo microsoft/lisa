@@ -8,7 +8,8 @@ from typing import List, Pattern, Type
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
-from lisa.util import find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util.perf_timer import create_timer
 
 from .git import Git
 from .ls import Ls
@@ -16,7 +17,7 @@ from .make import Make
 
 
 class HibernationSetup(Tool):
-    _repo = "https://github.com/microsoft/hibernation-setup-tool"
+    _repo = "https://github.com/dcui/hibernation-setup-tool"
     # [  159.967060] PM: hibernation entry
     _entry_pattern = re.compile(r"^(.*hibernation entry.*)$", re.MULTILINE)
     # [   22.813227] PM: hibernation exit
@@ -27,6 +28,10 @@ class HibernationSetup(Tool):
     )
     # [  159.898806] hv_utils: Sent hibernation uevent
     _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
+
+    _systemd_service_succeded_pattern = re.compile(
+        r"^(.*hibernation-setup-tool.service: Succeeded.*)$", re.MULTILINE
+    )
 
     @property
     def command(self) -> str:
@@ -46,6 +51,20 @@ class HibernationSetup(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to start",
         )
+        systemctl = self.node.tools[Systemctl]
+        systemctl.start_service(self.command)
+
+        timeout = 900
+        timer = create_timer()
+        is_ready = False
+        while timeout > timer.elapsed(False):
+            if systemctl.check_in_status(
+                self.command, self._systemd_service_succeded_pattern
+            ):
+                is_ready = True
+                break
+        if not is_ready:
+            raise LisaException("Hibernation Tool not succeeded")
 
     def check_entry(self) -> int:
         return self._check(self._entry_pattern)
