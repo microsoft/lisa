@@ -7,6 +7,7 @@ from typing import cast
 from assertpy import assert_that
 
 from lisa import Environment, Logger, Node, RemoteNode, features
+from lisa.base_tools.cat import Cat
 from lisa.base_tools.service import Systemctl
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
@@ -60,7 +61,7 @@ def verify_hibernation(
         _expand_os_partition(node, log)
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
-    _hibernation_setup_tool_service = "hibernation-setup-tool"
+    cat = node.tools[Cat]
 
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
@@ -95,6 +96,14 @@ def verify_hibernation(
         raise LisaException("VM is not in deallocated status after hibernation")
 
     startstop.start()
+
+    log.info(
+        "Resume offset from /sys/power/resume_offset: %s",
+        cat.read("/sys/power/resume_offset"),
+    )
+    cmdline = cat.run("/proc/cmdline").stdout
+    log.info("Kernel command line: %s", cmdline)
+
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
