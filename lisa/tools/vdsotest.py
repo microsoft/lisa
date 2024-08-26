@@ -56,6 +56,7 @@ class Vdsotest(Tool):
                     "binutils",
                     "glibc-devel",
                     "kernel-headers",
+                    "perl-CPAN",
                 ]
             )
         else:
