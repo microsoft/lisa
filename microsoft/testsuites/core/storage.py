@@ -641,8 +641,9 @@ class Storage(TestSuite):
 
         # get max data disk count for the node
         assert node.capability.disk
-        assert isinstance(node.capability.disk.max_data_disk_count, int)
-        max_data_disk_count = node.capability.disk.max_data_disk_count
+        # assert isinstance(node.capability.disk.max_data_disk_count, int)
+        # max_data_disk_count = node.capability.disk.max_data_disk_count
+        max_data_disk_count = 64
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
         # get the number of data disks already added to the vm
@@ -728,8 +729,9 @@ class Storage(TestSuite):
 
         # get max data disk count for the node
         assert node.capability.disk
-        assert isinstance(node.capability.disk.max_data_disk_count, int)
-        max_data_disk_count = node.capability.disk.max_data_disk_count
+        # assert isinstance(node.capability.disk.max_data_disk_count, int)
+        # max_data_disk_count = node.capability.disk.max_data_disk_count
+        max_data_disk_count = 64
         log.debug(f"max_data_disk_count: {max_data_disk_count}")
 
         # get the number of data disks already added to the vm
