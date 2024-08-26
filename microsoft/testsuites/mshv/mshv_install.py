@@ -41,7 +41,8 @@ class MshvHostInstallSuite(TestSuite):
 
         The test expects the directory containing MSHV binaries to be passed in
         the mshv_binpath variable.
-        """
+        """,
+        priority=2,
     )
     def verify_mshv_install_succeeds(
         self,
