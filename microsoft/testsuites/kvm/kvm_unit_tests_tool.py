@@ -139,8 +139,16 @@ class KvmUnitTests(Tool):
 
     def _save_all_logs(self, log_path: Path) -> None:
         logs_dir = self.repo_root / "logs"
-        self.node.tools[Chmod].chmod("a+x", str(logs_dir), sudo=True)
-        self.node.tools[Chmod].update_folder("a+r", str(logs_dir), sudo=True)
+        self.node.tools[Chmod].chmod(
+            permission="a+x",
+            path=str(logs_dir),
+            sudo=True,
+        )
+        self.node.tools[Chmod].update_folder(
+            permission="a+r",
+            path=str(logs_dir),
+            sudo=True,
+        )
         files = self.node.tools[Ls].list(str(logs_dir), sudo=True)
         for f in files:
             f_path = PurePath(f)
