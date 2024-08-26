@@ -113,6 +113,7 @@ class Xfstests(Tool):
         "kernel-headers",
         "util-linux-devel",
         "psmisc",
+        "perl-CPAN",
     ]
     # Passed all 35 tests
     __all_pass_pattern = re.compile(

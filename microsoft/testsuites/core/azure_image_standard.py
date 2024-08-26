@@ -737,14 +737,23 @@ class AzureImageStandard(TestSuite):
             mariner_repositories = [
                 cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
-            expected_repo_list = [
-                "mariner-official-base",
-                "mariner-official-microsoft",
-            ]
-            if 1 == node.os.information.version.major:
-                expected_repo_list += ["mariner-official-update"]
-            elif 2 == node.os.information.version.major:
-                expected_repo_list += ["mariner-official-extras"]
+
+            if 3 == node.os.information.version.major:
+                expected_repo_list = [
+                    "azurelinux-official-base",
+                    "azurelinux-official-ms-non-oss",
+                    "azurelinux-official-ms-oss",
+                ]
+            else:
+                expected_repo_list = [
+                    "mariner-official-base",
+                    "mariner-official-microsoft",
+                ]
+                if 1 == node.os.information.version.major:
+                    expected_repo_list += ["mariner-official-update"]
+                elif 2 == node.os.information.version.major:
+                    expected_repo_list += ["mariner-official-extras"]
+
             for id_ in expected_repo_list:
                 is_repository_present = any(
                     id_ in repository.id for repository in mariner_repositories
