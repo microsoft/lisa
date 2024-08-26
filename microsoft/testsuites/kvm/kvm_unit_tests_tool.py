@@ -12,7 +12,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import Posix
 from lisa.testsuite import TestResult
 from lisa.tools import Chmod, Git, Ls, Make
-from lisa.util import LisaException
+from lisa.util import LisaException, find_group_in_lines
 
 
 @dataclass
@@ -101,15 +101,18 @@ class KvmUnitTests(Tool):
         #
         # For now, we don't do anything with the additional info in the
         # parantheses.
-        line_regex = re.compile(r"^\S+(PASS|FAIL|SKIP)\S+ (\S+) .*$")
+        line_regex = re.compile(
+            r"(?P<status>PASS|SKIP|FAIL)\s+(?P<test_name>\S+)"
+            r"(?:\s+\((?P<extra_info>[^)]+)\))?"
+        )
         for line in lines:
-            match = re.search(line_regex, line)
+            match = find_group_in_lines(lines=line.strip(), pattern=line_regex)
             if not match:
                 continue
 
             result = KvmUnitTestResult()
-            result.name = match.group(2)
-            status = match.group(1)
+            result.name = match.get("test_name", "")
+            status = match.get("status", "")
             if status == "PASS":
                 result.status = TestStatus.PASSED
             elif status == "FAIL":
@@ -136,8 +139,16 @@ class KvmUnitTests(Tool):
 
     def _save_all_logs(self, log_path: Path) -> None:
         logs_dir = self.repo_root / "logs"
-        self.node.tools[Chmod].chmod("a+x", str(logs_dir), sudo=True)
-        self.node.tools[Chmod].update_folder("a+r", str(logs_dir), sudo=True)
+        self.node.tools[Chmod].chmod(
+            permission="a+x",
+            path=str(logs_dir),
+            sudo=True,
+        )
+        self.node.tools[Chmod].update_folder(
+            permission="a+r",
+            path=str(logs_dir),
+            sudo=True,
+        )
         files = self.node.tools[Ls].list(str(logs_dir), sudo=True)
         for f in files:
             f_path = PurePath(f)
