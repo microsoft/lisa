@@ -74,7 +74,9 @@ def verify_hibernation(
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
     uptime = node.tools[Uptime]
+
     uptime_before_hibernation = uptime.since_time()
+    hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
         startstop.stop(state=features.StopState.Hibernate)
@@ -106,6 +108,12 @@ def verify_hibernation(
 
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+
+    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
+
+    assert_that(hibfile_offset).described_as(
+        "hibfile resume offset should be the same as resume_offset in cmdline."
+    ).is_equal_to(offset_from_cmd)
 
     uptime_after_hibernation = uptime.since_time()
 

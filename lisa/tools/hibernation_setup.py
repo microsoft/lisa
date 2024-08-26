@@ -8,7 +8,7 @@ from typing import List, Pattern, Type
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
-from lisa.util import LisaException, find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 from lisa.util.perf_timer import create_timer
 
 from .git import Git
@@ -32,6 +32,22 @@ class HibernationSetup(Tool):
     _systemd_service_succeded_pattern = re.compile(
         r"^(.*hibernation-setup-tool.service: Succeeded.*)$", re.MULTILINE
     )
+
+    """
+    The below shows an example output of `filefrag -v /hibfile.sys`
+    We are interested in the physical offset of the hibfile.
+
+    Filesystem type is: ef53
+    File size of /hibfile is 1048576 (256 blocks of 4096 bytes)
+    ext:     logical_offset:        physical_offset: length:   expected: flags:
+    0:        0..      255:    123456..   123711:    256:             last,unwritten,eof
+    /hibfile: 1 extent found
+    """
+    _hibsys_resume_offset_pattern = re.compile(
+        r"^\s*\d+:\s+\d+\.\.\s+\d+:\s+(\d+)\.\.", re.MULTILINE
+    )
+
+    _cmdline_resume_offset_pattern = re.compile(r"resume_offset=(\d+)")
 
     @property
     def command(self) -> str:
@@ -80,6 +96,18 @@ class HibernationSetup(Tool):
 
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()
+
+    def get_hibernate_resume_offset_from_hibfile(self) -> str:
+        filefrag_hibfile = self.node.execute(
+            "filefrag -v /hibfile.sys", sudo=True
+        ).stdout
+        offset = get_matched_str(filefrag_hibfile, self._hibsys_resume_offset_pattern)
+        return offset
+
+    def get_hibernate_resume_offset_from_cmd(self) -> str:
+        cmdline = self.node.tools[Cat].read("/proc/cmdline")
+        offset = get_matched_str(cmdline, self._cmdline_resume_offset_pattern)
+        return offset
 
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
