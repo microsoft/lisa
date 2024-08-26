@@ -370,6 +370,7 @@ class Storage(TestSuite):
         3. Serially add and remove the data disks and verify that the added
         disks are present in the vm.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
@@ -384,6 +385,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_serial`.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
@@ -398,6 +400,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_serial`.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
@@ -418,6 +421,7 @@ class Storage(TestSuite):
         5. Remove the disks from the vm in parallel.
         6. Verify that the disks are removed from the OS.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardHDDLRS()),
     )
@@ -432,6 +436,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_parallel`.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
@@ -456,6 +461,7 @@ class Storage(TestSuite):
         7. Verify that 1 disk is removed from the OS.
         8. Repeat steps 6 & 7 till all randomly attached disks are removed.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
@@ -484,6 +490,7 @@ class Storage(TestSuite):
         7. Verify that 1 disk is removed from the OS.
         8. Repeat steps 6 & 7 till all randomly attached disks are removed.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskStandardSSDLRS()),
     )
@@ -504,6 +511,7 @@ class Storage(TestSuite):
         be added serially while the vm is running. The test steps are same as
         `hot_add_disk_parallel`.
         """,
+        priority=2,
         timeout=TIME_OUT,
         requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
