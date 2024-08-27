@@ -128,6 +128,9 @@ class OperatingSystem:
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
     __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
+    # VMware ESXi 8.0.2 build-23305546
+    # VMware ESXi 8.0 Update 2
+    __vmware_esxi_release_pattern = re.compile(r"^(VMware ESXi).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
@@ -249,6 +252,9 @@ class OperatingSystem:
 
         cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
+
+        cmd_result = typed_node.execute(cmd="vmware -lv", no_error_log=True)
+        yield get_matched_str(cmd_result.stdout, cls.__vmware_esxi_release_pattern)
 
         # try best from distros'family through ID_LIKE
         yield get_matched_str(
@@ -679,6 +685,12 @@ class BMC(Posix):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^wcscli$")
+
+
+class VMWareESXi(Posix):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^VMware ESXi$")
 
 
 class MacOS(Posix):
