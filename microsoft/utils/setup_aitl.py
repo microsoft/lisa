@@ -233,9 +233,18 @@ def _set_target_role_parameters(
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
         "Microsoft.Compute/virtualMachines/extensions/delete",
+        # for verify_vm_assess_patches
+        "Microsoft.Compute/virtualMachines/assessPatches/action",
+        # for VM resize test suite
+        "Microsoft.Compute/virtualMachines/vmSizes/read",
         # For disk_support_restore_point & verify_vmsnapshot_extension
         "Microsoft.Compute/restorePointCollections/write",
+        # For verify_vmsnapshot_extension
+        "Microsoft.Compute/restorePointCollections/restorePoints/read",
+        "Microsoft.Compute/restorePointCollections/restorePoints/write",
         "Microsoft.ManagedIdentity/userAssignedIdentities/write",
+        # For verify_azsecpack
+        "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
         "Microsoft.Network/virtualNetworks/read",
         "Microsoft.Network/virtualNetworks/write",
         "Microsoft.Network/virtualNetworks/subnets/join/action",
