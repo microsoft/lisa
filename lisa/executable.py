@@ -26,7 +26,6 @@ from lisa.util.process import ExecutableResult, Process
 if TYPE_CHECKING:
     from lisa.node import Node
 
-
 T = TypeVar("T")
 
 
@@ -168,6 +167,10 @@ class Tool(InitializableMixin):
             freebsd_tool = cls._freebsd_tool()
             if freebsd_tool:
                 tool_cls = freebsd_tool
+        elif "VMWareESXi" in node.os.name:
+            vmware_esxi_tool = cls._vmware_esxi_tool()
+            if vmware_esxi_tool:
+                tool_cls = vmware_esxi_tool
         return tool_cls(node, *args, **kwargs)
 
     @classmethod
@@ -184,11 +187,21 @@ class Tool(InitializableMixin):
         """
         return None
 
+    @classmethod
+    def _vmware_esxi_tool(cls) -> Optional[Type[Tool]]:
+        """
+        return a vmware esxi version tool class, if it's needed
+        """
+        return None
+
     def command_exists(self, command: str) -> Tuple[bool, bool]:
         exists = False
         use_sudo = False
         if self.node.is_posix:
-            where_command = "command -v"
+            if "VMWareESXi" in self.node.os.name:
+                where_command = "which"
+            else:
+                where_command = "command -v"
         else:
             where_command = "where"
         where_command = f"{where_command} {command}"

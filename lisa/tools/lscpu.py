@@ -108,6 +108,10 @@ class Lscpu(Tool):
         return WindowsLscpu
 
     @classmethod
+    def _vmware_esxi_tool(cls) -> Optional[Type[Tool]]:
+        return VMWareESXiLscpu
+
+    @classmethod
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDLscpu
 
@@ -438,3 +442,40 @@ class BSDLscpu(Lscpu):
             * self.get_cluster_count()
             * self.get_thread_per_core_count()
         )
+
+
+class VMWareESXiLscpu(Lscpu):
+    #    CPU Threads: 208
+    __cpu_threads = re.compile(r"CPU Threads:[ ]+([\d]+)?", re.M)
+    #    CPU Packages: 2
+    __cpu_packages = re.compile(r"CPU Packages:[ ]+([\d]+)?", re.M)
+    #    CPU Cores: 104
+    __cpu_cores = re.compile(r"CPU Cores:[ ]+([\d]+)?", re.M)
+
+    @property
+    def command(self) -> str:
+        return "esxcli"
+
+    def get_core_count(self, force_run: bool = False) -> int:
+        result = self.run("hardware cpu global get", force_run)
+        matched = self.__cpu_threads.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"cpu thread should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+        self._core_count = int(matched[0])
+        return self._core_count
+
+    def calculate_vcpu_count(self, force_run: bool = False) -> int:
+        result = self.run("hardware cpu global get", force_run)
+        matched_cpu_packages = self.__cpu_packages.findall(result.stdout)
+        assert_that(
+            len(matched_cpu_packages),
+            f"cpu packages should have exact one line, but got {matched_cpu_packages}",
+        ).is_equal_to(1)
+        matched_cpu_cores = self.__cpu_cores.findall(result.stdout)
+        assert_that(
+            len(matched_cpu_cores),
+            f"cpu cores should have exact one line, but got {matched_cpu_cores}",
+        ).is_equal_to(1)
+        return int(matched_cpu_packages[0]) * int(matched_cpu_cores[0])
