@@ -69,10 +69,12 @@ def verify_hibernation(
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
 
     # only set up hibernation setup tool for the first time
+    
     hibernation_setup_tool.start()
     uptime = node.tools[Uptime]
     uptime_before_hibernation = uptime.since_time()
     return
+    # Removing rest of the steps for test branch
     # try:
     #     startstop.stop(state=features.StopState.Hibernate)
     # except Exception as ex:
