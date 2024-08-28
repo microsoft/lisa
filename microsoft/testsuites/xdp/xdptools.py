@@ -82,7 +82,7 @@ class XdpTool(Tool):
         self._command: PurePath = PurePath(self._default_command)
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
         # v1.4.1 requires clang-11
-        self._xdp_tools_tag = "v1.4.2"
+        self._xdp_tools_tag = "v1.4.3"
         if (
             isinstance(self.node.os, Debian)
             and self.node.os.information.version <= "18.4.0"
