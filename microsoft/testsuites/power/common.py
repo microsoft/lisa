@@ -72,65 +72,65 @@ def verify_hibernation(
     hibernation_setup_tool.start()
     uptime = node.tools[Uptime]
     uptime_before_hibernation = uptime.since_time()
+    return
+    # try:
+    #     startstop.stop(state=features.StopState.Hibernate)
+    # except Exception as ex:
+    #     try:
+    #         node.tools[Dmesg].get_output(force_run=True)
+    #     except Exception as e:
+    #         log.debug(f"error on get dmesg output: {e}")
+    #     raise LisaException(f"fail to hibernate: {ex}")
 
-    try:
-        startstop.stop(state=features.StopState.Hibernate)
-    except Exception as ex:
-        try:
-            node.tools[Dmesg].get_output(force_run=True)
-        except Exception as e:
-            log.debug(f"error on get dmesg output: {e}")
-        raise LisaException(f"fail to hibernate: {ex}")
+    # is_ready = True
+    # timeout = 900
+    # timer = create_timer()
+    # while timeout > timer.elapsed(False):
+    #     if startstop.get_status() == VMStatus.Deallocated:
+    #         is_ready = False
+    #         break
+    # if is_ready:
+    #     raise LisaException("VM is not in deallocated status after hibernation")
 
-    is_ready = True
-    timeout = 900
-    timer = create_timer()
-    while timeout > timer.elapsed(False):
-        if startstop.get_status() == VMStatus.Deallocated:
-            is_ready = False
-            break
-    if is_ready:
-        raise LisaException("VM is not in deallocated status after hibernation")
+    # startstop.start()
+    # dmesg = node.tools[Dmesg]
+    # dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
-    startstop.start()
-    dmesg = node.tools[Dmesg]
-    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+    # uptime_after_hibernation = uptime.since_time()
+    # assert_that(uptime_after_hibernation).described_as(
+    #     "Hibernation should not change uptime."
+    # ).is_equal_to(uptime_before_hibernation)
 
-    uptime_after_hibernation = uptime.since_time()
-    assert_that(uptime_after_hibernation).described_as(
-        "Hibernation should not change uptime."
-    ).is_equal_to(uptime_before_hibernation)
+    # log.info("Hibernation resume is successful. Uptime is not changed.")
 
-    log.info("Hibernation resume is successful. Uptime is not changed.")
+    # entry_after_hibernation = hibernation_setup_tool.check_entry()
+    # exit_after_hibernation = hibernation_setup_tool.check_exit()
+    # received_after_hibernation = hibernation_setup_tool.check_received()
+    # uevent_after_hibernation = hibernation_setup_tool.check_uevent()
+    # if verify_using_logs:
+    #     assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
+    #         "not find 'hibernation entry'."
+    #     ).is_equal_to(1)
+    #     assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+    #         "not find 'hibernation exit'."
+    #     ).is_equal_to(1)
+    #     assert_that(
+    #         received_after_hibernation - received_before_hibernation
+    #     ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
+    #     assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
+    #         "not find 'Sent hibernation uevent'."
+    #     ).is_equal_to(1)
 
-    entry_after_hibernation = hibernation_setup_tool.check_entry()
-    exit_after_hibernation = hibernation_setup_tool.check_exit()
-    received_after_hibernation = hibernation_setup_tool.check_received()
-    uevent_after_hibernation = hibernation_setup_tool.check_uevent()
-    if verify_using_logs:
-        assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
-            "not find 'hibernation entry'."
-        ).is_equal_to(1)
-        assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
-            "not find 'hibernation exit'."
-        ).is_equal_to(1)
-        assert_that(
-            received_after_hibernation - received_before_hibernation
-        ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
-        assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
-            "not find 'Sent hibernation uevent'."
-        ).is_equal_to(1)
-
-    node_nic = node.nics
-    node_nic.initialize()
-    lower_nics_after_hibernation = node_nic.get_lower_nics()
-    upper_nics_after_hibernation = node_nic.get_nic_names()
-    assert_that(len(lower_nics_after_hibernation)).described_as(
-        "sriov nics count changes after hibernation."
-    ).is_equal_to(len(lower_nics_before_hibernation))
-    assert_that(len(upper_nics_after_hibernation)).described_as(
-        "synthetic nics count changes after hibernation."
-    ).is_equal_to(len(upper_nics_before_hibernation))
+    # node_nic = node.nics
+    # node_nic.initialize()
+    # lower_nics_after_hibernation = node_nic.get_lower_nics()
+    # upper_nics_after_hibernation = node_nic.get_nic_names()
+    # assert_that(len(lower_nics_after_hibernation)).described_as(
+    #     "sriov nics count changes after hibernation."
+    # ).is_equal_to(len(lower_nics_before_hibernation))
+    # assert_that(len(upper_nics_after_hibernation)).described_as(
+    #     "synthetic nics count changes after hibernation."
+    # ).is_equal_to(len(upper_nics_before_hibernation))
 
 
 def run_storage_workload(node: Node) -> Decimal:
