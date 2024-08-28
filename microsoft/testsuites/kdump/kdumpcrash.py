@@ -52,7 +52,7 @@ class KdumpCrash(TestSuite):
     # When with large system memory, the dump file can achieve more than 7G. It will
     # cost about 10min to copy dump file to disk for some distros, such as Ubuntu.
     # So we set the timeout time 800s to make sure the dump file is completed.
-    timeout_of_dump_crash = 800
+    timeout_of_dump_crash = 2000
     trigger_kdump_cmd = "echo c > /proc/sysrq-trigger"
     is_auto = False
 
@@ -287,9 +287,9 @@ class KdumpCrash(TestSuite):
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
-            self.timeout_of_dump_crash = 1200
+            self.timeout_of_dump_crash = 2200
             if float(total_memory.strip("T")) > 6:
-                self.timeout_of_dump_crash = 2000
+                self.timeout_of_dump_crash = 3000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
         kdump.enable_kdump_service()
