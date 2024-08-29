@@ -2217,6 +2217,11 @@ def find_storage_account(
     return found_sc
 
 
+def get_token(platform: "AzurePlatform") -> str:
+    token = platform.credential.get_token(platform.cloud.endpoints.resource_manager)
+    return token.token
+
+
 def _generate_sas_token_for_vhd(
     platform: "AzurePlatform", result_dict: Dict[str, str]
 ) -> Any:
