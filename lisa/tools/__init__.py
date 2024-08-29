@@ -71,6 +71,7 @@ from .mkdir import Mkdir
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
+from .mono import Mono
 from .mount import Mount
 from .netperf import Netperf
 from .nfs_client import NFSClient
@@ -190,6 +191,7 @@ __all__ = [
     "Mkfsxfs",
     "Modinfo",
     "Modprobe",
+    "Mono",
     "Mount",
     "Mv",
     "Netperf",
