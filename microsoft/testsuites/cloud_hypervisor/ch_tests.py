@@ -199,6 +199,7 @@ class CloudHypervisorTestSuite(TestSuite):
         use_ms_guest_kernel = variables.get("use_ms_guest_kernel", "NO")
         use_ms_hypervisor_fw = variables.get("use_ms_hypervisor_fw", "NO")
         use_ms_ovmf_fw = variables.get("use_ms_ovmf_fw", "NO")
+        use_ms_bz_image = variables.get("use_ms_bz_image", "NO")
 
         # Below three params are for running block_* clh perf test
         # with no disk caching and with direct mode. By Default, we
@@ -224,6 +225,8 @@ class CloudHypervisorTestSuite(TestSuite):
             CloudHypervisorTests.use_ms_hypervisor_fw = use_ms_hypervisor_fw
         if use_ms_ovmf_fw == "YES":
             CloudHypervisorTests.use_ms_ovmf_fw = use_ms_ovmf_fw
+        if use_ms_bz_image == "YES":
+            CloudHypervisorTests.use_ms_bz_image = use_ms_bz_image
 
         if block_size_kb:
             CloudHypervisorTests.block_size_kb = block_size_kb
