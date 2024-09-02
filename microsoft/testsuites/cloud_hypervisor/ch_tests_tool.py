@@ -58,6 +58,7 @@ class CloudHypervisorTests(Tool):
     use_ms_guest_kernel = ""
     use_ms_hypervisor_fw = ""
     use_ms_ovmf_fw = ""
+    use_ms_bz_image = ""
 
     # Block perf related env var
     use_datadisk = ""
@@ -258,6 +259,8 @@ class CloudHypervisorTests(Tool):
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
             if self.use_ms_ovmf_fw:
                 self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
+            if self.use_ms_bz_image:
+                self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
 
             if self.use_datadisk:
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
