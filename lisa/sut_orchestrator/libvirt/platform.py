@@ -26,6 +26,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.tools import (
     Chmod,
     Chown,
@@ -178,6 +179,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         self.__init_libvirt_conn_string()
         self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
+
+        self.device_pool = LibvirtDevicePool(self.host_node, self.platform_runbook)
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params
+        self.device_pool.configure_device_passthrough_pool(
+            self.platform_runbook.device_pools,
+        )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         # Ensure environment log directory is created before connecting to any nodes.
@@ -503,6 +511,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
                 node_context.data_disks.append(data_disk)
 
+        self.device_pool._set_device_passthrough_node_context(
+            node_context,
+            node_runbook,
+        )
+
     def restart_domain_and_attach_logger(self, node: Node) -> None:
         node_context = get_node_context(node)
         domain = node_context.domain
@@ -536,6 +549,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         # Start the VM.
         node_context.domain.resume()
+
+        # Once libvirt domain is created, check if driver attached to device
+        # on the host is vfio-pci for PCI device passthrough to make sure if
+        # pass-through for PCI device is happened properly or not
+        self.device_pool._verify_device_passthrough_post_boot(
+            node_context=node_context,
+        )
 
     # Create all the VMs.
     def _create_nodes(
@@ -653,6 +673,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             node_context.domain = None
 
         watchdog.cancel()
+
+        # Add passthrough device back in the
+        # list of available device once domain is deleted
+        self.device_pool.release_devices(node_context)
 
     def _get_domain_undefine_flags(self) -> int:
         return int(
@@ -942,6 +966,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         on_crash.text = "destroy"
 
         devices = ET.SubElement(domain, "devices")
+        if len(node_context.passthrough_devices) > 0:
+            devices = self.device_pool._add_device_passthrough_xml(
+                devices,
+                node_context,
+            )
 
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"

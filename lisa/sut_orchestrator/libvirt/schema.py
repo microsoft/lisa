@@ -4,6 +4,10 @@ from typing import List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
+from lisa.sut_orchestrator.util.schema import (
+    DevicePassthroughSchema,
+    HostDevicePoolSchema,
+)
 from lisa.util import LisaException
 
 FIRMWARE_TYPE_BIOS = "bios"
@@ -34,6 +38,17 @@ class LibvirtHost:
         return self.address is not None
 
 
+@dataclass_json()
+@dataclass
+class DeviceAddressSchema:
+    # Host device details for which we want to perform device-passthrough
+    # we can get it using lspci command
+    domain: str = ""
+    bus: str = ""
+    slot: str = ""
+    function: str = ""
+
+
 # QEMU orchestrator's global configuration options.
 @dataclass_json()
 @dataclass
@@ -50,6 +65,14 @@ class BaseLibvirtPlatformSchema:
     network_boot_timeout: Optional[float] = None
 
     capture_libvirt_debug_logs: bool = False
+
+    device_pools: Optional[List[HostDevicePoolSchema]] = None
+
+
+@dataclass_json()
+@dataclass
+class LibvirtDevicePassthroughSchema(DevicePassthroughSchema):
+    managed: str = ""
 
 
 # Possible disk image formats
@@ -84,6 +107,9 @@ class BaseLibvirtNodeSchema:
     machine_type: str = ""
     # Whether to enable secure boot.
     enable_secure_boot: bool = False
+
+    # Configuration options for device-passthrough.
+    device_passthrough: Optional[List[LibvirtDevicePassthroughSchema]] = None
 
 
 # QEMU orchestrator's per-node configuration options.

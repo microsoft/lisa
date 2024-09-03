@@ -7,6 +7,10 @@ from typing import List, Optional
 from dataclasses_json import dataclass_json
 
 from lisa import schema
+from lisa.sut_orchestrator.util.schema import (
+    DevicePassthroughSchema,
+    HostDevicePoolSchema,
+)
 from lisa.util import field_metadata
 
 
@@ -54,6 +58,7 @@ class HypervPlatformSchema:
     servers: List[HypervServer] = field(default_factory=list)
     extra_args: List[ExtraArgs] = field(default_factory=list)
     wait_delete: bool = False
+    device_pools: Optional[List[HostDevicePoolSchema]] = None
 
 
 @dataclass_json
@@ -68,3 +73,14 @@ class HypervNodeSchema:
     hyperv_generation: int = 2
     vhd: Optional[VhdSchema] = None
     osdisk_size_in_gb: int = 30
+    # Configuration options for device-passthrough.
+    device_passthrough: Optional[List[DevicePassthroughSchema]] = None
+
+
+@dataclass_json()
+@dataclass
+class DeviceAddressSchema:
+    # Host device details for which we want to perform device-passthrough
+    instance_id: str = ""
+    location_path: str = ""
+    friendly_name: str = ""

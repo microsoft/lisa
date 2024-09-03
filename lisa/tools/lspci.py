@@ -8,7 +8,14 @@ from retry import retry
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Echo
-from lisa.util import LisaException, constants, find_patterns_in_lines, get_matched_str
+from lisa.util import (
+    LisaException,
+    constants,
+    find_group_in_lines,
+    find_groups_in_lines,
+    find_patterns_in_lines,
+    get_matched_str,
+)
 
 # Example output of lspci command -
 # lspci -m
@@ -36,6 +43,13 @@ PATTERN_PCI_DEVICE = re.compile(
     re.MULTILINE,
 )
 
+# With -mnn option, result would be with vendor/device id
+# d8:00.0 "Ethernet controller [0200]" "Mellanox Technologies [15b3]"
+#   "MT27520 Family [ConnectX-3 Pro] [1007]" "Mellanox Technologies [15b3]"
+#   "Mellanox Technologies ConnectX-3 Pro Stand-up dual-port 40GbE MCX314A-BCCT [0006]"
+PATTERN_DEVICE_ID = re.compile(r"\[(?P<id>[^\]]{4})\]")
+
+
 DEVICE_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: ["Ethernet controller"],
     constants.DEVICE_TYPE_NVME: ["Non-Volatile memory controller"],
@@ -59,19 +73,48 @@ class PciDevice:
 
     def __str__(self) -> str:
         return (
-            f"PCI device: {self.slot} "
-            f"class {self.device_class} "
-            f"vendor {self.vendor} "
-            f"info: {self.device_info} "
+            f"PCI device: {self.slot}, "
+            f"class: {self.device_class}, "
+            f"vendor: {self.vendor}, "
+            f"info: {self.device_info}, "
+            f"vendor_id: {self.vendor_id}, "
+            f"device_id: {self.device_id}"
         )
 
     def parse(self, raw_str: str) -> None:
-        matched_pci_device_info = PATTERN_PCI_DEVICE.match(raw_str)
-        if matched_pci_device_info:
-            self.slot = matched_pci_device_info.group("slot")
-            self.device_class = matched_pci_device_info.group("device_class")
-            self.vendor = matched_pci_device_info.group("vendor")
-            self.device_info = matched_pci_device_info.group("device")
+        matched_pci_device_info_list = find_groups_in_lines(
+            lines=raw_str,
+            pattern=PATTERN_PCI_DEVICE,
+        )
+        if matched_pci_device_info_list:
+            matched_pci_device_info = matched_pci_device_info_list[0]
+            self.slot = matched_pci_device_info.get("slot", "").strip()
+            assert self.slot, f"Can not find slot info for: {raw_str}"
+
+            device_class = matched_pci_device_info.get("device_class", "")
+            assert device_class, f"Can not find device class for: {raw_str}"
+            self.device_class = PATTERN_DEVICE_ID.sub("", device_class).strip()
+
+            vendor = matched_pci_device_info.get("vendor", "")
+            assert vendor, f"Can not find vendor info for: {raw_str}"
+            vendor_id_raw = find_group_in_lines(
+                lines=vendor,
+                pattern=PATTERN_DEVICE_ID,
+                single_line=False,
+            )
+            self.vendor_id = vendor_id_raw.get("id", "")
+            assert self.vendor_id, f"cannot find vendor id from {raw_str}"
+            self.vendor = PATTERN_DEVICE_ID.sub("", vendor).strip()
+
+            self.device_info = matched_pci_device_info.get("device", "")
+            assert self.device_info, f"Can not find device info for: {raw_str}"
+            device_id_raw = find_group_in_lines(
+                lines=self.device_info,
+                pattern=PATTERN_DEVICE_ID,
+                single_line=False,
+            )
+            self.device_id = device_id_raw.get("id", "")
+            assert self.device_id, f"cannot find device id from {raw_str}"
         else:
             raise LisaException("cannot find any matched pci devices")
 
@@ -126,7 +169,7 @@ class Lspci(Tool):
             # Ensure pci device ids and name mappings are updated.
             self.node.execute("update-pciids", sudo=True, shell=True)
             result = self.run(
-                "-m",
+                "-Dmnn",
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
@@ -183,6 +226,19 @@ class Lspci(Tool):
             if x.device_class in class_names and x.vendor in vendor_names
         ]
         return gpu_device_list
+
+    def get_devices_by_vendor_device_id(
+        self,
+        vendor_id: str,
+        device_id: str,
+        force_run: bool = False,
+    ) -> List[PciDevice]:
+        full_list = self.get_devices(force_run=force_run)
+        devices_list = []
+        for device in full_list:
+            if device.device_id == device_id and device.vendor_id == vendor_id:
+                devices_list.append(device)
+        return devices_list
 
 
 class LspciBSD(Lspci):
