@@ -61,6 +61,10 @@ class XdpPerformance(TestSuite):
             raise SkippedException(f"{node.os} is not supported.")
 
         for node in environment.nodes.list():
+            node.execute("yum install -y kernel-uek", sudo=True, shell=True)
+            node.reboot()
+
+        for node in environment.nodes.list():
             node.tools[Firewall].stop()
 
     @TestCaseMetadata(
