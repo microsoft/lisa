@@ -103,22 +103,19 @@ def verify_hibernation(
 
     offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
     uptime_after_hibernation = uptime.since_time()
+    offset_from_sys_power = cat.read("/sys/power/resume_offset")
 
     log.info(
-        "Uptime before Hibernation: %s, Uptime after Hibernation: %s",
-        uptime_before_hibernation,
-        uptime_after_hibernation,
+        "Uptime before Hibernation: "
+        f"{uptime_before_hibernation}, Uptime after Hibernation: "
+        f"{uptime_after_hibernation}"
     )
     log.info(
-        "Hibfile resume offset: %s, Resume offset from cmdline: %s",
-        hibfile_offset,
-        offset_from_cmd,
+        f"Hibfile resume offset: {hibfile_offset}, "
+        f"Resume offset from cmdline: {offset_from_cmd}"
     )
 
-    log.info(
-        "Resume offset from /sys/power/resume_offset: %s",
-        cat.read("/sys/power/resume_offset"),
-    )
+    log.info(f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}")
 
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
