@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.node import quick_connect
 from lisa.tools import PowerShell
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
@@ -29,7 +28,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
-        return HyperVPreparationTransformerSchema
+        return DeploymentTransformerSchema
 
     @property
     def _output_names(self) -> List[str]:
@@ -38,10 +37,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: HyperVPreparationTransformerSchema = self.runbook
         assert isinstance(runbook, HyperVPreparationTransformerSchema)
-        assert (
-            runbook.connection
-        ), "'connection' must be defined if not running during deployed phase."
-        node = quick_connect(runbook.connection, runbook.name, parent_logger=self._log)
+        node = self._node
         powershell = node.tools[PowerShell]
         powershell.run_cmdlet(
             "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
