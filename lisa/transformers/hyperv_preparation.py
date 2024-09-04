@@ -1,7 +1,4 @@
-from dataclasses import dataclass
 from typing import Any, Dict, List, Type
-
-from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.tools import PowerShell
