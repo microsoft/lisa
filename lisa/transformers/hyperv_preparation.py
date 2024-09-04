@@ -11,12 +11,6 @@ from lisa.transformers.deployment_transformer import (
 )
 
 
-@dataclass_json
-@dataclass
-class HyperVPreparationTransformerSchema(DeploymentTransformerSchema):
-    pass
-
-
 class HyperVPreparationTransformer(DeploymentTransformer):
     """
     This Transformer configures Windows Azure VM as a Hyper-V environment.
@@ -35,8 +29,8 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         return []
 
     def _internal_run(self) -> Dict[str, Any]:
-        runbook: HyperVPreparationTransformerSchema = self.runbook
-        assert isinstance(runbook, HyperVPreparationTransformerSchema)
+        runbook: DeploymentTransformerSchema = self.runbook
+        assert isinstance(runbook, DeploymentTransformerSchema)
         node = self._node
         powershell = node.tools[PowerShell]
         powershell.run_cmdlet(
