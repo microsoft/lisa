@@ -175,7 +175,7 @@ def _apply_filter(  # noqa: C901
             constants.TESTCASE_CRITERIA_CATEGORY,
         ]:
             pattern = cast(str, criteria_runbook_dict[runbook_key])
-            expression = re.compile(pattern)
+            expression = re.compile(pattern, re.IGNORECASE)
             patterns.append(
                 partial(_match_string, pattern=expression, attr_name=runbook_key)
             )
