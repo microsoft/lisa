@@ -3,6 +3,7 @@ from typing import Any
 from lisa.base_tools import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Ubuntu
+from lisa.secret import add_secret
 from lisa.tools import Echo
 from lisa.util import UnsupportedDistroException
 
@@ -83,6 +84,7 @@ class Mono(Tool):
         password: str,
         nuget_path: str = "",
     ) -> None:
+        add_secret(password)
         self._run_nuget_command(
             f"sources add -Name {name} -Source {source} "
             f"-username {user_name} -password {password}",
