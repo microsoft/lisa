@@ -24,7 +24,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
-from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm, Chmod
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
 
@@ -730,7 +730,7 @@ class NetworkSettings(TestSuite):
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
-            node.shell.chmod(PurePosixPath(netvsc_module), 0o755)
+            node.tools[Chmod].chmod(netvsc_module, "777", sudo=True)
             assert node.shell.exists(
                 PurePosixPath(netvsc_module)
             ), f"{netvsc_module} doesn't exist."
