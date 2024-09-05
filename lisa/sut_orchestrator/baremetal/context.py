@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 
 from lisa import schema
 from lisa.environment import Environment
@@ -14,7 +15,9 @@ class EnvironmentContext:
 
 @dataclass
 class NodeContext:
-    connection: schema.ConnectionInfo = field(default_factory=schema.ConnectionInfo)
+    connection: schema.ConnectionInfo = field(
+        default_factory=partial(schema.ConnectionInfo, password="mock")
+    )
 
 
 @dataclass
