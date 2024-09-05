@@ -213,22 +213,8 @@ class LibvirtPackageInstaller(LibvirtInstaller):
         packages_list = self._distro_package_mapping[type(linux).__name__]
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(packages_list)
-        self._fix_mariner_installation()
+        _fix_mariner_installation(node=self._node)
         return self._get_version()
-
-    # Some fixes to the libvirt installation on Mariner.
-    # Can be removed once the issues have been addressed in Mariner.
-    def _fix_mariner_installation(self) -> None:
-        if not isinstance(self._node.os, CBLMariner):
-            return
-
-        self._node.tools[Usermod].add_user_to_group("libvirt", sudo=True)
-        self._node.tools[Sed].substitute(
-            "hidepid=2",
-            "hidepid=0",
-            "/etc/fstab",
-            sudo=True,
-        )
 
 
 class QemuPackageInstaller(QemuInstaller):
@@ -584,3 +570,20 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
     else:
         libvirt_version = libvirt_installer._get_version()
         log.info(f"Already installed! libvirt version: {libvirt_version}")
+        _fix_mariner_installation(node=node)
+        node.reboot(time_out=900)
+
+
+# Some fixes to the libvirt installation on Mariner.
+# Can be removed once the issues have been addressed in Mariner.
+def _fix_mariner_installation(node: Node) -> None:
+    if not isinstance(node.os, CBLMariner):
+        return
+
+    node.tools[Usermod].add_user_to_group("libvirt", sudo=True)
+    node.tools[Sed].substitute(
+        "hidepid=2",
+        "hidepid=0",
+        "/etc/fstab",
+        sudo=True,
+    )
