@@ -730,7 +730,7 @@ class NetworkSettings(TestSuite):
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
-            netvsc_module_exists = node.execute("stat {netvsc_module}", shell=True, sudo=True).exit_code == 0
+            netvsc_module_exists = node.execute(f"stat {netvsc_module}", shell=True, sudo=True).exit_code == 0
             assert netvsc_module_exists, f"{netvsc_module} doesn't exist."
 
             nm = node.tools[Nm]
