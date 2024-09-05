@@ -730,10 +730,8 @@ class NetworkSettings(TestSuite):
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
-            node.tools[Chmod].chmod(netvsc_module, "777", sudo=True)
-            assert node.shell.exists(
-                PurePosixPath(netvsc_module)
-            ), f"{netvsc_module} doesn't exist."
+            netvsc_module_exists = node.execute("stat {netvsc_module}", shell=True, sudo=True).exit_code == 0
+            assert netvsc_module_exists, f"{netvsc_module} doesn't exist."
 
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
