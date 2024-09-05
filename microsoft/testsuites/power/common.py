@@ -189,7 +189,8 @@ def run_network_workload(environment: Environment) -> Decimal:
 def cleanup_env(environment: Environment) -> None:
     remote_node = cast(RemoteNode, environment.nodes[0])
     startstop = remote_node.features[StartStop]
-    startstop.start()
+    if startstop.get_status() == VMStatus.Deallocated:
+        startstop.start()
     for node in environment.nodes.list():
         kill = node.tools[Kill]
         kill.by_name("iperf3")
