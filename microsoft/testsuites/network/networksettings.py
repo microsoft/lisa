@@ -730,7 +730,7 @@ class NetworkSettings(TestSuite):
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
-
+            node.shell.chmod(PurePosixPath(netvsc_module), 0o755)
             assert node.shell.exists(
                 PurePosixPath(netvsc_module)
             ), f"{netvsc_module} doesn't exist."
