@@ -520,6 +520,24 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Verify if there is any issues in and after 'os update'
+
+        Steps:
+        1. Run os update command.
+        2. Reboot the VM and see if the VM is still in good state.
+        """,
+        priority=2,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    )
+    def verify_os_update(self, node: Node) -> None:
+        if isinstance(node.os, Posix):
+            node.os.update_packages("")
+        else:
+            raise SkippedException(f"Unsupported OS or distro type : {type(node.os)}")
+        node.reboot()
+
+    @TestCaseMetadata(
+        description="""
         This test will check that kvp daemon is installed. This is an optional
         requirement for Debian based distros.
 
