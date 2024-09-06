@@ -796,6 +796,12 @@ class Debian(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
 
+    def add_key(self, server_name: str, key: str) -> None:
+        self._node.execute(
+            f"apt-key adv --keyserver {server_name} --recv-keys {key}",
+            sudo=True,
+        )
+
     def get_apt_error(self, stdout: str) -> List[str]:
         error_lines: List[str] = []
         for line in stdout.splitlines(keepends=False):
