@@ -378,7 +378,8 @@ class NetworkSettings(TestSuite):
             # supports RSS Hash key change. This can be found and later
             # enhanced after running tests.
             min_supported_kernel = str(linux_info.kernel_version)
-
+        log.info(f"verify_device_rss_hash_key_change --- Kernel Version: {linux_info.kernel_version}")
+        log.info(f"verify_device_rss_hash_key_change --- Minimum Supported Kernel Version: {min_supported_kernel}")
         if linux_info.kernel_version < min_supported_kernel:
             raise SkippedException(
                 f"The kernel version {linux_info.kernel_version} does not support"
