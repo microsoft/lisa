@@ -24,7 +24,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
-from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm, Chmod
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm, Chmod, Ls
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
 
@@ -730,8 +730,14 @@ class NetworkSettings(TestSuite):
                     shell=True,
                     cwd=node.working_path,
                 ).stdout
-            netvsc_module_exists = node.execute(f"stat {netvsc_module}", shell=True, sudo=True).exit_code == 0
-            assert netvsc_module_exists, f"{netvsc_module} doesn't exist."
+            # netvsc_module_exists = node.execute(f"stat {netvsc_module}", shell=True, sudo=True).exit_code == 0
+            # assert netvsc_module_exists, f"{netvsc_module} doesn't exist."
+
+            # assert_that(found_link).described_as(
+            # f"sysfs check for NIC device {nic_name} driver returned no output"
+            # ).is_not_equal_to("")
+            ls = node.tools[Ls]
+            assert ls.path_exists(f"{netvsc_module}", sudo=True), f"{netvsc_module} doesn't exist."
 
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
