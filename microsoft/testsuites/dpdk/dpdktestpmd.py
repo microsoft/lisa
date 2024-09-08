@@ -632,7 +632,7 @@ class DpdkTestpmd(Tool):
                     extra_args=self._backport_repo_args,
                 )
             elif (
-                isinstance(node.os, Suse) and float(node.os.information.release) >= 15.5
+                isinstance(node.os, Suse) and float(node.os.information.release) == 15.5
             ):
                 node.os.install_packages(["dpdk22", "dpdk22-devel"])
             elif isinstance(node.os, (Fedora, Suse)):
@@ -646,7 +646,7 @@ class DpdkTestpmd(Tool):
                 f"Installed DPDK version {str(self._dpdk_version_info)} "
                 "from package manager"
             )
-            if isinstance(node.os, Suse) and float(node.os.information.release) >= 15.5:
+            if isinstance(node.os, Suse) and float(node.os.information.release) == 15.5:
                 self._dpdk_version_info = node.os.get_package_information("dpdk22")
             else:
                 self._dpdk_version_info = node.os.get_package_information("dpdk")
