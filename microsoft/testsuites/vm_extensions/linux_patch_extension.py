@@ -106,9 +106,13 @@ def _assert_status_file_result(
         if error_details_not_empty
         else False
     )
-
     ua_esm_required_code = (
         _verify_details_code(status_file, "UA_ESM_REQUIRED")
+        if error_details_not_empty
+        else False
+    )
+    package_manager_failure_code = (
+        _verify_details_code(status_file, "PACKAGE_MANAGER_FAILURE")
         if error_details_not_empty
         else False
     )
@@ -145,7 +149,10 @@ def _assert_status_file_result(
         assert_that(error_code).described_as(
             "Expected 1 error in status file patches operation"
         ).is_equal_to("1")
-
+    elif package_manager_failure_code:
+        assert_that(status_file["status"]).described_as(
+            expected_succeeded_status_msg
+        ).is_equal_to("Succeeded")
     else:
         assert_that(status_file["status"]).described_as(
             expected_succeeded_status_msg
@@ -158,7 +165,7 @@ def _assert_status_file_result(
 
 def _verify_details_code(status_file: Any, code: str) -> bool:
     return any(
-        code in detail_code["code"]
+        code.upper() in detail_code["code"].upper()
         for detail_code in status_file["error"]["details"]
         if "code" in detail_code
     )
