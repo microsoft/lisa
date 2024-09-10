@@ -389,8 +389,8 @@ class VcRunner:
         assert_that(matched.group("exit_code")).described_as(
             f"Exit code on {client_info.node.name} is unexpected"
         ).is_equal_to("0")
-        for node_info in self._targets:
-            node_info.node.close()
+        # for node_info in self._targets:
+        #     node_info.node.close()
 
     def _process_results(self) -> None:
         for target in self._targets:
