@@ -2,16 +2,15 @@
 # Licensed under the MIT license.
 
 import re
-from pathlib import PurePosixPath
+from pathlib import PurePath, PurePosixPath
 from typing import Any, List, Tuple, Type, Union
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
 
-from lisa.base_tools import Mv
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Posix, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -20,28 +19,303 @@ from lisa.tools import (
     Lscpu,
     Lspci,
     Make,
+    Meson,
     Modprobe,
+    Ninja,
     Pidof,
+    Pip,
     Pkgconfig,
-    Rm,
-    Service,
+    Python,
     Tar,
     Timeout,
     Wget,
 )
-from lisa.util import (
-    LisaException,
-    MissingPackagesException,
-    SkippedException,
-    UnsupportedDistroException,
-)
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
+    DependencyInstaller,
+    Downloader,
+    GitDownloader,
+    Installer,
+    OsPackageDependencies,
+    PackageManagerInstall,
+    TarDownloader,
     is_ubuntu_latest_or_prerelease,
     is_ubuntu_lts_version,
+    is_url_for_git_repo,
+    is_url_for_tarball,
 )
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
+
+
+def invalid_os_thrower(os: Posix) -> bool:
+    raise UnsupportedDistroException(
+        os,
+        message=("Installer did not define dependencies for this os."),
+    )
+
+
+# declare package dependencies for package manager DPDK installation
+DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
+    requirements=[
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian),
+            packages=["dpdk", "dpdk-dev"],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Suse)
+            and float(x.information.release) == 15.5,
+            packages=["dpdk22", "dpdk22-devel"],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            # alma/rocky have started
+            # including testpmd by default in 'dpdk'
+            matcher=lambda x: isinstance(x, Fedora)
+            and not x.is_package_in_repo("dpdk-devel"),
+            packages=["dpdk"],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, (Fedora, Suse)),
+            packages=["dpdk", "dpdk-devel"],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(matcher=invalid_os_thrower),
+    ]
+)
+# declare package/tool dependencies for DPDK source installation
+DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
+    requirements=[
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Ubuntu)
+            and x.information.codename == "bionic",
+            packages=[
+                "build-essential",
+                "libmnl-dev",
+                "libelf-dev",
+                "libnuma-dev",
+                "dpkg-dev",
+                "pkg-config",
+                "python3-pip",
+                "python3-pyelftools",
+                "python-pyelftools",
+                # 18.04 doesn't need linux-modules-extra-azure
+                # since it will never have MANA support
+            ],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian),
+            packages=[
+                "build-essential",
+                "libnuma-dev",
+                "libmnl-dev",
+                "python3-pyelftools",
+                "libelf-dev",
+                "pkg-config",
+                "linux-modules-extra-azure",
+            ],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Suse),
+            packages=[
+                "psmisc",
+                "libnuma-devel",
+                "numactl",
+                "libmnl-devel meson",
+                "gcc-c++",
+            ],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, (Fedora)),
+            packages=[
+                "psmisc",
+                "numactl-devel",
+                "pkgconfig",
+                "elfutils-libelf-devel",
+                "python3-pip",
+                "kernel-modules-extra",
+                "kernel-headers",
+                "gcc-c++",
+            ],
+            exclusive_match=True,
+        ),
+        OsPackageDependencies(matcher=invalid_os_thrower),
+    ]
+)
+
+
+def get_debian_backport_repo_args(os: Debian) -> List[str]:
+    if not isinstance(os, Debian):
+        return []
+    if isinstance(os, Ubuntu) and (
+        is_ubuntu_latest_or_prerelease(os) or not is_ubuntu_lts_version(os)
+    ):
+        return []
+    repos = os.get_repositories()
+    backport_repo = f"{os.information.codename}-backports"
+    if any([backport_repo in repo.name for repo in repos]):
+        return [f"-t {backport_repo}"]
+    return []
+
+
+class DpdkPackageManagerInstall(PackageManagerInstall):
+    def _setup_node(self) -> None:
+        if isinstance(self._os, Debian):
+            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
+            if self._os.information.version < "22.4.0":
+                self._os.update_packages("linux-azure")
+                self._node.reboot()
+        elif isinstance(self._os, Fedora):
+            self._os.install_epel()
+
+    def get_installed_version(self) -> VersionInfo:
+        return self._os.get_package_information("dpdk", use_cached=False)
+
+    def _check_if_installed(self) -> bool:
+        return self._os.package_exists("dpdk")
+
+
+# implement SourceInstall for DPDK
+class DpdkSourceInstall(Installer):
+    _sample_applications = [
+        "l3fwd",
+        "multi_process/client_server_mp/mp_server",
+        "multi_process/client_server_mp/mp_client",
+    ]
+
+    def _setup_installation(self) -> None:
+        super()._setup_installation()
+        self._source_path = self._asset_path
+
+    def _check_if_installed(self) -> bool:
+        try:
+            package_manager_install = self._os.package_exists("dpdk")
+            # _get_installed_version for source install throws
+            # if package is not found. So we don't need the result,
+            # if the function doesn't throw, the version was found.
+            _ = self.get_installed_version()
+            # this becomes '(not package manager installed) and
+            #                _get_installed_version() doesn't throw'
+            return not package_manager_install
+        except AssertionError:
+            # _get_installed_version threw an AssertionError
+            # so PkgConfig info was not found
+            return False
+
+    def _setup_node(self) -> None:
+        if isinstance(self._os, Debian):
+            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
+            if self._os.information.version < "22.4.0":
+                self._os.update_packages("linux-azure")
+                self._node.reboot()
+        # install( Tool ) doesn't seem to install the tool until it's used :\
+        # which breaks when another tool checks for it's existence before building...
+        # like cmake, meson, make, autoconf, etc.
+        self._node.tools[Ninja].install()
+        self._node.tools[Pip].install_packages("pyelftools")
+
+    def _clean_previous_installation(self) -> None:
+        # undo source installation (thanks ninja)
+        if not self._check_if_installed():
+            return
+        self._node.tools[Ninja].run(
+            "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
+        )
+        source_path = str(self._source_path)
+        working_path = str(self._node.get_working_path())
+        assert_that(str(source_path)).described_as(
+            "DPDK Installer source path was empty during attempted cleanup!"
+        ).is_not_empty()
+        assert_that(str(source_path)).described_as(
+            "DPDK Installer source path was set to root dir "
+            "'/' during attempted cleanup!"
+        ).is_not_equal_to("/")
+        assert_that(str(source_path)).described_as(
+            f"DPDK Installer source path {source_path} was set to "
+            f"working path '{working_path}' during attempted cleanup!"
+        ).is_not_equal_to(working_path)
+        # remove source code directory
+        self._node.execute(f"rm -rf {str(source_path)}", shell=True)
+
+    def _configure_installation(self) -> None:
+        # no-op for now
+        return
+
+    def get_installed_version(self) -> VersionInfo:
+        return self._node.tools[Pkgconfig].get_package_version(
+            "libdpdk", update_cached=True
+        )
+
+    def _run_installation(self) -> None:
+        if self._sample_applications:
+            sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
+        else:
+            sample_apps = ""
+        node = self._node
+        # save the pythonpath for later
+        python_path = node.tools[Python].get_python_path()
+        self.dpdk_build_path = node.tools[Meson].setup(
+            args=sample_apps, build_dir="build", cwd=self._source_path
+        )
+        node.tools[Ninja].run(
+            cwd=self.dpdk_build_path,
+            timeout=1800,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ninja build for dpdk failed. check build spew for missing headers "
+                "or dependencies. Also check that this ninja version requirement "
+                "has not changed for dpdk."
+            ),
+        )
+        # using sudo and pip modules can get weird on some distros,
+        # whether you install with pip3 --user or not.
+        # to work around, add the user python path to sudo one
+        node.tools[Ninja].run(
+            "install",
+            cwd=self.dpdk_build_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ninja install failed for dpdk binaries."
+            ),
+            update_envs={"PYTHONPATH": f"$PYTHONPATH:{python_path}"},
+        )
+        node.execute(
+            "ldconfig",
+            cwd=self.dpdk_build_path,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="ldconfig failed, check for error spew.",
+        )
+        library_bashrc_lines = [
+            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+        ]
+        node.tools[Echo].write_to_file(
+            ";".join(library_bashrc_lines),
+            node.get_pure_path("$HOME/.bashrc"),
+            append=True,
+        )
+
+
+class DpdkGitDownloader(GitDownloader):
+    # DPDK git specific configuration setup
+    # checkout latest tag if none was set
+    def download(self) -> PurePath:
+        super().download()
+        if not self._git_ref:
+            git = self._node.tools[Git]
+            self._git_ref = git.get_tag(
+                self._source_path, filter_=r"^v.*"  # starts w 'v'
+            )
+            git.checkout(self._git_ref, cwd=self._source_path)
+        return self._source_path
 
 
 class DpdkTestpmd(Tool):
@@ -126,7 +400,6 @@ class DpdkTestpmd(Tool):
         "gcc-c++",
     ]
     _rte_target = "x86_64-native-linuxapp-gcc"
-    _ninja_url = "https://github.com/ninja-build/ninja/"
 
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
@@ -135,6 +408,7 @@ class DpdkTestpmd(Tool):
         _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
+    _source_build_dest_dir = "/usr/local/bin"
 
     def get_rdma_core_package_name(self) -> str:
         distro = self.node.os
@@ -203,10 +477,17 @@ class DpdkTestpmd(Tool):
         # include flag changed to 'allowlist' in 20.11
         # use 'allow' instead of 'deny' for envionments where
         # there is 1 shared bus address (MANA)
-        if self._dpdk_version_info and self._dpdk_version_info < "20.11.0":
-            include_flag = "-w"
-        else:
+        # NOTE: I keep running into weird special cases of this.
+        # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
+        help_output = self.node.execute(
+            f"{self.command} --help", no_debug_log=True, no_info_log=True
+        )
+        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
+        if allow_flag:
             include_flag = "-a"
+        else:
+            include_flag = "-w"
+
         include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
@@ -331,7 +612,10 @@ class DpdkTestpmd(Tool):
         assert_that(max_core_index).described_as(
             "Test needs at least 1 core for servicing and one core for forwarding"
         ).is_greater_than(0)
-
+        assert_that(self._testpmd_install_path).described_as(
+            "Testpmd install path was not set, this indicates a logic"
+            " error in the DPDK installation process."
+        ).is_not_empty()
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
@@ -463,6 +747,17 @@ class DpdkTestpmd(Tool):
         else:
             self._sample_apps_to_build = []
 
+    def get_example_app_path(self, app_name: str) -> PurePath:
+        if isinstance(self.installer, DpdkSourceInstall):
+            return self.installer.dpdk_build_path.joinpath("examples").joinpath(
+                app_name
+            )
+        else:
+            raise AssertionError(
+                "get_example_app_path called for DPDK package manager installation! "
+                f"Trying to find {app_name} when DPDK was not built from source."
+            )
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -470,14 +765,43 @@ class DpdkTestpmd(Tool):
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
-        if not self.use_package_manager_install():
+        self._expected_install_path = ""
+        self._determine_network_hardware()
+        if self.use_package_manager_install():
+            self.installer: Installer = DpdkPackageManagerInstall(
+                self.node, DPDK_PACKAGE_MANAGER_PACKAGES
+            )
+        # if not package manager, choose source installation
+        else:
             self._dpdk_repo_path_name = "dpdk"
+            self._expected_install_path = self._source_build_dest_dir
+
             work_path = self.node.get_working_path_with_required_space(5)
             self.current_work_path = self.node.get_pure_path(work_path)
             self.dpdk_path = self.node.get_pure_path(work_path).joinpath(
                 self._dpdk_repo_path_name
             )
-        self._determine_network_hardware()
+            if is_url_for_git_repo(self._dpdk_source):
+                downloader: Downloader = DpdkGitDownloader(
+                    node=self.node,
+                    git_repo=self._dpdk_source,
+                    git_ref=self._dpdk_branch,
+                )
+
+            elif is_url_for_tarball(self._dpdk_source):
+                downloader = TarDownloader(node=self.node, tar_url=self._dpdk_source)
+            else:
+                raise LisaException(
+                    "URL provided for dpdk source did not validate as "
+                    f"a tarball or git repo. Found {self._dpdk_source} "
+                    " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
+                    "https://__/__.tar[.gz]"
+                )
+            self.installer = DpdkSourceInstall(
+                node=self.node,
+                os_dependencies=DPDK_SOURCE_INSTALL_PACKAGES,
+                downloader=downloader,
+            )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
@@ -555,13 +879,13 @@ class DpdkTestpmd(Tool):
         tar_path = wget.get(
             url=(
                 "https://github.com/linux-rdma/rdma-core/"
-                "releases/download/v46.0/rdma-core-46.0.tar.gz"
+                "releases/download/v50.1/rdma-core-50.1.tar.gz"
             ),
             file_path=str(node.working_path),
         )
 
         tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-        source_path = node.working_path.joinpath("rdma-core-46.0")
+        source_path = node.working_path.joinpath("rdma-core-50.1")
         node.execute(
             "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
             shell=True,
@@ -570,199 +894,29 @@ class DpdkTestpmd(Tool):
         )
         make.make_install(source_path)
 
-    def _set_backport_repo_args(self) -> None:
-        distro = self.node.os
-        # skip attempting to use backports for latest/prerlease
-        # and non-lts ubuntu versions
-        if isinstance(distro, Ubuntu) and (
-            is_ubuntu_latest_or_prerelease(distro) or not is_ubuntu_lts_version(distro)
-        ):
-            self._backport_repo_args = []
-        # otherwise check if a backport repo exists use it if so
-        elif isinstance(distro, Debian):
-            repos = distro.get_repositories()
-            backport_repo = f"{distro.information.codename}-backports"
-            if any([backport_repo in repo.name for repo in repos]):
-                self._backport_repo_args = [f"-t {backport_repo}"]
-            else:
-                self._backport_repo_args = []
-        # otherwise assume backports are included in default repos
-        # TODO: check for how RHEL and SUSE manage backports
-        else:
-            self._backport_repo_args = []
-
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
         self._testpmd_output_during_rescind = ""
         self._last_run_output = ""
         node = self.node
-        # before doing anything: determine if backport repo needs to be enabled
-        self._set_backport_repo_args()
-
-        if self.has_dpdk_version():
-            # DPDK is already installed
-            node.log.info(
-                "DPDK was installed from source previously, using existing DPDK."
-            )
-            self._load_drivers_for_dpdk()
-            return True
-
-        # otherwise, install from package manager, git, or tar
-
-        self._install_dependencies()
-
-        # if this is mana VM, we need an upstream rdma-core package (for now)
+        if not isinstance(node.os, (Debian, Fedora, Suse)):
+            return False
+        if isinstance(node.os, Ubuntu) and node.os.information.codename == "bionic":
+            # bionic needs to update to latest first
+            node.os.update_packages("")
         if self.is_mana:
             if not (isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)):
                 raise SkippedException("MANA DPDK test is not supported on this OS")
-
             # ensure no older dependency is installed
             node.os.uninstall_packages("rdma-core")
             self._install_upstream_rdma_core_for_mana()
-
-        # installing from distro package manager
-        if self.use_package_manager_install():
-            self.node.log.info(
-                "Installing dpdk and dev package from package manager..."
-            )
-            if isinstance(node.os, Debian):
-                node.os.install_packages(
-                    ["dpdk", "dpdk-dev"],
-                    extra_args=self._backport_repo_args,
-                )
-            elif (
-                isinstance(node.os, Suse) and float(node.os.information.release) == 15.5
-            ):
-                node.os.install_packages(["dpdk22", "dpdk22-devel"])
-            elif isinstance(node.os, (Fedora, Suse)):
-                node.os.install_packages(["dpdk", "dpdk-devel"])
-            else:
-                raise NotImplementedError(
-                    "Dpdk package names are missing in dpdktestpmd.install"
-                    f" for os {node.os.name}"
-                )
-            self.node.log.info(
-                f"Installed DPDK version {str(self._dpdk_version_info)} "
-                "from package manager"
-            )
-            if isinstance(node.os, Suse) and float(node.os.information.release) == 15.5:
-                self._dpdk_version_info = node.os.get_package_information("dpdk22")
-            else:
-                self._dpdk_version_info = node.os.get_package_information("dpdk")
-            self.find_testpmd_binary()
-            self._load_drivers_for_dpdk()
-            return True
-
-        # otherwise install from source tarball or git
-        self.node.log.info(f"Installing dpdk from source: {self._dpdk_source}")
-
-        if self.find_testpmd_binary(
-            assert_on_fail=False, check_path="/usr/local/bin"
-        ):  # tools are already installed
-            # version info must already be set from __init__
-            return True
-
-        git_tool = node.tools[Git]
-        echo_tool = node.tools[Echo]
-
-        if self._dpdk_source and self._dpdk_source.endswith(".tar.gz"):
-            wget_tool = node.tools[Wget]
-            tar_tool = node.tools[Tar]
-            if self._dpdk_branch:
-                node.log.warn(
-                    (
-                        "DPDK tarball source does not need dpdk_branch defined. "
-                        "User-defined variable dpdk_branch will be ignored."
-                    )
-                )
-            wget_tool.get(
-                self._dpdk_source,
-                str(self.current_work_path),
-            )
-            dpdk_filename = self._dpdk_source.split("/")[-1]
-            # extract tar into dpdk/ folder and discard old root folder name
-            tar_tool.extract(
-                str(self.current_work_path.joinpath(dpdk_filename)),
-                str(self.dpdk_path),
-                strip_components=1,
-            )
         else:
-            git_tool.clone(
-                self._dpdk_source,
-                cwd=self.current_work_path,
-                dir_name=self._dpdk_repo_path_name,
-            )
-            if not self._dpdk_branch:
-                # dpdk stopped using a default branch
-                # if a branch is not specified, get latest version tag.
-                self._dpdk_branch = git_tool.get_tag(
-                    self.dpdk_path, filter_=r"^v.*"  # starts w 'v'
-                )
-
-            git_tool.checkout(self._dpdk_branch, cwd=self.dpdk_path)
-
+            node.os.install_packages(self.get_rdma_core_package_name())
+        self.installer.do_installation()
+        self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
-
-        # add sample apps to compilation if they are present
-        if self._sample_apps_to_build:
-            sample_apps = f"-Dexamples={','.join(self._sample_apps_to_build)}"
-        else:
-            sample_apps = ""
-
-        node.execute(
-            f"meson {sample_apps} build",
-            shell=True,
-            cwd=self.dpdk_path,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "meson build for dpdk failed, check that"
-                "dpdk build has not changed to eliminate the use of meson or "
-                "meson version is compatible with this dpdk version and OS."
-            ),
-        )
-        self.dpdk_build_path = self.dpdk_path.joinpath("build")
-        node.execute(
-            "ninja",
-            cwd=self.dpdk_build_path,
-            timeout=1800,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ninja build for dpdk failed. check build spew for missing headers "
-                "or dependencies. Also check that this ninja version requirement "
-                "has not changed for dpdk."
-            ),
-        )
-        node.execute(
-            "ninja install",
-            cwd=self.dpdk_build_path,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ninja install failed for dpdk binaries."
-            ),
-        )
-        node.execute(
-            "ldconfig",
-            cwd=self.dpdk_build_path,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="ldconfig failed, check for error spew.",
-        )
-        library_bashrc_lines = [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-        ]
-        echo_tool.write_to_file(
-            ";".join(library_bashrc_lines),
-            node.get_pure_path("~/.bashrc"),
-            append=True,
-        )
-
-        self.find_testpmd_binary(check_path="/usr/local/bin")
-        self._dpdk_version_info = self.node.tools[Pkgconfig].get_package_version(
-            self._dpdk_lib_name, update_cached=True
-        )
+        self.find_testpmd_binary(check_path=self._expected_install_path)
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
@@ -837,193 +991,6 @@ class DpdkTestpmd(Tool):
         modprobe.load(rdma_drivers)
         if network_drivers:
             modprobe.load(network_drivers)
-
-    def _install_dependencies(self) -> None:
-        node = self.node
-        if isinstance(node.os, Ubuntu):
-            self._install_ubuntu_dependencies()
-        elif isinstance(node.os, Debian):
-            node.os.install_packages(
-                self._debian_packages, extra_args=self._backport_repo_args
-            )
-        elif isinstance(node.os, Fedora):
-            self._install_fedora_dependencies()
-        elif isinstance(node.os, Suse):
-            self._install_suse_dependencies()
-        else:
-            raise UnsupportedDistroException(
-                node.os, "This OS does not have dpdk installation implemented yet."
-            )
-
-    def _install_suse_dependencies(self) -> None:
-        node = self.node
-        suse = node.os
-        if not isinstance(suse, Suse):
-            fail(
-                "_install_suse_dependencies was called on node "
-                f"which was not suse: {node.os.information.full_version}"
-            )
-            return  # appease the type checker
-        if suse.information.version < "15.0.0":
-            raise SkippedException(
-                f"Suse {str(suse.information.version)} is not supported. "
-                "Minimum documented version for DPDK support is >= SLES15"
-            )
-        else:
-            suse.install_packages(self._suse_packages)
-            if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
-            rdma_core_packages = self.get_rdma_core_package_name()
-            if rdma_core_packages:
-                suse.install_packages(rdma_core_packages.split())
-
-    def _install_ubuntu_dependencies(self) -> None:
-        node = self.node
-        ubuntu = node.os
-        if not isinstance(ubuntu, Ubuntu):
-            fail(
-                "_install_ubuntu_dependencies was called on node "
-                f"which was not Ubuntu: {node.os.information.full_version}"
-            )
-            return  # appease the type checker
-
-        # apply update to latest first
-        ubuntu.update_packages("linux-azure")
-        node.reboot()
-        if ubuntu.information.version < "18.4.0":
-            raise SkippedException(
-                f"Ubuntu {str(ubuntu.information.version)} is not supported. "
-                "Minimum documented version for DPDK support is >=18.04"
-            )
-        elif ubuntu.information.version < "20.4.0":
-            ubuntu.install_packages(
-                self._ubuntu_packages_1804,
-                extra_args=self._backport_repo_args,
-            )
-            if not self.use_package_manager_install():
-                self._install_ninja_and_meson()
-        else:
-            ubuntu.install_packages(
-                self._ubuntu_packages_2004,
-                extra_args=self._backport_repo_args,
-            )
-            # MANA tests use linux-modules-extra-azure, install if it's available.
-            if self.is_mana and ubuntu.is_package_in_repo("linux-modules-extra-azure"):
-                ubuntu.install_packages("linux-modules-extra-azure")
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            ubuntu.install_packages(rdma_core_packages.split())
-
-    def _install_fedora_dependencies(self) -> None:
-        node = self.node
-        rhel = node.os
-        if not isinstance(rhel, Fedora):
-            fail(
-                "_install_fedora_dependencies was called on node "
-                f"which was not Fedora: {node.os.information.full_version}"
-            )
-            return  # appease the type checker
-
-        # DPDK is very sensitive to rdma-core/kernel mismatches
-        # update to latest kernel before instaling dependencies
-        rhel.install_packages("kernel")
-        node.reboot()
-
-        if rhel.information.version.major == 7:
-            # Add packages for rhel7
-            rhel.install_packages(["libmnl-devel", "libbpf-devel"])
-
-        try:
-            rhel.install_packages("kernel-devel-$(uname -r)")
-        except MissingPackagesException:
-            node.log.debug("kernel-devel-$(uname -r) not found. Trying kernel-devel")
-            rhel.install_packages("kernel-devel")
-
-        # RHEL 8 doesn't require special cases for installed packages.
-        # TODO: RHEL9 may require updates upon release
-        rdma_core_packages = self.get_rdma_core_package_name()
-        if rdma_core_packages:
-            self._fedora_packages += rdma_core_packages.split()
-            rhel.group_install_packages("Infiniband Support")
-
-        rhel.group_install_packages("Development Tools")
-        rhel.install_packages(self._fedora_packages)
-
-        # ensure RDMA service is started if present.
-
-        service_name = "rdma"
-        service = node.tools[Service]
-        if service.check_service_exists(service_name):
-            if not service.check_service_status(service_name):
-                service.enable_service(service_name)
-
-            # some versions of RHEL and CentOS have service.rdma
-            # that will refuse manual start/stop and will return
-            # NOPERMISSION. This is not fatal and can be continued.
-            # If the service is present it should start when needed.
-            service.restart_service(
-                service_name, ignore_exit_code=service.SYSTEMD_EXIT_NOPERMISSION
-            )
-
-        if not self.use_package_manager_install():
-            self._install_ninja_and_meson()
-
-    def _install_ninja_and_meson(self) -> None:
-        node = self.node
-
-        node.execute(
-            "pip3 install --upgrade meson",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to update Meson to latest version with pip3"
-            ),
-        )
-        # after upgrade meson
-        # if meson is in /usr/local/bin, link it
-        # if meson is in /usr/bin, do nothing, upgrade will overwrite it
-        if node.shell.exists(node.get_pure_path("/usr/local/bin/meson")):
-            node.tools[Rm].remove_file("/usr/bin/meson", sudo=True)
-            node.execute(
-                "ln -fs /usr/local/bin/meson /usr/bin/meson",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to link new meson version as the default "
-                    "version in /usr/bin"
-                ),
-            )
-
-        # NOTE: finding latest ninja is a pain,
-        # so just fetch latest from github here
-        git_tool = self.node.tools[Git]
-        git_tool.clone(
-            self._ninja_url,
-            cwd=node.working_path,
-        )
-        node.execute(
-            "./configure.py --bootstrap",
-            cwd=node.get_pure_path(f"{node.working_path}/ninja"),
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to run ./configure.py --bootstrap"
-            ),
-        )
-        node.tools[Mv].move(
-            f"{node.working_path}/ninja/ninja",
-            "/usr/bin/ninja",
-            overwrite=True,
-            sudo=True,
-        )
-
-        node.execute(
-            "pip3 install --upgrade pyelftools",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Could not upgrade pyelftools with pip3."
-            ),
-        )
 
     def find_testpmd_binary(
         self, check_path: str = "", assert_on_fail: bool = True
