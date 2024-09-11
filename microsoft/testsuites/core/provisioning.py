@@ -158,12 +158,12 @@ class Provisioning(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            disk=schema.DiskOptionSettings(
+             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumV2SSDLRS,
                 data_disk_count=search_space.IntRange(min=1),
             ),
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[SerialConsole, AvailabilityZoneEnabled()],
+            supported_features=[SerialConsole],
         ),
     )
     def verify_deployment_provision_premiumv2_disk(

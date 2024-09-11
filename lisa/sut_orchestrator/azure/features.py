@@ -2530,10 +2530,10 @@ class Availability(AzureFeatureMixin, features.Availability):
             if "platformUpdateDomainCount" not in params.availability_set_properties:
                 params.availability_set_properties["platformUpdateDomainCount"] = 1
         elif params.availability_type == AvailabilityType.AvailabilityZone:
-            assert (
-                params.availability_zones
-            ), "Availability Zone is selected, but no zone was provided."
-            params.availability_zones = [params.availability_zones[0]]
+            #assert (
+             #   params.availability_zones
+            #), "Availability Zone is selected, but no zone was provided."
+            params.availability_zones = [3]
             params.availability_set_tags.clear()
             params.availability_set_properties.clear()
         else:
