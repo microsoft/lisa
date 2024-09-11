@@ -53,6 +53,7 @@ Class TestController {
 	[string] $RGIdentifier
 	[string] $OsVHD
 	[string] $TestCategory
+	[string] $ovlname
 	[string] $TestNames
 	[string] $TestArea
 	[string] $TestTag
@@ -270,6 +271,7 @@ Class TestController {
 		$this.SetupTypeToTestCases = @{}
 		$this.SetupTypeTable = @{}
 		$allTests = $null
+		$this.ovlname=""
 		$SetupTypeXMLs = Get-ChildItem -Path "$WorkingDirectory\XML\VMConfigurations\*.xml"
 		foreach ($file in $SetupTypeXMLs.FullName) {
 			$setupXml = [xml]( Get-Content -Path $file)
@@ -302,11 +304,19 @@ Class TestController {
 				foreach ($CustomParameter in $CustomTestParameters) {
 					$ReplaceThis = $CustomParameter.Split("=")[0]
 					$ReplaceWith = $CustomParameter.Substring($CustomParameter.IndexOf("=") + 1)
+					if($ReplaceThis -eq "ovlname")
+					{
+                           $this.ovlname=$ReplaceWith
+					}
+					else {
+					
+					
 					$OldValue = ($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 						{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith
 					($ReplaceableTestParameters.ReplaceableTestParameters.Parameter | Where-Object `
 						{ $_.ReplaceThis -eq $ReplaceThis }).ReplaceWith = $ReplaceWith
 					Write-LogInfo "Custom Parameter: $ReplaceThis=$OldValue --> $ReplaceWith"
+					}
 				}
 				Write-LogInfo "Custom parameter(s) are ready to be injected along with default parameters, if any."
 			}
@@ -323,12 +333,12 @@ Class TestController {
 			}
 		}
 		if (!$allTests) {
-			Throw "Not able to collect any test cases from XML files"
+			Write-LogWarn "Not able to collect any test cases from XML files"
 		}
 		else {
 			$collectedTCCount = $allTests.Count
 			Write-LogInfo "$collectedTCCount Test Cases have been collected"
-		}
+		
 		$this.PrepareSetupTypeToTestCases($this.SetupTypeToTestCases, $allTests)
 		if (($this.TotalCaseNum -eq 0) -or ($allTests.Count -eq 0)) {
 			Write-LogWarn "All collected test cases are skipped, because the test case has native SetupConfig that conflicts with current Run-LISAv2 parameters, or LISAv2 needs more specific parameters to run against selected test cases, please check again"
@@ -364,6 +374,7 @@ Class TestController {
 				$parallelTestsDoc.Save("$parallelTestsFilePath")
 			}
 		}
+	  }
 	}
 
 	[void] PrepareTestImage() {}
@@ -903,7 +914,7 @@ Class TestController {
 
 		Write-LogInfo "Prepare test log structure and start testing now ..."
 		# Start JUnit XML report logger.
-		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath)
+		$this.JunitReport = [JUnitReportGenerator]::New($TestReportXmlPath,$this.TestCategory,$this.ovlname)
 		$this.JunitReport.StartLogTestSuite("LISAv2Test-$($this.TestPlatform)")
 		$this.TestSummary = [TestSummary]::New($this.TestCategory, $this.TestArea, $this.TestNames, $this.TestTag, $this.TestPriority, $this.TotalCaseNum)
 
