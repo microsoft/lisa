@@ -24,7 +24,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
-from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm, Ls
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
 
@@ -731,9 +731,8 @@ class NetworkSettings(TestSuite):
                     cwd=node.working_path,
                 ).stdout
 
-            assert node.shell.exists(
-                PurePosixPath(netvsc_module)
-            ), f"{netvsc_module} doesn't exist."
+            ls = node.tools[Ls]
+            assert ls.path_exists(f"{netvsc_module}", sudo=True), f"{netvsc_module} doesn't exist."
 
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
