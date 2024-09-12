@@ -33,6 +33,15 @@ class Python(Tool):
 
         return self._check_exists()
 
+    def get_python_path(self, sudo: bool = False) -> str:
+        return self.run(
+            '-c "import sys; print(' + "':'" + '.join([x for x in sys.path if x]))"',
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("Could not fetch python sys.path!"),
+            shell=True,
+            sudo=sudo,
+        ).stdout
+
 
 class Pip(Tool):
     _no_permission_pattern = re.compile(r"Permission denied", re.M)
@@ -60,9 +69,14 @@ class Pip(Tool):
         self.node.os.install_packages(package_name)
         return self._check_exists()
 
-    def install_packages(self, packages_name: str, install_path: str = "") -> None:
+    def install_packages(
+        self, packages_name: str, install_path: str = "", install_to_user: bool = False
+    ) -> None:
         node = self.node
-        cmd_line = f"install -q {packages_name}"
+        if not install_to_user:
+            cmd_line = f"install -q {packages_name}"
+        else:
+            cmd_line = f"install --user -q {packages_name}"
 
         envs = {}
         if install_path != "":
