@@ -292,6 +292,7 @@ class LisaRunner(BaseRunner):
     ) -> None:
         try:
             try:
+                # Attempt to deploy the environment
                 self.platform.deploy_environment(environment)
                 assert (
                     environment.status == EnvironmentStatus.Deployed
@@ -308,12 +309,16 @@ class LisaRunner(BaseRunner):
                     # rerun prepare to calculate resource again.
                     environment.status = EnvironmentStatus.New
         except Exception as identifier:
-            self._attach_failed_environment_to_result(
-                environment=environment,
-                result=test_results[0],
-                exception=identifier,
-            )
-            self._delete_environment_task(environment=environment, test_results=[])
+            if self._need_retry(environment):
+                environment.status = EnvironmentStatus.New
+            else:
+                # Final attempt failed; handle the failure
+                self._attach_failed_environment_to_result(
+                    environment=environment,
+                    result=test_results[0],
+                    exception=identifier,
+                )
+                self._delete_environment_task(environment=environment, test_results=[])
 
     def _initialize_environment_task(
         self, environment: Environment, test_results: List[TestResult]
