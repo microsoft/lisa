@@ -377,7 +377,11 @@ class AzurePrepareTestCase(TestCase):
                 _ = node_req.get_extended_runbook(common.AzureNodeSchema, AZURE)
                 runbook._original_nodes_requirement.append(node_req)
         environment = Environment(
-            is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
+            is_predefined=True,
+            warn_as_error=False,
+            id_=0,
+            runbook=runbook,
+            retry=0,
         )
 
         return environment

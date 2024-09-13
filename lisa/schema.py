@@ -1320,6 +1320,13 @@ class Environment:
 class EnvironmentRoot:
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
+    # Number of retry attempts for failed deployments (min=0)
+    retry: int = field(
+        default=0,
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=0)
+        ),
+    )
 
 
 @dataclass_json()
