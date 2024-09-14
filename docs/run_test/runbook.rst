@@ -66,6 +66,8 @@ Runbook Reference
 
    -  `environment <#environment>`__
 
+      -  `retry <#retry>`__
+
       -  `environments <#environments>`__
 
          -  `name <#name-4>`__
@@ -669,6 +671,11 @@ environment
 
 List of environments. For more information, refer to
 :ref:`write_test/concepts:node and environment`.
+
+retry
+^^^^^^^^^^^^
+
+Number of retry attempts for failed deployments, default value is 0.
 
 environments
 ^^^^^^^^^^^^
