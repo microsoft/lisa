@@ -616,6 +616,51 @@ class RunnerTestCase(TestCase):
             test_results=test_results,
         )
 
+    def test_env_retry_on_deployment_fail(self) -> None:
+        # retry when fail to deploy
+        platform_schema = test_platform.MockPlatformSchema(deploy_success=False)
+        test_testsuite.generate_cases_metadata()
+        env_runbook = generate_env_runbook()
+        env_runbook.retry = 2
+        runner = generate_runner(env_runbook, platform_schema=platform_schema)
+        test_result_messages = self._run_all_tests(runner)
+        deployment_failure = "deployment failed. LisaException: mock deploy failed"
+        self.verify_env_results(
+            expected_prepared=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+                "generated_0",
+                "generated_0",
+                "generated_1",
+                "generated_1",
+                "generated_2",
+                "generated_2",
+            ],
+            expected_deployed_envs=[],
+            expected_deleted_envs=[
+                "generated_0",
+                "generated_1",
+                "generated_2",
+            ],
+            runner=runner,
+        )
+        self.verify_test_results(
+            expected_test_order=["mock_ut1", "mock_ut2", "mock_ut3"],
+            expected_envs=["generated_0", "generated_1", "generated_2"],
+            expected_status=[
+                TestStatus.FAILED,
+                TestStatus.FAILED,
+                TestStatus.FAILED,
+            ],
+            expected_message=[
+                deployment_failure,
+                deployment_failure,
+                deployment_failure,
+            ],
+            test_results=test_result_messages,
+        )
+
     def verify_test_results(
         self,
         expected_test_order: List[str],

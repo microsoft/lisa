@@ -368,6 +368,7 @@ class AzurePrepareTestCase(TestCase):
     def load_environment(
         self,
         node_req_count: int = 2,
+        retry: int = 0,
     ) -> Environment:
         runbook = schema.Environment()
         if node_req_count > 0:
@@ -381,7 +382,7 @@ class AzurePrepareTestCase(TestCase):
             warn_as_error=False,
             id_=0,
             runbook=runbook,
-            retry=0,
+            retry=retry,
         )
 
         return environment
