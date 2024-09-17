@@ -732,7 +732,7 @@ class NetworkSettings(TestSuite):
 
             ls = node.tools[Ls]
             assert ls.path_exists(
-                f"{netvsc_module}", sudo=True
+                netvsc_module, sudo=True
             ), f"{netvsc_module} doesn't exist."
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
