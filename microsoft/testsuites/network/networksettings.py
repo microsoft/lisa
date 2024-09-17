@@ -737,7 +737,7 @@ class NetworkSettings(TestSuite):
             # f"sysfs check for NIC device {nic_name} driver returned no output"
             # ).is_not_equal_to("")
             ls = node.tools[Ls]
-            assert ls.path_exists(f"/home/{netvsc_module}", sudo=True), f"{netvsc_module} doesn't exist."
+            assert ls.path_exists(netvsc_module, sudo=True), f"{netvsc_module} doesn't exist."
 
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
