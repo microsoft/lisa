@@ -406,27 +406,23 @@ class NetworkSettings(TestSuite):
         #     )
 
         try:
-            linux_version_parsed = semver.VersionInfo.parse(linux_info.kernel_version)
-            valid_semver = True
+            if linux_info.kernel_version < min_supported_kernel:
+                raise SkippedException(
+                    f"The kernel version {linux_info.kernel_version} does not support"
+                    " changing RSS hash key."
+                )
         except ValueError:
-            valid_semver = False
             log.info(
                 f"Unable to parse the Kernel version: {str(linux_info.kernel_version)}"
             )
-        if valid_semver:
-            if linux_version_parsed < min_supported_kernel:
-                raise SkippedException(
-                    f"Semver: The kernel version {linux_info.kernel_version} does not support"
-                    " changing RSS hash key."
-                )
-        else:
-            # Fallback comparison mechanism (e.g., lexicographical comparison)
             if str(linux_info.kernel_version) < min_supported_kernel:
                 raise SkippedException(
                     f"Lexographic: The kernel version {linux_info.kernel_version} does not support"
                     " changing RSS hash key."
                 )
-
+        log.info(
+                f"Comparison Succeeded for: {str(linux_info.kernel_version)}"
+            )
         ethtool = node.tools[Ethtool]
         try:
             devices_rss_hkey_info = ethtool.get_all_device_rss_hash_key()
