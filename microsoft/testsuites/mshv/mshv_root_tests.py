@@ -15,8 +15,8 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Ls, Service
-from lisa.util import SkippedException
+from lisa.tools import Dmesg, KernelConfig, Ls, Service
+from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -33,12 +33,12 @@ class MshvHostTestSuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        if not node.tools[Ls].path_exists("/dev/mshv", sudo=True):
-            raise SkippedException("This suite is for MSHV root partition only")
+        if not node.tools[KernelConfig].is_enabled("CONFIG_MSHV_DIAG"):
+            raise SkippedException("MSHV_DIAG not enabled, skip")
 
         if not node.tools[Ls].path_exists("/dev/mshv_diag", sudo=True):
-            raise SkippedException(
-                "mshv_diag module should be loaded on MSHV root parition."
+            raise LisaException(
+                "mshv_diag device should exist, when CONFIG_MSHV_DIAG is enabled."
             )
 
     @TestCaseMetadata(
