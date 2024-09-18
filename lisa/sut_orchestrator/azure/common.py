@@ -1113,6 +1113,7 @@ class DataDiskSchema:
                     schema.DiskType.StandardHDDLRS,
                     schema.DiskType.StandardSSDLRS,
                     schema.DiskType.PremiumSSDLRS,
+                    schema.DiskType.PremiumV2SSDLRS,
                     schema.DiskType.UltraSSDLRS,
                     schema.DiskType.Ephemeral,
                 ]

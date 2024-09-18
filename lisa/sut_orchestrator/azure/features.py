@@ -1262,6 +1262,17 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
         (16384, 18000, 750),
         (32767, 20000, 900),
     ],
+    schema.DiskType.PremiumV2SSDLRS: [
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
+    ],
     schema.DiskType.StandardHDDLRS: [
         (32, 500, 60),
         (8192, 1300, 300),
@@ -1953,6 +1964,7 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
 _disk_type_mapping: Dict[schema.DiskType, str] = {
     schema.DiskType.Ephemeral: "Ephemeral",
     schema.DiskType.PremiumSSDLRS: "Premium_LRS",
+    schema.DiskType.PremiumV2SSDLRS: "PremiumV2_LRS",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
     schema.DiskType.UltraSSDLRS: "UltraSSD_LRS",
