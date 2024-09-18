@@ -379,12 +379,7 @@ class NetworkSettings(TestSuite):
             # supports RSS Hash key change. This can be found and later
             # enhanced after running tests.
             min_supported_kernel = str(linux_info.kernel_version)
-        log.info(
-            f"linx_info.kernel_version: {linux_info.kernel_version}"
-            )
-        log.info(
-            f"min_supported_kernel: {min_supported_kernel}"
-        )
+
         try:
             kernel_version = node.execute(
                     f"uname -r",
@@ -403,11 +398,34 @@ class NetworkSettings(TestSuite):
             log.info(
                 f"Error: {e}"
                 )
-        if linux_info.kernel_version < min_supported_kernel:
-            raise SkippedException(
-                f"The kernel version {linux_info.kernel_version} does not support"
-                " changing RSS hash key."
+                
+        # if linux_info.kernel_version < min_supported_kernel:
+        #     raise SkippedException(
+        #         f"The kernel version {linux_info.kernel_version} does not support"
+        #         " changing RSS hash key."
+        #     )
+
+        try:
+            linux_version_parsed = semver.VersionInfo.parse(linux_info.kernel_version)
+            valid_semver = True
+        except ValueError:
+            valid_semver = False
+            log.info(
+                f"Unable to parse the Kernel version: {str(linux_info.kernel_version)}"
             )
+        if valid_semver:
+            if linux_version_parsed < min_supported_kernel:
+                raise SkippedException(
+                    f"Semver: The kernel version {linux_info.kernel_version} does not support"
+                    " changing RSS hash key."
+                )
+        else:
+            # Fallback comparison mechanism (e.g., lexicographical comparison)
+            if str(linux_info.kernel_version) < min_supported_kernel:
+                raise SkippedException(
+                    f"Lexographic: The kernel version {linux_info.kernel_version} does not support"
+                    " changing RSS hash key."
+                )
 
         ethtool = node.tools[Ethtool]
         try:
