@@ -42,7 +42,7 @@ class Wget(Tool):
         overwrite: bool = True,
         executable: bool = False,
         sudo: bool = False,
-        force_run: bool = False,
+        force_run: bool = True,
         timeout: int = 600,
     ) -> str:
         is_valid_url(url)
