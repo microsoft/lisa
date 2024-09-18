@@ -3,6 +3,7 @@
 
 import re
 import time
+import semver
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Tuple, Union, cast
 
@@ -378,7 +379,30 @@ class NetworkSettings(TestSuite):
             # supports RSS Hash key change. This can be found and later
             # enhanced after running tests.
             min_supported_kernel = str(linux_info.kernel_version)
-
+        log.info(
+            f"linx_info.kernel_version: {linux_info.kernel_version}"
+            )
+        log.info(
+            f"min_supported_kernel: {min_supported_kernel}"
+        )
+        try:
+            kernel_version = node.execute(
+                    f"uname -r",
+                    shell=True,
+                    cwd=node.working_path,
+                ).stdout
+            log.info(
+                f"-------- Kernel Version: {kernel_version}"
+            )   
+            parsed_val = semver.VersionInfo.parse(kernel_version)
+            
+            log.info(
+                f"--------- parsed value: {parsed_val}"
+            )   
+        except Exception as e:
+            log.info(
+                f"Error: {e}"
+                )
         if linux_info.kernel_version < min_supported_kernel:
             raise SkippedException(
                 f"The kernel version {linux_info.kernel_version} does not support"
