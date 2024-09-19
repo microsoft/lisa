@@ -378,11 +378,21 @@ class NetworkSettings(TestSuite):
             # enhanced after running tests.
             min_supported_kernel = str(linux_info.kernel_version)
 
-        if linux_info.kernel_version < min_supported_kernel:
-            raise SkippedException(
-                f"The kernel version {linux_info.kernel_version} does not support"
-                " changing RSS hash key."
+        try:
+            if linux_info.kernel_version < min_supported_kernel:
+                raise SkippedException(
+                    f"The kernel version {linux_info.kernel_version} does not support"
+                    " changing RSS hash key."
+                )
+        except ValueError:
+            log.info(
+                f"Unable to parse the Kernel version using Semver: {str(linux_info.kernel_version)} \nDefaulting to Lexographic comparison."
             )
+            if str(linux_info.kernel_version) < min_supported_kernel:
+                raise SkippedException(
+                    f"The kernel version {linux_info.kernel_version} does not support"
+                    " changing RSS hash key."
+                )
 
         ethtool = node.tools[Ethtool]
         try:
