@@ -8,7 +8,6 @@ from lisa.operating_system import Redhat, Suse, Ubuntu
 from lisa.tools import Dmesg
 from lisa.util import LisaException, find_groups_in_lines
 
-from .ln import Ln
 from .python import Python
 
 # segment output of lsvmbus -vv
@@ -154,11 +153,7 @@ class Lsvmbus(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lsvmbus"
         self._vmbus_devices: List[VmBusDevice] = []
-        cmd_result = self.node.execute("which python", sudo=True)
-        if 0 != cmd_result.exit_code:
-            ln = self.node.tools[Ln]
-            self.node.tools.get(Python)
-            ln.create_link("/bin/python3", "/usr/bin/python")
+        self.node.tools.get(Python)
 
     def _check_exists(self) -> bool:
         _exists = super()._check_exists()
