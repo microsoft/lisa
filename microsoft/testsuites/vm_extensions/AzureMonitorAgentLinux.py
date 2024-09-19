@@ -61,7 +61,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 log.info("AzureMonitorLinuxAgent is not already installed")
 
         extension_result = extension.create_or_update(
-            name="AzureMonitorLinuxAgent",
+            name="Microsoft.Azure.Monitor.AzureMonitorLinuxAgent",
             publisher="Microsoft.Azure.Monitor",
             type_="AzureMonitorLinuxAgent",
             type_handler_version="1.0",
