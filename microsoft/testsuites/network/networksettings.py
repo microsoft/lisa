@@ -373,7 +373,7 @@ class NetworkSettings(TestSuite):
             min_supported_kernel = parse_version("5.0.0")
         elif isinstance(node.os, Suse):
             min_supported_kernel = parse_version("4.12.14")
-            
+
         if linux_info.kernel_version < min_supported_kernel:
             raise SkippedException(
                 f"The kernel version {linux_info.kernel_version} does not support"
