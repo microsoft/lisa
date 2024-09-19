@@ -368,16 +368,12 @@ class NetworkSettings(TestSuite):
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
 
+        min_supported_kernel = linux_info.kernel_version
         if isinstance(node.os, Debian) or isinstance(node.os, Redhat):
-            min_supported_kernel = "5.0.0"
+            min_supported_kernel = parse_version("5.0.0")
         elif isinstance(node.os, Suse):
-            min_supported_kernel = "4.12.14"
-        else:
-            # For other OS, it is not known which minimum kernel version
-            # supports RSS Hash key change. This can be found and later
-            # enhanced after running tests.
-            min_supported_kernel = str(linux_info.kernel_version)
-
+            min_supported_kernel = parse_version("4.12.14")
+            
         if linux_info.kernel_version < min_supported_kernel:
             raise SkippedException(
                 f"The kernel version {linux_info.kernel_version} does not support"
