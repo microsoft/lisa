@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import string
+import time
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -2810,6 +2811,47 @@ class AzureExtension(AzureFeatureMixin, Feature):
         )
         return extension
 
+    def wait_for_all_extensions_to_finish(
+        self, wait_for_all_extensions_to_finish: bool = True
+    ) -> None:
+        if not wait_for_all_extensions_to_finish:
+            return
+
+        start_time = time.time()
+        max_wait_time = 300
+        check_interval = 10
+
+        while True:
+            extension_list = self.list_all()
+
+            if not extension_list:
+                self._log.debug("No extensions found for the VM. Exiting loop.")
+                break
+
+            all_extensions_completed = True
+
+            for extension in extension_list:
+                provisioning_state = extension.provisioning_state
+                self._log.debug(
+                    f"Provisioning state of {extension.name}: {provisioning_state}"
+                )
+
+                if provisioning_state not in ["Failed", "Succeeded"]:
+                    all_extensions_completed = False
+
+            if all_extensions_completed:
+                self._log.debug("All extensions have completed successfully.")
+                break
+
+            elapsed_time = time.time() - start_time
+            if elapsed_time > max_wait_time:
+                self._log.error(
+                    f"Max wait time of {max_wait_time} seconds exceeded. Exiting loop."
+                )
+                break
+
+            time.sleep(check_interval)
+
     def create_or_update(
         self,
         type_: str,
@@ -2824,6 +2866,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
         protected_settings: Any = None,
         suppress_failures: Optional[bool] = None,
         timeout: int = 60 * 25,
+        wait_for_all_extensions_to_finish: bool = True,
     ) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
@@ -2850,6 +2893,8 @@ class AzureExtension(AzureFeatureMixin, Feature):
                 str(extension_parameters.protected_settings),
                 sub="***REDACTED***",
             )
+
+        self.wait_for_all_extensions_to_finish(wait_for_all_extensions_to_finish)
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 
