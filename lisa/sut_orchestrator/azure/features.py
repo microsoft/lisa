@@ -1649,10 +1649,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         if len(files) == 0 and self._node.capability.disk.data_disk_count != 0:
             os = self._node.os
             # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
-            # there are known issues on ubuntu 16.04 and rhel 9.0
+            # there are known issues on ubuntu 16.04, rhel 9.0 and mariner 3.0
             # try to workaround it
-            if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
-                isinstance(os, Redhat) and os.information.release >= "9.0"
+            if (
+                (isinstance(os, Ubuntu) and os.information.release <= "16.04")
+                or (isinstance(os, Redhat) and os.information.release >= "9.0")
+                or isinstance(os, CBLMariner)
             ):
                 self._log.debug(
                     "download udev rules to construct a set of "
