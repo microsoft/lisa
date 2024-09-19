@@ -1,8 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import re
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
@@ -18,7 +17,20 @@ class Dhclient(Tool):
 
     @property
     def command(self) -> str:
-        return "dhclient"
+        return self._command
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._command = "dhclient"
+
+    def _check_exists(self) -> bool:
+        original_command = self._command
+        commands_to_check = ["dhclient", "dhcpcd"]
+        for command in commands_to_check:
+            self._command = command
+            if super()._check_exists():
+                return True
+        self._command = original_command
+        return False
 
     @classmethod
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
