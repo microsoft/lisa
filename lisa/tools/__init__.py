@@ -76,6 +76,7 @@ from .mount import Mount
 from .netperf import Netperf
 from .nfs_client import NFSClient
 from .nfs_server import NFSServer
+from .ninja import Ninja
 from .nm import Nm
 from .nproc import Nproc
 from .ntp import Ntp
@@ -195,6 +196,7 @@ __all__ = [
     "Mount",
     "Mv",
     "Netperf",
+    "Ninja",
     "NFSClient",
     "NFSServer",
     "Nm",
