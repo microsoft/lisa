@@ -36,7 +36,12 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Azsecd
 from lisa.testsuite import TestResult
 from lisa.tools import Journalctl, Service
-from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    UnsupportedDistroException,
+    check_till_timeout,
+)
 
 
 @TestSuiteMetadata(
@@ -161,25 +166,36 @@ class AzSecPack(TestSuite):
         # This test uses autoconfig, the settings should be {"GCS_AUTO_CONFIG":true}
         settings = {"GCS_AUTO_CONFIG": True}
         extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="AzureMonitorLinuxAgent",
-            publisher="Microsoft.Azure.Monitor",
-            type_="AzureMonitorLinuxAgent",
-            type_handler_version="1.0",
-            auto_upgrade_minor_version=True,
-            enable_automatic_upgrade=True,
-            settings=settings,
-        )
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
+        try:
+            result = extension.create_or_update(
+                name="AzureMonitorLinuxAgent",
+                publisher="Microsoft.Azure.Monitor",
+                type_="AzureMonitorLinuxAgent",
+                type_handler_version="1.0",
+                auto_upgrade_minor_version=True,
+                enable_automatic_upgrade=True,
+                settings=settings,
+            )
+            assert_that(result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+        except HttpResponseError as identifier:
+            if "already added" in str(identifier):
+                node.log.debug(
+                    "AzureMonitorLinuxAgent has been installed in current VM."
+                )
+                result = extension.get("Microsoft.Azure.Monitor.AzureMonitorLinuxAgent")
+                node.log.debug(f"extension status {result.provisioning_state}")
+            else:
+                raise identifier
 
         # After Azure Monitor Linux Agent extension is installed, the package
         # azuremonitoragent should be installed.
         posix_os: Posix = cast(Posix, node.os)
-        assert_that(posix_os.package_exists("azuremonitoragent")).described_as(
-            "Expected the azuremonitoragent package to be installed"
-        ).is_equal_to(True)
+        check_till_timeout(
+            lambda: posix_os.package_exists("azuremonitoragent") is True,
+            timeout_message="Expected the azuremonitoragent package to be installed",
+        )
 
     def _install_security_agent_extension(self, node: Node, log: Logger) -> None:
         # Install AzureSecurityLinuxAgent VM extension
@@ -188,18 +204,26 @@ class AzSecPack(TestSuite):
             "enableAutoConfig": True,
         }
         extension = node.features[AzureExtension]
-        result = extension.create_or_update(
-            name="AzureSecurityLinuxAgent",
-            publisher="Microsoft.Azure.Security.Monitoring",
-            type_="AzureSecurityLinuxAgent",
-            type_handler_version="2.0",
-            auto_upgrade_minor_version=True,
-            enable_automatic_upgrade=True,
-            settings=azsec_settings,
-        )
-        assert_that(result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
+        try:
+            result = extension.create_or_update(
+                name="AzureSecurityLinuxAgent",
+                publisher="Microsoft.Azure.Security.Monitoring",
+                type_="AzureSecurityLinuxAgent",
+                type_handler_version="2.0",
+                auto_upgrade_minor_version=True,
+                enable_automatic_upgrade=True,
+                settings=azsec_settings,
+            )
+            assert_that(result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+        except HttpResponseError as identifier:
+            if "already added" in str(identifier):
+                node.log.debug(
+                    "AzureSecurityLinuxAgent has been installed in current VM."
+                )
+            else:
+                raise identifier
 
         # Check azure-security, azsec-monitor, azsec-clamav, auoms are installed
         # After installing extension, some packages might not be installed completely.
@@ -207,7 +231,7 @@ class AzSecPack(TestSuite):
         posix_os: Posix = cast(Posix, node.os)
         azsec_packages = ["azure-security", "azsec-monitor", "azsec-clamav", "auoms"]
         loop_count = 0
-        while loop_count < 10:
+        while loop_count < 30:
             result = True
             for package in azsec_packages:
                 result = posix_os.package_exists(package) and result
