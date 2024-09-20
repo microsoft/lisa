@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import string
+import time
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -70,6 +71,7 @@ from lisa.tools.kernel_config import KernelConfig
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
+    LisaTimeoutException,
     NotMeetRequirementException,
     SkippedException,
     UnsupportedOperationException,
@@ -84,6 +86,8 @@ from lisa.util import (
 
 if TYPE_CHECKING:
     from .platform_ import AzurePlatform
+
+from lisa.util.perf_timer import create_timer
 
 from .. import AZURE
 from .common import (
@@ -2853,15 +2857,42 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 
-        operation = compute_client.virtual_machine_extensions.begin_create_or_update(
+        operations = compute_client.virtual_machine_extensions.begin_create_or_update(
             resource_group_name=self._resource_group_name,
             vm_name=self._vm_name,
             vm_extension_name=name,
             extension_parameters=extension_parameters,
         )
-        result = wait_operation(operation, timeout)
 
-        return result
+        interval = 10
+        timer = create_timer()
+        while timeout >= timer.elapsed(False):
+            extension = self.get(name=name)
+            provisioning_state = str(extension.provisioning_state)
+
+            if provisioning_state.lower() in ["failed", "succeeded"]:
+                self._log.debug(
+                    f"Extension '{name}' provision status is '{provisioning_state}'."
+                    " Exiting loop."
+                )
+                break
+
+            self._log.debug(
+                f"Extension '{name}' is still '{provisioning_state}'."
+                f" Waiting {interval} seconds..."
+            )
+            time.sleep(interval)
+        if timeout < timer.elapsed():
+            raise LisaTimeoutException(
+                f"Azure operation failed: timeout after {timeout} seconds."
+            )
+
+        result = operations.result()
+        result_dict = result.as_dict() if result else None
+        if result_dict:
+            result_dict["provisioning_state"] = provisioning_state
+
+        return result_dict
 
     def delete(
         self,
