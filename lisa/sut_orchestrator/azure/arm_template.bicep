@@ -91,7 +91,7 @@ func getEphemeralOSImage(node object) object => {
   name: '${node.name}-osDisk'
   diffDiskSettings: {
       option: 'local'
-      placement: 'CacheDisk'
+      placement: 'NVMeDisk'
   }
   caching: 'ReadOnly'
   createOption: 'FromImage'
@@ -325,7 +325,7 @@ resource nodes_data_disks 'Microsoft.Compute/disks@2022-03-02' = [
   }
 ]
 
-resource nodes_vms 'Microsoft.Compute/virtualMachines@2022-08-01' = [for i in range(0, node_count): {
+resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
   tags: combined_vm_tags
