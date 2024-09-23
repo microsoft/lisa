@@ -8,7 +8,7 @@ from typing import Any, List, Optional, Tuple, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import FreeBSD, Posix
+from lisa.operating_system import CpuArchitecture, FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException, find_group_in_lines, find_groups_in_lines
 
@@ -52,8 +52,13 @@ class CPUInfo:
         return self.__str__()
 
 
-ARCH_X86_64 = "x86_64"
-ARCH_AARCH64 = "aarch64"
+ArchitectureNames = {
+    "x86_64": CpuArchitecture.X64,
+    "aarch64": CpuArchitecture.ARM64,
+    "amd64": CpuArchitecture.X64,
+    "arm64": CpuArchitecture.ARM64,
+    "i386": CpuArchitecture.I386,
+}
 
 
 class Lscpu(Tool):
@@ -78,12 +83,7 @@ class Lscpu(Tool):
     __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __architecture_dict = {
-        "x86_64": ARCH_X86_64,
-        "aarch64": ARCH_AARCH64,
-        "amd64": ARCH_X86_64,
-        "arm64": ARCH_AARCH64,
-    }
+
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
@@ -130,7 +130,7 @@ class Lscpu(Tool):
             )
         return self._check_exists()
 
-    def get_architecture(self, force_run: bool = False) -> str:
+    def get_architecture(self, force_run: bool = False) -> CpuArchitecture:
         architecture: str = ""
         result = self.run(force_run=force_run)
         matched = self.__architecture_pattern.findall(result.stdout)
@@ -142,9 +142,9 @@ class Lscpu(Tool):
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__architecture_dict.keys()}.",
-        ).is_subset_of(self.__architecture_dict.keys())
-        return self.__architecture_dict[architecture]
+            f"{ArchitectureNames.keys()}.",
+        ).is_subset_of(ArchitectureNames.keys())
+        return ArchitectureNames[architecture]
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
@@ -372,13 +372,6 @@ class WindowsLscpu(Lscpu):
 
 
 class BSDLscpu(Lscpu):
-    __architecture_dict = {
-        "x86_64": "x86_64",
-        "aarch64": "aarch64",
-        "amd64": "x86_64",
-        "arm64": "aarch64",
-    }
-
     # FreeBSD/SMP: 1 package(s) x 4 core(s) x 2 hardware threads
     __cpu_info = re.compile(r"FreeBSD/SMP: (?P<package_count>\d+) package\(s\) .*")
 
@@ -391,16 +384,16 @@ class BSDLscpu(Lscpu):
         core_count = int(output.stdout.strip())
         return core_count
 
-    def get_architecture(self, force_run: bool = False) -> str:
+    def get_architecture(self, force_run: bool = False) -> CpuArchitecture:
         architecture = self.run(
             "-n hw.machine_arch", force_run=force_run
         ).stdout.strip()
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__architecture_dict.keys()}.",
-        ).is_subset_of(self.__architecture_dict.keys())
-        return self.__architecture_dict[architecture]
+            f"{ArchitectureNames.keys()}.",
+        ).is_subset_of(ArchitectureNames.keys())
+        return ArchitectureNames[architecture]
 
     def get_cluster_count(self, force_run: bool = False) -> int:
         output = self.run(

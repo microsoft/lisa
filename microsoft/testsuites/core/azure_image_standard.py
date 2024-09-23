@@ -580,7 +580,7 @@ class AzureImageStandard(TestSuite):
                 }
                 lscpu = node.tools[Lscpu]
                 arch = lscpu.get_architecture()
-                repo_url = repo_url_map.get(CpuArchitecture(arch), None)
+                repo_url = repo_url_map.get(arch, None)
                 contains_security_keyword = any(
                     [
                         "-security" in repository.name
@@ -823,7 +823,7 @@ class AzureImageStandard(TestSuite):
 
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
-        current_console_device = console_device[CpuArchitecture(arch)]
+        current_console_device = console_device[arch]
         console_enabled_pattern = re.compile(
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )

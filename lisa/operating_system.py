@@ -62,6 +62,7 @@ _get_init_logger = partial(get_logger, name="os")
 class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
+    I386 = "i386"
 
 
 class AzureCoreRepo(str, Enum):
