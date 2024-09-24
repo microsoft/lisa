@@ -44,6 +44,7 @@ from lisa.tools import (
     Ssh,
     Sysctl,
 )
+from lisa.tools.fio import IoEngine
 from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY,
     NTTTCP_TCP_CONCURRENCY_BSD,
@@ -70,12 +71,14 @@ def perf_disk(
     size_mb: int = 0,
     numjob: int = 0,
     overwrite: bool = False,
+    ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
     numjobiterator = 0
-    # In fio test, numjob*max_iodepth (aio-nr) should always be less than aio-max-nr.
+    # In fio test with ioengine == 'libaio',
+    # numjob*max_iodepth (aio-nr) should always be less than aio-max-nr.
     # The default value of aio-max-nr is 65536.
     # As max_iodepth is 256, numjob which is equal to 'nproc' should not exceed 256.
     # /proc/sys/fs/aio-nr is the number of events currently active.
@@ -84,7 +87,9 @@ def perf_disk(
     # fail with EAGAIN.
     # read: https://www.kernel.org/doc/Documentation/sysctl/fs.txt
     # So we set numjob to 256 if numjob is larger than 256.
-    numjob = min(numjob, 256)
+    # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
+    if ioengine == IoEngine.LIBAIO:
+        numjob = min(numjob, 256)
     for mode in FIOMODES:
         iodepth = start_iodepth
         numjobindex = 0
@@ -102,6 +107,7 @@ def perf_disk(
                 overwrite=overwrite,
                 numjob=numjob,
                 cwd=cwd,
+                ioengine=ioengine,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2

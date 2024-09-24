@@ -37,6 +37,15 @@ FIOMODES = Enum(
 )
 
 
+class IoEngine(Enum):
+    IO_URING = "io_uring"
+    LIBAIO = "libaio"
+    POSIXAIO = "posixaio"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class Fio(Tool):
     fio_repo = "https://github.com/axboe/fio/"
     branch = "fio-3.29"
@@ -93,6 +102,7 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> FIOResult:
         cmd = self._get_command(
@@ -114,6 +124,7 @@ class Fio(Tool):
             verify_dump,
             verify_fatal,
             verify,
+            ioengine,
         )
         result = self.run(
             cmd,
@@ -149,6 +160,7 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
     ) -> Process:
         cmd = self._get_command(
@@ -170,6 +182,7 @@ class Fio(Tool):
             verify_dump,
             verify_fatal,
             verify,
+            ioengine,
         )
         process = self.run_async(
             cmd,
@@ -244,7 +257,7 @@ class Fio(Tool):
             fio_message.append(fio_result_message)
         return fio_message
 
-    def _get_command(
+    def _get_command(  # noqa: C901
         self,
         name: str,
         filename: str,
@@ -264,10 +277,13 @@ class Fio(Tool):
         verify_dump: bool = False,
         verify_fatal: bool = False,
         verify: str = "",
+        ioengine: IoEngine = IoEngine.LIBAIO,
     ) -> str:
-        ioengine = "posixaio" if isinstance(self.node.os, BSD) else "libaio"
+        if isinstance(self.node.os, BSD):
+            ioengine = IoEngine.POSIXAIO
+
         cmd = (
-            f"--ioengine={ioengine} --filename={filename} "
+            f"--ioengine={ioengine.value} --filename={filename} "
             f"--readwrite={mode} --iodepth={iodepth} "
             f"--name={name}"
         )
