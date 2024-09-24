@@ -3,6 +3,7 @@
 
 import os
 import re
+import secrets
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -113,9 +114,21 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         os_type = ET.SubElement(os, "type")
         os_type.text = "hvm"
-
         os_kernel = ET.SubElement(os, "kernel")
-        os_kernel.text = node_context.firmware_path
+        if node_context.guest_vm_type == "ConfidentialVM":
+            os_kernel.text = "/usr/share/cloud-hypervisor/cvm/linux.bin"
+            launch_sec = ET.SubElement(domain, "launchSecurity")
+            launch_sec.attrib["type"] = "sev"
+            cbitpos = ET.SubElement(launch_sec, "cbitpos")
+            cbitpos.text = "0"
+            reducedphysbits = ET.SubElement(launch_sec, "reducedPhysBits")
+            reducedphysbits.text = "0"
+            policy = ET.SubElement(launch_sec, "policy")
+            policy.text = "0"
+            host_data = ET.SubElement(launch_sec, "host_data")
+            host_data.text = secrets.token_hex(32)
+        else:
+            os_kernel.text = node_context.firmware_path
 
         devices = ET.SubElement(domain, "devices")
         if len(node_context.passthrough_devices) > 0:
