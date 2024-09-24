@@ -48,6 +48,7 @@ class NodeContext:
     vm_name: str = ""
     firmware_source_path: str = ""
     firmware_path: str = ""
+    guest_vm_type: str = ""
     cloud_init_file_path: str = ""
     ignition_file_path: str = ""
     os_disk_source_file_path: Optional[str] = None
