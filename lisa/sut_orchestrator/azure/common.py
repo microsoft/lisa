@@ -378,16 +378,19 @@ class AzureImageSchema(schema.ImageSchema):
         self, raw_features: Dict[str, Any], log: Logger
     ) -> None:
         security_profile = raw_features.get("SecurityType")
-        capabilities: List[SecurityProfileType] = [SecurityProfileType.Standard]
+        capabilities: List[SecurityProfileType] = []
         if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
+            capabilities.append(SecurityProfileType.Standard)
             capabilities.append(SecurityProfileType.SecureBoot)
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
         ):
-            capabilities.append(SecurityProfileType.SecureBoot)
             capabilities.append(SecurityProfileType.CVM)
             capabilities.append(SecurityProfileType.Stateless)
+        else:
+            capabilities.append(SecurityProfileType.Standard)
+
         self.security_profile = search_space.SetSpace(True, capabilities)
 
 
