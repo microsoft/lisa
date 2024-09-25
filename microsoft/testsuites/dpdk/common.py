@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from datetime import datetime
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
@@ -60,7 +59,7 @@ class DependencyInstaller:
         )
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
-        packages = []
+        packages: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
                 packages += requirement.packages
@@ -275,43 +274,25 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-# rough check for ubuntu supported versions.
-# assumes:
-# - canonical convention of YEAR.MONTH for major versions
-# - canoical release cycle of EVEN_YEAR.04 for lts versions.
-# - 4 year support cycle. 6 year for ESM
-# get the age of the distro, if negative or 0, release is new.
-# if > 6, distro is out of support
+# Ubuntu LTS releases
+# TODO: set calendar reminder to update every two years.
+UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0"]
+
+
 def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
-    # asserts if not ubuntu OS object
-    version_info = distro.information.version
-    distro_age = _get_ubuntu_distro_age(distro)
-    is_even_year = (version_info.major % 2) == 0
-    is_april_release = version_info.minor == 4
-    is_within_support_window = distro_age <= 6
-    return is_even_year and is_april_release and is_within_support_window
+    version = distro.information.version
+    # check major version matches
+    major_match = [
+        version.major == x.split(".", maxsplit=1)[0] for x in UBUNTU_LTS_VERSIONS
+    ]
+    # check minor version matches
+    minor_match = [version.minor == x.split(".")[1] for x in UBUNTU_LTS_VERSIONS]
+    # check if a major and minor version matched for any items in the list
+    return any([(x == y) for x, y in zip(major_match, minor_match)])
 
 
 def is_ubuntu_latest_or_prerelease(distro: Ubuntu) -> bool:
-    distro_age = _get_ubuntu_distro_age(distro)
-    return distro_age <= 2
-
-
-def _get_ubuntu_distro_age(distro: Ubuntu) -> int:
-    version_info = distro.information.version
-    # check release is within esm window
-    year_string = str(datetime.today().year)
-    assert_that(len(year_string)).described_as(
-        "Package bug: The year received from datetime module is an "
-        "unexpected size. This indicates a broken package or incorrect "
-        "date in this computer."
-    ).is_greater_than_or_equal_to(4)
-    # TODO: handle the century rollover edge case in 2099
-    current_year = int(year_string[-2:])
-    release_year = int(version_info.major)
-    # 23-18 == 5
-    # long term support and extended security updates for ~6 years
-    return current_year - release_year
+    return bool(distro.information.version >= max(UBUNTU_LTS_VERSIONS))
 
 
 def check_dpdk_support(node: Node) -> None:
@@ -385,3 +366,52 @@ def unsupported_os_thrower(os: Posix) -> bool:
         os,
         message=("Installer did not define dependencies for this os."),
     )
+
+
+def get_debian_backport_repo_args(os: Debian) -> List[str]:
+    # ex: 'bionic-backports' or 'buster-backports'
+    # these backport repos are available for the older OS's
+    # and include backported fixes which need to be opted into.
+    # So filter for recent OS's and
+    # add the backports repo if it's available.
+    if not isinstance(os, Debian):
+        return []
+    # workaround for recent Ubuntu distros which may have a
+    # backport repo defined but will raise an error if you
+    # try to use it explicitly for our packages.
+    if isinstance(os, Ubuntu) and (
+        is_ubuntu_latest_or_prerelease(os) or not is_ubuntu_lts_version(os)
+    ):
+        return []
+    repos = os.get_repositories()
+    backport_repo = f"{os.information.codename}-backports"
+    if any([backport_repo in repo.name for repo in repos]):
+        return [f"-t {backport_repo}"]
+    return []
+
+
+# NOTE: mana_ib was added in 6.2 and backported to 5.15
+# this ends up lining up with kernels that need to be updated before
+# starting our DPDK tests. This function is not meant for general use
+# outside of the DPDK suite.
+def update_kernel_from_repo(node: Node) -> None:
+    assert isinstance(
+        node.os, (Debian, Fedora, Suse)
+    ), f"DPDK test does not support OS type: {type(node.os)}"
+    if (
+        isinstance(node.os, Debian)
+        and node.os.get_kernel_information().version < "6.5.0"
+    ):
+        package = "linux-azure"
+    elif (
+        isinstance(node.os, (Fedora, Suse))
+        and node.os.get_kernel_information().version < "5.15.0"
+    ):
+        package = "kernel"
+    else:
+        return
+    if node.os.is_package_in_repo(package):
+        node.os.install_packages(package)
+        node.reboot()
+    else:
+        node.log.debug(f"Kernel update package '{package}' was not found.")
