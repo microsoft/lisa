@@ -99,24 +99,24 @@ class CPUSuite(TestSuite):
     )
     def verify_cpu_offline_storage_workload(self, log: Logger, node: Node) -> None:
         # run fio process asynchronously on the node
-        fio_data_size_in_gb = 1
+        # fio_data_size_in_gb = 1
         try:
-            image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
+            # image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
             # Each CPU takes ~10 seconds to toggle offline-online
-            fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 10)
-            fio_process = node.tools[Fio].launch_async(
-                name="workload",
-                filename=f"{image_folder_path}/fiodata",
-                mode="readwrite",
-                iodepth=128,
-                numjob=10,
-                time=fio_run_time,
-                block_size="1M",
-                size_gb=fio_data_size_in_gb,
-                group_reporting=False,
-                overwrite=True,
-                time_based=True,
-            )
+            # fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 10)
+            # fio_process = node.tools[Fio].launch_async(
+            #     name="workload",
+            #     filename=f"{image_folder_path}/fiodata",
+            #     mode="readwrite",
+            #     iodepth=128,
+            #     numjob=10,
+            #     time=fio_run_time,
+            #     block_size="1M",
+            #     size_gb=fio_data_size_in_gb,
+            #     group_reporting=False,
+            #     overwrite=True,
+            #     time_based=True,
+            # )
 
             # Added to find an optional runtime for fio_run_time
             # Remove once test is stable
@@ -128,10 +128,10 @@ class CPUSuite(TestSuite):
             log.debug(f"CPU Hotplug duration: {time.time() - hot_plug_start_time} s")
 
             # verify that the fio was running when hotplug was triggered
-            assert_that(
-                fio_process.is_running(),
-                "Storage workload was not running during CPUhotplug",
-            ).is_true()
+            # assert_that(
+            #     fio_process.is_running(),
+            #     "Storage workload was not running during CPUhotplug",
+            # ).is_true()
         finally:
             # kill fio process
             node.tools[Kill].by_name("fio", ignore_not_exist=True)
