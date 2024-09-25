@@ -17,6 +17,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk
+from lisa.operating_system import BSD, Windows
 from lisa.tools import Fdisk, FileSystem, Fio, Mdadm, Mkfs, Mount
 from lisa.util import find_patterns_in_lines
 
@@ -116,6 +117,7 @@ class StorageTest(TestSuite):
                 data_disk_iops=search_space.IntRange(min=2300),
                 data_disk_count=search_space.IntRange(min=2),
             ),
+            unsupported_os=[Windows, BSD],
         ),
     )
     def verify_disk_with_fio_verify_option(self, node: Node) -> None:
