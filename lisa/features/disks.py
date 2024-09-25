@@ -137,6 +137,10 @@ DiskStandardSSDLRS = partial(
     data_disk_type=schema.DiskType.StandardSSDLRS,
     os_disk_type=schema.DiskType.StandardSSDLRS,
 )
+DiskPremiumV2SSDLRS = partial(
+    schema.DiskOptionSettings,
+    data_disk_type=schema.DiskType.PremiumV2SSDLRS,
+)
 DiskUltraSSDLRS = partial(
     schema.DiskOptionSettings, data_disk_type=schema.DiskType.UltraSSDLRS
 )

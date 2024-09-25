@@ -133,3 +133,8 @@ AvailabilitySetEnabled = partial(
     AvailabilitySettings,
     availability_type=search_space.SetSpace(True, [AvailabilityType.AvailabilitySet]),
 )
+
+AvailabilityZoneEnabled = partial(
+    AvailabilitySettings,
+    availability_type=search_space.SetSpace(True, [AvailabilityType.AvailabilityZone]),
+)

@@ -1772,6 +1772,7 @@ class AzurePlatform(Platform):
         if azure_raw_capabilities.get("PremiumIO", None) == "True":
             node_space.disk.os_disk_type.add(schema.DiskType.PremiumSSDLRS)
             node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
+            node_space.disk.data_disk_type.add(schema.DiskType.PremiumV2SSDLRS)
 
         if azure_raw_capabilities.get("UltraSSDAvailable", None) == "True":
             node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
@@ -2035,6 +2036,7 @@ class AzurePlatform(Platform):
             is_allow_set=True, items=[]
         )
         node_space.disk.data_disk_type.add(schema.DiskType.UltraSSDLRS)
+        node_space.disk.data_disk_type.add(schema.DiskType.PremiumV2SSDLRS)
         node_space.disk.data_disk_type.add(schema.DiskType.PremiumSSDLRS)
         node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)

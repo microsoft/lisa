@@ -22,6 +22,7 @@ from lisa import (
 )
 from lisa.environment import EnvironmentStatus
 from lisa.features import (
+    AvailabilityZoneEnabled,
     DiskEphemeral,
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
@@ -148,6 +149,28 @@ class Provisioning(TestSuite):
     ) -> None:
         self._smoke_test(
             log, node, log_path, "verify_deployment_provision_premium_disk"
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with premium disk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumV2SSDLRS,
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole, AvailabilityZoneEnabled()],
+        ),
+    )
+    def verify_deployment_provision_premiumv2_disk(
+        self, log: Logger, node: RemoteNode, log_path: Path
+    ) -> None:
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_premiumv2_disk"
         )
 
     @TestCaseMetadata(

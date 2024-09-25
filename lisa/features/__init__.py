@@ -2,7 +2,12 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
-from .availability import Availability, AvailabilitySetEnabled, AvailabilitySettings
+from .availability import (
+    Availability,
+    AvailabilitySetEnabled,
+    AvailabilitySettings,
+    AvailabilityZoneEnabled,
+)
 from .cvm_nested_virtualization import CVMNestedVirtualization
 from .disks import (
     Disk,
@@ -35,6 +40,7 @@ __all__ = [
     "Availability",
     "AvailabilitySetEnabled",
     "AvailabilitySettings",
+    "AvailabilityZoneEnabled",
     "CVMNestedVirtualization",
     "Disk",
     "DiskEphemeral",

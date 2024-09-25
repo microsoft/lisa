@@ -407,6 +407,7 @@ class FeatureSettings(
 
 class DiskType(str, Enum):
     PremiumSSDLRS = "PremiumSSDLRS"
+    PremiumV2SSDLRS = "PremiumV2SSDLRS"
     Ephemeral = "Ephemeral"
     StandardHDDLRS = "StandardHDDLRS"
     StandardSSDLRS = "StandardSSDLRS"
@@ -419,6 +420,7 @@ disk_type_priority: List[DiskType] = [
     DiskType.StandardSSDLRS,
     DiskType.Ephemeral,
     DiskType.PremiumSSDLRS,
+    DiskType.PremiumV2SSDLRS,
     DiskType.UltraSSDLRS,
 ]
 
@@ -445,6 +447,7 @@ data_disk_types: List[DiskType] = [
     DiskType.StandardHDDLRS,
     DiskType.StandardSSDLRS,
     DiskType.PremiumSSDLRS,
+    DiskType.PremiumV2SSDLRS,
     DiskType.UltraSSDLRS,
 ]
 
