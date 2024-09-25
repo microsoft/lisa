@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-import time
+import threading, time
 from typing import cast
 
 from assertpy import assert_that
@@ -104,19 +104,26 @@ class CPUSuite(TestSuite):
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
             # Each CPU takes ~10 seconds to toggle offline-online
             fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 10)
-            fio_process = node.tools[Fio].launch_async(
-                name="workload",
-                filename=f"{image_folder_path}/fiodata",
-                mode="readwrite",
-                iodepth=128,
-                numjob=10,
-                time=fio_run_time,
-                block_size="1M",
-                size_gb=fio_data_size_in_gb,
-                group_reporting=False,
-                overwrite=True,
-                time_based=True,
-            )
+            fio_process = None
+            def run_fio():
+                nonlocal fio_process
+                fio_process = node.tools[Fio].launch_async(
+                    name="workload",
+                    filename=f"{image_folder_path}/fiodata",
+                    mode="readwrite",
+                    iodepth=128,
+                    numjob=10,
+                    time=fio_run_time,
+                    block_size="1M",
+                    size_gb=fio_data_size_in_gb,
+                    group_reporting=False,
+                    overwrite=True,
+                    time_based=True,
+                )
+
+            # Start the thread
+            fio_thread = threading.Thread(target=run_fio)
+            fio_thread.start()
 
             # Added to find an optional runtime for fio_run_time
             # Remove once test is stable
@@ -126,6 +133,8 @@ class CPUSuite(TestSuite):
             verify_cpu_hot_plug(log, node)
 
             log.debug(f"CPU Hotplug duration: {time.time() - hot_plug_start_time} s")
+
+            fio_thread.join()
 
             # verify that the fio was running when hotplug was triggered
             assert_that(
