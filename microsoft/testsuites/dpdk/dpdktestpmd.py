@@ -189,10 +189,6 @@ class DpdkSourceInstall(Installer):
         "multi_process/client_server_mp/mp_client",
     ]
 
-    def _setup_installation(self) -> None:
-        super()._setup_installation()
-        self._source_path = self._asset_path
-
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("dpdk")
@@ -227,7 +223,7 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        source_path = str(self._source_path)
+        source_path = str(self._asset_path)
         working_path = str(self._node.get_working_path())
         assert_that(str(source_path)).described_as(
             "DPDK Installer source path was empty during attempted cleanup!"
@@ -248,7 +244,8 @@ class DpdkSourceInstall(Installer):
             "libdpdk", update_cached=True
         )
 
-    def _run_installation(self) -> None:
+    def _run_build(self) -> None:
+        super()._run_build()
         if self._sample_applications:
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
@@ -257,7 +254,7 @@ class DpdkSourceInstall(Installer):
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self._source_path
+            args=sample_apps, build_dir="build", cwd=self._asset_path
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -308,10 +305,10 @@ class DpdkGitDownloader(GitDownloader):
         if not self._git_ref:
             git = self._node.tools[Git]
             self._git_ref = git.get_tag(
-                self._source_path, filter_=r"^v.*"  # starts w 'v'
+                self._asset_path, filter_=r"^v.*"  # starts w 'v'
             )
-            git.checkout(self._git_ref, cwd=self._source_path)
-        return self._source_path
+            git.checkout(self._git_ref, cwd=self._asset_path)
+        return self._asset_path
 
 
 class DpdkTestpmd(Tool):

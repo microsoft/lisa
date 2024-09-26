@@ -93,13 +93,13 @@ class GitDownloader(Downloader):
         # NOTE: fail on exists is set to True.
         # The expectation is that the parent Installer class should
         # remove any lingering installations
-        self._source_path = self._node.tools[Git].clone(
+        self._asset_path = self._node.tools[Git].clone(
             self._git_repo,
             cwd=self._node.get_working_path(),
             ref=self._git_ref,
             fail_on_exists=True,
         )
-        return self._source_path
+        return self._asset_path
 
 
 # parent class for tarball source installations
@@ -147,7 +147,7 @@ class TarDownloader(Downloader):
                 node_path=remote_path,
             )
         # create tarfile dest dir
-        self._source_path = work_path.joinpath(
+        self._asset_path = work_path.joinpath(
             self.tar_filename[: -(len(tarfile_suffix))]
         )
         # unpack into the dest dir
@@ -157,7 +157,7 @@ class TarDownloader(Downloader):
             dest_dir=str(work_path),
             gzip=True,
         )
-        return self._source_path
+        return self._asset_path
 
 
 class Installer:
@@ -177,15 +177,15 @@ class Installer:
         raise NotImplementedError(f"_check_if_installed {self._err_msg}")
 
     # setup the installation (install Ninja, Meson, etc)
-    def _setup_installation(self) -> None:
+    def _download_assets(self) -> None:
         if self._downloader:
             self._asset_path = self._downloader.download()
         else:
             self._node.log.debug("No downloader assigned to installer.")
 
     # do the build and installation
-    def _run_installation(self) -> None:
-        raise NotImplementedError(f"_run_installation {self._err_msg}")
+    def _run_build(self) -> None:
+        self._download_assets()
 
     # remove an installation
     def _clean_previous_installation(self) -> None:
@@ -213,8 +213,7 @@ class Installer:
         if self._should_install():
             self._clean_previous_installation()
             self._install_dependencies()
-            self._setup_installation()
-            self._run_installation()
+            self._run_build()
 
     def __init__(
         self,
@@ -230,7 +229,6 @@ class Installer:
         self._os: Posix = self._node.os
         self._package_manager_extra_args: List[str] = []
         self._os_dependencies = os_dependencies
-        self._source_path = self._node.get_working_path()
         self._downloader = downloader
 
 
@@ -263,7 +261,7 @@ class PackageManagerInstall(Installer):
         return True
 
     # installing dependencies is the installation in this case, so just return
-    def _run_installation(self) -> None:
+    def _run_build(self) -> None:
         return
 
 
