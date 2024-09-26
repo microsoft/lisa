@@ -191,11 +191,6 @@ class Installer:
     def _clean_previous_installation(self) -> None:
         raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
 
-    # provide an opportunity to check tags, fetch a subproject,
-    # modify the config, etc.
-    def _configure_installation(self) -> None:
-        raise NotImplementedError(f"_configure_installation {self._err_msg}")
-
     # install the dependencies
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
@@ -219,7 +214,6 @@ class Installer:
             self._clean_previous_installation()
             self._install_dependencies()
             self._setup_installation()
-            self._configure_installation()
             self._run_installation()
 
     def __init__(
@@ -244,9 +238,6 @@ class Installer:
 class PackageManagerInstall(Installer):
     def __init__(self, node: Node, os_dependencies: DependencyInstaller) -> None:
         super().__init__(node, os_dependencies)
-
-    def _configure_installation(self) -> None:
-        return
 
     # uninstall from the package manager
     def _clean_previous_installation(self) -> None:

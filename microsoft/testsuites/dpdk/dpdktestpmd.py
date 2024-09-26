@@ -243,10 +243,6 @@ class DpdkSourceInstall(Installer):
         # remove source code directory
         self._node.execute(f"rm -rf {str(source_path)}", shell=True)
 
-    def _configure_installation(self) -> None:
-        # no-op for now
-        return
-
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
             "libdpdk", update_cached=True
