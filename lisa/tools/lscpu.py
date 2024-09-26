@@ -4,6 +4,7 @@
 import re
 from enum import Enum
 from typing import Any, List, Optional, Tuple, Type
+from xml import etree
 
 from assertpy import assert_that
 
@@ -407,14 +408,21 @@ class BSDLscpu(Lscpu):
             "-a | grep -i 'package(s)'",
             force_run=force_run,
             shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="kern.smp.core_per_cluster is not set",
-        ).stdout.strip()
+        )
 
-        matched = find_groups_in_lines(output, self.__cpu_info)
-        assert matched[0], "core_per_cluster_count is not set"
-
-        return int(matched[0]["package_count"])
+        if output.exit_code == 0:
+            matched = find_groups_in_lines(output.stdout.strip(), self.__cpu_info)
+            assert matched[0], "core_per_cluster_count is not set"
+            return int(matched[0]["package_count"])
+        else:
+            output = self.run(
+                "-n kern.sched.topology_spec",
+                force_run=force_run,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="kern.sched.topology_spec isn't set",
+            ).stdout.strip()
+            topology_spec = etree.ElementTree.fromstring(output)
+            return len(topology_spec.findall(".//group"))
 
     def get_core_per_cluster_count(self, force_run: bool = False) -> int:
         output = self.run(
