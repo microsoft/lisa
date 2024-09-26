@@ -77,6 +77,11 @@ class NvmePerformace(TestSuite):
                 node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
                 sudo=True,
             )
+            echo.write_to_file(
+                "mq-deadline",
+                node.get_pure_path(f"/sys/block/{disk_name}/queue/scheduler"),
+                sudo=True,
+            )
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
