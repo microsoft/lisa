@@ -137,6 +137,7 @@ def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
             file_path_list = set_interrupts_assigned_cpu(log, node)
             # when kernel doesn't support above feature, we have to rely on current vm's
             # cpu usage. then collect the cpu not in used exclude cpu0.
+            log.info("----- File path list: %s", file_path_list)
             idle_cpu = get_idle_cpus(node)
             if 0 == len(idle_cpu):
                 raise SkippedException(
