@@ -10,7 +10,7 @@ from semver import VersionInfo
 
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Posix, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
 from lisa.tools import (
     Echo,
     Git,
@@ -44,16 +44,10 @@ from microsoft.testsuites.dpdk.common import (
     is_ubuntu_lts_version,
     is_url_for_git_repo,
     is_url_for_tarball,
+    unsupported_os_thrower,
 )
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
-
-
-def invalid_os_thrower(os: Posix) -> bool:
-    raise UnsupportedDistroException(
-        os,
-        message=("Installer did not define dependencies for this os."),
-    )
 
 
 # declare package dependencies for package manager DPDK installation
@@ -62,13 +56,13 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
             packages=["dpdk", "dpdk-dev"],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse)
             and float(x.information.release) == 15.5,
             packages=["dpdk22", "dpdk22-devel"],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             # alma/rocky have started
@@ -76,14 +70,14 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
             matcher=lambda x: isinstance(x, Fedora)
             and not x.is_package_in_repo("dpdk-devel"),
             packages=["dpdk"],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, (Fedora, Suse)),
             packages=["dpdk", "dpdk-devel"],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
-        OsPackageDependencies(matcher=invalid_os_thrower),
+        OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
 )
 # declare package/tool dependencies for DPDK source installation
@@ -105,7 +99,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 # 18.04 doesn't need linux-modules-extra-azure
                 # since it will never have MANA support
             ],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
@@ -118,7 +112,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "pkg-config",
                 "linux-modules-extra-azure",
             ],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse),
@@ -129,7 +123,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "libmnl-devel meson",
                 "gcc-c++",
             ],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, (Fedora)),
@@ -143,9 +137,9 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "kernel-headers",
                 "gcc-c++",
             ],
-            exclusive_match=True,
+            stop_on_match=True,
         ),
-        OsPackageDependencies(matcher=invalid_os_thrower),
+        OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
 )
 
@@ -216,7 +210,7 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].install()
         self._node.tools[Pip].install_packages("pyelftools")
 
-    def _clean_previous_installation(self) -> None:
+    def _uninstall(self) -> None:
         # undo source installation (thanks ninja)
         if not self._check_if_installed():
             return

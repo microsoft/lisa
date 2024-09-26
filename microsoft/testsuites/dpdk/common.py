@@ -37,11 +37,11 @@ class OsPackageDependencies:
         self,
         matcher: Callable[[Posix], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
-        exclusive_match: bool = False,
+        stop_on_match: bool = False,
     ) -> None:
         self.matcher = matcher
         self.packages = packages
-        self.exclusive_match = exclusive_match
+        self.exclusive_match = stop_on_match
 
 
 class DependencyInstaller:
@@ -188,7 +188,7 @@ class Installer:
         self._download_assets()
 
     # remove an installation
-    def _clean_previous_installation(self) -> None:
+    def _uninstall(self) -> None:
         raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
 
     # install the dependencies
@@ -211,7 +211,7 @@ class Installer:
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
         if self._should_install():
-            self._clean_previous_installation()
+            self._uninstall()
             self._install_dependencies()
             self._run_build()
 
@@ -238,7 +238,7 @@ class PackageManagerInstall(Installer):
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
-    def _clean_previous_installation(self) -> None:
+    def _uninstall(self) -> None:
         if not (isinstance(self._os, Posix) and self._check_if_installed()):
             return
         if self._os_dependencies is not None:
@@ -373,3 +373,10 @@ def is_url_for_git_repo(url: str) -> bool:
         or any([x in path_check.parts for x in ["git", "_git"]])
     )
     return scheme == "git" or check_for_git_https
+
+
+def unsupported_os_thrower(os: Posix) -> bool:
+    raise UnsupportedDistroException(
+        os,
+        message=("Installer did not define dependencies for this os."),
+    )
