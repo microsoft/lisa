@@ -58,6 +58,9 @@ class NetworkInterface(Feature):
     def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
         raise NotImplementedError
 
+    def get_nic_cap_count(self) -> int:
+        raise NotImplementedError
+
     def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
         raise NotImplementedError
 

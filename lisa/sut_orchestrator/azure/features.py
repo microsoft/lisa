@@ -172,9 +172,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -1059,6 +1059,33 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 if x.enable_accelerated_networking == is_sriov_enabled
             ]
         )
+
+    def get_nic_cap_count(self) -> int:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(azure_platform)
+        vm = get_vm(azure_platform, self._node)
+        vm_size = vm.hardware_profile.vm_size
+        location = vm.location
+        vm_skus = compute_client.resource_skus.list()
+        max_nics = 0
+        for sku in vm_skus:
+            if (
+                sku.resource_type and
+                sku.resource_type == "virtualMachines"
+                and sku.locations and sku.locations[0].lower() == location.lower()
+                and sku.name == vm_size
+            ):
+                max_nics = next(
+                    (
+                        capability.value
+                        for capability in sku.capabilities
+                        if capability.name == "MaxNetworkInterfaces"
+                    ),
+                    None,
+                )
+                break
+        assert max_nics
+        return int(max_nics)
 
     def remove_extra_nics(self) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -2347,14 +2374,14 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 settings = security_profile[0]
                 assert isinstance(settings, SecurityProfileSettings)
                 assert isinstance(settings.security_profile, SecurityProfileType)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["security_type"] = (
+                    cls._security_profile_mapping[settings.security_profile]
+                )
                 if settings.security_profile == SecurityProfileType.Stateless:
                     node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+                    node_parameters.security_profile["encryption_type"] = (
+                        "NonPersistedTPM"
+                    )
                 else:
                     node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
@@ -2362,9 +2389,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         if settings.encrypt_disk
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
+                node_parameters.security_profile["disk_encryption_set_id"] = (
+                    settings.disk_encryption_set_id
+                )
 
                 if node_parameters.security_profile["security_type"] == "":
                     node_parameters.security_profile.clear()
