@@ -6,7 +6,7 @@ from dataclasses_json import dataclass_json
 from lisa import features, schema, search_space
 from lisa.environment import Environment
 from lisa.features.security_profile import SecurityProfileType
-from lisa.sut_orchestrator.libvirt.context import get_node_context
+from lisa.sut_orchestrator.libvirt.context import GuestVmType, get_node_context
 
 
 @dataclass_json()
@@ -31,8 +31,8 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
 
 class SecurityProfile(features.SecurityProfile):
     _security_profile_mapping = {
-        SecurityProfileType.Standard: "",
-        SecurityProfileType.CVM: "ConfidentialVM",
+        SecurityProfileType.Standard: GuestVmType.Standard,
+        SecurityProfileType.CVM: GuestVmType.ConfidentialVM,
     }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -45,13 +45,13 @@ class SecurityProfile(features.SecurityProfile):
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         environment = cast(Environment, kwargs.get("environment"))
-        security_profile = [kwargs.get("settings")]
+        settings = kwargs.get("settings")
+        if not settings:
+            return
         for node in environment.nodes._list:
-            if security_profile:
-                settings = security_profile[0]
-                assert isinstance(settings, SecurityProfileSettings)
-                assert isinstance(settings.security_profile, SecurityProfileType)
-                node_context = get_node_context(node)
-                node_context.guest_vm_type = cls._security_profile_mapping[
-                    settings.security_profile
-                ]
+            assert isinstance(settings, SecurityProfileSettings)
+            assert isinstance(settings.security_profile, SecurityProfileType)
+            node_context = get_node_context(node)
+            node_context.guest_vm_type = cls._security_profile_mapping[
+                settings.security_profile
+            ]
