@@ -145,9 +145,11 @@ def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
                     " no idle cpu can be used to test hotplug."
                 )
             # start to take idle cpu from online to offline, then offline to online.
+            log.info("----- set_idle_cpu_offline_online")
             set_idle_cpu_offline_online(log, node, idle_cpu)
             # when kernel doesn't support set vmbus channels target cpu feature, the
             # dict which stores original status is empty, nothing need to be restored.
+            log.info("----- Restore Interrupts Assignment")
             restore_interrupts_assignment(file_path_list, node)
             restore_state = True
     finally:
