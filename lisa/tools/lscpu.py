@@ -415,13 +415,13 @@ class BSDLscpu(Lscpu):
             assert matched[0], "core_per_cluster_count is not set"
             return int(matched[0]["package_count"])
         else:
-            output = self.run(
+            results = self.run(
                 "-n kern.sched.topology_spec",
                 force_run=force_run,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="kern.sched.topology_spec isn't set",
             ).stdout.strip()
-            topology_spec = etree.ElementTree.fromstring(output)
+            topology_spec = etree.ElementTree.fromstring(results)
             return len(topology_spec.findall(".//group"))
 
     def get_core_per_cluster_count(self, force_run: bool = False) -> int:
