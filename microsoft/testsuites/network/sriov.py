@@ -812,7 +812,7 @@ class Sriov(TestSuite):
                 # 3. Start iperf3 for 120 seconds with 128 threads on client node.
                 client_iperf3.run_as_client(
                     server_ip=matched_server_nic_info.ip_addr,
-                    run_time_seconds=120,
+                    run_time_seconds=1200,
                     parallel_number=128,
                     client_ip=client_nic_info.ip_addr,
                 )
