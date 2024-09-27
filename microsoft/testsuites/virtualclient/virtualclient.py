@@ -9,8 +9,9 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.operating_system import Debian
+from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import VcRunner
+from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -52,6 +53,18 @@ class VirtualClient(TestSuite):
         timeout=3000,
     )
     def perf_vc_postgresql(self, environment: Environment) -> None:
+        node = environment.nodes[0]
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        if arch == "aarch64":
+            raise SkippedException(
+                f"Virtual Client PostgreSQL doesn't support {arch} architecture."
+            )
+        if type(node.os) == Ubuntu and node.os.information.version < "20.4.0":
+            raise SkippedException(
+                f"Virtual Client PostgreSQL doesn't support distro {type(node.os)}"
+                f" version {node.os.information.version}."
+            )
+
         self._run_work_load(
             environment=environment,
             profile_name="PERF-POSTGRESQL-HAMMERDB-TPCC",
