@@ -3,7 +3,7 @@
 
 from typing import List, Type
 
-from lisa import features
+from lisa import feature, features
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.platform_ import Platform
@@ -30,6 +30,7 @@ class ReadyPlatform(Platform):
             features.Hibernation,
             features.IsolatedResource,
             features.Nfs,
+            features.SecurityProfile,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -49,6 +50,8 @@ class ReadyPlatform(Platform):
                 node.capability.disk = DiskOptionSettings()
             if node.capability.network_interface is None:
                 node.capability.network_interface = NetworkInterfaceOptionSettings()
+            # Reload features to right types
+            feature.reload_platform_features(node.capability, self.supported_features())
 
         if len(environment.nodes):
             # if it has nodes, it's a good environment to run test cases
