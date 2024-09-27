@@ -72,7 +72,7 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
     def __init__(self, runbook: AzureCredentialSchema) -> None:
         super().__init__(runbook=runbook)
         # parameters overwrite seq: env var <- runbook <- cmd
-        self._credential_type = AzureCredentialType.DefaultAzureCredential
+        self._credential_type: str = AzureCredentialType.DefaultAzureCredential
         self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
         self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
 
@@ -149,7 +149,7 @@ class AzureClientAssertionCredential(AzureCredential):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return ClientAssertionCredentialSchema
 
-    def __init__(self, runbook: ClientAssertionCredentialSchema | None) -> None:
+    def __init__(self, runbook: ClientAssertionCredentialSchema) -> None:
         if runbook:
             super().__init__(runbook)
         self._msi_client_id = ""
@@ -177,11 +177,11 @@ class AzureClientAssertionCredential(AzureCredential):
             enterprise_app_client_id
         ), "enterprise_app_client_id shouldn't be non for ClientAssertionCredential"
 
-        AUDIENCE = "api://AzureADTokenExchange"
+        audience = "api://AzureADTokenExchange"
         credential = ClientAssertionCredential(
             tenant_id=tenant_id,
             client_id=enterprise_app_client_id,
-            func=lambda: self._get_managed_identity_token(msi_client_id, AUDIENCE),
+            func=lambda: self._get_managed_identity_token(msi_client_id, audience),
         )
         return credential
 
