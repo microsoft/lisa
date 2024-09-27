@@ -1896,6 +1896,20 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.capability.disk.data_disk_count -= len(names)
         self._node.close()
 
+    def get_resource_disks(self) -> List[str]:
+        resource_disk_mount_point = self.get_resource_disk_mount_point()
+        resource_disks = []
+        try:
+            resourcedisk = self._node.features[Disk].get_partition_with_mount_point(
+                resource_disk_mount_point
+            )
+            if resourcedisk:
+                resource_disk = [resourcedisk.name]
+        except AssertionError:
+            nvme = self._node.features[Nvme]
+            resource_disk = nvme.get_raw_nvme_disks()
+        return resource_disk
+
     def get_resource_disk_mount_point(self) -> str:
         # get customize mount point from cloud-init configuration file from /etc/cloud/
         # if not found, use default mount point /mnt for cloud-init
