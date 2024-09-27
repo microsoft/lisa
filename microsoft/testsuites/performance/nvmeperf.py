@@ -11,6 +11,7 @@ from lisa import (
 )
 from lisa.features import Nvme, NvmeSettings
 from lisa.messages import DiskSetupType, DiskType
+from lisa.operating_system import Oracle
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, Lscpu
 from lisa.tools.fio import IoEngine
@@ -77,6 +78,19 @@ class NvmePerformace(TestSuite):
                 node.get_pure_path(f"/sys/block/{disk_name}/queue/rq_affinity"),
                 sudo=True,
             )
+            if isinstance(node.os, Oracle):
+                # Changing the scheduler to this does not show workqueue lockups,
+                # even at higher qdepths. These scheduling algorithms, along with
+                # other queue parameters are there to allow the developers/users
+                # to tune them, based on the devices and system load that is that
+                # is going to be there on the system. higher system load on a few
+                # CPUs can lead to workqueue lockups when hrtimers and interrupts
+                # start taking longer time.
+                echo.write_to_file(
+                    "mq-deadline",
+                    node.get_pure_path(f"/sys/block/{disk_name}/queue/scheduler"),
+                    sudo=True,
+                )
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
