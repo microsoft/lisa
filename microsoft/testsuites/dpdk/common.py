@@ -41,7 +41,7 @@ class OsPackageDependencies:
     ) -> None:
         self.matcher = matcher
         self.packages = packages
-        self.exclusive_match = stop_on_match
+        self.stop_on_match = stop_on_match
 
 
 class DependencyInstaller:
@@ -61,7 +61,7 @@ class DependencyInstaller:
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
                 os.install_packages(requirement.packages, extra_args=extra_args)
-                if requirement.exclusive_match:
+                if requirement.stop_on_match:
                     return
         # NOTE: It is up to the caller to raise an exception on an invalid OS
 
@@ -129,7 +129,7 @@ class TarDownloader(Downloader):
                 "Source path is not a .tar[.gz|.bz2] file. "
                 f"Tar url was set to: {self._tar_url} "
             )
-        ).is_true
+        ).is_true()
         if self._is_remote_tarball:
             tarfile = node.tools[Wget].get(
                 self._tar_url,
@@ -184,7 +184,7 @@ class Installer:
             self._node.log.debug("No downloader assigned to installer.")
 
     # do the build and installation
-    def _run_build(self) -> None:
+    def _install(self) -> None:
         self._download_assets()
 
     # remove an installation
@@ -213,7 +213,7 @@ class Installer:
         if self._should_install():
             self._uninstall()
             self._install_dependencies()
-            self._run_build()
+            self._install()
 
     def __init__(
         self,
@@ -261,7 +261,7 @@ class PackageManagerInstall(Installer):
         return True
 
     # installing dependencies is the installation in this case, so just return
-    def _run_build(self) -> None:
+    def _install(self) -> None:
         return
 
 

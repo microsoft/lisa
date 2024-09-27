@@ -238,8 +238,8 @@ class DpdkSourceInstall(Installer):
             "libdpdk", update_cached=True
         )
 
-    def _run_build(self) -> None:
-        super()._run_build()
+    def _install(self) -> None:
+        super()._install()
         if self._sample_applications:
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
