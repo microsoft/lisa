@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import threading
 import time
 from typing import cast
 
@@ -30,6 +31,7 @@ from lisa.tools import (
     Lscpu,
     Lsvmbus,
     Modprobe,
+    Pgrep,
     Reboot,
 )
 from lisa.util import SkippedException
@@ -104,19 +106,26 @@ class CPUSuite(TestSuite):
             image_folder_path = node.find_partition_with_freespace(fio_data_size_in_gb)
             # Each CPU takes ~10 seconds to toggle offline-online
             fio_run_time = 300 + (node.tools[Lscpu].get_core_count() * 10)
-            fio_process = node.tools[Fio].launch_async(
-                name="workload",
-                filename=f"{image_folder_path}/fiodata",
-                mode="readwrite",
-                iodepth=128,
-                numjob=10,
-                time=fio_run_time,
-                block_size="1M",
-                size_gb=fio_data_size_in_gb,
-                group_reporting=False,
-                overwrite=True,
-                time_based=True,
-            )
+
+            # Define a function to run fio
+            def run_fio():
+                node.tools[Fio].launch(
+                    name="workload",
+                    filename=f"{image_folder_path}/fiodata",
+                    mode="readwrite",
+                    iodepth=128,
+                    numjob=10,
+                    time=fio_run_time,
+                    block_size="1M",
+                    size_gb=fio_data_size_in_gb,
+                    group_reporting=False,
+                    overwrite=True,
+                    time_based=True,
+                )
+
+            # Start the thread
+            fio_thread = threading.Thread(target=run_fio)
+            fio_thread.start()
 
             # Added to find an optional runtime for fio_run_time
             # Remove once test is stable
@@ -127,11 +136,25 @@ class CPUSuite(TestSuite):
 
             log.debug(f"CPU Hotplug duration: {time.time() - hot_plug_start_time} s")
 
-            # verify that the fio was running when hotplug was triggered
+            # Wait for the fio thread to complete
+            fio_thread.join()
+
+            # Check if the fio thread is still running
             assert_that(
-                fio_process.is_running(),
-                "Storage workload was not running during CPUhotplug",
+                fio_thread.is_alive(),
+                "Storage workload was not running during CPU hotplug",
             ).is_true()
+
+            # Wait for the fio thread to complete
+            fio_thread.join()
+
+            # Check if fio process completed without throwing any exceptions
+            fio_running = node.tools[Pgrep].get_processes("fio")
+            assert_that(
+                fio_running,
+                "Storage workload did not complete successfully",
+            ).is_length(1)
+
         finally:
             # kill fio process
             node.tools[Kill].by_name("fio", ignore_not_exist=True)
