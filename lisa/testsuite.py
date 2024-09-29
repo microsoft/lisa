@@ -522,6 +522,7 @@ class TestCaseRuntimeData:
         self.select_action: str = ""
         self.times: int = 1
         self.retry: int = 0
+        self.timeout: int = metadata.timeout
         self.use_new_environment: bool = metadata.use_new_environment
         self.ignore_failure: bool = False
         self.environment_name: str = ""
@@ -630,7 +631,19 @@ class TestSuite:
                 constants.RUN_LOCAL_LOG_PATH
             ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
-            case_timeout = case_result.runtime_data.metadata.timeout
+
+            # check for positive value just to be clearer
+            case_timeout = (
+                max(
+                    case_result.runtime_data.timeout,
+                    case_result.runtime_data.metadata.timeout,
+                )
+                if (
+                    case_result.runtime_data.timeout
+                    and case_result.runtime_data.timeout > 0
+                )
+                else case_result.runtime_data.metadata.timeout
+            )
 
             if is_continue:
                 is_continue = self.__before_case(

@@ -1487,6 +1487,9 @@ class TestCase(BaseTestCaseFilter):
             field_function=fields.Int, validate=validate.Range(min=0)
         ),
     )
+    # each test case will have this timeout
+    # if it is 0 it will use default timeout from test case
+    timeout: int = 0
     # each case with this rule will be run in a new environment.
     use_new_environment: bool = False
     # Once it's set, failed test result will be rewrite to success
