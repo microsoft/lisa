@@ -3233,7 +3233,10 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         )
 
     def create_file_share(
-        self, file_share_names: List[str], environment: Environment
+        self,
+        file_share_names: List[str],
+        environment: Environment,
+        allow_shared_key_access: bool = False,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3251,6 +3254,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             resource_group_name=resource_group_name,
             location=location,
             log=self._log,
+            allow_shared_key_access=allow_shared_key_access,
         )
 
         for share_name in file_share_names:
