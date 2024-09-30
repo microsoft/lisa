@@ -54,8 +54,10 @@ class DependencyInstaller:
         self, node: Node, extra_args: Union[List[str], None]
     ) -> None:
         os = node.os
-        if not isinstance(os, Posix):
-            return
+        assert isinstance(os, Posix), (
+            "DependencyInstaller is not compatible with this OS: "
+            f"{os.information.vendor} {os.information.release}"
+        )
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
         for requirement in self.requirements:
