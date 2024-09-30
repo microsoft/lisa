@@ -2718,7 +2718,6 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             sku="Premium_LRS",
             kind="FileStorage",
             enable_https_traffic_only=False,
-            
         )
         get_or_create_file_share(
             credential=platform.credential,
