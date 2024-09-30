@@ -61,7 +61,7 @@ class Dhclient(Tool):
             # the default value in debian is 300
             value: int = 300
             cat = self.node.tools[Cat]
-            output = cat.read(config_path)
+            output = cat.read(config_path, sudo=True)
             group = find_group_in_lines(output, self._debian_pattern)
             if group and not group["default"]:
                 value = int(group["number"])
