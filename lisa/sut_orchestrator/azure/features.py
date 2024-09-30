@@ -3254,7 +3254,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             resource_group_name=resource_group_name,
             location=location,
             log=self._log,
-            allow_shared_key_access=allow_shared_key_access
+            allow_shared_key_access=allow_shared_key_access,
         )
 
         for share_name in file_share_names:
