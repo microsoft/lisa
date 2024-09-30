@@ -99,7 +99,6 @@ from lisa.tools import Ls
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
-    NotMeetRequirementException,
     check_till_timeout,
     constants,
     field_metadata,
@@ -3098,31 +3097,10 @@ def convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
     if not node_space:
         return
 
-    if node_space.features:
-        new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+    from .platform_ import AzurePlatform
 
-        for current_settings in node_space.features.items:
-            # reload to type specified settings
-            try:
-                from .platform_ import AzurePlatform
+    feature.reload_platform_features(node_space, AzurePlatform.supported_features())
 
-                settings_type = feature.get_feature_settings_type_by_name(
-                    current_settings.type, AzurePlatform.supported_features()
-                )
-            except NotMeetRequirementException as identifier:
-                raise LisaException(
-                    f"platform doesn't support all features. {identifier}"
-                )
-            new_setting = schema.load_by_type(settings_type, current_settings)
-            existing_setting = feature.get_feature_settings_by_name(
-                new_setting.type, new_settings, True
-            )
-            if existing_setting:
-                new_settings.remove(existing_setting)
-                new_setting = existing_setting.intersect(new_setting)
-
-            new_settings.add(new_setting)
-        node_space.features = new_settings
     if node_space.disk:
         from . import features
 
