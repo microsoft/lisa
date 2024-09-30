@@ -3236,7 +3236,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         self,
         file_share_names: List[str],
         environment: Environment,
-        allow_shared_key_access: bool = False
+        allow_shared_key_access: bool = False,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
