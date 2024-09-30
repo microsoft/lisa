@@ -187,6 +187,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self.platform_runbook.device_pools,
         )
 
+        _ = self.host_node.execute(
+            cmd="journalctl -u cloud-init --no-page",
+            shell=True,
+            sudo=True,
+        )
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         # Ensure environment log directory is created before connecting to any nodes.
         _ = environment.log_path
