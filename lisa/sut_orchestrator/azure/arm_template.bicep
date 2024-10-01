@@ -46,6 +46,9 @@ param data_disks array
 @description('whether to use ultra disk')
 param is_ultradisk bool = false
 
+@description('IP Service Tags')
+param ip_service_tags object
+
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -59,6 +62,10 @@ var use_availability_zones = (availability_type == 'availability_zone')
 var availability_set_value = (use_availability_set ? getAvailabilitySetId(availability_set_name_value): null)
 var combined_vm_tags = union(tags, vm_tags)
 var combined_aset_tags = union(tags, availability_set_tags)
+var ip_tags = [for key in objectKeys(ip_service_tags): {
+  ipTagType: key
+  tag: ip_service_tags[key]
+}]
 
 func isCvm(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vmgs_path)))
 
@@ -254,6 +261,7 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   name: '${nodes[i].name}-public-ip'
   properties: {
     publicIPAllocationMethod: ((is_ultradisk || use_availability_zones) ? 'Static' : 'Dynamic')
+    ipTags: (empty(ip_tags) ? null : ip_tags)
   }
   sku: {
     name: ((is_ultradisk || use_availability_zones) ? 'Standard' : 'Basic')
