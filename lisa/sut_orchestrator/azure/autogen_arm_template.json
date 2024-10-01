@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.28.1.47646",
-      "templateHash": "1630470125196944168"
+      "version": "0.30.23.60470",
+      "templateHash": "17909783643222378721"
     }
   },
   "functions": [
@@ -511,9 +511,25 @@
       "metadata": {
         "description": "whether to use ultra disk"
       }
+    },
+    "ip_service_tags": {
+      "type": "object",
+      "metadata": {
+        "description": "IP Service Tags"
+      }
     }
   },
   "variables": {
+    "copy": [
+      {
+        "name": "ip_tags",
+        "count": "[length(objectKeys(parameters('ip_service_tags')))]",
+        "input": {
+          "ipTagType": "[objectKeys(parameters('ip_service_tags'))[copyIndex('ip_tags')]]",
+          "tag": "[parameters('ip_service_tags')[objectKeys(parameters('ip_service_tags'))[copyIndex('ip_tags')]]]"
+        }
+      }
+    ],
     "vnet_id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtual_network_name'))]",
     "node_count": "[length(parameters('nodes'))]",
     "availability_set_name_value": "lisa-availabilitySet",
@@ -579,7 +595,8 @@
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
-        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]"
+        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]",
+        "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]"
       },
       "sku": {
         "name": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Standard', 'Basic')]"
@@ -770,8 +787,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "10740733774987815957"
+              "version": "0.30.23.60470",
+              "templateHash": "12249187708601787514"
             }
           },
           "functions": [
