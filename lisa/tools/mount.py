@@ -72,8 +72,9 @@ class Mount(Tool):
     )
 
     # /dev/da1p1 on /mnt/resource (ufs, local, soft-updates)
+    # zroot/ROOT/default on / (zfs, local, nfsv4acls)
     _partition_info_regex_bsd = re.compile(
-        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+"
+        r"\s*(?:\/dev\/|zroot\/)(?P<name>.*)\s+on\s+(?P<mount_point>.*?)\s+"
         r"(\((?P<type>.*),(?P<options>.*)\))"
     )
 
