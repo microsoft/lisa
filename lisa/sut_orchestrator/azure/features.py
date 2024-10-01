@@ -3258,7 +3258,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             location=location,
             log=self._log,
             sku=sku,
-            kind=skind,
+            kind=kind,
             enable_https_traffic_only=enable_https_traffic_only,
             allow_shared_key_access=allow_shared_key_access,
         )
