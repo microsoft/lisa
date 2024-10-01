@@ -60,11 +60,14 @@ class DependencyInstaller:
         )
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
+        packages = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
-                os.install_packages(requirement.packages, extra_args=extra_args)
+                packages += requirement.packages
                 if requirement.stop_on_match:
-                    return
+                    break
+        os.install_packages(packages=packages, extra_args=extra_args)
+
         # NOTE: It is up to the caller to raise an exception on an invalid OS
 
 
