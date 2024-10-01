@@ -294,9 +294,8 @@ class Dpdk(TestSuite):
             )
 
         # setup and run mp_server application
-        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
-        server_app_path = examples_path.joinpath(server_app_name)
-        client_app_path = examples_path.joinpath(client_app_name)
+        server_app_path = test_kit.testpmd.get_example_app_path(server_app_name)
+        client_app_path = test_kit.testpmd.get_example_app_path(client_app_name)
 
         # EAL -l: start server on cores 1-2,
         # EAL -n: use 4 memory channels
@@ -620,7 +619,10 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
