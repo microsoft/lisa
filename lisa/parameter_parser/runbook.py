@@ -77,8 +77,7 @@ class RunbookBuilder:
 
         # remove variables and extensions from data, since it's not used, and may be
         #  confusing in log.
-        if constants.VARIABLE in data:
-            del data[constants.VARIABLE]
+        builder._remove_variables()
 
         runbook_name = builder.partial_resolve(constants.NAME)
 
@@ -134,6 +133,12 @@ class RunbookBuilder:
         for key, value in variables.items():
             self._log.debug(f"variable '{key}': {value.data}")
 
+    def _remove_variables(self) -> None:
+        self._raw_data.pop(constants.VARIABLE, None)
+
+    def _remove_extensions(self) -> None:
+        self._raw_data.pop(constants.EXTENSION, None)
+
     def _internal_resolve(
         self, raw_data: Any, variables: Optional[Dict[str, VariableEntry]] = None
     ) -> Any:
@@ -161,7 +166,7 @@ class RunbookBuilder:
                     extension.name = f"lisa_ext_{index}"
                 import_package(Path(extension.path), extension.name)
 
-            del self._raw_data[constants.EXTENSION]
+            self._remove_extensions()
 
     @staticmethod
     def _validate_and_load(data: Any) -> schema.Runbook:
