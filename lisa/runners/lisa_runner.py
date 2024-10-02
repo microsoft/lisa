@@ -655,7 +655,9 @@ class LisaRunner(BaseRunner):
                     tested_environment = environment.get_guest_environment()
                 try:
                     if result.check_environment(
-                        environment=tested_environment, save_reason=True
+                        environment=tested_environment,
+                        environment_platform_type=self.platform.type_name(),
+                        save_reason=True,
                     ) and (
                         not result.runtime_data.use_new_environment
                         or environment.is_new
@@ -784,9 +786,6 @@ class LisaRunner(BaseRunner):
         platform_type: str,
     ) -> None:
         assert platform_type
-        platform_type_set = search_space.SetSpace[str](
-            is_allow_set=True, items=[platform_type]
-        )
 
         cases_ignored_features: Dict[str, Set[str]] = {}
         # if platform defined requirement, replace the requirement from
@@ -797,12 +796,10 @@ class LisaRunner(BaseRunner):
             platform_requirement = self._create_platform_requirement()
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
-            # check if there is platform requirement on test case
-            if test_req.platform_type and len(test_req.platform_type) > 0:
-                check_result = platform_type_set.check(test_req.platform_type)
-                if not check_result.result:
-                    test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
-                    continue
+            check_result = test_result.check_platform(platform_type)
+            if not check_result.result:
+                test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
+                continue
 
             if test_result.can_run:
                 assert test_req.environment
