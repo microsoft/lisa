@@ -117,7 +117,14 @@ class RunbookBuilder:
         if variables is None:
             variables = {key: value.copy() for key, value in self.variables.items()}
         result._variables = variables
-        result._raw_data = self._raw_data
+        # merge variables derived from combinators or transformers.
+        result._variables.update(variables)
+        # reload data to support dynamic path in combinators or transformers.
+        result._raw_data = result._load_data(
+            self._path, set(), higher_level_variables=result._variables
+        )
+        result._remove_extensions()
+        result._remove_variables()
 
         return result
 
