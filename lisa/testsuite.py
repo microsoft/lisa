@@ -187,11 +187,23 @@ class TestResult:
             self._send_result_message(self.stacktrace)
 
     def check_environment(
-        self, environment: Environment, save_reason: bool = False
+        self,
+        environment: Environment,
+        # The environment platform may not be associated to the environment at
+        # early stage, so pass it in to validate.
+        environment_platform_type: str = "",
+        save_reason: bool = False,
     ) -> bool:
         requirement = self.runtime_data.metadata.requirement
         assert requirement.environment
-        check_result = requirement.environment.check(environment.capability)
+
+        check_result = search_space.ResultReason()
+        if environment_platform_type:
+            check_result = self.check_platform(environment_platform_type)
+
+        if check_result.result:
+            check_result = requirement.environment.check(environment.capability)
+
         if (
             check_result.result
             and requirement.os_type
@@ -229,6 +241,29 @@ class TestResult:
             return 0.0
 
         return self._timer.elapsed(False)
+
+    def check_platform(
+        self, environment_platform_type: str
+    ) -> search_space.ResultReason:
+        result = search_space.ResultReason()
+
+        assert environment_platform_type, "platform type is not defined"
+        environment_platform_type_set = search_space.SetSpace[str](
+            is_allow_set=True, items=[environment_platform_type]
+        )
+        # only check platform, when it's defined.
+        if (
+            not self.runtime_data.requirement
+            or not self.runtime_data.requirement.platform_type
+            or len(self.runtime_data.requirement.platform_type.items) == 0
+        ):
+            return result
+
+        test_supported_platforms = self.runtime_data.requirement.platform_type
+
+        result = environment_platform_type_set.check(test_supported_platforms)
+
+        return result
 
     def _send_result_message(self, stacktrace: Optional[str] = None) -> None:
         self.elapsed = self.get_elapsed()
