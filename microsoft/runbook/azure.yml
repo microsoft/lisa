@@ -10,6 +10,10 @@ variable:
     value: ""
   - name: marketplace_image
     value: ""
+  - name: shared_gallery
+    value: ""
+  - name: community_gallery_image
+    value: ""
   - name: vhd
     value: ""
   - name: vm_size
@@ -45,6 +49,8 @@ platform:
         min: 2
       azure:
         marketplace: $(marketplace_image)
+        shared_gallery: $(shared_gallery)
+        community_gallery_image: $(community_gallery_image)
         vhd: $(vhd)
         location: $(location)
         vm_size: $(vm_size)
