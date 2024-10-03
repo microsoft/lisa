@@ -250,7 +250,7 @@ class TimeSync(TestSuite):
             }
             lscpu = node.tools[Lscpu]
             arch = lscpu.get_architecture()
-            clock_event_name = clockevent_map.get(CpuArchitecture(arch), None)
+            clock_event_name = clockevent_map.get(arch, None)
             if not clock_event_name:
                 raise UnsupportedCpuArchitectureException(arch)
             cat = node.tools[Cat]
@@ -382,7 +382,7 @@ class TimeSync(TestSuite):
     def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
-        if CpuArchitecture(arch) != CpuArchitecture.ARM64:
+        if arch != CpuArchitecture.ARM64:
             raise SkippedException(
                 f"This test case does not support {arch}. "
                 "This validation is only for ARM64."
