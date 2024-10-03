@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Type
 from unittest import TestCase
 
+import yaml
 from dataclasses_json import dataclass_json
 
 from lisa import LisaException, constants, schema, transformer
@@ -179,7 +180,9 @@ class TestTransformerCase(TestCase):
         transformers_data: List[Any] = [
             x.to_dict() for x in transformers  # type:ignore
         ]
-        runbook_builder = RunbookBuilder(Path("mock_runbook.yml"))
+        test_runbook_path = Path(__file__).parent / "test_runbook.yml"
+
+        runbook_builder = RunbookBuilder(test_runbook_path)
         runbook_builder._raw_data = {
             constants.TRANSFORMER: transformers_data,
         }
@@ -187,6 +190,10 @@ class TestTransformerCase(TestCase):
             "v0": VariableEntry("v0", "original"),
             "va": VariableEntry("va", "original"),
         }
+
+        # write to file for reloading in runbook.derive method.
+        with open(test_runbook_path, "w") as file:
+            yaml.dump(runbook_builder._raw_data, file)
         return runbook_builder
 
     def _generate_transformers_runbook(self, count: int) -> List[schema.Transformer]:
