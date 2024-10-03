@@ -57,7 +57,6 @@ ArchitectureNames = {
     "aarch64": CpuArchitecture.ARM64,
     "amd64": CpuArchitecture.X64,
     "arm64": CpuArchitecture.ARM64,
-    "i386": CpuArchitecture.I386,
 }
 
 
