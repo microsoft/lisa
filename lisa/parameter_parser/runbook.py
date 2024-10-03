@@ -63,7 +63,7 @@ class RunbookBuilder:
         # merge all parameters
         builder._log.info(f"loading runbook: {builder._path}")
         data = builder._load_data(
-            builder._path.absolute(), set(), higher_level_variables=builder._cmd_args
+            path=builder._path.absolute(), higher_level_variables=builder._cmd_args
         )
         builder._raw_data = data
 
@@ -121,7 +121,7 @@ class RunbookBuilder:
         result._variables.update(variables)
         # reload data to support dynamic path in combinators or transformers.
         result._raw_data = result._load_data(
-            self._path, set(), higher_level_variables=result._variables
+            path=self._path, higher_level_variables=result._variables
         )
         result._remove_extensions()
         result._remove_variables()
@@ -323,8 +323,8 @@ class RunbookBuilder:
     def _load_data(
         self,
         path: Path,
-        used_path: Set[str],
         higher_level_variables: Union[List[str], Dict[str, VariableEntry]],
+        used_path: Optional[Set[str]] = None,
     ) -> Any:
         """
         Load runbook, but not to validate. It will be validated after
@@ -336,6 +336,9 @@ class RunbookBuilder:
             data_from_current = yaml.safe_load(file)
         if not data_from_current:
             raise LisaException(f"file '{path}' cannot be empty.")
+
+        if not used_path:
+            used_path = set()
 
         variables = load_variables(
             data_from_current, higher_level_variables=higher_level_variables
@@ -380,9 +383,9 @@ class RunbookBuilder:
                 new_used_path = used_path.copy()
                 new_used_path.add(raw_path)
                 include_data = self._load_data(
-                    include_path,
-                    used_path=new_used_path,
+                    path=include_path,
                     higher_level_variables=variables,
+                    used_path=new_used_path,
                 )
                 data_from_include = self._merge_data(
                     include_path.parent, include_data, data_from_include
