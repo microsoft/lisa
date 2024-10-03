@@ -13,10 +13,18 @@ class Ln(Tool):
     def can_install(self) -> bool:
         return False
 
-    def create_link(self, target: str, link: str, is_symbolic: bool = True) -> None:
+    def create_link(
+        self,
+        target: str,
+        link: str,
+        is_symbolic: bool = True,
+        force: bool = False,
+    ) -> None:
         cmd = ""
         if is_symbolic:
             cmd += " -s "
+        if force:
+            cmd += " -f "
         cmd += f"{target} {link}"
         self.run(
             cmd,

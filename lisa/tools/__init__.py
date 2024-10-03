@@ -67,6 +67,7 @@ from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
 from .mdadm import Mdadm
+from .meson import Meson
 from .mkdir import Mkdir
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
@@ -76,6 +77,7 @@ from .mount import Mount
 from .netperf import Netperf
 from .nfs_client import NFSClient
 from .nfs_server import NFSServer
+from .ninja import Ninja
 from .nm import Nm
 from .nproc import Nproc
 from .ntp import Ntp
@@ -185,6 +187,7 @@ __all__ = [
     "Lspci",
     "Lsvmbus",
     "Make",
+    "Meson",
     "Mdadm",
     "Mkdir",
     "Mkfs",
@@ -196,6 +199,7 @@ __all__ = [
     "Mount",
     "Mv",
     "Netperf",
+    "Ninja",
     "NFSClient",
     "NFSServer",
     "Nm",

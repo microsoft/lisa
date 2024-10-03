@@ -70,17 +70,23 @@ class Wget(Tool):
             force_run=force_run,
             timeout=timeout,
         )
-        temp_log = self.node.tools[Cat].read(log_file, sudo=sudo, force_run=True)
-        matched_result = self.__pattern_path.match(temp_log)
-        if matched_result:
-            download_file_path = matched_result.group("path")
+
+        ls = self.node.tools[Ls]
+        if ls.path_exists(log_file, sudo=sudo):
+            temp_log = self.node.tools[Cat].read(log_file, sudo=sudo, force_run=True)
+            matched_result = self.__pattern_path.match(temp_log)
+            if matched_result:
+                download_file_path = matched_result.group("path")
+            else:
+                raise LisaException(
+                    f"cannot find file path in stdout of '{command}', it may be caused "
+                    " due to failed download or pattern mismatch."
+                    f" stdout: {command_result.stdout}"
+                    f" templog: {temp_log}"
+                )
         else:
-            raise LisaException(
-                f"cannot find file path in stdout of '{command}', it may be caused "
-                " due to failed download or pattern mismatch."
-                f" stdout: {command_result.stdout}"
-                f" templog: {temp_log}"
-            )
+            download_file_path = download_path
+
         if command_result.is_timeout:
             raise LisaTimeoutException(
                 f"wget command is timed out after {timeout} seconds."

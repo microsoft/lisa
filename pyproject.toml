@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 65", "setuptools_scm[toml] >= 6.2"]
+requires = ["setuptools >= 70", "setuptools_scm[toml] >= 6.2"]
 build-backend = "setuptools.build_meta"
 
 
@@ -49,9 +49,9 @@ azure = [
     "azure-mgmt-privatedns ~= 1.0.0",
     "azure-mgmt-resource ~= 21.0.0",
     "azure-mgmt-serialconsole ~= 1.0.0",
-    "azure-mgmt-storage ~= 20.0.0",
-    "azure-storage-blob ~= 12.11.0",
-    "azure-storage-file-share ~= 12.16.0",
+    "azure-mgmt-storage ~= 21.2.1",
+    "azure-storage-blob ~= 12.23.0",
+    "azure-storage-file-share ~= 12.18.0",
     "azure-keyvault-secrets ~= 4.7.0", 
     "azure-keyvault-certificates ~= 4.7.0",
     "msrestazure ~= 0.6.4",

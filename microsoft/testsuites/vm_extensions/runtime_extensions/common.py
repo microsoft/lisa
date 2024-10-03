@@ -83,7 +83,7 @@ def retrieve_storage_blob_url(
     test_file: str = "",
     is_sas: bool = False,
     script: str = "",
-    blob_type: BlobType = BlobType.BlockBlob,
+    blob_type: BlobType = BlobType.BLOCKBLOB,
 ) -> Any:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
@@ -123,7 +123,7 @@ def retrieve_storage_blob_url(
                 raise ex
         # Upload blob to container if doesn't exist
         container_client.upload_blob(
-            name=blob_name, data=blob_data, blob_type=blob_type  # type: ignore
+            name=blob_name, data=blob_data, blob_type=blob_type
         )
 
     blob_url = blob.url
