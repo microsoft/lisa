@@ -367,6 +367,12 @@ class FeatureSettings(
         return feature
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
         # default FeatureSetting is a place holder, nothing to do.
         result = search_space.ResultReason()
@@ -584,6 +590,12 @@ class DiskOptionSettings(FeatureSettings):
         return super().__hash__()
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         result = super().check(capability)
 
         result.merge(
@@ -763,6 +775,12 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         )
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
