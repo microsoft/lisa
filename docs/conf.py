@@ -20,7 +20,11 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 sys.path.insert(0, str(root_dir / "docs"))
 
-from tools import update_file, update_summary  # type: ignore # noqa: E402
+from tools import (  # type: ignore # noqa: E402
+    update_file,
+    update_finetune_data,
+    update_summary,
+)
 
 # -- Project information -----------------------------------------------------
 
@@ -87,3 +91,4 @@ base_path = Path(__file__).parent
 
 update_summary()
 update_file()
+update_finetune_data()

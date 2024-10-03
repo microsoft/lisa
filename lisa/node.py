@@ -765,6 +765,9 @@ class RemoteNode(Node):
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension
 
+        if not hasattr(self, "features"):
+            return False
+
         if not self.features.is_supported(PasswordExtension):
             return False
         password_extension = self.features[PasswordExtension]
