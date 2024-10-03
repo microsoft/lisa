@@ -9,7 +9,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
-from lisa.tools.python import Python
+from lisa.tools.python import Pip, Python
 
 
 class Ninja(Tool):
@@ -45,6 +45,7 @@ class Ninja(Tool):
             self._ninja_url,
             cwd=node.working_path,
         )
+        node.tools[Pip].install_packages("pyelftools")
         node.execute(
             "./configure.py --bootstrap",
             cwd=node.get_pure_path(f"{str(ninja_path)}"),
