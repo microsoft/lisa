@@ -3,9 +3,6 @@
 
 param
 (
-	[String] $ClientId,
-	[String] $ClientSecret,
-	[String] $TenantId,
 	[String] $SubscriptionId,
 	[String] $DatabaseServer,
 	[String] $DatabaseUser,
@@ -95,8 +92,6 @@ $RegionDistros = @{}
 # this should be {"Gallery ARM Image Name" -> ("westus2","eastus2")}
 $DistroRegions = @{}
 
-Write-Host "Login to Azure"
-Connect-AzAccount -ServicePrincipal -Credential (New-Object System.Management.Automation.PSCredential ($ClientId, (ConvertTo-SecureString $ClientSecret -AsPlainText -Force))) -Tenant $TenantId
 Set-AzContext -SubscriptionId $SubscriptionId
 Write-Host "Set current SubscriptionId as $SubscriptionId"
 
