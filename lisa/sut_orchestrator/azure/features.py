@@ -172,9 +172,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -2347,14 +2347,14 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 settings = security_profile[0]
                 assert isinstance(settings, SecurityProfileSettings)
                 assert isinstance(settings.security_profile, SecurityProfileType)
-                node_parameters.security_profile[
-                    "security_type"
-                ] = cls._security_profile_mapping[settings.security_profile]
+                node_parameters.security_profile["security_type"] = (
+                    cls._security_profile_mapping[settings.security_profile]
+                )
                 if settings.security_profile == SecurityProfileType.Stateless:
                     node_parameters.security_profile["secure_boot"] = False
-                    node_parameters.security_profile[
-                        "encryption_type"
-                    ] = "NonPersistedTPM"
+                    node_parameters.security_profile["encryption_type"] = (
+                        "NonPersistedTPM"
+                    )
                 else:
                     node_parameters.security_profile["secure_boot"] = True
                     node_parameters.security_profile["encryption_type"] = (
@@ -2362,9 +2362,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         if settings.encrypt_disk
                         else "VMGuestStateOnly"
                     )
-                node_parameters.security_profile[
-                    "disk_encryption_set_id"
-                ] = settings.disk_encryption_set_id
+                node_parameters.security_profile["disk_encryption_set_id"] = (
+                    settings.disk_encryption_set_id
+                )
 
                 if node_parameters.security_profile["security_type"] == "":
                     node_parameters.security_profile.clear()
@@ -3240,6 +3240,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         sku: str = "Standard_LRS",
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
+        enable_private_endpoint: bool = False,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3263,6 +3264,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             allow_shared_key_access=allow_shared_key_access,
         )
 
+        # If private endpoints are enabled, the SMB endpoint https://<share>.file.core.windows.net
+        # will auto point to <share>.privatelink.file.core.windows.net
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -3273,6 +3276,60 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
             )
+
+        # Create file private endpoint, always after all shares are created
+        if enable_private_endpoint == True:
+            storage_account_resource_id = (
+                f"/subscriptions/{platform.subscription_id}/resourceGroups/"
+                f"{resource_group_name}/providers/Microsoft.Storage/storageAccounts"
+                f"/{storage_account_name}"
+            )
+            # get vnet and subnet id
+            virtual_networks_dict: Dict[str, List[str]] = get_virtual_networks(
+                platform, resource_group_name
+            )
+            virtual_networks_id = ""
+            subnet_id = ""
+            for vnet_id, subnet_ids in virtual_networks_dict.items():
+                virtual_networks_id = vnet_id
+                subnet_id = subnet_ids[0]
+                break
+
+            # Create Private endpoint
+            ipv4_address = create_update_private_endpoints(
+                platform,
+                resource_group_name,
+                location,
+                subnet_id,
+                storage_account_resource_id,
+                ["file"],
+                self._log,
+            )
+
+            # create private zone
+            private_dns_zone_id = create_update_private_zones(
+                platform, resource_group_name, self._log
+            )
+            # Create private zone
+            private_dns_zone_id = create_update_private_zones(
+                platform, resource_group_name, self._log
+            )
+            # create records sets
+            create_update_record_sets(
+                platform, resource_group_name, str(ipv4_address), self._log
+            )
+            # create virtual network links for the private zone
+            create_update_virtual_network_links(
+                platform, resource_group_name, virtual_networks_id, self._log
+            )
+            # create private dns zone groups
+            create_update_private_dns_zone_groups(
+                platform=platform,
+                resource_group_name=resource_group_name,
+                private_dns_zone_id=str(private_dns_zone_id),
+                log=self._log,
+            )
+
         return fs_url_dict
 
     def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
