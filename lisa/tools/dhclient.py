@@ -44,7 +44,11 @@ class Dhclient(Tool):
 
     def get_timeout(self) -> int:
         is_default_value: bool = True
-        if isinstance(self.node.os, Debian) or isinstance(self.node.os, Suse) or isinstance(self.node.os, Redhat):
+        if (
+            isinstance(self.node.os, Debian)
+            or isinstance(self.node.os, Suse)
+            or isinstance(self.node.os, Redhat)
+        ):
             paths_to_check = [
                 f"/etc/dhcp/{self._command}.conf",
                 f"/etc/{self._command}.conf",
