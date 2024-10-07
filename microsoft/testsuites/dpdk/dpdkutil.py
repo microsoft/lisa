@@ -564,7 +564,11 @@ def do_parallel_cleanup(environment: Environment) -> None:
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
             # cleanup temporary hugepage and driver changes
-        node.reboot()
+        try:
+            node.reboot(time_out=60)
+        except LisaException:
+            node.log.debug("Timeout during cleanup reboot. Marking node for deletion.")
+            node.mark_dirty()
 
     run_in_parallel(
         [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
@@ -842,8 +846,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # get binary path and dpdk device include args
-    examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
-    server_app_path = examples_path.joinpath(l3fwd_app_name)
+    server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(

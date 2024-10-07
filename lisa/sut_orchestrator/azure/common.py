@@ -69,16 +69,14 @@ from azure.mgmt.resource import (  # type: ignore
     ResourceManagementClient,
     SubscriptionClient,
 )
-from azure.mgmt.storage import StorageManagementClient  # type: ignore
-from azure.mgmt.storage.models import (  # type: ignore
-    Sku,
-    StorageAccountCreateParameters,
-)
+from azure.mgmt.storage import StorageManagementClient
+from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
     BlobServiceClient,
     ContainerClient,
+    ContentSettings,
     generate_blob_sas,
 )
 from azure.storage.fileshare import ShareServiceClient
@@ -1156,6 +1154,7 @@ class AzureArmParameter:
     data_disks: List[DataDiskSchema] = field(default_factory=list)
     vm_tags: Dict[str, Any] = field(default_factory=dict)
     tags: Dict[str, Any] = field(default_factory=dict)
+    ip_service_tags: Dict[str, str] = field(default_factory=dict)
 
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
@@ -1636,7 +1635,7 @@ def generate_user_delegation_sas_token(
         container_name=container_name,
         blob_name=blob_name,
         user_delegation_key=user_delegation_key,
-        permission=BlobSasPermissions(read=True, write=writable),  # type: ignore
+        permission=BlobSasPermissions(read=True, write=writable),
         expiry=expiry_time,
         start=start_time,
     )
@@ -1807,12 +1806,11 @@ def copy_vhd_to_storage(
 ) -> str:
     # get original vhd's hash key for comparing.
     original_key: Optional[bytearray] = None
-    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
+    original_blob_client: BlobClient = BlobClient.from_blob_url(src_vhd_sas_url)
     properties = original_blob_client.get_blob_properties()
-    if properties.content_settings:
-        original_key = properties.content_settings.get(
-            "content_md5", None
-        )  # type: ignore
+    content_settings: Optional[ContentSettings] = properties.content_settings
+    if content_settings:
+        original_key = content_settings.get("content_md5", None)  # type: ignore
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,

@@ -34,3 +34,5 @@ dist
 
 # Local working file
 notes
+
+selftests/test_runbook.yml

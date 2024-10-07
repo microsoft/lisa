@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, Debian, Ubuntu
+from lisa.operating_system import BSD, SLES, CBLMariner, Debian
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -96,6 +96,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 def _assert_status_file_result(
     node: Node, status_file: Any, error_code: str, api_type: Optional[str] = None
 ) -> None:
+    file_status_is_error = status_file["status"].lower() == "error"
     expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
     expected_warning_status_msg = (
         "Expected the status file status to be CompletedWithWarnings"
@@ -117,47 +118,34 @@ def _assert_status_file_result(
         else False
     )
 
-    if truncated_package_code:
+    if truncated_package_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
             expected_warning_status_msg
-        ).is_equal_to("CompletedWithWarnings")
-    elif (
-        _is_supported_linux_distro(node)
-        and node.os.information.version.major == 18
-        and ua_esm_required_code
-    ):
-        # Ubuntu 1804 OS image has UA patches that needs upgrade OS to Pro version
-        # Set error code to 1 notify customers to upgrade OS to Pro to install patches
+        ).is_in("CompletedWithWarnings", "Succeeded")
+        assert_that(error_code).described_as(
+            "Expected 1 error in status file patches operation"
+        ).is_equal_to("1")
+
+    elif ua_esm_required_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
             expected_succeeded_status_msg
-        ).is_equal_to("Succeeded")
+        ).is_in("CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
             "Expected 1 error in status file patches operation"
         ).is_equal_to("1")
-    elif (
-        api_type is not None
-        and _is_supported_linux_distro(node)
-        and node.os.information.version.major == 16
-        and ua_esm_required_code
-    ):
-        # This only applies on installation api call
-        # Ubuntu 1604 OS image has UA patches that needs upgrade OS to Pro version
-        # Set error code to 1 notify customers to upgrade OS to Pro to install patches
-        assert_that(status_file["status"]).described_as(
-            expected_warning_status_msg
-        ).is_equal_to("CompletedWithWarnings")
-        assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
-        ).is_equal_to("1")
+
     elif package_manager_failure_code:
         assert_that(status_file["status"]).described_as(
             expected_succeeded_status_msg
         ).is_equal_to("Succeeded")
+        assert_that(error_code).described_as(
+            "Expected 1 error in status file patches operation"
+        ).is_equal_to("1")
+
     else:
         assert_that(status_file["status"]).described_as(
             expected_succeeded_status_msg
         ).is_equal_to("Succeeded")
-
         assert_that(error_code).described_as(
             "Expected no error in status file patches operation"
         ).is_equal_to("0")
@@ -169,24 +157,6 @@ def _verify_details_code(status_file: Any, code: str) -> bool:
         for detail_code in status_file["error"]["details"]
         if "code" in detail_code
     )
-
-
-def _is_supported_linux_distro(node: Node) -> bool:
-    supported_major_versions = {
-        Ubuntu: [18, 16],
-    }
-
-    for distro in supported_major_versions:
-        if isinstance(node.os, distro):
-            version_list = supported_major_versions.get(distro)
-            if (
-                version_list is not None
-                and node.os.information.version.major in version_list
-            ):
-                return True
-            else:
-                return False
-    return False
 
 
 def _unsupported_image_exception_msg(node: Node) -> None:
@@ -211,7 +181,11 @@ def _assert_assessment_patch(
 
     except HttpResponseError as identifier:
         if any(
-            s in str(identifier) for s in ["The selected VM image is not supported"]
+            s in str(identifier)
+            for s in [
+                "The selected VM image is not supported",
+                "CPU Architecture 'arm64' was not found in the extension repository",
+            ]
         ):
             _unsupported_image_exception_msg(node)
         else:
@@ -247,7 +221,11 @@ def _assert_installation_patch(
 
     except HttpResponseError as identifier:
         if any(
-            s in str(identifier) for s in ["The selected VM image is not supported"]
+            s in str(identifier)
+            for s in [
+                "The selected VM image is not supported",
+                "CPU Architecture 'arm64' was not found in the extension repository",
+            ]
         ):
             _unsupported_image_exception_msg(node)
         else:

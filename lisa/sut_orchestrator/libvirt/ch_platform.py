@@ -3,6 +3,7 @@
 
 import os
 import re
+import secrets
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import List, Type
@@ -11,7 +12,11 @@ from lisa import schema
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node
-from lisa.sut_orchestrator.libvirt.context import NodeContext, get_node_context
+from lisa.sut_orchestrator.libvirt.context import (
+    GuestVmType,
+    NodeContext,
+    get_node_context,
+)
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
 from lisa.tools import QemuImg
 from lisa.util.logger import Logger, filter_ansi_escape
@@ -57,13 +62,22 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         assert isinstance(node_runbook, CloudHypervisorNodeSchema)
         node_context = get_node_context(node)
-        if self.host_node.is_remote:
-            node_context.firmware_source_path = node_runbook.firmware
-            node_context.firmware_path = os.path.join(
-                self.vm_disks_dir, os.path.basename(node_runbook.firmware)
-            )
+        if node_runbook.kernel:
+            if self.host_node.is_remote and not node_runbook.kernel.is_remote_path:
+                node_context.kernel_source_path = node_runbook.kernel.path
+                node_context.kernel_path = os.path.join(
+                    self.vm_disks_dir, os.path.basename(node_runbook.kernel.path)
+                )
+            else:
+                node_context.kernel_path = node_runbook.kernel.path
         else:
-            node_context.firmware_path = node_runbook.firmware
+            if self.host_node.is_remote:
+                node_context.kernel_source_path = node_runbook.firmware
+                node_context.kernel_path = os.path.join(
+                    self.vm_disks_dir, os.path.basename(node_runbook.firmware)
+                )
+            else:
+                node_context.kernel_path = node_runbook.firmware
 
     def _create_node(
         self,
@@ -72,10 +86,10 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         environment: Environment,
         log: Logger,
     ) -> None:
-        if node_context.firmware_source_path:
+        if node_context.kernel_source_path:
             self.host_node.shell.copy(
-                Path(node_context.firmware_source_path),
-                Path(node_context.firmware_path),
+                Path(node_context.kernel_source_path),
+                Path(node_context.kernel_path),
             )
 
         super()._create_node(
@@ -113,9 +127,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         os_type = ET.SubElement(os, "type")
         os_type.text = "hvm"
-
         os_kernel = ET.SubElement(os, "kernel")
-        os_kernel.text = node_context.firmware_path
+        os_kernel.text = node_context.kernel_path
+        if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
+            launch_sec = ET.SubElement(domain, "launchSecurity")
+            launch_sec.attrib["type"] = "sev"
+            cbitpos = ET.SubElement(launch_sec, "cbitpos")
+            cbitpos.text = "0"
+            reducedphysbits = ET.SubElement(launch_sec, "reducedPhysBits")
+            reducedphysbits.text = "0"
+            policy = ET.SubElement(launch_sec, "policy")
+            policy.text = "0"
+            host_data = ET.SubElement(launch_sec, "host_data")
+            host_data.text = secrets.token_hex(32)
 
         devices = ET.SubElement(domain, "devices")
         if len(node_context.passthrough_devices) > 0:

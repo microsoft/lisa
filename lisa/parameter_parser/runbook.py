@@ -63,7 +63,7 @@ class RunbookBuilder:
         # merge all parameters
         builder._log.info(f"loading runbook: {builder._path}")
         data = builder._load_data(
-            builder._path.absolute(), set(), higher_level_variables=builder._cmd_args
+            path=builder._path.absolute(), higher_level_variables=builder._cmd_args
         )
         builder._raw_data = data
 
@@ -77,8 +77,7 @@ class RunbookBuilder:
 
         # remove variables and extensions from data, since it's not used, and may be
         #  confusing in log.
-        if constants.VARIABLE in data:
-            del data[constants.VARIABLE]
+        builder._remove_variables()
 
         runbook_name = builder.partial_resolve(constants.NAME)
 
@@ -118,7 +117,14 @@ class RunbookBuilder:
         if variables is None:
             variables = {key: value.copy() for key, value in self.variables.items()}
         result._variables = variables
-        result._raw_data = self._raw_data
+        # merge variables derived from combinators or transformers.
+        result._variables.update(variables)
+        # reload data to support dynamic path in combinators or transformers.
+        result._raw_data = result._load_data(
+            path=self._path, higher_level_variables=result._variables
+        )
+        result._remove_extensions()
+        result._remove_variables()
 
         return result
 
@@ -133,6 +139,12 @@ class RunbookBuilder:
         # print runbook later, after __post_init__ executed, so secrets are handled.
         for key, value in variables.items():
             self._log.debug(f"variable '{key}': {value.data}")
+
+    def _remove_variables(self) -> None:
+        self._raw_data.pop(constants.VARIABLE, None)
+
+    def _remove_extensions(self) -> None:
+        self._raw_data.pop(constants.EXTENSION, None)
 
     def _internal_resolve(
         self, raw_data: Any, variables: Optional[Dict[str, VariableEntry]] = None
@@ -161,7 +173,7 @@ class RunbookBuilder:
                     extension.name = f"lisa_ext_{index}"
                 import_package(Path(extension.path), extension.name)
 
-            del self._raw_data[constants.EXTENSION]
+            self._remove_extensions()
 
     @staticmethod
     def _validate_and_load(data: Any) -> schema.Runbook:
@@ -311,8 +323,8 @@ class RunbookBuilder:
     def _load_data(
         self,
         path: Path,
-        used_path: Set[str],
         higher_level_variables: Union[List[str], Dict[str, VariableEntry]],
+        used_path: Optional[Set[str]] = None,
     ) -> Any:
         """
         Load runbook, but not to validate. It will be validated after
@@ -324,6 +336,9 @@ class RunbookBuilder:
             data_from_current = yaml.safe_load(file)
         if not data_from_current:
             raise LisaException(f"file '{path}' cannot be empty.")
+
+        if not used_path:
+            used_path = set()
 
         variables = load_variables(
             data_from_current, higher_level_variables=higher_level_variables
@@ -368,9 +383,9 @@ class RunbookBuilder:
                 new_used_path = used_path.copy()
                 new_used_path.add(raw_path)
                 include_data = self._load_data(
-                    include_path,
-                    used_path=new_used_path,
+                    path=include_path,
                     higher_level_variables=variables,
+                    used_path=new_used_path,
                 )
                 data_from_include = self._merge_data(
                     include_path.parent, include_data, data_from_include

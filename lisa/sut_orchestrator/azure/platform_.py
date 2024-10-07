@@ -279,6 +279,7 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    ip_service_tags: Optional[Dict[str, str]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -1058,6 +1059,7 @@ class AzurePlatform(Platform):
         copied_fields = [
             "vm_tags",
             "tags",
+            "ip_service_tags",
         ]
         availability_copied_fields = [
             "availability_set_tags",
