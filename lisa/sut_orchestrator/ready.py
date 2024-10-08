@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List, Type
+from pathlib import Path
+from typing import List, Optional, Type
 
 from lisa import feature, features
 from lisa.environment import Environment
@@ -31,6 +32,7 @@ class ReadyPlatform(Platform):
             features.IsolatedResource,
             features.Nfs,
             features.SecurityProfile,
+            features.SerialConsole,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -64,4 +66,15 @@ class ReadyPlatform(Platform):
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         # ready platform doesn't support delete environment
+        pass
+
+
+class SerialConsole(features.SerialConsole):
+    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
+        return b""
+
+    def read(self) -> str:
+        return ""
+
+    def write(self, data: str) -> None:
         pass
