@@ -542,10 +542,10 @@ def generate_min_capability_setspace_by_priority(
         if item in requirement and item in capability:
             min_cap = item
             break
-    assert min_cap, (
-        "Cannot find min capability on data path, "
-        f"requirement: {requirement}"
-        f"capability: {capability}"
+    assert min_cap is not None, (
+        "Cannot find min capability, "
+        f"requirement: '{requirement}', "
+        f"capability: '{capability}'."
     )
 
     return min_cap
