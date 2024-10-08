@@ -78,7 +78,7 @@ class AzSecPack(TestSuite):
         ),
     )
     def verify_azsecpack(self, node: Node, log: Logger, result: TestResult) -> None:
-        self._is_supported(node)
+        # self._is_supported(node)
 
         environment = result.environment
         assert environment, "fail to get environment from testresult"
