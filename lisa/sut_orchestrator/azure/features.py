@@ -42,6 +42,7 @@ from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.features.availability import AvailabilityType
 from lisa.features.gpu import ComputeSDK
+from lisa.features.hibernation import HibernationSettings
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import (
     FEATURE_NAME_SECURITY_PROFILE,
@@ -2195,7 +2196,7 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
             ]
             or raw_capabilities.get("HibernationSupported", None) == "True"
         ):
-            return schema.FeatureSettings.create(cls.name())
+            return HibernationSettings()
 
         return None
 
