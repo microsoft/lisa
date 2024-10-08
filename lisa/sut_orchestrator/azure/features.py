@@ -3264,7 +3264,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             allow_shared_key_access=allow_shared_key_access,
         )
 
-        # If private endpoints are enabled, the SMB endpoint https://<share>.file.core.windows.net
+        # The SMB endpoint https://<share>.file.core.windows.net
         # will auto point to <share>.privatelink.file.core.windows.net
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
@@ -3278,7 +3278,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             )
 
         # Create file private endpoint, always after all shares are created
-        if enable_private_endpoint == True:
+        if enable_private_endpoint is True:
             storage_account_resource_id = (
                 f"/subscriptions/{platform.subscription_id}/resourceGroups/"
                 f"{resource_group_name}/providers/Microsoft.Storage/storageAccounts"
