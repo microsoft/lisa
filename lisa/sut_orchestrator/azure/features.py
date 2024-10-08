@@ -3305,7 +3305,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 ["file"],
                 self._log,
             )
-            
             # Create private zone
             private_dns_zone_id = create_update_private_zones(
                 platform, resource_group_name, self._log
