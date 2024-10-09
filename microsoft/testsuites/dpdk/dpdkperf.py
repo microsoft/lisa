@@ -319,10 +319,6 @@ class DpdkPerformance(TestSuite):
         sender_fields: Dict[str, Any] = {}
         receiver_fields: Dict[str, Any] = {}
         test_case_name = test_result.runtime_data.metadata.name
-        testpmd = send_kit.testpmd
-        if testpmd.has_dpdk_version():
-            dpdk_version = testpmd.get_dpdk_version()
-            test_result.information["dpdk_version"] = str(dpdk_version)
 
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
