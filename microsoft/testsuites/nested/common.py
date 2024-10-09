@@ -1,13 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import io
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+import pycdlib  # type: ignore
+import yaml
 
 from lisa import RemoteNode, schema
 from lisa.features.network_interface import Synthetic
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.schema import Node
-from lisa.tools import Aria, Dmesg, HyperV, Lscpu, Qemu, Wget
+from lisa.tools import Aria, Dmesg, HyperV, Lscpu, Qemu, RemoteCopy, Wget
 from lisa.tools.rm import Rm
 from lisa.util import LisaException, SkippedException, fields_to_dict, get_matched_str
 from lisa.util.logger import Logger
@@ -27,6 +31,54 @@ KVM_CRASH_CALL_STACK_PATTERN = re.compile(
 )
 
 
+def _create_cloud_init_iso(
+    host: RemoteNode,
+    iso_file_name: str,
+    user_name: str,
+    password: str,
+    host_name: str = "l2vm",
+) -> str:
+    cmd_result = host.execute(f"openssl passwd -6 {password}", sudo=True, shell=True)
+    user_data = {
+        "users": [
+            "default",
+            {
+                "name": user_name,
+                "shell": "/bin/bash",
+                "sudo": ["ALL=(ALL) NOPASSWD:ALL"],
+                "groups": ["sudo", "docker"],
+                "passwd": cmd_result.stdout,
+                "lock_passwd": False,
+            },
+        ],
+        "ssh_pwauth": True,
+    }
+    meta_data = {
+        "local-hostname": host_name,
+    }
+
+    user_data_string = "#cloud-config\n" + yaml.safe_dump(user_data)
+    meta_data_string = yaml.safe_dump(meta_data)
+    files = [("/user-data", user_data_string), ("/meta-data", meta_data_string)]
+    iso = pycdlib.PyCdlib()
+    iso.new(joliet=3, vol_ident="cidata")
+
+    for i, file in enumerate(files):
+        path, contents = file
+        contents_data = contents.encode()
+        iso.add_fp(
+            io.BytesIO(contents_data),
+            len(contents_data),
+            f"/{i}.;1",
+            joliet_path=path,
+        )
+
+    iso.write(host.local_working_path / iso_file_name)
+    copy = host.tools[RemoteCopy]
+    copy.copy_to_remote(host.local_working_path / iso_file_name, host.working_path)
+    return str(host.working_path / iso_file_name)
+
+
 def qemu_connect_nested_vm(
     host: RemoteNode,
     guest_username: str,
@@ -39,6 +91,7 @@ def qemu_connect_nested_vm(
     nic_model: str = "e1000",
     taps: int = 0,
     cores: int = 2,
+    use_cloud_init: bool = True,
     bridge: Optional[str] = None,
     disks: Optional[List[str]] = None,
     stop_existing_vm: bool = True,
@@ -70,6 +123,12 @@ def qemu_connect_nested_vm(
         timeout=NESTED_VM_DOWNLOAD_TIMEOUT,
     )
 
+    cd_rom = ""
+    if use_cloud_init:
+        cd_rom = _create_cloud_init_iso(
+            host, "cloud-init.iso", guest_username, guest_password
+        )
+
     # start nested vm
     host.tools[Qemu].create_vm(
         guest_port,
@@ -80,6 +139,7 @@ def qemu_connect_nested_vm(
         disks=disks,
         cores=cores,
         stop_existing_vm=stop_existing_vm,
+        cd_rom=cd_rom,
     )
 
     # check known issues before connecting to L2 vm
@@ -208,7 +268,10 @@ def parse_nested_image_variables(
         raise SkippedException("Nested image password should not be empty")
 
     if not nested_image_url:
-        raise SkippedException("Nested image url should not be empty")
+        nested_image_url = (
+            "https://cloud-images.ubuntu.com/jammy/current/"
+            "jammy-server-cloudimg-amd64.img"
+        )
 
     return (
         nested_image_username,
