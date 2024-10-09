@@ -3263,7 +3263,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             enable_https_traffic_only=enable_https_traffic_only,
             allow_shared_key_access=allow_shared_key_access,
         )
-        
         # If enable_private_endpoint is true, SMB share endpoint
         # will dns resolve to <share>.privatelink.file.core.windows.net
         # No changes need to be done in code calling function
@@ -3277,7 +3276,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
             )
-
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
         # once private endpoint is created. Observed in Terraform provider as well
