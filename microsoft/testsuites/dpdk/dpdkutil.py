@@ -1134,9 +1134,13 @@ def annotate_dpdk_test_result(
         log.debug("Cannot annotate DPDK info into test result!")
         return
     dpdk_version = test_kit.testpmd.get_dpdk_version()
-    rdma_version = test_kit.rdma_core.get_installed_version()
-    nic_hw = get_node_nic_short_name(test_kit.node)
     test_result.information["dpdk_version"] = str(dpdk_version)
-    test_result.information["rdma_version"] = str(rdma_version)
+    try:
+        rdma_version = test_kit.rdma_core.get_installed_version()
+        test_result.information["rdma_version"] = str(rdma_version)
+    except LisaException:
+        log.debug("Could not parse version info. Omitting rdma-core...")
+    nic_hw = get_node_nic_short_name(test_kit.node)
+
     if nic_hw:
         test_result.information["nic_hw"] = nic_hw
