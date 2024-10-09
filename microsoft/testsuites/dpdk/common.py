@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from datetime import datetime
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
@@ -275,43 +274,30 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-# rough check for ubuntu supported versions.
-# assumes:
-# - canonical convention of YEAR.MONTH for major versions
-# - canoical release cycle of EVEN_YEAR.04 for lts versions.
-# - 4 year support cycle. 6 year for ESM
-# get the age of the distro, if negative or 0, release is new.
-# if > 6, distro is out of support
-def _get_ubuntu_distro_age(distro: Ubuntu) -> int:
-    version_info = distro.information.version
-    # check release is within esm window
-    year_string = str(datetime.today().year)
-    assert_that(len(year_string)).described_as(
-        "Package bug: The year received from datetime module is an "
-        "unexpected size. This indicates a broken package or incorrect "
-        "date in this computer."
-    ).is_greater_than_or_equal_to(4)
-    # TODO: handle the century rollover edge case in 2099
-    current_year = int(year_string[-2:])
-    release_year = int(version_info.major)
-    # 23-18 == 5
-    # long term support and extended security updates for ~6 years
-    return current_year - release_year
+_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
 
 
+# see https://ubuntu.com/about/release-cycle
 def is_ubuntu_latest_or_prerelease(distro: Ubuntu) -> bool:
-    distro_age = _get_ubuntu_distro_age(distro)
-    return distro_age <= 2
+    return bool(distro.information.version >= max(_UBUNTU_LTS_VERSIONS))
 
 
+# see https://ubuntu.com/about/release-cycle
 def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
-    # asserts if not ubuntu OS object
-    version_info = distro.information.version
-    distro_age = _get_ubuntu_distro_age(distro)
-    is_even_year = (version_info.major % 2) == 0
-    is_april_release = version_info.minor == 4
-    is_within_support_window = distro_age <= 6
-    return is_even_year and is_april_release and is_within_support_window
+    major = str(distro.information.version.major)
+    minor = str(distro.information.version.minor)
+    # check for major+minor version match
+    return any(
+        [
+            major == x.split(".", maxsplit=1)[0] and minor == x.split(".")[1]
+            for x in _UBUNTU_LTS_VERSIONS
+        ]
+    )
+
+
+# check if it's a lts release outside the initial 2 year lts window
+def ubuntu_needs_backports(os: Ubuntu) -> bool:
+    return not is_ubuntu_latest_or_prerelease(os) and is_ubuntu_lts_version(os)
 
 
 def check_dpdk_support(node: Node) -> None:
@@ -391,16 +377,12 @@ def get_debian_backport_repo_args(os: Debian) -> List[str]:
     # ex: 'bionic-backports' or 'buster-backports'
     # these backport repos are available for the older OS's
     # and include backported fixes which need to be opted into.
-    # So filter for recent OS's and
-    # add the backports repo if it's available.
+    # So filter out recent OS's and
+    # add the backports repo for older ones, if it should be available.
     if not isinstance(os, Debian):
         return []
-    # workaround for recent Ubuntu distros which may have a
-    # backport repo defined but will raise an error if you
-    # try to use it explicitly for our packages.
-    if isinstance(os, Ubuntu) and (
-        is_ubuntu_latest_or_prerelease(os) or not is_ubuntu_lts_version(os)
-    ):
+    # don't enable backport args for releases which don't need/have them.
+    if isinstance(os, Ubuntu) and not ubuntu_needs_backports(os):
         return []
     repos = os.get_repositories()
     backport_repo = f"{os.information.codename}-backports"
