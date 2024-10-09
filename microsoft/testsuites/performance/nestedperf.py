@@ -54,7 +54,7 @@ from microsoft.testsuites.performance.common import (
 
 
 @TestSuiteMetadata(
-    area="storage",
+    area="nested",
     category="performance",
     description="""
     This test suite is to validate performance of nested VM using FIO tool.
