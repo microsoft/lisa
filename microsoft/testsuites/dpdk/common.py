@@ -11,6 +11,7 @@ from urllib3.util.url import parse_url
 from lisa import Node
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
+from lisa.testsuite import TestResult
 from lisa.tools import Git, Tar, Wget
 from lisa.util import UnsupportedDistroException
 
