@@ -123,7 +123,7 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
 
     def get_installed_version(self) -> VersionInfo:
-        return self._os.get_package_information("libibverbs", use_cached=False)
+        return self._os.get_package_information("rdma-core", use_cached=False)
 
     def _check_if_installed(self) -> bool:
         return self._os.package_exists("rdma-core")
