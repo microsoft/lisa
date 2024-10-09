@@ -201,7 +201,7 @@ class Gpu(Feature):
                 "http://developer.download.nvidia.com/compute/cuda/"
                 f"repos/rhel{release}/x86_64/cuda-rhel{release}.repo"
             )
-            install_packages = ["cuda-drivers"]
+            install_packages = ["nvidia-driver-cuda"]
             if release == "7":
                 install_packages.append("nvidia-driver-latest-dkms")
             self._node.os.install_packages(install_packages, signed=False)

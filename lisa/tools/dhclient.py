@@ -5,7 +5,7 @@ from typing import Any, Optional, Type
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Suse
+from lisa.operating_system import Debian, Fedora, Redhat, Suse
 from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
 
 from .ls import Ls
@@ -44,7 +44,11 @@ class Dhclient(Tool):
 
     def get_timeout(self) -> int:
         is_default_value: bool = True
-        if isinstance(self.node.os, Debian) or isinstance(self.node.os, Suse):
+        if (
+            isinstance(self.node.os, Debian)
+            or isinstance(self.node.os, Suse)
+            or isinstance(self.node.os, Redhat)
+        ):
             paths_to_check = [
                 f"/etc/dhcp/{self._command}.conf",
                 f"/etc/{self._command}.conf",
@@ -61,7 +65,7 @@ class Dhclient(Tool):
             # the default value in debian is 300
             value: int = 300
             cat = self.node.tools[Cat]
-            output = cat.read(config_path)
+            output = cat.read(config_path, sudo=True)
             group = find_group_in_lines(output, self._debian_pattern)
             if group and not group["default"]:
                 value = int(group["number"])
