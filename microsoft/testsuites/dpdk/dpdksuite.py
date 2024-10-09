@@ -22,7 +22,7 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
-from lisa.testsuite import simple_requirement
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
 from lisa.util.constants import SIGINT
@@ -91,9 +91,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_netvsc(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "netvsc", HugePageSize.HUGE_2MB)
+        verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -113,9 +119,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_gb_hugepages_netvsc(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "netvsc", HugePageSize.HUGE_1GB)
+        verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_1GB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -135,9 +147,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_failsafe(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "failsafe", HugePageSize.HUGE_2MB)
+        verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -157,9 +175,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_gb_hugepages_failsafe(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "failsafe", HugePageSize.HUGE_1GB)
+        verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_1GB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -362,10 +386,18 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_sriov_rescind_failover_receiver(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         test_kits = init_nodes_concurrent(
-            environment, log, variables, "failsafe", HugePageSize.HUGE_2MB
+            environment,
+            log,
+            variables,
+            "failsafe",
+            HugePageSize.HUGE_2MB,
         )
 
         try:

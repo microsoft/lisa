@@ -64,7 +64,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -110,7 +110,7 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_2MB
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -319,10 +319,6 @@ class DpdkPerformance(TestSuite):
         sender_fields: Dict[str, Any] = {}
         receiver_fields: Dict[str, Any] = {}
         test_case_name = test_result.runtime_data.metadata.name
-        testpmd = send_kit.testpmd
-        if testpmd.has_dpdk_version():
-            dpdk_version = testpmd.get_dpdk_version()
-            test_result.information["dpdk_version"] = str(dpdk_version)
 
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
