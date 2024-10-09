@@ -1441,8 +1441,8 @@ class AzurePlatform(Platform):
         assert isinstance(
             capability.network_interface.data_path, schema.NetworkDataPath
         ), f"actual: {type(capability.network_interface.data_path)}"
-        if capability.network_interface.data_path == schema.NetworkDataPath.Sriov:
-            arm_parameters.enable_sriov = True
+        # if capability.network_interface.data_path == schema.NetworkDataPath.Sriov:
+        #     arm_parameters.enable_sriov = True
 
         return arm_parameters
 
