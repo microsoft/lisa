@@ -3263,8 +3263,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             enable_https_traffic_only=enable_https_traffic_only,
             allow_shared_key_access=allow_shared_key_access,
         )
-
-        # If enable_private_endpoint is true, SMB share endpoint 
+        
+        # If enable_private_endpoint is true, SMB share endpoint
         # will dns resolve to <share>.privatelink.file.core.windows.net
         # No changes need to be done in code calling function
         for share_name in file_share_names:
