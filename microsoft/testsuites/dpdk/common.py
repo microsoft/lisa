@@ -208,7 +208,8 @@ class Installer:
 
     def _should_install(self, required_version: Optional[VersionInfo] = None) -> bool:
         return (not self._check_if_installed()) or (
-            required_version is None and required_version > self.get_installed_version()
+            required_version is not None
+            and required_version > self.get_installed_version()
         )
 
     # run the defined setup and installation steps.
