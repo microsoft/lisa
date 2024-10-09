@@ -169,10 +169,16 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
             self._os.install_epel()
 
     def get_installed_version(self) -> VersionInfo:
-        return self._os.get_package_information("dpdk", use_cached=False)
+        package_name = (
+            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+        )
+        return self._os.get_package_information(package_name, use_cached=False)
 
     def _check_if_installed(self) -> bool:
-        return self._os.package_exists("dpdk")
+        package_name = (
+            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+        )
+        return self._os.package_exists(package_name)
 
 
 # implement SourceInstall for DPDK
