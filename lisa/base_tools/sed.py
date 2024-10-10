@@ -47,12 +47,17 @@ class Sed(Tool):
         self,
         text: str,
         file: str,
+        match_line: str = "",
         sudo: bool = False,
     ) -> None:
         # always force run, make sure it happens every time.
         text = text.replace('"', '\\"')
+        if match_line:
+            append_line = f"{match_line}"
+        else:
+            append_line = "$"
         result = self.run(
-            f"-i.bak '$a{text}' {file}",
+            f"-i.bak '{append_line}a{text}' {file}",
             force_run=True,
             no_error_log=True,
             no_info_log=True,

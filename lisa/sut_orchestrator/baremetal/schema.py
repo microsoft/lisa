@@ -75,12 +75,19 @@ class KeyLoaderSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
 @dataclass_json()
 @dataclass
+class BootConfigSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    type: str = field(default="boot_config", metadata=field_metadata(required=True))
+
+
+@dataclass_json()
+@dataclass
 class ClusterSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = field(default="rackmanager", metadata=field_metadata(required=True))
     build: Optional[BuildSchema] = None
     ready_checker: Optional[ReadyCheckerSchema] = None
     ip_getter: Optional[IpGetterSchema] = None
     key_loader: Optional[KeyLoaderSchema] = None
+    boot_config: Optional[BootConfigSchema] = None
 
 
 @dataclass_json()
@@ -132,6 +139,18 @@ class SMBBuildSchema(BuildSchema):
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
+
+
+@dataclass_json()
+@dataclass
+class TftpBuildSchema(BuildSchema):
+    connection: Optional[schema.RemoteNode] = field(
+        default=None, metadata=field_metadata(required=True)
+    )
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if self.connection and self.connection.password:
+            add_secret(self.connection.password)
 
 
 @dataclass_json()
