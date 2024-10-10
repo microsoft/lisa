@@ -38,6 +38,7 @@ class Qemu(Tool):
         taps: int = 0,
         bridge: Optional[str] = None,
         disks: Optional[List[str]] = None,
+        cd_rom: Optional[str] = None,
         stop_existing_vm: bool = True,
     ) -> None:
         """
@@ -116,6 +117,9 @@ class Qemu(Tool):
         # -display: enable or disable display
         # -daemonize: run in background
         cmd += "-enable-kvm -display none -daemonize "
+
+        if cd_rom:
+            cmd += f" -cdrom {cd_rom} "
 
         # kill any existing qemu process if stop_existing_vm is True
         if stop_existing_vm:
