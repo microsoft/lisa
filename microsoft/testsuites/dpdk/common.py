@@ -184,7 +184,7 @@ class Installer:
     # setup the installation (install Ninja, Meson, etc)
     def _download_assets(self) -> None:
         if self._downloader:
-            self._asset_path = self._downloader.download()
+            self.asset_path = self._downloader.download()
         else:
             self._node.log.debug("No downloader assigned to installer.")
 

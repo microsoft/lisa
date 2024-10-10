@@ -534,7 +534,7 @@ class Dpdk(TestSuite):
         echo = node.tools[Echo]
         rping_build_env_vars = [
             "export RTE_TARGET=build",
-            f"export RTE_SDK={str(testpmd.dpdk_path)}",
+            f"export RTE_SDK={str(testpmd.installer.asset_path)}",
         ]
         echo.write_to_file(
             ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
