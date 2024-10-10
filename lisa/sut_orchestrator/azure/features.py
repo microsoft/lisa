@@ -3241,6 +3241,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         sku: str = "Standard_LRS",
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
+        enable_private_endpoint: bool = False,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3263,7 +3264,9 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             enable_https_traffic_only=enable_https_traffic_only,
             allow_shared_key_access=allow_shared_key_access,
         )
-
+        # If enable_private_endpoint is true, SMB share endpoint
+        # will dns resolve to <share>.privatelink.file.core.windows.net
+        # No changes need to be done in code calling function
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -3274,6 +3277,56 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 resource_group_name=resource_group_name,
                 log=self._log,
             )
+        # Create file private endpoint, always after all shares have been created
+        # There is a known issue in API preventing access to data plane
+        # once private endpoint is created. Observed in Terraform provider as well
+        if enable_private_endpoint:
+            storage_account_resource_id = (
+                f"/subscriptions/{platform.subscription_id}/resourceGroups/"
+                f"{resource_group_name}/providers/Microsoft.Storage/storageAccounts"
+                f"/{storage_account_name}"
+            )
+            # get vnet and subnet id
+            virtual_networks_dict: Dict[str, List[str]] = get_virtual_networks(
+                platform, resource_group_name
+            )
+            virtual_networks_id = ""
+            subnet_id = ""
+            for vnet_id, subnet_ids in virtual_networks_dict.items():
+                virtual_networks_id = vnet_id
+                subnet_id = subnet_ids[0]
+                break
+
+            # Create Private endpoint
+            ipv4_address = create_update_private_endpoints(
+                platform,
+                resource_group_name,
+                location,
+                subnet_id,
+                storage_account_resource_id,
+                ["file"],
+                self._log,
+            )
+            # Create private zone
+            private_dns_zone_id = create_update_private_zones(
+                platform, resource_group_name, self._log
+            )
+            # create records sets
+            create_update_record_sets(
+                platform, resource_group_name, str(ipv4_address), self._log
+            )
+            # create virtual network links for the private zone
+            create_update_virtual_network_links(
+                platform, resource_group_name, virtual_networks_id, self._log
+            )
+            # create private dns zone groups
+            create_update_private_dns_zone_groups(
+                platform=platform,
+                resource_group_name=resource_group_name,
+                private_dns_zone_id=str(private_dns_zone_id),
+                log=self._log,
+            )
+
         return fs_url_dict
 
     def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
