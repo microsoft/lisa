@@ -97,13 +97,13 @@ class GitDownloader(Downloader):
         # NOTE: fail on exists is set to True.
         # The expectation is that the parent Installer class should
         # remove any lingering installations
-        self._asset_path = self._node.tools[Git].clone(
+        self.asset_path = self._node.tools[Git].clone(
             self._git_repo,
             cwd=self._node.get_working_path(),
             ref=self._git_ref,
             fail_on_exists=True,
         )
-        return self._asset_path
+        return self.asset_path
 
 
 # parent class for tarball source installations
@@ -151,7 +151,7 @@ class TarDownloader(Downloader):
                 node_path=remote_path,
             )
         # create tarfile dest dir
-        self._asset_path = work_path.joinpath(
+        self.asset_path = work_path.joinpath(
             self.tar_filename[: -(len(tarfile_suffix))]
         )
         # unpack into the dest dir
@@ -161,7 +161,7 @@ class TarDownloader(Downloader):
             dest_dir=str(work_path),
             gzip=True,
         )
-        return self._asset_path
+        return self.asset_path
 
 
 class Installer:
@@ -183,7 +183,7 @@ class Installer:
     # setup the installation (install Ninja, Meson, etc)
     def _download_assets(self) -> None:
         if self._downloader:
-            self._asset_path = self._downloader.download()
+            self.asset_path = self._downloader.download()
         else:
             self._node.log.debug("No downloader assigned to installer.")
 

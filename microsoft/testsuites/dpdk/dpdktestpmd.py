@@ -215,7 +215,7 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        source_path = str(self._asset_path)
+        source_path = str(self.asset_path)
         working_path = str(self._node.get_working_path())
         assert_that(str(source_path)).described_as(
             "DPDK Installer source path was empty during attempted cleanup!"
@@ -246,7 +246,7 @@ class DpdkSourceInstall(Installer):
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self._asset_path
+            args=sample_apps, build_dir="build", cwd=self.asset_path
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -297,10 +297,10 @@ class DpdkGitDownloader(GitDownloader):
         if not self._git_ref:
             git = self._node.tools[Git]
             self._git_ref = git.get_tag(
-                self._asset_path, filter_=r"^v.*"  # starts w 'v'
+                self.asset_path, filter_=r"^v.*"  # starts w 'v'
             )
-            git.checkout(self._git_ref, cwd=self._asset_path)
-        return self._asset_path
+            git.checkout(self._git_ref, cwd=self.asset_path)
+        return self.asset_path
 
 
 class DpdkTestpmd(Tool):

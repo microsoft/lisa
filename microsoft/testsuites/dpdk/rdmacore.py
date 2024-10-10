@@ -133,7 +133,6 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
 class RdmaCoreSourceInstaller(Installer):
     def _download_assets(self) -> None:
         super()._download_assets()
-        self._asset_path = self._asset_path
 
     def _check_if_installed(self) -> bool:
         try:
@@ -161,22 +160,22 @@ class RdmaCoreSourceInstaller(Installer):
         if not self._check_if_installed():
             return
         self._node.tools[Make].run(
-            parameters="uninstall", shell=True, sudo=True, cwd=self._asset_path
+            parameters="uninstall", shell=True, sudo=True, cwd=self.asset_path
         )
         working_path = str(self._node.get_working_path())
-        assert_that(str(self._asset_path)).described_as(
+        assert_that(str(self.asset_path)).described_as(
             "RDMA Installer source path was empty during attempted cleanup!"
         ).is_not_empty()
-        assert_that(str(self._asset_path)).described_as(
+        assert_that(str(self.asset_path)).described_as(
             "RDMA Installer source path was set to root dir "
             "'/' during attempted cleanup!"
         ).is_not_equal_to("/")
-        assert_that(str(self._asset_path)).described_as(
-            f"RDMA Installer source path {self._asset_path} was set to "
+        assert_that(str(self.asset_path)).described_as(
+            f"RDMA Installer source path {self.asset_path} was set to "
             f"working path '{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
         # remove source code directory
-        self._node.execute(f"rm -rf {str(self._asset_path)}", shell=True)
+        self._node.execute(f"rm -rf {str(self.asset_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
@@ -190,7 +189,7 @@ class RdmaCoreSourceInstaller(Installer):
         node.execute(
             "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
             shell=True,
-            cwd=self._asset_path,
+            cwd=self.asset_path,
             sudo=True,
         )
-        make.make_install(self._asset_path)
+        make.make_install(self.asset_path)
