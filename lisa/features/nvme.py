@@ -16,6 +16,7 @@ from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
 from lisa.util import field_metadata, get_matched_str
+from lisa.util.constants import DEVICE_TYPE_NVME
 
 
 class Nvme(Feature):
@@ -42,6 +43,9 @@ class Nvme(Feature):
     # /dev/nvme0n1p15 -> /dev/nvme0n1
     NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
 
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_DEVICE_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
+
     _pci_device_name = "Non-Volatile memory controller"
     _ls_devices: str = ""
 
@@ -63,6 +67,11 @@ class Nvme(Feature):
             matched_result = self._device_pattern.match(row)
             if matched_result:
                 devices_list.append(matched_result.group("device_name"))
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_nvme_device = self.get_os_disk_nvme_device()
+            # Removing OS disk/device from the list.
+            devices_list.remove(os_disk_nvme_device)
         return devices_list
 
     def get_namespaces(self) -> List[str]:
@@ -78,7 +87,13 @@ class Nvme(Feature):
         return namespaces
 
     def get_namespaces_from_cli(self) -> List[str]:
-        return self._node.tools[Nvmecli].get_namespaces()
+        namespaces_list = self._node.tools[Nvmecli].get_namespaces()
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+            # Removing OS disk/device from the list.
+            namespaces_list.remove(os_disk_nvme_namespace)
+        return namespaces_list
 
     def get_os_disk_nvme_namespace(self) -> str:
         node_disk = self._node.features[Disk]
@@ -93,10 +108,22 @@ class Nvme(Feature):
             )
         return os_partition_namespace
 
+    def get_os_disk_nvme_device(self) -> str:
+        os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+        # Sample os_boot_partition when disc controller type is NVMe:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        if os_disk_nvme_namespace:
+            os_disk_nvme_device = get_matched_str(
+                os_disk_nvme_namespace,
+                self.NVME_DEVICE_PATTERN,
+            )
+        return os_disk_nvme_device
+
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
         lspci_tool = self._node.tools[Lspci]
         device_list = lspci_tool.get_devices()
+        device_list = lspci_tool.get_devices_by_type(DEVICE_TYPE_NVME, use_pci_ids=True)
         devices_from_lspci = [
             x for x in device_list if self._pci_device_name == x.device_class
         ]
