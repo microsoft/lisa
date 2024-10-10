@@ -20,7 +20,7 @@ from lisa import (
     create_timer,
 )
 from lisa.operating_system import CpuArchitecture, Redhat, Suse
-from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
+from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Ls, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
 from lisa.util import constants
@@ -94,14 +94,28 @@ class TimeSync(TestSuite):
         assert_that(dmesg.get_output()).contains(self.ptp_registered_msg)
 
         # 2. PTP device name is hyperv.
+        # In some Linux VMs you may see multiple PTP devices listed.
+        # One example is for Accelerated Networking the Mellanox mlx5 driver also
+        # creates a /dev/ptp device. Because the initialization order can be different
+        # each time Linux boots, the PTP device corresponding to the Azure host might
+        # be /dev/ptp0 or it might be /dev/ptp1.
+        # To determine which PTP device corresponds to the Azure host, you can check the
+        # clock_name file. At least one of the PTP devices should have
+        # a clock_name of 'hyperv'.
         cat = node.tools[Cat]
-        clock_name_result = cat.run("/sys/class/ptp/ptp0/clock_name")
-        assert_that(clock_name_result.stdout).described_as(
-            f"ptp clock name should be 'hyperv', meaning the Azure host, "
-            f"but it is {clock_name_result.stdout}, more info please refer "
-            f"https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source"  # noqa: E501
-        ).is_equal_to("hyperv")
-
+        ls = node.tools[Ls]
+        ptp_devices = ls.list_dir("/sys/class/ptp")
+        ptp_hyperv_device = None
+        for ptp_device in ptp_devices:
+            clock_name_result = cat.run(
+                f"{ptp_device}clock_name", sudo=True, shell=True, force_run=True
+            )
+            if clock_name_result.stdout == "hyperv":
+                ptp_hyperv_device = ptp_device
+        assert_that(ptp_hyperv_device).described_as(
+            "There should be at least one PTP device with name 'hyperv', more info"
+            " please refer https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source"  # noqa: E501
+        ).is_not_none()
         # 3. When accelerated network is enabled, multiple PTP devices will
         #  be available, the names of ptp are changeable, create the symlink
         #  /dev/ptp_hyperv to whichever /dev/ptp entry corresponds to the Azure host.
