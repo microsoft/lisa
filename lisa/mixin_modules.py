@@ -75,6 +75,7 @@ import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.file_uploader  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
 import lisa.transformers.package_installer  # noqa: F401
+import lisa.transformers.parse_literal  # noqa: F401
 import lisa.transformers.repo_package_installer  # noqa: F401
 import lisa.transformers.rpm_kernel_installer  # noqa: F401
 import lisa.transformers.script_file_transformer  # noqa: F401
