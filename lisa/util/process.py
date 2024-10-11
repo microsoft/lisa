@@ -351,6 +351,7 @@ class Process:
         timeout: float = 600,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
+        kill_on_timeout: bool = True
     ) -> ExecutableResult:
         timer = create_timer()
         is_timeout = False
@@ -361,7 +362,8 @@ class Process:
         if timeout < timer.elapsed():
             if self._process is not None:
                 self._log.info(f"timeout in {timeout} sec, and killed")
-            self.kill()
+            if kill_on_timeout:
+                self.kill()
             is_timeout = True
 
         if self._result is None:
