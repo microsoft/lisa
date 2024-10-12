@@ -192,7 +192,7 @@ class Installer:
         self._download_assets()
 
     # remove an installation
-    def uninstall(self) -> None:
+    def _uninstall(self) -> None:
         raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
 
     # install the dependencies
@@ -216,7 +216,7 @@ class Installer:
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
         if self._should_install():
-            self.uninstall()
+            self._uninstall()
             self._install_dependencies()
             self._install()
 
@@ -243,7 +243,7 @@ class PackageManagerInstall(Installer):
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
-    def uninstall(self) -> None:
+    def _uninstall(self) -> None:
         if not (isinstance(self._os, Posix) and self._check_if_installed()):
             return
         if self._os_dependencies is not None:
