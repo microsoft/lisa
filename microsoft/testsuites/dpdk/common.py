@@ -250,6 +250,8 @@ class PackageManagerInstall(Installer):
             for os_package_check in self._os_dependencies.requirements:
                 if os_package_check.matcher(self._os) and os_package_check.packages:
                     self._os.uninstall_packages(os_package_check.packages)
+                    if os_package_check.stop_on_match:
+                        break
 
     # verify packages on the node have been installed by
     # the package manager
@@ -263,6 +265,8 @@ class PackageManagerInstall(Installer):
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
                             return False
+                    if os_package_check.stop_on_match:
+                        break
         return True
 
     # installing dependencies is the installation in this case, so just return
