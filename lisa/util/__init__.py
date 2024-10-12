@@ -391,6 +391,10 @@ class InitializableMixin:
                 self._is_initialized = False
                 raise identifier
 
+    def reinitialize(self, *args: Any, **kwargs: Any) -> None:
+        self._is_initialized = False
+        self.initialize()
+
 
 class BaseClassMixin:
     @classmethod

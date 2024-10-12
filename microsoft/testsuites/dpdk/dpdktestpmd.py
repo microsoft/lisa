@@ -208,7 +208,7 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].install()
         self._node.tools[Pip].install_packages("pyelftools")
 
-    def _uninstall(self) -> None:
+    def uninstall(self) -> None:
         # undo source installation (thanks ninja)
         if not self._check_if_installed():
             return
