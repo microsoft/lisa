@@ -107,6 +107,7 @@ from .stat import Stat
 from .strace import Strace
 from .stress_ng import StressNg
 from .swap import Swap
+from .sysbench import Sysbench
 from .sysctl import Sysctl
 from .systemd_analyze import SystemdAnalyze
 from .tar import Tar
@@ -237,6 +238,7 @@ __all__ = [
     "Strace",
     "StressNg",
     "Swap",
+    "Sysbench",
     "Sysctl",
     "SystemdAnalyze",
     "Tar",
