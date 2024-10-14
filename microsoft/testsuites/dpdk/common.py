@@ -101,7 +101,7 @@ class GitDownloader(Downloader):
             self._git_repo,
             cwd=self._node.get_working_path(),
             ref=self._git_ref,
-            fail_on_exists=True,
+            fail_on_exists=False,
         )
         return self.asset_path
 
@@ -139,7 +139,6 @@ class TarDownloader(Downloader):
                 self._tar_url,
                 file_path=str(work_path),
                 overwrite=False,
-                force_run=True,
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
@@ -171,8 +170,10 @@ class Installer:
 
     # setup the node before starting
     # ex: updating the kernel, enabling features, checking drivers, etc.
+    # First we download the assets to ensure asset_path is set
+    # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        raise NotImplementedError(f"_setup_node {self._err_msg}")
+        self._download_assets()
 
     # check if the package is already installed:
     # Is the package installed from source? Or from the package manager?
@@ -189,7 +190,7 @@ class Installer:
 
     # do the build and installation
     def _install(self) -> None:
-        self._download_assets()
+        ...
 
     # remove an installation
     def _uninstall(self) -> None:
@@ -268,10 +269,6 @@ class PackageManagerInstall(Installer):
                     if os_package_check.stop_on_match:
                         break
         return True
-
-    # installing dependencies is the installation in this case, so just return
-    def _install(self) -> None:
-        return
 
 
 def force_dpdk_default_source(variables: Dict[str, Any]) -> None:

@@ -333,6 +333,11 @@ def initialize_node_resources(
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
+    # Tools will skip installation if the binary is present, so
+    # force invoke install. Installer will skip if the correct
+    # *type* of installation is already installed,
+    # taking it's creation arguments into account.
+    testpmd.install()
 
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]

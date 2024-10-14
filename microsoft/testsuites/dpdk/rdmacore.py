@@ -121,6 +121,7 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
             self._os.install_epel()
         if isinstance(self._os, Debian):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
+        super()._setup_node()
 
     def get_installed_version(self) -> VersionInfo:
         return self._os.get_package_information("rdma-core", use_cached=False)
@@ -131,9 +132,6 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class RdmaCoreSourceInstaller(Installer):
-    def _download_assets(self) -> None:
-        super()._download_assets()
-
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
@@ -154,6 +152,7 @@ class RdmaCoreSourceInstaller(Installer):
             self._os.uninstall_packages("rdma-core")
         if isinstance(self._os, Fedora):
             self._os.group_install_packages("Development Tools")
+        super()._setup_node()
 
     def _uninstall(self) -> None:
         # undo source installation (thanks ninja)

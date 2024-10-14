@@ -166,6 +166,10 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
         elif isinstance(self._os, Fedora):
             self._os.install_epel()
 
+        # super setup node last in this case, since we must set
+        # repo args before download/install
+        super()._setup_node()
+
     def get_installed_version(self) -> VersionInfo:
         return self._os.get_package_information("dpdk", use_cached=False)
 
@@ -197,6 +201,7 @@ class DpdkSourceInstall(Installer):
             return False
 
     def _setup_node(self) -> None:
+        super()._setup_node()
         if isinstance(self._os, Debian):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
             if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
