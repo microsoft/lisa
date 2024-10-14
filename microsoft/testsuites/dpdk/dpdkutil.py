@@ -324,7 +324,9 @@ def initialize_node_resources(
     )
     rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
-    testpmd: DpdkTestpmd = node.tools.get(
+    # use create over get to avoid skipping
+    # reinitialization of tool when new arguments are present
+    testpmd: DpdkTestpmd = node.tools.create(
         DpdkTestpmd,
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
