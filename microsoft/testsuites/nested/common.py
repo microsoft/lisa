@@ -38,7 +38,35 @@ def _create_cloud_init_iso(
     password: str,
     host_name: str = "l2vm",
 ) -> str:
-    cmd_result = host.execute(f"openssl passwd -6 {password}", sudo=True, shell=True)
+    cmd_result = host.execute(
+        f"openssl passwd -6 {password}",
+        sudo=True,
+        shell=True,
+    )
+    # The expected exit code is 0, indicating success.
+    # If a non-zero exit code is encountered, try using the -1 option.
+    # Note: The -6 option may not be available in older versions.
+    # Output:
+    #     Usage: passwd [options] [passwords]
+    # where options are
+    # -crypt             standard Unix password algorithm (default)
+    # -1                 MD5-based password algorithm
+    # -apr1              MD5-based password algorithm, Apache variant
+    # -salt string       use provided salt
+    # -in file           read passwords from file
+    # -stdin             read passwords from stdin
+    # -noverify          never verify when reading password from terminal
+    # -quiet             no warnings
+    # -table             format output as table
+    # -reverse           switch table columns
+    if cmd_result.exit_code != 0:
+        cmd_result = host.execute(
+            f"openssl passwd -1 {password}",
+            sudo=True,
+            shell=True,
+        )
+    if cmd_result.exit_code != 0:
+        raise LisaException("fail to run openssl command to convert password")
     user_data = {
         "users": [
             "default",
