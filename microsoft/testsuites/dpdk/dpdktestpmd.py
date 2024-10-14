@@ -220,21 +220,20 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        source_path = str(self.asset_path)
         working_path = str(self._node.get_working_path())
-        assert_that(str(source_path)).described_as(
+        assert_that(str(self.dpdk_build_path)).described_as(
             "DPDK Installer source path was empty during attempted cleanup!"
         ).is_not_empty()
-        assert_that(str(source_path)).described_as(
+        assert_that(str(self.dpdk_build_path)).described_as(
             "DPDK Installer source path was set to root dir "
             "'/' during attempted cleanup!"
         ).is_not_equal_to("/")
-        assert_that(str(source_path)).described_as(
-            f"DPDK Installer source path {source_path} was set to "
+        assert_that(str(self.dpdk_build_path)).described_as(
+            f"DPDK Installer source path {self.dpdk_build_path} was set to "
             f"working path '{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
-        # remove source code directory
-        self._node.execute(f"rm -rf {str(source_path)}", shell=True)
+        # remove build path only since we may want the repo again.
+        self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
@@ -266,16 +265,25 @@ class DpdkSourceInstall(Installer):
         # using sudo and pip modules can get weird on some distros,
         # whether you install with pip3 --user or not.
         # to work around, add the user python path to sudo one
-        node.tools[Ninja].run(
+        result = node.tools[Ninja].run(
             "install",
             cwd=self.dpdk_build_path,
             sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ninja install failed for dpdk binaries."
-            ),
-            update_envs={"PYTHONPATH": f"$PYTHONPATH:{python_path}"},
+            shell=True,
         )
+        if result.exit_code != 0:
+            node.log.debug("DPDK build failed, attempt build using user pythonpath...")
+            result = node.tools[Ninja].run(
+                "install",
+                cwd=self.dpdk_build_path,
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "ninja install failed for dpdk binaries."
+                ),
+                update_envs={"PYTHONPATH": f"{python_path}:$PYTHONPATH"},
+            )
         node.execute(
             "ldconfig",
             cwd=self.dpdk_build_path,
