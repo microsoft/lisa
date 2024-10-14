@@ -2299,25 +2299,12 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 and raw_capabilities.get("TrustedLaunchDisabled", "False") == "False"
             ):
                 capabilities.append(SecurityProfileType.SecureBoot)
-        # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview # noqa: E501
-        if cvm_value and resource_sku.family.casefold() in [
-            "standarddcasv5family",
-            "standarddcadsv5family",
-            "standardecasv5family",
-            "standardecadsv5family",
-            "standarddcev5family",
-            "standarddcedv5family",
-            "standardecev5family",
-            "standardecedv5family",
-        ]:
+
+        if cvm_value and cvm_value.casefold() == "snp":
             capabilities.append(SecurityProfileType.CVM)
 
-        if cvm_value == "TDX" and resource_sku.family.casefold() in [
-            "standarddcev5family",
-            "standarddcedv5family",
-            "standardecev5family",
-            "standardecedv5family",
-        ]:
+        if cvm_value and cvm_value.casefold() == "tdx":
+            capabilities.append(SecurityProfileType.CVM)
             capabilities.append(SecurityProfileType.Stateless)
 
         return SecurityProfileSettings(
