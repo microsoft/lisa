@@ -73,9 +73,13 @@ def verify_hibernation(
 
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
-    uptime = node.tools[Uptime]
 
-    uptime_before_hibernation = uptime.since_time()
+    boot_time_before_hibernation = node.execute(
+        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
+        sudo=True,
+        shell=True,
+    ).stdout
+
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
@@ -99,18 +103,26 @@ def verify_hibernation(
 
     startstop.start()
 
+    boot_time_after_hibernation = node.execute(
+        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
+        sudo=True,
+        shell=True,
+    ).stdout
+
+    log.info(
+        f"Boot time before hibernation: {boot_time_before_hibernation},"
+        f"boot time after hibernation: {boot_time_after_hibernation}"
+    )
+    assert_that(boot_time_before_hibernation).described_as(
+        "boot time before hibernation should be equal to boot time after hibernation"
+    ).is_equal_to(boot_time_after_hibernation)
+
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
     offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
-    uptime_after_hibernation = uptime.since_time()
     offset_from_sys_power = cat.read("/sys/power/resume_offset")
 
-    log.info(
-        "Uptime before Hibernation: "
-        f"{uptime_before_hibernation}, Uptime after Hibernation: "
-        f"{uptime_after_hibernation}"
-    )
     log.info(
         f"Hibfile resume offset: {hibfile_offset}, "
         f"Resume offset from cmdline: {offset_from_cmd}"
