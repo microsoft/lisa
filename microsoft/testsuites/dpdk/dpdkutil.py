@@ -45,6 +45,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -62,7 +63,7 @@ from microsoft.testsuites.dpdk.common import (
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
-    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_PACKAGE_DEPENDENCIES,
     RDMA_CORE_SOURCE_DEPENDENCIES,
     RdmaCorePackageManagerInstall,
     RdmaCoreSourceInstaller,
@@ -128,14 +129,21 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
 
 
 def get_rdma_core_installer(
-    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+    node: Node,
+    rdma_source: str,
+    rdma_branch: str,
+    build_arch: Optional[CpuArchitecture] = None,
 ) -> Installer:
     # set rdma-core installer type.
+    if not build_arch:
+        build_arch = node.tools[Lscpu].get_architecture()
+    if build_arch == CpuArchitecture.I386 and not rdma_source:
+        rdma_source = RDMA_CORE_MANA_DEFAULT_SOURCE
     if rdma_source:
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
             downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
-        elif is_url_for_tarball(rdma_branch):
+        elif is_url_for_tarball(rdma_source):
             downloader = TarDownloader(node, rdma_source)
         else:
             # throw on unrecognized rdma core source type
@@ -148,11 +156,15 @@ def get_rdma_core_installer(
     else:
         # no rdma_source and not mana, just use the package manager
         return RdmaCorePackageManagerInstall(
-            node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
+            node, os_dependencies=RDMA_CORE_PACKAGE_DEPENDENCIES, arch=build_arch
         )
+
     # return the installer with the downloader we've picked
     return RdmaCoreSourceInstaller(
-        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+        node,
+        os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES,
+        downloader=downloader,
+        arch=build_arch,
     )
 
 
@@ -300,6 +312,7 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
+    build_arch = variables.get("build_arch", None)
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
@@ -325,7 +338,7 @@ def initialize_node_resources(
     node.nics.check_pci_enabled(pci_enabled=True)
     update_kernel_from_repo(node)
     rdma_core = get_rdma_core_installer(
-        node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
+        node, rdma_source, rdma_branch, build_arch=build_arch
     )
     rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
@@ -337,6 +350,7 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        build_arch=build_arch,
     )
     # Tools will skip installation if the binary is present, so
     # force invoke install. Installer will skip if the correct

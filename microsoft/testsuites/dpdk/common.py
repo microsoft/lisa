@@ -11,15 +11,21 @@ from urllib3.util.url import parse_url
 from lisa import Node
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
-from lisa.testsuite import TestResult
-from lisa.tools import Git, Tar, Wget
-from lisa.util import UnsupportedDistroException
+from lisa.tools import Git, Lscpu, Tar, Wget
+from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
+
+ARCH_COMPATIBILITY_MATRIX = {
+    CpuArchitecture.X64: [CpuArchitecture.X64],
+    CpuArchitecture.I386: [CpuArchitecture.I386, CpuArchitecture.X64],
+    CpuArchitecture.ARM64: [CpuArchitecture.ARM64],
+}
 
 
 # Attempt to clean up the DPDK package dependency mess
@@ -35,7 +41,7 @@ class OsPackageDependencies:
     # the packages to install on that OS.
     def __init__(
         self,
-        matcher: Callable[[Posix], bool],
+        matcher: Callable[[Posix, Optional[CpuArchitecture]], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
         stop_on_match: bool = False,
     ) -> None:
@@ -46,14 +52,21 @@ class OsPackageDependencies:
 
 class DependencyInstaller:
     # provide a list of OsPackageDependencies for a project
-    def __init__(self, requirements: List[OsPackageDependencies]) -> None:
+    def __init__(
+        self,
+        requirements: List[OsPackageDependencies],
+        arch: Optional[CpuArchitecture] = None,
+    ) -> None:
         self.requirements = requirements
+        self._arch = arch
 
     # evaluate the list of package dependencies,
     def install_required_packages(
-        self, node: Node, extra_args: Union[List[str], None]
+        self,
+        os: Posix,
+        extra_args: Union[List[str], None],
+        arch: Optional[CpuArchitecture] = None,
     ) -> None:
-        os = node.os
         assert isinstance(os, Posix), (
             "DependencyInstaller is not compatible with this OS: "
             f"{os.information.vendor} {os.information.release}"
@@ -62,13 +75,16 @@ class DependencyInstaller:
         # stop on list end or if exclusive_match parameter is true.
         packages: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
-            if requirement.matcher(os) and requirement.packages:
-                packages += requirement.packages
+            if requirement.matcher(os, arch):
+                if requirement.packages is not None and len(requirement.packages) > 0:
+                    packages += requirement.packages
                 if requirement.stop_on_match:
                     break
+
         os.install_packages(packages=packages, extra_args=extra_args)
 
         # NOTE: It is up to the caller to raise an exception on an invalid OS
+        # see unsupported_os_thrower as a catch-all 'list end' function
 
 
 class Downloader:
@@ -201,23 +217,43 @@ class Installer:
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
             self._os_dependencies.install_required_packages(
-                self._node, extra_args=self._package_manager_extra_args
+                self._os, extra_args=self._package_manager_extra_args, arch=self._arch
             )
 
     # define how to check the installed version
     def get_installed_version(self) -> VersionInfo:
         raise NotImplementedError(f"get_installed_version {self._err_msg}")
 
-    def _should_install(self, required_version: Optional[VersionInfo] = None) -> bool:
-        return (not self._check_if_installed()) or (
-            required_version is not None
-            and required_version > self.get_installed_version()
+    def _should_install(
+        self,
+        required_version: Optional[VersionInfo] = None,
+        required_arch: Optional[CpuArchitecture] = None,
+    ) -> bool:
+        return (
+            (not self._check_if_installed())
+            # NOTE: Taking advantage of longer-than-expected lifetimes here.
+            # If the tool still exists we ~should~ be able to check the old version
+            # from a previous test environment.
+            # At the moment, we use create() to force re-initialization.
+            # If we ever fix things so that we use .get,
+            # we will need this check. So add it now.q
+            or (required_arch != self._arch)
+            or (
+                required_version is not None
+                and required_version > self.get_installed_version()
+            )
         )
 
     # run the defined setup and installation steps.
-    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
+    def do_installation(
+        self,
+        required_version: Optional[VersionInfo] = None,
+        required_arch: Optional[CpuArchitecture] = None,
+    ) -> None:
         self._setup_node()
-        if self._should_install():
+        if self._should_install(
+            required_version=required_version, required_arch=required_arch
+        ):
             self._uninstall()
             self._install_dependencies()
             self._install()
@@ -227,6 +263,7 @@ class Installer:
         node: Node,
         os_dependencies: Optional[DependencyInstaller] = None,
         downloader: Optional[Downloader] = None,
+        arch: Optional[CpuArchitecture] = None,
     ) -> None:
         self._node = node
         if not isinstance(self._node.os, Posix):
@@ -237,11 +274,22 @@ class Installer:
         self._package_manager_extra_args: List[str] = []
         self._os_dependencies = os_dependencies
         self._downloader = downloader
+        self._arch = arch
+        if self._arch:
+            # avoid building/running arm64 on i386, etc
+            system_arch = self._node.tools[Lscpu].get_architecture()
+            if system_arch not in ARCH_COMPATIBILITY_MATRIX[self._arch]:
+                raise UnsupportedCpuArchitectureException(system_arch)
 
 
 # Base class for package manager installation
 class PackageManagerInstall(Installer):
-    def __init__(self, node: Node, os_dependencies: DependencyInstaller) -> None:
+    def __init__(
+        self,
+        node: Node,
+        os_dependencies: DependencyInstaller,
+        arch: Optional[CpuArchitecture],
+    ) -> None:
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
@@ -249,8 +297,11 @@ class PackageManagerInstall(Installer):
         if not (isinstance(self._os, Posix) and self._check_if_installed()):
             return
         if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies.requirements:
-                if os_package_check.matcher(self._os) and os_package_check.packages:
+            for os_package_check in self._os_dependencies:
+                if (
+                    os_package_check.matcher(self._os, self._arch)
+                    and os_package_check.packages
+                ):
                     self._os.uninstall_packages(os_package_check.packages)
                     if os_package_check.stop_on_match:
                         break
@@ -262,7 +313,7 @@ class PackageManagerInstall(Installer):
         # For dpdk, pkg-manager install is only for 'dpdk' and 'dpdk-dev'
         # This will take too long if it's more than a few packages.
         if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies.requirements:
+            for os_package_check in self._os_dependencies:
                 if os_package_check.matcher(self._os) and os_package_check.packages:
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
@@ -272,9 +323,13 @@ class PackageManagerInstall(Installer):
         return True
 
 
-def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
+def force_dpdk_default_source(
+    variables: Dict[str, Any], build_arch: Optional[CpuArchitecture] = None
+) -> None:
     if not variables.get("dpdk_source", None):
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
+    if build_arch:
+        variables["build_arch"] = build_arch
 
 
 _UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
@@ -369,11 +424,25 @@ def is_url_for_git_repo(url: str) -> bool:
     return scheme == "git" or check_for_git_https
 
 
-def unsupported_os_thrower(os: Posix) -> bool:
+# utility matcher to throw an OS error type for a match.
+def unsupported_os_thrower(os: Posix, arch: Optional[CpuArchitecture]) -> bool:
+    if arch:
+        message_suffix = f"OS and Architecture ({arch})"
+    else:
+        message_suffix = "OS"
     raise UnsupportedDistroException(
         os,
-        message=("Installer did not define dependencies for this os."),
+        message=f"Installer did not define dependencies for this {message_suffix}",
     )
+
+
+# utility matcher to throw an OS error when i386 is not supported
+def i386_not_implemented_thrower(os: Posix, arch: Optional[CpuArchitecture]) -> bool:
+    if arch and arch == CpuArchitecture.I386:
+        raise NotImplementedError(
+            "i386 is not implemented for this (installer,OS) combo."
+        )
+    return False
 
 
 def get_debian_backport_repo_args(os: Debian) -> List[str]:
