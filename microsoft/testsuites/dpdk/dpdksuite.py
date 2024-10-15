@@ -29,9 +29,8 @@ from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
-    DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
-    force_dpdk_default_source,
+    force_dpdk_default_source_variables,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
@@ -45,6 +44,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_testpmd_concurrent,
+    skip_32bit_test_on_unsupported_distros,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
@@ -101,6 +101,74 @@ class Dpdk(TestSuite):
     ) -> None:
         verify_dpdk_build(
             node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_32bit_netvsc(
+        self, node: Node, log: Logger, variables: Dict[str, Any], result: TestResult
+    ) -> None:
+        skip_32bit_test_on_unsupported_distros(node.os)
+        force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
+        verify_dpdk_build(
+            node,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            result=result,
+        )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_32bit_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        node = environment.default_node
+        skip_32bit_test_on_unsupported_distros(node.os)
+        force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
+        verify_dpdk_send_receive(
+            environment,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -210,7 +278,7 @@ class Dpdk(TestSuite):
         if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
             raise SkippedException("OVS test not supported on ARM64")
 
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         try:
             test_kit = initialize_node_resources(
                 node, log, variables, "netvsc", HugePageSize.HUGE_2MB
@@ -297,7 +365,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # multiprocess test requires dpdk source.
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         kill = node.tools[Kill]
         pmd = "failsafe"
         server_app_name = "dpdk-mp_server"
@@ -560,7 +628,7 @@ class Dpdk(TestSuite):
     ) -> None:
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         # setup and unwrap the resources for this test
         try:
             test_kit = initialize_node_resources(
@@ -856,7 +924,7 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
@@ -889,7 +957,7 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
@@ -963,10 +1031,6 @@ class Dpdk(TestSuite):
                 "/dev/uio0 still exists after driver unload"
             ),
         )
-
-    def _force_dpdk_default_source(self, variables: Dict[str, Any]) -> None:
-        if not variables.get("dpdk_source", None):
-            variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
