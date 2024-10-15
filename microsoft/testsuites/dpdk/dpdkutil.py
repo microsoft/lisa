@@ -4,7 +4,7 @@ from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -44,6 +44,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -127,7 +128,10 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
 
 
 def get_rdma_core_installer(
-    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+    node: Node,
+    rdma_source: str,
+    rdma_branch: str,
+    build_arch: Optional[CpuArchitecture] = None,
 ) -> Installer:
     # set rdma-core installer type.
     if rdma_source:
@@ -149,9 +153,13 @@ def get_rdma_core_installer(
         return RdmaCorePackageManagerInstall(
             node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
         )
+    if not build_arch:
+        build_arch = node.tools[Lscpu].get_architecture()
     # return the installer with the downloader we've picked
     return RdmaCoreSourceInstaller(
-        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+        node,
+        os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES,
+        downloader=downloader,
     )
 
 
@@ -285,6 +293,7 @@ def initialize_node_resources(
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     extra_nics: Union[List[NicInfo], None] = None,
+    build_arch: Optional[CpuArchitecture] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     if pmd == "failsafe" and node.nics.is_mana_device_present():
@@ -324,7 +333,7 @@ def initialize_node_resources(
     node.nics.check_pci_enabled(pci_enabled=True)
     update_kernel_from_repo(node)
     rdma_core = get_rdma_core_installer(
-        node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
+        node, rdma_source, rdma_branch, build_arch=build_arch
     )
     rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
@@ -336,6 +345,7 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        build_arch=build_arch,
     )
     # Tools will skip installation if the binary is present, so
     # force invoke install. Installer will skip if the correct

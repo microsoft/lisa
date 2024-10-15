@@ -3,6 +3,7 @@ from semver import VersionInfo
 
 from lisa.operating_system import Debian, Fedora, Suse
 from lisa.tools import Make, Pkgconfig
+from lisa.tools.lscpu import CpuArchitecture
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
     Installer,
@@ -16,7 +17,7 @@ RDMA_CORE_MANA_DEFAULT_SOURCE = (
     "https://github.com/linux-rdma/rdma-core/"
     "releases/download/v50.1/rdma-core-50.1.tar.gz"
 )
-RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
+RDMA_CORE_SOURCE_GENERIC_DEPENDENCIES = DependencyInstaller(
     [
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian)
@@ -81,8 +82,75 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
         OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
 )
+RDMA_CORE_SOURCE_I386_DEPENDENCIES = DependencyInstaller(
+    [
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian)
+            # install linux-modules-extra-azure if it's available for mana_ib
+            # older debian kernels won't have mana_ib packaged,
+            # so skip the check on those kernels.
+            and bool(x.get_kernel_information().version >= "5.15.0")
+            and x.is_package_in_repo("linux-modules-extra-azure"),
+            packages=["linux-modules-extra-azure"],
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian),
+            packages=[
+                "cmake",
+                "libudev-dev",
+                "libnl-3-dev",
+                "libnl-route-3-dev",
+                "ninja-build",
+                "pkg-config",
+                "valgrind",
+                "python3-dev",
+                "cython3",
+                "python3-docutils",
+                "pandoc",
+                "libssl-dev",
+                "libelf-dev",
+                "python3-pip",
+                "libnuma-dev",
+            ],
+            stop_on_match=True,
+        ),
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Fedora),
+            packages=[
+                "cmake",
+                "pkg-config",
+                "python3-devel",
+                "openssl-devel",
+                "unzip",
+                "elfutils-devel",
+                "python3-pip",
+                "tar",
+                "wget",
+                "dos2unix",
+                "psmisc",
+                "kernel-devel-$(uname -r)",
+                "librdmacm-devel",
+                "libmnl-devel",
+                "kernel-modules-extra",
+                "numactl-devel",
+                "kernel-headers",
+                "elfutils-libelf-devel",
+                "libbpf-devel",
+            ],
+            stop_on_match=True,
+        ),
+        # FIXME: SUSE rdma-core build packages not implemented
+        #        for source builds.
+        OsPackageDependencies(matcher=unsupported_os_thrower),
+    ]
+)
+RDMA_CORE_SOURCE_DEPENDENCIES = {
+    CpuArchitecture.X64: RDMA_CORE_SOURCE_GENERIC_DEPENDENCIES,
+    CpuArchitecture.ARM64: RDMA_CORE_SOURCE_GENERIC_DEPENDENCIES,
+    CpuArchitecture.I386: RDMA_CORE_SOURCE_I386_DEPENDENCIES,
+}
 
-RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
+RDMA_CORE_PACKAGE_DEPENDENCIES = DependencyInstaller(
     [
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian)
@@ -114,6 +182,11 @@ RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
     ]
 )
 
+RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = {
+    CpuArchitecture.X64: RDMA_CORE_PACKAGE_DEPENDENCIES,
+    CpuArchitecture.ARM64: RDMA_CORE_PACKAGE_DEPENDENCIES,
+}
+
 
 class RdmaCoreInstaller(Installer):
     ...
@@ -136,7 +209,16 @@ class RdmaCorePackageManagerInstall(RdmaCoreInstaller, PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class RdmaCoreSourceInstaller(RdmaCoreInstaller):
-    _make_command = "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr"
+    _cmake_command = {
+        CpuArchitecture.X64: (
+            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr"
+        ),
+        CpuArchitecture.I386: (
+            "PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig cmake"
+            " -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
+            "-DCMAKE_C_COMPILER=/usr/bin/i686-linux-gnu-gcc -DCMAKE_C_FLAGS=-m32"
+        ),
+    }
 
     def _check_if_installed(self) -> bool:
         try:
@@ -192,9 +274,17 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
         node = self._node
         make = node.tools[Make]
         node.execute(
-            self._make_command,
+            self._cmake_command[self._arch],
             shell=True,
             cwd=self.asset_path,
             sudo=True,
         )
         make.make_install(self.asset_path)
+
+
+class RdmaCoreSource32BitInstaller(RdmaCoreInstaller):
+    _cmake_command = (
+        "PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig cmake"
+        " -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
+        "-DCMAKE_C_COMPILER=/usr/bin/i686-linux-gnu-gcc -DCMAKE_C_FLAGS=-m32"
+    )

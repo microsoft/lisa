@@ -11,8 +11,8 @@ from urllib3.util.url import parse_url
 from lisa import Node
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
-from lisa.testsuite import TestResult
-from lisa.tools import Git, Tar, Wget
+from lisa.tools import Git, Lscpu, Tar, Wget
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
@@ -200,7 +200,8 @@ class Installer:
     # install the dependencies
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
-            self._os_dependencies.install_required_packages(
+            dependencies = self._os_dependencies[self._arch]
+            dependencies.install_required_packages(
                 self._node, extra_args=self._package_manager_extra_args
             )
 
@@ -215,9 +216,12 @@ class Installer:
         )
 
     # run the defined setup and installation steps.
-    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
+    def do_installation(
+        self,
+        required_version: Optional[VersionInfo] = None,
+    ) -> None:
         self._setup_node()
-        if self._should_install():
+        if self._should_install(required_version=required_version):
             self._uninstall()
             self._install_dependencies()
             self._install()
@@ -225,8 +229,9 @@ class Installer:
     def __init__(
         self,
         node: Node,
-        os_dependencies: Optional[DependencyInstaller] = None,
+        os_dependencies: Optional[Dict[CpuArchitecture, DependencyInstaller]] = None,
         downloader: Optional[Downloader] = None,
+        arch: Optional[CpuArchitecture] = None,
     ) -> None:
         self._node = node
         if not isinstance(self._node.os, Posix):
@@ -237,19 +242,29 @@ class Installer:
         self._package_manager_extra_args: List[str] = []
         self._os_dependencies = os_dependencies
         self._downloader = downloader
+        if arch is None:
+            self._arch: CpuArchitecture = node.tools[Lscpu].get_architecture()
+        else:
+            self._arch = arch
+        if self._os_dependencies is not None:
+            self._dependencies = self._os_dependencies[self._arch]
+        else:
+            self._dependencies = None
 
 
 # Base class for package manager installation
 class PackageManagerInstall(Installer):
-    def __init__(self, node: Node, os_dependencies: DependencyInstaller) -> None:
+    def __init__(
+        self, node: Node, os_dependencies: Dict[CpuArchitecture, DependencyInstaller]
+    ) -> None:
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
     def _uninstall(self) -> None:
         if not (isinstance(self._os, Posix) and self._check_if_installed()):
             return
-        if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies.requirements:
+        if self._dependencies is not None:
+            for os_package_check in self._dependencies:
                 if os_package_check.matcher(self._os) and os_package_check.packages:
                     self._os.uninstall_packages(os_package_check.packages)
                     if os_package_check.stop_on_match:
@@ -261,8 +276,8 @@ class PackageManagerInstall(Installer):
         # WARNING: Don't use this for long lists of packages.
         # For dpdk, pkg-manager install is only for 'dpdk' and 'dpdk-dev'
         # This will take too long if it's more than a few packages.
-        if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies.requirements:
+        if self._dependencies is not None:
+            for os_package_check in self._dependencies:
                 if os_package_check.matcher(self._os) and os_package_check.packages:
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):

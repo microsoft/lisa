@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -28,6 +28,7 @@ from lisa.tools import (
     Timeout,
     Wget,
 )
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
@@ -87,7 +88,7 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
     ]
 )
 # declare package/tool dependencies for DPDK source installation
-DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
+DPDK_SOURCE_GENERIC_DEPENDENCIES = DependencyInstaller(
     requirements=[
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Ubuntu)
@@ -156,6 +157,35 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
         OsPackageDependencies(matcher=unsupported_os_thrower),
     ]
 )
+DPDK_SOURCE_I386_DEPENDENCIES = DependencyInstaller(
+    requirements=[
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Ubuntu)
+            and bool(x.get_kernel_information().version > "5.15.0"),
+            packages=[
+                "python3-pyelftools",
+                "libelf-dev:i386",
+                "libnuma-dev:i386",
+                "pkg-config",
+                "python3-pip",
+                "cmake",
+                "libnl-3-dev:i386",
+                "meson",
+                "gcc-i686-linux-gnu",
+            ],
+            stop_on_match=True,
+        )
+    ]
+)
+DPDK_PACKAGE_MANAGER_DEPENDENCIES = {
+    CpuArchitecture.X64: DPDK_PACKAGE_MANAGER_PACKAGES,
+    CpuArchitecture.ARM64: DPDK_PACKAGE_MANAGER_PACKAGES,
+}
+DPDK_SOURCE_DEPENDENCIES = {
+    CpuArchitecture.X64: DPDK_SOURCE_GENERIC_DEPENDENCIES,
+    CpuArchitecture.ARM64: DPDK_SOURCE_GENERIC_DEPENDENCIES,
+    CpuArchitecture.I386: DPDK_SOURCE_I386_DEPENDENCIES,
+}
 
 
 class DpdkPackageManagerInstall(PackageManagerInstall):
@@ -185,17 +215,42 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class DpdkSourceInstall(Installer):
+    _default_library_defines = [
+        "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+        "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+    ]
     _sample_applications = [
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
     ]
-    _library_bashrc_lines = [
-        "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-        "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-    ]
+    _library_bashrc_lines: Dict[CpuArchitecture, List[str]] = {
+        CpuArchitecture.X64: _default_library_defines,
+        CpuArchitecture.ARM64: _default_library_defines,
+        CpuArchitecture.I386: ["-Dc_link_args=-m32"],
+    }
+    _meson_defines: Dict[CpuArchitecture, Dict[str, str]] = {
+        CpuArchitecture.X64: {},
+        CpuArchitecture.ARM64: {},
+        CpuArchitecture.I386: {
+            "CC": "/usr/bin/i686-linux-gnu-gcc",
+            "LDFLAGS": "-m32",
+            "PKG_CONFIG_LIBDIR": "/usr/local/lib/i386-linux-gnu/pkgconfig",
+        },
+    }
     _meson_arguments: List[str] = []
     _build_dir: str = "build"
+    _enable_drivers: List[str] = [
+        "*/mlx*",
+        "net/*netvsc",
+        "net/ring",
+        "net/virtio",
+        "net/bonding",
+        "bus/*",
+        "common/*",
+        "mempool/*",
+    ]
+    _enable_apps: List[str] = ["app/test-pmd"]
 
     def _check_if_installed(self) -> bool:
         try:
@@ -215,6 +270,15 @@ class DpdkSourceInstall(Installer):
     def _setup_node(self) -> None:
         super()._setup_node()
         if isinstance(self._os, Debian):
+            if self._arch == CpuArchitecture.I386:
+                self._node.execute(
+                    "dpkg --add-architecture i386",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Could not enable i386 packages."
+                    ),
+                )
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
             if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
                 self._os.update_packages("linux-azure")
@@ -252,6 +316,13 @@ class DpdkSourceInstall(Installer):
             "libdpdk", update_cached=True
         )
 
+    def _get_meson_parameters(self) -> str:
+        enable_apps = "-Denable_apps=" + ",".join(self._enable_apps)
+        if self._node.nics.is_mana_device_present():
+            self._enable_drivers += ["net/mana"]
+        enable_drivers = "-Denable_drivers=" + ",".join(self._enable_drivers)
+        return f"{enable_apps} {enable_drivers}"
+
     def _install(self) -> None:
         super()._install()
         if self._sample_applications:
@@ -261,9 +332,10 @@ class DpdkSourceInstall(Installer):
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=" ".join(self._meson_arguments),
+            args=self._get_meson_parameters(),
             build_dir=self._build_dir,
             cwd=self.asset_path,
+            update_envs=self._meson_defines[self._arch],
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -742,13 +814,16 @@ class DpdkTestpmd(Tool):
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        self._build_arch: Optional[CpuArchitecture] = kwargs.pop(
+            "force_build_arch", None
+        )
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
-                self.node, DPDK_PACKAGE_MANAGER_PACKAGES
+                self.node, DPDK_PACKAGE_MANAGER_DEPENDENCIES
             )
         # if not package manager, choose source installation
         else:
@@ -776,10 +851,12 @@ class DpdkTestpmd(Tool):
                     " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
                     "https://__/__.tar[.gz]"
                 )
+
             self.installer = DpdkSourceInstall(
                 node=self.node,
-                os_dependencies=DPDK_SOURCE_INSTALL_PACKAGES,
+                os_dependencies=DPDK_SOURCE_DEPENDENCIES,
                 downloader=downloader,
+                arch=self._build_arch,
             )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
