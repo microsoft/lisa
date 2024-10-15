@@ -145,7 +145,6 @@ class Ntttcp(Tool):
         {"net.core.wmem_default": "67108864"},
         {"net.core.wmem_max": "67108864"},
     ]
-
     tool_path_folder = "ntttcp-for-linux/src"
 
     @property
@@ -167,13 +166,13 @@ class Ntttcp(Tool):
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
-        if set_task_max:
-            self._set_tasks_max()
         if udp_mode:
             sys_list = self.sys_list_udp
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
+        if set_task_max:
+            self._set_tasks_max()
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
