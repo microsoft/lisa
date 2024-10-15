@@ -50,7 +50,6 @@ from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
-    DPDK_STABLE_GIT_REPO,
     Downloader,
     GitDownloader,
     Installer,
@@ -58,12 +57,14 @@ from microsoft.testsuites.dpdk.common import (
     check_dpdk_support,
     is_url_for_git_repo,
     is_url_for_tarball,
+    set_default_dpdk_source,
     update_kernel_from_repo,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
+    RDMA_CORE_I386_MANA_DEFAULT_SOURCE,
     RDMA_CORE_MANA_DEFAULT_SOURCE,
-    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_PACKAGE_DEPENDENCIES,
     RDMA_CORE_SOURCE_DEPENDENCIES,
     RdmaCorePackageManagerInstall,
     RdmaCoreSourceInstaller,
@@ -117,21 +118,16 @@ class DpdkTestResources:
         self.rdma_core = _rdma_core
 
 
-def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
-    # DPDK packages 17.11 which is EOL and doesn't have the
-    # net_vdev_netvsc pmd used for simple handling of hyper-v
-    # guests. Force stable source build on this platform.
-    # Default to 20.11 unless another version is provided by the
-    # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
-
-
 def get_rdma_core_installer(
-    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+    node: Node,
+    rdma_source: str,
+    rdma_branch: str,
+    build_arch: Optional[CpuArchitecture] = None,
 ) -> Installer:
     # set rdma-core installer type.
+    if not build_arch:
+        build_arch = node.tools[Lscpu].get_architecture()
+
     if rdma_source:
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
@@ -145,15 +141,22 @@ def get_rdma_core_installer(
             )
     # handle MANA special case, build a default rdma-core with mana provider
     elif not rdma_source and node.nics.is_mana_device_present():
-        downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
+        if build_arch == CpuArchitecture.I386:
+            downloader = TarDownloader(node, RDMA_CORE_I386_MANA_DEFAULT_SOURCE)
+        else:
+            downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
     else:
         # no rdma_source and not mana, just use the package manager
         return RdmaCorePackageManagerInstall(
-            node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
+            node, os_dependencies=RDMA_CORE_PACKAGE_DEPENDENCIES, arch=build_arch
         )
+
     # return the installer with the downloader we've picked
     return RdmaCoreSourceInstaller(
-        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+        node,
+        os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES,
+        downloader=downloader,
+        arch=build_arch,
     )
 
 
@@ -288,8 +291,8 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
+    set_default_dpdk_source(node, variables)
 
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
@@ -300,6 +303,7 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
+    build_arch = variables.get("build_arch", None)
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
@@ -325,7 +329,7 @@ def initialize_node_resources(
     node.nics.check_pci_enabled(pci_enabled=True)
     update_kernel_from_repo(node)
     rdma_core = get_rdma_core_installer(
-        node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
+        node, rdma_source, rdma_branch, build_arch=build_arch
     )
     rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
@@ -337,6 +341,7 @@ def initialize_node_resources(
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
+        build_arch=build_arch,
     )
     # Tools will skip installation if the binary is present, so
     # force invoke install. Installer will skip if the correct
@@ -1126,7 +1131,7 @@ class NicType(Enum):
 
 
 # Short name for nic types
-NIC_SHORT_NAMES = {
+NIC_SHORT_NAMES: Dict[NicType, str] = {
     NicType.CX3: "cx3",
     NicType.CX4: "cx4",
     NicType.CX5: "cx5",
@@ -1149,13 +1154,12 @@ def get_node_nic_short_name(node: Node) -> str:
     short_names = map(lambda x: x.value, non_mana_nics)
     known_nic_types = ",".join(short_names)
     found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
-    node.log.debug(
+    # assert, this will be caught in annotate_dpdk_test_result
+    # and logged, rather than failing the test.
+    raise AssertionError(
         "Unknown NIC hardware was detected during DPDK test case. "
         f"Expected one of: {known_nic_types}. Found {found_nic_types}. "
     )
-    # this is just a function for annotating a result, so don't assert
-    # if there's
-    return found_nic_types
 
 
 def _format_version_str(version: VersionInfo) -> str:
@@ -1177,16 +1181,29 @@ def annotate_dpdk_test_result(
         test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
         log.debug(f"Adding dpdk version: {dpdk_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
+        log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
         test_result.information["rdma_version"] = _format_version_str(rdma_version)
         log.debug(f"Adding rdma version: {rdma_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
+        log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
         log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
+        log.debug(f"Could not fetch NIC short name: {str(err)}")
+
+
+def skip_32bit_test_on_unsupported_distros(os: OperatingSystem) -> None:
+    if not (
+        isinstance(os, Ubuntu)
+        and os.information.version >= "22.4.0"
+        and os.information.version < "22.5.0"
+    ):
+        raise SkippedException(
+            UnsupportedDistroException(
+                os, "32bit test is only implemented for Ubuntu 22.04"
+            )
+        )
