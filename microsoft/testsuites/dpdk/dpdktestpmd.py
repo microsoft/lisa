@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, List, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -254,6 +254,7 @@ class DpdkSourceInstall(Installer):
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
+            shell=True,
             timeout=1800,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -265,25 +266,18 @@ class DpdkSourceInstall(Installer):
         # using sudo and pip modules can get weird on some distros,
         # whether you install with pip3 --user or not.
         # to work around, add the user python path to sudo one
-        result = node.tools[Ninja].run(
+        node.tools[Ninja].run(
             "install",
             cwd=self.dpdk_build_path,
             sudo=True,
             shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ninja install failed for dpdk binaries."
+            ),
+            update_envs={"PYTHONPATH": f"{python_path}:$PYTHONPATH"},
+            force_run=True,
         )
-        if result.exit_code != 0:
-            node.log.debug("DPDK build failed, attempt build using user pythonpath...")
-            result = node.tools[Ninja].run(
-                "install",
-                cwd=self.dpdk_build_path,
-                sudo=True,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "ninja install failed for dpdk binaries."
-                ),
-                update_envs={"PYTHONPATH": f"{python_path}:$PYTHONPATH"},
-            )
         node.execute(
             "ldconfig",
             cwd=self.dpdk_build_path,
@@ -722,12 +716,6 @@ class DpdkTestpmd(Tool):
 
     def get_mean_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_rescind(self._rx_pps_key)
-
-    def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
-        if apps:
-            self._sample_apps_to_build = apps
-        else:
-            self._sample_apps_to_build = []
 
     def get_example_app_path(self, app_name: str) -> PurePath:
         if isinstance(self.installer, DpdkSourceInstall):

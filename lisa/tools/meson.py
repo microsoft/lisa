@@ -39,7 +39,15 @@ class Meson(Tool):
             self.node.tools[Ln].create_link(
                 f"/home/{username}/.local/bin/meson", "/usr/bin/meson", force=True
             )
-
+            # ensure sudo has access as well
+            self.node.execute(
+                "pip3 install meson",
+                sudo=True,
+                shell=True,
+                no_debug_log=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
         return self._check_exists()
 
     def setup(self, args: str, cwd: PurePath, build_dir: str = "build") -> PurePath:
