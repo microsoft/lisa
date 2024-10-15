@@ -199,6 +199,12 @@ class DpdkSourceInstall(Installer):
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
     ]
+    _library_bashrc_lines = [
+        "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+        "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
+    ]
+    _meson_arguments: List[str] = []
+    _build_dir: str = "build"
 
     def _check_if_installed(self) -> bool:
         try:
@@ -258,14 +264,15 @@ class DpdkSourceInstall(Installer):
     def _install(self) -> None:
         super()._install()
         if self._sample_applications:
-            sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
-        else:
-            sample_apps = ""
+            self._meson_arguments += f"-Dexamples={','.join(self._sample_applications)}"
+
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=" ".join(self._meson_arguments),
+            build_dir=self._build_dir,
+            cwd=self.asset_path,
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -300,12 +307,8 @@ class DpdkSourceInstall(Installer):
             expected_exit_code=0,
             expected_exit_code_failure_message="ldconfig failed, check for error spew.",
         )
-        library_bashrc_lines = [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-        ]
         node.tools[Echo].write_to_file(
-            ";".join(library_bashrc_lines),
+            ";".join(self._library_bashrc_lines),
             node.get_pure_path("$HOME/.bashrc"),
             append=True,
         )
