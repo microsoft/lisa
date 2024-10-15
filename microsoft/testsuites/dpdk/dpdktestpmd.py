@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type, Union
+from typing import Any, List, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -18,7 +18,6 @@ from lisa.tools import (
     Kill,
     Lscpu,
     Lspci,
-    Make,
     Meson,
     Modprobe,
     Ninja,
@@ -26,7 +25,6 @@ from lisa.tools import (
     Pip,
     Pkgconfig,
     Python,
-    Tar,
     Timeout,
     Wget,
 )
@@ -40,8 +38,7 @@ from microsoft.testsuites.dpdk.common import (
     OsPackageDependencies,
     PackageManagerInstall,
     TarDownloader,
-    is_ubuntu_latest_or_prerelease,
-    is_ubuntu_lts_version,
+    get_debian_backport_repo_args,
     is_url_for_git_repo,
     is_url_for_tarball,
     unsupported_os_thrower,
@@ -53,6 +50,15 @@ PACKAGE_MANAGER_SOURCE = "package_manager"
 # declare package dependencies for package manager DPDK installation
 DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
     requirements=[
+        # install linux-modules-extra-azure if it's available for mana_ib
+        # older debian kernels won't have mana_ib packaged,
+        # so skip the check on those kernels.
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian)
+            and bool(x.get_kernel_information().version >= "5.15.0")
+            and x.is_package_in_repo("linux-modules-extra-azure"),
+            packages=["linux-modules-extra-azure"],
+        ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
             packages=["dpdk", "dpdk-dev"],
@@ -101,6 +107,15 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             ],
             stop_on_match=True,
         ),
+        # install linux-modules-extra-azure if it's available for mana_ib
+        # older debian kernels won't have mana_ib packaged,
+        # so skip the check on those kernels.
+        OsPackageDependencies(
+            matcher=lambda x: isinstance(x, Debian)
+            and bool(x.get_kernel_information().version >= "5.15.0")
+            and x.is_package_in_repo("linux-modules-extra-azure"),
+            packages=["linux-modules-extra-azure"],
+        ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
             packages=[
@@ -110,7 +125,6 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "python3-pyelftools",
                 "libelf-dev",
                 "pkg-config",
-                "linux-modules-extra-azure",
             ],
             stop_on_match=True,
         ),
@@ -144,29 +158,17 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
 )
 
 
-def get_debian_backport_repo_args(os: Debian) -> List[str]:
-    if not isinstance(os, Debian):
-        return []
-    if isinstance(os, Ubuntu) and (
-        is_ubuntu_latest_or_prerelease(os) or not is_ubuntu_lts_version(os)
-    ):
-        return []
-    repos = os.get_repositories()
-    backport_repo = f"{os.information.codename}-backports"
-    if any([backport_repo in repo.name for repo in repos]):
-        return [f"-t {backport_repo}"]
-    return []
-
-
 class DpdkPackageManagerInstall(PackageManagerInstall):
     def _setup_node(self) -> None:
         if isinstance(self._os, Debian):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
-            if self._os.information.version < "22.4.0":
-                self._os.update_packages("linux-azure")
-                self._node.reboot()
+
         elif isinstance(self._os, Fedora):
             self._os.install_epel()
+
+        # super setup node last in this case, since we must set
+        # repo args before download/install
+        super()._setup_node()
 
     def get_installed_version(self) -> VersionInfo:
         package_name = (
@@ -205,9 +207,10 @@ class DpdkSourceInstall(Installer):
             return False
 
     def _setup_node(self) -> None:
+        super()._setup_node()
         if isinstance(self._os, Debian):
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
-            if self._os.information.version < "22.4.0":
+            if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
                 self._os.update_packages("linux-azure")
                 self._node.reboot()
         # install( Tool ) doesn't seem to install the tool until it's used :\
@@ -223,21 +226,20 @@ class DpdkSourceInstall(Installer):
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        source_path = str(self._asset_path)
         working_path = str(self._node.get_working_path())
-        assert_that(str(source_path)).described_as(
+        assert_that(str(self.dpdk_build_path)).described_as(
             "DPDK Installer source path was empty during attempted cleanup!"
         ).is_not_empty()
-        assert_that(str(source_path)).described_as(
+        assert_that(str(self.dpdk_build_path)).described_as(
             "DPDK Installer source path was set to root dir "
             "'/' during attempted cleanup!"
         ).is_not_equal_to("/")
-        assert_that(str(source_path)).described_as(
-            f"DPDK Installer source path {source_path} was set to "
+        assert_that(str(self.dpdk_build_path)).described_as(
+            f"DPDK Installer source path {self.dpdk_build_path} was set to "
             f"working path '{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
-        # remove source code directory
-        self._node.execute(f"rm -rf {str(source_path)}", shell=True)
+        # remove build path only since we may want the repo again.
+        self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
@@ -254,10 +256,11 @@ class DpdkSourceInstall(Installer):
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self._asset_path
+            args=sample_apps, build_dir="build", cwd=self.asset_path
         )
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
+            shell=True,
             timeout=1800,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -273,11 +276,13 @@ class DpdkSourceInstall(Installer):
             "install",
             cwd=self.dpdk_build_path,
             sudo=True,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "ninja install failed for dpdk binaries."
             ),
-            update_envs={"PYTHONPATH": f"$PYTHONPATH:{python_path}"},
+            update_envs={"PYTHONPATH": f"{python_path}:$PYTHONPATH"},
+            force_run=True,
         )
         node.execute(
             "ldconfig",
@@ -305,10 +310,10 @@ class DpdkGitDownloader(GitDownloader):
         if not self._git_ref:
             git = self._node.tools[Git]
             self._git_ref = git.get_tag(
-                self._asset_path, filter_=r"^v.*"  # starts w 'v'
+                self.asset_path, filter_=r"^v.*"  # starts w 'v'
             )
-            git.checkout(self._git_ref, cwd=self._asset_path)
-        return self._asset_path
+            git.checkout(self._git_ref, cwd=self.asset_path)
+        return self.asset_path
 
 
 class DpdkTestpmd(Tool):
@@ -402,22 +407,6 @@ class DpdkTestpmd(Tool):
         _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
     }
     _source_build_dest_dir = "/usr/local/bin"
-
-    def get_rdma_core_package_name(self) -> str:
-        distro = self.node.os
-        package = ""
-        # check if rdma-core is installed already...
-        if self.node.tools[Pkgconfig].package_info_exists("libibuverbs"):
-            return package
-        if isinstance(distro, Debian):
-            package = "rdma-core ibverbs-providers libibverbs-dev"
-        elif isinstance(distro, Suse):
-            package = "rdma-core-devel librdmacm1"
-        elif isinstance(distro, Fedora):
-            package = "librdmacm-devel"
-        else:
-            fail("Invalid OS for rdma-core source installation.")
-        return package
 
     @property
     def can_install(self) -> bool:
@@ -734,12 +723,6 @@ class DpdkTestpmd(Tool):
     def get_mean_rx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_rescind(self._rx_pps_key)
 
-    def add_sample_apps_to_build_list(self, apps: Union[List[str], None]) -> None:
-        if apps:
-            self._sample_apps_to_build = apps
-        else:
-            self._sample_apps_to_build = []
-
     def get_example_app_path(self, app_name: str) -> PurePath:
         if isinstance(self.installer, DpdkSourceInstall):
             return self.installer.dpdk_build_path.joinpath("examples").joinpath(
@@ -839,54 +822,6 @@ class DpdkTestpmd(Tool):
             f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
         ).is_true()
 
-    def _install_upstream_rdma_core_for_mana(self) -> None:
-        node = self.node
-        wget = node.tools[Wget]
-        make = node.tools[Make]
-        tar = node.tools[Tar]
-        distro = node.os
-
-        if isinstance(distro, Debian):
-            distro.install_packages(
-                "cmake libudev-dev "
-                "libnl-3-dev libnl-route-3-dev ninja-build pkg-config "
-                "valgrind python3-dev cython3 python3-docutils pandoc "
-                "libssl-dev libelf-dev python3-pip libnuma-dev"
-            )
-        elif isinstance(distro, Fedora):
-            distro.group_install_packages("Development Tools")
-            distro.install_packages(
-                "cmake gcc libudev-devel "
-                "libnl3-devel pkg-config "
-                "valgrind python3-devel python3-docutils  "
-                "openssl-devel unzip "
-                "elfutils-devel python3-pip libpcap-devel  "
-                "tar wget dos2unix psmisc kernel-devel-$(uname -r)  "
-                "librdmacm-devel libmnl-devel kernel-modules-extra numactl-devel  "
-                "kernel-headers elfutils-libelf-devel meson ninja-build libbpf-devel "
-            )
-        else:
-            # check occcurs before this function
-            return
-
-        tar_path = wget.get(
-            url=(
-                "https://github.com/linux-rdma/rdma-core/"
-                "releases/download/v50.1/rdma-core-50.1.tar.gz"
-            ),
-            file_path=str(node.working_path),
-        )
-
-        tar.extract(tar_path, dest_dir=str(node.working_path), gzip=True, sudo=True)
-        source_path = node.working_path.joinpath("rdma-core-50.1")
-        node.execute(
-            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
-            shell=True,
-            cwd=source_path,
-            sudo=True,
-        )
-        make.make_install(source_path)
-
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
@@ -898,14 +833,11 @@ class DpdkTestpmd(Tool):
         if isinstance(node.os, Ubuntu) and node.os.information.codename == "bionic":
             # bionic needs to update to latest first
             node.os.update_packages("")
-        if self.is_mana:
-            if not (isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)):
-                raise SkippedException("MANA DPDK test is not supported on this OS")
-            # ensure no older dependency is installed
-            node.os.uninstall_packages("rdma-core")
-            self._install_upstream_rdma_core_for_mana()
-        else:
-            node.os.install_packages(self.get_rdma_core_package_name())
+        if self.is_mana and not (
+            isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
+        ):
+            raise SkippedException("MANA DPDK test is not supported on this OS")
+
         self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()

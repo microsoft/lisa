@@ -28,6 +28,7 @@ from lisa.tools.hugepages import HugePageSize
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
+    PackageManagerInstall,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -527,6 +528,13 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
+        if isinstance(testpmd.installer, PackageManagerInstall):
+            # The Testpmd tool doesn't get re-initialized
+            # even if you invoke it with new arguments.
+            raise SkippedException(
+                "DPDK ring_ping test is not implemented for "
+                " package manager installation."
+            )
 
         # grab a nic and run testpmd
         git = node.tools[Git]
@@ -534,7 +542,7 @@ class Dpdk(TestSuite):
         echo = node.tools[Echo]
         rping_build_env_vars = [
             "export RTE_TARGET=build",
-            f"export RTE_SDK={str(testpmd.dpdk_path)}",
+            f"export RTE_SDK={str(testpmd.installer.asset_path)}",
         ]
         echo.write_to_file(
             ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True

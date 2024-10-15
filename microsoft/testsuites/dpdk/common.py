@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from datetime import datetime
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
@@ -60,11 +59,14 @@ class DependencyInstaller:
         )
         # find the match for an OS, install the packages.
         # stop on list end or if exclusive_match parameter is true.
+        packages: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
-                os.install_packages(requirement.packages, extra_args=extra_args)
+                packages += requirement.packages
                 if requirement.stop_on_match:
-                    return
+                    break
+        os.install_packages(packages=packages, extra_args=extra_args)
+
         # NOTE: It is up to the caller to raise an exception on an invalid OS
 
 
@@ -95,13 +97,13 @@ class GitDownloader(Downloader):
         # NOTE: fail on exists is set to True.
         # The expectation is that the parent Installer class should
         # remove any lingering installations
-        self._asset_path = self._node.tools[Git].clone(
+        self.asset_path = self._node.tools[Git].clone(
             self._git_repo,
             cwd=self._node.get_working_path(),
             ref=self._git_ref,
-            fail_on_exists=True,
+            fail_on_exists=False,
         )
-        return self._asset_path
+        return self.asset_path
 
 
 # parent class for tarball source installations
@@ -137,7 +139,6 @@ class TarDownloader(Downloader):
                 self._tar_url,
                 file_path=str(work_path),
                 overwrite=False,
-                force_run=True,
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
@@ -149,7 +150,7 @@ class TarDownloader(Downloader):
                 node_path=remote_path,
             )
         # create tarfile dest dir
-        self._asset_path = work_path.joinpath(
+        self.asset_path = work_path.joinpath(
             self.tar_filename[: -(len(tarfile_suffix))]
         )
         # unpack into the dest dir
@@ -159,7 +160,7 @@ class TarDownloader(Downloader):
             dest_dir=str(work_path),
             gzip=True,
         )
-        return self._asset_path
+        return self.asset_path
 
 
 class Installer:
@@ -169,8 +170,10 @@ class Installer:
 
     # setup the node before starting
     # ex: updating the kernel, enabling features, checking drivers, etc.
+    # First we download the assets to ensure asset_path is set
+    # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        raise NotImplementedError(f"_setup_node {self._err_msg}")
+        self._download_assets()
 
     # check if the package is already installed:
     # Is the package installed from source? Or from the package manager?
@@ -181,13 +184,13 @@ class Installer:
     # setup the installation (install Ninja, Meson, etc)
     def _download_assets(self) -> None:
         if self._downloader:
-            self._asset_path = self._downloader.download()
+            self.asset_path = self._downloader.download()
         else:
             self._node.log.debug("No downloader assigned to installer.")
 
     # do the build and installation
     def _install(self) -> None:
-        self._download_assets()
+        ...
 
     # remove an installation
     def _uninstall(self) -> None:
@@ -206,7 +209,8 @@ class Installer:
 
     def _should_install(self, required_version: Optional[VersionInfo] = None) -> bool:
         return (not self._check_if_installed()) or (
-            required_version is None and required_version > self.get_installed_version()
+            required_version is not None
+            and required_version > self.get_installed_version()
         )
 
     # run the defined setup and installation steps.
@@ -247,6 +251,8 @@ class PackageManagerInstall(Installer):
             for os_package_check in self._os_dependencies.requirements:
                 if os_package_check.matcher(self._os) and os_package_check.packages:
                     self._os.uninstall_packages(os_package_check.packages)
+                    if os_package_check.stop_on_match:
+                        break
 
     # verify packages on the node have been installed by
     # the package manager
@@ -260,11 +266,9 @@ class PackageManagerInstall(Installer):
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
                             return False
+                    if os_package_check.stop_on_match:
+                        break
         return True
-
-    # installing dependencies is the installation in this case, so just return
-    def _install(self) -> None:
-        return
 
 
 def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
@@ -272,43 +276,30 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-# rough check for ubuntu supported versions.
-# assumes:
-# - canonical convention of YEAR.MONTH for major versions
-# - canoical release cycle of EVEN_YEAR.04 for lts versions.
-# - 4 year support cycle. 6 year for ESM
-# get the age of the distro, if negative or 0, release is new.
-# if > 6, distro is out of support
-def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
-    # asserts if not ubuntu OS object
-    version_info = distro.information.version
-    distro_age = _get_ubuntu_distro_age(distro)
-    is_even_year = (version_info.major % 2) == 0
-    is_april_release = version_info.minor == 4
-    is_within_support_window = distro_age <= 6
-    return is_even_year and is_april_release and is_within_support_window
+_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
 
 
+# see https://ubuntu.com/about/release-cycle
 def is_ubuntu_latest_or_prerelease(distro: Ubuntu) -> bool:
-    distro_age = _get_ubuntu_distro_age(distro)
-    return distro_age <= 2
+    return bool(distro.information.version >= max(_UBUNTU_LTS_VERSIONS))
 
 
-def _get_ubuntu_distro_age(distro: Ubuntu) -> int:
-    version_info = distro.information.version
-    # check release is within esm window
-    year_string = str(datetime.today().year)
-    assert_that(len(year_string)).described_as(
-        "Package bug: The year received from datetime module is an "
-        "unexpected size. This indicates a broken package or incorrect "
-        "date in this computer."
-    ).is_greater_than_or_equal_to(4)
-    # TODO: handle the century rollover edge case in 2099
-    current_year = int(year_string[-2:])
-    release_year = int(version_info.major)
-    # 23-18 == 5
-    # long term support and extended security updates for ~6 years
-    return current_year - release_year
+# see https://ubuntu.com/about/release-cycle
+def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
+    major = str(distro.information.version.major)
+    minor = str(distro.information.version.minor)
+    # check for major+minor version match
+    return any(
+        [
+            major == x.split(".", maxsplit=1)[0] and minor == x.split(".")[1]
+            for x in _UBUNTU_LTS_VERSIONS
+        ]
+    )
+
+
+# check if it's a lts release outside the initial 2 year lts window
+def ubuntu_needs_backports(os: Ubuntu) -> bool:
+    return not is_ubuntu_latest_or_prerelease(os) and is_ubuntu_lts_version(os)
 
 
 def check_dpdk_support(node: Node) -> None:
@@ -382,3 +373,48 @@ def unsupported_os_thrower(os: Posix) -> bool:
         os,
         message=("Installer did not define dependencies for this os."),
     )
+
+
+def get_debian_backport_repo_args(os: Debian) -> List[str]:
+    # ex: 'bionic-backports' or 'buster-backports'
+    # these backport repos are available for the older OS's
+    # and include backported fixes which need to be opted into.
+    # So filter out recent OS's and
+    # add the backports repo for older ones, if it should be available.
+    if not isinstance(os, Debian):
+        return []
+    # don't enable backport args for releases which don't need/have them.
+    if isinstance(os, Ubuntu) and not ubuntu_needs_backports(os):
+        return []
+    repos = os.get_repositories()
+    backport_repo = f"{os.information.codename}-backports"
+    if any([backport_repo in repo.name for repo in repos]):
+        return [f"-t {backport_repo}"]
+    return []
+
+
+# NOTE: mana_ib was added in 6.2 and backported to 5.15
+# this ends up lining up with kernels that need to be updated before
+# starting our DPDK tests. This function is not meant for general use
+# outside of the DPDK suite.
+def update_kernel_from_repo(node: Node) -> None:
+    assert isinstance(
+        node.os, (Debian, Fedora, Suse)
+    ), f"DPDK test does not support OS type: {type(node.os)}"
+    if (
+        isinstance(node.os, Debian)
+        and node.os.get_kernel_information().version < "6.5.0"
+    ):
+        package = "linux-azure"
+    elif (
+        isinstance(node.os, (Fedora, Suse))
+        and node.os.get_kernel_information().version < "5.15.0"
+    ):
+        package = "kernel"
+    else:
+        return
+    if node.os.is_package_in_repo(package):
+        node.os.install_packages(package)
+        node.reboot()
+    else:
+        node.log.debug(f"Kernel update package '{package}' was not found.")

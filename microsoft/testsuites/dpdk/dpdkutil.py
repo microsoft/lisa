@@ -48,9 +48,23 @@ from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_asy
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
     DPDK_STABLE_GIT_REPO,
+    Downloader,
+    GitDownloader,
+    Installer,
+    TarDownloader,
     check_dpdk_support,
+    is_url_for_git_repo,
+    is_url_for_tarball,
+    update_kernel_from_repo,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.rdmacore import (
+    RDMA_CORE_MANA_DEFAULT_SOURCE,
+    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_SOURCE_DEPENDENCIES,
+    RdmaCorePackageManagerInstall,
+    RdmaCoreSourceInstaller,
+)
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv
@@ -106,6 +120,35 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+
+
+def get_rdma_core_installer(
+    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+) -> Installer:
+    # set rdma-core installer type.
+    if rdma_source:
+        if is_url_for_git_repo(rdma_source):
+            # else, if we have a user provided rdma-core source, use it
+            downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
+        elif is_url_for_tarball(rdma_branch):
+            downloader = TarDownloader(node, rdma_source)
+        else:
+            # throw on unrecognized rdma core source type
+            raise AssertionError(
+                f"Invalid rdma-core source uri provided: {rdma_source}"
+            )
+    # handle MANA special case, build a default rdma-core with mana provider
+    elif not rdma_source and node.nics.is_mana_device_present():
+        downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
+    else:
+        # no rdma_source and not mana, just use the package manager
+        return RdmaCorePackageManagerInstall(
+            node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
+        )
+    # return the installer with the downloader we've picked
+    return RdmaCoreSourceInstaller(
+        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+    )
 
 
 def _ping_all_nodes_in_environment(environment: Environment) -> None:
@@ -245,6 +288,8 @@ def initialize_node_resources(
 
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    rdma_source = variables.get("rdma_source", "")
+    rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
@@ -273,15 +318,26 @@ def initialize_node_resources(
 
     # verify SRIOV is setup as-expected on the node after compat check
     node.nics.check_pci_enabled(pci_enabled=True)
-
+    update_kernel_from_repo(node)
+    rdma_core = get_rdma_core_installer(
+        node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
+    )
+    rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
-    testpmd: DpdkTestpmd = node.tools.get(
+    # use create over get to avoid skipping
+    # reinitialization of tool when new arguments are present
+    testpmd: DpdkTestpmd = node.tools.create(
         DpdkTestpmd,
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
+    # Tools will skip installation if the binary is present, so
+    # force invoke install. Installer will skip if the correct
+    # *type* of installation is already installed,
+    # taking it's creation arguments into account.
+    testpmd.install()
 
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
@@ -1027,3 +1083,6 @@ def create_l3fwd_rules_files(
     forwarder.tools[Echo].write_to_file(
         "\n".join(sample_rules_v6), rules_v6, append=True
     )
+
+
+DPDK_VERSION_TO_RDMA_CORE_MAP = {"20.11": "46.1", "21.11": ""}
