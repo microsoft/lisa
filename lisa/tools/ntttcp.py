@@ -226,7 +226,7 @@ class Ntttcp(Tool):
             cmd += " -D "
 
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -332,7 +332,7 @@ class Ntttcp(Tool):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
@@ -593,7 +593,7 @@ class BSDNtttcp(Ntttcp):
 
         # Start the server and wait for the threads to be created
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -628,7 +628,7 @@ class BSDNtttcp(Ntttcp):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
