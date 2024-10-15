@@ -79,8 +79,10 @@ class Qemu(Tool):
             # for some qemu version, it doesn't support pcid flag
             # e.g. QEMU emulator version 1.5.3 (qemu-kvm-1.5.3-175.el7_9.6)
             # on centos 7.9
+            # use a timeout mechanism to prevent the command from waiting the full 600
+            # seconds before exiting.
             try_pcid_flag = self.node.execute(
-                f"{self._qemu_command} -cpu host,pcid=no", sudo=True
+                f"timeout 20 {self._qemu_command} -cpu host,pcid=no", sudo=True
             )
             if not get_matched_str(try_pcid_flag.stdout, self.NO_PCID_PATTERN):
                 cmd += ",pcid=no"
