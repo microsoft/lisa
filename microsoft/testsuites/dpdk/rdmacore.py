@@ -136,6 +136,8 @@ class RdmaCorePackageManagerInstall(RdmaCoreInstaller, PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class RdmaCoreSourceInstaller(RdmaCoreInstaller):
+    _make_command = "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr"
+
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
@@ -190,7 +192,7 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
         node = self._node
         make = node.tools[Make]
         node.execute(
-            "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr",
+            self._make_command,
             shell=True,
             cwd=self.asset_path,
             sudo=True,
