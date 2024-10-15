@@ -115,7 +115,11 @@ RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
 )
 
 
-class RdmaCorePackageManagerInstall(PackageManagerInstall):
+class RdmaCoreInstaller(Installer):
+    ...
+
+
+class RdmaCorePackageManagerInstall(RdmaCoreInstaller, PackageManagerInstall):
     def _setup_node(self) -> None:
         if isinstance(self._os, Fedora):
             self._os.install_epel()
@@ -131,7 +135,7 @@ class RdmaCorePackageManagerInstall(PackageManagerInstall):
 
 
 # implement SourceInstall for DPDK
-class RdmaCoreSourceInstaller(Installer):
+class RdmaCoreSourceInstaller(RdmaCoreInstaller):
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
