@@ -19,6 +19,10 @@ class Qemu(Tool):
     QEMU_INSTALL_LOCATIONS = ["qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"]
     # qemu-kvm: unrecognized feature pcid
     NO_PCID_PATTERN = re.compile(r".*unrecognized feature pcid", re.M)
+    # KVM: entry failed, hardware error 0xffffffff
+    ERROR_WHEN_USE_HOST_CPU = re.compile(
+        r"KVM: entry failed, hardware error 0xffffffff", re.M
+    )
 
     @property
     def command(self) -> str:
@@ -113,11 +117,6 @@ class Qemu(Tool):
                     f"-device virtio-scsi-pci -device scsi-hd,drive=datadisk-{i} "
                 )
 
-        # -enable-kvm: enable kvm
-        # -display: enable or disable display
-        # -daemonize: run in background
-        cmd += "-enable-kvm -display none -daemonize "
-
         if cd_rom:
             cmd += f" -cdrom {cd_rom} "
 
@@ -125,13 +124,18 @@ class Qemu(Tool):
         if stop_existing_vm:
             self.delete_vm()
 
-        # start qemu
+        cmd = self._configure_qemu_command_for_cpu(cmd)
+
+        # -enable-kvm: enable kvm
+        # -display: enable or disable display
+        # -daemonize: run in background
+        cmd += "-enable-kvm -display none -daemonize "
+
         result = self.run(
             cmd,
             sudo=True,
             shell=True,
         )
-
         if result.exit_code != 0:
             if "ret == cpu->kvm_msr_buf->nmsrs" in result.stdout:
                 # Known issue with qemu on AMD
@@ -210,3 +214,18 @@ class Qemu(Tool):
             "kvm_intel"
         ) or lsmod.module_exists("kvm_amd")
         assert_that(is_kvm_successfully_enabled, "KVM could not be enabled").is_true()
+
+    def _configure_qemu_command_for_cpu(self, cmd: str) -> str:
+        # start qemu
+        result = self.node.execute(
+            f"timeout 20 {self.command} {cmd}",
+            sudo=True,
+            shell=True,
+        )
+
+        # using `-cpu host` is causing the issue
+        # using `-cpu EPYC` for AMD CPU works correctly
+        # if meet the failure pattern, use EPYC instead
+        if get_matched_str(result.stdout, self.ERROR_WHEN_USE_HOST_CPU):
+            cmd = cmd.replace("-cpu host", "-cpu EPYC")
+        return cmd
