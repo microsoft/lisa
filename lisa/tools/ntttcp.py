@@ -135,7 +135,7 @@ class Ntttcp(Tool):
         {"vm.max_map_count": "655300"},
         {"net.ipv4.ip_local_port_range": "1024 65535"},
         {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
-        {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
+        # {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
         # {"net.core.rmem_max": "16777216"},
         # {"net.core.wmem_max": "16777216"},
     ]
