@@ -877,6 +877,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
+    # annotate test result, useful for rich reporting and bug triage
     annotate_dpdk_test_result(test_kit=fwd_kit, environment=environment, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
