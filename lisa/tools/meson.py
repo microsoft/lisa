@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import PurePath
-from typing import cast
+from typing import Dict, Optional, cast
 
 from semver import VersionInfo
 
@@ -50,9 +50,15 @@ class Meson(Tool):
             )
         return self._check_exists()
 
-    def setup(self, args: str, cwd: PurePath, build_dir: str = "build") -> PurePath:
+    def setup(
+        self,
+        args: str,
+        cwd: PurePath,
+        build_dir: str = "build",
+        update_envs: Optional[Dict[str, str]] = None,
+    ) -> PurePath:
         self.run(
-            f"{args} {build_dir}",
+            parameters=f"{args} {build_dir}",
             force_run=True,
             shell=True,
             cwd=cwd,
@@ -60,5 +66,6 @@ class Meson(Tool):
             expected_exit_code_failure_message=(
                 f"Could not configure {str(cwd)} with meson using args {args}"
             ),
+            update_envs=update_envs,
         )
         return cwd.joinpath(build_dir)

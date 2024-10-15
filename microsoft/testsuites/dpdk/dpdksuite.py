@@ -25,6 +25,7 @@ from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
@@ -100,6 +101,29 @@ class Dpdk(TestSuite):
         verify_dpdk_build(
             node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
         )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_netvsc_32bit(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        force_dpdk_default_source(variables, build_arch=CpuArchitecture.I386)
+        verify_dpdk_build(node, log, variables, "netvsc", HugePageSize.HUGE_2MB)
 
     @TestCaseMetadata(
         description="""
