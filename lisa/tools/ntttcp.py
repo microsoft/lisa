@@ -25,22 +25,22 @@ if TYPE_CHECKING:
     from lisa.testsuite import TestResult
 
 NTTTCP_TCP_CONCURRENCY = [
-    # 1,
-    # 2,
-    # 4,
-    # 8,
-    # 16,
-    # 32,
-    # 64,
-    # 128,
-    # 256,
-    # 512,
-    # 1024,
-    # 2048,
-    # 4096,
-    # 6144,
-    # 8192,
-    # 10240,
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096,
+    6144,
+    8192,
+    10240,
     20480,
 ]
 # Running NTTTCP in BSD results in error:
@@ -134,10 +134,10 @@ class Ntttcp(Tool):
         {"kernel.pid_max": "122880"},
         {"vm.max_map_count": "655300"},
         {"net.ipv4.ip_local_port_range": "1024 65535"},
-        # {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
+        # This parameter configures the minimum, default,
+        # and maximum sizes for TCP receive buffers to
+        # optimize network performance based on available bandwidth and latency.
         {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
-        # {"net.core.rmem_max": "16777216"},
-        # {"net.core.wmem_max": "16777216"},
     ]
     sys_list_udp = [
         {"net.core.rmem_max": "67108864"},
