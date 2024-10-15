@@ -25,22 +25,22 @@ if TYPE_CHECKING:
     from lisa.testsuite import TestResult
 
 NTTTCP_TCP_CONCURRENCY = [
-    1,
-    2,
-    4,
-    8,
-    16,
-    32,
-    64,
-    128,
-    256,
-    512,
-    1024,
-    2048,
-    4096,
-    6144,
-    8192,
-    10240,
+    # 1,
+    # 2,
+    # 4,
+    # 8,
+    # 16,
+    # 32,
+    # 64,
+    # 128,
+    # 256,
+    # 512,
+    # 1024,
+    # 2048,
+    # 4096,
+    # 6144,
+    # 8192,
+    # 10240,
     20480,
 ]
 # Running NTTTCP in BSD results in error:
@@ -134,6 +134,17 @@ class Ntttcp(Tool):
         {"kernel.pid_max": "122880"},
         {"vm.max_map_count": "655300"},
         {"net.ipv4.ip_local_port_range": "1024 65535"},
+        # {"fs.file-max": "1000000"},
+        # {"net.ipv4.tcp_fastopen": "3"},
+        # {"net.ipv4.tcp_keepalive_time": "600"},
+        # {"net.ipv4.tcp_keepalive_intvl": "60"},
+        # {"net.ipv4.tcp_keepalive_probes": "5"},
+        # {"net.ipv4.tcp_retries2": "5"},
+        # {"net.ipv4.tcp_fin_timeout": "30"},
+        {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
+        {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
+        {"net.core.rmem_max": "16777216"},
+        {"net.core.wmem_max": "16777216"},
     ]
     sys_list_udp = [
         {"net.core.rmem_max": "67108864"},
@@ -141,6 +152,7 @@ class Ntttcp(Tool):
         {"net.core.wmem_default": "67108864"},
         {"net.core.wmem_max": "67108864"},
     ]
+
     tool_path_folder = "ntttcp-for-linux/src"
 
     @property
@@ -162,13 +174,13 @@ class Ntttcp(Tool):
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
+        if set_task_max:
+            self._set_tasks_max()
         if udp_mode:
             sys_list = self.sys_list_udp
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
-        if set_task_max:
-            self._set_tasks_max()
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
@@ -226,7 +238,7 @@ class Ntttcp(Tool):
             cmd += " -D "
 
         process = self.node.execute_async(
-            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -332,7 +344,7 @@ class Ntttcp(Tool):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
@@ -593,7 +605,7 @@ class BSDNtttcp(Ntttcp):
 
         # Start the server and wait for the threads to be created
         process = self.node.execute_async(
-            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
         )
@@ -628,7 +640,7 @@ class BSDNtttcp(Ntttcp):
         if run_as_daemon:
             cmd += " -D "
         result = self.node.execute(
-            f"ulimit -n 1000000 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
             shell=True,
             sudo=True,
             expected_exit_code=0,
