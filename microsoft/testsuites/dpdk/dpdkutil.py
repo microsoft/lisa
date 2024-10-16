@@ -62,7 +62,7 @@ from microsoft.testsuites.dpdk.common import (
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
-    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_PACKAGE_DEPENDENCIES,
     RDMA_CORE_SOURCE_DEPENDENCIES,
     RdmaCorePackageManagerInstall,
     RdmaCoreSourceInstaller,
@@ -151,7 +151,7 @@ def get_rdma_core_installer(
     else:
         # no rdma_source and not mana, just use the package manager
         return RdmaCorePackageManagerInstall(
-            node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
+            node, os_dependencies=RDMA_CORE_PACKAGE_DEPENDENCIES, arch=build_arch
         )
     if not build_arch:
         build_arch = node.tools[Lscpu].get_architecture()
