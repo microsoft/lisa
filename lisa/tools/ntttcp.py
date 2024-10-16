@@ -134,6 +134,10 @@ class Ntttcp(Tool):
         {"kernel.pid_max": "122880"},
         {"vm.max_map_count": "655300"},
         {"net.ipv4.ip_local_port_range": "1024 65535"},
+        # This parameter configures the minimum, default,
+        # and maximum sizes for TCP receive buffers to
+        # optimize network performance based on available bandwidth and latency.
+        {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
     ]
     sys_list_udp = [
         {"net.core.rmem_max": "67108864"},
@@ -162,13 +166,13 @@ class Ntttcp(Tool):
     def setup_system(self, udp_mode: bool = False, set_task_max: bool = True) -> None:
         sysctl = self.node.tools[Sysctl]
         sys_list = self.sys_list_tcp
+        if set_task_max:
+            self._set_tasks_max()
         if udp_mode:
             sys_list = self.sys_list_udp
         for sys in sys_list:
             for variable, value in sys.items():
                 sysctl.write(variable, value)
-        if set_task_max:
-            self._set_tasks_max()
         firewall = self.node.tools[Firewall]
         firewall.stop()
 

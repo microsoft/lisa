@@ -74,7 +74,8 @@ class ScriptFileTransformer(DeploymentTransformer):
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: ScriptFileTransformerSchema = self.runbook
-        self._node.os.install_packages(runbook.dependent_packages)  # type: ignore
+        if runbook.dependent_packages:
+            self._node.os.install_packages(runbook.dependent_packages)  # type: ignore
 
         results: Dict[str, Any] = {}
         failed_scripts = []
