@@ -2309,6 +2309,14 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             "standarddcedv5family",
             "standardecev5family",
             "standardecedv5family",
+            "standarddcasv6family",
+            "standarddcadsv6family",
+            "standardecasv6family",
+            "standardecadsv6family",
+            "standarddcev6family",
+            "standarddcedv6family",
+            "standardecev6family",
+            "standardecedv6family",
         ]:
             capabilities.append(SecurityProfileType.CVM)
 
@@ -2317,6 +2325,10 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             "standarddcedv5family",
             "standardecev5family",
             "standardecedv5family",
+            "standarddcev6family",
+            "standarddcedv6family",
+            "standardecev6family",
+            "standardecedv6family",
         ]:
             capabilities.append(SecurityProfileType.Stateless)
 
