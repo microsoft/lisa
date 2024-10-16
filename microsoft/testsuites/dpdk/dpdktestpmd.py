@@ -122,8 +122,7 @@ DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
         ),
         # Install 32-bit dependencies if we're building for i386
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Ubuntu)
-            and bool(os.get_kernel_information().version > "5.15.0")
+            matcher=lambda os, arch=None: isinstance(os, Debian)
             and arch == CpuArchitecture.I386,
             packages=[
                 "python3-pyelftools",

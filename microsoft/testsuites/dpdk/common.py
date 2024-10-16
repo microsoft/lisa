@@ -43,13 +43,11 @@ class OsPackageDependencies:
         self,
         matcher: Callable[[Posix, Optional[CpuArchitecture]], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
-        arch_match: Optional[CpuArchitecture] = None,
         stop_on_match: bool = False,
     ) -> None:
         self.matcher = matcher
         self.packages = packages
         self.stop_on_match = stop_on_match
-        self.arch_match = arch_match
 
 
 class DependencyInstaller:
@@ -64,7 +62,10 @@ class DependencyInstaller:
 
     # evaluate the list of package dependencies,
     def install_required_packages(
-        self, os: Posix, extra_args: Union[List[str], None]
+        self,
+        os: Posix,
+        extra_args: Union[List[str], None],
+        arch: Optional[CpuArchitecture] = None,
     ) -> None:
         assert isinstance(os, Posix), (
             "DependencyInstaller is not compatible with this OS: "
@@ -74,7 +75,7 @@ class DependencyInstaller:
         # stop on list end or if exclusive_match parameter is true.
         packages: List[Union[str, Tool, Type[Tool]]] = []
         for requirement in self.requirements:
-            if requirement.matcher(os, self._arch):
+            if requirement.matcher(os, arch):
                 if requirement.packages is not None and len(requirement.packages) > 0:
                     packages += requirement.packages
                 if requirement.stop_on_match:
@@ -216,7 +217,7 @@ class Installer:
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
             self._os_dependencies.install_required_packages(
-                self._os, extra_args=self._package_manager_extra_args
+                self._os, extra_args=self._package_manager_extra_args, arch=self._arch
             )
 
     # define how to check the installed version
@@ -296,7 +297,7 @@ class PackageManagerInstall(Installer):
         if self._os_dependencies is not None:
             for os_package_check in self._os_dependencies:
                 if (
-                    os_package_check.matcher(self._os)
+                    os_package_check.matcher(self._os, self._arch)
                     and os_package_check.packages
                     and self._os_dependencies._arch == os_package_check.arch
                 ):
@@ -325,9 +326,13 @@ class PackageManagerInstall(Installer):
         return True
 
 
-def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
+def force_dpdk_default_source(
+    variables: Dict[str, Any], build_arch: Optional[CpuArchitecture] = None
+) -> None:
     if not variables.get("dpdk_source", None):
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
+    if build_arch:
+        variables["build_arch"] = build_arch
 
 
 _UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]

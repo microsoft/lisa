@@ -30,6 +30,25 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
+            matcher=lambda os, arch=None: isinstance(os, (Debian))
+            and arch == CpuArchitecture.I386,
+            packages=[
+                "python3-pyelftools",
+                "libelf-dev:i386",
+                "libnuma-dev:i386",
+                "pkg-config",
+                "python3-pip",
+                "cmake",
+                "libnl-3-dev:i386",
+                "libnl-route-3-dev:i386",
+                "meson",
+                "gcc-i686-linux-gnu",
+                "python3-dev:i386",
+                "libudev-dev:i386",
+            ],
+            stop_on_match=True,
+        ),
+        OsPackageDependencies(
             matcher=lambda os, _arch=None: isinstance(os, Debian),
             packages=[
                 "cmake",
@@ -164,7 +183,22 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
             self._cmake_command = (
                 "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr"
             )
-        elif self._arch == CpuArchitecture.I386:
+        elif isinstance(self._os, Debian) and self._arch == CpuArchitecture.I386:
+            # enable 32bit packages, needed for dependencies
+            self._node.execute(
+                "dpkg --add-architecture i386",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Could not enable i386 packages.",
+            )
+            self._node.execute(
+                "apt update",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Apt update after enabling i386 failed"
+                ),
+            )
             self._cmake_command = (
                 "PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig cmake"
                 " -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "

@@ -134,11 +134,15 @@ def get_rdma_core_installer(
     build_arch: Optional[CpuArchitecture] = None,
 ) -> Installer:
     # set rdma-core installer type.
+    if not build_arch:
+        build_arch = node.tools[Lscpu].get_architecture()
+    if build_arch == CpuArchitecture.I386 and not rdma_source:
+        rdma_source = RDMA_CORE_MANA_DEFAULT_SOURCE
     if rdma_source:
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
             downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
-        elif is_url_for_tarball(rdma_branch):
+        elif is_url_for_tarball(rdma_source):
             downloader = TarDownloader(node, rdma_source)
         else:
             # throw on unrecognized rdma core source type
@@ -153,13 +157,13 @@ def get_rdma_core_installer(
         return RdmaCorePackageManagerInstall(
             node, os_dependencies=RDMA_CORE_PACKAGE_DEPENDENCIES, arch=build_arch
         )
-    if not build_arch:
-        build_arch = node.tools[Lscpu].get_architecture()
+
     # return the installer with the downloader we've picked
     return RdmaCoreSourceInstaller(
         node,
         os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES,
         downloader=downloader,
+        arch=build_arch,
     )
 
 
@@ -293,7 +297,6 @@ def initialize_node_resources(
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     extra_nics: Union[List[NicInfo], None] = None,
-    build_arch: Optional[CpuArchitecture] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     if pmd == "failsafe" and node.nics.is_mana_device_present():
@@ -308,6 +311,7 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
+    build_arch = variables.get("build_arch", None)
     network_interface_feature = node.features[NetworkInterface]
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
