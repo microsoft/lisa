@@ -10,13 +10,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.node import Node, RemoteNode
-from lisa.util import (
-    InitializableMixin,
-    LisaException,
-    check_till_timeout,
-    fields_to_dict,
-    subclasses,
-)
+from lisa.util import InitializableMixin, LisaException, check_till_timeout, subclasses
 from lisa.util.logger import get_logger
 from lisa.util.shell import try_connect
 
@@ -115,12 +109,19 @@ class SshChecker(ReadyChecker):
         context = get_node_context(node)
         remote_node = cast(RemoteNode, node)
         remote_node.set_connection_info(
-            **fields_to_dict(
-                context.connection,
-                ["address", "port", "username", "password", "private_key_file"],
+            address=context.connection.address,
+            public_port=context.connection.port,
+            username=context.connection.username,
+            password=cast(
+                str,
+                context.connection.password,
+            ),
+            private_key_file=cast(
+                str,
+                context.connection.private_key_file,
             ),
         )
-        self._log.debug("try to connect to the client")
+        self._log.debug(f"try to connect to client: {node}")
         try_connect(context.connection, ssh_timeout=self.ssh_runbook.timeout)
         self._log.debug("client has been connected successfully")
         return True
