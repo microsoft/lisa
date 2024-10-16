@@ -619,7 +619,7 @@ class KdumpCBLMariner(KdumpBase):
             sudo=True,
         )
         # Set mariner_2_initrd_use_suffix. Otherwise it will replace
-        # the original initrd file which will cause a boot-loop
+        # the original initrd file which will cause a reboot-loop
         sed.substitute(
             match_lines="mariner_2_initrd_use_suffix",
             regexp="#mariner_2_initrd_use_suffix",
@@ -669,7 +669,6 @@ class KdumpCBLMariner(KdumpBase):
         If the system memory size is bigger than 1T, the default size of /var/crash
         may not be enough to store the dump file, need to change the dump path
         """
-        kdump_conf = "/etc/kdump.conf"
         self.node.execute(
             f"mkdir -p {dump_path}",
             expected_exit_code=0,
@@ -679,6 +678,7 @@ class KdumpCBLMariner(KdumpBase):
         )
         self.dump_path = dump_path
         # Change dump path in kdump conf
+        kdump_conf = "/etc/kdump.conf"
         sed = self.node.tools[Sed]
         sed.substitute(
             match_lines="^path",
@@ -692,25 +692,25 @@ class KdumpCBLMariner(KdumpBase):
     def print_additional_info_before_panic(self) -> None:
         # print /proc/cmdline
         cat = self.node.tools[Cat]
-        result = cat.run("/proc/cmdline", force_run=True)
+        result = cat.run("/proc/cmdline", force_run=True, sudo=True)
         self._log.info(f"Current kernel command line: {result.stdout}")
         # print /etc/default/grub.d/51_kexec_tools.cfg
-        result = cat.run(self._get_crashkernel_cfg_file(), force_run=True)
+        result = cat.run(self._get_crashkernel_cfg_file(), force_run=True, sudo=True)
         self._log.info(f"Current kernel cmdline in config file: {result.stdout}")
         # print /etc/sysconfig/kdump
-        result = cat.run("/etc/sysconfig/kdump", force_run=True)
+        result = cat.run("/etc/sysconfig/kdump", force_run=True, sudo=True)
         self._log.info(f"Current kdump configuration: {result.stdout}")
         # print /proc/sys/kernel/sysrq
-        result = cat.run("/proc/sys/kernel/sysrq", force_run=True)
+        result = cat.run("/proc/sys/kernel/sysrq", force_run=True, sudo=True)
         self._log.info(f"Current sysrq value: {result.stdout}")
         # print lsblk -l output
         lsblk = self.node.tools[Lsblk]
         result = lsblk.run("-l", force_run=True)
         self._log.info(f"Current disk partitions: {result.stdout}")
         # print /etc/fstab
-        result = cat.run("/etc/fstab", force_run=True)
+        result = cat.run("/etc/fstab", force_run=True, sudo=True)
         self._log.info(f"Current fstab: {result.stdout}")
         # print /etc/kdump.conf
-        result = cat.run("/etc/kdump.conf", force_run=True)
+        result = cat.run("/etc/kdump.conf", force_run=True, sudo=True)
         self._log.info(f"Current kdump configuration: {result.stdout}")
         return

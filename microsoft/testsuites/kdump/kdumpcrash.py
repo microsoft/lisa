@@ -312,12 +312,13 @@ class KdumpCrash(TestSuite):
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
-        kdump.print_additional_info_before_panic()
         # Activate the magic SysRq option
         echo = node.tools[Echo]
         echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
         node.execute("sync", shell=True, sudo=True)
 
+        kdump.print_additional_info_before_panic()
+        
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
