@@ -28,7 +28,12 @@ from lisa.tools import (
     Timeout,
     Wget,
 )
-from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    UnsupportedDistroException,
+    parse_version,
+)
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
@@ -66,7 +71,7 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse)
-            and float(x.information.release) == 15.5,
+            and parse_version(x.information.release).compare("15.5.0") == 0,
             packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
         ),
@@ -172,13 +177,17 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 
     def get_installed_version(self) -> VersionInfo:
         package_name = (
-            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+            "dpdk22"
+            if parse_version(self._os.information.release).compare("15.5.0") == 0
+            else "dpdk"
         )
         return self._os.get_package_information(package_name, use_cached=False)
 
     def _check_if_installed(self) -> bool:
         package_name = (
-            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+            "dpdk22"
+            if parse_version(self._os.information.release).compare("15.5.0") == 0
+            else "dpdk"
         )
         return self._os.package_exists(package_name)
 
