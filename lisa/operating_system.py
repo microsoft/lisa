@@ -59,6 +59,17 @@ if TYPE_CHECKING:
 _get_init_logger = partial(get_logger, name="os")
 
 
+def get_matched_os_name(cmd_result: ExecutableResult, pattern: Pattern[str]) -> str:
+    # Check if the command is timedout. If it is, the system might be in a bad state
+    # Then raise an exception to avoid more timedout commands.
+    if cmd_result.is_timeout:
+        raise LisaTimeoutException(
+            f"Command timed out: {cmd_result.cmd}. "
+            "Please check if the system allows to run command from remote."
+        )
+    return get_matched_str(cmd_result.stdout, pattern)
+
+
 class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
@@ -215,47 +226,59 @@ class OperatingSystem:
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
-        cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="lsb_release -d", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__lsb_release_pattern)
 
-        cmd_result = typed_node.execute(cmd="cat /etc/os-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_name)
-        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_id)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__os_release_pattern_name)
+        yield get_matched_os_name(cmd_result, cls.__os_release_pattern_id)
         cmd_result_os_release = cmd_result
 
         # for RedHat, CentOS 6.x
         cmd_result = typed_node.execute(
-            cmd="cat /etc/redhat-release", no_error_log=True
+            cmd="cat /etc/redhat-release", no_error_log=True, timeout=60
         )
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_header)
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_bracket)
+        yield get_matched_os_name(cmd_result, cls.__redhat_release_pattern_header)
+        yield get_matched_os_name(cmd_result, cls.__redhat_release_pattern_bracket)
 
         # for FreeBSD
-        cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
+        cmd_result = typed_node.execute(cmd="uname", no_error_log=True, timeout=60)
         yield cmd_result.stdout
 
         # for Debian
-        cmd_result = typed_node.execute(cmd="cat /etc/issue", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__debian_issue_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/issue", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__debian_issue_pattern)
 
         # note, cat /etc/*release doesn't work in some images, so try them one by one
         # try best for other distros, like Sapphire
-        cmd_result = typed_node.execute(cmd="cat /etc/release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__release_pattern)
 
         # try best for other distros, like VeloCloud
-        cmd_result = typed_node.execute(cmd="cat /etc/lsb-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/lsb-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__release_pattern)
 
         # try best for some suse derives, like netiq
-        cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/SuSE-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__suse_release_pattern)
 
-        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
+        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True, timeout=60)
+        yield get_matched_os_name(cmd_result, cls.__bmc_release_pattern)
 
-        cmd_result = typed_node.execute(cmd="vmware -lv", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__vmware_esxi_release_pattern)
+        cmd_result = typed_node.execute(cmd="vmware -lv", no_error_log=True, timeout=60)
+        yield get_matched_os_name(cmd_result, cls.__vmware_esxi_release_pattern)
 
         # try best from distros'family through ID_LIKE
         yield get_matched_str(
