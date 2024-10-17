@@ -205,15 +205,20 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class DpdkSourceInstall(Installer):
-    def get_bashrc_defines(self) -> List[str]:
+    def _get_pkgconfig_path(self) -> str:
+        if self._arch == CpuArchitecture.I386:
+            arch_folder = "i386-linux-gnu"
+        else:
+            arch_folder = "lib64"
+        return "${PKG_CONFIG_PATH}:/usr/local/" + f"{arch_folder}" + "/pkgconfig"
+
+    def _get_bashrc_defines(self) -> List[str]:
         if self._arch == CpuArchitecture.I386:
             arch_folder = "i386-linux-gnu"
         else:
             arch_folder = "lib64"
         return [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local"
-            + f"{arch_folder}"
-            + "/pkgconfig/",
+            f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()}",
             "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/"
             + f"{arch_folder}"
             + "/",
@@ -225,7 +230,7 @@ class DpdkSourceInstall(Installer):
         "multi_process/client_server_mp/mp_client",
     ]
 
-    def get_meson_defines(self) -> Optional[Dict[str, str]]:
+    def _get_meson_defines(self) -> Optional[Dict[str, str]]:
         if self._arch == CpuArchitecture.I386:
             return {
                 "CC": "/usr/bin/i686-linux-gnu-gcc",
@@ -315,7 +320,7 @@ class DpdkSourceInstall(Installer):
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
-            "libdpdk", update_cached=True
+            "libdpdk", update_cached=True, pkg_config_path=self._get_pkgconfig_path()
         )
 
     def _get_meson_parameters(self) -> str:
@@ -340,7 +345,7 @@ class DpdkSourceInstall(Installer):
         python_path = node.tools[Python].get_python_path()
 
         # handle arch special cases for env vars
-        update_envs = self.get_meson_defines()
+        update_envs = self._get_meson_defines()
         # run [DEFINE='...'] meson setup ... $build_dir
         # configures the installation
         self.dpdk_build_path = node.tools[Meson].setup(
@@ -385,7 +390,7 @@ class DpdkSourceInstall(Installer):
         )
         # add the define lines we need
         node.tools[Echo].write_to_file(
-            ";".join(self.get_bashrc_defines()),
+            ";".join(self._get_bashrc_defines()),
             node.get_pure_path("$HOME/.bashrc"),
             append=True,
         )

@@ -116,7 +116,7 @@ class Dpdk(TestSuite):
     def verify_dpdk_build_netvsc_32bit(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        variables["build_arch"] = CpuArchitecture.I386
+        force_dpdk_default_source(variables, build_arch=CpuArchitecture.I386)
         verify_dpdk_build(node, log, variables, "netvsc", HugePageSize.HUGE_2MB)
 
     @TestCaseMetadata(
@@ -907,4 +907,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        do_parallel_cleanup(environment)
+        # do_parallel_cleanup(environment)

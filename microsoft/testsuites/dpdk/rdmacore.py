@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 from assertpy import assert_that
 from semver import VersionInfo
 
@@ -45,6 +47,19 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
                 "gcc-i686-linux-gnu",
                 "python3-dev:i386",
                 "libudev-dev:i386",
+                "libudev-dev",
+                "libnl-3-dev",
+                "libnl-route-3-dev",
+                "libssl-dev",
+                "libelf-dev",
+            ],
+        ),
+        OsPackageDependencies(
+            matcher=lambda os, arch=None: isinstance(os, (Debian))
+            and arch == CpuArchitecture.I386,
+            # Weirdly, I've run into errors trying to
+            packages=[
+                "cython3:i386",
             ],
             stop_on_match=True,
         ),
@@ -159,6 +174,35 @@ class RdmaCorePackageManagerInstall(RdmaCoreInstaller, PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class RdmaCoreSourceInstaller(RdmaCoreInstaller):
+    def _get_pkgconfig_path(self) -> str:
+        if self._arch == CpuArchitecture.I386:
+            arch_folder = "i386-linux-gnu"
+        else:
+            arch_folder = "lib64"
+        return "${PKG_CONFIG_PATH}:/usr/local/" + f"{arch_folder}" + "/pkgconfig"
+
+    def _get_bashrc_defines(self) -> List[str]:
+        if self._arch == CpuArchitecture.I386:
+            arch_folder = "i386-linux-gnu"
+        else:
+            arch_folder = "lib64"
+        return [
+            f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()};",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/"
+            + f"{arch_folder}"
+            + "/;",
+        ]
+
+    def _get_meson_defines(self) -> Dict[str, str]:
+        if self._arch == CpuArchitecture.I386:
+            return {
+                "CC": "/usr/bin/i686-linux-gnu-gcc",
+                "LDFLAGS": "-m32",
+                "PKG_CONFIG_LIBDIR": "/usr/local/lib/i386-linux-gnu/pkgconfig",
+            }
+        else:
+            return {"PATH": "$PATH:/usr/local/bin:/home/$USER/.local/bin"}
+
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
@@ -175,6 +219,7 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
             return False
 
     def _setup_node(self) -> None:
+        self._pkg_config_path = None
         if isinstance(self._os, (Debian, Fedora, Suse)):
             self._os.uninstall_packages("rdma-core")
         if isinstance(self._os, Fedora):
@@ -183,7 +228,9 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
             self._cmake_command = (
                 "cmake -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr"
             )
+        # Only support this 32bit build on one distro family.
         elif isinstance(self._os, Debian) and self._arch == CpuArchitecture.I386:
+            self._pkg_config_path = "/usr/local/lib/i386-linux-gnu/pkgconfig"
             # enable 32bit packages, needed for dependencies
             self._node.execute(
                 "dpkg --add-architecture i386",
@@ -200,7 +247,9 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
                 ),
             )
             self._cmake_command = (
-                "PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig cmake"
+                f"PKG_CONFIG_LIBDIR={self._pkg_config_path} "
+                f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()} "
+                "cmake"
                 " -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
                 "-DCMAKE_C_COMPILER=/usr/bin/i686-linux-gnu-gcc -DCMAKE_C_FLAGS=-m32"
             )
@@ -234,7 +283,7 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
-            "libibverbs", update_cached=True
+            "libibverbs", update_cached=True, pkg_config_path=self._pkg_config_path
         )
 
     def _install(self) -> None:
