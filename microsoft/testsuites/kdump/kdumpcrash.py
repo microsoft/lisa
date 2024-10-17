@@ -281,14 +281,21 @@ class KdumpCrash(TestSuite):
         if self.is_auto:
             self.crash_kernel = "auto"
 
-        if "T" in total_memory and float(total_memory.strip("T")) > 1:
-            # System memory is more than 1T, need to change the dump path
+        # Use resource disk as the dump path when system memory is 10 GiB higher than the OS disk size
+        if (
+            "T" in total_memory
+            or (
+                "G" in total_memory
+                and float(total_memory.strip("G")) > (node.capability.disk.os_disk_size - 10)
+            )
+        ):
+            # System memory is more os disk size, need to change the dump path
             # and increase the timeout duration
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
             self.timeout_of_dump_crash = 1200
-            if float(total_memory.strip("T")) > 6:
+            if "T" in total_memory and float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
@@ -310,6 +317,8 @@ class KdumpCrash(TestSuite):
         echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
         node.execute("sync", shell=True, sudo=True)
 
+        kdump.print_additional_info_before_panic()
+        
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
@@ -318,6 +327,7 @@ class KdumpCrash(TestSuite):
                 shell=True,
                 sudo=True,
                 timeout=10,
+                kill_on_timeout=False
             )
         except Exception as identifier:
             log.debug(f"ignorable ssh exception: {identifier}")
