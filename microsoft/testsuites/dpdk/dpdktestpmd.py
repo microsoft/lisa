@@ -207,10 +207,9 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 class DpdkSourceInstall(Installer):
     def _get_pkgconfig_path(self) -> str:
         if self._arch == CpuArchitecture.I386:
-            arch_folder = "i386-linux-gnu"
+            return "${PKG_CONFIG_PATH}:/usr/local/lib/i386-linux-gnu/pkgconfig"
         else:
-            arch_folder = "lib64"
-        return "${PKG_CONFIG_PATH}:/usr/local/" + f"{arch_folder}" + "/pkgconfig"
+            return "${PKG_CONFIG_PATH}:/usr/local/lib/pkgconfig"
 
     def _get_bashrc_defines(self) -> List[str]:
         if self._arch == CpuArchitecture.I386:
@@ -219,9 +218,8 @@ class DpdkSourceInstall(Installer):
             arch_folder = "lib64"
         return [
             f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()}",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/"
-            + f"{arch_folder}"
-            + "/",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/"
+            + f"{arch_folder}",
         ]
 
     _sample_applications = [

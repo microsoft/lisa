@@ -174,35 +174,6 @@ class RdmaCorePackageManagerInstall(RdmaCoreInstaller, PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class RdmaCoreSourceInstaller(RdmaCoreInstaller):
-    def _get_pkgconfig_path(self) -> str:
-        if self._arch == CpuArchitecture.I386:
-            arch_folder = "i386-linux-gnu"
-        else:
-            arch_folder = "lib64"
-        return "${PKG_CONFIG_PATH}:/usr/local/" + f"{arch_folder}" + "/pkgconfig"
-
-    def _get_bashrc_defines(self) -> List[str]:
-        if self._arch == CpuArchitecture.I386:
-            arch_folder = "i386-linux-gnu"
-        else:
-            arch_folder = "lib64"
-        return [
-            f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()};",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/"
-            + f"{arch_folder}"
-            + "/;",
-        ]
-
-    def _get_meson_defines(self) -> Dict[str, str]:
-        if self._arch == CpuArchitecture.I386:
-            return {
-                "CC": "/usr/bin/i686-linux-gnu-gcc",
-                "LDFLAGS": "-m32",
-                "PKG_CONFIG_LIBDIR": "/usr/local/lib/i386-linux-gnu/pkgconfig",
-            }
-        else:
-            return {"PATH": "$PATH:/usr/local/bin:/home/$USER/.local/bin"}
-
     def _check_if_installed(self) -> bool:
         try:
             package_manager_install = self._os.package_exists("rdma-core")
@@ -247,10 +218,8 @@ class RdmaCoreSourceInstaller(RdmaCoreInstaller):
                 ),
             )
             self._cmake_command = (
-                f"PKG_CONFIG_LIBDIR={self._pkg_config_path} "
-                f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()} "
-                "cmake"
-                " -DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
+                "cmake "
+                "-DIN_PLACE=0 -DNO_MAN_PAGES=1 -DCMAKE_INSTALL_PREFIX=/usr "
                 "-DCMAKE_C_COMPILER=/usr/bin/i686-linux-gnu-gcc -DCMAKE_C_FLAGS=-m32"
             )
         else:
