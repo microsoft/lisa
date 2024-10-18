@@ -197,7 +197,11 @@ class Storage(TestSuite):
         3. Verify that truth value in step 1 and step 2 match.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD, Windows]
+            # This test is skipped as waagent does not support freebsd fully
+        ),
     )
     def verify_swap(self, node: RemoteNode) -> None:
         is_swap_enabled_wa_agent = node.tools[Waagent].is_swap_enabled()
