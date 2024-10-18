@@ -360,52 +360,6 @@ class DpdkTestpmd(Tool):
             return "testpmd"
         return self._testpmd_install_path
 
-    _ubuntu_packages_1804 = [
-        "build-essential",
-        "libmnl-dev",
-        "libelf-dev",
-        "meson",
-        "libnuma-dev",
-        "dpkg-dev",
-        "pkg-config",
-        "python3-pip",
-        "python3-pyelftools",
-        "python-pyelftools",
-        # 18.04 doesn't need linux-modules-extra-azure
-        # since it will never have MANA support
-    ]
-
-    _ubuntu_packages_2004 = [
-        "build-essential",
-        "libnuma-dev",
-        "libmnl-dev",
-        "meson",
-        "ninja-build",
-        "python3-pyelftools",
-        "libelf-dev",
-        "pkg-config",
-    ]
-
-    # these are the same at the moment but might need tweaking later
-    _debian_packages = _ubuntu_packages_2004
-
-    _fedora_packages = [
-        "psmisc",
-        "numactl-devel",
-        "pkgconfig",
-        "elfutils-libelf-devel",
-        "python3-pip",
-        "kernel-modules-extra",
-        "kernel-headers",
-        "gcc-c++",
-    ]
-    _suse_packages = [
-        "psmisc",
-        "libnuma-devel",
-        "numactl",
-        "libmnl-devel meson",
-        "gcc-c++",
-    ]
     _rte_target = "x86_64-native-linuxapp-gcc"
 
     _tx_pps_key = "transmit-packets-per-second"
