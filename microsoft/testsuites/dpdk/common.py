@@ -189,7 +189,8 @@ class Installer:
             self._node.log.debug("No downloader assigned to installer.")
 
     # do the build and installation
-    def _install(self) -> None: ...
+    def _install(self) -> None:
+        pass
 
     # remove an installation
     def _uninstall(self) -> None:
