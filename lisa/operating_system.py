@@ -532,7 +532,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _get_version_info_from_named_regex_match(
         self, package_name: str, named_matches: Match[str]
     ) -> VersionInfo:
-        essential_matches = ["major", "minor", "build"]
+        essential_matches = ["major", "minor"]
 
         # verify all essential keys are in our match dict
         assert_that(
@@ -547,7 +547,6 @@ class Posix(OperatingSystem, BaseClassMixin):
             patch_match = "0"
         major_match = named_matches.group("major")
         minor_match = named_matches.group("minor")
-        build_match = named_matches.group("build")
         major, minor, patch = map(
             int,
             [major_match, minor_match, patch_match],
@@ -752,8 +751,8 @@ class Debian(Linux):
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)[\-\.]"  # minor
-        r"(?P<patch>[0-9]+)"  # patch
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
         r"(?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
         # '-' is added after minor and made optional before build
         # due to the formats like 23.11-1build3
