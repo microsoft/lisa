@@ -454,7 +454,7 @@ class KdumpBase(Tool):
         # Check if memory is reserved for crash kernel
         self._check_crashkernel_memory_reserved()
 
-    def print_additional_info_before_panic(self) -> None:
+    def capture_info(self) -> None:
         # Override this method to print additional info before panic
         return
 
@@ -689,7 +689,7 @@ class KdumpCBLMariner(KdumpBase):
         )
         sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
 
-    def print_additional_info_before_panic(self) -> None:
+    def capture_info(self) -> None:
         # print /proc/cmdline
         cat = self.node.tools[Cat]
         result = cat.run("/proc/cmdline", force_run=True, sudo=True)

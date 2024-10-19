@@ -254,7 +254,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         timeout: int = 600,
         update_envs: Optional[Dict[str, str]] = None,
         encoding: str = "",
-        kill_on_timeout: bool = True,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
@@ -274,7 +273,6 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             timeout=timeout,
             expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message=expected_exit_code_failure_message,
-            kill_on_timeout=kill_on_timeout,
         )
 
     def execute_async(

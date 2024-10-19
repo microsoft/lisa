@@ -317,17 +317,15 @@ class KdumpCrash(TestSuite):
         echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
         node.execute("sync", shell=True, sudo=True)
 
-        kdump.print_additional_info_before_panic()
+        kdump.capture_info()
         
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
-            node.execute(
+            node.execute_async(
                 self.trigger_kdump_cmd,
                 shell=True,
                 sudo=True,
-                timeout=10,
-                kill_on_timeout=False
             )
         except Exception as identifier:
             log.debug(f"ignorable ssh exception: {identifier}")
