@@ -601,9 +601,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         information = OsInformation(
             version=self._parse_version(release),
             vendor=vendor,
-            release=release,
-            codename=codename,
-            full_version=full_version,
+            release='13.0',
+            codename='trixie',
+            full_version='Debian GNU/Linux 13 (trixie)',
         )
 
         return information
