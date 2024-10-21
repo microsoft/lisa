@@ -67,7 +67,7 @@ IPERF_UDP_CONCURRENCY = [
 
 class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
-    _branch = "3.10.1"
+    _branch = "3.17"
     _sender_pattern = re.compile(
         r"(([\w\W]*?)[SUM].* (?P<bandwidth>[0-9]+.[0-9]+)"
         r" Gbits/sec.*sender([\w\W]*?))",
@@ -451,6 +451,9 @@ class Iperf3(Tool):
         git = self.node.tools[Git]
         git.clone(self._repo, tool_path)
         code_path = tool_path.joinpath("iperf")
+        git.checkout(
+            ref="refs/heads/master", cwd=code_path, checkout_branch=self._branch
+        )
         make = self.node.tools[Make]
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
         make.make_install(code_path)
