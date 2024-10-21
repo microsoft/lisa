@@ -267,7 +267,7 @@ class KdumpCrash(TestSuite):
         mount_point = node.features[Disk].get_resource_disk_mount_point()
         dump_path = mount_point + "/crash"
         return dump_path
-    
+
     def _is_system_with_more_memory(self, node: Node) -> bool:
         free = node.tools[Free]
         total_memory = free.get_total_memory()
