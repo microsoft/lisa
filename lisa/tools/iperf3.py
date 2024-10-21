@@ -67,7 +67,7 @@ IPERF_UDP_CONCURRENCY = [
 
 class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
-    _branch = "3.10.1"
+    # _branch = "3.10.1"
     _sender_pattern = re.compile(
         r"(([\w\W]*?)[SUM].* (?P<bandwidth>[0-9]+.[0-9]+)"
         r" Gbits/sec.*sender([\w\W]*?))",
