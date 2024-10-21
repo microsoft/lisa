@@ -267,6 +267,27 @@ class KdumpCrash(TestSuite):
         mount_point = node.features[Disk].get_resource_disk_mount_point()
         dump_path = mount_point + "/crash"
         return dump_path
+    
+    def _is_system_with_more_memory(self, node: Node) -> bool:
+        free = node.tools[Free]
+        total_memory = free.get_total_memory()
+        # Return true when system memory is 10 GiB higher than the OS disk size
+        if (
+            "T" in total_memory
+            or (
+                "G" in total_memory
+                and (
+                    node.capability.disk
+                    and isinstance(node.capability.disk.os_disk_size, int)
+                    and (
+                        float(total_memory.strip("G"))
+                        > (node.capability.disk.os_disk_size - 10)
+                    )
+                )
+            )
+        ):
+            return True
+        return False
 
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
         try:
@@ -281,14 +302,7 @@ class KdumpCrash(TestSuite):
         if self.is_auto:
             self.crash_kernel = "auto"
 
-        # Use resource disk as the dump path when system memory is 10 GiB higher than the OS disk size
-        if (
-            "T" in total_memory
-            or (
-                "G" in total_memory
-                and float(total_memory.strip("G")) > (node.capability.disk.os_disk_size - 10)
-            )
-        ):
+        if self._is_system_with_more_memory(node):
             # System memory is more os disk size, need to change the dump path
             # and increase the timeout duration
             kdump.config_resource_disk_dump_path(
@@ -318,7 +332,7 @@ class KdumpCrash(TestSuite):
         node.execute("sync", shell=True, sudo=True)
 
         kdump.capture_info()
-        
+
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
