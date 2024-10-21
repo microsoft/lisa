@@ -72,6 +72,7 @@ class HyperV(Tool):
         generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
         stop_existing_vm: bool = True,
@@ -119,20 +120,21 @@ class HyperV(Tool):
                 force_run=True,
             )
 
-        # add disks
-        disk_info = powershell.run_cmdlet(
-            "(Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number",
-            force_run=True,
-        )
-        matched = re.findall(r"\d+", disk_info)
-        disk_numbers = [int(x) for x in matched]
-        for disk_number in disk_numbers:
-            self._run_hyperv_cmdlet(
-                "Add-VMHardDiskDrive",
-                f"-VMName {name} -DiskNumber {disk_number} -ControllerType 'SCSI'",
-                extra_args=extra_args,
+        # add disks if requested
+        if attach_offline_disks:
+            disk_info = powershell.run_cmdlet(
+                "(Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number",
                 force_run=True,
             )
+            matched = re.findall(r"\d+", disk_info)
+            disk_numbers = [int(x) for x in matched]
+            for disk_number in disk_numbers:
+                self._run_hyperv_cmdlet(
+                    "Add-VMHardDiskDrive",
+                    f"-VMName {name} -DiskNumber {disk_number} -ControllerType 'SCSI'",
+                    extra_args=extra_args,
+                    force_run=True,
+                )
 
         # configure COM ports if specified
         if com_ports:
