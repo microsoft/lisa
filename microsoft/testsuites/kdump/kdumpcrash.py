@@ -272,17 +272,14 @@ class KdumpCrash(TestSuite):
         free = node.tools[Free]
         total_memory = free.get_total_memory()
         # Return true when system memory is 10 GiB higher than the OS disk size
-        if (
-            "T" in total_memory
-            or (
-                "G" in total_memory
+        if "T" in total_memory or (
+            "G" in total_memory
+            and (
+                node.capability.disk
+                and isinstance(node.capability.disk.os_disk_size, int)
                 and (
-                    node.capability.disk
-                    and isinstance(node.capability.disk.os_disk_size, int)
-                    and (
-                        float(total_memory.strip("G"))
-                        > (node.capability.disk.os_disk_size - 10)
-                    )
+                    float(total_memory.strip("G"))
+                    > (node.capability.disk.os_disk_size - 10)
                 )
             )
         ):
