@@ -16,6 +16,7 @@ from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
 from lisa.util import field_metadata, get_matched_str
+from lisa.util.constants import DEVICE_TYPE_NVME
 
 
 class Nvme(Feature):
@@ -42,6 +43,9 @@ class Nvme(Feature):
     # /dev/nvme0n1p15 -> /dev/nvme0n1
     NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
 
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_DEVICE_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
+
     _pci_device_name = "Non-Volatile memory controller"
     _ls_devices: str = ""
 
@@ -63,7 +67,7 @@ class Nvme(Feature):
             matched_result = self._device_pattern.match(row)
             if matched_result:
                 devices_list.append(matched_result.group("device_name"))
-        return devices_list
+        return self._remove_nvme_os_disk(devices_list)
 
     def get_namespaces(self) -> List[str]:
         namespaces = []
@@ -75,10 +79,28 @@ class Nvme(Feature):
                 matched_result = self._namespace_pattern.match(row)
             if matched_result:
                 namespaces.append(matched_result.group("namespace"))
-        return namespaces
+        return self._remove_nvme_os_disk(namespaces)
+
+    # With disk controller type NVMe, OS disk along with all remote iSCSI devices
+    # appears as NVMe.
+    # Removing OS disk from the list of NVMe devices will remove all the
+    # remote non-NVME disks.
+    def _remove_nvme_os_disk(self, disk_list: List[str]) -> List[str]:
+        if (
+            self._node.features[Disk].get_os_disk_controller_type()
+            == schema.DiskControllerType.NVME
+        ):
+            os_disk_nvme_device = self._get_os_disk_nvme_device()
+            # Removing OS disk/device from the list.
+            for disk in disk_list:
+                if os_disk_nvme_device in disk:
+                    disk_list.remove(disk)
+                    break
+        return disk_list
 
     def get_namespaces_from_cli(self) -> List[str]:
-        return self._node.tools[Nvmecli].get_namespaces()
+        namespaces_list = self._node.tools[Nvmecli].get_namespaces()
+        return self._remove_nvme_os_disk(namespaces_list)
 
     def get_os_disk_nvme_namespace(self) -> str:
         node_disk = self._node.features[Disk]
@@ -93,10 +115,23 @@ class Nvme(Feature):
             )
         return os_partition_namespace
 
+    # This method returns NVMe device name of the OS disk.
+    def _get_os_disk_nvme_device(self) -> str:
+        os_disk_nvme_device = ""
+        os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+        # Sample os_boot_partition when disc controller type is NVMe:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        if os_disk_nvme_namespace:
+            os_disk_nvme_device = get_matched_str(
+                os_disk_nvme_namespace,
+                self.NVME_DEVICE_PATTERN,
+            )
+        return os_disk_nvme_device
+
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
         lspci_tool = self._node.tools[Lspci]
-        device_list = lspci_tool.get_devices()
+        device_list = lspci_tool.get_devices_by_type(DEVICE_TYPE_NVME)
         devices_from_lspci = [
             x for x in device_list if self._pci_device_name == x.device_class
         ]
@@ -108,16 +143,6 @@ class Nvme(Feature):
     def get_raw_nvme_disks(self) -> List[str]:
         # This routine returns Local NVMe devices as a list.
         nvme_namespaces = self.get_namespaces()
-
-        # With disk controller type NVMe, OS disk appears as NVMe.
-        # It should be removed from the list of disks for NVMe tests as it is
-        # not an actual NVMe device.
-        # disk_controller_type == NVME
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
-            # Removing OS disk from the list.
-            nvme_namespaces.remove(os_disk_nvme_namespace)
         return nvme_namespaces
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:

@@ -3,9 +3,7 @@
 
 import re
 from functools import partial
-from typing import Any, Dict, List, Optional, Type
-
-from assertpy.assertpy import assert_that
+from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa import schema
 from lisa.feature import Feature
@@ -27,22 +25,25 @@ class Disk(Feature):
     def enabled(self) -> bool:
         return True
 
-    def get_partition_with_mount_point(self, mount_point: str) -> PartitionInfo:
+    def get_partition_with_mount_point(
+        self, mount_point: str
+    ) -> Union[PartitionInfo, None]:
         partition_info = self._node.tools[Mount].get_partition_info()
         matched_partitions = [
             partition
             for partition in partition_info
             if partition.mount_point == mount_point
         ]
-        assert_that(
-            matched_partitions,
-            f"Exactly one partition with mount point {mount_point} should be present",
-        ).is_length(1)
 
-        partition = matched_partitions[0]
-        self._log.debug(f"disk: {partition}, mount_point: {mount_point}")
+        if matched_partitions:
+            partition = matched_partitions[0]
+            self._log.debug(f"disk: {partition}, mount_point: {mount_point}")
+            return partition
+        else:
+            return None
 
-        return partition
+    def check_resource_disk_mounted(self) -> bool:
+        return False
 
     def get_raw_data_disks(self) -> List[str]:
         raise NotImplementedError
@@ -71,6 +72,12 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
+    def get_resource_disks(self) -> List[str]:
+        return []
+
+    def get_resource_disk_type(self) -> schema.ResourceDiskType:
+        return schema.ResourceDiskType.SCSI
+
     def get_luns(self) -> Dict[str, int]:
         raise NotImplementedError
 
@@ -98,25 +105,35 @@ class Disk(Feature):
                 break
         return boot_partition
 
+    def get_disk_type(self, disk: str) -> schema.StorageInterfaceType:
+        if isinstance(self._node.os, BSD):
+            # Sample disk names in FreeBSD:
+            # /dev/da1p1 -> SCSI
+            # /dev/nvd1p1 -> NVME
+            if "da" in disk:
+                disk_type = schema.StorageInterfaceType.SCSI
+            elif ("nvd" in disk) or ("nvme" in disk):
+                disk_type = schema.StorageInterfaceType.NVME
+            else:
+                raise LisaException(f"Unknown disk type {disk}")
+        else:
+            # Sample disk names in Linux:
+            # /dev/sda1 -> SCSI
+            # /dev/nvme0n1p1 -> NVME
+            if "nvme" in disk:
+                disk_type = schema.StorageInterfaceType.NVME
+            elif "sd" in disk:
+                disk_type = schema.StorageInterfaceType.SCSI
+            else:
+                raise LisaException(f"Unknown disk type {disk}")
+        return disk_type
+
     # Get disk controller type from the VM by checking the boot partition
     def get_os_disk_controller_type(self) -> schema.DiskControllerType:
         boot_partition = self.get_os_boot_partition()
         assert boot_partition, "'boot_partition' must not be 'None'"
-        if isinstance(self._node.os, BSD):
-            if boot_partition.disk.startswith("da"):
-                os_disk_controller_type = schema.DiskControllerType.SCSI
-            elif boot_partition.disk.startswith("nvd"):
-                os_disk_controller_type = schema.DiskControllerType.NVME
-            else:
-                raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
-        else:
-            if boot_partition.disk.startswith("nvme"):
-                os_disk_controller_type = schema.DiskControllerType.NVME
-            elif boot_partition.disk.startswith("sd"):
-                os_disk_controller_type = schema.DiskControllerType.SCSI
-            else:
-                raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
-        return os_disk_controller_type
+        os_disk_controller_type = self.get_disk_type(boot_partition.disk)
+        return schema.DiskControllerType(os_disk_controller_type)
 
 
 DiskEphemeral = partial(

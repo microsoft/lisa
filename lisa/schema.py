@@ -431,9 +431,19 @@ disk_type_priority: List[DiskType] = [
 ]
 
 
+class StorageInterfaceType(str, Enum):
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
+
+
 class DiskControllerType(str, Enum):
-    SCSI = "SCSI"
-    NVME = "NVMe"
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
+
+
+class ResourceDiskType(str, Enum):
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
 
 
 disk_controller_type_priority: List[DiskControllerType] = [

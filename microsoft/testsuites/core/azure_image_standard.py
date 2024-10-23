@@ -13,6 +13,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
     simple_requirement,
 )
 from lisa.features import Disk
@@ -1115,11 +1116,16 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_readme_file(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe disks are not formatted or mounted by"
+                " default and readme file wont be available"
+            )
 
-        # verify that resource disk is mounted
-        # function returns successfully if disk matching mount point is present
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        # verify that resource disk is mounted. raise exception if not
+        node.features[Disk].check_resource_disk_mounted()
+
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
 
         # Verify lost+found folder exists
         # Skip this step for BSD as it does not have lost+found folder
@@ -1159,13 +1165,19 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_file_system(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        node_disc = node.features[Disk]
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe disks are not formatted or mounted by default"  # noqa: E501
+            )
+        # verify that resource disk is mounted. raise exception if not
+        node_disc.check_resource_disk_mounted()
+        resource_disk_mount_point = node_disc.get_resource_disk_mount_point()
         disk_info = node.tools[Lsblk].find_disk_by_mountpoint(resource_disk_mount_point)
         for partition in disk_info.partitions:
             # by default, resource disk comes with ntfs type
-            # waagent or cloud-init will format it unless there are some commands hung
-            # or interrupt
+            # waagent or cloud-init will format it unless there are some commands
+            # hung or interrupt
             assert_that(
                 partition.fstype,
                 "Resource disk file system type should not equal to ntfs",
