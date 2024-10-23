@@ -1925,6 +1925,42 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.capability.disk.data_disk_count -= len(names)
         self._node.close()
 
+    # verify that resource disk is mounted
+    # function returns successfully if disk matching mount point is present.
+    # raises exception if the resource disk is not mounted
+    # in Azure only SCSI disks are mounted but not NVMe disks
+    def check_resource_disk_mounted(self) -> bool:
+        resource_disk_mount_point = self.get_resource_disk_mount_point()
+        resourcedisk = self.get_partition_with_mount_point(resource_disk_mount_point)
+        if not resourcedisk:
+            raise LisaException(
+                f"Resource disk is not mounted at {resource_disk_mount_point}"
+            )
+        return True
+
+    # get resource disk type
+    # function returns the type of resource disk/disks available on the VM
+    # raises exception if no resource disk is available
+    def get_resource_disk_type(self) -> schema.ResourceDiskType:
+        resource_disks = self.get_resource_disks()
+        if not resource_disks:
+            raise LisaException("No Resource disks are available on VM")
+        return schema.ResourceDiskType(
+            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
+        )
+
+    def get_resource_disks(self) -> List[str]:
+        resource_disk_list = []
+        resource_disk_mount_point = self.get_resource_disk_mount_point()
+        resourcedisk = self._node.features[Disk].get_partition_with_mount_point(
+            resource_disk_mount_point
+        )
+        if resourcedisk:
+            resource_disk_list = [resourcedisk.name]
+        else:
+            resource_disk_list = self._node.features[Nvme].get_raw_nvme_disks()
+        return resource_disk_list
+
     def get_resource_disk_mount_point(self) -> str:
         # get customize mount point from cloud-init configuration file from /etc/cloud/
         # if not found, use default mount point /mnt for cloud-init
