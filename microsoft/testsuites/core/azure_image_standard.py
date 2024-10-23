@@ -1115,32 +1115,51 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_readme_file(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
+        node_disc = node.features[Disk]
+        resource_disks = node_disc.get_resource_disks()
+        if not resource_disks:
+            raise LisaException("Resource disk not found")
+        if "nvme" in resource_disks[0]:
+            raise SkippedException(
+                f"Resource disk type is NVMe and the VM has {len(resource_disks)} NVMe disks"  # noqa: E501
+            )
+        else:
+            resource_disk_mount_point = node.features[
+                Disk
+            ].get_resource_disk_mount_point()
 
-        # verify that resource disk is mounted
-        # function returns successfully if disk matching mount point is present
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+            # verify that resource disk is mounted
+            # function returns successfully if disk matching mount point is present
+            node.features[Disk].get_partition_with_mount_point(
+                resource_disk_mount_point
+            )
+            # Verify lost+found folder exists
+            # Skip this step for BSD as it does not have lost+found folder
+            # since it uses UFS file system
+            if not isinstance(node.os, BSD):
+                fold_path = f"{resource_disk_mount_point}/lost+found"
+                folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
+                assert_that(folder_exists, f"{fold_path} should be present").is_true()
 
-        # Verify lost+found folder exists
-        # Skip this step for BSD as it does not have lost+found folder
-        # since it uses UFS file system
-        if not isinstance(node.os, BSD):
-            fold_path = f"{resource_disk_mount_point}/lost+found"
-            folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
-            assert_that(folder_exists, f"{fold_path} should be present").is_true()
+            # Verify lost+found folder exists
+            # Skip this step for BSD as it does not have lost+found folder
+            # since it uses UFS file system
+            if not isinstance(node.os, BSD):
+                fold_path = f"{resource_disk_mount_point}/lost+found"
+                folder_exists = node.tools[Ls].path_exists(fold_path, sudo=True)
+                assert_that(folder_exists, f"{fold_path} should be present").is_true()
 
-        # verify DATALOSS_WARNING_README.txt file exists
-        file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"
-        file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
-        assert_that(file_exists, f"{file_path} should be present").is_true()
-
-        # verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
-        # DATALOSS_WARNING_README.txt file.
-        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
-        assert_that(
-            read_text,
-            f"'WARNING: THIS IS A TEMPORARY DISK' should be present in {file_path}",
-        ).contains("WARNING: THIS IS A TEMPORARY DISK")
+            # verify DATALOSS_WARNING_README.txt file exists
+            file_path = f"{resource_disk_mount_point}/DATALOSS_WARNING_README.txt"
+            file_exists = node.tools[Ls].path_exists(file_path, sudo=True)
+            assert_that(file_exists, f"{file_path} should be present").is_true()
+            # verify 'WARNING: THIS IS A TEMPORARY DISK' contained in
+            # DATALOSS_WARNING_README.txt file.
+            read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+            assert_that(
+                read_text,
+                f"'WARNING: THIS IS A TEMPORARY DISK' should be present in {file_path}",
+            ).contains("WARNING: THIS IS A TEMPORARY DISK")
 
     @TestCaseMetadata(
         description="""
@@ -1159,14 +1178,29 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_file_system(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
-        disk_info = node.tools[Lsblk].find_disk_by_mountpoint(resource_disk_mount_point)
-        for partition in disk_info.partitions:
-            # by default, resource disk comes with ntfs type
-            # waagent or cloud-init will format it unless there are some commands hung
-            # or interrupt
-            assert_that(
-                partition.fstype,
-                "Resource disk file system type should not equal to ntfs",
-            ).is_not_equal_to("ntfs")
+        node_disc = node.features[Disk]
+        resource_disks = node_disc.get_resource_disks()
+        if not resource_disks:
+            raise LisaException("Resource disk not found")
+        if "nvme" in resource_disks[0]:
+            raise SkippedException(
+                f"Resource disk type is NVMe and the VM has {len(resource_disks)} NVMe disks"  # noqa: E501
+            )
+        else:
+            resource_disk_mount_point = node.features[
+                Disk
+            ].get_resource_disk_mount_point()
+            node.features[Disk].get_partition_with_mount_point(
+                resource_disk_mount_point
+            )
+            disk_info = node.tools[Lsblk].find_disk_by_mountpoint(
+                resource_disk_mount_point
+            )
+            for partition in disk_info.partitions:
+                # by default, resource disk comes with ntfs type
+                # waagent or cloud-init will format it unless there are some commands hung
+                # or interrupt
+                assert_that(
+                    partition.fstype,
+                    "Resource disk file system type should not equal to ntfs",
+                ).is_not_equal_to("ntfs")

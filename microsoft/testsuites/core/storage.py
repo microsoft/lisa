@@ -160,32 +160,43 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_mounted(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
-        # os disk(root disk) is the entry with mount point `/' in the output
-        # of `mount` command
-        os_disk = (
-            node.features[Disk]
-            .get_partition_with_mount_point(self.os_disk_mount_point)
-            .disk
-        )
-        if isinstance(node.os, BSD):
-            partition_info = node.tools[Mount].get_partition_info()
-            resource_disk_from_mtab = [
-                entry
-                for entry in partition_info
-                if entry.mount_point == resource_disk_mount_point
-            ][0].mount_point
-        else:
-            mtab = node.tools[Cat].run("/etc/mtab").stdout
-            resource_disk_from_mtab = get_matched_str(
-                mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
+        node_disc = node.features[Disk]
+        resource_disks = node_disc.get_resource_disks()
+        if not resource_disks:
+            raise LisaException("Resource disk not found")
+        if "nvme" in resource_disks[0]:
+            raise SkippedException(
+                f"Resource disk type is NVMe and the VM has {len(resource_disks)} NVMe disks"  # noqa: E501
             )
-        assert (
-            resource_disk_from_mtab
-        ), f"resource disk mountpoint not found {resource_disk_mount_point}"
-        assert_that(
-            resource_disk_from_mtab, "Resource disk should not be equal to os disk"
-        ).is_not_equal_to(os_disk)
+        else:
+            resource_disk_mount_point = node.features[
+                Disk
+            ].get_resource_disk_mount_point()
+            # os disk(root disk) is the entry with mount point `/' in the output
+            # of `mount` command
+            os_disk = (
+                node.features[Disk]
+                .get_partition_with_mount_point(self.os_disk_mount_point)
+                .disk
+            )
+            if isinstance(node.os, BSD):
+                partition_info = node.tools[Mount].get_partition_info()
+                resource_disk_from_mtab = [
+                    entry
+                    for entry in partition_info
+                    if entry.mount_point == resource_disk_mount_point
+                ][0].mount_point
+            else:
+                mtab = node.tools[Cat].run("/etc/mtab").stdout
+                resource_disk_from_mtab = get_matched_str(
+                    mtab, self._get_mtab_mount_point_regex(resource_disk_mount_point)
+                )
+            assert (
+                resource_disk_from_mtab
+            ), f"resource disk mountpoint not found {resource_disk_mount_point}"
+            assert_that(
+                resource_disk_from_mtab, "Resource disk should not be equal to os disk"
+            ).is_not_equal_to(os_disk)
 
     @TestCaseMetadata(
         description="""
@@ -199,7 +210,7 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
-            unsupported_os=[BSD, Windows]
+            unsupported_os=[BSD, Windows],
             # This test is skipped as waagent does not support freebsd fully
         ),
     )
@@ -229,27 +240,40 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_io(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
+        node_disc = node.features[Disk]
+        resource_disks = node_disc.get_resource_disks()
+        if not resource_disks:
+            raise LisaException("Resource disk not found")
+        if "nvme" in resource_disks[0]:
+            raise SkippedException(
+                f"Resource disk type is NVMe and the VM has {len(resource_disks)} NVMe disks"  # noqa: E501
+            )
+        else:
+            resource_disk_mount_point = node.features[
+                Disk
+            ].get_resource_disk_mount_point()
 
-        # verify that resource disk is mounted
-        # function returns successfully if disk matching mount point is present
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+            # verify that resource disk is mounted
+            # function returns successfully if disk matching mount point is present
+            node.features[Disk].get_partition_with_mount_point(
+                resource_disk_mount_point
+            )
 
-        file_path = f"{resource_disk_mount_point}/sample.txt"
-        original_text = "Writing to resource disk!!!"
+            file_path = f"{resource_disk_mount_point}/sample.txt"
+            original_text = "Writing to resource disk!!!"
 
-        # write content to the file
-        node.tools[Echo].write_to_file(
-            original_text, node.get_pure_path(file_path), sudo=True
-        )
+            # write content to the file
+            node.tools[Echo].write_to_file(
+                original_text, node.get_pure_path(file_path), sudo=True
+            )
 
-        # read content from the file
-        read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+            # read content from the file
+            read_text = node.tools[Cat].read(file_path, force_run=True, sudo=True)
 
-        assert_that(
-            read_text,
-            "content read from file should be equal to content written to file",
-        ).is_equal_to(original_text)
+            assert_that(
+                read_text,
+                "content read from file should be equal to content written to file",
+            ).is_equal_to(original_text)
 
     @TestCaseMetadata(
         description="""
