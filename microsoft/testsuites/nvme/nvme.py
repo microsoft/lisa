@@ -332,9 +332,7 @@ class NvmeTestSuite(TestSuite):
         # 2. Enable PCI devices.
         lspci.enable_devices()
         # 3. Get PCI devices slots.
-        after_devices_slots = lspci.get_device_names_by_type(
-            DEVICE_TYPE_NVME, True, True
-        )
+        after_devices_slots = lspci.get_device_names_by_type(DEVICE_TYPE_NVME, True)
         # 4. Check PCI devices are back after rescan.
         assert_that(
             after_devices_slots,

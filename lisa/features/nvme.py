@@ -69,11 +69,11 @@ class Nvme(Feature):
                 devices_list.append(matched_result.group("device_name"))
         node_disk = self._node.features[Disk]
         # With disk controller type NVMe, all remote managed disks attached to the VM
-        # (including the OS disc) appear as NVMe devices, .
-        # All the remote managed disks (inclusing the OS disc) use the same NVMe 
+        # (including the OS disc) appear as NVMe devices.
+        # All the remote managed disks (inclusing the OS disc) use the same NVMe
         # controller in the VM.
-        # Excluding the OS NVMe device from the list of NVMe devices will remove all remote
-        # managed disks.
+        # Excluding the OS NVMe device from the list of NVMe devices will remove
+        # all the remote managed disks.
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             os_disk_nvme_device = self.get_os_disk_nvme_device()
             # Removing OS disk/device from the list.
