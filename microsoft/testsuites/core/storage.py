@@ -14,6 +14,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
     simple_requirement,
 )
 from lisa.base_tools.service import Systemctl
@@ -160,14 +161,21 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_mounted(self, node: RemoteNode) -> None:
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe disks are not mounted by default"
+            )
+
+        # get the mount point for the resource disk
         resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
         # os disk(root disk) is the entry with mount point `/' in the output
         # of `mount` command
-        os_disk = (
-            node.features[Disk]
-            .get_partition_with_mount_point(self.os_disk_mount_point)
-            .disk
+        os_disk_partition = node.features[Disk].get_partition_with_mount_point(
+            self.os_disk_mount_point
         )
+        if os_disk_partition:
+            os_disk = os_disk_partition.disk
+
         if isinstance(node.os, BSD):
             partition_info = node.tools[Mount].get_partition_info()
             resource_disk_from_mtab = [
@@ -199,7 +207,7 @@ class Storage(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
-            unsupported_os=[BSD, Windows]
+            unsupported_os=[BSD, Windows],
             # This test is skipped as waagent does not support freebsd fully
         ),
     )
@@ -229,11 +237,16 @@ class Storage(TestSuite):
         ),
     )
     def verify_resource_disk_io(self, node: RemoteNode) -> None:
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe has 'verify_nvme_function' and "
+                "'verify_nvme_function_unpartitioned' testcases to validate IO operations."  # noqa: E501
+            )
+
         resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
 
-        # verify that resource disk is mounted
-        # function returns successfully if disk matching mount point is present
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        # verify that resource disk is mounted. raise exception if not
+        node.features[Disk].check_resource_disk_mounted()
 
         file_path = f"{resource_disk_mount_point}/sample.txt"
         original_text = "Writing to resource disk!!!"
@@ -302,11 +315,13 @@ class Storage(TestSuite):
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
         # get information of root disk from blkid
-        os_partition = (
-            node.features[Disk]
-            .get_partition_with_mount_point(self.os_disk_mount_point)
-            .name
+        os_disk_partition = node.features[Disk].get_partition_with_mount_point(
+            self.os_disk_mount_point
         )
+        if not os_disk_partition:
+            raise LisaException("Failed to get os disk partition")
+
+        os_partition = os_disk_partition.name
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
         # check if cvm
