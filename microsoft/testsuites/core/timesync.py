@@ -18,8 +18,9 @@ from lisa import (
     TestSuiteMetadata,
     UnsupportedCpuArchitectureException,
     create_timer,
+    simple_requirement,
 )
-from lisa.operating_system import CpuArchitecture, Redhat, Suse
+from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Windows
 from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Ls, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
@@ -392,6 +393,9 @@ class TimeSync(TestSuite):
         sampling.
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
         lscpu = node.tools[Lscpu]
