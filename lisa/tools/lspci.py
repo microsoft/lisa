@@ -286,7 +286,7 @@ class Lspci(Tool):
             # d3f4:00:02.0 0200: 15b3:101a (rev 80)
             # Fetch pci ids using 'lspci -n':
             result = self.run(
-                "-n",
+                "-nD",
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
@@ -305,7 +305,7 @@ class Lspci(Tool):
 
             # Fetching the device information using 'lspci -m':
             result = self.run(
-                "-m",
+                "-mD",
                 force_run=force_run,
                 shell=True,
                 expected_exit_code=0,
