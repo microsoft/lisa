@@ -10,12 +10,21 @@ from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
-from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.operating_system import (
+    CBLMariner,
+    Debian,
+    Linux,
+    NixOS,
+    OtherLinux,
+    Posix,
+    RPMDistro,
+    Suse,
+    Ubuntu,
+)
 from lisa.testsuite import TestResult
 from lisa.tools import Cp, Git, Ls, Make, RemoteCopy, Tar
 from lisa.tools.chmod import Chmod
 from lisa.tools.mkdir import Mkdir
-from lisa.tools.whoami import Whoami
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
 
 _UBUNTU_OS_PACKAGES = [
@@ -98,26 +107,44 @@ class Kselftest(Tool):
 
         # tar file path specified in yml
         self._tar_file_path = kselftest_file_path
+        kselftest_install_path = "/tmp/kselftest"
+        kselftest_packages = "kselftest-packages"
         if self._tar_file_path:
-            self._remote_tar_path = self.get_tool_path(
-                use_global=True
+            self._remote_tar_path = self.node.get_pure_path(
+                kselftest_install_path,
             ) / os.path.basename(self._tar_file_path)
 
-        # command to run kselftests
-        self._kself_installed_dir = (
-            self.get_tool_path(use_global=True) / "kselftest-packages"
-        )
+            self._kself_installed_dir = self.node.get_pure_path(
+                kselftest_install_path,
+            ) / (kselftest_packages)
+        else:
+            self._remote_tar_path = self.get_tool_path(
+                use_global=True,
+            ) / os.path.basename(self._tar_file_path)
+
+            self._kself_installed_dir = self.get_tool_path(
+                use_global=True,
+            ) / (kselftest_packages)
 
         self._command = self._kself_installed_dir / "run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
-        if not (
-            (
-                isinstance(self.node.os, Ubuntu)
-                and self.node.os.information.version >= "18.4.0"
+        if (
+            (isinstance(self.node.os, Posix) and not isinstance(self.node.os, Linux))
+            or (
+                isinstance(self.node.os, Debian)
+                and not isinstance(self.node.os, Ubuntu)
             )
-            or isinstance(self.node.os, CBLMariner)
+            or (
+                isinstance(self.node.os, Ubuntu)
+                and self.node.os.information.version < "18.4.0"
+            )
+            or (
+                isinstance(self.node.os, RPMDistro)
+                and not isinstance(self.node.os, CBLMariner)
+            )
+            or (isinstance(self.node.os, (Suse, NixOS, OtherLinux)))
         ):
             raise UnsupportedDistroException(
                 self.node.os, "kselftests in LISA does not support this os"
@@ -202,14 +229,12 @@ class Kselftest(Tool):
         test_result: TestResult,
         log_path: str,
         timeout: int = 5000,
-        run_test_as_root: bool = False,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
 
-        # get username
-        username = self.node.tools[Whoami].get_username()
-        result_directory = f"/home/{username}"
+        # get result directory
+        result_directory = "/tmp/"
         if os.path.exists(result_directory) is False:
             mkdir = self.node.tools[Mkdir]
             mkdir.create_directory(result_directory)
@@ -218,7 +243,7 @@ class Kselftest(Tool):
         result_file = f"{result_directory}/{result_file_name}"
         self.run(
             f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
+            sudo=True,
             force_run=True,
             shell=True,
             timeout=timeout,
