@@ -69,13 +69,13 @@ class Nvme(Feature):
                 devices_list.append(matched_result.group("device_name"))
         node_disk = self._node.features[Disk]
         # With disk controller type NVMe, all remote managed disks attached to the VM
-        # (including the OS disc) appear as NVMe devices, .
-        # All the remote managed disks (inclusing the OS disc) use the same NVMe 
+        # (including the OS disc) appear as NVMe devices.
+        # All the remote managed disks (inclusing the OS disc) use the same NVMe
         # controller in the VM.
-        # Excluding the OS NVMe device from the list of NVMe devices will remove all remote
-        # managed disks.
+        # Excluding the OS NVMe device from the list of NVMe devices will remove
+        # all the remote managed disks.
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            os_disk_nvme_device = self.get_os_disk_nvme_device()
+            os_disk_nvme_device = self._get_os_disk_nvme_device()
             # Removing OS disk/device from the list.
             devices_list.remove(os_disk_nvme_device)
         return devices_list
@@ -95,6 +95,10 @@ class Nvme(Feature):
     def get_namespaces_from_cli(self) -> List[str]:
         namespaces_list = self._node.tools[Nvmecli].get_namespaces()
         node_disk = self._node.features[Disk]
+        # With disk controller type NVMe, OS disk along with all remote iSCSI devices
+        # appears as NVMe.
+        # Removing OS disk from the list of NVMe devices will remove all the
+        # remote non-NVME disks.
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
             # Removing OS disk/device from the list.
@@ -114,8 +118,8 @@ class Nvme(Feature):
             )
         return os_partition_namespace
 
-    def get_os_disk_nvme_device(self) -> str:
-        # This routine returns NVMe device of the OS disk.
+    # This method returns NVMe device name of the OS disk.
+    def _get_os_disk_nvme_device(self) -> str:
         os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
         # Sample os_boot_partition when disc controller type is NVMe:
         # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat

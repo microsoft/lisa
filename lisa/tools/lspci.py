@@ -8,7 +8,13 @@ from retry import retry
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Echo
-from lisa.util import LisaException, constants, find_patterns_in_lines, get_matched_str
+from lisa.util import (
+    LisaException,
+    constants,
+    find_group_in_lines,
+    find_patterns_in_lines,
+    get_matched_str,
+)
 
 # Example output of lspci command -
 # lspci -m
@@ -57,12 +63,20 @@ VENDOR_TYPE_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_GPU: ["NVIDIA Corporation"],
 }
 
+# PCI vendor ids
+VENDOR_ID_NVIDIA = "10de"       # NVIDIA Corporation
+VENDOR_ID_AMD = "1002"          # Advanced Micro Devices, Inc. [AMD/ATI]
+VENDOR_ID_MICROSOFT = "1414"    # Microsoft Corporation
+VENDOR_ID_MELLANOX = "15b3"     # Mellanox Technologies
+
 DEVICE_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
         "1004",  # Mellanox Technologies MT27500/MT27520 Family [ConnectX-3/ConnectX-3 Pro Virtual Function] # noqa: E501
         "1016",  # Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function]
+        "1018",  # Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
         "101a",  # Mellanox Technologies MT28800 Family [ConnectX-5 Ex Virtual Function]
         "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
+        "00ba",  # Microsft Azure Network Adapter VF (MANA VF)
     ],
     constants.DEVICE_TYPE_NVME: [
         "b111"  # Microsoft Corporation Device, Local NVMe discs
@@ -80,12 +94,12 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
 
 VENDOR_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
-        "1414",  # Microsoft Corporation
-        "15b3",  # Mellanox Technologies
+        VENDOR_ID_MICROSOFT,
+        VENDOR_ID_MELLANOX,
     ],
-    constants.DEVICE_TYPE_NVME: ["1414"],  # Microsoft Corporation
-    constants.DEVICE_TYPE_GPU: ["10de"],  # NVIDIA Corporation
-    constants.DEVICE_TYPE_AMD_GPU: ["1002"],  # Advanced Micro Devices, Inc. [AMD/ATI]
+    constants.DEVICE_TYPE_NVME: [VENDOR_ID_MICROSOFT],
+    constants.DEVICE_TYPE_GPU: [VENDOR_ID_NVIDIA],
+    constants.DEVICE_TYPE_AMD_GPU: [VENDOR_ID_AMD],
 }
 
 CONTROLLER_ID_DICT: Dict[str, List[str]] = {
@@ -125,15 +139,16 @@ class PciDevice:
         )
 
     def parse(self, raw_str: str) -> None:
-        matched_pci_device_info = PATTERN_PCI_DEVICE.match(raw_str)
+        matched_pci_device_info = find_group_in_lines(raw_str, PATTERN_PCI_DEVICE)
+
         if matched_pci_device_info:
-            self.slot = matched_pci_device_info.group("slot")
+            self.slot = matched_pci_device_info["slot"]
             assert self.slot, f"Can not find slot info for: {raw_str}"
-            self.device_class = matched_pci_device_info.group("device_class")
+            self.device_class = matched_pci_device_info["device_class"]
             assert self.device_class, f"Can not find device class for: {raw_str}"
-            self.vendor = matched_pci_device_info.group("vendor")
+            self.vendor = matched_pci_device_info["vendor"]
             assert self.vendor, f"Can not find vendor info for: {raw_str}"
-            self.device_info = matched_pci_device_info.group("device")
+            self.device_info = matched_pci_device_info["device"]
             assert self.device_info, f"Can not find device info for: {raw_str}"
             # Initialize the device_id, vendor_id and controller_id to None
             self.vendor_id = ""
@@ -165,10 +180,19 @@ class Lspci(Tool):
             self.node.os.install_packages("pciutils")
         return self._check_exists()
 
-    def get_device_names_by_type(
+    # Returns device slots for given device type based on device ids.
+    # Usecase: If two device types are using same controller type, this method can get
+    # the device slots only for the given device type.
+    # Example: To get local NVMe devices by ignoring ASAP devices which uses same nvme
+    # driver and the NVMe controller id.
+    # Best practice: Use this method only for usecases like above. For other usecases,
+    # use 'get_device_names_by_type' method. As its difficult to maintain the list of
+    # device ids for each device type. For example, the list of device ids for SRIOV and
+    # GPU devices needs continuous update.
+    def get_device_names_by_device_id(
         self, device_type: str, force_run: bool = False
     ) -> List[str]:
-        if device_type.upper() not in DEVICE_TYPE_DICT.keys():
+        if device_type.upper() not in DEVICE_ID_DICT.keys():
             raise LisaException(f"pci_type '{device_type}' is not recognized.")
         devices_list = self.get_devices(force_run)
         devices_slots = []
@@ -178,10 +202,33 @@ class Lspci(Tool):
                 devices_slots.append(device.slot)
         return devices_slots
 
-    def get_devices_by_type(
+    # Returns device slot ids for given device type based on controller ids.
+    # This method cannot distinguish between different device types which uses same
+    # controller id. For example, NVME and ASAP devices use same controller id for.
+    # In such cases, use 'get_device_names_by_device_id' method.
+    def get_device_names_by_type(
+        self, device_type: str, force_run: bool = False
+    ) -> List[str]:
+        # NVME devices are searched based on device ids as 'ASAP' devices use same
+        # controller id.
+        if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
+            return self.get_device_names_by_device_id(device_type, force_run)
+        if device_type.upper() not in CONTROLLER_ID_DICT.keys():
+            raise LisaException(f"pci_type '{device_type}' is not recognized.")
+        devices_list = self.get_devices(force_run)
+        devices_slots = []
+
+        for device in devices_list:
+            if device.controller_id in CONTROLLER_ID_DICT[device_type.upper()]:
+                devices_slots.append(device.slot)
+        return devices_slots
+
+    # Returns list of pci devices for given device type based on device ids.
+    # Usecases and bestpractices are same as 'get_device_names_by_device_id' method.
+    def get_devices_by_device_id(
         self, device_type: str, force_run: bool = False
     ) -> List[PciDevice]:
-        if device_type.upper() not in DEVICE_TYPE_DICT.keys():
+        if device_type.upper() not in DEVICE_ID_DICT.keys():
             raise LisaException(
                 f"pci_type '{device_type}' is not supported to be searched."
             )
@@ -193,7 +240,32 @@ class Lspci(Tool):
 
         return device_type_list
 
-    @retry(KeyError, tries=10, delay=10)
+    # Returns list of pci devices for given device type based on controller ids.
+    def get_devices_by_type(
+        self, device_type: str, force_run: bool = False
+    ) -> List[PciDevice]:
+        # NVME devices are searched based on device ids as 'ASAP' devices use same
+        # controller id.
+        if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
+            return self.get_devices_by_device_id(device_type, force_run)
+        if device_type.upper() not in CONTROLLER_ID_DICT.keys():
+            raise LisaException(
+                f"pci_type '{device_type}' is not supported to be searched."
+            )
+        devices_list = self.get_devices(force_run)
+        device_type_list = []
+        for device in devices_list:
+            if device.controller_id in CONTROLLER_ID_DICT[device_type.upper()]:
+                device_type_list.append(device)
+
+        return device_type_list
+
+    # Retry decorator is used to handle the case where the device list is not same from
+    # 'lspci -n' output and 'lspci -m' outputs.
+    # It usually happens when the VM is just finished booting and not
+    # all PCI devices are detected. For example SRIOV devices.
+    # In such cases we need to retry after a short delay.
+    @retry(KeyError, tries=30, delay=2)
     def get_devices(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
             self._pci_devices = []
@@ -242,11 +314,8 @@ class Lspci(Tool):
 
             for i in range(len(self._pci_devices)):
                 pci_slot_id = self._pci_devices[i].slot
-                # Sometimes the list of devices is not same from above 'lspci -n' output
-                # and 'lspci -m' outputs.
-                # It usually happens when the VM is just finished booting and not
-                # all PCI devices are detected. For example SRIOV devices.
-                # In such cases we need to retry after a short delay.
+                # Raise exception if the device id is not found.
+                # The retry decorator will retry after a short delay.
                 if pci_slot_id not in self._pci_ids:
                     raise KeyError(f"cannot find device id from {pci_slot_id}")
                 self._pci_devices[i].device_id = self._pci_ids[pci_slot_id]["device_id"]
