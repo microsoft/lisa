@@ -281,10 +281,10 @@ class Lspci(Tool):
             # Example output of 'lspci -nnm':
             # d2e9:00:00.0 "Non-Volatile memory controller [0108]" "Microsoft Corporation [1414]" "Device [00a9]" -p02 "Microsoft Corporation [1414]" "Device [0000]" # noqa: E501
             # d3f4:00:02.0 "Ethernet controller [0200]" "Mellanox Technologies [15b3]" "MT28800 Family [ConnectX-5 Ex Virtual Function] [101a]" -r80 "Mellanox Technologies [15b3]" "MT28800 Family [ConnectX-5 Ex Virtual Function] [0127]" # noqa: E501
-            # Sample 'lspci -n' output for above devices:
+            # Sample 'lspci -nD' output for above devices:
             # d2e9:00:00.0 0108: 1414:00a9
             # d3f4:00:02.0 0200: 15b3:101a (rev 80)
-            # Fetch pci ids using 'lspci -n':
+            # Fetch pci ids using 'lspci -nD':
             result = self.run(
                 "-nD",
                 force_run=force_run,
@@ -303,7 +303,7 @@ class Lspci(Tool):
                     }
                 self._pci_ids.update(pci_device_id_info)
 
-            # Fetching the device information using 'lspci -m':
+            # Fetching the device information using 'lspci -mD':
             result = self.run(
                 "-mD",
                 force_run=force_run,
