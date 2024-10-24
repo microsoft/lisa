@@ -64,10 +64,11 @@ VENDOR_TYPE_DICT: Dict[str, List[str]] = {
 }
 
 # PCI vendor ids
-VENDOR_ID_NVIDIA = "10de"       # NVIDIA Corporation
 VENDOR_ID_AMD = "1002"          # Advanced Micro Devices, Inc. [AMD/ATI]
-VENDOR_ID_MICROSOFT = "1414"    # Microsoft Corporation
+VENDOR_ID_INTEL = "8086"        # Intel Corporation
 VENDOR_ID_MELLANOX = "15b3"     # Mellanox Technologies
+VENDOR_ID_MICROSOFT = "1414"    # Microsoft Corporation
+VENDOR_ID_NVIDIA = "10de"       # NVIDIA Corporation
 
 DEVICE_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
@@ -89,6 +90,7 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "1eb8",  # NVIDIA Corporation TU104GL [Tesla T4]
         "13f2",  # NVIDIA Corporation GM204GL [Tesla M60]
         "74b5",  # Advanced Micro Devices, Inc. [AMD/ATI]
+        "5353",  # Hyper-V virtual VGA [VGA compatible controller]
     ],
 }
 
@@ -111,7 +113,8 @@ CONTROLLER_ID_DICT: Dict[str, List[str]] = {
         "0108",  # Non-Volatile memory controller
     ],
     constants.DEVICE_TYPE_GPU: [
-        "0302",  # VGA compatible controller
+        "0302",  # VGA compatible controller (NVIDIA Corporation)
+        "0300",  # VGA compatible controller (Hyper-V virtual VGA)
         "1200",  # Processing accelerators (AMD GPU)
     ],
 }
