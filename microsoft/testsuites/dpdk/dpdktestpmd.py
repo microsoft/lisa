@@ -71,7 +71,7 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse)
-            and parse_version(x.information.release) == "15.5.0",
+            and bool(parse_version(x.information.release) == "15.5.0"),
             packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
         ),
