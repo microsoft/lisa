@@ -552,10 +552,13 @@ class Posix(OperatingSystem, BaseClassMixin):
             [major_match, minor_match, patch_match],
         )
         build_match = named_matches.group("build")
-        self._node.log.debug(
+        log_message = (
             f"Found {package_name} version "
-            f"{major_match}.{minor_match}.{patch_match}-{build_match}"
+            f"{major_match}.{minor_match}.{patch_match}"
         )
+        if build_match:
+            log_message += f"-{build_match}"
+        self._node.log.debug(log_message)
         return VersionInfo(major, minor, patch, build=build_match)
 
     def _cache_and_return_version_info(
@@ -753,7 +756,7 @@ class Debian(Linux):
         r"(?P<major>[0-9]+)\."  # major
         r"(?P<minor>[0-9]+)"  # minor
         r"([\-\.](?P<patch>[0-9]+))?"  # patch
-        r"(?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
         # '-' is added after minor and made optional before build
         # due to the formats like 23.11-1build3
     )
