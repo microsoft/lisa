@@ -750,6 +750,10 @@ class Debian(Linux):
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
         r"Version: ([a-zA-Z0-9:_\-\.~+]+)\r?\n"  # version number group
     )
+    # ex: 3.10
+    # ex: 3.10.5-git
+    # ex: 3.10-5git3
+    # ex: 3.10.1-build3
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
