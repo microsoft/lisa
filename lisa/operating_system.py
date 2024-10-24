@@ -554,10 +554,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         build_match = named_matches.group("build")
         log_message = (
             f"Found {package_name} version "
-            f"{major_match}.{minor_match}.{patch_match}"
+            f"major:{major_match} minor:{minor_match} "
+            f"patch:{patch_match} build:{build_match}"
         )
-        if build_match:
-            log_message += f"-{build_match}"
         self._node.log.debug(log_message)
         return VersionInfo(major, minor, patch, build=build_match)
 
