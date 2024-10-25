@@ -12,7 +12,35 @@ from lisa.node import local
 from lisa.util import InitializableMixin, subclasses
 from lisa.util.logger import get_logger
 
-from .schema import ADOSourceSchema, SourceSchema
+from .schema import ADOSourceSchema, Artifact, LocalSourceSchema, SourceSchema
+
+
+def _extract(artifact_path: Path) -> str:
+    file_extension = artifact_path.suffix
+    if file_extension == ".zip":
+        with zipfile.ZipFile(str(artifact_path), "r") as zip_ref:
+            zip_ref.extractall(str(artifact_path.parent))
+    source_path = os.path.splitext(str(artifact_path))[0]
+    return source_path
+
+
+def _extract_artifacts(
+    artifacts: List[Artifact],
+    artifacts_path: List[Path],
+) -> List[Path]:
+    artifact_local_path: List[Path] = []
+
+    for artifact in artifacts:
+        pattern = re.compile(rf".*{artifact.artifact_name}.*")
+        for artifact_path in artifacts_path:
+            if pattern.match(artifact_path.absolute().as_posix()):
+                if artifact.extract:
+                    source_path = _extract(artifact_path)
+                    artifact_local_path.append(Path(source_path))
+                else:
+                    artifact_local_path.append(artifact_path)
+
+    return artifact_local_path
 
 
 class Source(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
@@ -61,25 +89,31 @@ class ADOSource(Source):
             pipeline_name=pipeline_name,
             timeout=timeout,
         )
-        artifacts_path_raw = artifacts_path
-        artifacts_path = []
-        for artifact in artifacts:
-            pattern = re.compile(rf".*{artifact.artifact_name}.*")
-            for artifact_path in artifacts_path_raw:
-                if pattern.match(str(artifact_path)):
-                    self._log.info(f"Artifact downloaded to {str(artifact_path)}")
-                    if artifact.extract:
-                        source_path = self.extract(artifact_path)
-                        artifacts_path.append(Path(source_path))
-                    else:
-                        artifacts_path.append(artifact_path)
-        return artifacts_path
 
-    def extract(self, artifact_path: Path) -> str:
-        file_extension = artifact_path.suffix
-        if file_extension == ".zip":
-            with zipfile.ZipFile(str(artifact_path), "r") as zip_ref:
-                zip_ref.extractall(str(artifact_path.parent))
-        source_path = os.path.splitext(str(artifact_path))[0]
-        self._log.info(f"Artifact extracted to {str(source_path)}")
-        return source_path
+        return _extract_artifacts(artifacts, artifacts_path)
+
+
+class LocalSource(Source):
+    def __init__(self, runbook: LocalSourceSchema) -> None:
+        super().__init__(runbook)
+        self.local_runbook: LocalSourceSchema = runbook
+        self._log = get_logger("local", self.__class__.__name__)
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "local"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return LocalSourceSchema
+
+    def download(self, timeout: int = 600) -> List[Path]:
+        local_artifacts_path: List[Path] = []
+
+        for artifact in self.local_runbook.artifacts:
+            local_artifacts_path.append(Path(artifact.artifact_name))
+
+        return _extract_artifacts(
+            self.local_runbook.artifacts,
+            local_artifacts_path,
+        )
