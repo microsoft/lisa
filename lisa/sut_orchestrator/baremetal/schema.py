@@ -130,6 +130,16 @@ class ADOSourceSchema(SourceSchema):
 
 @dataclass_json()
 @dataclass
+class LocalSourceSchema(SourceSchema):
+    artifacts: List[Artifact] = field(default_factory=list)
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        if not self.artifacts:
+            raise ValueError("artifacts cannot be empty")
+
+
+@dataclass_json()
+@dataclass
 class SMBBuildSchema(BuildSchema):
     username: str = ""
     password: str = ""
