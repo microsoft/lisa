@@ -836,7 +836,7 @@ class Debian(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(
