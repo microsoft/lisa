@@ -273,7 +273,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         use_queues: bool = False,
-        service_cores: int = 1,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -287,7 +286,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_service_cores=service_cores,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -296,7 +294,6 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     HugePageSize.HUGE_2MB,
-                    use_service_cores=service_cores,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
