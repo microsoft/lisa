@@ -530,6 +530,7 @@ def verify_dpdk_send_receive(
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -554,9 +555,8 @@ def verify_dpdk_send_receive(
     sender, receiver = test_kits
 
     # annotate test result before starting
-    annotate_dpdk_send_receive_test_result(
-        test_kit=sender, environment=environment, log=log
-    )
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
@@ -611,7 +611,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    use_service_cores: int = 1,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -623,6 +623,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         HugePageSize.HUGE_2MB,
         use_service_cores=1,
         multiple_queues=True,
+        result=result,
     )
 
 
@@ -738,6 +739,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     pmd: str = "netvsc",
     force_single_queue: bool = False,
     is_perf_test: bool = False,
+    result: Optional[TestResult] = None,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -883,9 +885,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
-    annotate_dpdk_send_receive_test_result(
-        test_kit=fwd_kit, environment=environment, log=log
-    )
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
@@ -1137,7 +1138,7 @@ def get_node_nic_short_name(node: Node) -> str:
     )
     # this is just a function for annotating a result, so don't assert
     # if there's
-    return ""
+    return found_nic_types
 
 
 # Add dpdk/rdma/nic info to dpdk test result
@@ -1150,29 +1151,16 @@ def annotate_dpdk_test_result(
     nic_hw = None
     try:
         dpdk_version = test_kit.testpmd.get_dpdk_version()
-    except AssertionError:
-        test_kit.node.log.debug("Could not fetch DPDK version info.")
+        test_result.information["dpdk_version"] = str(dpdk_version)
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
-    except AssertionError:
-        test_kit.node.log.debug("Could not fetch RDMA version info.")
+        test_result.information["rdma_version"] = str(rdma_version)
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
-    except AssertionError:
-        test_kit.node.log.debug("Could not fetch NIC short name.")
-    if dpdk_version:
-        test_result.information["dpdk_version"] = str(dpdk_version)
-    if rdma_version:
-        test_result.information["rdma_version"] = str(rdma_version)
-    if nic_hw:
         test_result.information["nic_hw"] = nic_hw
-
-
-def annotate_dpdk_send_receive_test_result(
-    test_kit: DpdkTestResources, environment: Environment, log: Logger
-) -> None:
-    test_result = environment.source_test_result
-    if not test_result:
-        log.debug("Cannot annotate DPDK info into test result!")
-        return
-    annotate_dpdk_test_result(test_kit=test_kit, test_result=test_result, log=log)
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")

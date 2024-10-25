@@ -390,7 +390,6 @@ class Dpdk(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
-        result: TestResult,
     ) -> None:
         test_kits = init_nodes_concurrent(
             environment,
@@ -633,11 +632,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe"
+                environment, log, variables, "failsafe", result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -663,10 +666,11 @@ class Dpdk(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc"
+                environment, log, variables, "netvsc", result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -688,11 +692,20 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
-                environment, log, variables, "failsafe", HugePageSize.HUGE_2MB
+                environment,
+                log,
+                variables,
+                "failsafe",
+                HugePageSize.HUGE_2MB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -715,7 +728,11 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
@@ -724,6 +741,7 @@ class Dpdk(TestSuite):
                 variables,
                 "failsafe",
                 HugePageSize.HUGE_1GB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -745,11 +763,20 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
-                environment, log, variables, "netvsc", HugePageSize.HUGE_2MB
+                environment,
+                log,
+                variables,
+                "netvsc",
+                HugePageSize.HUGE_2MB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -772,7 +799,11 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
@@ -781,6 +812,7 @@ class Dpdk(TestSuite):
                 variables,
                 "netvsc",
                 HugePageSize.HUGE_1GB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -808,12 +840,16 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd
+            environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
         )
 
     @TestCaseMetadata(
@@ -837,12 +873,21 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, hugepage_size=HugePageSize.HUGE_1GB, pmd=pmd
+            environment,
+            log,
+            variables,
+            hugepage_size=HugePageSize.HUGE_1GB,
+            pmd=pmd,
+            result=result,
         )
 
     @TestCaseMetadata(
