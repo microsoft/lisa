@@ -520,6 +520,13 @@ class Ethtool(Tool):
             path_pattern="*vmbus*",
             ignore_case=True,
         )
+        if (not netdirs):
+            netdirs = find_tool.find_files(
+                self.node.get_pure_path("/sys/devices"),
+                name_pattern="net",
+                path_pattern="*msft*",
+                ignore_case=True,
+            )
         for netdir in netdirs:
             if not netdir:
                 continue
