@@ -1979,9 +1979,9 @@ class Suse(Linux):
     _suse_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)\."  # minor
-        r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -2138,7 +2138,7 @@ class Suse(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(
