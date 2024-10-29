@@ -18,6 +18,10 @@ RDMA_CORE_MANA_DEFAULT_SOURCE = (
     "https://github.com/linux-rdma/rdma-core/"
     "releases/download/v50.1/rdma-core-50.1.tar.gz"
 )
+RDMA_CORE_I386_DEFAULT_SOURCE = (
+    "https://github.com/linux-rdma/rdma-core/"
+    "releases/download/v53.1/rdma-core-53.1.tar.gz"
+)
 RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
     [
         OsPackageDependencies(
