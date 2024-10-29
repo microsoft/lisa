@@ -241,7 +241,7 @@ class Installer:
             # At the moment, we use create() to force re-initialization.
             # If we ever fix things so that we use .get,
             # we will need this check. So add it now.q
-            or (required_arch != self._arch)
+            or (self._arch and required_arch != self._arch)
             or (
                 required_version is not None
                 and required_version > self.get_installed_version()

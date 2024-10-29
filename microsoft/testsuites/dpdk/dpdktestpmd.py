@@ -898,7 +898,7 @@ class DpdkTestpmd(Tool):
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
-        self.installer.do_installation()
+        self.installer.do_installation(required_arch=self._build_arch)
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)

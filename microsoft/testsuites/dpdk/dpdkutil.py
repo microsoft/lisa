@@ -62,7 +62,7 @@ from microsoft.testsuites.dpdk.common import (
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
-    RDMA_CORE_I386_DEFAULT_SOURCE,
+    RDMA_CORE_I386_MANA_DEFAULT_SOURCE,
     RDMA_CORE_MANA_DEFAULT_SOURCE,
     RDMA_CORE_PACKAGE_DEPENDENCIES,
     RDMA_CORE_SOURCE_DEPENDENCIES,
@@ -138,8 +138,7 @@ def get_rdma_core_installer(
     # set rdma-core installer type.
     if not build_arch:
         build_arch = node.tools[Lscpu].get_architecture()
-    if build_arch == CpuArchitecture.I386 and not rdma_source:
-        rdma_source = RDMA_CORE_I386_DEFAULT_SOURCE
+
     if rdma_source:
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
@@ -153,7 +152,10 @@ def get_rdma_core_installer(
             )
     # handle MANA special case, build a default rdma-core with mana provider
     elif not rdma_source and node.nics.is_mana_device_present():
-        downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
+        if build_arch == CpuArchitecture.I386:
+            downloader = TarDownloader(node, RDMA_CORE_I386_MANA_DEFAULT_SOURCE)
+        else:
+            downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
     else:
         # no rdma_source and not mana, just use the package manager
         return RdmaCorePackageManagerInstall(
