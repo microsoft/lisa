@@ -28,7 +28,7 @@ from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
     check_or_create_storage_account,
     get_node_context,
-    get_storage_credential,
+    add_system_assign_identity,
     list_blobs,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -91,12 +91,15 @@ class AzurePerformanceDiagnostics(TestSuite):
             log=log,
         )
 
-        account_credential = get_storage_credential(
-            credential=platform.credential,
-            subscription_id=platform.subscription_id,
-            cloud=platform.cloud,
-            account_name=storage_account_name,
-            resource_group_name=resource_group_name,
+        # Assign system identity to VM
+        # This MSI will be pre-configured with the necessary role assigments to Storage Account from Subscription level
+        # Permissions required: Storage Account Contributor, Storage Blob Data Contributor, Storage Blob Data Contributor
+        add_system_assign_identity(
+            platform=platform,
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+            location=node_context.location,
+            log=log,
         )
 
         # Run VM Extension
@@ -116,7 +119,7 @@ class AzurePerformanceDiagnostics(TestSuite):
 
         protected_settings = {
             "storageAccountName": storage_account_name,
-            "storageAccountKey": account_credential.get("account_key"),
+            "authenticationType": "SystemManagedIdentity"
         }
 
         extension_result = extension.create_or_update(
@@ -167,11 +170,11 @@ class AzurePerformanceDiagnostics(TestSuite):
             CentOs: [6, 7],
             Oracle: [6, 7],
             Debian: [8, 9, 10, 11],
-            Ubuntu: [14, 16, 18, 20],
+            Ubuntu: [14, 16, 18, 20, 22],
             Suse: [12, 15],
             SLES: [12, 15],
             AlmaLinux: [8],
-            CBLMariner: [2],
+            CBLMariner: [2, 3], #AzureLinux uses CBLMariner class
         }
 
         for distro in supported_major_versions:
