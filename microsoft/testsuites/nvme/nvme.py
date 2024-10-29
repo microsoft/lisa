@@ -205,7 +205,7 @@ class NvmeTestSuite(TestSuite):
 
             # 3. Create a 300 gb file 'data' using dd command in the partition.
             cmd_result = node.execute(
-                f"dd if=/dev/zero of={mount_point}/data bs=1G count=100",
+                f"dd if=/dev/zero of={mount_point}/data bs=1G count=200",
                 shell=True,
                 sudo=True,
             )
