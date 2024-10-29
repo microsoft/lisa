@@ -304,7 +304,7 @@ class TestResult:
                 if vm_size and len(vm_size.split(",")) > 1:
                     self.information["vmsize"] = "NotAssigned"
         result_message.information.update(self.information)
-        result_message.message = self.message[0:2048] if self.message else ""
+        result_message.message = self.message if self.message else ""
         result_message.name = self.runtime_data.metadata.name
         result_message.full_name = self.runtime_data.metadata.full_name
         result_message.suite_name = self.runtime_data.metadata.suite.name

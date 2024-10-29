@@ -45,7 +45,7 @@ class OSUTestSuite(TestSuite):
             This test case runs GPU/CPU MPI latency.
 
             Steps:
-            1. Install MVAPICH;
+            1. Install MVAPIH;
             2. Install OSU Micro-Benchmarks;
             3. Run GPU/CPU collective/latency tests in a single node.
 

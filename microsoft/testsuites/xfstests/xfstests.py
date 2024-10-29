@@ -6,7 +6,7 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Type, cast
 
 from assertpy import assert_that
-
+from datetime import datetime, timedelta
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
@@ -154,6 +154,37 @@ class Xfstests(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Git, Make]
 
+    def _convert_time(self, log_line: str) -> List[str]:
+        current_time = datetime.now()
+
+        # Read uptime from /proc/uptime
+        uptime_seconds = float(
+            self.node.execute("cat /proc/uptime", sudo=True, shell=True).stdout.split()[
+                0
+            ]
+        )
+
+        # Calculate boot time
+        boot_time = current_time - timedelta(seconds=uptime_seconds)
+        log_lines = log_line.splitlines()
+        new_log_lines = []
+        for line in log_lines:
+            # Extract the timestamp in seconds from each log line
+            if not line.startswith("> ["):
+                continue
+            timestamp_str = line.split("]")[0].split("[")[1]
+            timestamp_seconds = float(timestamp_str.strip())
+
+            # Calculate the actual log time by adding the timestamp to the boot time
+            log_time = boot_time + timedelta(seconds=timestamp_seconds)
+
+            # Format the timestamp to the desired format
+            formatted_time = log_time.strftime("[%a %b %d %H:%M:%S %Y]")
+
+            # Replace and print the modified log line
+            new_log_lines.append(f"{formatted_time} {line.split(']')[1].strip()}")
+        return new_log_lines
+
     def run_test(
         self,
         test_type: str,
@@ -162,25 +193,52 @@ class Xfstests(Tool):
         data_disk: str = "",
         timeout: int = 14400,
     ) -> None:
-        self.run_async(
-            f"-g {test_type}/quick -E exclude.txt  > xfstest.log 2>&1",
-            sudo=True,
-            shell=True,
-            force_run=True,
-            cwd=self.get_xfstests_path(),
-        )
-
-        pgrep = self.node.tools[Pgrep]
-        # this is the actual process name, when xfstests runs.
-        try:
-            pgrep.wait_processes("check", timeout=timeout)
-        finally:
-            self.check_test_results(
-                log_path=log_path,
-                test_type=test_type,
-                result=result,
-                data_disk=data_disk,
+        # xfs/001 xfs/002
+        dmesg_before = "/tmp/dmesg_before.log"
+        dmesg_after = "/tmp/dmesg_after.log"
+        results_dict = {}
+        for test_case in ["xfs/001", "xfs/002"]:
+            self.node.execute(f"dmesg > {dmesg_before}", sudo=True, shell=True)
+            self.run_async(
+                f"-s xfs -E exclude.txt  {test_case} > xfstest.log 2>&1",
+                sudo=True,
+                shell=True,
+                force_run=True,
+                cwd=self.get_xfstests_path(),
             )
+            pgrep = self.node.tools[Pgrep]
+            # this is the actual process name, when xfstests runs.
+            try:
+                pgrep.wait_processes("check", timeout=timeout)
+            finally:
+                self.node.execute(f"dmesg > {dmesg_after}", sudo=True, shell=True)
+                dmesg_diff = self.node.execute(
+                    f"diff {dmesg_before} {dmesg_after}", sudo=True, shell=True
+                )
+                converted_dmesg = self._convert_time(dmesg_diff.stdout)
+                cat = self.node.tools[Cat]
+                xfstests_log = cat.read(
+                    str(self.get_xfstests_path() / "xfstest.log"), force_run=True, sudo=True
+                )
+                # Store the final formatted output in results_dict
+                results_dict[test_case] = xfstests_log.splitlines() + converted_dmesg
+
+        result_str = ""
+        for test_case, dmesg_logs in results_dict.items():
+            result_str += f"{test_case}\n"  # Add the test case
+            for log_entry in dmesg_logs:
+                result_str += f"{log_entry}\n"  # Add each converted dmesg entry
+            result_str += "\n"  # Add a blank line between test cases for readability
+
+        # Output or use the result_str as needed
+        print(result_str)
+        raise LisaException(result_str)
+        self.check_test_results(
+            log_path=log_path,
+            test_type=test_type,
+            result=result,
+            data_disk=data_disk,
+        )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
