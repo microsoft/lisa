@@ -63,18 +63,18 @@ DPDK_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Debian)
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
             and bool(os.get_kernel_information().version >= "5.15.0")
             and os.is_package_in_repo("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Debian),
+            matcher=lambda os, arch=None: isinstance(os, Debian),  # type: ignore
             packages=["dpdk", "dpdk-dev"],
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Suse)
+            matcher=lambda os, arch=None: isinstance(os, Suse)  # type: ignore
             and bool(parse_version(os.information.release) == "15.5.0"),
             packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
@@ -82,13 +82,15 @@ DPDK_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
         OsPackageDependencies(
             # alma/rocky have started
             # including testpmd by default in 'dpdk'
-            matcher=lambda os, arch=None: isinstance(os, Fedora)
+            matcher=lambda os, arch=None: isinstance(os, Fedora)  # type: ignore
             and not os.is_package_in_repo("dpdk-devel"),
             packages=["dpdk"],
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, (Fedora, Suse)),
+            matcher=lambda os, arch=None: isinstance(  # type: ignore
+                os, (Fedora, Suse)
+            ),
             packages=["dpdk", "dpdk-devel"],
             stop_on_match=True,
         ),
@@ -99,7 +101,7 @@ DPDK_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
 DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
     requirements=[
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Ubuntu)
+            matcher=lambda os, arch=None: isinstance(os, Ubuntu)  # type: ignore
             and os.information.codename == "bionic",
             packages=[
                 "build-essential",
@@ -120,14 +122,14 @@ DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Debian)
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
             and bool(os.get_kernel_information().version >= "5.15.0")
             and os.is_package_in_repo("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
         ),
         # Install 32-bit dependencies if we're building for i386
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Debian)
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
             and arch == CpuArchitecture.I386,
             packages=[
                 "python3-pyelftools",
@@ -142,7 +144,7 @@ DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
             ],
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Debian),
+            matcher=lambda os, arch=None: isinstance(os, Debian),  # type: ignore
             packages=[
                 "build-essential",
                 "libnuma-dev",
@@ -154,7 +156,7 @@ DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, Suse),
+            matcher=lambda os, arch=None: isinstance(os, Suse),  # type: ignore
             packages=[
                 "psmisc",
                 "libnuma-devel",
@@ -165,7 +167,7 @@ DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, (Fedora)),
+            matcher=lambda os, arch=None: isinstance(os, (Fedora)),  # type: ignore
             packages=[
                 "psmisc",
                 "numactl-devel",

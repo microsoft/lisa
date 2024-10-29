@@ -297,7 +297,7 @@ class PackageManagerInstall(Installer):
         if not (isinstance(self._os, Posix) and self._check_if_installed()):
             return
         if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies:
+            for os_package_check in self._os_dependencies.requirements:
                 if (
                     os_package_check.matcher(self._os, self._arch)
                     and os_package_check.packages
@@ -313,8 +313,11 @@ class PackageManagerInstall(Installer):
         # For dpdk, pkg-manager install is only for 'dpdk' and 'dpdk-dev'
         # This will take too long if it's more than a few packages.
         if self._os_dependencies is not None:
-            for os_package_check in self._os_dependencies:
-                if os_package_check.matcher(self._os) and os_package_check.packages:
+            for os_package_check in self._os_dependencies.requirements:
+                if (
+                    os_package_check.matcher(self._os, self._arch)
+                    and os_package_check.packages
+                ):
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
                             return False

@@ -21,7 +21,7 @@ RDMA_CORE_MANA_DEFAULT_SOURCE = (
 RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
     [
         OsPackageDependencies(
-            matcher=lambda os, _arch=None: isinstance(os, Debian)
+            matcher=lambda os, _arch=None: isinstance(os, Debian)  # type: ignore
             # install linux-modules-extra-azure if it's available for mana_ib
             # older debian kernels won't have mana_ib packaged,
             # so skip the check on those kernels.
@@ -30,7 +30,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, (Debian))
+            matcher=lambda os, arch=None: isinstance(os, (Debian))  # type: ignore
             and arch == CpuArchitecture.I386,
             packages=[
                 "python3-pyelftools",
@@ -53,7 +53,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             ],
         ),
         OsPackageDependencies(
-            matcher=lambda os, arch=None: isinstance(os, (Debian))
+            matcher=lambda os, arch=None: isinstance(os, (Debian))  # type: ignore
             and arch == CpuArchitecture.I386,
             # Weirdly, I've run into errors trying to
             packages=[
@@ -62,7 +62,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, _arch=None: isinstance(os, Debian),
+            matcher=lambda os, _arch=None: isinstance(os, Debian),  # type: ignore
             packages=[
                 "cmake",
                 "libudev-dev",
@@ -83,7 +83,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda os, _arch=None: isinstance(os, Fedora),
+            matcher=lambda os, _arch=None: isinstance(os, Fedora),  # type: ignore
             packages=[
                 "cmake",
                 "libudev-devel",
@@ -120,7 +120,7 @@ RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
 RDMA_CORE_PACKAGE_DEPENDENCIES = DependencyInstaller(
     [
         OsPackageDependencies(
-            matcher=lambda os, _=None: isinstance(os, Debian)
+            matcher=lambda os, _=None: isinstance(os, Debian)  # type: ignore
             # install linux-modules-extra-azure if it's available for mana_ib
             # older debian kernels won't have mana_ib packaged,
             # so skip the check on those kernels.
@@ -129,19 +129,21 @@ RDMA_CORE_PACKAGE_DEPENDENCIES = DependencyInstaller(
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, _=None: isinstance(os, Debian),
+            matcher=lambda os, _=None: isinstance(os, Debian),  # type: ignore
             packages=["ibverbs-providers", "libibverbs-dev"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, _=None: isinstance(os, Suse),
+            matcher=lambda os, _=None: isinstance(os, Suse),  # type: ignore
             packages=["rdma-core-devel", "librdmacm1"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, _=None: isinstance(os, Fedora),
+            matcher=lambda os, _=None: isinstance(os, Fedora),  # type: ignore
             packages=["librdmacm-devel"],
         ),
         OsPackageDependencies(
-            matcher=lambda os, _=None: isinstance(os, (Fedora, Debian, Suse)),
+            matcher=lambda os, _=None: isinstance(  # type: ignore
+                os, (Fedora, Debian, Suse)
+            ),
             packages=["rdma-core"],
             stop_on_match=True,
         ),
