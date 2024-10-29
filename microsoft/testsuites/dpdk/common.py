@@ -17,7 +17,11 @@ from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
+# 32bit test relies on newer versions of DPDK.
+# Release candidates are not in stable, so use the github mirror.
 DPDK_32BIT_DEFAULT_BRANCH = "v24.11-rc1"
+# TODO: update these when v24.11 is released to stable.
+DPDK_32BIT_DEFAULT_SOURCE = "https://github.com/DPDK/dpdk.git"
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
@@ -332,9 +336,12 @@ def force_dpdk_default_source(
     if build_arch:
         variables["build_arch"] = build_arch
 
-    if build_arch == CpuArchitecture.I386 and not variables.get("dpdk_branch", None):
-        # assign a default branch with needed MANA commits for 32bit test
-        variables["dpdk_branch"] = DPDK_32BIT_DEFAULT_BRANCH
+    if build_arch == CpuArchitecture.I386:
+        if not variables.get("dpdk_branch", None):
+            # assign a default branch with needed MANA commits for 32bit test
+            variables["dpdk_branch"] = DPDK_32BIT_DEFAULT_BRANCH
+        if not variables.get("dpdk_source", None):
+            variables["dpdk_source"] = DPDK_32BIT_DEFAULT_SOURCE
 
     if not variables.get("dpdk_source", None):
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
