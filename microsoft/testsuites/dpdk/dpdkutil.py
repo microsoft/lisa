@@ -2,8 +2,9 @@ import itertools
 import time
 from collections import deque
 from decimal import Decimal
+from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -26,6 +27,7 @@ from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.testsuite import TestResult
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -43,7 +45,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
-from lisa.util.constants import SIGINT
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
@@ -102,13 +104,16 @@ class UnsupportedPackageVersionException(LisaException):
 
 # container class for test resources to be passed to run_testpmd_concurrent
 class DpdkTestResources:
-    def __init__(self, _node: Node, _testpmd: DpdkTestpmd) -> None:
+    def __init__(
+        self, _node: Node, _testpmd: DpdkTestpmd, _rdma_core: Installer
+    ) -> None:
         self.testpmd = _testpmd
         self.node = _node
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
         self.switch_sriov = True
+        self.rdma_core = _rdma_core
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -363,7 +368,7 @@ def initialize_node_resources(
         for extra_nic in extra_nics:
             do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
 
-    return DpdkTestResources(node, testpmd)
+    return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
@@ -486,6 +491,7 @@ def verify_dpdk_build(
     pmd: str,
     hugepage_size: HugePageSize,
     multiple_queues: bool = False,
+    result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     try:
@@ -511,7 +517,9 @@ def verify_dpdk_build(
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
-    return DpdkTestResources(node, testpmd)
+    if result is not None:
+        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
+    return test_kit
 
 
 def verify_dpdk_send_receive(
@@ -522,6 +530,7 @@ def verify_dpdk_send_receive(
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -543,8 +552,11 @@ def verify_dpdk_send_receive(
     )
 
     check_send_receive_compatibility(test_kits)
-
     sender, receiver = test_kits
+
+    # annotate test result before starting
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
@@ -599,7 +611,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    use_service_cores: int = 1,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -611,6 +623,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         HugePageSize.HUGE_2MB,
         use_service_cores=1,
         multiple_queues=True,
+        result=result,
     )
 
 
@@ -726,6 +739,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     pmd: str = "netvsc",
     force_single_queue: bool = False,
     is_perf_test: bool = False,
+    result: Optional[TestResult] = None,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -871,7 +885,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
-
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
@@ -1085,4 +1100,67 @@ def create_l3fwd_rules_files(
     )
 
 
-DPDK_VERSION_TO_RDMA_CORE_MAP = {"20.11": "46.1", "21.11": ""}
+# Device name match for LSPCI
+class NicType(Enum):
+    CX3 = "ConnectX-3"
+    CX4 = "ConnectX-4"
+    CX5 = "ConnectX-5"
+    MANA = "Device 00ba"
+
+
+# Short name for nic types
+NIC_SHORT_NAMES = {
+    NicType.CX3: "cx3",
+    NicType.CX4: "cx4",
+    NicType.CX5: "cx5",
+    NicType.MANA: "mana",
+}
+
+
+# Get the short name for the type of nic on a node
+def get_node_nic_short_name(node: Node) -> str:
+    devices = node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV)
+    if node.nics.is_mana_device_present():
+        return NIC_SHORT_NAMES[NicType.MANA]
+    for nic_name in [NicType.CX3, NicType.CX4, NicType.CX5]:
+        if any([str(nic_name) in x.device_id for x in devices]):
+            return NIC_SHORT_NAMES[nic_name]
+    # We assert much earlier to enforce that SRIOV is enabled,
+    # so we should never hit this unless someone is testing a new platform.
+    # Instead of asserting, just log that the short name was not found.
+    known_nic_types = ",".join(
+        map(str, [NicType.CX3, NicType.CX4, NicType.CX5, NicType.MANA])
+    )
+    found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
+    node.log.debug(
+        "Unknown NIC hardware was detected during DPDK test case. "
+        f"Expected one of: {known_nic_types}. Found {found_nic_types}. "
+    )
+    # this is just a function for annotating a result, so don't assert
+    # if there's
+    return found_nic_types
+
+
+# Add dpdk/rdma/nic info to dpdk test result
+# Enables rich reporting, coverage, and issue triage.
+def annotate_dpdk_test_result(
+    test_kit: DpdkTestResources, test_result: TestResult, log: Logger
+) -> None:
+    dpdk_version = None
+    rdma_version = None
+    nic_hw = None
+    try:
+        dpdk_version = test_kit.testpmd.get_dpdk_version()
+        test_result.information["dpdk_version"] = str(dpdk_version)
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
+    try:
+        rdma_version = test_kit.rdma_core.get_installed_version()
+        test_result.information["rdma_version"] = str(rdma_version)
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
+    try:
+        nic_hw = get_node_nic_short_name(test_kit.node)
+        test_result.information["nic_hw"] = nic_hw
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")

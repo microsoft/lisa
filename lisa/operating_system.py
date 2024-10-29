@@ -555,7 +555,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _get_version_info_from_named_regex_match(
         self, package_name: str, named_matches: Match[str]
     ) -> VersionInfo:
-        essential_matches = ["major", "minor", "build"]
+        essential_matches = ["major", "minor"]
 
         # verify all essential keys are in our match dict
         assert_that(
@@ -570,16 +570,17 @@ class Posix(OperatingSystem, BaseClassMixin):
             patch_match = "0"
         major_match = named_matches.group("major")
         minor_match = named_matches.group("minor")
-        build_match = named_matches.group("build")
         major, minor, patch = map(
             int,
             [major_match, minor_match, patch_match],
         )
         build_match = named_matches.group("build")
-        self._node.log.debug(
+        log_message = (
             f"Found {package_name} version "
-            f"{major_match}.{minor_match}.{patch_match}-{build_match}"
+            f"major:{major_match} minor:{minor_match} "
+            f"patch:{patch_match} build:{build_match}"
         )
+        self._node.log.debug(log_message)
         return VersionInfo(major, minor, patch, build=build_match)
 
     def _cache_and_return_version_info(
@@ -772,12 +773,16 @@ class Debian(Linux):
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
         r"Version: ([a-zA-Z0-9:_\-\.~+]+)\r?\n"  # version number group
     )
+    # ex: 3.10
+    # ex: 3.10.5-git
+    # ex: 3.10-5git3
+    # ex: 3.10.1-build3
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)[\-\.]"  # minor
-        r"(?P<patch>[0-9]+)"  # patch
-        r"(?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
         # '-' is added after minor and made optional before build
         # due to the formats like 23.11-1build3
     )
@@ -854,7 +859,7 @@ class Debian(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(
@@ -1997,9 +2002,9 @@ class Suse(Linux):
     _suse_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)\."  # minor
-        r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -2156,7 +2161,7 @@ class Suse(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(
