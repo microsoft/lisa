@@ -1122,15 +1122,15 @@ def get_node_nic_short_name(node: Node) -> str:
     devices = node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV)
     if node.nics.is_mana_device_present():
         return NIC_SHORT_NAMES[NicType.MANA]
-    for nic_name in [NicType.CX3, NicType.CX4, NicType.CX5]:
-        if any([str(nic_name) in x.device_id for x in devices]):
+    non_mana_nics = [NicType.CX3, NicType.CX4, NicType.CX5]
+    for nic_name in non_mana_nics:
+        if any([nic_name.value in x.device_info for x in devices]):
             return NIC_SHORT_NAMES[nic_name]
     # We assert much earlier to enforce that SRIOV is enabled,
     # so we should never hit this unless someone is testing a new platform.
     # Instead of asserting, just log that the short name was not found.
-    known_nic_types = ",".join(
-        map(str, [NicType.CX3, NicType.CX4, NicType.CX5, NicType.MANA])
-    )
+    short_names = map(lambda x: x.value, non_mana_nics)
+    known_nic_types = ",".join(short_names)
     found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
     node.log.debug(
         "Unknown NIC hardware was detected during DPDK test case. "
