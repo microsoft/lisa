@@ -1152,15 +1152,18 @@ def annotate_dpdk_test_result(
     try:
         dpdk_version = test_kit.testpmd.get_dpdk_version()
         test_result.information["dpdk_version"] = str(dpdk_version)
+        log.debug(f"Found dpdk version: {dpdk_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
         test_result.information["rdma_version"] = str(rdma_version)
+        log.debug(f"Found rdma version: {rdma_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
+        log.debug(f"Found nic version: {nic_hw}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
