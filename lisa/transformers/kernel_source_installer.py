@@ -348,6 +348,7 @@ class SourceInstaller(BaseInstaller):
                     "git",
                     "build-essential",
                     "bison",
+                    "cpio",
                     "flex",
                     "libelf-dev",
                     "libncurses5-dev",
@@ -355,6 +356,7 @@ class SourceInstaller(BaseInstaller):
                     "libssl-dev",
                     "bc",
                     "ccache",
+                    "zstd",
                 ]
             )
         elif isinstance(os, CBLMariner):
