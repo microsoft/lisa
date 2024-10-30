@@ -113,5 +113,20 @@ if [ -f "$MDATP_OPT_DIR/mdatp_onboard.json" ]; then
     EXIT_CODE=$EXIT_ONBOARD_INFO_FOUND
 fi
 
+# special log line if mdatp installed and reports it is onboarded
+MDATP_ORG_ID=$(\
+    sudo command -v mdatp \
+    && sudo mdatp health \
+    | grep --fixed-strings 'org_id:' \
+    | cut -f 2 -d ':' \
+    | tr -d '[:blank:][:punct:]' \
+)
+if [ -n "$MDATP_ORG_ID" ]; then
+    echo "$ERROR_MSG_HEADER" >&2
+    echo "ERROR: mdatp is installed and reports this device is onboarded:" >&2
+    sudo mdatp health >&2
+    EXIT_CODE=$EXIT_ONBOARD_INFO_FOUND
+fi
+
 # returns nonzero value if defender info is found
 exit $EXIT_CODE
