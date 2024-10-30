@@ -501,7 +501,9 @@ def verify_dpdk_build(
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
     testpmd = test_kit.testpmd
-
+    # annotate testpmd result
+    if result is not None:
+        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
     # grab a nic and run testpmd
     test_nic = node.nics.get_secondary_nic()
 
@@ -517,8 +519,7 @@ def verify_dpdk_build(
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
-    if result is not None:
-        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
+
     return test_kit
 
 
@@ -1141,6 +1142,12 @@ def get_node_nic_short_name(node: Node) -> str:
     return found_nic_types
 
 
+def _format_version_str(version: VersionInfo) -> str:
+    # get a smaller version string, we don't really care about build
+    major_minor_patch = [version.major, version.minor, version.patch]
+    return ".".join([str(x) for x in major_minor_patch if x is not None])
+
+
 # Add dpdk/rdma/nic info to dpdk test result
 # Enables rich reporting, coverage, and issue triage.
 def annotate_dpdk_test_result(
@@ -1151,19 +1158,19 @@ def annotate_dpdk_test_result(
     nic_hw = None
     try:
         dpdk_version = test_kit.testpmd.get_dpdk_version()
-        test_result.information["dpdk_version"] = str(dpdk_version)
-        log.debug(f"Found dpdk version: {dpdk_version}")
+        test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
+        log.debug(f"Adding dpdk version: {dpdk_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
-        test_result.information["rdma_version"] = str(rdma_version)
-        log.debug(f"Found rdma version: {rdma_version}")
+        test_result.information["rdma_version"] = _format_version_str(rdma_version)
+        log.debug(f"Adding rdma version: {rdma_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
-        log.debug(f"Found nic version: {nic_hw}")
+        log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
