@@ -115,8 +115,8 @@ fi
 
 # special log line if mdatp installed and reports it is onboarded
 MDATP_ORG_ID=$(\
-    sudo command -v mdatp \
-    && sudo mdatp health \
+    command -v mdatp \
+    && mdatp health \
     | grep --fixed-strings 'org_id:' \
     | cut -f 2 -d ':' \
     | tr -d '[:blank:][:punct:]' \
