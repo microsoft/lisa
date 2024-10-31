@@ -467,7 +467,9 @@ class Storage(TestSuite):
         """,
         priority=2,
         timeout=TIME_OUT,
-        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+        requirement=simple_requirement(
+            unsupported_os=[Windows, BSD], disk=DiskStandardSSDLRS()
+        ),
     )
     def verify_hot_add_disk_serial_random_lun_standard_ssd(
         self, log: Logger, node: Node
@@ -496,7 +498,9 @@ class Storage(TestSuite):
         """,
         priority=2,
         timeout=TIME_OUT,
-        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+        requirement=simple_requirement(
+            unsupported_os=[Windows, BSD], disk=DiskStandardSSDLRS()
+        ),
     )
     def verify_hot_add_disk_serial_random_lun_premium_ssd(
         self, log: Logger, node: Node
