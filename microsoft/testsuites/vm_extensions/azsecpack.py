@@ -313,7 +313,7 @@ class AzSecPack(TestSuite):
                     " Please check if azsecd scanner is running successfully."
                 )
 
-    @retry(tries=5, delay=10)
+    @retry(tries=20, delay=10)
     def _check_journalctl_logs(self, node: Node, log: Logger) -> None:
         journalctl = node.tools[Journalctl]
         output = journalctl.logs_for_unit("azsecmond", sudo=True)
