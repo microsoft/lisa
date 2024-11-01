@@ -225,7 +225,7 @@ class HvModule(TestSuite):
         result = node.execute(
             ("for i in $(seq 1 %i); do " % loop_count)
             + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
+            "done; sleep 1; ",
             # "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
             sudo=True,
             shell=True,
