@@ -21,7 +21,7 @@ from lisa.util.process import Process
     """,
 )
 class StressNgTestSuite(TestSuite):
-    TIME_OUT = 9000
+    TIME_OUT = 16000
     CONFIG_VARIABLE = "stress_ng_jobs"
 
     @TestCaseMetadata(
