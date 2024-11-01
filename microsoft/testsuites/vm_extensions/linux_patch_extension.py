@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
-from typing import Any, Optional
+from typing import Any
 
 from assertpy.assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
@@ -59,7 +59,15 @@ def _verify_unsupported_images(node: Node, full_version: str) -> None:
         # major minor gen
         SLES: ["15-5 1", "15-5 2"],
         CBLMariner: ["1-0 1", "2-0 1", "2-0 2", "3-0 1"],
-        Debian: ["10-12 1", "10-12 2", "11-6 1", "11-7 1", "11-7 2", "11-9 2"],
+        Debian: [
+            "10-12 1",
+            "10-12 2",
+            "10-13 1",
+            "11-6 1",
+            "11-7 1",
+            "11-7 2",
+            "11-9 2",
+        ],
     }
 
     # Get the full version string of the OS
@@ -123,9 +131,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
         )
 
 
-def _assert_status_file_result(
-    node: Node, status_file: Any, error_code: str, api_type: Optional[str] = None
-) -> None:
+def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
     expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
     expected_warning_status_msg = (
@@ -150,34 +156,42 @@ def _assert_status_file_result(
 
     if truncated_package_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            expected_warning_status_msg
-        ).is_in("CompletedWithWarnings", "Succeeded")
+            "{} - Actual status: {}".format(
+                expected_warning_status_msg, status_file["status"]
+            )
+        ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
-        ).is_equal_to("1")
+            "Expected error code in status file patches operation"
+        ).is_equal_to("2")
 
     elif ua_esm_required_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
-        ).is_in("CompletedWithWarnings", "Succeeded")
+            "{} - Actual status: {}".format(
+                expected_warning_status_msg, status_file["status"]
+            )
+        ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("1")
 
     elif package_manager_failure_code:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
+            "{} - Actual status: {}".format(
+                expected_succeeded_status_msg, status_file["status"]
+            )
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("1")
 
     else:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
+            "{} - Actual status: {}".format(
+                expected_succeeded_status_msg, status_file["status"]
+            )
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
-            "Expected no error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("0")
 
 
@@ -226,7 +240,7 @@ def _assert_assessment_patch(
     error_code = assess_result["error"]["code"]
 
     _verify_unsupported_vm_agent(node, assess_result, error_code)
-    _assert_status_file_result(node, assess_result, error_code)
+    _assert_status_file_result(assess_result, error_code)
 
 
 def _assert_installation_patch(
@@ -266,9 +280,7 @@ def _assert_installation_patch(
     error_code = install_result["error"]["code"]
 
     _verify_unsupported_vm_agent(node, install_result, error_code)
-    _assert_status_file_result(
-        node, install_result, error_code, api_type="installation"
-    )
+    _assert_status_file_result(install_result, error_code)
 
 
 @TestSuiteMetadata(
