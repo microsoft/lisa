@@ -38,7 +38,7 @@ def _verify_supported_arm64_images(
         Ubuntu: ["20-4 2"],
     }
 
-    if arch != "aarch64":
+    if arch is None or arch != "aarch64":
         return
 
     for distro in supported_versions_arm64:
@@ -345,7 +345,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         }
         # Get the full version string and architecture of the OS
         full_version = _get_os_full_version(node)
-        arch = node.os.get_kernel_information().hardware_platform
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
 
         _verify_supported_arm64_images(node, log, full_version, arch)
         _verify_unsupported_images(node, full_version)
