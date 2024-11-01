@@ -15,7 +15,15 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Oracle, Ubuntu
+from lisa.operating_system import (
+    BSD,
+    SLES,
+    CBLMariner,
+    CentOs,
+    Debian,
+    Oracle,
+    Ubuntu,
+)
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -126,14 +134,19 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
         raise SkippedException(
             UnsupportedDistroException(
                 node.os,
-                "Required walinuxagent or waagent service is not running on this vm",
+                (
+                    "Required walinuxagent or waagent service is not running "
+                    "on this vm"
+                ),
             )
         )
 
 
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
-    expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
+    expected_succeeded_status_msg = (
+        "Expected the status file status to be Succeeded"
+    )
     expected_warning_status_msg = (
         "Expected the status file status to be CompletedWithWarnings"
     )
@@ -206,13 +219,18 @@ def _verify_details_code(status_file: Any, code: str) -> bool:
 def _unsupported_image_exception_msg(node: Node) -> None:
     raise SkippedException(
         UnsupportedDistroException(
-            node.os, "Linux Patch Extension doesn't support this Distro version."
+            node.os,
+            "Linux Patch Extension doesn't support this Distro version."
         )
     )
 
 
 def _assert_assessment_patch(
-    node: Node, log: Logger, compute_client: Any, resource_group_name: Any, vm_name: Any
+    node: Node,
+    log: Logger,
+    compute_client: Any,
+    resource_group_name: Any,
+    vm_name: Any
 ) -> None:
     try:
         log.debug("Initiate the API call for the assessment patches.")
@@ -228,7 +246,8 @@ def _assert_assessment_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension repository",
+                "CPU Architecture 'arm64' was not found in the extension "
+                "repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -268,7 +287,8 @@ def _assert_installation_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension repository",
+                "CPU Architecture 'arm64' was not found in the extension "
+                "repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -306,11 +326,14 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
+        compute_client, resource_group_name, vm_name = _set_up_vm(
+            node, environment
+        )
 
-        # Get the full version string and architecture of the OS
+        # Get the full version string and architecture
+        # of the OS
         full_version = _get_os_full_version(node)
-        arch = node.os.get_kernel_information().hardware_platform # type: ignore
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
 
         _verify_supported_arm64_images(node, log, full_version, arch)
         _verify_unsupported_images(node, full_version)
@@ -324,8 +347,9 @@ class LinuxPatchExtensionBVT(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Verify walinuxagent or waagent service is running on vm. Perform install
-        patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension creation in vm.
+        Verify walinuxagent or waagent service is running on vm. Perform
+        install patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension
+        creation in vm.
         Verify status file response for validity.
         """,
         priority=3,
@@ -334,13 +358,18 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_install_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
+        compute_client, resource_group_name, vm_name = _set_up_vm(
+            node, environment
+        )
         install_patches_input = {
             "maximumDuration": "PT4H",
             "rebootSetting": "IfRequired",
             "linuxParameters": {
                 "classificationsToInclude": ["Security", "Critical"],
-                "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
+                "packageNameMasksToInclude": [
+                    "ca-certificates*",
+                    "php7-openssl*"
+                ],
             },
         }
         # Get the full version string and architecture of the OS
