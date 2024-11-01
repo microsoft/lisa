@@ -32,10 +32,10 @@ def _verify_supported_arm64_images(
 ) -> None:
     # LPE current supported images for arm64
     supported_versions_arm64 = {
-        # major minor gen
-        CentOs: ["7-9 2"],
-        Oracle: ["8-10 2", "9-4 2"],
-        Ubuntu: ["20-4 2"],
+        # major.minor.gen
+        CentOs: ["7.9.2"],
+        Oracle: ["8.10.2", "9.4.2"],
+        Ubuntu: ["20.4.2"],
     }
 
     if arch is None or arch != "aarch64":
@@ -57,16 +57,16 @@ def _verify_unsupported_images(node: Node, full_version: str) -> None:
     # Unsupported detailed versions for x86_64
     unsupported_versions_x86_64 = {
         # major minor gen
-        SLES: ["15-5 1", "15-5 2"],
-        CBLMariner: ["1-0 1", "2-0 1", "2-0 2", "3-0 1"],
+        SLES: ["15.5.1", "15.5.2"],
+        CBLMariner: ["1.0.1", "2.0.1", "2.0.2", "3.0.1"],
         Debian: [
-            "10-12 1",
-            "10-12 2",
-            "10-13 1",
-            "11-6 1",
-            "11-7 1",
-            "11-7 2",
-            "11-9 2",
+            "10.12.1",
+            "10.12.2",
+            "10.13.1",
+            "11.6.1",
+            "11.7.1",
+            "11.7.2",
+            "11.9.2",
         ],
     }
 
@@ -83,8 +83,8 @@ def _verify_unsupported_images(node: Node, full_version: str) -> None:
 
 def _get_os_full_version(node: Node) -> str:
     return (
-        f"{node.os.information.version.major}-"
-        f"{node.os.information.version.minor} "
+        f"{node.os.information.version.major}."
+        f"{node.os.information.version.minor}."
         f"{node.tools[VmGeneration].get_generation()}"
     )
 
@@ -310,7 +310,7 @@ class LinuxPatchExtensionBVT(TestSuite):
 
         # Get the full version string and architecture of the OS
         full_version = _get_os_full_version(node)
-        arch = node.os.get_kernel_information().hardware_platform
+        arch = node.os.get_kernel_information().hardware_platform # type: ignore
 
         _verify_supported_arm64_images(node, log, full_version, arch)
         _verify_unsupported_images(node, full_version)
