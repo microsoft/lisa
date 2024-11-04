@@ -23,7 +23,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }} .
           docker tag ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }} ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:latest
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:latest
