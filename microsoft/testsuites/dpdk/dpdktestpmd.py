@@ -199,6 +199,7 @@ class DpdkSourceInstall(Installer):
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
         "multi_process/symmetric_mp",
+        "devname",
     ]
 
     def _check_if_installed(self) -> bool:
@@ -256,14 +257,21 @@ class DpdkSourceInstall(Installer):
             "libdpdk", update_cached=True
         )
 
+    __devname_files = ["main.c", "Makefile", "meson.build"]
+
     def _install(self) -> None:
         super()._install()
-        _ = self._node.tools[Git].clone(
-            url="https://github.com/mcgov/devname.git",
-            cwd=self.asset_path.joinpath("examples"),
-            dir_name="devname",
+        # copy devname application into the examples directory
+        devname_local_folder = PurePath(__file__).parent.joinpath("devname")
+        self._node.shell.mkdir(
+            self.asset_path.joinpath("examples/devname"), parents=False, exist_ok=False
         )
-        self._sample_applications += ["devname"]
+        for file in self.__devname_files:
+            self._node.shell.copy(
+                devname_local_folder.joinpath(file),
+                self.asset_path.joinpath(f"examples/devname/{file}"),
+            )
+        # stringify the example app list
         if self._sample_applications:
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
