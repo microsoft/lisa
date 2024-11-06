@@ -136,9 +136,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
-    expected_succeeded_status_msg = (
-        "Expected the status file status to be Succeeded"
-    )
+    expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
     expected_warning_status_msg = (
         "Expected the status file status to be CompletedWithWarnings"
     )
@@ -211,18 +209,13 @@ def _verify_details_code(status_file: Any, code: str) -> bool:
 def _unsupported_image_exception_msg(node: Node) -> None:
     raise SkippedException(
         UnsupportedDistroException(
-            node.os,
-            "Linux Patch Extension doesn't support this Distro version."
+            node.os, "Linux Patch Extension doesn't support this Distro version."
         )
     )
 
 
 def _assert_assessment_patch(
-    node: Node,
-    log: Logger,
-    compute_client: Any,
-    resource_group_name: Any,
-    vm_name: Any
+    node: Node, log: Logger, compute_client: Any, resource_group_name: Any, vm_name: Any
 ) -> None:
     try:
         log.debug("Initiate the API call for the assessment patches.")
@@ -238,8 +231,7 @@ def _assert_assessment_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension "
-                "repository",
+                "CPU Architecture 'arm64' was not found in the extension " "repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -279,8 +271,7 @@ def _assert_installation_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension "
-                "repository",
+                "CPU Architecture 'arm64' was not found in the extension " "repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -318,9 +309,7 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(
-            node, environment
-        )
+        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
 
         # Get the full version string and architecture
         # of the OS
@@ -350,18 +339,13 @@ class LinuxPatchExtensionBVT(TestSuite):
     def verify_vm_install_patches(
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
-        compute_client, resource_group_name, vm_name = _set_up_vm(
-            node, environment
-        )
+        compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
         install_patches_input = {
             "maximumDuration": "PT4H",
             "rebootSetting": "IfRequired",
             "linuxParameters": {
                 "classificationsToInclude": ["Security", "Critical"],
-                "packageNameMasksToInclude": [
-                    "ca-certificates*",
-                    "php7-openssl*"
-                ],
+                "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
             },
         }
         # Get the full version string and architecture of the OS
