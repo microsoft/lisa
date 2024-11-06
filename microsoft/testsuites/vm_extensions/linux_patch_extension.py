@@ -137,7 +137,9 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
     expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
-    expected_warning_status_msg = "Expected the status file status to be CompletedWithWarnings"
+    expected_warning_status_msg = (
+        "Expected the status file status to be CompletedWithWarnings"
+    )
     error_details_not_empty = len(status_file["error"]["details"]) > 0
     truncated_package_code = (
         _verify_details_code(status_file, "PACKAGE_LIST_TRUNCATED")
@@ -157,9 +159,7 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
 
     if truncated_package_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            "{} - Actual status: {}".format(
-                expected_warning_status_msg, status_file["status"]
-            )
+            f"{expected_warning_status_msg} - Actual status: {status_file['status']}"
         ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
             "Expected error code in status file patches operation"
@@ -167,9 +167,7 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
 
     elif ua_esm_required_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            "{} - Actual status: {}".format(
-                expected_warning_status_msg, status_file["status"]
-            )
+            f"{expected_warning_status_msg} - Actual status: {status_file['status']}"
         ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
             "Expected error code in status file patches operation"
@@ -177,9 +175,7 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
 
     elif package_manager_failure_code:
         assert_that(status_file["status"]).described_as(
-            "{} - Actual status: {}".format(
-                expected_succeeded_status_msg, status_file["status"]
-            )
+            f"{expected_succeeded_status_msg} - Actual status: {status_file['status']}"
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
             "Expected error code in status file patches operation"
@@ -187,9 +183,7 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
 
     else:
         assert_that(status_file["status"]).described_as(
-            "{} - Actual status: {}".format(
-                expected_succeeded_status_msg, status_file["status"]
-            )
+            f"{expected_succeeded_status_msg} - Actual status: {status_file['status']}"
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
             "Expected error code in status file patches operation"
