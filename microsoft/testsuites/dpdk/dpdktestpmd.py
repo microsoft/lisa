@@ -13,8 +13,9 @@ from lisa.base_tools import Mv
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import Disk
 from lisa.nic import NicInfo
-from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Suse, Ubuntu, Redhat
 from lisa.tools import (
+    Cat,
     Chmod,
     Dmesg,
     Echo,
@@ -325,6 +326,7 @@ class DpdkTestpmd(Tool):
         ).is_greater_than(0)
 
         return (
+            f"env LD_LIBRARY_PATH=/usr/local/lib64 "
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} {log_level_args}"
             f" -- --forward-mode={mode} "
@@ -488,6 +490,8 @@ class DpdkTestpmd(Tool):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        # do not update kernel on backporting
+        self.update_kernel = kwargs.pop("update_kernel", True)
         # set source args for builds if needed, first for dpdk
         self.dpdk_build_path: Optional[PurePath] = None
         self._dpdk_source: str = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
@@ -499,6 +503,7 @@ class DpdkTestpmd(Tool):
             node=self.node,
             rdma_core_source=rdma_core_source,
             rdma_core_ref=rdma_core_ref,
+            update_kernel=self.update_kernel,
         )
         self._sample_apps_to_build = kwargs.pop("sample_apps", list())
         self._dpdk_version_info = VersionInfo(0, 0)
@@ -531,7 +536,8 @@ class DpdkTestpmd(Tool):
         )
 
         # if dpdk is already installed, find the binary and check the version
-        if self.find_testpmd_binary(assert_on_fail=False):
+        if self.find_testpmd_binary(assert_on_fail=False) or \
+           self.find_testpmd_binary(check_path='/usr/local/bin', assert_on_fail=False):
             pkgconfig = self.node.tools[Pkgconfig]
             if pkgconfig.package_info_exists(
                 self._dpdk_lib_name,
@@ -592,6 +598,13 @@ class DpdkTestpmd(Tool):
         else:
             self._backport_repo_args = []
 
+    def _fix_mirrorlist_to_vault(self, node) -> None:
+        node.execute("""sed -i '
+                    s/^mirrorlist=/#mirrorlist=/;
+                    s/^#[ ]*baseurl=/baseurl=/;
+                    /^baseurl=/ s/mirror/vault/;
+                ' /etc/yum.repos.d/CentOS-*.repo""", shell=True, sudo=True)
+
     def _install(self) -> bool:
         self._testpmd_output_after_reenable = ""
         self._testpmd_output_before_rescind = ""
@@ -609,6 +622,33 @@ class DpdkTestpmd(Tool):
                     distro, "DPDK tests not implemented for this OS."
                 )
             )
+
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            self._fix_mirrorlist_to_vault(node)
+            node.os.install_packages(["centos-release-scl"])
+
+            # Fix CentOS-SCL's paths to mirrorlist
+            self._fix_mirrorlist_to_vault(node)
+            devtoolset_version = 8
+            devtoolset_pkg = f"devtoolset-{devtoolset_version}"
+            node.os.install_packages([devtoolset_pkg])
+            links = {
+                    "gcc": ("gcc", "cc"),
+                    "g++": ("g++", "c++"),
+            }
+            for binary in [alias
+                         for aliases in links.values()
+                         for alias in aliases
+                    ]:
+                node.tools[Mv].move(f"/bin/{binary}", f"/bin/{binary}_back",
+                        overwrite=True, sudo=True, ignore_error=None)
+            devtoolset_binpath = f"/opt/rh/{devtoolset_pkg}/root/bin"
+            for binary, aliases in links.items():
+                for alias in aliases:
+                    result = node.execute(
+                        f"ln -s {devtoolset_binpath}/{binary} /bin/{alias}", sudo=True
+                    )
+                    result.assert_exit_code()
 
         # before doing anything: determine if backport repo needs to be enabled
         self._set_backport_repo_args()
@@ -672,11 +712,11 @@ class DpdkTestpmd(Tool):
             if (
                 isinstance(distro, Debian)
                 or isinstance(distro, (Fedora, Suse))
-                and distro.package_exists("dpdk")
             ):
                 # if not using package manager and dpdk is already installed, uninstall it
                 # in preperation for source build
-                distro.uninstall_packages("dpdk")
+                if distro.package_exists("dpdk"):
+                    distro.uninstall_packages("dpdk")
             else:
                 raise NotImplementedError(
                     "Dpdk package names are missing in dpdktestpmd.install"
@@ -756,11 +796,20 @@ class DpdkTestpmd(Tool):
         # add mana driver to build if needed
         if self.vf_helper.is_mana():
             drivers_to_build += ",net/mana"
-        # shrink build
-        build_flags += [
-            f"-Denable_drivers={drivers_to_build}",
-            "-Denable_apps=app/test-pmd",
-        ]
+
+        # shrink build, if supported
+        cat = node.tools[Cat]
+        meson_options_content = cat.run("meson_options.txt",
+                cwd=self.dpdk_path, shell=True).stdout
+        if "enable_drivers" in meson_options_content:
+            build_flags += [
+                f"-Denable_drivers={drivers_to_build}"
+            ]
+
+        if "enable_apps" in meson_options_content:
+            build_flags += [
+                "-Denable_apps=app/test-pmd"
+            ]
 
         node.execute(
             f"meson setup {' '.join(build_flags)} build",
@@ -861,7 +910,7 @@ class DpdkTestpmd(Tool):
         if isinstance(self.node.os, (Ubuntu, Suse)):
             # Ubuntu shouldn't need any special casing, skip to loading rdma/ib
             pass
-        elif isinstance(self.node.os, Debian):
+        elif self.update_kernel and isinstance(self.node.os, Debian):
             # NOTE: debian buster doesn't include rdma and ib drivers
             # on 5.4 specifically for linux-image-cloud:
             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1012639
@@ -960,8 +1009,9 @@ class DpdkTestpmd(Tool):
             return  # appease the type checker
 
         # apply update to latest first
-        ubuntu.update_packages("linux-azure")
-        node.reboot()
+        if self.update_kernel:
+            ubuntu.update_packages("linux-azure")
+            node.reboot()
         if ubuntu.information.version < "18.4.0":
             raise SkippedException(
                 f"Ubuntu {str(ubuntu.information.version)} is not supported. "
@@ -980,9 +1030,8 @@ class DpdkTestpmd(Tool):
                 extra_args=self._backport_repo_args,
             )
             # MANA tests use linux-modules-extra-azure, install if it's available.
-            if self.vf_helper.is_mana() and ubuntu.is_package_in_repo(
-                "linux-modules-extra-azure"
-            ):
+            if self.update_kernel and self.vf_helper.is_mana() and \
+                    ubuntu.is_package_in_repo("linux-modules-extra-azure"):
                 ubuntu.install_packages("linux-modules-extra-azure")
 
     def _install_fedora_dependencies(self) -> None:
@@ -997,12 +1046,13 @@ class DpdkTestpmd(Tool):
 
         # DPDK is very sensitive to rdma-core/kernel mismatches
         # update to latest kernel before installing dependencies
-        rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
-        node.reboot()
-        try:
-            rhel.install_packages("kernel-devel")
-        except MissingPackagesException:
-            node.log.debug("Fedora: kernel-devel not found, attempting to continue")
+        if self.update_kernel:
+            rhel.install_packages(["kernel", "kernel-modules-extra", "kernel-headers"])
+            node.reboot()
+            try:
+                rhel.install_packages("kernel-devel")
+            except MissingPackagesException:
+                node.log.debug("Fedora: kernel-devel not found, attempting to continue")
 
         if rhel.information.version.major == 7:
             # Add packages for rhel7
@@ -1015,6 +1065,7 @@ class DpdkTestpmd(Tool):
 
         rhel.group_install_packages("Development Tools")
         rhel.install_packages(self._fedora_packages)
+        rhel.uninstall_packages(["doxygen"])
 
         # ensure RDMA service is started if present.
 

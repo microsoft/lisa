@@ -14,7 +14,8 @@ from lisa.util import LisaException, SkippedException
 
 
 class RdmaCoreManager:
-    def __init__(self, node: Node, rdma_core_source: str, rdma_core_ref: str) -> None:
+    def __init__(self, node: Node, rdma_core_source: str, rdma_core_ref: str,
+            update_kernel: bool) -> None:
         self.is_installed_from_source = False
         self.node = node
         self._rdma_core_source = rdma_core_source
@@ -26,6 +27,8 @@ class RdmaCoreManager:
             build_location = node.get_working_path_with_required_space(10)
         assert build_location, "Could not find a location to build rdma-core"
         self._build_location = node.get_pure_path(build_location).joinpath("rdma")
+
+        self.update_kernel = update_kernel
 
     def get_missing_distro_packages(self) -> str:
         distro = self.node.os
@@ -186,13 +189,14 @@ class RdmaCoreManager:
                     "libbpf-devel",
                 ]
             )
-            distro.install_packages(
-                [
-                    "kernel-devel",
-                    "kernel-modules-extra",
-                    "kernel-headers",
-                ]
-            )
+            if self.update_kernel:
+                distro.install_packages(
+                    [
+                        "kernel-devel",
+                        "kernel-modules-extra",
+                        "kernel-headers",
+                    ]
+                )
         else:
             # no-op, throw for invalid distro is before this function
             return
