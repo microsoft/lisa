@@ -663,7 +663,7 @@ class KdumpCBLMariner(KdumpBase):
                 "kdump will not work well on high memory Mariner-2.0 systems"
             )
 
-        # Update forc_rebuild before changing the dump path. Otherwise the default 
+        # Update forc_rebuild before changing the dump path. Otherwise the default
         # initrd will not honor the path
         kdump_conf = "/etc/kdump.conf"
         sed = self.node.tools[Sed]
