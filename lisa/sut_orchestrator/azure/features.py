@@ -1638,6 +1638,20 @@ class Disk(AzureFeatureMixin, features.Disk):
     # /dev/nvme0n1p15 -> /dev/nvme0
     NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
 
+    # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 0 (pass0,da0)
+    # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 1 (pass1,da1)
+    # <Msft Virtual DVD-ROM 1.0>         at scbus0 target 0 lun 2 (pass2,cd0)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 0 (da6,pass7)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 1 (da9,pass10)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 2 (da7,pass8)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 3 (da8,pass9)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 4 (da5,pass6)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 6 (da4,pass5)
+    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 7 (da3,pass4)
+    LUN_PATTERN_BSD = re.compile(
+        r"at\s+scbus1\s+target\s+\d+\s+lun\s+(\d+)\s+\((da\d+)", re.M
+    )
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1707,18 +1721,32 @@ class Disk(AzureFeatureMixin, features.Disk):
     def get_luns(self) -> Dict[str, int]:
         # disk_controller_type == SCSI
         # get azure scsi attached disks
-        azure_scsi_disks = self._get_scsi_data_disks()
         device_luns = {}
-        lun_number_pattern = re.compile(r"[0-9]+$", re.M)
-        for disk in azure_scsi_disks:
-            # /dev/disk/azure/scsi1/lun20 -> 20
-            device_lun = int(get_matched_str(disk, lun_number_pattern))
-            # readlink -f /dev/disk/azure/scsi1/lun0
-            # /dev/sdc
+        if isinstance(self._node.os, BSD):
             cmd_result = self._node.execute(
-                f"readlink -f {disk}", shell=True, sudo=True
+                "camcontrol devlist",
+                shell=True,
+                sudo=True,
             )
-            device_luns.update({cmd_result.stdout: device_lun})
+            for line in cmd_result.stdout.splitlines():
+                match = self.LUN_PATTERN_BSD.search(line)
+                if match:
+                    lun_number = int(match.group(1))
+                    device_name = match.group(2)
+                    device_luns.update({device_name: lun_number})
+        else:
+            azure_scsi_disks = self._get_scsi_data_disks()
+            device_luns = {}
+            lun_number_pattern = re.compile(r"[0-9]+$", re.M)
+            for disk in azure_scsi_disks:
+                # /dev/disk/azure/scsi1/lun20 -> 20
+                device_lun = int(get_matched_str(disk, lun_number_pattern))
+                # readlink -f /dev/disk/azure/scsi1/lun0
+                # /dev/sdc
+                cmd_result = self._node.execute(
+                    f"readlink -f {disk}", shell=True, sudo=True
+                )
+                device_luns.update({cmd_result.stdout: device_lun})
         return device_luns
 
     def get_raw_data_disks(self) -> List[str]:
