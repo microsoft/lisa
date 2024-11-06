@@ -18,7 +18,7 @@ from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
 
@@ -608,26 +608,6 @@ class KdumpCBLMariner(KdumpBase):
         """
         This method enables the kdump service.
         """
-        kdump_conf = "/etc/kdump.conf"
-        sed = self.node.tools[Sed]
-        # Remove force_no_rebuild=1 if present
-        sed.substitute(
-            match_lines="^force_no_rebuild",
-            regexp="force_no_rebuild",
-            replacement="#force_no_rebuild",
-            file=kdump_conf,
-            sudo=True,
-        )
-        # Set mariner_2_initrd_use_suffix. Otherwise it will replace
-        # the original initrd file which will cause a reboot-loop
-        sed.substitute(
-            match_lines="mariner_2_initrd_use_suffix",
-            regexp="#mariner_2_initrd_use_suffix",
-            replacement="mariner_2_initrd_use_suffix",
-            file=kdump_conf,
-            sudo=True,
-        )
-
         # Check for sufficient core numbers
         self.ensure_nr_cpus()
 
@@ -669,6 +649,42 @@ class KdumpCBLMariner(KdumpBase):
         If the system memory size is bigger than 1T, the default size of /var/crash
         may not be enough to store the dump file, need to change the dump path
         """
+
+        """
+        path option is not supported by default initrd. Regenerated initrd will not
+        boot properly in ARM64. So, skip the test if it is ARM64 and Mariner-2.0
+        """
+        if (
+            self.node.os.information.version.major == 2
+            and self.node.os.get_kernel_information().hardware_platform == "aarch64"
+        ):
+            raise SkippedException(
+                "path option is not supported in Mariner-2.0 for ARM64. "
+                "kdump will not work well on high memory Mariner-2.0 systems"
+            )
+
+        # Update forc_rebuild before changing the dump path. Otherwise the default 
+        # initrd will not honor the path
+        kdump_conf = "/etc/kdump.conf"
+        sed = self.node.tools[Sed]
+        # Remove force_no_rebuild=1 if present
+        sed.substitute(
+            match_lines="^force_no_rebuild",
+            regexp="force_no_rebuild",
+            replacement="#force_no_rebuild",
+            file=kdump_conf,
+            sudo=True,
+        )
+        # Set mariner_2_initrd_use_suffix. Otherwise it will replace
+        # the original initrd file which will cause a reboot-loop
+        sed.substitute(
+            match_lines="mariner_2_initrd_use_suffix",
+            regexp="#mariner_2_initrd_use_suffix",
+            replacement="mariner_2_initrd_use_suffix",
+            file=kdump_conf,
+            sudo=True,
+        )
+
         self.node.execute(
             f"mkdir -p {dump_path}",
             expected_exit_code=0,

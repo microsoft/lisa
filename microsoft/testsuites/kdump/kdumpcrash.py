@@ -25,7 +25,7 @@ from lisa import (
 from lisa.features import Disk, SerialConsole
 from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Redhat, Windows
-from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.tools import Df, Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
@@ -270,19 +270,12 @@ class KdumpCrash(TestSuite):
 
     def _is_system_with_more_memory(self, node: Node) -> bool:
         free = node.tools[Free]
-        total_memory = free.get_total_memory()
-        # Return true when system memory is 10 GiB higher than the OS disk size
-        if "T" in total_memory or (
-            "G" in total_memory
-            and (
-                node.capability.disk
-                and isinstance(node.capability.disk.os_disk_size, int)
-                and (
-                    float(total_memory.strip("G"))
-                    > (node.capability.disk.os_disk_size - 10)
-                )
-            )
-        ):
+        total_memory_in_gb = free.get_total_memory_gb()
+
+        df = node.tools[Df]
+        available_space_in_os_disk = df.get_filesystem_available_space("/", True)
+
+        if total_memory_in_gb > available_space_in_os_disk:
             return True
         return False
 
@@ -300,8 +293,8 @@ class KdumpCrash(TestSuite):
             self.crash_kernel = "auto"
 
         if self._is_system_with_more_memory(node):
-            # System memory is more os disk size, need to change the dump path
-            # and increase the timeout duration
+            # As system memory is more than free os disk size, need to
+            # change the dump path and increase the timeout duration
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
