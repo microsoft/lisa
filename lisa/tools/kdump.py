@@ -648,14 +648,13 @@ class KdumpCBLMariner(KdumpBase):
         """
         If the system memory size is bigger than 1T, the default size of /var/crash
         may not be enough to store the dump file, need to change the dump path
-        """
 
-        """
         path option is not supported by default initrd. Regenerated initrd will not
         boot properly in ARM64. So, skip the test if it is ARM64 and Mariner-2.0
         """
         if (
             self.node.os.information.version.major == 2
+            and isinstance(self.node.os, Posix)
             and self.node.os.get_kernel_information().hardware_platform == "aarch64"
         ):
             raise SkippedException(
