@@ -28,7 +28,12 @@ from lisa.tools import (
     Timeout,
     Wget,
 )
-from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    UnsupportedDistroException,
+    parse_version,
+)
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
@@ -66,7 +71,7 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Suse)
-            and float(x.information.release) == 15.5,
+            and bool(parse_version(x.information.release) == "15.5.0"),
             packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
         ),
@@ -172,13 +177,17 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 
     def get_installed_version(self) -> VersionInfo:
         package_name = (
-            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+            "dpdk22"
+            if parse_version(self._os.information.release) == "15.5.0"
+            else "dpdk"
         )
         return self._os.get_package_information(package_name, use_cached=False)
 
     def _check_if_installed(self) -> bool:
         package_name = (
-            "dpdk22" if float(self._os.information.release) == 15.5 else "dpdk"
+            "dpdk22"
+            if parse_version(self._os.information.release) == "15.5.0"
+            else "dpdk"
         )
         return self._os.package_exists(package_name)
 
@@ -351,52 +360,6 @@ class DpdkTestpmd(Tool):
             return "testpmd"
         return self._testpmd_install_path
 
-    _ubuntu_packages_1804 = [
-        "build-essential",
-        "libmnl-dev",
-        "libelf-dev",
-        "meson",
-        "libnuma-dev",
-        "dpkg-dev",
-        "pkg-config",
-        "python3-pip",
-        "python3-pyelftools",
-        "python-pyelftools",
-        # 18.04 doesn't need linux-modules-extra-azure
-        # since it will never have MANA support
-    ]
-
-    _ubuntu_packages_2004 = [
-        "build-essential",
-        "libnuma-dev",
-        "libmnl-dev",
-        "meson",
-        "ninja-build",
-        "python3-pyelftools",
-        "libelf-dev",
-        "pkg-config",
-    ]
-
-    # these are the same at the moment but might need tweaking later
-    _debian_packages = _ubuntu_packages_2004
-
-    _fedora_packages = [
-        "psmisc",
-        "numactl-devel",
-        "pkgconfig",
-        "elfutils-libelf-devel",
-        "python3-pip",
-        "kernel-modules-extra",
-        "kernel-headers",
-        "gcc-c++",
-    ]
-    _suse_packages = [
-        "psmisc",
-        "libnuma-devel",
-        "numactl",
-        "libmnl-devel meson",
-        "gcc-c++",
-    ]
     _rte_target = "x86_64-native-linuxapp-gcc"
 
     _tx_pps_key = "transmit-packets-per-second"

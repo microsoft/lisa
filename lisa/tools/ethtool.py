@@ -517,7 +517,7 @@ class Ethtool(Tool):
         netdirs = find_tool.find_files(
             self.node.get_pure_path("/sys/devices"),
             name_pattern="net",
-            path_pattern="*vmbus*",
+            path_pattern=["*vmbus*", "*MSFT*"],
             ignore_case=True,
         )
         for netdir in netdirs:

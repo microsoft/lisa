@@ -190,7 +190,7 @@ class Installer:
 
     # do the build and installation
     def _install(self) -> None:
-        ...
+        pass
 
     # remove an installation
     def _uninstall(self) -> None:
