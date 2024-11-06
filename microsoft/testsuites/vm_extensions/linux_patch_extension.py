@@ -38,7 +38,7 @@ def _verify_supported_arm64_images(
         Ubuntu: ["20.4.2"],
     }
 
-    if arch is None or arch != "aarch64":
+    if arch != "aarch64":
         return
 
     for distro in supported_versions_arm64:
@@ -137,9 +137,7 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
     expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
-    expected_warning_status_msg = (
-        "Expected the status file status to be CompletedWithWarnings"
-    )
+    expected_warning_status_msg = "Expected the status file status to be CompletedWithWarnings"
     error_details_not_empty = len(status_file["error"]["details"]) > 0
     truncated_package_code = (
         _verify_details_code(status_file, "PACKAGE_LIST_TRUNCATED")
