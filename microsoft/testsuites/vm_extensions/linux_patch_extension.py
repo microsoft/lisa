@@ -15,15 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import (
-    BSD,
-    SLES,
-    CBLMariner,
-    CentOs,
-    Debian,
-    Oracle,
-    Ubuntu,
-)
+from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Oracle, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
