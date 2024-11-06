@@ -194,6 +194,10 @@ class KdumpBase(Tool):
 
     dump_path = "/var/crash"
 
+    kdump_config = {
+        "force_no_rebuild": False,
+    }
+
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # FreeBSD image doesn't support kdump since the kernel has no DDB option
@@ -608,25 +612,28 @@ class KdumpCBLMariner(KdumpBase):
         """
         This method enables the kdump service.
         """
-        kdump_conf = "/etc/kdump.conf"
-        sed = self.node.tools[Sed]
-        # Remove force_no_rebuild=1 if present
-        sed.substitute(
-            match_lines="^force_no_rebuild",
-            regexp="force_no_rebuild",
-            replacement="#force_no_rebuild",
-            file=kdump_conf,
-            sudo=True,
-        )
-        # Set mariner_2_initrd_use_suffix. Otherwise it will replace
-        # the original initrd file which will cause a reboot-loop
-        sed.substitute(
-            match_lines="mariner_2_initrd_use_suffix",
-            regexp="#mariner_2_initrd_use_suffix",
-            replacement="mariner_2_initrd_use_suffix",
-            file=kdump_conf,
-            sudo=True,
-        )
+        if self.kdump_config["force_no_rebuild"] is False:
+            kdump_conf = "/etc/kdump.conf"
+            sed = self.node.tools[Sed]
+
+            # Remove force_no_rebuild=1 if present.
+            # It is set by default in CBL-Mariner-2.0
+            sed.substitute(
+                match_lines="^force_no_rebuild",
+                regexp="force_no_rebuild",
+                replacement="#force_no_rebuild",
+                file=kdump_conf,
+                sudo=True,
+            )
+            # Set mariner_2_initrd_use_suffix. Otherwise it will replace
+            # the original initrd file which will cause a reboot-loop
+            sed.substitute(
+                match_lines="mariner_2_initrd_use_suffix",
+                regexp="#mariner_2_initrd_use_suffix",
+                replacement="mariner_2_initrd_use_suffix",
+                file=kdump_conf,
+                sudo=True,
+            )
 
         # Check for sufficient core numbers
         self.ensure_nr_cpus()

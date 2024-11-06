@@ -24,8 +24,8 @@ from lisa import (
 )
 from lisa.features import Disk, SerialConsole
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import BSD, Redhat, Windows
-from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.operating_system import BSD, CBLMariner, Redhat, Windows
+from lisa.tools import Df, Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
@@ -114,6 +114,40 @@ class KdumpCrash(TestSuite):
         ),
     )
     def verify_kdumpcrash_smp(self, node: Node, log_path: Path, log: Logger) -> None:
+        self._trigger_kdump_on_specified_cpu(1, node, log_path, log)
+
+    @TestCaseMetadata(
+        description="""
+        This test case verifies if the kdump is effect when VM has 2~8 cpus, and
+        trigger kdump on the second cpu(cpu1), which is designed by a known issue.
+        The test steps are same as `kdumpcrash_validate_single_core`. This test
+        additionally disables "force_no_rebuild" option in the kdump.conf file
+        before loading the kdump kernel. So, the initrd will be same as the
+        original system.
+
+        This test case implemented only for CBL-Mariner for now. For other distros,
+        the config option should be handled differently.
+        """,
+        priority=4,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                core_count=search_space.IntRange(min=2, max=8),
+            ),
+            supported_features=[CvmDisabled()],
+        ),
+    )
+    def verify_kdumpcrash_smp_force_no_rebuild(
+        self, node: Node, log_path: Path, log: Logger
+    ) -> None:
+        if not (
+            isinstance(node.os, CBLMariner) and node.os.information.version.major == 2
+        ):
+            raise SkippedException(
+                "This test-case is currently supported only on CBL-Mariner 2.0"
+            )
+
+        kdump = node.tools[KdumpBase]
+        kdump.kdump_config["force_no_rebuild"] = True
         self._trigger_kdump_on_specified_cpu(1, node, log_path, log)
 
     @TestCaseMetadata(
@@ -268,22 +302,16 @@ class KdumpCrash(TestSuite):
         dump_path = mount_point + "/crash"
         return dump_path
 
-    def _is_system_with_more_memory(self, node: Node) -> bool:
+    def _is_system_with_more_memory(self, node: Node, log: Logger) -> bool:
         free = node.tools[Free]
-        total_memory = free.get_total_memory()
-        # Return true when system memory is 10 GiB higher than the OS disk size
-        if "T" in total_memory or (
-            "G" in total_memory
-            and (
-                node.capability.disk
-                and isinstance(node.capability.disk.os_disk_size, int)
-                and (
-                    float(total_memory.strip("G"))
-                    > (node.capability.disk.os_disk_size - 10)
-                )
-            )
-        ):
+        total_memory_in_gb = free.get_total_memory_gb()
+
+        df = node.tools[Df]
+        available_space_in_os_disk = df.get_filesystem_available_space("/", True)
+
+        if total_memory_in_gb > available_space_in_os_disk:
             return True
+
         return False
 
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
@@ -299,9 +327,9 @@ class KdumpCrash(TestSuite):
         if self.is_auto:
             self.crash_kernel = "auto"
 
-        if self._is_system_with_more_memory(node):
-            # System memory is more os disk size, need to change the dump path
-            # and increase the timeout duration
+        if self._is_system_with_more_memory(node, log):
+            # As system memory is more than free os disk size, need to
+            # change the dump path and increase the timeout duration
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
