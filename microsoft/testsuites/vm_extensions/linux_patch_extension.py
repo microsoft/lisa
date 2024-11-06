@@ -223,7 +223,7 @@ def _assert_assessment_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension " "repository",
+                "CPU Architecture 'arm64' was not found in the extension repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -263,7 +263,7 @@ def _assert_installation_patch(
             s in str(identifier)
             for s in [
                 "The selected VM image is not supported",
-                "CPU Architecture 'arm64' was not found in the extension " "repository",
+                "CPU Architecture 'arm64' was not found in the extension repository",
             ]
         ):
             _unsupported_image_exception_msg(node)
@@ -353,7 +353,6 @@ class LinuxPatchExtensionBVT(TestSuite):
         _assert_assessment_patch(
             node, log, compute_client, resource_group_name, vm_name
         )
-
         _assert_installation_patch(
             node,
             log,
