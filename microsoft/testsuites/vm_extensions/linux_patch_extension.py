@@ -28,18 +28,15 @@ from lisa.util import SkippedException, UnsupportedDistroException
 
 
 def _verify_supported_arm64_images(
-    node: Node, log: Logger, full_version: str, arch: str
+    node: Node, log: Logger, full_version: Any
 ) -> None:
-    # LPE current supported images for arm64
+    # lpe current supported images for arm64
     supported_versions_arm64 = {
         # major.minor.gen
         CentOs: ["7.9.2"],
         Oracle: ["8.10.2", "9.4.2"],
         Ubuntu: ["20.4.2"],
     }
-
-    if arch != "aarch64":
-        return
 
     for distro in supported_versions_arm64:
         if isinstance(node.os, distro):
@@ -53,10 +50,10 @@ def _verify_supported_arm64_images(
                 _unsupported_image_exception_msg(node)
 
 
-def _verify_unsupported_images(node: Node, full_version: str) -> None:
+def _verify_unsupported_images(node: Node, full_version: Any) -> None:
     # Unsupported detailed versions for x86_64
     unsupported_versions_x86_64 = {
-        # major minor gen
+        # Major Minor Gen
         SLES: ["15.5.1", "15.5.2"],
         CBLMariner: ["1.0.1", "2.0.1", "2.0.2", "3.0.1"],
         Debian: [
@@ -70,23 +67,12 @@ def _verify_unsupported_images(node: Node, full_version: str) -> None:
         ],
     }
 
-    # Get the full version string of the OS
-    full_version = _get_os_full_version(node)
-
     for distro in unsupported_versions_x86_64:
         if isinstance(node.os, distro):
             version_list = unsupported_versions_x86_64.get(distro)
             if version_list is not None and full_version in version_list:
                 # Raise an exception for unsupported version
                 _unsupported_image_exception_msg(node)
-
-
-def _get_os_full_version(node: Node) -> str:
-    return (
-        f"{node.os.information.version.major}."
-        f"{node.os.information.version.minor}."
-        f"{node.tools[VmGeneration].get_generation()}"
-    )
 
 
 def _verify_unsupported_vm_agent(
@@ -132,6 +118,20 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
                 ),
             )
         )
+
+
+def _verify_supported_images_and_vm_agent(node: Node, log: Logger) -> None:
+        # Get the full version and OS architecture
+        full_version = node.os.information.version
+        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+
+        if arch == "aarch64":
+            _verify_supported_arm64_images(node, log, full_version)
+        else:
+            _verify_unsupported_images(node, full_version)
+
+        # Verify if VM agent service is running, lpe is a dependent of VM agent
+        _verify_vm_agent_running(node, log)
 
 
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
@@ -214,7 +214,7 @@ def _assert_assessment_patch(
         operation = compute_client.virtual_machines.begin_assess_patches(
             resource_group_name=resource_group_name, vm_name=vm_name
         )
-        # set wait operation timeout 10 min, status file should be generated
+        # Set wait operation timeout 10 min, status file should be generated
         # before timeout
         assess_result = wait_operation(operation, 600)
 
@@ -254,7 +254,7 @@ def _assert_installation_patch(
             vm_name=vm_name,
             install_patches_input=install_patches_input,
         )
-        # set wait operation max duration 4H timeout, status file should be
+        # Set wait operation max duration 4H timeout, status file should be
         # generated before timeout
         install_result = wait_operation(operation, timeout)
 
@@ -303,17 +303,10 @@ class LinuxPatchExtensionBVT(TestSuite):
     ) -> None:
         compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
 
-        # Get the full version string and architecture
-        # of the OS
-        full_version = _get_os_full_version(node)
-        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+        # Check if the OS is supported and the VM agent is running
+        _verify_supported_images_and_vm_agent(node, log)
 
-        _verify_supported_arm64_images(node, log, full_version, arch)
-        _verify_unsupported_images(node, full_version)
-        # verify vm agent service is running, lpe is a dependent of vm agent
-        # service
-        _verify_vm_agent_running(node, log)
-
+        # Verify the assessment patches
         _assert_assessment_patch(
             node, log, compute_client, resource_group_name, vm_name
         )
@@ -340,19 +333,16 @@ class LinuxPatchExtensionBVT(TestSuite):
                 "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
             },
         }
-        # Get the full version string and architecture of the OS
-        full_version = _get_os_full_version(node)
-        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
 
-        _verify_supported_arm64_images(node, log, full_version, arch)
-        _verify_unsupported_images(node, full_version)
-        # verify vm agent service is running, lpe is a dependent of vm agent
-        # service
-        _verify_vm_agent_running(node, log)
+        # Check if the OS is supported and the VM agent is running
+        _verify_supported_images_and_vm_agent(node, log)
 
+        # Verify the assessment patches
         _assert_assessment_patch(
             node, log, compute_client, resource_group_name, vm_name
         )
+
+        # Verify the installation patches
         _assert_installation_patch(
             node,
             log,
