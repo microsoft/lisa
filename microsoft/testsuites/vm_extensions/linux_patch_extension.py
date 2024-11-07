@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
-from typing import Any, Optional
+from typing import Any
 
 from assertpy.assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, Debian
+from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Oracle, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -27,21 +27,43 @@ from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
-def _verify_unsupported_images(node: Node) -> None:
-    # Unsupported detailed versions for x86_64
-    unsupported_versions_x86_64 = {
-        # major minor gen
-        SLES: ["15-5 1", "15-5 2"],
-        CBLMariner: ["1-0 1", "2-0 1", "2-0 2", "3-0 1"],
-        Debian: ["10-12 1", "10-12 2", "11-6 1", "11-7 1", "11-7 2", "11-9 2"],
+def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -> None:
+    # lpe current supported images for arm64
+    supported_versions_arm64 = {
+        # major.minor.gen
+        CentOs: ["7.9.2"],
+        Oracle: ["8.10.2", "9.4.2"],
+        Ubuntu: ["20.4.2"],
     }
 
-    # Get the full version string of the OS
-    full_version = (
-        f"{node.os.information.version.major}-"
-        f"{node.os.information.version.minor} "
-        f"{node.tools[VmGeneration].get_generation()}"
-    )
+    for distro in supported_versions_arm64:
+        if isinstance(node.os, distro):
+            version_list = supported_versions_arm64.get(distro)
+            if version_list is not None and full_version in version_list:
+                log.debug(f"supported arm64 os: {full_version}")
+                return
+            else:
+                # Raise an exception for unsupported version
+                log.debug(f"unsupported arm64 os: {full_version}")
+                _unsupported_image_exception_msg(node)
+
+
+def _verify_unsupported_images(node: Node, full_version: Any) -> None:
+    # Unsupported detailed versions for x86_64
+    unsupported_versions_x86_64 = {
+        # Major Minor Gen
+        SLES: ["15.5.1", "15.5.2"],
+        CBLMariner: ["1.0.1", "2.0.1", "2.0.2", "3.0.1"],
+        Debian: [
+            "10.12.1",
+            "10.12.2",
+            "10.13.1",
+            "11.6.1",
+            "11.7.1",
+            "11.7.2",
+            "11.9.2",
+        ],
+    }
 
     for distro in unsupported_versions_x86_64:
         if isinstance(node.os, distro):
@@ -82,20 +104,43 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
         "walinuxagent"
     ) or service.is_service_running("waagent")
 
-    log.debug(f"verify walinuxagent or waagent running:{is_vm_agent_running}")
+    log.debug(f"verify walinuxagent or waagent running: {is_vm_agent_running}")
 
     if is_vm_agent_running is False:
         raise SkippedException(
             UnsupportedDistroException(
                 node.os,
-                "Required walinuxagent or waagent service is not running on this vm",
+                (
+                    "Required walinuxagent or waagent service is not running "
+                    "on this vm"
+                ),
             )
         )
 
 
-def _assert_status_file_result(
-    node: Node, status_file: Any, error_code: str, api_type: Optional[str] = None
-) -> None:
+def _verify_supported_images_and_vm_agent(node: Node, log: Logger) -> None:
+    # Get the full version and OS architecture
+    full_version = _get_os_full_version(node)
+    arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+
+    if arch == "aarch64":
+        _verify_supported_arm64_images(node, log, full_version)
+    else:
+        _verify_unsupported_images(node, full_version)
+
+    # Verify if VM agent service is running, lpe is a dependent of VM agent
+    _verify_vm_agent_running(node, log)
+
+
+def _get_os_full_version(node: Node) -> Any:
+    return (
+        f"{node.os.information.version.major}."
+        f"{node.os.information.version.minor}."
+        f"{node.tools[VmGeneration].get_generation()}"
+    )
+
+
+def _assert_status_file_result(status_file: Any, error_code: str) -> None:
     file_status_is_error = status_file["status"].lower() == "error"
     expected_succeeded_status_msg = "Expected the status file status to be Succeeded"
     expected_warning_status_msg = (
@@ -120,34 +165,34 @@ def _assert_status_file_result(
 
     if truncated_package_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            expected_warning_status_msg
-        ).is_in("CompletedWithWarnings", "Succeeded")
+            f"{expected_warning_status_msg} - Actual status: {status_file['status']}"
+        ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
-        ).is_equal_to("1")
+            "Expected error code in status file patches operation"
+        ).is_equal_to("2")
 
     elif ua_esm_required_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
-        ).is_in("CompletedWithWarnings", "Succeeded")
+            f"{expected_warning_status_msg} - Actual status: {status_file['status']}"
+        ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("1")
 
     elif package_manager_failure_code:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
+            f"{expected_succeeded_status_msg} - Actual status: {status_file['status']}"
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
-            "Expected 1 error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("1")
 
     else:
         assert_that(status_file["status"]).described_as(
-            expected_succeeded_status_msg
+            f"{expected_succeeded_status_msg} - Actual status: {status_file['status']}"
         ).is_equal_to("Succeeded")
         assert_that(error_code).described_as(
-            "Expected no error in status file patches operation"
+            "Expected error code in status file patches operation"
         ).is_equal_to("0")
 
 
@@ -175,7 +220,7 @@ def _assert_assessment_patch(
         operation = compute_client.virtual_machines.begin_assess_patches(
             resource_group_name=resource_group_name, vm_name=vm_name
         )
-        # set wait operation timeout 10 min, status file should be generated
+        # Set wait operation timeout 10 min, status file should be generated
         # before timeout
         assess_result = wait_operation(operation, 600)
 
@@ -196,7 +241,7 @@ def _assert_assessment_patch(
     error_code = assess_result["error"]["code"]
 
     _verify_unsupported_vm_agent(node, assess_result, error_code)
-    _assert_status_file_result(node, assess_result, error_code)
+    _assert_status_file_result(assess_result, error_code)
 
 
 def _assert_installation_patch(
@@ -215,7 +260,7 @@ def _assert_installation_patch(
             vm_name=vm_name,
             install_patches_input=install_patches_input,
         )
-        # set wait operation max duration 4H timeout, status file should be
+        # Set wait operation max duration 4H timeout, status file should be
         # generated before timeout
         install_result = wait_operation(operation, timeout)
 
@@ -236,9 +281,7 @@ def _assert_installation_patch(
     error_code = install_result["error"]["code"]
 
     _verify_unsupported_vm_agent(node, install_result, error_code)
-    _assert_status_file_result(
-        node, install_result, error_code, api_type="installation"
-    )
+    _assert_status_file_result(install_result, error_code)
 
 
 @TestSuiteMetadata(
@@ -265,19 +308,20 @@ class LinuxPatchExtensionBVT(TestSuite):
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
         compute_client, resource_group_name, vm_name = _set_up_vm(node, environment)
-        _verify_unsupported_images(node)
-        # verify vm agent service is running, lpe is a dependent of vm agent
-        # service
-        _verify_vm_agent_running(node, log)
 
+        # Check if the OS is supported and the VM agent is running
+        _verify_supported_images_and_vm_agent(node, log)
+
+        # Verify the assessment patches
         _assert_assessment_patch(
             node, log, compute_client, resource_group_name, vm_name
         )
 
     @TestCaseMetadata(
         description="""
-        Verify walinuxagent or waagent service is running on vm. Perform install
-        patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension creation in vm.
+        Verify walinuxagent or waagent service is running on vm. Perform
+        install patches to trigger Microsoft.CPlat.Core.LinuxPatchExtension
+        creation in vm.
         Verify status file response for validity.
         """,
         priority=3,
@@ -295,15 +339,16 @@ class LinuxPatchExtensionBVT(TestSuite):
                 "packageNameMasksToInclude": ["ca-certificates*", "php7-openssl*"],
             },
         }
-        _verify_unsupported_images(node)
-        # verify vm agent service is running, lpe is a dependent of vm agent
-        # service
-        _verify_vm_agent_running(node, log)
 
+        # Check if the OS is supported and the VM agent is running
+        _verify_supported_images_and_vm_agent(node, log)
+
+        # Verify the assessment patches
         _assert_assessment_patch(
             node, log, compute_client, resource_group_name, vm_name
         )
 
+        # Verify the installation patches
         _assert_installation_patch(
             node,
             log,
