@@ -27,9 +27,7 @@ from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
-def _verify_supported_arm64_images(
-    node: Node, log: Logger, full_version: Any
-) -> None:
+def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -> None:
     # lpe current supported images for arm64
     supported_versions_arm64 = {
         # major.minor.gen
@@ -121,17 +119,25 @@ def _verify_vm_agent_running(node: Node, log: Logger) -> None:
 
 
 def _verify_supported_images_and_vm_agent(node: Node, log: Logger) -> None:
-        # Get the full version and OS architecture
-        full_version = node.os.information.version
-        arch = node.os.get_kernel_information().hardware_platform  # type: ignore
+    # Get the full version and OS architecture
+    full_version = _get_os_full_version(node)
+    arch = node.os.get_kernel_information().hardware_platform  # type: ignore
 
-        if arch == "aarch64":
-            _verify_supported_arm64_images(node, log, full_version)
-        else:
-            _verify_unsupported_images(node, full_version)
+    if arch == "aarch64":
+        _verify_supported_arm64_images(node, log, full_version)
+    else:
+        _verify_unsupported_images(node, full_version)
 
-        # Verify if VM agent service is running, lpe is a dependent of VM agent
-        _verify_vm_agent_running(node, log)
+    # Verify if VM agent service is running, lpe is a dependent of VM agent
+    _verify_vm_agent_running(node, log)
+
+
+def _get_os_full_version(node: Node) -> Any:
+    return (
+        f"{node.os.information.version.major}."
+        f"{node.os.information.version.minor}."
+        f"{node.tools[VmGeneration].get_generation()}"
+    )
 
 
 def _assert_status_file_result(status_file: Any, error_code: str) -> None:
