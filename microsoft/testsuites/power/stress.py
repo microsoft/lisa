@@ -12,6 +12,7 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.features import HibernationEnabled, Sriov
+from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
@@ -46,7 +47,7 @@ class PowerStress(TestSuite):
         timeout=720000,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def stress_hibernation(self, environment: Environment, log: Logger) -> None:
