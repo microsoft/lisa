@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from pathlib import PurePath
-from typing import Optional
+from typing import Any, Optional
 
 from lisa.executable import Tool
 
@@ -12,7 +12,8 @@ class Diff(Tool):
 
     Attributes:
         command (str): The command to be executed, which is 'diff'.
-        can_install (bool): Indicates whether the tool can be installed. Always False for this tool.
+        can_install (bool): Indicates whether the tool can be installed.
+            Always False for this tool.
 
     Methods:
         _check_exists() -> bool:
@@ -25,7 +26,8 @@ class Diff(Tool):
             Args:
                 src (PurePath): The source file or directory.
                 dest (PurePath): The destination file or directory.
-                cwd (Optional[PurePath]): The current working directory for the command. Defaults to None.
+                cwd (Optional[PurePath]): The current working directory for the command.
+                Defaults to None.
                 sudo (bool): Whether to run the command with sudo. Defaults to False.
                 timeout (int): The timeout for the command in seconds. Defaults to 600.
 
