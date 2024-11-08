@@ -198,6 +198,7 @@ class DpdkSourceInstall(Installer):
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
+        "devname",
     ]
 
     def _check_if_installed(self) -> bool:
@@ -227,6 +228,21 @@ class DpdkSourceInstall(Installer):
         # like cmake, meson, make, autoconf, etc.
         self._node.tools[Ninja].install()
         self._node.tools[Pip].install_packages("pyelftools")
+        local_path = PurePath(__file__).parent.joinpath("devname")
+        remote_path = self.asset_path.joinpath("examples/devname")
+
+        # don't copy if the files are already there.
+        if self._node.shell.exists(remote_path):
+            return
+
+        self._node.shell.mkdir(remote_path)
+        # copy the bash script to the node
+        devname_files = ["main.c", "Makefile", "meson.build"]
+        for file in devname_files:
+            self._node.shell.copy(
+                local_path=local_path.joinpath(file),
+                node_path=remote_path.joinpath(file),
+            )
 
     def _uninstall(self) -> None:
         # undo source installation (thanks ninja)
