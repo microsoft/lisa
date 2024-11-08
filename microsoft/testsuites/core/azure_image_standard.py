@@ -243,6 +243,11 @@ class AzureImageStandard(TestSuite):
         ),
         # pam_unix,pam_faillock
         re.compile(r"^(.*pam_unix,pam_faillock.*)$", re.M),
+        # benign warning from mellanox on freebsd
+        re.compile(
+            r"^(.*mlx5_core0: WARN: mlx5_fwdump_prep:92:\(pid 0\).*)$",
+            re.M,
+        ),
     ]
 
     @TestCaseMetadata(
