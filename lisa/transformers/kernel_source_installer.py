@@ -11,7 +11,7 @@ from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Redhat, Ubuntu
-from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
+from lisa.tools import Cp, Echo, Git, Make, Sed, Uname, B4
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.util import LisaException, field_metadata, subclasses
@@ -73,6 +73,12 @@ class PatchModifierSchema(BaseModifierSchema):
     ref: str = ""
     path: str = ""
     file_pattern: str = "*.patch"
+
+
+@dataclass_json()
+@dataclass
+class b4PatchModifierSchema(BaseModifierSchema):
+    message_id: str = field(default="", metadata=field_metadata(required=True))
 
 
 @dataclass_json()
@@ -489,3 +495,24 @@ def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
         code_path = node.working_path / default_name
 
     return code_path
+
+
+class b4PatchModifier(BaseModifier):
+    @classmethod
+    def type_name(cls) -> str:
+        return "b4_patch"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return b4PatchModifierSchema
+
+    def modify(self) -> None:
+        runbook: b4PatchModifierSchema = self.runbook
+
+        git = self._node.tools[Git]
+        b4 = self._node.tools[B4]
+
+        message_id = runbook.message_id
+        patch_file = b4.am(message_id=message_id, output_dir=self._code_path)
+
+        git.am(cwd=self._code_path, patch=patch_file)

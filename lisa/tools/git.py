@@ -201,6 +201,17 @@ class Git(Tool):
         )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
 
+    def am(self, cwd: pathlib.PurePath, patch: pathlib.PurePath) -> None:
+        result = self.run(
+            f"am {patch}",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
+
     def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
             "--no-pager tag --color=never",
