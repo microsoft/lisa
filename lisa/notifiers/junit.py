@@ -30,10 +30,6 @@ class JUnitSchema(schema.Notifier):
     include_subtest: bool = True
     # show passed case 'message' and 'stacktraces'
     include_passed_messages: bool = False
-    # show 'message' for failed cases and 'stacktrace'
-    include_failed_messages: bool = True
-    # show 'message' for skipped cases
-    include_skipped_messages: bool = True
 
 
 class _TestSuiteInfo:
@@ -310,26 +306,24 @@ class JUnit(Notifier):
 
         if message.status == TestStatus.FAILED:
             failure = ET.SubElement(testcase, "failure")
-            if runbook.include_failed_messages:
-                failure.attrib["message"] = message.message
-                if message.stacktrace:
-                    failure.attrib["stacktrace"] = str(message.stacktrace)
+            failure.attrib["message"] = message.message
+            failure.text = message.stacktrace
             testsuite_info.failed_count += 1
 
         elif message.status in [TestStatus.SKIPPED, TestStatus.ATTEMPTED]:
             skipped = ET.SubElement(testcase, "skipped")
-            if runbook.include_skipped_messages:
-                skipped.attrib["message"] = message.message
-                if str(message.stacktrace) != "":
-                    skipped.attrib["stacktrace"] = str(message.stacktrace)
+            skipped.attrib["message"] = message.message
+            if message.stacktrace:
+                skipped.text = str(message.stacktrace)
         # Only add XML sub element if include_passed_messages is True in runbook
-        # By default, its assumed subtest is a pass
+        # By default, its assumed subtest is a pass as per Junit schema
         elif message.status == TestStatus.PASSED and runbook.include_passed_messages:
             passed = ET.SubElement(testcase, "passed")
             passed.attrib["message"] = message.message
             # passed.text = message.stacktrace
-            if str(message.stacktrace) != "":
-                passed.attrib["stacktrace"] = str(message.stacktrace)
+            if message.stacktrace:
+                passed.text = str(message.stacktrace)
+
         testsuite_info.test_count += 1
 
         # Write out current results to file.
