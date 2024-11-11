@@ -136,8 +136,7 @@ class TarDownloader(Downloader):
         ).is_true()
         if self._is_remote_tarball:
             tarfile = node.tools[Wget].get(
-                self._tar_url,
-                overwrite=False,
+                self._tar_url, overwrite=False, file_path=str(node.get_working_path())
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
