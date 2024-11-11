@@ -312,8 +312,7 @@ class JUnit(Notifier):
             failure = ET.SubElement(testcase, "failure")
             if runbook.include_failed_messages:
                 failure.attrib["message"] = message.message
-                # failure.text = message.stacktrace
-                if str(message.stacktrace) != "":
+                if message.stacktrace:
                     failure.attrib["stacktrace"] = str(message.stacktrace)
             testsuite_info.failed_count += 1
 
