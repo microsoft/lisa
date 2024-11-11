@@ -2431,6 +2431,74 @@ class Availability(AzureFeatureMixin, features.Availability):
         return availability_settings
 
     @classmethod
+    def _resolve_configuration(
+        cls,
+        environment: Environment,
+        settings: AvailabilitySettings,
+        params: AvailabilityArmParameter,
+    ) -> None:
+        """
+        Resolve Availability configuration based on the current environment
+        1. Remove unsupported availability types when using ultra disk
+        2. Automatically resolve the availability type based on priority
+        3. Select and validate an availability zone if applicable
+        """
+        assert isinstance(settings.availability_type, search_space.SetSpace)
+
+        # Ultra Disk does not support Availability Sets
+        assert environment.capability.nodes
+        assert environment.capability.nodes[0].disk
+        is_ultra_disk = (
+            environment.capability.nodes[0].disk.data_disk_type
+            == schema.DiskType.UltraSSDLRS
+        )
+        if is_ultra_disk:
+            settings.availability_type.discard(AvailabilityType.AvailabilitySet)
+            # If a region supports Ultra Disk in availability zones,
+            # then availability zones must be used
+            if AvailabilityType.AvailabilityZone in settings.availability_type:
+                settings.availability_type.discard(AvailabilityType.NoRedundancy)
+
+        # Set ARM parameters based on min capability
+        if params.availability_type == AvailabilityType.Default:
+            params.availability_type = settings._resolve_availability_type_by_priority(
+                params
+            ).value
+        if (
+            params.availability_zones
+            and params.availability_type == AvailabilityType.AvailabilityZone
+        ):
+            params.availability_zones = [
+                zone
+                for zone in params.availability_zones
+                if zone in settings.availability_zones
+            ]
+            if not params.availability_zones:
+                raise SkippedException(
+                    "Invalid zones provided. "
+                    "This SKU in this location supports zones: "
+                    f"{settings.availability_zones}. "
+                )
+        elif settings.availability_zones:
+            params.availability_zones = [settings.availability_zones.items[0]]
+
+        assert params.availability_type in [type.value for type in AvailabilityType], (
+            "Not a valid Availability Type: " f"{params.availability_type}"
+        )
+
+        if not (
+            AvailabilityType(params.availability_type) in settings.availability_type
+        ):
+            raise SkippedException(
+                f"Availability Type "
+                f"'{params.availability_type}' "
+                "is not supported in the current configuration. "
+                "Please select one of "
+                f"{[type.value for type in settings.availability_type.items]}. "
+                "Or consider changing the disk type or location."
+            )
+
+    @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         environment = cast(Environment, kwargs.get("environment"))
         arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
@@ -2447,59 +2515,7 @@ class Availability(AzureFeatureMixin, features.Availability):
             is_maximize_capability = False
 
         if not is_maximize_capability:
-            assert isinstance(settings.availability_type, search_space.SetSpace)
-
-            # Ultra Disk does not support Availability Sets
-            assert environment.capability.nodes
-            assert environment.capability.nodes[0].disk
-            is_ultra_disk = (
-                environment.capability.nodes[0].disk.data_disk_type
-                == schema.DiskType.UltraSSDLRS
-            )
-            if is_ultra_disk:
-                settings.availability_type.discard(AvailabilityType.AvailabilitySet)
-                # If a region supports Ultra Disk in availability zones,
-                # then availability zones must be used
-                if AvailabilityType.AvailabilityZone in settings.availability_type:
-                    settings.availability_type.discard(AvailabilityType.NoRedundancy)
-
-            # Set ARM parameters based on min capability
-            if params.availability_type == AvailabilityType.Default:
-                params.availability_type = (
-                    settings._resolve_availability_type_by_priority(params).value
-                )
-            if (
-                params.availability_zones
-                and params.availability_type == AvailabilityType.AvailabilityZone
-            ):
-                params.availability_zones = [
-                    zone
-                    for zone in params.availability_zones
-                    if zone in settings.availability_zones
-                ]
-                if not params.availability_zones:
-                    raise SkippedException(
-                        "Invalid zones provided. "
-                        "This SKU in this location supports zones: "
-                        f"{settings.availability_zones}. "
-                    )
-            elif settings.availability_zones:
-                params.availability_zones = [settings.availability_zones.items[0]]
-
-            assert params.availability_type in [
-                type.value for type in AvailabilityType
-            ], ("Not a valid Availability Type: " f"{params.availability_type}")
-
-            if not (
-                AvailabilityType(params.availability_type) in settings.availability_type
-            ):
-                raise SkippedException(
-                    f"Availability Type "
-                    f"'{params.availability_type}' "
-                    "is not supported in the current configuration. Please select one of "
-                    f"{[type.value for type in settings.availability_type.items]}. "
-                    "Or consider changing the disk type or location."
-                )
+            cls._resolve_configuration(environment, settings, params)
 
         # If the availability_type is still set to Default, then
         # resolve the default without considering capabilities
