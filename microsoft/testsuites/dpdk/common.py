@@ -15,7 +15,9 @@ from lisa.tools import Git, Tar, Wget
 from lisa.util import UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
-
+DPDK_MANA_DEFAULT_SOURCE = (
+    "https://github.com/DPDK/dpdk/archive/refs/tags/v24.11-rc1.tar.gz "
+)
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
