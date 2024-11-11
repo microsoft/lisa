@@ -16,7 +16,12 @@ from lisa.feature import Feature
 from lisa.operating_system import CBLMariner, CpuArchitecture, Oracle, Redhat, Ubuntu
 from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
-from lisa.util import LisaException, SkippedException, constants
+from lisa.util import (
+    LisaException,
+    MissingPackagesException,
+    SkippedException,
+    constants,
+)
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -207,6 +212,12 @@ class Gpu(Feature):
             self._node.os.install_packages(install_packages, signed=False)
 
         elif isinstance(self._node.os, Ubuntu):
+            cuda_package_name = "cuda-drivers"
+            # CUDA Drivers Package Example: cuda-drivers-550
+            cuda_drivers_package_pattern = re.compile(
+                r"^cuda-drivers-(\d+)/.*$", re.MULTILINE
+            )
+            cuda_keyring = "cuda-keyring_1.1-1_all.deb"
             release = re.sub("[^0-9]+", "", os_information.release)
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
             if release in ["2110", "2104"]:
@@ -218,10 +229,10 @@ class Gpu(Feature):
             # Public CUDA GPG key is needed to be installed for Ubuntu
             self._node.tools[Wget].get(
                 "https://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
+                f"ubuntu{release}/x86_64/{cuda_keyring}"
             )
             self._node.execute(
-                "dpkg -i cuda-keyring_1.0-1_all.deb",
+                f"dpkg -i {cuda_keyring}",
                 sudo=True,
                 cwd=self._node.get_working_path(),
             )
@@ -257,16 +268,18 @@ class Gpu(Feature):
                         f"failed to add repo {repo_entry}"
                     ),
                 )
-                # the latest version cuda-drivers-510 has issues
-                # nvidia-smi
-                # No devices were found
-                # dmesg
-                # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
-                # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                cuda_package_versions = {"1804": "530"}
-                # 545 is the latest version available for Ubuntu 2004+
-                package_version = cuda_package_versions.get(release, "545")
-                self._node.os.install_packages(f"cuda-drivers-{package_version}")
+                result = self._node.execute(
+                    f"apt search {cuda_package_name}", sudo=True
+                )
+                available_versions = cuda_drivers_package_pattern.findall(result.stdout)
+
+            if available_versions:
+                # Sort versions and select the highest one
+                highest_version = max(available_versions)
+                package_version = highest_version
+            else:
+                raise MissingPackagesException([f"{cuda_package_name}"])
+            self._node.os.install_packages(f"{cuda_package_name}-{package_version}")
         elif (
             isinstance(self._node.os, CBLMariner)
             and self._node.os.get_kernel_information().hardware_platform
