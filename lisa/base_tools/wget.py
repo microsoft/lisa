@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 from retry import retry
@@ -24,6 +24,10 @@ class Wget(Tool):
     def command(self) -> str:
         return "wget"
 
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.__filename_result_cache: Dict[str, str] = dict()
+        return super()._initialize(*args, **kwargs)
+
     @property
     def can_install(self) -> bool:
         return True
@@ -45,7 +49,25 @@ class Wget(Tool):
         force_run: bool = False,
         timeout: int = 600,
     ) -> str:
+        if not force_run:
+            # return a cached result if one exists
+            try:
+                filename = self.__filename_result_cache[url]
+                return filename
+            except KeyError:
+                pass
+        else:
+            # remove the old key
+            try:
+                self.__filename_result_cache.pop(url)
+            except KeyError:
+                pass
+
         is_valid_url(url)
+
+        if not filename:
+            filename = urlparse(url).path.split("/")[-1]
+            self._log.debug(f"filename is not provided, use {filename} from url.")
 
         file_path, download_path = self._ensure_download_path(file_path, filename)
 
@@ -84,6 +106,7 @@ class Wget(Tool):
                     f" stdout: {command_result.stdout}"
                     f" templog: {temp_log}"
                 )
+            self.node.tools[Rm].remove_file(log_file, sudo=sudo)
         else:
             download_file_path = download_path
 
@@ -91,7 +114,7 @@ class Wget(Tool):
             raise LisaTimeoutException(
                 f"wget command is timed out after {timeout} seconds."
             )
-        actual_file_path = self.node.execute(
+        ls_result = self.node.execute(
             f"ls {download_file_path}",
             shell=True,
             sudo=sudo,
@@ -99,10 +122,11 @@ class Wget(Tool):
             expected_exit_code_failure_message="File path does not exist, "
             f"{download_file_path}",
         )
+        actual_file_path = ls_result.stdout.strip()
+        self.__filename_result_cache[url] = actual_file_path
         if executable:
             self.node.execute(f"chmod +x {actual_file_path}", sudo=sudo)
-        self.node.tools[Rm].remove_file(log_file, sudo=sudo)
-        return actual_file_path.stdout
+        return actual_file_path
 
     def verify_internet_access(self) -> bool:
         try:
@@ -155,6 +179,19 @@ class WindowsWget(Wget):
         force_run: bool = False,
         timeout: int = 600,
     ) -> str:
+        if not force_run:
+            # return a cached result if one exists
+            try:
+                filename = self.__filename_result_cache[url]
+                return filename
+            except KeyError:
+                pass
+        else:
+            # remove the old key
+            try:
+                self.__filename_result_cache.pop(url)
+            except KeyError:
+                pass
         ls = self.node.tools[Ls]
 
         if not filename:
@@ -182,5 +219,5 @@ class WindowsWget(Wget):
             force_run=force_run,
             timeout=timeout,
         )
-
+        self.__filename_result_cache[url] = download_path
         return download_path

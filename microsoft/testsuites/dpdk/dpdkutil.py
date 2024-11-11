@@ -143,7 +143,7 @@ def get_rdma_core_installer(
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
             downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
-        elif is_url_for_tarball(rdma_branch):
+        elif is_url_for_tarball(rdma_source):
             downloader = TarDownloader(node, rdma_source)
         else:
             # throw on unrecognized rdma core source type
