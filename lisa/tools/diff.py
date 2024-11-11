@@ -66,5 +66,5 @@ class Diff(Tool):
         # Diff generated difference between FILE1 FILE2 or DIR1 DIR2 or DIR FILE
         # for FILE DIR
         # EXit status is 0 if inputs are the same. 1 if different, 2 if trouble
-        result.assert_exit_code([0, 1], message=(f"Diff Error: {result.stderr}"))
+        result.assert_exit_code([0, 1], f"Diff Error: {result.stderr}")
         return result.stdout
