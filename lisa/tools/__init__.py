@@ -28,6 +28,7 @@ from .curl import Curl
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
+from .diff import Diff
 from .dmesg import Dmesg
 from .dnsmasq import Dnsmasq
 from .docker import Docker
@@ -142,6 +143,7 @@ __all__ = [
     "Date",
     "Df",
     "Dhclient",
+    "Diff",
     "Dmesg",
     "Dnsmasq",
     "Docker",
