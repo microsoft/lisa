@@ -531,7 +531,11 @@ class DpdkTestpmd(Tool):
 
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
-
+        if isinstance(self.installer, DpdkSourceInstall):
+            devname_path = self.installer.asset_path.joinpath(
+                "build/examples/dpdk-devname"
+            )
+            self.node.execute(f"{str(devname_path)}", sudo=True, shell=True)
         # infer core count to assign based on number of queues
         cores_available = self.node.tools[Lscpu].get_core_count()
         assert_that(cores_available).described_as(
