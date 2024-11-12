@@ -152,10 +152,13 @@ class TarDownloader(Downloader):
         self.asset_path = work_path.joinpath(tar_root_folder)
         # unpack into the dest dir
         # force name as tarfile name
+        # add option to skip files which already exist on disk
+        # in the event we have already extracted this specific tar
         node.tools[Tar].extract(
             file=str(remote_path),
             dest_dir=str(work_path),
             gzip=True,
+            skip_existing_files=True,
         )
         return self.asset_path
 
