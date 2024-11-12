@@ -215,16 +215,27 @@ class Gpu(Feature):
             if release in ["2210", "2304", "2310"]:
                 release = "2204"
 
-            # Public CUDA GPG key is needed to be installed for Ubuntu
-            self._node.tools[Wget].get(
+            if release in ["2404"]:
+                self._node.tools[Wget].get(
                 "https://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
-            )
-            self._node.execute(
-                "dpkg -i cuda-keyring_1.0-1_all.deb",
-                sudo=True,
-                cwd=self._node.get_working_path(),
-            )
+                f"ubuntu{release}/x86_64/cuda-keyring_1.1-1_all.deb"
+                )
+                self._node.execute(
+                    "dpkg -i cuda-keyring_1.1-1_all.deb",
+                    sudo=True,
+                    cwd=self._node.get_working_path(),
+                )
+            else:     
+                # Public CUDA GPG key is needed to be installed for Ubuntu
+                self._node.tools[Wget].get(
+                    "https://developer.download.nvidia.com/compute/cuda/repos/"
+                    f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
+                )
+                self._node.execute(
+                    "dpkg -i cuda-keyring_1.0-1_all.deb",
+                    sudo=True,
+                    cwd=self._node.get_working_path(),
+                )
 
             if release in ["1604"]:
                 cuda_repo_pkg = f"cuda-repo-ubuntu{release}_{version}_amd64.deb"
