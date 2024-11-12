@@ -16,6 +16,7 @@ from lisa.base_tools import (
 )
 
 from .aria import Aria
+from .b4 import B4
 from .blkid import Blkid
 from .bzip2 import Bzip2
 from .cargo import Cargo
@@ -129,6 +130,7 @@ from .wsl import Wsl
 __all__ = [
     "AptAddRepository",
     "Aria",
+    "B4",
     "Blkid",
     "Bzip2",
     "Cargo",
