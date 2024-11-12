@@ -294,6 +294,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     HugePageSize.HUGE_2MB,
+                    result=test_result,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
