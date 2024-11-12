@@ -191,14 +191,25 @@ class Git(Tool):
         cwd: pathlib.PurePath,
         patches: pathlib.PurePath,
     ) -> None:
-        result = self.run(
-            f"apply {patches}",
-            shell=True,
-            cwd=cwd,
-            force_run=True,
-            no_info_log=True,
-            no_error_log=True,
-        )
+        file_extension = patches.suffix
+        if file_extension == ".mbx":
+            result = self.run(
+                f"am {patches}",
+                shell=True,
+                cwd=cwd,
+                force_run=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
+        else:
+            result = self.run(
+                f"apply {patches}",
+                shell=True,
+                cwd=cwd,
+                force_run=True,
+                no_info_log=True,
+                no_error_log=True,
+            )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
 
     def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
