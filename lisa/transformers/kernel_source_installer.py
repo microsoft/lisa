@@ -11,7 +11,7 @@ from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, CpuArchitecture, Redhat, Ubuntu
-from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
+from lisa.tools import B4, Cp, Echo, Git, Make, Sed, Uname
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
 from lisa.util import (
@@ -79,6 +79,12 @@ class PatchModifierSchema(BaseModifierSchema):
     ref: str = ""
     path: str = ""
     file_pattern: str = "*.patch"
+
+
+@dataclass_json()
+@dataclass
+class B4PatchModifierSchema(BaseModifierSchema):
+    message_id: str = field(default="", metadata=field_metadata(required=True))
 
 
 @dataclass_json()
@@ -572,3 +578,19 @@ def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
         code_path = node.working_path / default_name
 
     return code_path
+
+
+class B4PatchModifier(BaseModifier):
+    @classmethod
+    def type_name(cls) -> str:
+        return "b4_patch"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return B4PatchModifierSchema
+
+    def modify(self) -> None:
+        runbook: B4PatchModifierSchema = self.runbook
+        b4 = self._node.tools[B4]
+        message_id = runbook.message_id
+        b4.apply(message_id=message_id, cwd=self._code_path)
