@@ -35,6 +35,7 @@ class Tar(Tool):
         gzip: bool = False,
         sudo: bool = False,
         raise_error: bool = True,
+        skip_existing_files: bool = False,
     ) -> None:
         # create folder when it doesn't exist
         assert_that(strip_components).described_as(
@@ -48,6 +49,21 @@ class Tar(Tool):
         if strip_components:
             # optionally strip N top level components from a tar file
             tar_cmd += f" --strip-components={strip_components}"
+
+        if skip_existing_files:
+            # NOTE:
+            # This option is for when you are using
+            #  Wget.get(..., force_run=False)
+            #
+            # Do not use this option if:
+            # - You may need to extract multiple versions of a
+            #   given tarball on a node
+            # - You have provided a default output filename to Wget.get
+            #   to fetch the tarball
+            #
+            # This skip-old-files option could silently skip extracting
+            # the second version of the tarball.
+            tar_cmd += " --skip-old-files"
         result = self.run(tar_cmd, shell=True, force_run=True, sudo=sudo)
         if raise_error:
             result.assert_exit_code(
