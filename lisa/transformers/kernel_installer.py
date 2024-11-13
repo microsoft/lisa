@@ -149,12 +149,14 @@ class KernelInstallerTransformer(DeploymentTransformer):
             message.old_kernel_version = uname.get_linux_information(
                 force_run=True
             ).kernel_version_raw
-
+            kernel_version = self._node.execute("uname -r").stdout
+            self._log.info(f"current kernel version1: {kernel_version}")
             installed_kernel_version = installer.install()
             build_sucess = True
             self._information = installer.information
             self._log.info(f"installed kernel version: {installed_kernel_version}")
-
+            kernel_version = self._node.execute("uname -r").stdout
+            self._log.info(f"current kernel version2: {kernel_version}")
             # for ubuntu cvm kernel, there is no menuentry added into grub file when
             # the installer's type is "source", it needs to add the menuentry into grub
             # file. Otherwise, the node might not boot into the new kernel especially
@@ -195,9 +197,10 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         sudo=True,
                         shell=True,
                     )
-
+            kernel_version = self._node.execute("uname -r").stdout
+            self._log.info(f"current kernel version3: {kernel_version}")
             self._log.info("rebooting")
-            node.reboot(time_out=900)
+            node.reboot(time_out=1200)
             boot_success = True
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw

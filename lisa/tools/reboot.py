@@ -72,9 +72,12 @@ class Reboot(Tool):
         # uptime has no -s parameter in some distros, so not use is as default.
         try:
             last_boot_time = who.last_boot()
+            self._log.info(f"last boot time in try: {last_boot_time}")
         except Exception:
             uptime = self.node.tools[Uptime]
             last_boot_time = uptime.since_time()
+            self._log.info(f"last boot time in except: {last_boot_time}")
+
         current_boot_time = last_boot_time
 
         # who -b returns time without seconds.
