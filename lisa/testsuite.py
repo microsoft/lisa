@@ -13,7 +13,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from retry import retry
-from retry.api import retry_call
 
 from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
@@ -48,11 +47,9 @@ _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
 
 
-def _call_with_retry_and_timeout(
+def _call_with_timeout(
     method: Callable[..., Any],
-    retries: int,
     timeout: int,
-    log: Logger,
     test_kwargs: Dict[str, Any],
 ) -> None:
     try:
@@ -61,25 +58,13 @@ def _call_with_retry_and_timeout(
         # will raise exception, if the timeout value is greater than 7 days. So
         # not to call it, if timeout is not a positive value.
         if timeout > 0:
-            retry_call(
-                func_timeout,
-                fkwargs={
-                    "timeout": timeout,
-                    "func": method,
-                    "kwargs": test_kwargs,
-                },
-                exceptions=Exception,
-                tries=retries + 1,
-                logger=log,
+            func_timeout(
+                timeout=timeout,
+                func=method,
+                kwargs=test_kwargs,
             )
         else:
-            retry_call(
-                f=method,
-                fkwargs=test_kwargs,
-                exceptions=Exception,
-                tries=retries + 1,
-                logger=log,
-            )
+            method(**test_kwargs)
     except FunctionTimedOut:
         # FunctionTimedOut is a special exception. If it's not captured
         # explicitly, it will make the whole program exit.
@@ -99,6 +84,7 @@ class TestResult:
     information: Dict[str, Any] = field(default_factory=dict)
     log_file: str = ""
     stacktrace: Optional[str] = None
+    retried_times: int = 0
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
@@ -201,11 +187,23 @@ class TestResult:
             self._send_result_message(self.stacktrace)
 
     def check_environment(
-        self, environment: Environment, save_reason: bool = False
+        self,
+        environment: Environment,
+        # The environment platform may not be associated to the environment at
+        # early stage, so pass it in to validate.
+        environment_platform_type: str = "",
+        save_reason: bool = False,
     ) -> bool:
         requirement = self.runtime_data.metadata.requirement
         assert requirement.environment
-        check_result = requirement.environment.check(environment.capability)
+
+        check_result = search_space.ResultReason()
+        if environment_platform_type:
+            check_result = self.check_platform(environment_platform_type)
+
+        if check_result.result:
+            check_result = requirement.environment.check(environment.capability)
+
         if (
             check_result.result
             and requirement.os_type
@@ -243,6 +241,29 @@ class TestResult:
             return 0.0
 
         return self._timer.elapsed(False)
+
+    def check_platform(
+        self, environment_platform_type: str
+    ) -> search_space.ResultReason:
+        result = search_space.ResultReason()
+
+        assert environment_platform_type, "platform type is not defined"
+        environment_platform_type_set = search_space.SetSpace[str](
+            is_allow_set=True, items=[environment_platform_type]
+        )
+        # only check platform, when it's defined.
+        if (
+            not self.runtime_data.requirement
+            or not self.runtime_data.requirement.platform_type
+            or len(self.runtime_data.requirement.platform_type.items) == 0
+        ):
+            return result
+
+        test_supported_platforms = self.runtime_data.requirement.platform_type
+
+        result = environment_platform_type_set.check(test_supported_platforms)
+
+        return result
 
     def _send_result_message(self, stacktrace: Optional[str] = None) -> None:
         self.elapsed = self.get_elapsed()
@@ -352,6 +373,12 @@ def node_requirement(
     unsupported_platform_type: Optional[List[str]] = None,
     supported_os: Optional[List[Type[OperatingSystem]]] = None,
     unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
+    unsupported_features: Optional[
+        List[Union[Type[Feature], schema.FeatureSettings, str]]
+    ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
@@ -360,8 +387,8 @@ def node_requirement(
         unsupported_platform_type,
         supported_os,
         unsupported_os,
-        None,
-        None,
+        supported_features,
+        unsupported_features,
         environment_status,
     )
 
@@ -530,6 +557,7 @@ class TestCaseRuntimeData:
         self.select_action: str = ""
         self.times: int = 1
         self.retry: int = 0
+        self.timeout: int = metadata.timeout
         self.use_new_environment: bool = metadata.use_new_environment
         self.ignore_failure: bool = False
         self.environment_name: str = ""
@@ -638,7 +666,19 @@ class TestSuite:
                 constants.RUN_LOCAL_LOG_PATH
             ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
-            case_timeout = case_result.runtime_data.metadata.timeout
+
+            # check for positive value just to be clearer
+            case_timeout = (
+                max(
+                    case_result.runtime_data.timeout,
+                    case_result.runtime_data.metadata.timeout,
+                )
+                if (
+                    case_result.runtime_data.timeout
+                    and case_result.runtime_data.timeout > 0
+                )
+                else case_result.runtime_data.metadata.timeout
+            )
 
             if is_continue:
                 is_continue = self.__before_case(
@@ -667,7 +707,12 @@ class TestSuite:
             )
 
             if case_result.status == TestStatus.FAILED:
-                self.__save_serial_log(environment, case_log_path)
+                try:
+                    self.__save_serial_log(environment, case_log_path)
+                except Exception as e:
+                    suite_log.debug(
+                        f"exception thrown during serial console log read. [{e}]"
+                    )
 
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
@@ -737,11 +782,9 @@ class TestSuite:
 
         timer = create_timer()
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 self.before_case,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
@@ -760,11 +803,9 @@ class TestSuite:
     ) -> None:
         timer = create_timer()
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 self.after_case,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
         except Exception as identifier:
@@ -784,11 +825,9 @@ class TestSuite:
         test_method = getattr(self, case_name)
 
         try:
-            _call_with_retry_and_timeout(
+            _call_with_timeout(
                 test_method,
-                retries=case_result.runtime_data.retry,
                 timeout=timeout,
-                log=log,
                 test_kwargs=test_kwargs,
             )
             case_result.set_status(TestStatus.PASSED, "")

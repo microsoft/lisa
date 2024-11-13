@@ -130,13 +130,13 @@ class LibvirtTck(Tool):
             # tell libvirt to run qemu as root
             libvirt_qemu_conf = PurePath("/etc/libvirt/qemu.conf")
             self.node.tools[Echo].write_to_file(
-                'user = "root"',
+                'user = "root"'.replace('"', '\\"'),
                 libvirt_qemu_conf,
                 sudo=True,
                 append=True,
             )
             self.node.tools[Echo].write_to_file(
-                'group = "root"',
+                'group = "root"'.replace('"', '\\"'),
                 libvirt_qemu_conf,
                 sudo=True,
                 append=True,
@@ -156,7 +156,7 @@ class LibvirtTck(Tool):
                 sudo=True,
             )
 
-            self.node.reboot()
+            self.node.reboot(time_out=900)
 
             # After reboot, libvirtd service is in failed state and needs to
             # be restarted manually. Doing it immediately after restarts

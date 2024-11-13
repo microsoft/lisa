@@ -19,7 +19,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk
+from lisa.features import AvailabilityZoneEnabled, Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
@@ -57,7 +57,7 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.UltraSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=160000),
-                data_disk_count=search_space.IntRange(min=8),
+                data_disk_count=search_space.IntRange(min=2),
             ),
         ),
     )
@@ -79,7 +79,7 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.UltraSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=160000),
-                data_disk_count=search_space.IntRange(min=8),
+                data_disk_count=search_space.IntRange(min=2),
             ),
         ),
     )
@@ -89,6 +89,54 @@ class StoragePerformance(TestSuite):
             test_result=result,
             block_size=1024,
             disk_type=DiskType.ultradisk,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test premiumV2 disk performance with 4K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumV2SSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=80000),
+                data_disk_count=search_space.IntRange(min=2),
+            ),
+            supported_features=[AvailabilityZoneEnabled()],
+        ),
+    )
+    def perf_premiumv2_datadisks_4k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(
+            node=node,
+            test_result=result,
+            disk_type=DiskType.premiumv2ssd,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test premiumV2 disk performance using
+        1024K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumV2SSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=80000),
+                data_disk_count=search_space.IntRange(min=2),
+            ),
+            supported_features=[AvailabilityZoneEnabled()],
+        ),
+    )
+    def perf_premiumv2_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_premium_datadisks(
+            node=node,
+            test_result=result,
+            block_size=1024,
+            disk_type=DiskType.premiumv2ssd,
         )
 
     @TestCaseMetadata(

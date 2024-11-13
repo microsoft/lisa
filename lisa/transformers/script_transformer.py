@@ -61,7 +61,7 @@ class ScriptTransformer(Transformer):
                 key: self._runbook_builder.variables[key].data for key in item.variables
             }
 
-            evaluator = simpleeval.SimpleEval(
+            evaluator = simpleeval.EvalWithCompoundTypes(
                 # Update ex: DEFAULT_OPERATORS | {ast.BitXor, operator.xor}
                 operators=simpleeval.DEFAULT_OPERATORS | {},
                 # Update ex: DEFAULT_FUNCTIONS | {'floor': math.floor}
@@ -78,10 +78,8 @@ class ScriptTransformer(Transformer):
                 ) from e
 
             self._log.debug(
-                "script: '%s', variables: %s, result: '%s'",
-                item.script,
-                variables,
-                result[item.name],
+                f"script: '{item.script}', variables: '{variables}', "
+                f"result: '{result[item.name]}'",
             )
 
         return result

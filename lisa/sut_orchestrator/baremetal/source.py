@@ -6,16 +6,41 @@ import zipfile
 from pathlib import Path
 from typing import List, Type
 
-import requests
-from assertpy import assert_that
-from azure.devops.connection import Connection  # type: ignore
-from msrest.authentication import BasicAuthentication
-
 from lisa import schema
-from lisa.util import InitializableMixin, constants, get_matched_str, subclasses
+from lisa.advanced_tools.ado_artifact_download import ADOArtifactsDownloader
+from lisa.node import local
+from lisa.util import InitializableMixin, subclasses
 from lisa.util.logger import get_logger
 
-from .schema import ADOSourceSchema, SourceSchema
+from .schema import ADOSourceSchema, Artifact, LocalSourceSchema, SourceSchema
+
+
+def _extract(artifact_path: Path) -> str:
+    file_extension = artifact_path.suffix
+    if file_extension == ".zip":
+        with zipfile.ZipFile(str(artifact_path), "r") as zip_ref:
+            zip_ref.extractall(str(artifact_path.parent))
+    source_path = os.path.splitext(str(artifact_path))[0]
+    return source_path
+
+
+def _extract_artifacts(
+    artifacts: List[Artifact],
+    artifacts_path: List[Path],
+) -> List[Path]:
+    artifact_local_path: List[Path] = []
+
+    for artifact in artifacts:
+        pattern = re.compile(rf".*{artifact.artifact_name}.*")
+        for artifact_path in artifacts_path:
+            if pattern.match(artifact_path.absolute().as_posix()):
+                if artifact.extract:
+                    source_path = _extract(artifact_path)
+                    artifact_local_path.append(Path(source_path))
+                else:
+                    artifact_local_path.append(artifact_path)
+
+    return artifact_local_path
 
 
 class Source(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
@@ -54,79 +79,41 @@ class ADOSource(Source):
         artifacts = self.ado_runbook.artifacts
         build_id = self.ado_runbook.build_id
         pipeline_name = self.ado_runbook.pipeline_name
+        ado = local().tools[ADOArtifactsDownloader]
+        artifacts_path = ado.download(
+            personal_access_token=personal_access_token,
+            organization_url=organization_url,
+            project_name=project_name,
+            artifacts=[x.artifact_name for x in artifacts],
+            build_id=build_id,
+            pipeline_name=pipeline_name,
+            timeout=timeout,
+        )
 
-        working_path = constants.RUN_LOCAL_WORKING_PATH
-        credentials = BasicAuthentication("", personal_access_token)
-        connection = Connection(base_url=organization_url, creds=credentials)
+        return _extract_artifacts(artifacts, artifacts_path)
 
-        pipeline_client = connection.clients.get_pipelines_client()
-        pipelines = pipeline_client.list_pipelines(project_name)
 
-        if pipeline_name:
-            found_pipeline = False
-            pipeline = None
-            for pipeline in pipelines:
-                if pipeline.name == pipeline_name:
-                    found_pipeline = True
-                    break
-            assert_that(found_pipeline).described_as(
-                (
-                    f"cannot found pipeline {pipeline_name} in project {project_name}, "
-                    "please double check the names"
-                )
-            ).is_true()
-            assert pipeline is not None, "pipeline cannot be None"
-            pipeline_runs = pipeline_client.list_runs(
-                pipeline_id=pipeline.id, project=project_name
-            )
-            assert_that(len(pipeline_runs)).described_as(
-                f"no runs found for pipeline {pipeline_name}"
-            ).is_not_zero()
+class LocalSource(Source):
+    def __init__(self, runbook: LocalSourceSchema) -> None:
+        super().__init__(runbook)
+        self.local_runbook: LocalSourceSchema = runbook
+        self._log = get_logger("local", self.__class__.__name__)
 
-            pipeline_run = [
-                run
-                for run in pipeline_runs
-                if run.result == "succeeded" and run.state == "completed"
-            ]
-            assert_that(len(pipeline_run)).described_as(
-                f"no succeeded and completed run found for pipeline {pipeline_name}"
-            ).is_not_zero()
-            build_id = pipeline_run[0].id
+    @classmethod
+    def type_name(cls) -> str:
+        return "local"
 
-        build_client = connection.clients.get_build_client()
-        artifacts_path: List[Path] = []
-        for artifact in artifacts:
-            artifact_name = artifact.artifact_name
-            build_artifact = build_client.get_artifact(
-                project_name, build_id, artifact_name
-            )
-            download_url = build_artifact.resource.download_url
-            self._log.debug(f"artifact download url: {download_url}")
-            working_path.mkdir(parents=True, exist_ok=True)
-            file_extension = get_matched_str(download_url, self.__file_format)
-            artifact_path = working_path / f"{build_artifact.name}.{file_extension}"
-            self._log.debug(f"start to download artifact to {artifact_path}")
-            with open(
-                artifact_path,
-                "wb",
-            ) as download_file:
-                response = requests.get(
-                    download_url, auth=("", personal_access_token), timeout=timeout
-                )
-                download_file.write(response.content)
-            self._log.debug(f"downloaded artifact to {artifact_path}")
-            if artifact.extract:
-                source_path = self.extract(artifact_path)
-                artifacts_path.append(Path(source_path))
-            else:
-                artifacts_path.append(artifact_path)
-        return artifacts_path
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return LocalSourceSchema
 
-    def extract(self, artifact_path: Path) -> str:
-        file_extension = artifact_path.suffix
-        if file_extension == ".zip":
-            with zipfile.ZipFile(str(artifact_path), "r") as zip_ref:
-                zip_ref.extractall(str(artifact_path.parent))
-        source_path = os.path.splitext(str(artifact_path))[0]
-        self._log.info(f"Artifact extracted to {str(source_path)}")
-        return source_path
+    def download(self, timeout: int = 600) -> List[Path]:
+        local_artifacts_path: List[Path] = []
+
+        for artifact in self.local_runbook.artifacts:
+            local_artifacts_path.append(Path(artifact.artifact_name))
+
+        return _extract_artifacts(
+            self.local_runbook.artifacts,
+            local_artifacts_path,
+        )

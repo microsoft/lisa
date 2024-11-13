@@ -1,18 +1,127 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import json
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type, cast
 
+import jwt
 from assertpy.assertpy import assert_that
 
 from lisa import Environment
 from lisa.executable import Tool
 from lisa.features import SerialConsole
+from lisa.operating_system import Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Echo, Git, Make
+from lisa.util import UnsupportedDistroException
 
 
-class CVMAttestationTests(Tool):
+class AzureCVMAttestationTests(Tool):
+    repo = "https://github.com/Azure/confidential-computing-cvm-guest-attestation"
+    cmd_path: PurePath
+    repo_root: PurePath
+
+    @property
+    def command(self) -> str:
+        return str(self.cmd_path)
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Make]
+
+    def run_cvm_attestation(
+        self,
+        test_result: TestResult,
+        environment: Environment,
+        log_path: Path,
+    ) -> None:
+        failure_msg = "CVM attestation report generation failed"
+
+        command = self.run(
+            "-o token",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            cwd=self.snp_report_tool_path,
+            shell=True,
+            sudo=True,
+            force_run=True,
+        )
+
+        output: str = command.stdout
+        report = jwt.decode(
+            output, algorithms=["RS256"], options={"verify_signature": False}
+        )
+
+        self._save_attestation_report(json.dumps(report), log_path=log_path)
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        if not isinstance(self.node.os, Ubuntu):
+            raise UnsupportedDistroException(
+                self.node.os, "CVM attestation report tool supports only Ubuntu."
+            )
+
+        tool_path = self.get_tool_path(
+            use_global=True,
+        )
+
+        self.repo_root = tool_path / "confidential-computing-cvm-guest-attestation"
+        self.snp_report_tool_path = self.repo_root / "cvm-attestation-sample-app"
+        self.deb_file = (
+            "https://packages.microsoft.com/repos/"
+            "azurecore/pool/main/a/azguestattestation1/"
+            "azguestattestation1_1.0.5_amd64.deb"
+        )
+        self.cmd_path = self.snp_report_tool_path / "AttestationClient"
+
+    def _install(self) -> bool:
+        self._install_dep_packages()
+        git = self.node.tools[Git]
+        posix_os: Posix = cast(Posix, self.node.os)
+
+        root_path = self.get_tool_path(
+            use_global=True,
+        )
+
+        git.clone(self.repo, root_path)
+
+        posix_os._install_package_from_url(
+            self.deb_file, package_name="azguestattestation1.deb"
+        )
+        self.node.execute(
+            "cmake .",
+            shell=True,
+            cwd=self.snp_report_tool_path,
+        )
+        make = self.node.tools[Make]
+        make.make("", cwd=self.snp_report_tool_path)
+
+        return self._check_exists()
+
+    def _install_dep_packages(self) -> None:
+        # Installing packages supported by Ubuntu
+        posix_os: Posix = cast(Posix, self.node.os)
+        package_list = [
+            "build-essential",
+            "libcurl4-openssl-dev",
+            "libjsoncpp-dev",
+            "wget",
+            "libboost-all-dev",
+            "nlohmann-json3-dev",
+            "cmake",
+        ]
+        posix_os.install_packages(package_list)
+
+    def _save_attestation_report(self, output: str, log_path: Path) -> None:
+        report_path = log_path / "cvm_attestation_report.txt"
+        with open(str(report_path), "w") as f:
+            f.write(output)
+
+
+class NestedCVMAttestationTests(Tool):
     repo = "https://github.com/microsoft/confidential-sidecar-containers.git"
     cmd_path: str
     repo_root: PurePath

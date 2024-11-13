@@ -52,7 +52,7 @@ class AzureHookSpecDefaultImpl:
             # Current Limit: 1000, Current Usage: 896, Additional Required: 128,
             # (Minimum) New Limit Required: 1024. Submit a request for Quota
             # increase at
-            # https://aka.ms/ProdportalCRP/#blade/Microsoft_Azure_Capacity/...........
+            # https://aka.ms/ProdportalCRP/#blade/Microsoft_Azure_Capacity/
             # by specifying parameters listed in the ‘Details’ section for
             # deployment to succeed. Please read more about quota limits at
             # https://docs.microsoft.com/en-us/azure/azure-supportability/per-vm-quota-requests
@@ -75,6 +75,16 @@ class AzureHookSpecDefaultImpl:
             "",
             re.compile(r"^AllocationFailed: Allocation failed."),
             partial(ResourceAwaitableException, "vm size"),
+        ),
+        (
+            "Your subscription is not registered for Virtual Machine Hibernation "
+            "feature. Please register and try again. More details please refer "
+            "https://learn.microsoft.com/en-us/azure/virtual-machines/hibernate-resume-troubleshooting?tabs=troubleshootLinuxCantHiber%2CtroubleshootWindowsGuestCantHiber",  # noqa: E501
+            re.compile(
+                r"The subscription is not registered for the private preview of"
+                " VirtualMachine Hibernation feature"
+            ),
+            SkippedException,
         ),
     ]
 

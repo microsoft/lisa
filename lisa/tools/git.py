@@ -103,15 +103,23 @@ class Git(Tool):
         return full_path
 
     def checkout(
-        self, ref: str, cwd: pathlib.PurePath, checkout_branch: str = ""
+        self,
+        ref: str,
+        cwd: pathlib.PurePath,
+        checkout_branch: str = "",
     ) -> None:
+        delete_temp_branch = False
         if not checkout_branch:
             # create a temp branch to checkout tag or commit.
             checkout_branch = f"{constants.RUN_ID}"
+            # check if this name is already in use
+            branch_before_checkout = self.get_current_branch(cwd=cwd)
+            if branch_before_checkout == checkout_branch:
+                delete_temp_branch = True
 
         # mark directory safe
         self._mark_safe(cwd)
-
+        branch_before_checkout = self.get_current_branch(cwd=cwd)
         # force run to make sure checkout among branches correctly.
         result = self.run(
             f"checkout {ref}",
@@ -120,7 +128,20 @@ class Git(Tool):
             no_info_log=True,
             no_error_log=True,
         )
+        # delete old temp branch before checking out new one
+        if delete_temp_branch:
+            self.run(
+                f"branch -D {branch_before_checkout}",
+                force_run=True,
+                cwd=cwd,
+                no_info_log=True,
+                no_error_log=True,
+            )
+            result.assert_exit_code(
+                message=f"failed to delete old temp branch. {result.stdout}"
+            )
 
+        # create temp branch
         result = self.run(
             f"checkout -b {checkout_branch}",
             force_run=True,

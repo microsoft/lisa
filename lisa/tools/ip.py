@@ -185,22 +185,25 @@ class Ip(Tool):
         default_route: str = "",
     ) -> None:
         cmd = f"ip link set dev {nic_name} down;ip link set dev {nic_name} up "
-        if run_dhclient:
-            # if no ip address
-            # firstly kill dhclient if it is running
-            # then run dhclient to get ip address
-            cmd += (
-                f' && (ip addr show {nic_name} | grep "inet ") || '
-                "(pidof dhclient && kill $(pidof dhclient) && "
-                f"dhclient -r {nic_name}; dhclient {nic_name})"
-            )
-        if default_route:
-            # need add wait 1 second, for some distro, e.g.
-            # redhat rhel 7-lvm 7.8.2021051701
-            # the ip route will be back after nic down and up for a while
-            cmd += " && sleep 1 "
-            # if no default route, add it back
-            cmd += f" && ip route show | grep default || ip route add {default_route}"
+        dhclient_exist = self.node.execute("which dhclient", shell=True, sudo=True)
+        if dhclient_exist.exit_code == 0:
+            if run_dhclient:
+                # if no ip address
+                # firstly kill dhclient if it is running
+                # then run dhclient to get ip address
+                cmd += (
+                    f' && (ip addr show {nic_name} | grep "inet ") || '
+                    "(pidof dhclient && kill $(pidof dhclient) && "
+                    f"dhclient -r {nic_name}; dhclient {nic_name})"
+                )
+            if default_route:
+                # need add wait 1 second, for some distro, e.g.
+                # redhat rhel 7-lvm 7.8.2021051701
+                # the ip route will be back after nic down and up for a while
+                cmd += " && sleep 1 "
+                # if no default route, add it back
+                cmd += " && (ip route show | grep default ||"
+                cmd += f" ip route add {default_route})"
         self.node.execute(
             cmd,
             shell=True,

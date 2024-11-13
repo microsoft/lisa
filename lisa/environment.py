@@ -161,6 +161,7 @@ class Environment(ContextMixin, InitializableMixin):
         self,
         is_predefined: bool,
         warn_as_error: bool,
+        retry: int,
         id_: int,
         runbook: schema.Environment,
     ) -> None:
@@ -173,6 +174,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.is_new: bool = True
         self.id: str = str(id_)
         self.warn_as_error = warn_as_error
+        self.retry = retry
         self.platform: Optional[Platform] = None
         self.log = get_logger("env", self.name)
         self.source_test_result: Optional[TestResult] = None
@@ -185,6 +187,9 @@ class Environment(ContextMixin, InitializableMixin):
         self._raw_id = id_
         self._retries: int = 0
 
+        # Counter for the number of deployment attempts
+        # increments when deployment fails and retry > 0
+        self.tried_times: int = 0
         # cost uses to plan order of environments.
         # cheaper env can fit cases earlier to run more cases on it.
         # 1. smaller is higher priority, it can be index of candidate environment
@@ -380,6 +385,7 @@ class Environment(ContextMixin, InitializableMixin):
         env = Environment(
             is_predefined=self.is_predefined,
             warn_as_error=self.warn_as_error,
+            retry=self.retry,
             id_=self._raw_id,
             runbook=runbook,
         )
@@ -440,6 +446,7 @@ class Environment(ContextMixin, InitializableMixin):
         self.remove_context()
 
         self._retries += 1
+        self._is_initialized = False
 
     def _validate_single_default(
         self, has_default: bool, is_default: Optional[bool]
@@ -461,9 +468,11 @@ class Environments(EnvironmentsDict):
     def __init__(
         self,
         warn_as_error: bool = False,
+        retry: int = 0,
     ) -> None:
         super().__init__()
         self.warn_as_error = warn_as_error
+        self.retry = retry
 
     def get_or_create(self, requirement: EnvironmentSpace) -> Optional[Environment]:
         result: Optional[Environment] = None
@@ -506,6 +515,7 @@ class Environments(EnvironmentsDict):
         env = Environment(
             is_predefined=is_predefined_runbook,
             warn_as_error=self.warn_as_error,
+            retry=self.retry,
             id_=id_,
             runbook=copied_runbook,
         )
@@ -522,6 +532,7 @@ def load_environments(
     if root_runbook:
         environments = Environments(
             warn_as_error=root_runbook.warn_as_error,
+            retry=root_runbook.retry,
         )
 
         environments_runbook = root_runbook.environments

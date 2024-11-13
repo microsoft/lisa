@@ -3,13 +3,23 @@
 
 import re
 import time
+from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 from assertpy import assert_that
+from dataclasses_json import config, dataclass_json
 
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
+from lisa.util.process import Process
+
+
+@dataclass_json
+@dataclass
+class VMSwitch:
+    name: str = field(metadata=config(field_name="Name"))
 
 
 class HyperV(Tool):
@@ -33,68 +43,122 @@ class HyperV(Tool):
 
         return output.strip() != ""
 
-    def delete_vm(self, name: str) -> None:
+    def delete_vm_async(self, name: str) -> Optional[Process]:
         # check if vm is present
         if not self.exists_vm(name):
-            return
+            return None
 
         # stop and delete vm
+        self.stop_vm(name=name)
         powershell = self.node.tools[PowerShell]
-        powershell.run_cmdlet(
-            f"Stop-VM -Name {name} -Force",
-            force_run=True,
-        )
-        powershell.run_cmdlet(
+        return powershell.run_cmdlet_async(
             f"Remove-VM -Name {name} -Force",
             force_run=True,
         )
+
+    def delete_vm(self, name: str) -> None:
+        process = self.delete_vm_async(name)
+
+        if process is None:
+            return
+
+        process.wait_result(expected_exit_code=0)
 
     def create_vm(
         self,
         name: str,
         guest_image_path: str,
         switch_name: str,
+        generation: int = 1,
         cores: int = 2,
         memory: int = 2048,
+        attach_offline_disks: bool = True,
+        com_ports: Optional[Dict[int, str]] = None,
+        secure_boot: bool = True,
         stop_existing_vm: bool = True,
+        extra_args: Optional[Dict[str, str]] = None,
     ) -> None:
         if stop_existing_vm:
             self.delete_vm(name)
 
-        # create a VM in hyperv
         powershell = self.node.tools[PowerShell]
-        powershell.run_cmdlet(
-            f"New-VM -Name {name} -Generation 1 "
-            f"-MemoryStartupBytes {memory}MB -BootDevice VHD "
-            f"-VHDPath {guest_image_path} -SwitchName {switch_name}",
+
+        # create a VM in hyperv
+        self._run_hyperv_cmdlet(
+            "New-VM",
+            f'-Name "{name}" -Generation {generation} -MemoryStartupBytes {memory}MB '
+            f'-BootDevice VHD -VHDPath "{guest_image_path}" '
+            f'-SwitchName "{switch_name}"',
+            extra_args=extra_args,
             force_run=True,
         )
 
-        # set cores and memory type
-        powershell.run_cmdlet(
-            f"Set-VM -Name {name} -ProcessorCount {cores} -StaticMemory "
-            "-CheckpointType Disabled",
-            force_run=True,
-        )
-
-        # add disks
-        disk_info = powershell.run_cmdlet(
-            "(Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number",
-            force_run=True,
-        )
-        matched = re.findall(r"\d+", disk_info)
-        disk_numbers = [int(x) for x in matched]
-        for disk_number in disk_numbers:
-            powershell.run_cmdlet(
-                f"Add-VMHardDiskDrive -VMName {name} -DiskNumber {disk_number} "
-                "-ControllerType 'SCSI'",
+        if extra_args is not None and "set-vmprocessor" in extra_args:
+            self._run_hyperv_cmdlet(
+                "Set-VMProcessor",
+                f"-VMName {name}",
+                extra_args=extra_args,
                 force_run=True,
             )
 
-        # start vm
-        powershell.run_cmdlet(
-            f"Start-VM -Name {name}",
+        # set cores and memory type
+        self._run_hyperv_cmdlet(
+            "Set-VM",
+            f"-Name {name} -ProcessorCount {cores} -StaticMemory "
+            "-CheckpointType Disabled",
+            extra_args=extra_args,
             force_run=True,
+        )
+
+        # disable secure boot if requested
+        # secure boot is only supported for generation 2 VMs
+        if not secure_boot and generation == 2:
+            self._run_hyperv_cmdlet(
+                "Set-VMFirmware",
+                f"-VMName {name} -EnableSecureBoot Off",
+                extra_args=extra_args,
+                force_run=True,
+            )
+
+        # add disks if requested
+        if attach_offline_disks:
+            disk_info = powershell.run_cmdlet(
+                "(Get-Disk | Where-Object {$_.OperationalStatus -eq 'offline'}).Number",
+                force_run=True,
+            )
+            matched = re.findall(r"\d+", disk_info)
+            disk_numbers = [int(x) for x in matched]
+            for disk_number in disk_numbers:
+                self._run_hyperv_cmdlet(
+                    "Add-VMHardDiskDrive",
+                    f"-VMName {name} -DiskNumber {disk_number} -ControllerType 'SCSI'",
+                    extra_args=extra_args,
+                    force_run=True,
+                )
+
+        # configure COM ports if specified
+        if com_ports:
+            for port_number, pipe_path in com_ports.items():
+                # only port numbers 1 and 2 are supported
+                # they correspond to COM1 and COM2 respectively
+                if port_number != 1 and port_number != 2:
+                    continue
+
+                self._run_hyperv_cmdlet(
+                    "Set-VMComPort",
+                    f"-VMName {name} -Number {port_number} -Path {pipe_path}",
+                    extra_args=extra_args,
+                    force_run=True,
+                )
+
+    def start_vm(
+        self,
+        name: str,
+        extra_args: Optional[Dict[str, str]] = None,
+    ) -> None:
+        # start vm
+        self._run_hyperv_cmdlet(
+            "Start-VM", f"-Name {name}", extra_args=extra_args, force_run=True
         )
 
         # wait for vm start
@@ -113,6 +177,41 @@ class HyperV(Tool):
 
         if not is_ready:
             raise LisaException(f"VM {name} did not start")
+
+    def stop_vm(self, name: str) -> None:
+        # stop vm
+        self._run_hyperv_cmdlet("Stop-VM", f"-Name {name} -Force", force_run=True)
+
+    def restart_vm(
+        self,
+        name: str,
+    ) -> None:
+        # restart vm
+        self._run_hyperv_cmdlet("Restart-VM", f"-Name {name} -Force", force_run=True)
+
+    def enable_device_passthrough(self, name: str, mmio_mb: int = 5120) -> None:
+        self._run_hyperv_cmdlet(
+            "Set-VM",
+            f"-Name {name} -AutomaticStopAction TurnOff",
+            force_run=True,
+        )
+        self._run_hyperv_cmdlet(
+            "Set-VM",
+            f"-HighMemoryMappedIoSpace {mmio_mb}Mb -VMName {name}",
+            force_run=True,
+        )
+
+    def get_default_external_switch(self) -> Optional[VMSwitch]:
+        switch_json = self.node.tools[PowerShell].run_cmdlet(
+            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
+            "| Select -First 1 | select Name | ConvertTo-Json",
+            force_run=True,
+        )
+
+        if not switch_json:
+            return None
+
+        return VMSwitch.from_json(switch_json)  # type: ignore
 
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
@@ -307,3 +406,17 @@ class HyperV(Tool):
         self.node.reboot()
 
         return self._check_exists()
+
+    def _run_hyperv_cmdlet(
+        self,
+        cmd: str,
+        args: str,
+        extra_args: Optional[Dict[str, str]] = None,
+        force_run: bool = False,
+    ) -> str:
+        pwsh = self.node.tools[PowerShell]
+        if not extra_args:
+            extra_args = {}
+        return pwsh.run_cmdlet(
+            f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+        )

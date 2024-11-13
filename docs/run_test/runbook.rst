@@ -28,6 +28,7 @@ Runbook Reference
 
    -  `variable <#variable>`__
 
+      -  `is_case_visible <#is-case-visible>`__
       -  `is_secret <#is-secret>`__
       -  `file <#file>`__
       -  `name <#name-2>`__
@@ -64,6 +65,8 @@ Runbook Reference
          -  `auto_open <#auto-open>`__
 
    -  `environment <#environment>`__
+
+      -  `retry <#retry>`__
 
       -  `environments <#environments>`__
 
@@ -426,6 +429,15 @@ with value ``northeurope``.
      - name: location
        value: northeurope
 
+is_case_visible
+^^^^^^^^^^^^^^^
+
+type: bool, optional, default is False.
+
+When set to True, the value of this variable will be passed to the testcases,
+such as ``perf_nested_kvm_storage_singledisk`` which requires information
+about nested image.
+
 is_secret
 ^^^^^^^^^
 
@@ -659,6 +671,11 @@ environment
 
 List of environments. For more information, refer to
 :ref:`write_test/concepts:node and environment`.
+
+retry
+^^^^^^^^^^^^
+
+Number of retry attempts for failed deployments, default value is 0.
 
 environments
 ^^^^^^^^^^^^

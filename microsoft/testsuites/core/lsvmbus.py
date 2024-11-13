@@ -11,6 +11,12 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.feature import Feature
+from lisa.features.security_profile import (
+    SecurityProfile,
+    SecurityProfileSettings,
+    SecurityProfileType,
+)
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.tools import VmGeneration
@@ -22,6 +28,16 @@ from lisa.util.perf_timer import create_timer
 
 class VmbusDeviceNames:
     def __init__(self, is_gen1: bool, node: Node) -> None:
+        settings = Feature.get_feature_settings(
+            node.features[SecurityProfile].get_settings()
+        )
+        lcvmbus_device_names = [
+            "Operating system shutdown",
+            "Time Synchronization",
+            "Heartbeat",
+            "Synthetic network adapter",
+            "Synthetic SCSI Controller",
+        ]
         if isinstance(node.os, BSD):
             self.names = [
                 "Hyper-V Shutdown",
@@ -31,16 +47,16 @@ class VmbusDeviceNames:
                 "Hyper-V Network Interface",
                 "Hyper-V SCSI",
             ]
+        elif (
+            isinstance(settings, SecurityProfileSettings)
+            and SecurityProfileType.CVM == settings.security_profile
+        ):
+            self.names = lcvmbus_device_names
         else:
-            self.names = [
-                "Operating system shutdown",
-                "Time Synchronization",
-                "Heartbeat",
+            self.names = lcvmbus_device_names + [
                 "Data Exchange",
                 "Synthetic mouse",
                 "Synthetic keyboard",
-                "Synthetic network adapter",
-                "Synthetic SCSI Controller",
             ]
             if is_gen1:
                 self.names.append("Synthetic IDE Controller")
@@ -80,12 +96,13 @@ class LsVmBus(TestSuite):
             - Operating system shutdown
             - Time Synchronization
             - Heartbeat
-            - Data Exchange
-            - Synthetic mouse
-            - Synthetic keyboard
             - Synthetic network adapter
             - Synthetic SCSI Controller
             - Synthetic IDE Controller (gen1 only)
+            It expects addtional three vmbus device names for non-cvm:
+            - Data Exchange
+            - Synthetic mouse
+            - Synthetic keyboard
         2. Check that each netvsc and storvsc SCSI device have correct number of vmbus
             channels created and associated.
             2.1 Check expected channel count of each netvsc is min (num of vcpu, 8).

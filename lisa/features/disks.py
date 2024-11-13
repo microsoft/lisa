@@ -1,16 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from functools import partial
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from assertpy.assertpy import assert_that
 
 from lisa import schema
 from lisa.feature import Feature
+from lisa.operating_system import BSD
 from lisa.tools import Mount
 from lisa.tools.mount import PartitionInfo
-from lisa.util import LisaException
+from lisa.util import LisaException, get_matched_str
 
 
 class Disk(Feature):
@@ -56,6 +58,7 @@ class Disk(Feature):
         count: int,
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
+        lun: int = -1,
     ) -> List[str]:
         raise NotImplementedError
 
@@ -68,6 +71,9 @@ class Disk(Feature):
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
 
+    def get_luns(self) -> Dict[str, int]:
+        raise NotImplementedError
+
     # Get boot partition of VM by looking for "/boot" and "/boot/efi"
     def get_os_boot_partition(self) -> Optional[PartitionInfo]:
         partition_info = self._node.tools[Mount].get_partition_info()
@@ -75,6 +81,20 @@ class Disk(Feature):
         for partition in partition_info:
             if partition.mount_point.startswith("/boot"):
                 boot_partition = partition
+                if isinstance(self._node.os, BSD):
+                    # Get the device name from the GPT since they are abstracted
+                    # Ex. /boot is mounted on /gpt/efiesp
+                    # This is the output of gpart show.
+                    # Name           Status  Components
+                    # gpt/efiesp     N/A     da0p1
+                    # gpt/rootfs     N/A     da0p2
+                    _get_device_from_gpt_bsd_regex = re.compile(
+                        r"\n?" + re.escape(boot_partition.disk) + r"\s*\S*\s*(\S*)"
+                    )
+                    cmd = "glabel status"
+                    output = self._node.execute(cmd).stdout
+                    dev = get_matched_str(output, _get_device_from_gpt_bsd_regex)
+                    boot_partition.disk = dev
                 break
         return boot_partition
 
@@ -82,13 +102,20 @@ class Disk(Feature):
     def get_os_disk_controller_type(self) -> schema.DiskControllerType:
         boot_partition = self.get_os_boot_partition()
         assert boot_partition, "'boot_partition' must not be 'None'"
-
-        if boot_partition.disk.startswith("nvme"):
-            os_disk_controller_type = schema.DiskControllerType.NVME
-        elif boot_partition.disk.startswith("sd"):
-            os_disk_controller_type = schema.DiskControllerType.SCSI
+        if isinstance(self._node.os, BSD):
+            if boot_partition.disk.startswith("da"):
+                os_disk_controller_type = schema.DiskControllerType.SCSI
+            elif boot_partition.disk.startswith("nvd"):
+                os_disk_controller_type = schema.DiskControllerType.NVME
+            else:
+                raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
         else:
-            raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
+            if boot_partition.disk.startswith("nvme"):
+                os_disk_controller_type = schema.DiskControllerType.NVME
+            elif boot_partition.disk.startswith("sd"):
+                os_disk_controller_type = schema.DiskControllerType.SCSI
+            else:
+                raise LisaException(f"Unknown OS boot disk type {boot_partition.disk}")
         return os_disk_controller_type
 
 
@@ -109,6 +136,10 @@ DiskStandardSSDLRS = partial(
     schema.DiskOptionSettings,
     data_disk_type=schema.DiskType.StandardSSDLRS,
     os_disk_type=schema.DiskType.StandardSSDLRS,
+)
+DiskPremiumV2SSDLRS = partial(
+    schema.DiskOptionSettings,
+    data_disk_type=schema.DiskType.PremiumV2SSDLRS,
 )
 DiskUltraSSDLRS = partial(
     schema.DiskOptionSettings, data_disk_type=schema.DiskType.UltraSSDLRS

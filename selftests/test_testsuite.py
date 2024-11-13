@@ -35,6 +35,7 @@ skipped = False
 queued = False
 fail_case_count = 0
 check_variable = False
+retry_failed_count = 0
 
 
 class MockTestSuite(TestSuite):
@@ -81,6 +82,10 @@ class MockTestSuite(TestSuite):
         while self.fail_case_count > 0:
             self.fail_case_count -= 1
             raise LisaException("mock_ut1 failed")
+        global retry_failed_count
+        if retry_failed_count > 0:
+            retry_failed_count -= 1
+            raise LisaException("mock_ut1 failed by retry")
 
     def mock_ut2(self, variables: Dict[str, Any], **kwargs: Any) -> None:
         if self.check_variable:
@@ -259,22 +264,6 @@ class TestSuiteTestCase(TestCase):
         result = self.case_results[0]
         self.assertEqual(TestStatus.FAILED, result.status)
         self.assertEqual("failed. LisaException: mock_ut1 failed", result.message)
-        result = self.case_results[1]
-        self.assertEqual(TestStatus.PASSED, result.status)
-        self.assertEqual("", result.message)
-
-    def test_retry_passed(self) -> None:
-        test_suite = self.generate_suite_instance()
-        test_suite.set_fail_phase(fail_case_count=1)
-        result = self.case_results[0]
-        result.runtime_data.retry = 1
-        test_suite.start(
-            environment=self.default_env,
-            case_results=self.case_results,
-            case_variables={},
-        )
-        self.assertEqual(TestStatus.PASSED, result.status)
-        self.assertEqual("", result.message)
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)

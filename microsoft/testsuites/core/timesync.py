@@ -1,5 +1,6 @@
 import time
 from copy import deepcopy
+from datetime import timedelta
 from pathlib import PurePosixPath
 from time import sleep
 from typing import List, Optional, Union, cast
@@ -17,9 +18,10 @@ from lisa import (
     TestSuiteMetadata,
     UnsupportedCpuArchitectureException,
     create_timer,
+    simple_requirement,
 )
-from lisa.operating_system import CpuArchitecture, Redhat, Suse
-from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Lscpu, Ntp, Ntpstat, Service
+from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Windows
+from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Ls, Lscpu, Ntp, Ntpstat, Service
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
 from lisa.util import constants
@@ -93,14 +95,28 @@ class TimeSync(TestSuite):
         assert_that(dmesg.get_output()).contains(self.ptp_registered_msg)
 
         # 2. PTP device name is hyperv.
+        # In some Linux VMs you may see multiple PTP devices listed.
+        # One example is for Accelerated Networking the Mellanox mlx5 driver also
+        # creates a /dev/ptp device. Because the initialization order can be different
+        # each time Linux boots, the PTP device corresponding to the Azure host might
+        # be /dev/ptp0 or it might be /dev/ptp1.
+        # To determine which PTP device corresponds to the Azure host, you can check the
+        # clock_name file. At least one of the PTP devices should have
+        # a clock_name of 'hyperv'.
         cat = node.tools[Cat]
-        clock_name_result = cat.run("/sys/class/ptp/ptp0/clock_name")
-        assert_that(clock_name_result.stdout).described_as(
-            f"ptp clock name should be 'hyperv', meaning the Azure host, "
-            f"but it is {clock_name_result.stdout}, more info please refer "
-            f"https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source"  # noqa: E501
-        ).is_equal_to("hyperv")
-
+        ls = node.tools[Ls]
+        ptp_devices = ls.list_dir("/sys/class/ptp")
+        ptp_hyperv_device = None
+        for ptp_device in ptp_devices:
+            clock_name_result = cat.run(
+                f"{ptp_device}clock_name", sudo=True, shell=True, force_run=True
+            )
+            if clock_name_result.stdout == "hyperv":
+                ptp_hyperv_device = ptp_device
+        assert_that(ptp_hyperv_device).described_as(
+            "There should be at least one PTP device with name 'hyperv', more info"
+            " please refer https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source"  # noqa: E501
+        ).is_not_none()
         # 3. When accelerated network is enabled, multiple PTP devices will
         #  be available, the names of ptp are changeable, create the symlink
         #  /dev/ptp_hyperv to whichever /dev/ptp entry corresponds to the Azure host.
@@ -158,7 +174,7 @@ class TimeSync(TestSuite):
             }
             lscpu = node.tools[Lscpu]
             arch = lscpu.get_architecture()
-            clocksource = clocksource_map.get(CpuArchitecture(arch), None)
+            clocksource = clocksource_map.get(arch, None)
             if not clocksource:
                 raise UnsupportedCpuArchitectureException(arch)
             cat = node.tools[Cat]
@@ -249,7 +265,7 @@ class TimeSync(TestSuite):
             }
             lscpu = node.tools[Lscpu]
             arch = lscpu.get_architecture()
-            clock_event_name = clockevent_map.get(CpuArchitecture(arch), None)
+            clock_event_name = clockevent_map.get(arch, None)
             if not clock_event_name:
                 raise UnsupportedCpuArchitectureException(arch)
             cat = node.tools[Cat]
@@ -377,11 +393,14 @@ class TimeSync(TestSuite):
         sampling.
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
-        if CpuArchitecture(arch) != "aarch64":
+        if arch != CpuArchitecture.ARM64:
             raise SkippedException(
                 f"This test case does not support {arch}. "
                 "This validation is only for ARM64."
@@ -418,7 +437,7 @@ class TimeSync(TestSuite):
             date = node.tools[Date]
             node_time = date.current()
             modified_time = deepcopy(node_time)
-            modified_time = modified_time.replace(year=node_time.year - 2)
+            modified_time = modified_time - timedelta(days=2)
             date.set(modified_time)
 
             # Poll every second and check if the time drift is corrected

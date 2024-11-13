@@ -14,10 +14,14 @@ from lisa.base_tools import Wget
 from lisa.base_tools.uname import Uname
 from lisa.feature import Feature
 from lisa.operating_system import CBLMariner, CpuArchitecture, Oracle, Redhat, Ubuntu
-from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
 from lisa.tools.lspci import PciDevice
-from lisa.util import LisaException, SkippedException, constants
+from lisa.util import (
+    LisaException,
+    MissingPackagesException,
+    SkippedException,
+    constants,
+)
 
 FEATURE_NAME_GPU = "Gpu"
 
@@ -113,13 +117,6 @@ class Gpu(Feature):
     def install_compute_sdk(self, version: str = "") -> None:
         # install GPU dependencies before installing driver
         self._install_gpu_dep()
-        try:
-            # install LIS driver if required and not already installed.
-            self._node.tools[LisDriver]
-        except Exception as identifier:
-            self._log.debug(
-                f"LisDriver is not installed. It might not be required. {identifier}"
-            )
 
         # install the driver
         supported_driver = self.get_supported_driver()
@@ -209,12 +206,18 @@ class Gpu(Feature):
                 "http://developer.download.nvidia.com/compute/cuda/"
                 f"repos/rhel{release}/x86_64/cuda-rhel{release}.repo"
             )
-            install_packages = ["cuda-drivers"]
+            install_packages = ["nvidia-driver-cuda"]
             if release == "7":
                 install_packages.append("nvidia-driver-latest-dkms")
             self._node.os.install_packages(install_packages, signed=False)
 
         elif isinstance(self._node.os, Ubuntu):
+            cuda_package_name = "cuda-drivers"
+            # CUDA Drivers Package Example: cuda-drivers-550
+            cuda_drivers_package_pattern = re.compile(
+                r"^cuda-drivers-(\d+)/.*$", re.MULTILINE
+            )
+            cuda_keyring = "cuda-keyring_1.1-1_all.deb"
             release = re.sub("[^0-9]+", "", os_information.release)
             # there is no ubuntu2110 and ubuntu2104 folder under nvidia site
             if release in ["2110", "2104"]:
@@ -226,10 +229,10 @@ class Gpu(Feature):
             # Public CUDA GPG key is needed to be installed for Ubuntu
             self._node.tools[Wget].get(
                 "https://developer.download.nvidia.com/compute/cuda/repos/"
-                f"ubuntu{release}/x86_64/cuda-keyring_1.0-1_all.deb"
+                f"ubuntu{release}/x86_64/{cuda_keyring}"
             )
             self._node.execute(
-                "dpkg -i cuda-keyring_1.0-1_all.deb",
+                f"dpkg -i {cuda_keyring}",
                 sudo=True,
                 cwd=self._node.get_working_path(),
             )
@@ -265,30 +268,28 @@ class Gpu(Feature):
                         f"failed to add repo {repo_entry}"
                     ),
                 )
-                # the latest version cuda-drivers-510 has issues
-                # nvidia-smi
-                # No devices were found
-                # dmesg
-                # NVRM: GPU 0001:00:00.0: RmInitAdapter failed! (0x63:0x55:2344)
-                # NVRM: GPU 0001:00:00.0: rm_init_adapter failed, device minor number 0
-                cuda_package_versions = {"1804": "530"}
-                # 545 is the latest version available for Ubuntu 2004+
-                package_version = cuda_package_versions.get(release, "545")
-                self._node.os.install_packages(f"cuda-drivers-{package_version}")
+                result = self._node.execute(
+                    f"apt search {cuda_package_name}", sudo=True
+                )
+                available_versions = cuda_drivers_package_pattern.findall(result.stdout)
+
+            if available_versions:
+                # Sort versions and select the highest one
+                highest_version = max(available_versions)
+                package_version = highest_version
+            else:
+                raise MissingPackagesException([f"{cuda_package_name}"])
+            self._node.os.install_packages(f"{cuda_package_name}-{package_version}")
         elif (
             isinstance(self._node.os, CBLMariner)
             and self._node.os.get_kernel_information().hardware_platform
             == CpuArchitecture.X64
         ):
-            # Replace "5.15.131.1-2.cm2" with "5.15.131.1.2.cm2"
-            kernel_ver = self._node.os.get_kernel_information().raw_version.replace(
-                "-", "."
+            self._node.os.add_repository(
+                "https://raw.githubusercontent.com/microsoft/CBL-Mariner/2.0/"
+                "toolkit/docs/nvidia/mariner-nvidia.repo"
             )
-            self._node.os._install_package_from_url(
-                "https://packages.microsoft.com/cbl-mariner/2.0/prod/nvidia/x86_64/"
-                f"Packages/c/cuda-525.85.12-3_{kernel_ver}.x86_64.rpm",
-                signed=False,
-            )
+            self._node.os.install_packages("cuda", signed=False)
         else:
             raise SkippedException(
                 f"Distro {self._node.os.name} ver: {self._node.os.information.version}"
@@ -312,7 +313,7 @@ class Gpu(Feature):
             if release == "7":
                 # vulkan-filesystem is required by CUDA in CentOS 7.x
                 self._node.os._install_package_from_url(
-                    "http://mirror.centos.org/centos/7/os/x86_64/Packages/"
+                    "https://vault.centos.org/centos/7/os/x86_64/Packages/"
                     "vulkan-filesystem-1.1.97.0-1.el7.noarch.rpm"
                 )
 

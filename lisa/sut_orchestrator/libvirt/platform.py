@@ -20,12 +20,13 @@ import libvirt  # type: ignore
 import pycdlib  # type: ignore
 import yaml
 
-from lisa import schema, search_space
+from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.tools import (
     Chmod,
     Chown,
@@ -41,7 +42,12 @@ from lisa.tools import (
     Uname,
     Whoami,
 )
-from lisa.util import LisaException, constants, get_public_key_data
+from lisa.util import (
+    LisaException,
+    NotMeetRequirementException,
+    constants,
+    get_public_key_data,
+)
 from lisa.util.logger import Logger, filter_ansi_escape, get_logger
 
 from . import libvirt_events_thread
@@ -53,6 +59,7 @@ from .context import (
     get_environment_context,
     get_node_context,
 )
+from .features import SecurityProfile, SecurityProfileSettings
 from .platform_interface import IBaseLibvirtPlatform
 from .schema import (
     FIRMWARE_TYPE_BIOS,
@@ -88,6 +95,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     _supported_features: List[Type[Feature]] = [
         SerialConsole,
         StartStop,
+        SecurityProfile,
     ]
 
     def __init__(self, runbook: schema.Platform) -> None:
@@ -179,11 +187,48 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self.__init_libvirt_conn_string()
         self.libvirt_conn = libvirt.open(self.libvirt_conn_str)
 
+        self.device_pool = LibvirtDevicePool(self.host_node, self.platform_runbook)
+        # If Device_passthrough is set in runbook,
+        # Configure device passthrough params
+        self.device_pool.configure_device_passthrough_pool(
+            self.platform_runbook.device_pools,
+        )
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         # Ensure environment log directory is created before connecting to any nodes.
         _ = environment.log_path
 
         self._configure_environment(environment, log)
+
+        if environment.runbook.nodes_requirement:
+            for node_space in environment.runbook.nodes_requirement:
+                new_settings = search_space.SetSpace[schema.FeatureSettings](
+                    is_allow_set=True
+                )
+                if node_space.features:
+                    for current_settings in node_space.features.items:
+                        # reload to type specified settings
+                        try:
+                            settings_type = feature.get_feature_settings_type_by_name(
+                                current_settings.type,
+                                BaseLibvirtPlatform.supported_features(),
+                            )
+                        except NotMeetRequirementException as identifier:
+                            raise LisaException(
+                                f"platform doesn't support all features. {identifier}"
+                            )
+                        new_setting = schema.load_by_type(
+                            settings_type, current_settings
+                        )
+                        existing_setting = feature.get_feature_settings_by_name(
+                            new_setting.type, new_settings, True
+                        )
+                        if existing_setting:
+                            new_settings.remove(existing_setting)
+                            new_setting = existing_setting.intersect(new_setting)
+
+                        new_settings.add(new_setting)
+                    node_space.features = new_settings
 
         return self._configure_node_capabilities(environment, log)
 
@@ -304,10 +349,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         node_capabilities.network_interface.max_nic_count = 1
         node_capabilities.network_interface.nic_count = 1
         node_capabilities.gpu_count = 0
+        security_profile_setting = SecurityProfileSettings()
         node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True,
             items=[
                 schema.FeatureSettings.create(SerialConsole.name()),
+                security_profile_setting,
             ],
         )
 
@@ -503,6 +550,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
                 node_context.data_disks.append(data_disk)
 
+        self.device_pool._set_device_passthrough_node_context(
+            node_context,
+            node_runbook,
+        )
+
     def restart_domain_and_attach_logger(self, node: Node) -> None:
         node_context = get_node_context(node)
         domain = node_context.domain
@@ -537,6 +589,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         # Start the VM.
         node_context.domain.resume()
 
+        # Once libvirt domain is created, check if driver attached to device
+        # on the host is vfio-pci for PCI device passthrough to make sure if
+        # pass-through for PCI device is happened properly or not
+        self.device_pool._verify_device_passthrough_post_boot(
+            node_context=node_context,
+        )
+
     # Create all the VMs.
     def _create_nodes(
         self,
@@ -544,6 +603,31 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         log: Logger,
     ) -> None:
         self.host_node.shell.mkdir(Path(self.vm_disks_dir), exist_ok=True)
+        features_settings: Dict[str, schema.FeatureSettings] = {}
+
+        # collect all the features to handle special deployment logic. If one
+        # node has this, it needs to run.
+        nodes_requirement = environment.runbook.nodes_requirement
+        if nodes_requirement:
+            for node_space in nodes_requirement:
+                if not node_space.features:
+                    continue
+                for feature_setting in node_space.features:
+                    if feature_setting.type not in features_settings:
+                        features_settings[feature_setting.type] = feature_setting
+
+        # change deployment for each feature.
+        for feature_type, setting in [
+            (t, s)
+            for t in self.supported_features()
+            for s in features_settings.values()
+            if t.name() == s.type
+        ]:
+            feature_type.on_before_deployment(
+                environment=environment,
+                log=log,
+                settings=setting,
+            )
 
         for node in environment.nodes.list():
             node_context = get_node_context(node)
@@ -653,6 +737,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             node_context.domain = None
 
         watchdog.cancel()
+
+        # Add passthrough device back in the
+        # list of available device once domain is deleted
+        self.device_pool.release_devices(node_context)
 
     def _get_domain_undefine_flags(self) -> int:
         return int(
@@ -942,6 +1030,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         on_crash.text = "destroy"
 
         devices = ET.SubElement(domain, "devices")
+        if len(node_context.passthrough_devices) > 0:
+            devices = self.device_pool._add_device_passthrough_xml(
+                devices,
+                node_context,
+            )
 
         serial = ET.SubElement(devices, "serial")
         serial.attrib["type"] = "pty"

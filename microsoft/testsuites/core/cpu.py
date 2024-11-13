@@ -17,7 +17,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.operating_system import CpuArchitecture
+from lisa.operating_system import BSD, CpuArchitecture, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -64,6 +64,10 @@ class CPU(TestSuite):
         9   1    1      9   9   9  9
         """,
         priority=1,
+        # Marking this test unsupported on BSD as the neccessary info is not exposed
+        requirement=simple_requirement(
+            unsupported_os=[Windows, BSD],
+        ),
     )
     def verify_l3_cache(
         self, environment: Environment, node: Node, log: Logger

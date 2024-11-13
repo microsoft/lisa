@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Type, cast
 
 from dataclasses_json import dataclass_json
@@ -39,8 +39,8 @@ class Console(notifier.Notifier):
     def _received_message(self, message: messages.MessageBase) -> None:
         simplify_message(message)
         # write every time to refresh the content immediately.
-        with open(self._file_path, "a") as f:
-            f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S.%ff}: {message}\n")
+        with open(self._file_path, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S.%ff}: {message}\n")
 
     def _subscribed_message_type(self) -> List[Type[messages.MessageBase]]:
         return [messages.MessageBase]

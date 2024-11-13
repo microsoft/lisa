@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, TypeVar
@@ -144,6 +144,7 @@ DiskType = Enum(
         "unknown",
         "nvme",
         "premiumssd",
+        "premiumv2ssd",
         "ultradisk",
     ],
 )
@@ -270,6 +271,35 @@ class KernelBuildMessage(MessageBase):
     new_kernel_version: str = ""
     is_success: bool = False
     error_message: str = ""
+
+
+@dataclass
+class VCMetrics(MessageBase):
+    time_stamp: datetime = datetime.now(timezone.utc)
+    experiment_id: str = ""
+    client_id: str = ""
+    profile: str = ""
+    profile_name: str = ""
+    tool_name: str = ""
+    scenario_name: str = ""
+    scenario_start_time: datetime = datetime.now(timezone.utc)
+    scenario_end_time: datetime = datetime.now(timezone.utc)
+    metric_categorization: str = ""
+    metric_name: str = ""
+    metric_value: Decimal = Decimal(0)
+    metric_unit: str = ""
+    metric_description: str = ""
+    metric_relativity: str = ""
+    execution_system: str = ""
+    operating_system_platform: str = ""
+    operation_id: str = ""
+    operation_parent_id: str = ""
+    app_name: str = ""
+    app_host: str = ""
+    app_version: str = ""
+    app_telemetry_version: str = ""
+    tags: str = ""
+    custom_dimensions: str = ""
 
 
 def _is_completed_status(status: TestStatus) -> bool:

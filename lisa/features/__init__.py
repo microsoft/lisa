@@ -2,6 +2,12 @@
 # Licensed under the MIT license.
 
 from .acc import ACC
+from .availability import (
+    Availability,
+    AvailabilitySetEnabled,
+    AvailabilitySettings,
+    AvailabilityZoneEnabled,
+)
 from .cvm_nested_virtualization import CVMNestedVirtualization
 from .disks import (
     Disk,
@@ -27,10 +33,14 @@ from .security_profile import (
     SecurityProfileType,
 )
 from .serial_console import SerialConsole
-from .startstop import StartStop, StopState
+from .startstop import StartStop, StopState, VMStatus
 
 __all__ = [
     "ACC",
+    "Availability",
+    "AvailabilitySetEnabled",
+    "AvailabilitySettings",
+    "AvailabilityZoneEnabled",
     "CVMNestedVirtualization",
     "Disk",
     "DiskEphemeral",
@@ -60,6 +70,7 @@ __all__ = [
     "SecurityProfileType",
     "Sriov",
     "StopState",
+    "VMStatus",
     "Synthetic",
     "StartStop",
 ]

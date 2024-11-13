@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Ls, Lscpu, Modprobe, Usermod
+from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
 from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
 
@@ -46,6 +46,17 @@ class CloudHypervisorTestSuite(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         node.tools[Modprobe].remove(["openvswitch"])
+
+        journalctl = node.tools[Journalctl]
+        docker_log = journalctl.logs_for_unit(
+            unit_name="docker",
+            sudo=True,
+        )
+        log.debug(f"Journalctl Docker Logs: {docker_log}")
+
+        dmesg = node.tools[Dmesg]
+        dmesg_log = dmesg.get_output(force_run=True)
+        log.debug(f"Dmesg Logs: {dmesg_log}")
 
     @TestCaseMetadata(
         description="""
@@ -126,7 +137,7 @@ class CloudHypervisorTestSuite(TestSuite):
             Runs cloud-hypervisor performance metrics tests.
         """,
         priority=3,
-        timeout=CloudHypervisorTests.CASE_TIME_OUT,
+        timeout=CloudHypervisorTests.PERF_CASE_TIME_OUT,
     )
     def verify_cloud_hypervisor_performance_metrics_tests(
         self,
@@ -179,31 +190,52 @@ class CloudHypervisorTestSuite(TestSuite):
         # Get URL for MS CLH repo
         ms_clh_repo = variables.get("ms_clh_repo", None)
 
-        # Get URL for igvm-parser repo
-        ms_igvm_parser_repo = variables.get("ms_igvm_parser_repo", None)
-
         # Get GUEST VM type, set default to NON-CVM
         clh_guest_vm_type = variables.get("clh_guest_vm_type", "NON-CVM")
 
-        # Check if MS Guest kernel need to be used
-        # Dom0 VHD is shipped with it now
-        # Default, we will use upstream guest kernel only
+        # Check if MS Guest kernel/hypervisor-fw/OVMF-fw need to be used
+        # Dom0 VHD is shipped with those binaries now
+        # Default, we will use upstream CLH binaries only
         use_ms_guest_kernel = variables.get("use_ms_guest_kernel", "NO")
+        use_ms_hypervisor_fw = variables.get("use_ms_hypervisor_fw", "NO")
+        use_ms_ovmf_fw = variables.get("use_ms_ovmf_fw", "NO")
+        use_ms_bz_image = variables.get("use_ms_bz_image", "NO")
+
+        # Below three params are for running block_* clh perf test
+        # with no disk caching and with direct mode. By Default, we
+        # will not run it with data-disk and it would not add direct=on
+        # if run_without_cache is not set to YES
+        use_datadisk = variables.get("use_datadisk", "")
+        datadisk_name = variables.get("datadisk_name", "")
+        disable_datadisk_cache = variables.get("disable_datadisk_cache", "")
+        block_size_kb = variables.get("block_size_kb", "")
 
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
         if not ms_clh_repo:
             raise SkippedException("CLH URL is needed while using MS-CLH")
-        if not ms_igvm_parser_repo:
-            raise SkippedException("IGVM-Parser URL is needed while using MS-CLH")
 
         CloudHypervisorTests.use_ms_clh_repo = True
         CloudHypervisorTests.ms_access_token = ms_access_token
         CloudHypervisorTests.ms_clh_repo = ms_clh_repo
-        CloudHypervisorTests.ms_igvm_parser_repo = ms_igvm_parser_repo
         CloudHypervisorTests.clh_guest_vm_type = clh_guest_vm_type
         if use_ms_guest_kernel == "YES":
             CloudHypervisorTests.use_ms_guest_kernel = use_ms_guest_kernel
+        if use_ms_hypervisor_fw == "YES":
+            CloudHypervisorTests.use_ms_hypervisor_fw = use_ms_hypervisor_fw
+        if use_ms_ovmf_fw == "YES":
+            CloudHypervisorTests.use_ms_ovmf_fw = use_ms_ovmf_fw
+        if use_ms_bz_image == "YES":
+            CloudHypervisorTests.use_ms_bz_image = use_ms_bz_image
+
+        if block_size_kb:
+            CloudHypervisorTests.block_size_kb = block_size_kb
+        if use_datadisk:
+            CloudHypervisorTests.use_datadisk = use_datadisk
+        if datadisk_name:
+            CloudHypervisorTests.datadisk_name = datadisk_name
+        if disable_datadisk_cache:
+            CloudHypervisorTests.disable_datadisk_cache = disable_datadisk_cache
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:

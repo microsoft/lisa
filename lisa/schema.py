@@ -367,6 +367,12 @@ class FeatureSettings(
         return feature
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         assert isinstance(capability, FeatureSettings), f"actual: {type(capability)}"
         # default FeatureSetting is a place holder, nothing to do.
         result = search_space.ResultReason()
@@ -407,6 +413,7 @@ class FeatureSettings(
 
 class DiskType(str, Enum):
     PremiumSSDLRS = "PremiumSSDLRS"
+    PremiumV2SSDLRS = "PremiumV2SSDLRS"
     Ephemeral = "Ephemeral"
     StandardHDDLRS = "StandardHDDLRS"
     StandardSSDLRS = "StandardSSDLRS"
@@ -419,6 +426,7 @@ disk_type_priority: List[DiskType] = [
     DiskType.StandardSSDLRS,
     DiskType.Ephemeral,
     DiskType.PremiumSSDLRS,
+    DiskType.PremiumV2SSDLRS,
     DiskType.UltraSSDLRS,
 ]
 
@@ -434,6 +442,22 @@ disk_controller_type_priority: List[DiskControllerType] = [
 ]
 
 
+os_disk_types: List[DiskType] = [
+    DiskType.StandardHDDLRS,
+    DiskType.StandardSSDLRS,
+    DiskType.Ephemeral,
+    DiskType.PremiumSSDLRS,
+]
+
+data_disk_types: List[DiskType] = [
+    DiskType.StandardHDDLRS,
+    DiskType.StandardSSDLRS,
+    DiskType.PremiumSSDLRS,
+    DiskType.PremiumV2SSDLRS,
+    DiskType.UltraSSDLRS,
+]
+
+
 @dataclass_json()
 @dataclass()
 class DiskOptionSettings(FeatureSettings):
@@ -443,15 +467,16 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[
-                DiskType.StandardHDDLRS,
-                DiskType.StandardSSDLRS,
-                DiskType.Ephemeral,
-                DiskType.PremiumSSDLRS,
-            ],
+            items=os_disk_types,
         ),
         metadata=field_metadata(
             decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
+        ),
+    )
+    os_disk_size: search_space.CountSpace = field(
+        default_factory=partial(search_space.IntRange, min=0),
+        metadata=field_metadata(
+            allow_none=True, decoder=search_space.decode_count_space
         ),
     )
     data_disk_type: Optional[
@@ -459,15 +484,14 @@ class DiskOptionSettings(FeatureSettings):
     ] = field(  # type:ignore
         default_factory=partial(
             search_space.SetSpace,
-            items=[
-                DiskType.StandardHDDLRS,
-                DiskType.StandardSSDLRS,
-                DiskType.PremiumSSDLRS,
-                DiskType.UltraSSDLRS,
-            ],
+            items=data_disk_types,
         ),
         metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=DiskType)
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=DiskType,
+                default_values=data_disk_types,
+            )
         ),
     )
     data_disk_count: search_space.CountSpace = field(
@@ -505,7 +529,7 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     max_data_disk_count: search_space.CountSpace = field(
-        default=None,
+        default_factory=partial(search_space.IntRange, min=0),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
         ),
@@ -518,14 +542,10 @@ class DiskOptionSettings(FeatureSettings):
             items=[DiskControllerType.SCSI, DiskControllerType.NVME],
         ),
         metadata=field_metadata(
-            decoder=lambda input: (
-                search_space.decode_set_space_by_type(
-                    data=input, base_type=DiskControllerType
-                )
-                if str(input).strip()
-                else search_space.SetSpace(
-                    items=[DiskControllerType.SCSI, DiskControllerType.NVME]
-                )
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=DiskControllerType,
+                default_values=[DiskControllerType.SCSI, DiskControllerType.NVME],
             )
         ),
     )
@@ -538,6 +558,7 @@ class DiskOptionSettings(FeatureSettings):
         return (
             self.type == o.type
             and self.os_disk_type == o.os_disk_type
+            and self.os_disk_size == o.os_disk_size
             and self.data_disk_type == o.data_disk_type
             and self.data_disk_count == o.data_disk_count
             and self.data_disk_caching_type == o.data_disk_caching_type
@@ -551,6 +572,7 @@ class DiskOptionSettings(FeatureSettings):
     def __repr__(self) -> str:
         return (
             f"os_disk_type: {self.os_disk_type},"
+            f"os_disk_size: {self.os_disk_size},"
             f"data_disk_type: {self.data_disk_type},"
             f"count: {self.data_disk_count},"
             f"caching: {self.data_disk_caching_type},"
@@ -568,6 +590,12 @@ class DiskOptionSettings(FeatureSettings):
         return super().__hash__()
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         result = super().check(capability)
 
         result.merge(
@@ -598,10 +626,11 @@ class DiskOptionSettings(FeatureSettings):
 
     def _get_key(self) -> str:
         return (
-            f"{super()._get_key()}/{self.os_disk_type}/{self.data_disk_type}/"
-            f"{self.data_disk_count}/{self.data_disk_caching_type}/"
-            f"{self.data_disk_iops}/{self.data_disk_throughput}/"
-            f"{self.data_disk_size}/{self.disk_controller_type}"
+            f"{super()._get_key()}/{self.os_disk_type}/{self.os_disk_size}/"
+            f"{self.data_disk_type}/{self.data_disk_count}/"
+            f"{self.data_disk_caching_type}/{self.data_disk_iops}/"
+            f"{self.data_disk_throughput}/{self.data_disk_size}/"
+            f"{self.disk_controller_type}"
         )
 
     def _call_requirement_method(
@@ -621,6 +650,10 @@ class DiskOptionSettings(FeatureSettings):
             value.os_disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
             )(self.os_disk_type, capability.os_disk_type, disk_type_priority)
+        if self.os_disk_size or capability.os_disk_size:
+            value.os_disk_size = search_space_countspace_method(
+                self.os_disk_size, capability.os_disk_size
+            )
         if self.data_disk_type or capability.data_disk_type:
             value.data_disk_type = getattr(
                 search_space, f"{method.value}_setspace_by_priority"
@@ -688,7 +721,12 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         ),
         metadata=field_metadata(
             decoder=partial(
-                search_space.decode_set_space_by_type, base_type=NetworkDataPath
+                search_space.decode_nullable_set_space,
+                base_type=NetworkDataPath,
+                default_values=[
+                    NetworkDataPath.Synthetic,
+                    NetworkDataPath.Sriov,
+                ],
             )
         ),
     )
@@ -737,6 +775,12 @@ class NetworkInterfaceOptionSettings(FeatureSettings):
         )
 
     def check(self, capability: Any) -> search_space.ResultReason:
+        if not capability:
+            return search_space.ResultReason(
+                result=False,
+                reasons=["capability is None, it may be caused by preparation failed."],
+            )
+
         assert isinstance(
             capability, NetworkInterfaceOptionSettings
         ), f"actual: {type(capability)}"
@@ -1297,6 +1341,13 @@ class Environment:
 class EnvironmentRoot:
     warn_as_error: bool = field(default=False)
     environments: List[Environment] = field(default_factory=list)
+    # Number of retry attempts for failed deployments (min=0)
+    retry: int = field(
+        default=0,
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=0)
+        ),
+    )
 
 
 @dataclass_json()
@@ -1330,6 +1381,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     capture_boot_time: bool = False
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
+    capture_vm_information: bool = True
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1453,6 +1505,9 @@ class TestCase(BaseTestCaseFilter):
             field_function=fields.Int, validate=validate.Range(min=0)
         ),
     )
+    # each test case will have this timeout
+    # if it is 0 it will use default timeout from test case
+    timeout: int = 0
     # each case with this rule will be run in a new environment.
     use_new_environment: bool = False
     # Once it's set, failed test result will be rewrite to success
@@ -1590,6 +1645,15 @@ class Runbook:
                 }
             ]
         self.testcase: List[Any] = []
+
+
+class ImageSchema:
+    pass
+
+
+class ArchitectureType(str, Enum):
+    x64 = "x64"
+    Arm64 = "Arm64"
 
 
 def load_by_type(schema_type: Type[T], raw_runbook: Any, many: bool = False) -> T:

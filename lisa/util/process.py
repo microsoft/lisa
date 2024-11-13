@@ -38,8 +38,8 @@ TIMEOUT_READING_PASSWORD_PATTERNS = [
 
 @dataclass
 class ExecutableResult:
-    stdout: str
-    stderr: str
+    _stdout: str
+    _stderr: str
     exit_code: Optional[int]
     cmd: Union[str, List[str]]
     elapsed: float
@@ -47,6 +47,22 @@ class ExecutableResult:
 
     def __str__(self) -> str:
         return self.stdout
+
+    @property
+    def stdout(self) -> str:
+        return filter_ansi_escape(self._stdout)
+
+    @stdout.setter
+    def stdout(self, value: str) -> None:
+        self._stdout = value
+
+    @property
+    def stderr(self) -> str:
+        return filter_ansi_escape(self._stderr)
+
+    @stderr.setter
+    def stderr(self, value: str) -> None:
+        self._stderr = value
 
     def assert_exit_code(
         self,
@@ -270,6 +286,12 @@ class Process:
             f"encoding: {encoding}"
         )
 
+        if self._is_posix and self._shell.is_remote:
+            # only enable pty on remote Linux
+            use_pty = True
+        else:
+            use_pty = False
+
         try:
             self._timer = create_timer()
             self._process = self._shell.spawn(
@@ -281,7 +303,7 @@ class Process:
                 allow_error=True,
                 store_pid=self._is_posix,
                 encoding=encoding,
-                use_pty=self._is_posix,
+                use_pty=use_pty,
             )
             # save for logging.
             self._cmd = split_command
@@ -298,19 +320,26 @@ class Process:
             self._shell.close()
             raise
 
+        self.check_and_input_password()
+
     def check_and_input_password(self) -> None:
         if (
             self._sudo
             and isinstance(self._shell, SshShell)
             and self._shell.is_sudo_required_password
         ):
-            if not self._shell.connection_info.password:
-                raise RequireUserPasswordException(
-                    "Running commands with sudo requires user's password,"
-                    " but no password is provided."
-                )
-            self.input(f"{self._shell.connection_info.password}\n")
-            self._log.debug("The user's password is input")
+            timer = create_timer()
+            while self.is_running():
+                time.sleep(0.01)
+                if timer.elapsed(False) > 0.5:
+                    if not self._shell.connection_info.password:
+                        raise RequireUserPasswordException(
+                            "Running commands with sudo requires user's password,"
+                            " but no password is provided."
+                        )
+                    self.input(f"{self._shell.connection_info.password}\n")
+                    self._log.debug("The user's password is input")
+                    break
 
     def input(self, content: str) -> None:
         assert self._process
@@ -325,13 +354,9 @@ class Process:
     ) -> ExecutableResult:
         timer = create_timer()
         is_timeout = False
-        has_checked_password = False
 
         while self.is_running() and timeout >= timer.elapsed(False):
             time.sleep(0.01)
-            if timer.elapsed(False) > 0.5 and not has_checked_password:
-                self.check_and_input_password()
-                has_checked_password = True
 
         if timeout < timer.elapsed():
             if self._process is not None:
@@ -397,15 +422,9 @@ class Process:
         if self._is_posix and self._sudo:
             self._result.stdout = self._filter_sudo_result(self._result.stdout)
 
-        if (
-            isinstance(self._shell, SshShell)
-            and self._shell._inner_shell
-            and self._shell._inner_shell._spur._shell_type
-            == spur.ssh.ShellTypes.minimal
-        ):
-            self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._result.stdout = self._filter_profile_error(self._result.stdout)
+        self._result.stdout = self._filter_bash_prompt(self._result.stdout)
         self._check_if_need_input_password(self._result.stdout)
-
         self._result.stdout = self._filter_sudo_required_password_info(
             self._result.stdout
         )
@@ -519,17 +538,30 @@ class Process:
         if (
             isinstance(self._shell, SshShell)
             and self._shell.spawn_initialization_error_string
+            and self._shell._inner_shell
+            and self._shell._inner_shell._spur._shell_type
+            == spur.ssh.ShellTypes.minimal
         ):
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\n", ""
+                f"{self._shell.spawn_initialization_error_string}\n", ""
             )
             raw_input = raw_input.replace(
-                rf"{self._shell.spawn_initialization_error_string}\r\n", ""
+                f"{self._shell.spawn_initialization_error_string}\r\n", ""
             )
             self._log.debug(
                 "filter the profile error string: "
                 f"{self._shell.spawn_initialization_error_string}"
             )
+        return raw_input
+
+    def _filter_bash_prompt(self, raw_input: str) -> str:
+        # some images have bash prompt in stdout, remove it.
+        # E.g. yaseensmarket1645449809728 wordpress-red-hat
+        # ----------------------------------------------------------------------
+        # Use the this command 'sudo bash ~/getcert.sh' to install a certificate
+        # ----------------------------------------------------------------------
+        if isinstance(self._shell, SshShell) and self._shell.bash_prompt:
+            raw_input = raw_input.replace(self._shell.bash_prompt, "")
         return raw_input
 
     def _check_if_need_input_password(self, raw_input: str) -> None:

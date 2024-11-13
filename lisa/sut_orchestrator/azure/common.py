@@ -1,19 +1,32 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
+import json
 import os
 import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, partial
-from pathlib import Path
+from pathlib import Path, PurePath
 from threading import Lock
-from time import sleep
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from time import sleep, time
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 import requests
 from assertpy import assert_that
+from azure.core.exceptions import ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -21,7 +34,11 @@ from azure.keyvault.certificates import (
 )
 from azure.keyvault.secrets import SecretClient
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import VirtualMachine
+from azure.mgmt.compute.models import (
+    CommunityGalleryImage,
+    GalleryImage,
+    VirtualMachine,
+)
 from azure.mgmt.keyvault import KeyVaultManagementClient
 from azure.mgmt.keyvault.models import (
     AccessPolicyEntry,
@@ -52,31 +69,28 @@ from azure.mgmt.resource import (  # type: ignore
     ResourceManagementClient,
     SubscriptionClient,
 )
-from azure.mgmt.storage import StorageManagementClient  # type: ignore
-from azure.mgmt.storage.models import (  # type: ignore
-    Sku,
-    StorageAccountCreateParameters,
-)
+from azure.mgmt.storage import StorageManagementClient
+from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
 from azure.storage.blob import (
-    AccountSasPermissions,
     BlobClient,
     BlobSasPermissions,
     BlobServiceClient,
     ContainerClient,
-    ResourceTypes,
-    generate_account_sas,
+    ContentSettings,
     generate_blob_sas,
 )
-from azure.storage.fileshare import ShareServiceClient  # type: ignore
+from azure.storage.fileshare import ShareServiceClient
 from dataclasses_json import dataclass_json
-from marshmallow import validate
-from msrestazure.azure_cloud import Cloud  # type: ignore
+from marshmallow import fields, validate
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 from PIL import Image, UnidentifiedImageError
+from requests.exceptions import ChunkedEncodingError
 from retry import retry
 
-from lisa import schema, search_space
+from lisa import feature, schema, search_space
 from lisa.environment import Environment, load_environments
 from lisa.feature import Features
+from lisa.features.security_profile import SecurityProfileType
 from lisa.node import Node, RemoteNode, local
 from lisa.secret import PATTERN_HEADTAIL, PATTERN_URL, add_secret, replace
 from lisa.tools import Ls
@@ -140,6 +154,7 @@ global_credential_access_lock = Lock()
 # to create the same storage account at the same time.
 # add a lock to prevent it happens.
 _global_storage_account_check_create_lock = Lock()
+_global_download_blob_lock = Lock()
 
 MARKETPLACE_IMAGE_KEYS = ["publisher", "offer", "sku", "version"]
 SIG_IMAGE_KEYS = [
@@ -149,6 +164,16 @@ SIG_IMAGE_KEYS = [
     "image_definition",
     "image_version",
 ]
+CG_IMAGE_KEYS = [
+    "location",
+    "image_gallery",
+    "image_definition",
+    "image_version",
+]
+PURCHASE_PLAN_KEYS = ["name", "product", "publisher"]
+
+# IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
+METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 
 
 @dataclass
@@ -182,12 +207,67 @@ class AzureVmPurchasePlanSchema:
 
 @dataclass_json
 @dataclass
-class AzureImageSchema:
+class AzureImageSchema(schema.ImageSchema):
+    architecture: Union[
+        schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=schema.ArchitectureType,
+                is_allow_set=True,
+                default_values=[
+                    schema.ArchitectureType.x64,
+                    schema.ArchitectureType.Arm64,
+                ],
+            )
+        ),
+    )
+    disk_controller_type: Optional[
+        Union[
+            search_space.SetSpace[schema.DiskControllerType], schema.DiskControllerType
+        ]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[schema.DiskControllerType.SCSI, schema.DiskControllerType.NVME],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=schema.DiskControllerType,
+                is_allow_set=True,
+                default_values=[
+                    schema.DiskControllerType.SCSI,
+                    schema.DiskControllerType.NVME,
+                ],
+            )
+        ),
+    )
+    hyperv_generation: Optional[
+        Union[search_space.SetSpace[int], int]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[1, 2],
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+        ),
+    )
     network_data_path: Optional[
         Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]
     ] = field(  # type: ignore
         default_factory=partial(
             search_space.SetSpace,
+            is_allow_set=True,
             items=[
                 schema.NetworkDataPath.Synthetic,
                 schema.NetworkDataPath.Sriov,
@@ -195,10 +275,143 @@ class AzureImageSchema:
         ),
         metadata=field_metadata(
             decoder=partial(
-                search_space.decode_set_space_by_type, base_type=schema.NetworkDataPath
+                search_space.decode_set_space_by_type,
+                base_type=schema.NetworkDataPath,
             )
         ),
     )
+    security_profile: Union[
+        search_space.SetSpace[SecurityProfileType], SecurityProfileType
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            is_allow_set=True,
+            items=[
+                SecurityProfileType.Standard,
+                SecurityProfileType.SecureBoot,
+                SecurityProfileType.CVM,
+                SecurityProfileType.Stateless,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=SecurityProfileType,
+                is_allow_set=True,
+                default_values=[
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ],
+            )
+        ),
+    )
+
+    def load_from_platform(self, platform: "AzurePlatform") -> None:
+        """
+        Load image features from Azure platform.
+        Relevant image tags will be used to populate the schema.
+        """
+        raw_features = self._get_info(platform)
+        if raw_features:
+            self._parse_info(raw_features, platform._log)
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        """Get raw image tags from Azure platform."""
+        raise NotImplementedError()
+
+    def _parse_info(self, raw_features: Dict[str, Any], log: Logger) -> None:
+        """Parse raw image tags to AzureImageSchema"""
+        self._parse_architecture(raw_features, log)
+        self._parse_disk_controller_type(raw_features, log)
+        self._parse_hyperv_generation(raw_features, log)
+        self._parse_network_data_path(raw_features, log)
+        self._parse_security_profile(raw_features, log)
+
+    def _parse_architecture(self, raw_features: Dict[str, Any], log: Logger) -> None:
+        arch = raw_features.get("architecture")
+        if arch == "Arm64":
+            self.architecture = schema.ArchitectureType.Arm64
+        elif arch == "x64":
+            self.architecture = schema.ArchitectureType.x64
+
+    def _parse_disk_controller_type(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        disk_controller_type = raw_features.get("DiskControllerTypes")
+        if (
+            isinstance(disk_controller_type, str)
+            and disk_controller_type.lower() == "scsi"
+        ):
+            self.disk_controller_type = schema.DiskControllerType.SCSI
+        elif (
+            isinstance(disk_controller_type, str)
+            and disk_controller_type.lower() == "nvme"
+        ):
+            self.disk_controller_type = schema.DiskControllerType.NVME
+
+    def _parse_hyperv_generation(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        try:
+            gen = raw_features.get("hyper_v_generation")
+            if gen:
+                self.hyperv_generation = int(gen.strip("V"))
+        except (TypeError, ValueError, AttributeError):
+            log.debug(
+                "Failed to parse Hyper-V generation: "
+                f"{raw_features.get('hyper_v_generation')}"
+            )
+
+    def _parse_network_data_path(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        network_data_path = raw_features.get("IsAcceleratedNetworkSupported")
+        if network_data_path == "False":
+            self.network_data_path = schema.NetworkDataPath.Synthetic
+
+    def _parse_security_profile(
+        self, raw_features: Dict[str, Any], log: Logger
+    ) -> None:
+        security_profile = raw_features.get("SecurityType")
+        capabilities: List[SecurityProfileType] = []
+        if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
+            capabilities.append(SecurityProfileType.Standard)
+            capabilities.append(SecurityProfileType.SecureBoot)
+        elif security_profile in (
+            "TrustedLaunchAndConfidentialVmSupported",
+            "ConfidentialVmSupported",
+        ):
+            capabilities.append(SecurityProfileType.CVM)
+            capabilities.append(SecurityProfileType.Stateless)
+        else:
+            capabilities.append(SecurityProfileType.Standard)
+
+        self.security_profile = search_space.SetSpace(True, capabilities)
+
+
+def _get_image_tags(image: Any) -> Dict[str, Any]:
+    """
+    Marketplace, Shared Image Gallery, and Community Gallery images
+    have similar structures for image tags. This function extracts
+    the tags and converts to a dictionary.
+    """
+    image_tags: Dict[str, Any] = {}
+    if not image:
+        return image_tags
+    if hasattr(image, "hyper_v_generation") and image.hyper_v_generation:
+        image_tags["hyper_v_generation"] = image.hyper_v_generation
+    if hasattr(image, "architecture") and image.architecture:
+        image_tags["architecture"] = image.architecture
+    if (
+        hasattr(image, "features")
+        and image.features
+        and isinstance(image.features, Iterable)
+    ):
+        for feat in image.features:
+            image_tags[feat.name] = feat.value
+    return image_tags
 
 
 @dataclass_json()
@@ -211,6 +424,13 @@ class AzureVmMarketplaceSchema(AzureImageSchema):
 
     def __hash__(self) -> int:
         return hash(f"{self.publisher}/{self.offer}/{self.sku}/{self.version}")
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        for location in platform.find_marketplace_image_location():
+            image_info = platform.get_image_info(location, self)
+            if image_info:
+                return _get_image_tags(image_info)
+        return {}
 
 
 @dataclass_json()
@@ -230,12 +450,167 @@ class SharedImageGallerySchema(AzureImageSchema):
             f"{self.image_version}"
         )
 
+    def query_platform(self, platform: "AzurePlatform") -> GalleryImage:
+        assert self.resource_group_name, "'resource_group_name' must not be 'None'"
+        compute_client = get_compute_client(
+            platform, subscription_id=self.subscription_id
+        )
+        sig = compute_client.gallery_images.get(
+            resource_group_name=self.resource_group_name,
+            gallery_name=self.image_gallery,
+            gallery_image_name=self.image_definition,
+        )
+        assert isinstance(sig, GalleryImage), f"actual: {type(sig)}"
+        return sig
+
+    def resolve_version(self, platform: "AzurePlatform") -> None:
+        compute_client = get_compute_client(
+            platform, subscription_id=self.subscription_id
+        )
+        if not self.resource_group_name:
+            # /subscriptions/xxxx/resourceGroups/xxxx/providers/Microsoft.Compute/
+            # galleries/xxxx
+            rg_pattern = re.compile(r"resourceGroups/(.*)/providers", re.M)
+            galleries = compute_client.galleries.list()
+            for gallery in galleries:
+                if gallery.name and gallery.name.lower() == self.image_gallery:
+                    assert gallery.id, "'gallery.id' must not be 'None'"
+                    self.resource_group_name = get_matched_str(gallery.id, rg_pattern)
+                    break
+        if not self.resource_group_name:
+            raise LisaException(f"did not find matched gallery {self.image_gallery}")
+
+        if self.image_version.lower() == "latest":
+            gallery_images = (
+                compute_client.gallery_image_versions.list_by_gallery_image(
+                    resource_group_name=self.resource_group_name,
+                    gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                )
+            )
+            time: Optional[datetime] = None
+            for image in gallery_images:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
+                gallery_image = compute_client.gallery_image_versions.get(
+                    resource_group_name=self.resource_group_name,
+                    gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                    gallery_image_version_name=image.name,
+                    expand="ReplicationStatus",
+                )
+                if not time:
+                    time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
+                    self.image_version = image.name
+                elif gallery_image.publishing_profile.published_date > time:
+                    time = gallery_image.publishing_profile.published_date
+                    assert image, "'image' must not be 'None'"
+                    assert image.name, "'image.name' must not be 'None'"
+                    self.image_version = image.name
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        self.resolve_version(platform)
+        sig_info = self.query_platform(platform)
+        return _get_image_tags(sig_info)
+
 
 @dataclass_json()
 @dataclass
 class VhdSchema(AzureImageSchema):
     vhd_path: str = ""
     vmgs_path: Optional[str] = None
+
+    def load_from_platform(self, platform: "AzurePlatform") -> None:
+        return
+
+
+@dataclass_json()
+@dataclass
+class CommunityGalleryImageSchema(AzureImageSchema):
+    image_gallery: str = ""
+    image_definition: str = ""
+    image_version: str = ""
+    location: str = ""
+
+    def __hash__(self) -> int:
+        return hash(
+            f"{self.image_gallery}/{self.image_definition}/{self.image_version}"
+        )
+
+    def query_platform(self, platform: "AzurePlatform") -> CommunityGalleryImage:
+        compute_client = get_compute_client(platform)
+        cgi = compute_client.community_gallery_images.get(
+            location=self.location,
+            public_gallery_name=self.image_gallery,
+            gallery_image_name=self.image_definition,
+        )
+        assert isinstance(cgi, CommunityGalleryImage), f"actual: {type(cgi)}"
+        return cgi
+
+    def _get_info(self, platform: "AzurePlatform") -> Dict[str, Any]:
+        self.resolve_version(platform)
+        cgi_info = self.query_platform(platform)
+        return _get_image_tags(cgi_info)
+
+    def resolve_version(self, platform: "AzurePlatform") -> None:
+        compute_client = get_compute_client(platform)
+        if self.image_version.lower() == "latest":
+            community_gallery_images_list = (
+                compute_client.community_gallery_image_versions.list(
+                    location=self.location,
+                    public_gallery_name=self.image_gallery,
+                    gallery_image_name=self.image_definition,
+                )
+            )
+            time: Optional[datetime] = None
+            for image in community_gallery_images_list:
+                assert image, "'image' must not be 'None'"
+                assert image.name, "'image.name' must not be 'None'"
+                community_gallery_image_version = (
+                    compute_client.community_gallery_image_versions.get(
+                        location=self.location,
+                        public_gallery_name=self.image_gallery,
+                        gallery_image_name=self.image_definition,
+                        gallery_image_version_name=image.name,
+                    )
+                )
+                if not time:
+                    time = community_gallery_image_version.published_date
+                    self.image_version = image.name
+                elif community_gallery_image_version.published_date > time:
+                    time = community_gallery_image_version.published_date
+                    self.image_version = image.name
+
+
+@dataclass_json()
+@dataclass
+class AzureCapability:
+    location: str
+    vm_size: str
+    capability: schema.NodeSpace
+    resource_sku: Dict[str, Any]
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        # reload features settings with platform specified types.
+        convert_to_azure_node_space(self.capability)
+
+
+@dataclass_json()
+@dataclass
+class AzureLocation:
+    updated_time: datetime = field(
+        default_factory=datetime.now,
+        metadata=field_metadata(
+            fields.DateTime,
+            encoder=datetime.isoformat,
+            decoder=datetime.fromisoformat,
+            format="iso",
+        ),
+    )
+    location: str = ""
+    capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
 
 
 @dataclass_json()
@@ -257,6 +632,9 @@ class AzureNodeSchema:
     # Required by shared gallery images which are present in
     # subscription different from where LISA is run
     subscription_id: str = ""
+    purchase_plan_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="purchase_plan")
+    )
     marketplace_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="marketplace")
     )
@@ -266,13 +644,15 @@ class AzureNodeSchema:
     vhd_raw: Optional[Union[Dict[Any, Any], str]] = field(
         default=None, metadata=field_metadata(data_key="vhd")
     )
-
+    community_gallery_image_raw: Optional[Union[Dict[Any, Any], str]] = field(
+        default=None, metadata=field_metadata(data_key="community_gallery_image")
+    )
     hyperv_generation: int = field(
         default=1,
         metadata=field_metadata(validate=validate.OneOf([1, 2])),
     )
     # for marketplace image, which need to accept terms
-    purchase_plan: Optional[AzureVmPurchasePlanSchema] = None
+    _purchase_plan: InitVar[Optional[AzureVmPurchasePlanSchema]] = None
 
     # the linux and Windows has different settings. If it's not specified, it's
     # True by default for SIG and vhd, and is parsed from marketplace
@@ -284,6 +664,10 @@ class AzureNodeSchema:
     _shared_gallery: InitVar[Optional[SharedImageGallerySchema]] = None
 
     _vhd: InitVar[Optional[VhdSchema]] = None
+
+    _orignal_vhd_path: str = ""
+
+    _community_gallery_image: InitVar[Optional[CommunityGalleryImageSchema]] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         # trim whitespace of values.
@@ -298,9 +682,11 @@ class AzureNodeSchema:
                 "marketplace_raw",
                 "shared_gallery_raw",
                 "vhd_raw",
+                "community_gallery_image_raw",
                 "data_disk_caching_type",
                 "os_disk_type",
                 "data_disk_type",
+                "purchase_plan_raw",
             ],
         )
         self.location = self.location.lower()
@@ -309,166 +695,147 @@ class AzureNodeSchema:
             add_secret(self.vhd_raw, PATTERN_URL)
 
     @property
+    def purchase_plan(self) -> Optional[AzureVmPurchasePlanSchema]:
+        purchase_plan = self._parse_image(
+            "purchase_plan",
+            AzureVmPurchasePlanSchema,
+            PURCHASE_PLAN_KEYS,
+            self.purchase_plan_raw,
+        )
+        if isinstance(self.purchase_plan_raw, str):
+            self.purchase_plan_raw = self.purchase_plan_raw.strip()
+
+            if self.purchase_plan_raw:
+                purchase_plan_strings = re.split(r"[:\s]+", self.purchase_plan_raw)
+
+                if len(purchase_plan_strings) == 3:
+                    purchase_plan = AzureVmPurchasePlanSchema(
+                        name=purchase_plan_strings[0],
+                        product=purchase_plan_strings[1],
+                        publisher=purchase_plan_strings[2],
+                    )
+                    # purchase_plan_raw is used
+                    self.purchase_plan_raw = purchase_plan.to_dict()
+                else:
+                    raise LisaException(
+                        f"Invalid value for the provided purchase_plan "
+                        f"parameter: '{self.purchase_plan_raw}'."
+                        f"The purchase_plan parameter should be in the format: "
+                        f"'<name> <product> <publisher>' "
+                    )
+        self._purchase_plan = purchase_plan
+        return (
+            purchase_plan
+            if isinstance(purchase_plan, AzureVmPurchasePlanSchema)
+            else None
+        )
+
+    @purchase_plan.setter
+    def purchase_plan(self, value: Optional[AzureVmPurchasePlanSchema]) -> None:
+        self._parse_image_raw("purchase_plan", value)
+
+    @property
     def marketplace(self) -> Optional[AzureVmMarketplaceSchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_marketplace"):
-            self._marketplace: Optional[AzureVmMarketplaceSchema] = None
-        marketplace: Optional[AzureVmMarketplaceSchema] = self._marketplace
-        if not marketplace:
-            if isinstance(self.marketplace_raw, dict):
+        marketplace = self._parse_image(
+            "marketplace",
+            AzureVmMarketplaceSchema,
+            MARKETPLACE_IMAGE_KEYS,
+            self.marketplace_raw,
+        )
+        if isinstance(self.marketplace_raw, str):
+            self.marketplace_raw = self.marketplace_raw.strip()
+
+            if self.marketplace_raw:
                 # Users decide the cases of image names,
                 #  the inconsistent cases cause the mismatched error in notifiers.
                 # The lower() normalizes the image names,
                 #  it has no impact on deployment.
-                self.marketplace_raw = dict(
-                    (k, v.lower())
-                    if isinstance(v, str) and k in MARKETPLACE_IMAGE_KEYS
-                    else (k, v)
-                    for k, v in self.marketplace_raw.items()
-                )
-                marketplace = schema.load_by_type(
-                    AzureVmMarketplaceSchema, self.marketplace_raw
-                )
-                if not all(
-                    [
-                        marketplace.publisher,
-                        marketplace.offer,
-                        marketplace.sku,
-                        marketplace.version,
-                    ]
-                ):
-                    marketplace = None
-                else:
-                    # this step makes marketplace_raw is validated, and
-                    # filter out any unwanted content.
-                    self.marketplace_raw = marketplace.to_dict()  # type: ignore
-            elif self.marketplace_raw:
-                assert isinstance(
-                    self.marketplace_raw, str
-                ), f"actual: {type(self.marketplace_raw)}"
+                marketplace_strings = re.split(r"[:\s]+", self.marketplace_raw.lower())
 
-                self.marketplace_raw = self.marketplace_raw.strip()
-
-                if self.marketplace_raw:
-                    # Users decide the cases of image names,
-                    #  the inconsistent cases cause the mismatched error in notifiers.
-                    # The lower() normalizes the image names,
-                    #  it has no impact on deployment.
-                    marketplace_strings = re.split(
-                        r"[:\s]+", self.marketplace_raw.lower()
+                if len(marketplace_strings) == 4:
+                    marketplace = AzureVmMarketplaceSchema(
+                        publisher=marketplace_strings[0],
+                        offer=marketplace_strings[1],
+                        sku=marketplace_strings[2],
+                        version=marketplace_strings[3],
                     )
-
-                    if len(marketplace_strings) == 4:
-                        marketplace = AzureVmMarketplaceSchema(
-                            publisher=marketplace_strings[0],
-                            offer=marketplace_strings[1],
-                            sku=marketplace_strings[2],
-                            version=marketplace_strings[3],
-                        )
-                        # marketplace_raw is used
-                        self.marketplace_raw = marketplace.to_dict()  # type: ignore
-                    else:
-                        raise LisaException(
-                            f"Invalid value for the provided marketplace "
-                            f"parameter: '{self.marketplace_raw}'."
-                            f"The marketplace parameter should be in the format: "
-                            f"'<Publisher> <Offer> <Sku> <Version>' "
-                            f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
-                        )
-            self._marketplace = marketplace
-        return marketplace
+                    # marketplace_raw is used
+                    self.marketplace_raw = marketplace.to_dict()
+                else:
+                    raise LisaException(
+                        f"Invalid value for the provided marketplace "
+                        f"parameter: '{self.marketplace_raw}'."
+                        f"The marketplace parameter should be in the format: "
+                        f"'<Publisher> <Offer> <Sku> <Version>' "
+                        f"or '<Publisher>:<Offer>:<Sku>:<Version>'"
+                    )
+        self._marketplace = marketplace
+        return (
+            marketplace if isinstance(marketplace, AzureVmMarketplaceSchema) else None
+        )
 
     @marketplace.setter
     def marketplace(self, value: Optional[AzureVmMarketplaceSchema]) -> None:
-        self._marketplace = value
-        if value is None:
-            self.marketplace_raw = None
-        else:
-            self.marketplace_raw = value.to_dict()  # type: ignore
+        self._parse_image_raw("marketplace", value)
 
     @property
     def shared_gallery(self) -> Optional[SharedImageGallerySchema]:
-        # this is a safe guard and prevent mypy error on typing
-        if not hasattr(self, "_shared_gallery"):
-            self._shared_gallery: Optional[SharedImageGallerySchema] = None
-        shared_gallery: Optional[SharedImageGallerySchema] = self._shared_gallery
-        if shared_gallery:
-            return shared_gallery
-        if isinstance(self.shared_gallery_raw, dict):
-            # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
-            self.shared_gallery_raw = dict(
-                (k, v.lower()) if isinstance(v, str) and k in SIG_IMAGE_KEYS else (k, v)
-                for k, v in self.shared_gallery_raw.items()
-            )
-            shared_gallery = schema.load_by_type(
-                SharedImageGallerySchema, self.shared_gallery_raw
-            )
-            if not all(
-                [
-                    shared_gallery.image_definition,
-                    shared_gallery.image_version,
-                    shared_gallery.image_gallery,
-                ]
-            ):
-                shared_gallery = None
-            else:
-                if not shared_gallery.subscription_id:
-                    shared_gallery.subscription_id = self.subscription_id
-                # this step makes shared_gallery_raw is validated, and
-                # filter out any unwanted content.
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-        elif self.shared_gallery_raw:
-            assert isinstance(
-                self.shared_gallery_raw, str
-            ), f"actual: {type(self.shared_gallery_raw)}"
-            # Users decide the cases of image names,
-            #  the inconsistent cases cause the mismatched error in notifiers.
-            # The lower() normalizes the image names,
-            #  it has no impact on deployment.
-            shared_gallery_strings = re.split(
-                r"[/]+", self.shared_gallery_raw.strip().lower()
-            )
-            if len(shared_gallery_strings) == 5:
-                shared_gallery = SharedImageGallerySchema(
-                    subscription_id=shared_gallery_strings[0],
-                    resource_group_name=shared_gallery_strings[1],
-                    image_gallery=shared_gallery_strings[2],
-                    image_definition=shared_gallery_strings[3],
-                    image_version=shared_gallery_strings[4],
+        shared_gallery = self._parse_image(
+            "shared_gallery",
+            SharedImageGallerySchema,
+            SIG_IMAGE_KEYS,
+            self.shared_gallery_raw,
+        )
+        if (
+            isinstance(shared_gallery, SharedImageGallerySchema)
+            and not shared_gallery.subscription_id
+        ):
+            shared_gallery.subscription_id = self.subscription_id
+        if isinstance(self.shared_gallery_raw, str):
+            self.shared_gallery_raw = self.shared_gallery_raw.strip()
+            if self.shared_gallery_raw:
+                # Users decide the cases of image names,
+                #  the inconsistent cases cause the mismatched error in notifiers.
+                # The lower() normalizes the image names,
+                #  it has no impact on deployment.
+                shared_gallery_strings = re.split(
+                    r"[/]+", self.shared_gallery_raw.strip().lower()
                 )
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-            elif len(shared_gallery_strings) == 3:
-                shared_gallery = SharedImageGallerySchema(
-                    subscription_id=self.subscription_id,
-                    image_gallery=shared_gallery_strings[0],
-                    image_definition=shared_gallery_strings[1],
-                    image_version=shared_gallery_strings[2],
-                )
-                # shared_gallery_raw is used
-                self.shared_gallery_raw = shared_gallery.to_dict()  # type: ignore
-            else:
-                raise LisaException(
-                    f"Invalid value for the provided shared gallery "
-                    f"parameter: '{self.shared_gallery_raw}'."
-                    f"The shared gallery parameter should be in the format: "
-                    f"'<subscription_id>/<resource_group_name>/<image_gallery>/"
-                    f"<image_definition>/<image_version>' or '<image_gallery>/"
-                    f"<image_definition>/<image_version>'"
-                )
+                if len(shared_gallery_strings) == 5:
+                    shared_gallery = SharedImageGallerySchema(
+                        subscription_id=shared_gallery_strings[0],
+                        resource_group_name=shared_gallery_strings[1],
+                        image_gallery=shared_gallery_strings[2],
+                        image_definition=shared_gallery_strings[3],
+                        image_version=shared_gallery_strings[4],
+                    )
+                elif len(shared_gallery_strings) == 3:
+                    shared_gallery = SharedImageGallerySchema(
+                        subscription_id=self.subscription_id,
+                        image_gallery=shared_gallery_strings[0],
+                        image_definition=shared_gallery_strings[1],
+                        image_version=shared_gallery_strings[2],
+                    )
+                else:
+                    raise LisaException(
+                        f"Invalid value for the provided shared gallery "
+                        f"parameter: '{self.shared_gallery_raw}'."
+                        f"The shared gallery parameter should be in the format: "
+                        f"'<subscription_id>/<resource_group_name>/<image_gallery>/"
+                        f"<image_definition>/<image_version>' or '<image_gallery>/"
+                        f"<image_definition>/<image_version>'"
+                    )
+                self.shared_gallery_raw = shared_gallery.to_dict()
         self._shared_gallery = shared_gallery
-        return shared_gallery
+        return (
+            shared_gallery
+            if isinstance(shared_gallery, SharedImageGallerySchema)
+            else None
+        )
 
     @shared_gallery.setter
     def shared_gallery(self, value: Optional[SharedImageGallerySchema]) -> None:
-        self._shared_gallery = value
-        if value is None:
-            self.shared_gallery_raw = None
-        else:
-            self.shared_gallery_raw = value.to_dict()  # type: ignore
+        self._parse_image_raw("shared_gallery", value)
 
     @property
     def vhd(self) -> Optional[VhdSchema]:
@@ -484,6 +851,7 @@ class AzureNodeSchema:
                 vhd = None
             else:
                 add_secret(vhd.vhd_path, PATTERN_URL)
+                self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
                 if vhd.vmgs_path:
                     add_secret(vhd.vmgs_path, PATTERN_URL)
                 # this step makes vhd_raw is validated, and
@@ -493,6 +861,7 @@ class AzureNodeSchema:
             assert isinstance(self.vhd_raw, str), f"actual: {type(self.vhd_raw)}"
             vhd = VhdSchema(vhd_path=self.vhd_raw)
             add_secret(vhd.vhd_path, PATTERN_URL)
+            self._orignal_vhd_path = replace(vhd.vhd_path, mask=PATTERN_URL)
             self.vhd_raw = vhd.to_dict()  # type: ignore
         self._vhd = vhd
         if vhd:
@@ -502,23 +871,87 @@ class AzureNodeSchema:
 
     @vhd.setter
     def vhd(self, value: Optional[VhdSchema]) -> None:
-        self._vhd = value
-        if value is None:
-            self.vhd_raw = None
+        self._parse_image_raw("vhd", value)
+
+    @property
+    def community_gallery_image(self) -> Optional[CommunityGalleryImageSchema]:
+        community_gallery_image = self._parse_image(
+            "community_gallery_image",
+            CommunityGalleryImageSchema,
+            CG_IMAGE_KEYS,
+            self.community_gallery_image_raw,
+        )
+        if isinstance(self.community_gallery_image_raw, str):
+            self.community_gallery_image_raw = self.community_gallery_image_raw.strip()
+            if self.community_gallery_image_raw:
+                community_gallery_image_strings = re.split(
+                    r"[/]+", self.community_gallery_image_raw.lower()
+                )
+                if len(community_gallery_image_strings) == 4:
+                    community_gallery_image = CommunityGalleryImageSchema(
+                        location=community_gallery_image_strings[0],
+                        image_gallery=community_gallery_image_strings[1],
+                        image_definition=community_gallery_image_strings[2],
+                        image_version=community_gallery_image_strings[3],
+                    )
+                    self.community_gallery_image_raw = community_gallery_image.to_dict()
+                else:
+                    raise LisaException(
+                        "Invalid value for the provided community gallery image"
+                        f"parameter: '{self.community_gallery_image_raw}'."
+                        "The community gallery image parameter should be in the"
+                        " format: '<location>/<image_gallery>/<image_definition>"
+                        "/<image_version>'"
+                    )
+        self._community_gallery_image = community_gallery_image
+        return (
+            community_gallery_image
+            if isinstance(community_gallery_image, CommunityGalleryImageSchema)
+            else None
+        )
+
+    @community_gallery_image.setter
+    def community_gallery_image(
+        self, value: Optional[CommunityGalleryImageSchema]
+    ) -> None:
+        self._parse_image_raw("community_gallery_image", value)
+
+    @property
+    def image(self) -> Optional[AzureImageSchema]:
+        if self.marketplace:
+            return self.marketplace
+        elif self.shared_gallery:
+            return self.shared_gallery
+        elif self.community_gallery_image:
+            return self.community_gallery_image
+        elif self.vhd:
+            return self.vhd
+        return None
+
+    @image.setter
+    def image(self, value: Optional[AzureImageSchema]) -> None:
+        if isinstance(value, AzureVmMarketplaceSchema):
+            self.marketplace = value
+        elif isinstance(value, SharedImageGallerySchema):
+            self.shared_gallery = value
+        elif isinstance(value, CommunityGalleryImageSchema):
+            self.community_gallery_image = value
+        elif isinstance(value, VhdSchema):
+            self.vhd = value
         else:
-            self.vhd_raw = self._vhd.to_dict()  # type: ignore
+            raise LisaException(f"unsupported image type: {type(value)}")
 
     def get_image_name(self) -> str:
         result = ""
-        if self.vhd and self.vhd.vhd_path:
-            result = self.vhd.vhd_path
+        if self._orignal_vhd_path:
+            result = self._orignal_vhd_path
         elif self.shared_gallery:
             assert isinstance(
                 self.shared_gallery_raw, dict
             ), f"actual type: {type(self.shared_gallery_raw)}"
             if self.shared_gallery.resource_group_name:
                 result = "/".join(
-                    [self.shared_gallery_raw.get(k, "") for k in SIG_IMAGE_KEYS]
+                    [getattr(self.shared_gallery, k, "") for k in SIG_IMAGE_KEYS]
                 )
             else:
                 result = (
@@ -526,6 +959,13 @@ class AzureNodeSchema:
                     f"{self.shared_gallery.image_definition}/"
                     f"{self.shared_gallery.image_version}"
                 )
+        elif self.community_gallery_image:
+            assert isinstance(
+                self.community_gallery_image_raw, dict
+            ), f"actual type: {type(self.community_gallery_image_raw)}"
+            result = "/".join(
+                [self.community_gallery_image_raw.get(k, "") for k in CG_IMAGE_KEYS]
+            )
         elif self.marketplace:
             assert isinstance(
                 self.marketplace_raw, dict
@@ -534,6 +974,73 @@ class AzureNodeSchema:
                 [self.marketplace_raw.get(k, "") for k in MARKETPLACE_IMAGE_KEYS]
             )
         return result
+
+    def update_raw(self) -> None:
+        self._parse_image_raw("purchase_plan", self.purchase_plan)
+        self._parse_image_raw("marketplace", self.marketplace)
+        self._parse_image_raw("shared_gallery", self.shared_gallery)
+        self._parse_image_raw("vhd", self.vhd)
+        self._parse_image_raw("community_gallery_image", self.community_gallery_image)
+
+    def _parse_image(
+        self,
+        prop_name: str,
+        schema_type: Type[
+            Union[
+                VhdSchema,
+                AzureImageSchema,
+                SharedImageGallerySchema,
+                CommunityGalleryImageSchema,
+                AzureVmPurchasePlanSchema,
+            ]
+        ],
+        keys: List[str],
+        raw_data: Optional[Union[Dict[Any, Any], str]],
+    ) -> Any:
+        if not hasattr(self, f"_{prop_name}"):
+            setattr(self, f"_{prop_name}", None)
+        prop_value = getattr(self, f"_{prop_name}")
+
+        if prop_value:
+            return prop_value
+
+        if isinstance(raw_data, dict):
+            normalized_data = {
+                k: (v.lower() if isinstance(v, str) and hasattr(schema_type, k) else v)
+                for k, v in raw_data.items()
+            }
+            prop_value = schema.load_by_type(schema_type, normalized_data)
+
+            # Check if all required keys have values
+            if all(getattr(prop_value, key) for key in keys):
+                setattr(self, f"{prop_name}_raw", prop_value.to_dict())
+            else:
+                setattr(self, f"{prop_name}_raw", None)
+
+        return prop_value
+
+    def _parse_image_raw(
+        self,
+        prop_name: str,
+        value: Optional[
+            Union[
+                VhdSchema,
+                AzureImageSchema,
+                SharedImageGallerySchema,
+                CommunityGalleryImageSchema,
+                AzureVmPurchasePlanSchema,
+            ]
+        ],
+    ) -> None:
+        setattr(self, f"_{prop_name}", value)
+        if value is not None:
+            raw_value = (
+                value.to_dict() if hasattr(value, "to_dict") else value  # type: ignore
+            )
+        else:
+            raw_value = None
+
+        setattr(self, f"{prop_name}_raw", raw_value)
 
 
 @dataclass_json()
@@ -549,15 +1056,17 @@ class AzureNodeArmParameter(AzureNodeSchema):
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
         parameters = runbook.to_dict()  # type: ignore
-        if "marketplace" in parameters:
-            parameters["marketplace_raw"] = parameters["marketplace"]
-            del parameters["marketplace"]
-        if "shared_gallery" in parameters:
-            parameters["shared_gallery_raw"] = parameters["shared_gallery"]
-            del parameters["shared_gallery"]
-        if "vhd" in parameters:
-            parameters["vhd_raw"] = parameters["vhd"]
-            del parameters["vhd"]
+        keys_to_rename = {
+            "marketplace": "marketplace_raw",
+            "purchase_plan": "purchase_plan_raw",
+            "shared_gallery": "shared_gallery_raw",
+            "community_gallery_image": "community_gallery_image_raw",
+            "vhd": "vhd_raw",
+        }
+
+        for old_key, new_key in keys_to_rename.items():
+            if old_key in parameters:
+                parameters[new_key] = parameters.pop(old_key)
 
         arm_parameters = AzureNodeArmParameter(**parameters)
 
@@ -604,6 +1113,7 @@ class DataDiskSchema:
                     schema.DiskType.StandardHDDLRS,
                     schema.DiskType.StandardSSDLRS,
                     schema.DiskType.PremiumSSDLRS,
+                    schema.DiskType.PremiumV2SSDLRS,
                     schema.DiskType.UltraSSDLRS,
                     schema.DiskType.Ephemeral,
                 ]
@@ -620,25 +1130,36 @@ class DataDiskSchema:
 
 @dataclass_json()
 @dataclass
+class AvailabilityArmParameter:
+    availability_type: str = constants.AVAILABILITY_DEFAULT
+    availability_set_tags: Dict[str, str] = field(default_factory=dict)
+    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
+    availability_zones: List[int] = field(default_factory=list)
+
+
+@dataclass_json()
+@dataclass
 class AzureArmParameter:
-    storage_name: str = ""
     vhd_storage_name: str = ""
     location: str = ""
     admin_username: str = ""
     admin_password: str = ""
     admin_key_data: str = ""
     subnet_count: int = 1
+    availability_options: AvailabilityArmParameter = field(
+        default_factory=AvailabilityArmParameter
+    )
     shared_resource_group_name: str = AZURE_SHARED_RG_NAME
-    availability_set_tags: Dict[str, str] = field(default_factory=dict)
-    availability_set_properties: Dict[str, Any] = field(default_factory=dict)
     nodes: List[AzureNodeArmParameter] = field(default_factory=list)
     data_disks: List[DataDiskSchema] = field(default_factory=list)
-    use_availability_sets: bool = False
     vm_tags: Dict[str, Any] = field(default_factory=dict)
+    tags: Dict[str, Any] = field(default_factory=dict)
+    ip_service_tags: Dict[str, str] = field(default_factory=dict)
 
     virtual_network_resource_group: str = ""
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
     subnet_prefix: str = AZURE_SUBNET_PREFIX
+    is_ultradisk: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1087,109 +1608,89 @@ def get_storage_credential(
     return {"account_name": account_name, "account_key": key.value}
 
 
-def generate_blob_sas_token(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
+def generate_user_delegation_sas_token(
     container_name: str,
-    file_name: str,
-    expired_hours: int = 2,
-) -> Any:
-    shared_key_credential = get_storage_credential(
-        credential=credential,
-        subscription_id=subscription_id,
-        cloud=cloud,
-        account_name=account_name,
-        resource_group_name=resource_group_name,
-    )
-
-    sas_token = generate_blob_sas(
-        account_name=shared_key_credential["account_name"],
-        account_key=shared_key_credential["account_key"],
-        container_name=container_name,
-        blob_name=file_name,
-        permission=BlobSasPermissions(read=True),  # type: ignore
-        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
-    )
-    return sas_token
-
-
-def generate_sas_token(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
-    expired_hours: int = 2,
+    blob_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    account_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
     writable: bool = False,
+    expired_hours: int = 1,
 ) -> Any:
-    shared_key_credential = get_storage_credential(
-        credential=credential,
+    blob_service_client = get_blob_service_client(
         cloud=cloud,
-        subscription_id=subscription_id,
+        credential=credential,
         account_name=account_name,
-        resource_group_name=resource_group_name,
+        connection_string=connection_string,
     )
-    resource_types = ResourceTypes(  # type: ignore
-        service=True, container=True, object=True
+    start_time = datetime.now(timezone.utc)
+    expiry_time = start_time + timedelta(hours=expired_hours)
+    user_delegation_key = blob_service_client.get_user_delegation_key(
+        start_time, expiry_time
     )
-    sas_token = generate_account_sas(
-        account_name=shared_key_credential["account_name"],
-        account_key=shared_key_credential["account_key"],
-        resource_types=resource_types,
-        permission=AccountSasPermissions(read=True, write=writable),  # type: ignore
-        expiry=datetime.utcnow() + timedelta(hours=expired_hours),
+    assert account_name, "account_name is required"
+    sas_token = generate_blob_sas(
+        account_name=account_name,
+        container_name=container_name,
+        blob_name=blob_name,
+        user_delegation_key=user_delegation_key,
+        permission=BlobSasPermissions(read=True, write=writable),
+        expiry=expiry_time,
+        start=start_time,
     )
     return sas_token
 
 
 def get_blob_service_client(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
-    resource_group_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    account_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
 ) -> BlobServiceClient:
     """
     Create a Azure Storage container if it does not exist.
     """
-    shared_key_credential = get_storage_credential(
-        credential=credential,
-        subscription_id=subscription_id,
-        cloud=cloud,
-        account_name=account_name,
-        resource_group_name=resource_group_name,
-    )
-    blob_service_client = BlobServiceClient(
-        f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
-        shared_key_credential,
-    )
+    blob_service_client: BlobServiceClient
+    if connection_string:
+        blob_service_client = BlobServiceClient.from_connection_string(
+            connection_string
+        )
+    else:
+        assert (
+            account_name
+        ), "account_name is required, if connection_string is not set."
+
+        blob_service_client = BlobServiceClient(
+            f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
+            credential,
+        )
     return blob_service_client
 
 
 def get_or_create_storage_container(
-    credential: Any,
-    subscription_id: str,
-    cloud: Cloud,
-    account_name: str,
     container_name: str,
-    resource_group_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    account_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+    allow_create: bool = True,
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
     """
     blob_service_client = get_blob_service_client(
-        credential,
-        subscription_id,
-        cloud,
-        account_name,
-        resource_group_name,
+        cloud=cloud,
+        credential=credential,
+        account_name=account_name,
+        connection_string=connection_string,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
-        container_client.create_container()
+        if allow_create:
+            container_client.create_container()
+        else:
+            raise LisaException(f"container {container_name} does not exist.")
     return container_client
 
 
@@ -1204,6 +1705,8 @@ def check_or_create_storage_account(
     sku: str = "Standard_LRS",
     kind: str = "StorageV2",
     enable_https_traffic_only: bool = True,
+    allow_shared_key_access: bool = False,
+    allow_blob_public_access: bool = False,
 ) -> None:
     # check and deploy storage account.
     # storage account can be deployed inside of arm template, but if the concurrent
@@ -1225,6 +1728,8 @@ def check_or_create_storage_account(
                 kind=kind,
                 location=location,
                 enable_https_traffic_only=enable_https_traffic_only,
+                allow_shared_key_access=allow_shared_key_access,
+                allow_blob_public_access=allow_blob_public_access,
             )
             operation = storage_client.storage_accounts.begin_create(
                 resource_group_name=resource_group_name,
@@ -1265,6 +1770,7 @@ def check_or_create_resource_group(
     resource_group_name: str,
     location: str,
     log: Logger,
+    managed_by: str = "",
 ) -> None:
     with get_resource_management_client(
         credential, subscription_id, cloud
@@ -1276,9 +1782,15 @@ def check_or_create_resource_group(
         if not az_shared_rg_exists:
             log.info(f"Creating Resource group: '{resource_group_name}'")
 
+            rg_properties = {"location": location}
+            if managed_by:
+                log.debug(f"Using managed_by resource group: '{managed_by}'")
+                rg_properties["managed_by"] = managed_by
+
             with global_credential_access_lock:
                 rm_client.resource_groups.create_or_update(
-                    resource_group_name, {"location": location}
+                    resource_group_name,
+                    rg_properties,
                 )
             check_till_timeout(
                 lambda: rm_client.resource_groups.check_existence(resource_group_name)
@@ -1296,20 +1808,17 @@ def copy_vhd_to_storage(
 ) -> str:
     # get original vhd's hash key for comparing.
     original_key: Optional[bytearray] = None
-    original_blob_client = BlobClient.from_blob_url(src_vhd_sas_url)
+    original_blob_client: BlobClient = BlobClient.from_blob_url(src_vhd_sas_url)
     properties = original_blob_client.get_blob_properties()
-    if properties.content_settings:
-        original_key = properties.content_settings.get(
-            "content_md5", None
-        )  # type: ignore
+    content_settings: Optional[ContentSettings] = properties.content_settings
+    if content_settings:
+        original_key = content_settings.get("content_md5", None)  # type: ignore
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=storage_name,
         container_name=SAS_COPIED_CONTAINER_NAME,
-        resource_group_name=platform._azure_runbook.shared_resource_group_name,
     )
     full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
 
@@ -1349,12 +1858,12 @@ def copy_vhd_to_storage(
                 if not os.path.exists(azcopy_path):
                     raise LisaException(f"{azcopy_path} does not exist")
 
-                sas_token = generate_sas_token(
+                sas_token = generate_user_delegation_sas_token(
+                    container_name=blob_client.container_name,
+                    blob_name=blob_client.blob_name,
                     credential=platform.credential,
-                    subscription_id=platform.subscription_id,
                     cloud=platform.cloud,
                     account_name=storage_name,
-                    resource_group_name=platform._azure_runbook.shared_resource_group_name,  # noqa: E501
                     writable=True,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
@@ -1493,11 +2002,15 @@ def save_console_log(
 ) -> bytes:
     compute_client = get_compute_client(platform)
     with global_credential_access_lock:
-        diagnostic_data = (
-            compute_client.virtual_machines.retrieve_boot_diagnostics_data(
-                resource_group_name=resource_group_name, vm_name=vm_name
+        try:
+            diagnostic_data = (
+                compute_client.virtual_machines.retrieve_boot_diagnostics_data(
+                    resource_group_name=resource_group_name, vm_name=vm_name
+                )
             )
-        )
+        except ResourceExistsError as identifier:
+            log.debug(f"fail to get serial console log. {identifier}")
+            return b""
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
         screenshot_response = requests.get(
@@ -1516,12 +2029,22 @@ def save_console_log(
             )
         screenshot_raw_name.unlink()
 
-    log_response = requests.get(diagnostic_data.serial_console_log_blob_uri, timeout=60)
-    if log_response.status_code == 404:
-        log.debug(
-            "The serial console is not generated. "
-            "The reason may be the VM is not started."
+    try:
+        log_response = requests.get(
+            diagnostic_data.serial_console_log_blob_uri, timeout=60
         )
+        if log_response.status_code == 404:
+            log.debug(
+                "The serial console is not generated. "
+                "The reason may be the VM is not started."
+            )
+    except ChunkedEncodingError as ex:
+        log.debug(f"ChunkedEncodingError occurred: {ex}")
+        return b""
+    except Exception as ex:
+        log.debug(f"Failed to save console log: {ex}")
+        return b""
+
     return log_response.content
 
 
@@ -1655,21 +2178,19 @@ def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
     sc_name = matched.group("sc")
     container_name = matched.group("container")
     blob_name = matched.group("blob")
-    storage_client = get_storage_client(
-        platform.credential, platform.subscription_id, platform.cloud
-    )
-    # sometimes it will fail for below reason if list storage accounts like this way
-    # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
-    # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
-    sc_list = storage_client.storage_accounts.list()
-    found_sc = None
-    for sc in sc_list:
-        if sc.name == sc_name:
-            found_sc = sc
-            break
-    assert (
-        found_sc
-    ), f"storage account {sc_name} not found in subscription {platform.subscription_id}"
+    subscription_id = platform.subscription_id
+    found_sc = find_storage_account(platform, sc_name, subscription_id)
+    if not found_sc:
+        subscription_client = SubscriptionClient(platform.credential)
+        for subscription in subscription_client.subscriptions.list():
+            found_sc = find_storage_account(
+                platform, sc_name, subscription.subscription_id
+            )
+            if found_sc:
+                subscription_id = subscription.subscription_id
+                break
+    assert found_sc, f"storage account {sc_name} not found in any subscriptions allowed"
+
     rg = get_matched_str(found_sc.id, RESOURCE_GROUP_PATTERN)
     return {
         "location": found_sc.location,
@@ -1677,7 +2198,31 @@ def get_vhd_details(platform: "AzurePlatform", vhd_path: str) -> Any:
         "account_name": sc_name,
         "container_name": container_name,
         "blob_name": blob_name,
+        "subscription": subscription_id,
     }
+
+
+def find_storage_account(
+    platform: "AzurePlatform", sc_name: str, subscription_id: str
+) -> Any:
+    storage_client = get_storage_client(
+        platform.credential, subscription_id, platform.cloud
+    )
+    # sometimes it will fail for below reason if list storage accounts like this way
+    # [x for x in storage_client.storage_accounts.list() if x.name == sc_name]
+    # failure - Message: Resource provider 'Microsoft.Storage' failed to return collection response for type 'storageAccounts'.  # noqa: E501
+    sc_list = storage_client.storage_accounts.list()
+    found_sc = None
+    for sc in sc_list:
+        if sc.name.lower() == sc_name.lower():
+            found_sc = sc
+            break
+    return found_sc
+
+
+def get_token(platform: "AzurePlatform") -> str:
+    token = platform.credential.get_token(platform.cloud.endpoints.resource_manager)
+    return token.token
 
 
 def _generate_sas_token_for_vhd(
@@ -1685,24 +2230,21 @@ def _generate_sas_token_for_vhd(
 ) -> Any:
     sc_name = result_dict["account_name"]
     container_name = result_dict["container_name"]
-    rg = result_dict["resource_group_name"]
     blob_name = result_dict["blob_name"]
 
     source_container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=sc_name,
         container_name=container_name,
-        resource_group_name=rg,
     )
     source_blob = source_container_client.get_blob_client(blob_name)
-    sas_token = generate_sas_token(
+    sas_token = generate_user_delegation_sas_token(
+        container_name=source_blob.container_name,
+        blob_name=source_blob.blob_name,
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=sc_name,
-        resource_group_name=rg,
     )
     source_url = source_blob.url + "?" + sas_token
     return source_url
@@ -1721,7 +2263,10 @@ def get_deployable_vhd_path(
     if not matches:
         vhd_details = get_vhd_details(platform, vhd_path)
         vhd_location = vhd_details["location"]
-        if location == vhd_location:
+        if (
+            location == vhd_location
+            and vhd_details["subscription"] == platform.subscription_id
+        ):
             return vhd_path
         else:
             vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
@@ -1878,7 +2423,14 @@ def check_or_create_gallery_image(
                     "offer": gallery_image_offer,
                     "sku": gallery_image_sku,
                 },
+                "features": [
+                    {
+                        "name": "DiskControllerTypes",
+                        "value": "SCSI,NVMe",
+                    },
+                ],
             }
+
             if gallery_image_securitytype:
                 image_post_body["features"] = [
                     {
@@ -1968,17 +2520,115 @@ def check_blob_exist(
     container_name: str,
     resource_group_name: str,
     blob_name: str,
-) -> bool:
+    raise_error: bool = True,
+) -> None:
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=platform.subscription_id,
         cloud=platform.cloud,
         account_name=account_name,
         container_name=container_name,
-        resource_group_name=resource_group_name,
+        allow_create=False,
     )
     blob_client = container_client.get_blob_client(blob_name)
-    return blob_client.exists()
+    blob_exist = blob_client.exists()
+    if raise_error and not blob_exist:
+        raise LisaException(f"Blob {blob_name} does not exist.")
+
+
+def download_blob(
+    account_name: str,
+    container_name: str,
+    blob_name: str,
+    file_path: Path,
+    log: Logger,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+) -> PurePath:
+    container_client = get_or_create_storage_container(
+        container_name=container_name,
+        credential=credential,
+        cloud=cloud,
+        account_name=account_name,
+        connection_string=connection_string,
+        allow_create=False,
+    )
+    blob_client = container_client.get_blob_client(blob_name)
+    if not blob_client.exists():
+        raise LisaException(f"Blob {blob_name} not found in container {container_name}")
+    try:
+        with _global_download_blob_lock:
+            blob_properties = blob_client.get_blob_properties()
+            if file_path.exists():
+                blob_hash = blob_properties.content_settings.content_md5
+                if blob_hash:
+                    blob_hash_hex = "".join(f"{byte:02x}" for byte in blob_hash)
+                    if _calculate_hash(file_path) == blob_hash_hex:
+                        log.debug(
+                            f"Blob {blob_name} already exists in {file_path}. "
+                            "No need to download again."
+                        )
+                        return file_path
+
+            blob_size = blob_properties["size"]
+            downloaded_size = 0
+            start_time = time()
+            log_interval = 10
+            next_log_time = start_time + log_interval
+            with open(file_path, "wb") as file:
+                download_stream = blob_client.download_blob()
+                for chunk in download_stream.chunks():
+                    file.write(chunk)
+                    downloaded_size += len(chunk)
+                    percentage = (downloaded_size / blob_size) * 100
+                    current_time = time()
+                    if current_time >= next_log_time:
+                        log.debug(
+                            f"Downloaded {downloaded_size}/{blob_size} bytes "
+                            f"({percentage:.2f}% complete)"
+                        )
+                        next_log_time = current_time + log_interval
+
+            log.debug("Blob downloaded successfully.")
+    except Exception as e:
+        raise LisaException("An error occurred during blob download.") from e
+    return file_path
+
+
+def _calculate_hash(file_path: Path) -> str:
+    hash_func = hashlib.md5()
+    with open(file_path, "rb") as file:
+        for chunk in iter(lambda: file.read(4096), b""):
+            hash_func.update(chunk)
+    return hash_func.hexdigest()
+
+
+def list_blobs(
+    account_name: str,
+    container_name: str,
+    cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    credential: Optional[Any] = None,
+    subscription_id: Optional[str] = None,
+    resource_group_name: Optional[str] = None,
+    connection_string: Optional[str] = None,
+    include: str = "",
+    name_starts_with: str = "",
+) -> List[Any]:
+    container_client = get_or_create_storage_container(
+        container_name=container_name,
+        credential=credential,
+        cloud=cloud,
+        account_name=account_name,
+        connection_string=connection_string,
+        allow_create=False,
+    )
+    if name_starts_with:
+        return list(container_client.list_blobs(name_starts_with=name_starts_with))
+    if include:
+        return list(container_client.list_blobs(include=include))
+    return list(container_client.list_blobs())
 
 
 class DataDisk:
@@ -2052,9 +2702,77 @@ def get_tenant_id(credential: Any) -> Any:
     return subscription.tenant_id
 
 
+def get_azurevm_metadata() -> Any:
+    headers = {"Metadata": "true"}
+    try:
+        response = requests.get(METADATA_ENDPOINT, headers=headers, timeout=10)
+        response.raise_for_status()
+        metadata = response.json()
+        return metadata
+    except Exception:
+        return ""
+
+
+def get_azurevm_name() -> str:
+    meta_data = get_azurevm_metadata()
+    if meta_data:
+        return str(meta_data["compute"]["name"])
+    else:
+        return ""
+
+
+def get_resource_group_name() -> str:
+    meta_data = get_azurevm_metadata()
+    if meta_data:
+        return str(meta_data["compute"]["resourceGroupName"])
+    else:
+        return ""
+
+
+def get_managed_identity_object_id(
+    platform: "AzurePlatform", resource_group_name: str, vm_name: str
+) -> str:
+    compute_client = get_compute_client(
+        platform, subscription_id=platform.subscription_id
+    )
+
+    vm_identity = compute_client.virtual_machines.get(
+        resource_group_name, vm_name
+    ).identity
+
+    user_assigned_identity_resource_id = ""
+    # Check if the VM has user-assigned managed identity
+    if vm_identity and vm_identity.type == "UserAssigned":
+        user_assigned_identity_id = vm_identity.user_assigned_identities
+        if user_assigned_identity_id:
+            # Iterate over user-assigned identities
+            for _, identity_value in user_assigned_identity_id.items():
+                user_assigned_identity_resource_id = identity_value.principal_id
+            if user_assigned_identity_resource_id:
+                return user_assigned_identity_resource_id
+
+    # Check if the VM has system-assigned managed identity
+    if vm_identity and vm_identity.type == "SystemAssigned":
+        return str(vm_identity.principal_id)
+    return ""
+
+
 def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
 ) -> Any:
+    if not application_id:
+        application_id = os.environ.get("AZURE_CLIENT_ID", "")
+
+    if not application_id:
+        # if the run machine resides on Azure
+        # get the object ID of the managed identity
+        if get_resource_group_name() and get_azurevm_name():
+            object_id = get_managed_identity_object_id(
+                platform, get_resource_group_name(), get_azurevm_name()
+            )
+            if object_id:
+                return object_id
+
     base_url = "https://graph.microsoft.com/"
     api_version = "v1.0"
     # If application_id is not provided or is None, use /me endpoint
@@ -2354,3 +3072,42 @@ def is_cloud_init_enabled(node: Node) -> bool:
     ) and ls_tool.path_exists("/var/lib/cloud/instance", sudo=True):
         return True
     return False
+
+
+@retry(tries=10, delay=1, jitter=(0.5, 1))
+def load_location_info_from_file(
+    cached_file_name: Path, log: Logger
+) -> Optional[AzureLocation]:
+    loaded_obj: Optional[AzureLocation] = None
+    if cached_file_name.exists():
+        try:
+            with open(cached_file_name, "r") as f:
+                loaded_data: Dict[str, Any] = json.load(f)
+            loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
+        except Exception as identifier:
+            # if schema changed, There may be exception, remove cache and retry
+            # Note: retry on this method depends on decorator
+            log.debug(f"error on loading cache, delete cache and retry. {identifier}")
+            cached_file_name.unlink()
+            raise identifier
+    return loaded_obj
+
+
+def convert_to_azure_node_space(node_space: schema.NodeSpace) -> None:
+    if not node_space:
+        return
+
+    from .platform_ import AzurePlatform
+
+    feature.reload_platform_features(node_space, AzurePlatform.supported_features())
+
+    if node_space.disk:
+        from . import features
+
+        node_space.disk = schema.load_by_type(
+            features.AzureDiskOptionSettings, node_space.disk
+        )
+    if node_space.network_interface:
+        node_space.network_interface = schema.load_by_type(
+            schema.NetworkInterfaceOptionSettings, node_space.network_interface
+        )

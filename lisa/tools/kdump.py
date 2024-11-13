@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import math
 import re
 from pathlib import PurePath, PurePosixPath
 from time import sleep
@@ -12,10 +13,12 @@ from lisa.base_tools import Cat, Sed, Service, Wget
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Oracle, Posix, Redhat, Suse
 from lisa.tools import Find, Gcc
+from lisa.tools.lsblk import Lsblk
+from lisa.tools.lscpu import Lscpu
 from lisa.tools.make import Make
 from lisa.tools.sysctl import Sysctl
 from lisa.tools.tar import Tar
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
 
@@ -180,9 +183,13 @@ class KdumpBase(Tool):
     # Following are the configuration setting required for system and dump-capture
     # kernels for enabling kdump support.
     required_kernel_config = [
-        "CONFIG_KEXEC",
         "CONFIG_CRASH_DUMP",
         "CONFIG_PROC_VMCORE",
+    ]
+
+    kexec_kernel_configs = [
+        "CONFIG_KEXEC",
+        "CONFIG_KEXEC_FILE",
     ]
 
     dump_path = "/var/crash"
@@ -217,6 +224,16 @@ class KdumpBase(Tool):
         raise NotImplementedError()
 
     def check_required_kernel_config(self) -> None:
+        kexec_config_present = False
+        for config in self.kexec_kernel_configs:
+            if self.node.tools[KernelConfig].is_built_in(config):
+                kexec_config_present = True
+                break
+        if not kexec_config_present:
+            raise LisaException(
+                "The kernel config CONFIG_KEXEC or CONFIG_KEXEC_FILE is not set. "
+                "Kdump is not supported."
+            )
         for config in self.required_kernel_config:
             if not self.node.tools[KernelConfig].is_built_in(config):
                 raise LisaException(
@@ -437,6 +454,10 @@ class KdumpBase(Tool):
         # Check if memory is reserved for crash kernel
         self._check_crashkernel_memory_reserved()
 
+    def capture_info(self) -> None:
+        # Override this method to print additional info before panic
+        return
+
 
 class KdumpRedhat(KdumpBase):
     @property
@@ -583,15 +604,128 @@ class KdumpCBLMariner(KdumpBase):
         self.node.os.install_packages("kexec-tools")
         return self._check_exists()
 
+    def enable_kdump_service(self) -> None:
+        """
+        This method enables the kdump service.
+        """
+        # Check for sufficient core numbers
+        self.ensure_nr_cpus()
+
+        super().enable_kdump_service()
+
+    def ensure_nr_cpus(self) -> None:
+        lscpu = self.node.tools[Lscpu]
+        core_count = lscpu.get_core_count()
+        preferred_nr_cpus = math.ceil(core_count / 56)
+        conf_file = "/etc/sysconfig/kdump"
+        sed = self.node.tools[Sed]
+        # replace nr_cpus=<whatever> to nr_cpus=preferred_nr_cpus
+        sed.substitute(
+            match_lines="^KDUMP_COMMANDLINE_APPEND",
+            regexp="nr_cpus=[^[:space:]]*",
+            replacement=f"nr_cpus={preferred_nr_cpus}",
+            file=conf_file,
+            sudo=True,
+        )
+
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # For x86 and arm64 Mariner, the default setting is 256M
         return ""
 
     def _get_crashkernel_cfg_file(self) -> str:
-        return "/boot/mariner.cfg"
+        if self.node.os.information.version.major >= 3:
+            return "/etc/default/grub.d/51_kexec_tools.cfg"
+        else:
+            return "/boot/mariner.cfg"
 
     def _get_crashkernel_cfg_cmdline(self) -> str:
         return "mariner_cmdline"
 
     def _get_crashkernel_update_cmd(self, crashkernel: str) -> str:
         return ""
+
+    def config_resource_disk_dump_path(self, dump_path: str) -> None:
+        """
+        If the system memory size is bigger than 1T, the default size of /var/crash
+        may not be enough to store the dump file, need to change the dump path
+
+        path option is not supported by default initrd. Regenerated initrd will not
+        boot properly in ARM64. So, skip the test if it is ARM64 and Mariner-2.0
+        """
+        if (
+            self.node.os.information.version.major == 2
+            and isinstance(self.node.os, Posix)
+            and self.node.os.get_kernel_information().hardware_platform == "aarch64"
+        ):
+            raise SkippedException(
+                "path option is not supported in Mariner-2.0 for ARM64. "
+                "kdump will not work well on high memory Mariner-2.0 systems"
+            )
+
+        # Update forc_rebuild before changing the dump path. Otherwise the default
+        # initrd will not honor the path
+        kdump_conf = "/etc/kdump.conf"
+        sed = self.node.tools[Sed]
+        # Remove force_no_rebuild=1 if present
+        sed.substitute(
+            match_lines="^force_no_rebuild",
+            regexp="force_no_rebuild",
+            replacement="#force_no_rebuild",
+            file=kdump_conf,
+            sudo=True,
+        )
+        # Set mariner_2_initrd_use_suffix. Otherwise it will replace
+        # the original initrd file which will cause a reboot-loop
+        sed.substitute(
+            match_lines="mariner_2_initrd_use_suffix",
+            regexp="#mariner_2_initrd_use_suffix",
+            replacement="mariner_2_initrd_use_suffix",
+            file=kdump_conf,
+            sudo=True,
+        )
+
+        self.node.execute(
+            f"mkdir -p {dump_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(f"Fail to create dir {dump_path}"),
+            shell=True,
+            sudo=True,
+        )
+        self.dump_path = dump_path
+        # Change dump path in kdump conf
+        kdump_conf = "/etc/kdump.conf"
+        sed = self.node.tools[Sed]
+        sed.substitute(
+            match_lines="^path",
+            regexp="path",
+            replacement="#path",
+            file=kdump_conf,
+            sudo=True,
+        )
+        sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
+
+    def capture_info(self) -> None:
+        # print /proc/cmdline
+        cat = self.node.tools[Cat]
+        result = cat.run("/proc/cmdline", force_run=True, sudo=True)
+        self._log.info(f"Current kernel command line: {result.stdout}")
+        # print /etc/default/grub.d/51_kexec_tools.cfg
+        result = cat.run(self._get_crashkernel_cfg_file(), force_run=True, sudo=True)
+        self._log.info(f"Current kernel cmdline in config file: {result.stdout}")
+        # print /etc/sysconfig/kdump
+        result = cat.run("/etc/sysconfig/kdump", force_run=True, sudo=True)
+        self._log.info(f"Current kdump configuration: {result.stdout}")
+        # print /proc/sys/kernel/sysrq
+        result = cat.run("/proc/sys/kernel/sysrq", force_run=True, sudo=True)
+        self._log.info(f"Current sysrq value: {result.stdout}")
+        # print lsblk -l output
+        lsblk = self.node.tools[Lsblk]
+        result = lsblk.run("-l", force_run=True)
+        self._log.info(f"Current disk partitions: {result.stdout}")
+        # print /etc/fstab
+        result = cat.run("/etc/fstab", force_run=True, sudo=True)
+        self._log.info(f"Current fstab: {result.stdout}")
+        # print /etc/kdump.conf
+        result = cat.run("/etc/kdump.conf", force_run=True, sudo=True)
+        self._log.info(f"Current kdump configuration: {result.stdout}")
+        return

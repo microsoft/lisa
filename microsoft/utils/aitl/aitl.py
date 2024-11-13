@@ -20,17 +20,19 @@ _fmt = "%(asctime)s.%(msecs)03d[%(thread)d][%(levelname)s] %(name)s %(message)s"
 _datefmt = "%Y-%m-%d %H:%M:%S"
 _api_version = "2023-08-01-preview"
 
-_examples = """
-Examples:
-    Create a job:
-        python -m aitl job create -s {subscription_id} -r {resource_group} -n {job_name} -b @./tier0.json
 
-    List jobs:
-        python -m aitl job list -s {subscription_id} -r {resource_group}
+def _generate_example(resource_type: str = "job") -> str:
+    return f"""
+        Examples for {resource_type.capitalize() if resource_type == 'job' else 'Job Template' }:
+        Create a {resource_type}:
+            python -m aitl {resource_type} create -s {{subscription_id}} -r {{resource_group}} -n {{template_name}} -b {'@./tier0.json' if resource_type == 'job' else '@./template.json'}
 
-    Get a job:
-        python -m aitl job get -s {subscription_id} -r {resource_group} -n {job_name}
-"""  # noqa: E501
+        List {resource_type}s:
+            python -m aitl {resource_type} list -s {{subscription_id}} -r {{resource_group}}
+
+        Get a {resource_type}:
+            python -m aitl {resource_type} get -s {{subscription_id}} -r {{resource_group}} -n {{template_name}}
+    """  # noqa: E501
 
 
 def _initialize() -> None:
@@ -65,12 +67,12 @@ def _parse_json(content: str) -> Any:
 
 def _init_arg_parser() -> Namespace:
     parser = ArgumentParser(
-        prog="aitl", epilog=_examples, formatter_class=RawTextHelpFormatter
+        prog="aitl", epilog=_generate_example(), formatter_class=RawTextHelpFormatter
     )
 
     sub_parser = parser.add_subparsers(dest="resource", required=True)
     _add_resource_parser(sub_parser, "job", support_update=False)
-    _add_resource_parser(sub_parser, "template", support_update=False)
+    _add_resource_parser(sub_parser, "template", support_update=True)
 
     return parser.parse_args()
 
@@ -79,11 +81,14 @@ def _add_resource_parser(
     parser: Any, resource: str, support_update: bool = False
 ) -> None:
     cmd_parser: ArgumentParser = parser.add_parser(
-        name=resource, epilog=_examples, formatter_class=RawTextHelpFormatter
+        name=resource,
+        epilog=_generate_example(resource),
+        formatter_class=RawTextHelpFormatter,
     )
     sub_parser = cmd_parser.add_subparsers(dest="action", required=True)
-    for action in ["create", "list", "get", "delete", "update"]:
-        if not support_update and action == "update":
+
+    for action in ["create", "list", "get", "delete", "update", "patch"]:
+        if not support_update and action in ["update", "patch"]:
             continue
 
         if action == "list":
@@ -91,7 +96,7 @@ def _add_resource_parser(
         else:
             support_name = True
 
-        if action in ["get", "delete", "update"]:
+        if action in ["get", "delete", "update", "patch"]:
             required_name = True
         else:
             required_name = False
@@ -103,7 +108,7 @@ def _add_resource_parser(
             action_parser, support_name=support_name, required_name=required_name
         )
 
-        if resource in {"job", "template"} and action == "create":
+        if resource in {"job", "template"} and action in ["create", "update", "patch"]:
             _add_job_creation_parser(action_parser)
 
         _add_common_optional_parsers(action_parser)
@@ -283,10 +288,10 @@ if __name__ == "__main__":
     action = kwargs.pop("action")
     resource = kwargs.get("resource")
 
-    if action == "create":
+    if action in ["create", "update"]:
         http_method = kwargs.pop("method", "PUT")
-    elif action == "update":
-        http_method = kwargs.pop("method", "POST")
+    elif action == "patch":
+        http_method = kwargs.pop("method", "PATCH")
     elif action == "delete":
         http_method = kwargs.pop("method", "DELETE")
     else:

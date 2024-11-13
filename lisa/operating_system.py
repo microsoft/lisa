@@ -59,9 +59,21 @@ if TYPE_CHECKING:
 _get_init_logger = partial(get_logger, name="os")
 
 
+def get_matched_os_name(cmd_result: ExecutableResult, pattern: Pattern[str]) -> str:
+    # Check if the command is timedout. If it is, the system might be in a bad state
+    # Then raise an exception to avoid more timedout commands.
+    if cmd_result.is_timeout:
+        raise LisaTimeoutException(
+            f"Command timed out: {cmd_result.cmd}. "
+            "Please check if the system allows to run command from remote."
+        )
+    return get_matched_str(cmd_result.stdout, pattern)
+
+
 class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
+    I386 = "i386"
 
 
 class AzureCoreRepo(str, Enum):
@@ -128,6 +140,9 @@ class OperatingSystem:
     __release_pattern = re.compile(r"^DISTRIB_ID='?([^ \n']+).*$", re.M)
     __suse_release_pattern = re.compile(r"^(SUSE).*$", re.M)
     __bmc_release_pattern = re.compile(r".*(wcscli).*$", re.M)
+    # VMware ESXi 8.0.2 build-23305546
+    # VMware ESXi 8.0 Update 2
+    __vmware_esxi_release_pattern = re.compile(r"^(VMware ESXi).*$", re.M)
 
     __posix_factory: Optional[Factory[Any]] = None
 
@@ -211,44 +226,59 @@ class OperatingSystem:
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
-        cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="lsb_release -d", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__lsb_release_pattern)
 
-        cmd_result = typed_node.execute(cmd="cat /etc/os-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_name)
-        yield get_matched_str(cmd_result.stdout, cls.__os_release_pattern_id)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__os_release_pattern_name)
+        yield get_matched_os_name(cmd_result, cls.__os_release_pattern_id)
         cmd_result_os_release = cmd_result
 
         # for RedHat, CentOS 6.x
         cmd_result = typed_node.execute(
-            cmd="cat /etc/redhat-release", no_error_log=True
+            cmd="cat /etc/redhat-release", no_error_log=True, timeout=60
         )
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_header)
-        yield get_matched_str(cmd_result.stdout, cls.__redhat_release_pattern_bracket)
+        yield get_matched_os_name(cmd_result, cls.__redhat_release_pattern_header)
+        yield get_matched_os_name(cmd_result, cls.__redhat_release_pattern_bracket)
 
         # for FreeBSD
-        cmd_result = typed_node.execute(cmd="uname", no_error_log=True)
+        cmd_result = typed_node.execute(cmd="uname", no_error_log=True, timeout=60)
         yield cmd_result.stdout
 
         # for Debian
-        cmd_result = typed_node.execute(cmd="cat /etc/issue", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__debian_issue_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/issue", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__debian_issue_pattern)
 
         # note, cat /etc/*release doesn't work in some images, so try them one by one
         # try best for other distros, like Sapphire
-        cmd_result = typed_node.execute(cmd="cat /etc/release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__release_pattern)
 
         # try best for other distros, like VeloCloud
-        cmd_result = typed_node.execute(cmd="cat /etc/lsb-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/lsb-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__release_pattern)
 
         # try best for some suse derives, like netiq
-        cmd_result = typed_node.execute(cmd="cat /etc/SuSE-release", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__suse_release_pattern)
+        cmd_result = typed_node.execute(
+            cmd="cat /etc/SuSE-release", no_error_log=True, timeout=60
+        )
+        yield get_matched_os_name(cmd_result, cls.__suse_release_pattern)
 
-        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True)
-        yield get_matched_str(cmd_result.stdout, cls.__bmc_release_pattern)
+        cmd_result = typed_node.execute(cmd="wcscli", no_error_log=True, timeout=60)
+        yield get_matched_os_name(cmd_result, cls.__bmc_release_pattern)
+
+        cmd_result = typed_node.execute(cmd="vmware -lv", no_error_log=True, timeout=60)
+        yield get_matched_os_name(cmd_result, cls.__vmware_esxi_release_pattern)
 
         # try best from distros'family through ID_LIKE
         yield get_matched_str(
@@ -400,6 +430,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._update_packages(package_names)
 
+    def clean_package_cache(self) -> None:
+        raise NotImplementedError()
+
     def capture_system_information(self, saved_path: Path) -> None:
         # avoid to involve node, it's ok if some command doesn't exist.
         self._node.execute("uname -vrmo").save_stdout_to_file(saved_path / "uname.txt")
@@ -475,6 +508,9 @@ class Posix(OperatingSystem, BaseClassMixin):
     ) -> None:
         raise NotImplementedError("add_azure_core_repo is not implemented")
 
+    def set_kill_user_processes(self) -> None:
+        raise NotImplementedError("set_kill_user_processes is not implemented")
+
     def _process_extra_package_args(self, extra_args: Optional[List[str]]) -> str:
         if extra_args:
             add_args = " ".join(extra_args)
@@ -519,7 +555,7 @@ class Posix(OperatingSystem, BaseClassMixin):
     def _get_version_info_from_named_regex_match(
         self, package_name: str, named_matches: Match[str]
     ) -> VersionInfo:
-        essential_matches = ["major", "minor", "build"]
+        essential_matches = ["major", "minor"]
 
         # verify all essential keys are in our match dict
         assert_that(
@@ -534,16 +570,17 @@ class Posix(OperatingSystem, BaseClassMixin):
             patch_match = "0"
         major_match = named_matches.group("major")
         minor_match = named_matches.group("minor")
-        build_match = named_matches.group("build")
         major, minor, patch = map(
             int,
             [major_match, minor_match, patch_match],
         )
         build_match = named_matches.group("build")
-        self._node.log.debug(
+        log_message = (
             f"Found {package_name} version "
-            f"{major_match}.{minor_match}.{patch_match}-{build_match}"
+            f"major:{major_match} minor:{minor_match} "
+            f"patch:{patch_match} build:{build_match}"
         )
+        self._node.log.debug(log_message)
         return VersionInfo(major, minor, patch, build=build_match)
 
     def _cache_and_return_version_info(
@@ -675,6 +712,12 @@ class BMC(Posix):
         return re.compile("^wcscli$")
 
 
+class VMWareESXi(Posix):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^VMware ESXi$")
+
+
 class MacOS(Posix):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -730,12 +773,18 @@ class Debian(Linux):
         r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
         r"Version: ([a-zA-Z0-9:_\-\.~+]+)\r?\n"  # version number group
     )
+    # ex: 3.10
+    # ex: 3.10.5-git
+    # ex: 3.10-5git3
+    # ex: 3.10.1-build3
     _debian_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)\."  # minor
-        r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
+        # '-' is added after minor and made optional before build
+        # due to the formats like 23.11-1build3
     )
     # apt-cache policy git
     # git:
@@ -776,6 +825,12 @@ class Debian(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
 
+    def add_key(self, server_name: str, key: str) -> None:
+        self._node.execute(
+            f"apt-key adv --keyserver {server_name} --recv-keys {key}",
+            sudo=True,
+        )
+
     def get_apt_error(self, stdout: str) -> List[str]:
         error_lines: List[str] = []
         for line in stdout.splitlines(keepends=False):
@@ -804,7 +859,7 @@ class Debian(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(
@@ -891,6 +946,31 @@ class Debian(Linux):
                 )
 
         return repositories
+
+    def clean_package_cache(self) -> None:
+        self._node.execute("apt-get clean", sudo=True, shell=True)
+
+    @retry(tries=10, delay=5)
+    def remove_repository(
+        self,
+        repo: str,
+        key: Optional[List[str]] = None,
+    ) -> None:
+        self._initialize_package_installation()
+        if key:
+            self._node.execute(
+                cmd=f"apt-key del {key}",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="fail to del apt key",
+            )
+
+        apt_repo = self._node.tools[AptAddRepository]
+        apt_repo.remove_repository(repo)
+
+        # Unlike add repository, remove repository doesn't trigger apt update.
+        # So, it's needed to run apt update after remove repository.
+        self._node.execute("apt-get update", sudo=True)
 
     @retry(tries=10, delay=5)
     def add_repository(
@@ -1454,6 +1534,9 @@ class RPMDistro(Linux):
     ) -> None:
         self.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
 
+    def clean_package_cache(self) -> None:
+        self._node.execute(f"{self._dnf_tool()} clean all", sudo=True, shell=True)
+
     def _get_package_information(self, package_name: str) -> VersionInfo:
         rpm_info = self._node.execute(
             f"rpm -q {package_name}",
@@ -1827,13 +1910,15 @@ class AlmaLinux(Redhat):
 class CBLMariner(RPMDistro):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^Common Base Linux Mariner|mariner$")
+        return re.compile("^Common Base Linux Mariner|mariner|azurelinux$")
 
     def __init__(self, node: Any) -> None:
         super().__init__(node)
         self._dnf_tool_name: str
 
     def _initialize_package_installation(self) -> None:
+        self.set_kill_user_processes()
+
         result = self._node.execute("command -v dnf", no_info_log=True, shell=True)
         if result.exit_code == 0:
             self._dnf_tool_name = "dnf"
@@ -1863,6 +1948,17 @@ class CBLMariner(RPMDistro):
             "/SPECS/mariner-repos/mariner-extras.repo",
             sudo=True,
         )
+
+    # Disable KillUserProcesses to avoid test processes being terminated when
+    # the SSH session is reset
+    def set_kill_user_processes(self) -> None:
+        sed = self._node.tools[Sed]
+        sed.append(
+            text="KillUserProcesses=no",
+            file="/etc/systemd/logind.conf",
+            sudo=True,
+        )
+        self._node.tools[Service].restart_service("systemd-logind")
 
 
 @dataclass
@@ -1906,9 +2002,9 @@ class Suse(Linux):
     _suse_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
-        r"(?P<minor>[0-9]+)\."  # minor
-        r"(?P<patch>[0-9]+)"  # patch
-        r"-(?P<build>[a-zA-Z0-9-_\.~+]+)"  # build
+        r"(?P<minor>[0-9]+)"  # minor
+        r"([\-\.](?P<patch>[0-9]+))?"  # patch
+        r"((?:-)?(?P<build>[a-zA-Z0-9-_\.~+]+))?"  # build
     )
     _ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -1957,6 +2053,7 @@ class Suse(Linux):
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
     ) -> None:
+        self._initialize_package_installation()
         cmd = "zypper ar"
         if no_gpgcheck:
             cmd += " -G "
@@ -1966,6 +2063,9 @@ class Suse(Linux):
             cmd_result.assert_exit_code(0, f"fail to add repo {repo}")
         else:
             self._log.debug(f"repo {repo_name} already exist")
+
+    def clean_package_cache(self) -> None:
+        self._node.execute("zypper clean --all", sudo=True, shell=True)
 
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
@@ -2061,7 +2161,7 @@ class Suse(Linux):
         if not match:
             raise LisaException(
                 f"Could not parse version info: {version_str} "
-                "for package {package_name}"
+                f"for package {package_name}"
             )
         self._node.log.debug(f"Attempting to parse version string: {version_str}")
         version_info = self._get_version_info_from_named_regex_match(

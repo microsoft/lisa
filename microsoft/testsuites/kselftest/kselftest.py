@@ -124,6 +124,8 @@ class Kselftest(Tool):
             )
 
         if self._tar_file_path:
+            mkdir = self.node.tools[Mkdir]
+            mkdir.create_directory(self._remote_tar_path.parent.as_posix())
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
             self.node.tools[Tar].extract(
                 str(self._remote_tar_path), str(self._kself_installed_dir), sudo=True
@@ -204,29 +206,34 @@ class Kselftest(Tool):
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
+
+        # get username
+        username = self.node.tools[Whoami].get_username()
+        result_directory = f"/home/{username}"
+        if os.path.exists(result_directory) is False:
+            mkdir = self.node.tools[Mkdir]
+            mkdir.create_directory(result_directory)
+
+        result_file_name = "kselftest-results.txt"
+        result_file = f"{result_directory}/{result_file_name}"
         self.run(
-            " 2>&1 | tee kselftest-results.txt",
+            f" 2>&1 | tee {result_file}",
             sudo=run_test_as_root,
             force_run=True,
             shell=True,
             timeout=timeout,
         )
 
-        # get username
-        username = self.node.tools[Whoami].get_username()
-
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
-        chmod.update_folder(f"/home/{username}/kselftest-results.txt", "644", sudo=True)
+        chmod.update_folder(result_file, "644", sudo=True)
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]
-        remote_copy.copy_to_local(
-            PurePosixPath(f"/home/{username}/kselftest-results.txt"), PurePath(log_path)
-        )
+        remote_copy.copy_to_local(PurePosixPath(result_file), PurePath(log_path))
 
-        local_kselftest_results_path = PurePath(log_path) / "kselftest-results.txt"
+        local_kselftest_results_path = PurePath(log_path) / result_file_name
 
         # parse results from local_kselftest_results_path file
         # read the file

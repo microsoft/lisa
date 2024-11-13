@@ -26,6 +26,7 @@ from lisa import (
 from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
+from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import (
     Cat,
@@ -35,6 +36,7 @@ from lisa.tools import (
     Iperf3,
     Journalctl,
     Lscpu,
+    Service,
 )
 from lisa.util import (
     LisaException,
@@ -105,8 +107,8 @@ class Sriov(TestSuite):
             matched = self._device_rename_pattern.search(udevd_status)
             if matched:
                 raise LisaException(
-                    f"found {matched[0]} message "
-                    "there is a race condition when rename VF nics, "
+                    f"{matched[0]}. "
+                    "There is a race condition when rename VF nics, "
                     "it causes boot delay, it should be fixed in "
                     "systemd - 245.4-4ubuntu3.21"
                 )
@@ -262,7 +264,7 @@ class Sriov(TestSuite):
         4. Do the basic sriov check.
         5. Do step 2 ~ step 4 for 2 times.
         """,
-        priority=2,
+        priority=1,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
@@ -529,6 +531,8 @@ class Sriov(TestSuite):
                 nic_count=search_space.IntRange(min=3, max=8),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
+            # BSD is unsupported since this is testing to patches to the linux kernel
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
@@ -663,6 +667,75 @@ class Sriov(TestSuite):
         dest_cat = client_node.tools[Cat]
         iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).does_not_contain("error")
+
+    @TestCaseMetadata(
+        description="""
+        This test case verifies that irq rebalance is running.
+        When irqbalance is in debug mode, it will log “Selecting irq xxx for
+        rebalancing” when it selects an irq for rebalancing. We expect to see
+        this irq rebalancing when VM is under heavy network load.
+
+        An issue was previously seen in irqbalance 1.8.0-1build1 on Ubuntu.
+        When IRQ rebalance is not running, we expect to see poor network
+        performance and high package loss. Contact the distro publisher if
+        this is the case.
+
+        Steps,
+        1. Stop irqbalance service.
+        2. Start irqbalance as a background process with debug mode.
+        3. Generate some network traffic.
+        4. Check irqbalance output for “Selecting irq xxx for rebalancing”.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=4,
+            network_interface=features.Sriov(),
+        ),
+    )
+    def verify_irqbalance(self, environment: Environment, log: Logger) -> None:
+        server_node = cast(RemoteNode, environment.nodes[0])
+        client_node = cast(RemoteNode, environment.nodes[1])
+
+        if (
+            server_node.execute(
+                "command -v irqbalance", shell=True, sudo=True
+            ).exit_code
+            != 0
+        ):
+            raise SkippedException("irqbalance is not installed")
+
+        # Get the irqbalance version if we can
+        if isinstance(server_node.os, Posix):
+            try:
+                log.debug(
+                    "irqbalance version: "
+                    f"{server_node.os.get_package_information('irqbalance')}"
+                )
+            except Exception:
+                log.debug("irqbalance version: not found")
+
+        server_node.tools[Service].stop_service("irqbalance")
+
+        irqbalance = server_node.execute_async("irqbalance --debug", sudo=True)
+
+        server_iperf3 = server_node.tools[Iperf3]
+        client_iperf3 = client_node.tools[Iperf3]
+
+        server_iperf3.run_as_server_async()
+        client_iperf3.run_as_client(
+            server_ip=server_node.internal_address,
+            run_time_seconds=240,
+            parallel_number=128,
+            client_ip=client_node.internal_address,
+        )
+
+        irqbalance.kill()
+        result = irqbalance.wait_result()
+        assert re.search(
+            "Selecting irq [0-9]+ for rebalancing",
+            result.stdout,
+        ), "irqbalance is not rebalancing irqs"
 
     @TestCaseMetadata(
         description="""

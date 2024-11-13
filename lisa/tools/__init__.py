@@ -27,6 +27,7 @@ from .curl import Curl
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
+from .diff import Diff
 from .dmesg import Dmesg
 from .dnsmasq import Dnsmasq
 from .docker import Docker
@@ -36,7 +37,7 @@ from .ethtool import Ethtool
 from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
-from .fio import FIOMODES, Fio, FIOResult
+from .fio import FIOMODES, Fio, FIOResult, IoEngine
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
@@ -44,6 +45,7 @@ from .gdb import Gdb
 from .git import Git
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
+from .hugepages import Hugepages
 from .hwclock import Hwclock
 from .hyperv import HyperV
 from .interrupt_inspector import InterruptInspector
@@ -54,6 +56,7 @@ from .kdump import KdumpBase
 from .kernel_config import KernelConfig
 from .kill import Kill
 from .lagscope import Lagscope
+from .lisdriver import LisDriver
 from .ln import Ln
 from .ls import Ls
 from .lsblk import Lsblk
@@ -66,14 +69,17 @@ from .lsvmbus import Lsvmbus
 from .make import Make
 from .mdadm import Mdadm
 from .mde import MDE
+from .meson import Meson
 from .mkdir import Mkdir
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
 from .modinfo import Modinfo
 from .modprobe import Modprobe
+from .mono import Mono
 from .mount import Mount
 from .netperf import Netperf
 from .nfs_client import NFSClient
 from .nfs_server import NFSServer
+from .ninja import Ninja
 from .nm import Nm
 from .nproc import Nproc
 from .ntp import Ntp
@@ -116,6 +122,7 @@ from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
 from .vdsotest import Vdsotest
+from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
 from .wsl import Wsl
@@ -135,6 +142,7 @@ __all__ = [
     "Date",
     "Df",
     "Dhclient",
+    "Diff",
     "Dmesg",
     "Dnsmasq",
     "Docker",
@@ -156,8 +164,10 @@ __all__ = [
     "Ip",
     "IpInfo",
     "Iperf3",
+    "IoEngine",
     "HibernationSetup",
     "Hostname",
+    "Hugepages",
     "Hwclock",
     "HyperV",
     "InterruptInspector",
@@ -171,6 +181,7 @@ __all__ = [
     "Lagscope",
     "Ln",
     "Ls",
+    "LisDriver",
     "Lsblk",
     "Lscpu",
     "Lsinitrd",
@@ -179,6 +190,7 @@ __all__ = [
     "Lspci",
     "Lsvmbus",
     "Make",
+    "Meson",
     "Mdadm",
     "MDE",
     "Mkdir",
@@ -187,9 +199,11 @@ __all__ = [
     "Mkfsxfs",
     "Modinfo",
     "Modprobe",
+    "Mono",
     "Mount",
     "Mv",
     "Netperf",
+    "Ninja",
     "NFSClient",
     "NFSServer",
     "Nm",
@@ -243,6 +257,9 @@ __all__ = [
     "Wget",
     "YumConfigManager",
     "Vdsotest",
+    "VcRunner",
+    "VcTargetInfo",
+    "VirtualClientTool",
     "Who",
     "Whoami",
     "Wsl",

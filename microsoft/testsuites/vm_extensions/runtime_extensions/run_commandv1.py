@@ -97,8 +97,11 @@ class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Run Command v2 VM extension with a public Azure storage file uri.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -125,8 +128,11 @@ class RunCommandV1Tests(TestSuite):
         description="""
         Runs the Run Command v1 VM extension with 2 public file uris passed in
         and second script being run. Verifies second script created.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_second_public_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -168,8 +174,11 @@ class RunCommandV1Tests(TestSuite):
         description="""
         Runs the Run Command v1 VM extension with public file uri and command
         in both public and protected settings.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_script_in_both_settings_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -203,8 +212,11 @@ class RunCommandV1Tests(TestSuite):
         description="""
         Runs the Run Command v1 VM extension with public file uri and command in
         protected settings.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_protected_settings_run(
         self, log: Logger, node: Node, environment: Environment
@@ -236,8 +248,11 @@ class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Run Command v1 VM extension without a command and a script.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_without_command_run_failed(
         self, log: Logger, node: Node, environment: Environment
@@ -289,8 +304,11 @@ class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Custom Script VM extension with a base64 script.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_with_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -319,8 +337,11 @@ class RunCommandV1Tests(TestSuite):
     @TestCaseMetadata(
         description="""
         Runs the Run Command v1 VM extension with a gzip'ed base64 script.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_script_with_gzip_base64_script_run(
         self, log: Logger, node: Node, environment: Environment
@@ -384,8 +405,11 @@ class RunCommandV1Tests(TestSuite):
         description="""
         Runs the Run Command v1 VM extension with private Azure storage file uri
         without a sas token but with storage account credentials.
+
+        Downgrading priority from 3 to 5. The extension relies on the
+         storage account key, which we cannot use currently.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_private_script_with_storage_credentials_run(
         self, log: Logger, node: Node, environment: Environment
@@ -457,8 +481,11 @@ class RunCommandV1Tests(TestSuite):
         description="""
         Runs the Run Command v1 VM extension with a public Azure storage file uri
         pointing to a python script.
+
+        Downgrading priority from 3 to 5. Due to the requirement for blob public access,
+        which is restricted for security reasons.
         """,
-        priority=3,
+        priority=5,
     )
     def verify_public_python_script_run(
         self, log: Logger, node: Node, environment: Environment

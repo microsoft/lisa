@@ -98,7 +98,7 @@ class NvmeTestSuite(TestSuite):
     )
     def verify_nvme_function(self, node: Node) -> None:
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         nvme_cli = node.tools[Nvmecli]
         cat = node.tools[Cat]
         mount = node.tools[Mount]
@@ -185,7 +185,7 @@ class NvmeTestSuite(TestSuite):
     )
     def verify_nvme_fstrim(self, node: Node) -> None:
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         mount = node.tools[Mount]
 
         for namespace in nvme_namespaces:
@@ -262,7 +262,7 @@ class NvmeTestSuite(TestSuite):
                 f"version {os_information.release}"
             )
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         mount = node.tools[Mount]
         for namespace in nvme_namespaces:
             mount_point = namespace.rpartition("/")[-1]
@@ -314,7 +314,7 @@ class NvmeTestSuite(TestSuite):
     )
     def verify_nvme_manage_ns(self, node: Node) -> None:
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         nvme_devices = nvme.get_devices()
         nvme_cli = node.tools[Nvmecli]
         device_format_exit_code = 0
@@ -400,7 +400,7 @@ class NvmeTestSuite(TestSuite):
         #  compare the count of nvme namespaces and nvme devices.
         nvme = node.features[Nvme]
         nvme_device = nvme.get_devices()
-        nvme_namespace = nvme.get_namespaces()
+        nvme_namespace = nvme.get_raw_nvme_disks()
         assert_that(nvme_device).described_as(
             "nvme devices count should be equal to namespace count by listing devices "
             "under folder /dev."

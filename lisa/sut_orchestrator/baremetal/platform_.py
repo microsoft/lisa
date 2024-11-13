@@ -7,12 +7,12 @@ from typing import Any, List, Optional, Type
 from lisa import RemoteNode, feature, schema, search_space
 from lisa.environment import Environment
 from lisa.platform_ import Platform
-from lisa.util import fields_to_dict
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
 from lisa.util.subclasses import Factory
 
 from .. import BAREMETAL
+from .bootconfig import BootConfig
 from .build import Build
 from .cluster.cluster import Cluster
 from .context import get_build_context, get_node_context
@@ -52,6 +52,7 @@ class BareMetalPlatform(Platform):
         self.key_loader_factory = Factory[KeyLoader](KeyLoader)
         self.source_factory = Factory[Source](Source)
         self.build_factory = Factory[Build](Build)
+        self.boot_config_factory = Factory[BootConfig](BootConfig)
         # currently only support one cluster
         assert self._baremetal_runbook.cluster, "no cluster is specified in the runbook"
         self._cluster_runbook = self._baremetal_runbook.cluster[0]
@@ -66,7 +67,49 @@ class BareMetalPlatform(Platform):
         return self._configure_node_capabilities(environment, log, client_capabilities)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
-        # copy build (shared, check if it's copied)
+        # process the cluster elements from runbook
+        self._predeploy_environment(environment, log)
+
+        # deploy cluster
+        self.cluster.deploy(environment)
+
+        if self._cluster_runbook.ready_checker:
+            ready_checker = self.ready_checker_factory.create_by_runbook(
+                self._cluster_runbook.ready_checker
+            )
+
+        for index, node in enumerate(environment.nodes.list()):
+            node_context = get_node_context(node)
+
+            # ready checker
+            if ready_checker:
+                ready_checker.is_ready(node)
+
+            # get ip address
+            if self._cluster_runbook.ip_getter:
+                ip_getter = self.ip_getter_factory.create_by_runbook(
+                    self._cluster_runbook.ip_getter
+                )
+                node_context.connection.address = ip_getter.get_ip()
+
+            assert isinstance(node, RemoteNode), f"actual: {type(node)}"
+            node.name = f"node_{index}"
+            try_connect(node_context.connection)
+
+        self._log.debug(f"deploy environment {environment.name} successfully")
+
+    def _copy(self, build_schema: BuildSchema, sources_path: List[Path]) -> None:
+        if sources_path:
+            build = self.build_factory.create_by_runbook(build_schema)
+            build.copy(
+                sources_path=sources_path,
+                files_map=build_schema.files,
+            )
+        else:
+            self._log.debug("no copied source path specified, skip copy")
+
+    def _predeploy_environment(self, environment: Environment, log: Logger) -> None:
+        # download source (shared, check if it's copied)
         if self._baremetal_runbook.source:
             if not self.local_artifacts_path:
                 source = self.source_factory.create_by_runbook(
@@ -99,10 +142,16 @@ class BareMetalPlatform(Platform):
                 self._log.debug("build is already copied, skip copy")
             else:
                 assert self.local_artifacts_path, "no build source is specified"
-                self.copy(
+                self._copy(
                     self.cluster.runbook.build, sources_path=self.local_artifacts_path
                 )
                 build_context.is_copied = True
+
+        if self.cluster.runbook.boot_config:
+            boot_config = self.boot_config_factory.create_by_runbook(
+                self.cluster.runbook.boot_config
+            )
+            boot_config.config()
 
         if self.cluster.runbook.key_loader:
             key_loader = self.key_loader_factory.create_by_runbook(
@@ -141,50 +190,6 @@ class BareMetalPlatform(Platform):
 
             node_context.connection = connection_info
             index = index + 1
-
-        # deploy cluster
-        self.cluster.deploy(environment)
-
-        if self._cluster_runbook.ready_checker:
-            ready_checker = self.ready_checker_factory.create_by_runbook(
-                self._cluster_runbook.ready_checker
-            )
-
-        for index, node in enumerate(environment.nodes.list()):
-            node_context = get_node_context(node)
-
-            # ready checker
-            if ready_checker:
-                ready_checker.is_ready(node)
-
-            # get ip address
-            if self._cluster_runbook.ip_getter:
-                ip_getter = self.ip_getter_factory.create_by_runbook(
-                    self._cluster_runbook.ip_getter
-                )
-                node_context.connection.address = ip_getter.get_ip()
-
-            assert isinstance(node, RemoteNode), f"actual: {type(node)}"
-            node.name = f"node_{index}"
-            node.set_connection_info(
-                **fields_to_dict(
-                    node_context.connection,
-                    ["address", "port", "username", "password", "private_key_file"],
-                ),
-            )
-            try_connect(connection_info)
-
-        self._log.debug(f"deploy environment {environment.name} successfully")
-
-    def copy(self, build_schema: BuildSchema, sources_path: List[Path]) -> None:
-        if sources_path:
-            build = self.build_factory.create_by_runbook(build_schema)
-            build.copy(
-                sources_path=sources_path,
-                files_map=build_schema.files,
-            )
-        else:
-            self._log.debug("no copied source path specified, skip copy")
 
     def _configure_node_capabilities(
         self,

@@ -4,6 +4,10 @@ from typing import List, Optional, Union
 
 from dataclasses_json import dataclass_json
 
+from lisa.sut_orchestrator.util.schema import (
+    DevicePassthroughSchema,
+    HostDevicePoolSchema,
+)
 from lisa.util import LisaException
 
 FIRMWARE_TYPE_BIOS = "bios"
@@ -34,6 +38,17 @@ class LibvirtHost:
         return self.address is not None
 
 
+@dataclass_json()
+@dataclass
+class DeviceAddressSchema:
+    # Host device details for which we want to perform device-passthrough
+    # we can get it using lspci command
+    domain: str = ""
+    bus: str = ""
+    slot: str = ""
+    function: str = ""
+
+
 # QEMU orchestrator's global configuration options.
 @dataclass_json()
 @dataclass
@@ -50,6 +65,14 @@ class BaseLibvirtPlatformSchema:
     network_boot_timeout: Optional[float] = None
 
     capture_libvirt_debug_logs: bool = False
+
+    device_pools: Optional[List[HostDevicePoolSchema]] = None
+
+
+@dataclass_json()
+@dataclass
+class LibvirtDevicePassthroughSchema(DevicePassthroughSchema):
+    managed: str = ""
 
 
 # Possible disk image formats
@@ -85,6 +108,9 @@ class BaseLibvirtNodeSchema:
     # Whether to enable secure boot.
     enable_secure_boot: bool = False
 
+    # Configuration options for device-passthrough.
+    device_passthrough: Optional[List[LibvirtDevicePassthroughSchema]] = None
+
 
 # QEMU orchestrator's per-node configuration options.
 # This ensures backward compatibility with existing runbooks that specify the
@@ -109,8 +135,13 @@ class QemuNodeSchema(BaseLibvirtNodeSchema):
 
 @dataclass_json()
 @dataclass
+class KernelSchema:
+    path: str = ""
+    is_remote_path: bool = False
+
+
+@dataclass_json()
+@dataclass
 class CloudHypervisorNodeSchema(BaseLibvirtNodeSchema):
-    # Local path to the cloud-hypervisor firmware.
-    # Can be obatained from:
-    # https://github.com/cloud-hypervisor/rust-hypervisor-firmware
-    firmware: str = ""
+    # Local or remote path to the cloud-hypervisor kernel.
+    kernel: Optional[KernelSchema] = None

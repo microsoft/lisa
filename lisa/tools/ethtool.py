@@ -376,7 +376,7 @@ class DeviceRssHashKey:
     #   6d:5a:56:da:25:5b:0e:c2:41:67:25:3d:43:a3:8f:b0:d0:ca:2b:cb:ae:7b:30:b4:77:cb:2d:a3:80:30:f2:0c:6a:42:b7:3b:be:ac:01:fa
 
     _rss_hash_key_pattern = re.compile(
-        r"^RSS hash key:.*\s+(?P<value>.*?)$", re.MULTILINE
+        r"^RSS hash key:\s+(?P<value>[0-9a-f:]+)", re.MULTILINE
     )
 
     def __init__(self, interface: str, device_rss_hash_info_raw: str) -> None:
@@ -499,7 +499,7 @@ class Ethtool(Tool):
             r"^[\s]*driver:(?P<value>.*?)?$", re.MULTILINE
         )
 
-        cmd_result = self.run(f"-i {interface}")
+        cmd_result = self.run(f"-i {interface}", shell=True)
         cmd_result.assert_exit_code(
             message=f"Could not find the driver information for {interface}"
         )
@@ -517,7 +517,7 @@ class Ethtool(Tool):
         netdirs = find_tool.find_files(
             self.node.get_pure_path("/sys/devices"),
             name_pattern="net",
-            path_pattern="*vmbus*",
+            path_pattern=["*vmbus*", "*MSFT*"],
             ignore_case=True,
         )
         for netdir in netdirs:
@@ -543,7 +543,7 @@ class Ethtool(Tool):
         if not force_run and device.device_channel:
             return device.device_channel
 
-        result = self.run(f"-l {interface}", force_run=force_run)
+        result = self.run(f"-l {interface}", force_run=force_run, shell=True)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 "ethtool -l {interface} operation not supported."
@@ -569,7 +569,10 @@ class Ethtool(Tool):
         channel_count: int,
     ) -> DeviceChannel:
         change_result = self.run(
-            f"-L {interface} combined {channel_count}", sudo=True, force_run=True
+            f"-L {interface} combined {channel_count}",
+            sudo=True,
+            shell=True,
+            force_run=True,
         )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} channels count."
@@ -587,6 +590,7 @@ class Ethtool(Tool):
         result = self.run(
             f"-k {interface}",
             force_run=force_run,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Unable to get device {interface} features."
@@ -602,7 +606,7 @@ class Ethtool(Tool):
         if not force_run and device.device_gro_lro_settings:
             return device.device_gro_lro_settings
 
-        result = self.run(f"-k {interface}", force_run=force_run)
+        result = self.run(f"-k {interface}", force_run=force_run, sudo=True, shell=True)
         result.assert_exit_code()
 
         device.device_gro_lro_settings = DeviceGroLroSettings(interface, result.stdout)
@@ -617,6 +621,7 @@ class Ethtool(Tool):
             f"-K {interface} gro {gro} lro {lro}",
             sudo=True,
             force_run=True,
+            shell=True,
         )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} GRO LRO settings."
@@ -629,7 +634,7 @@ class Ethtool(Tool):
         if device.device_link_settings:
             return device.device_link_settings
 
-        result = self.run(interface)
+        result = self.run(interface, shell=True)
         result.assert_exit_code()
 
         link_settings = DeviceLinkSettings(interface, result.stdout)
@@ -654,7 +659,7 @@ class Ethtool(Tool):
         if not force_run and device.device_msg_level:
             return device.device_msg_level
 
-        result = self.run(interface, force_run=force_run)
+        result = self.run(interface, force_run=force_run, shell=True)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool {interface} operation not supported."
@@ -684,6 +689,7 @@ class Ethtool(Tool):
                 f"-s {interface} msglvl {' on '.join(msg_flag)} on",
                 sudo=True,
                 force_run=True,
+                shell=True,
             )
             result.assert_exit_code(
                 message=f" Couldn't set device {interface} message flag/s {msg_flag}."
@@ -693,6 +699,7 @@ class Ethtool(Tool):
                 f"-s {interface} msglvl {' off '.join(msg_flag)} off",
                 sudo=True,
                 force_run=True,
+                shell=True,
             )
             result.assert_exit_code(
                 message=f" Couldn't unset device {interface} message flag/s {msg_flag}."
@@ -707,6 +714,7 @@ class Ethtool(Tool):
             f"-s {interface} msglvl {msg_flag}",
             sudo=True,
             force_run=True,
+            shell=True,
         )
         result.assert_exit_code(
             message=f" Couldn't set device {interface} message flag {msg_flag}."
@@ -721,7 +729,7 @@ class Ethtool(Tool):
         if not force_run and device.device_ringbuffer_settings:
             return device.device_ringbuffer_settings
 
-        result = self.run(f"-g {interface}", force_run=force_run)
+        result = self.run(f"-g {interface}", force_run=force_run, shell=True)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -g {interface} operation not supported."
@@ -739,7 +747,10 @@ class Ethtool(Tool):
         self, interface: str, rx: int, tx: int
     ) -> DeviceRingBufferSettings:
         change_result = self.run(
-            f"-G {interface} rx {rx} tx {tx}", sudo=True, force_run=True
+            f"-G {interface} rx {rx} tx {tx}",
+            sudo=True,
+            force_run=True,
+            shell=True,
         )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} ring buffer settings."
@@ -754,7 +765,7 @@ class Ethtool(Tool):
         if not force_run and device.device_rss_hash_key:
             return device.device_rss_hash_key
 
-        result = self.run(f"-x {interface}", force_run=force_run)
+        result = self.run(f"-x {interface}", force_run=force_run, shell=True)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -x {interface} operation not supported."
@@ -769,7 +780,12 @@ class Ethtool(Tool):
     def change_device_rss_hash_key(
         self, interface: str, hash_key: str
     ) -> DeviceRssHashKey:
-        result = self.run(f"-X {interface} hkey {hash_key}", sudo=True, force_run=True)
+        result = self.run(
+            f"-X {interface} hkey {hash_key}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"Changing RSS hash key with 'ethtool -X {interface}' not supported."
@@ -792,7 +808,7 @@ class Ethtool(Tool):
             return device.device_rx_hash_level
 
         result = self.run(
-            f"-n {interface} rx-flow-hash {protocol}", force_run=force_run
+            f"-n {interface} rx-flow-hash {protocol}", force_run=force_run, shell=True
         )
         if "Operation not supported" in result.stdout:
             raise UnsupportedOperationException(
@@ -824,6 +840,7 @@ class Ethtool(Tool):
         result = self.run(
             f"-N {interface} rx-flow-hash {protocol} {param}",
             sudo=True,
+            shell=True,
             force_run=True,
         )
         if "Operation not supported" in result.stdout:
@@ -844,7 +861,7 @@ class Ethtool(Tool):
         if not force_run and device.device_sg_settings:
             return device.device_sg_settings
 
-        result = self.run(f"-k {interface}", force_run=force_run)
+        result = self.run(f"-k {interface}", force_run=force_run, shell=True)
         result.assert_exit_code()
 
         device.device_sg_settings = DeviceSgSettings(interface, result.stdout)
@@ -857,6 +874,7 @@ class Ethtool(Tool):
         change_result = self.run(
             f"-K {interface} sg {sg}",
             sudo=True,
+            shell=True,
             force_run=True,
         )
         change_result.assert_exit_code(
@@ -872,7 +890,7 @@ class Ethtool(Tool):
         if not force_run and device.device_statistics:
             return device.device_statistics
 
-        result = self.run(f"-S {interface}", force_run=True)
+        result = self.run(f"-S {interface}", force_run=True, shell=True)
         if (result.exit_code != 0) and (
             "Operation not supported" in result.stdout
             or "no stats available" in result.stdout
@@ -911,7 +929,7 @@ class Ethtool(Tool):
         if not force_run and device.device_firmware_version:
             return device.device_firmware_version
 
-        result = self.run(f"-i {interface}", force_run=force_run)
+        result = self.run(f"-i {interface}", force_run=force_run, shell=True)
         if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
             raise UnsupportedOperationException(
                 f"ethtool -i {interface} operation not supported."
@@ -1052,7 +1070,7 @@ class Ethtool(Tool):
 class EthtoolFreebsd(Ethtool):
     # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
     _interface_features_pattern = re.compile(
-        r"options=.+<(?P<features>.*)>(.|\n)*ether"
+        r"options=.+<(?P<features>.*)>(?:.|\n)*ether"
     )
 
     _get_bsd_to_linux_features_map = {
@@ -1088,7 +1106,6 @@ class EthtoolFreebsd(Ethtool):
         self, interface: str, force_run: bool = False
     ) -> DeviceFeatures:
         interface_info = self.node.tools[Ip].run(interface).stdout
-
         # Example output:
         # options=8051b<RXCSUM,TXCSUM,VLAN_MTU,VLAN_HWTAGGING,TSO4,LRO,LINKSTATE>
         # The features are separated by comma and enclosed by "<>"
@@ -1098,7 +1115,8 @@ class EthtoolFreebsd(Ethtool):
 
         features = []
         for feature in features_pattern:
-            features.append(self._get_bsd_to_linux_features_map[feature])
+            if feature in self._get_bsd_to_linux_features_map:
+                features.append(self._get_bsd_to_linux_features_map[feature])
         device_features = DeviceFeatures(interface, features)
 
         return device_features

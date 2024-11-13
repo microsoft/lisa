@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List, Type
+from pathlib import Path
+from typing import List, Optional, Type
 
-from lisa import features
+from lisa import feature, features
 from lisa.environment import Environment
 from lisa.feature import Feature
 from lisa.platform_ import Platform
@@ -30,6 +31,8 @@ class ReadyPlatform(Platform):
             features.Hibernation,
             features.IsolatedResource,
             features.Nfs,
+            features.SecurityProfile,
+            features.SerialConsole,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
@@ -49,6 +52,8 @@ class ReadyPlatform(Platform):
                 node.capability.disk = DiskOptionSettings()
             if node.capability.network_interface is None:
                 node.capability.network_interface = NetworkInterfaceOptionSettings()
+            # Reload features to right types
+            feature.reload_platform_features(node.capability, self.supported_features())
 
         if len(environment.nodes):
             # if it has nodes, it's a good environment to run test cases
@@ -61,4 +66,15 @@ class ReadyPlatform(Platform):
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         # ready platform doesn't support delete environment
+        pass
+
+
+class SerialConsole(features.SerialConsole):
+    def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
+        return b""
+
+    def read(self) -> str:
+        return ""
+
+    def write(self, data: str) -> None:
         pass

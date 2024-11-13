@@ -93,6 +93,9 @@ class VhdTransformerSchema(schema.Transformer):
     # restore environment or not
     restore: bool = False
 
+    # deprovision the VM or not
+    deprovision: bool = True
+
 
 @dataclass_json
 @dataclass
@@ -165,10 +168,11 @@ class VhdTransformer(Transformer):
         if not runbook.public_address:
             runbook.public_address = node.public_address
 
-        # prepare vm for exporting
-        wa = node.tools[Waagent]
-        node.execute("export HISTSIZE=0", shell=True)
-        wa.deprovision()
+        if runbook.deprovision:
+            # prepare vm for exporting
+            wa = node.tools[Waagent]
+            node.execute("export HISTSIZE=0", shell=True)
+            wa.deprovision()
 
         # stop the vm
         startstop = node.features[StartStop]
@@ -209,11 +213,9 @@ class VhdTransformer(Transformer):
         )
         container_client = get_or_create_storage_container(
             credential=platform.credential,
-            subscription_id=platform.subscription_id,
             cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             container_name=runbook.container_name,
-            resource_group_name=runbook.shared_resource_group_name,
         )
 
         if runbook.custom_blob_name:
@@ -509,14 +511,14 @@ class SharedGalleryImageTransformer(Transformer):
             platform, runbook.vhd, image_location, self._log
         )
         vhd_details = get_vhd_details(platform, vhd_path)
-        if not check_blob_exist(
-            platform,
-            vhd_details["account_name"],
-            vhd_details["container_name"],
-            vhd_details["resource_group_name"],
-            vhd_details["blob_name"],
-        ):
-            raise LisaException(f"{vhd_path} doesn't exist.")
+        check_blob_exist(
+            platform=platform,
+            account_name=vhd_details["account_name"],
+            container_name=vhd_details["container_name"],
+            resource_group_name=vhd_details["resource_group_name"],
+            blob_name=vhd_details["blob_name"],
+            raise_error=True,
+        )
 
         (
             gallery_image_publisher,

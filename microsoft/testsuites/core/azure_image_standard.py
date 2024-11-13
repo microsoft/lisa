@@ -78,6 +78,15 @@ class AzureImageStandard(TestSuite):
         re.compile(r"^(.*warning.*)$", re.MULTILINE),
     ]
 
+    # pattern to get failure, error, warnings from cloud-init.log
+    # examples from cloud-init.log:
+    # [WARNING]: Running ['tdnf', '-y', 'upgrade'] resulted in stderr output.
+    # cloud-init[958]: photon.py[ERROR]: Error while installing packages
+    _ERROR_WARNING_pattern: List[Pattern[str]] = [
+        re.compile(r"^(.*\[ERROR\]:.*)", re.MULTILINE),
+        re.compile(r"^(.*\[WARNING\]:.*)", re.MULTILINE),
+    ]
+
     # ignorable failure, error, warnings pattern which got confirmed
     _error_fail_warnings_ignorable_str_list: List[Pattern[str]] = [
         re.compile(r"^(.*Perf event create on CPU 0 failed with -2.*)$", re.M),
@@ -234,6 +243,11 @@ class AzureImageStandard(TestSuite):
         ),
         # pam_unix,pam_faillock
         re.compile(r"^(.*pam_unix,pam_faillock.*)$", re.M),
+        # hamless mellanox warning that does not affect functionality of the system
+        re.compile(
+            r"^(.*mlx5_core0: WARN: mlx5_fwdump_prep:92:\(pid 0\).*)$",
+            re.M,
+        ),
     ]
 
     @TestCaseMetadata(
@@ -511,6 +525,24 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Verify if there is any issues in and after 'os update'
+
+        Steps:
+        1. Run os update command.
+        2. Reboot the VM and see if the VM is still in good state.
+        """,
+        priority=2,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    )
+    def verify_os_update(self, node: Node) -> None:
+        if isinstance(node.os, Posix):
+            node.os.update_packages("")
+        else:
+            raise SkippedException(f"Unsupported OS or distro type : {type(node.os)}")
+        node.reboot()
+
+    @TestCaseMetadata(
+        description="""
         This test will check that kvp daemon is installed. This is an optional
         requirement for Debian based distros.
 
@@ -571,7 +603,7 @@ class AzureImageStandard(TestSuite):
                 }
                 lscpu = node.tools[Lscpu]
                 arch = lscpu.get_architecture()
-                repo_url = repo_url_map.get(CpuArchitecture(arch), None)
+                repo_url = repo_url_map.get(arch, None)
                 contains_security_keyword = any(
                     [
                         "-security" in repository.name
@@ -728,14 +760,23 @@ class AzureImageStandard(TestSuite):
             mariner_repositories = [
                 cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
-            expected_repo_list = [
-                "mariner-official-base",
-                "mariner-official-microsoft",
-            ]
-            if 1 == node.os.information.version.major:
-                expected_repo_list += ["mariner-official-update"]
-            elif 2 == node.os.information.version.major:
-                expected_repo_list += ["mariner-official-extras"]
+
+            if 3 == node.os.information.version.major:
+                expected_repo_list = [
+                    "azurelinux-official-base",
+                    "azurelinux-official-ms-non-oss",
+                    "azurelinux-official-ms-oss",
+                ]
+            else:
+                expected_repo_list = [
+                    "mariner-official-base",
+                    "mariner-official-microsoft",
+                ]
+                if 1 == node.os.information.version.major:
+                    expected_repo_list += ["mariner-official-update"]
+                elif 2 == node.os.information.version.major:
+                    expected_repo_list += ["mariner-official-extras"]
+
             for id_ in expected_repo_list:
                 is_repository_present = any(
                     id_ in repository.id for repository in mariner_repositories
@@ -805,7 +846,7 @@ class AzureImageStandard(TestSuite):
 
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
-        current_console_device = console_device[CpuArchitecture(arch)]
+        current_console_device = console_device[arch]
         console_enabled_pattern = re.compile(
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
@@ -893,6 +934,55 @@ class AzureImageStandard(TestSuite):
             "unexpected error/failure/warnings shown up in bootup log of distro"
             f" {node.os.name} {node.os.information.version}"
         ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
+        This test will check ERROR, WARNING messages from /var/log/cloud-init.log
+        and also check cloud-init exit status.
+
+        Steps:
+        1. Get ERROR, WARNING messages from /var/log/cloud-init.log.
+        2. If any unexpected ERROR, WARNING messages or non-zero cloud-init status
+         fail the case.
+        """,
+        priority=2,
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    )
+    def verify_cloud_init_error_status(self, node: Node) -> None:
+        cat = node.tools[Cat]
+        if isinstance(node.os, CBLMariner):
+            if node.os.information.version < "2.0.0":
+                raise SkippedException(
+                    "CBLMariner 1.0 is now obsolete so skip the test."
+                )
+            cloud_init_log = "/var/log/cloud-init.log"
+            if node.shell.exists(node.get_pure_path(cloud_init_log)):
+                log_output = cat.read(cloud_init_log, force_run=True, sudo=True)
+                found_results = [
+                    x
+                    for sublist in find_patterns_in_lines(
+                        log_output, self._ERROR_WARNING_pattern
+                    )
+                    for x in sublist
+                    if x
+                ]
+                assert_that(found_results).described_as(
+                    "unexpected ERROR/WARNING shown up in cloud-init.log"
+                    f" {found_results}"
+                    f" {node.os.name} {node.os.information.version}"
+                ).is_empty()
+                cmd_result = node.execute("cloud-init status --wait", sudo=True)
+                cmd_result.assert_exit_code(
+                    0, f"cloud-init exit status failed with {cmd_result.exit_code}"
+                )
+            else:
+                raise LisaException("cloud-init.log not exists")
+        else:
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "unsupported distro to run verify_cloud_init test."
+                )
+            )
 
     @TestCaseMetadata(
         description="""

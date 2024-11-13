@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+#
+#CustomScript extension
+#
+# Copyright 2023 Microsoft Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import fnmatch
+import os
+import os.path
+import string
+import subprocess
+import sys
+
+
+def get_folders_with_string(root_path, folder_name_contains):
+    matching_folders = [] 
+    for root, dirs, files in os.walk(root_path):
+        for dir_name in fnmatch.filter(dirs, "*" + folder_name_contains + "*"):
+            folder_path = os.path.join(root, dir_name)
+            matching_folders.append(folder_path)
+
+    return matching_folders
+
+root_path = '/var/lib/waagent/'
+folder_name_contains = 'Microsoft.Azure.RecoveryServices.VMSnapshotLinux'
+
+matching_folders = get_folders_with_string(root_path, folder_name_contains)
+
+for folder in matching_folders:
+    break
+os.chdir(folder)
+
+from backuplogger import Backuplogger
+from common import CommonVariables
+from patch import GetMyPatching
+from Utils import HandlerUtil, SizeCalculation
+
+try:
+    from unittest.mock import MagicMock
+except ImportError:
+    from mock import MagicMock
+
+def main():
+    
+    # run a test for exclude disk scenario
+    excludeDisk()
+
+def excludeDisk():
+    Log = MagicMock()
+    Error = MagicMock()
+    hutil = HandlerUtil.HandlerUtility(Log, Error, CommonVariables.extension_name)
+    backup_logger = Backuplogger(hutil)
+    MyPatching, patch_class_name, orig_distro = GetMyPatching(backup_logger)
+    hutil.patching = MyPatching
+    para_parser = MagicMock()
+    para_parser.includedDisks = {"dataDiskLunList":[-1],"isAnyDirectDriveDiskIncluded":None,"isAnyDiskExcluded":True,"isAnyWADiskIncluded":None,"isOSDiskIncluded":False,"isVmgsBlobIncluded":None}
+    para_parser.includeLunList = para_parser.includedDisks["dataDiskLunList"]
+    sizeCalculation = SizeCalculation.SizeCalculation(patching = MyPatching , hutil = hutil, logger = backup_logger, para_parser = para_parser)
+    total_used_size,size_calculation_failed = sizeCalculation.get_total_used_size()
+    print(size_calculation_failed)
+
+
+if __name__ == '__main__' :
+    main()
+

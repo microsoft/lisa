@@ -220,11 +220,31 @@ def _set_target_role_parameters(
         "Microsoft.Compute/disks/delete",
         "Microsoft.Compute/images/read",
         "Microsoft.Compute/images/write",
+        # for testing ARM64 VHD and gallery image
         "Microsoft.Compute/galleries/images/read",
         "Microsoft.Compute/galleries/images/write",
+        "Microsoft.Compute/galleries/images/delete",
+        "Microsoft.Compute/galleries/images/versions/read",
+        "Microsoft.Compute/galleries/images/versions/write",
+        "Microsoft.Compute/galleries/images/versions/delete",
+        "Microsoft.Compute/galleries/read",
+        "Microsoft.Compute/galleries/write",
         # for test VM extension running
         "Microsoft.Compute/virtualMachines/extensions/read",
         "Microsoft.Compute/virtualMachines/extensions/write",
+        "Microsoft.Compute/virtualMachines/extensions/delete",
+        # for verify_vm_assess_patches
+        "Microsoft.Compute/virtualMachines/assessPatches/action",
+        # for VM resize test suite
+        "Microsoft.Compute/virtualMachines/vmSizes/read",
+        # For disk_support_restore_point & verify_vmsnapshot_extension
+        "Microsoft.Compute/restorePointCollections/write",
+        # For verify_vmsnapshot_extension
+        "Microsoft.Compute/restorePointCollections/restorePoints/read",
+        "Microsoft.Compute/restorePointCollections/restorePoints/write",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/write",
+        # For verify_azsecpack
+        "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
         "Microsoft.Network/virtualNetworks/read",
         "Microsoft.Network/virtualNetworks/write",
         "Microsoft.Network/virtualNetworks/subnets/join/action",
@@ -234,6 +254,9 @@ def _set_target_role_parameters(
         "Microsoft.Network/networkInterfaces/read",
         "Microsoft.Network/networkInterfaces/write",
         "Microsoft.Network/networkInterfaces/join/action",
+        # for verify_dpdk_l3fwd_ntttcp_tcp to set up Azure route table
+        "Microsoft.Network/routeTables/read",
+        "Microsoft.Network/routeTables/write",
         # for verify_azure_file_share_nfs mount and delete
         "Microsoft.Network/privateEndpoints/write",
         "Microsoft.Network/privateLinkServices/PrivateEndpointConnectionsApproval/action",  # noqa: E501
@@ -246,6 +269,10 @@ def _set_target_role_parameters(
         "Microsoft.Storage/storageAccounts/read",
         "Microsoft.Storage/storageAccounts/write",
         "Microsoft.Storage/storageAccounts/listKeys/action",
+        "Microsoft.Storage/storageAccounts/blobServices/containers/delete",
+        "Microsoft.Storage/storageAccounts/blobServices/containers/read",
+        "Microsoft.Storage/storageAccounts/blobServices/containers/write",
+        "Microsoft.Storage/storageAccounts/blobServices/generateUserDelegationKey/action",  # noqa: E501
     ]
 
     data_action_perms_list = [

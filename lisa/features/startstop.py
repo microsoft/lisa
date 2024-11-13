@@ -7,6 +7,12 @@ from lisa.feature import Feature
 FEATURE_NAME_STARTSTOP = "StartStop"
 
 
+class VMStatus(str, Enum):
+    Deallocated = "Deallocated"
+    Running = "Running"
+    ProvisionSucceeded = "ProvisionSucceeded"
+
+
 class StopState(str, Enum):
     Hibernate = "hibernate"
     Shutdown = "shutdown"
@@ -48,3 +54,6 @@ class StartStop(Feature):
         self._log.info("restarting")
         self._restart(wait=wait)
         self._node.close()
+
+    def get_status(self) -> VMStatus:
+        raise NotImplementedError()

@@ -6,20 +6,15 @@ from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 
 from lisa.base_tools import Cat, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian, Redhat
-from lisa.tools import Gcc, Git, Modinfo, PowerShell, Sed, Service, Uname
+from lisa.operating_system import BSD, CBLMariner, CoreOs, Debian
+from lisa.sut_orchestrator.azure.common import download_blob, list_blobs
+from lisa.tools import Gcc, Git, Ln, PowerShell, Sed, Service, Uname
 from lisa.tools.ls import Ls
-from lisa.util import (
-    LisaException,
-    UnsupportedDistroException,
-    UnsupportedKernelException,
-    find_patterns_in_lines,
-    get_matched_str,
-)
-from lisa.util.process import ExecutableResult
+from lisa.util import LisaException, constants, find_patterns_in_lines, get_matched_str
 
 
 class Waagent(Tool):
@@ -37,6 +32,7 @@ class Waagent(Tool):
         "/usr/libexec/platform-python",
         # for flatcar
         "/usr/share/oem/python/bin/python3",
+        "/usr/share/oem/python/bin/python",
     ]
     _src_url = "https://github.com/Azure/WALinuxAgent/"
 
@@ -49,27 +45,38 @@ class Waagent(Tool):
         return False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        if isinstance(self.node.os, CoreOs):
-            self._command = (
-                "/usr/share/oem/python/bin/python /usr/share/oem/bin/waagent"
-            )
-        else:
-            self._command = "waagent"
+        self._command = "waagent"
         self._python_cmd: Optional[str] = None
         self._python_use_sudo: Optional[bool] = None
         self._distro_version: Optional[str] = None
         self._waagent_conf_path: Optional[str] = None
+        if isinstance(self.node.os, CoreOs):
+            # Flatcar is the successor of CoreOs and current Flatcar
+            # versions ship waagent/python in the standard PATH
+            python_cmd, _ = self.get_python_cmd()
+            if "/usr/share/oem/" in python_cmd:
+                self._command = f"{python_cmd} /usr/share/oem/bin/waagent"
 
     def get_version(self) -> str:
         result = self.run("-version")
+
         if result.exit_code != 0:
-            self._command = "/usr/sbin/waagent"
+            if self.node.tools[Ls].path_exists("/usr/bin/waagent"):
+                self._command = "/usr/bin/waagent"
+            elif self.node.tools[Ls].path_exists("/usr/sbin/waagent"):
+                self._command = "/usr/sbin/waagent"
+            else:
+                raise LisaException(
+                    "waagent is not found in system path variable,"
+                    " /usr/bin and /usr/sbin."
+                )
             result = self.run("-version")
+
         # When the default command python points to python2,
         # we need specify python3 clearly.
         # e.g. bt-americas-inc diamondip-sapphire-v5 v5-9 9.0.53.
         if result.exit_code != 0:
-            self._command = "python3 /usr/sbin/waagent"
+            self._command = f"python3 {self._command}"
             result = self.run("-version")
         return get_matched_str(result.stdout, self.__version_pattern)
 
@@ -80,9 +87,14 @@ class Waagent(Tool):
         # self.run("-deprovision+user --force", sudo=True)
         self.run("-deprovision --force", sudo=True, expected_exit_code=0)
 
-    def upgrade_from_source(self) -> None:
+    def upgrade_from_source(self, source_version: str = "") -> None:
         git = self.node.tools[Git]
         git.clone(self._src_url, cwd=self.node.working_path)
+        if source_version:
+            git.checkout(
+                ref=source_version,
+                cwd=self.node.working_path.joinpath("WALinuxAgent"),
+            )
         python_cmd, _ = self.get_python_cmd()
         for package in list(["python-setuptools", "python3-setuptools"]):
             if self.node.os.is_package_in_repo(package):  # type: ignore
@@ -106,7 +118,9 @@ class Waagent(Tool):
         waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
-        cfg = self.node.tools[Cat].run(waagent_conf_file, force_run=force_run).stdout
+        cfg = self.node.tools[Cat].read(
+            waagent_conf_file, force_run=force_run, sudo=True
+        )
         for line in cfg.splitlines():
             matched = self._key_value_regex.fullmatch(line)
             if matched:
@@ -183,6 +197,14 @@ class Waagent(Tool):
 
         self._python_cmd = python_cmd
         self._python_use_sudo = use_sudo
+
+        if (
+            isinstance(self.node.os, CBLMariner)
+            and not self.node.tools[Ls].path_exists(path="/usr/bin/python")
+            and self._python_cmd
+        ):
+            ln = self.node.tools[Ln]
+            ln.create_link("/usr/bin/python3", "/usr/bin/python")
 
         return self._python_cmd, self._python_use_sudo
 
@@ -267,78 +289,6 @@ class VmGeneration(Tool):
         else:
             generation = "1"
         return generation
-
-
-class LisDriver(Tool):
-    """
-    This is a virtual tool to detect/install LIS (Linux Integration Services) drivers.
-    More info  - https://www.microsoft.com/en-us/download/details.aspx?id=55106
-    """
-
-    @property
-    def dependencies(self) -> List[Type[Tool]]:
-        return [Wget, Modinfo]
-
-    @property
-    def command(self) -> str:
-        return "modinfo hv_vmbus"
-
-    @property
-    def can_install(self) -> bool:
-        if (
-            isinstance(self.node.os, Redhat)
-            and self.node.os.information.version < "7.8.0"
-        ):
-            return True
-
-        raise UnsupportedDistroException(
-            self.node.os, "lis driver can't be installed on this distro"
-        )
-
-    def download(self) -> PurePath:
-        if not self.node.shell.exists(self.node.working_path.joinpath("LISISO")):
-            wget_tool = self.node.tools[Wget]
-            lis_path = wget_tool.get("https://aka.ms/lis", str(self.node.working_path))
-            from lisa.tools import Tar
-
-            tar = self.node.tools[Tar]
-            tar.extract(file=lis_path, dest_dir=str(self.node.working_path))
-        return self.node.working_path.joinpath("LISISO")
-
-    def get_version(self, force_run: bool = False) -> str:
-        # in some distro, the vmbus is builtin, the version cannot be gotten.
-        modinfo = self.node.tools[Modinfo]
-        return modinfo.get_version("hv_vmbus")
-
-    def install_from_iso(self) -> ExecutableResult:
-        lis_folder_path = self.download()
-        return self.node.execute("./install.sh", cwd=lis_folder_path, sudo=True)
-
-    def uninstall_from_iso(self) -> ExecutableResult:
-        lis_folder_path = self.download()
-        return self.node.execute("./uninstall.sh", cwd=lis_folder_path, sudo=True)
-
-    def _check_exists(self) -> bool:
-        if isinstance(self.node.os, Redhat):
-            # currently LIS is only supported with Redhat
-            # and its derived distros
-            if self.node.os.package_exists(
-                "kmod-microsoft-hyper-v"
-            ) and self.node.os.package_exists("microsoft-hyper-v"):
-                return True
-        return False
-
-    def _install(self) -> bool:
-        result = self.install_from_iso()
-        if "Unsupported kernel version" in result.stdout:
-            raise UnsupportedKernelException(self.node.os)
-        result.assert_exit_code(
-            0,
-            f"Unable to install the LIS RPMs! exit_code: {result.exit_code}"
-            f"stderr: {result.stderr}",
-        )
-        self.node.reboot(360)
-        return True
 
 
 class KvpClient(Tool):
@@ -561,3 +511,68 @@ class KvpClientFreeBSD(KvpClient):
             records[content_split[i]] = content_split[i + 1]
 
         return records
+
+
+class AzureBlobOperator(Tool):
+    @property
+    def command(self) -> str:
+        return "echo azure_blob_operator"
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def download_blob(
+        self,
+        account_name: str,
+        container_name: str,
+        blob_name: str,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+        credential: Optional[Any] = None,
+        subscription_id: Optional[str] = None,
+        resource_group_name: Optional[str] = None,
+        connection_string: Optional[str] = None,
+    ) -> PurePath:
+        working_path = constants.RUN_LOCAL_WORKING_PATH
+        working_path.mkdir(parents=True, exist_ok=True)
+        file_path = working_path / blob_name
+        download_blob(
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=blob_name,
+            file_path=file_path,
+            log=self._log,
+            cloud=cloud,
+            credential=credential,
+            subscription_id=subscription_id,
+            resource_group_name=resource_group_name,
+            connection_string=connection_string,
+        )
+        return file_path
+
+    def list_blobs(
+        self,
+        account_name: str,
+        container_name: str,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+        credential: Optional[Any] = None,
+        subscription_id: Optional[str] = None,
+        resource_group_name: Optional[str] = None,
+        connection_string: Optional[str] = None,
+        include: str = "",
+        name_starts_with: str = "",
+    ) -> List[Any]:
+        return list_blobs(
+            account_name=account_name,
+            container_name=container_name,
+            cloud=cloud,
+            credential=credential,
+            subscription_id=subscription_id,
+            resource_group_name=resource_group_name,
+            connection_string=connection_string,
+            include=include,
+            name_starts_with=name_starts_with,
+        )

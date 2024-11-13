@@ -17,9 +17,8 @@ from lisa import (
 )
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.sut_orchestrator.azure.tools import LisDriver
-from lisa.tools import KernelConfig, Lsinitrd, Lsmod, Modinfo, Modprobe
-from lisa.util import SkippedException
+from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -102,9 +101,15 @@ class HvModule(TestSuite):
         #    is missing.
         lsinitrd = node.tools[Lsinitrd]
         missing_modules = []
-        for module in hv_modules_file_names:
-            if not lsinitrd.has_module(module_file_name=hv_modules_file_names[module]):
-                missing_modules.append(module)
+        try:
+            for module in hv_modules_file_names:
+                if not lsinitrd.has_module(
+                    module_file_name=hv_modules_file_names[module]
+                ):
+                    missing_modules.append(module)
+        except (LisaException, AssertionError) as e:
+            # Skip CVM images and other images with initrdless boot
+            raise SkippedException(e)
 
         if (
             isinstance(environment.platform, AzurePlatform)

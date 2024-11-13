@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type, Union
 
 from lisa.executable import Tool
 from lisa.tools.kernel_config import KLDStat
+from lisa.util import UnsupportedOperationException
 
 
 class Modprobe(Tool):
@@ -47,6 +48,7 @@ class Modprobe(Tool):
         result = self.run(
             f"-nv {mod_name}",
             sudo=True,
+            shell=True,
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
@@ -69,13 +71,14 @@ class Modprobe(Tool):
         for mod_name in mod_names:
             if ignore_error:
                 # rmmod support the module file, so use it here.
-                self.node.execute(f"rmmod {mod_name}", sudo=True)
+                self.node.execute(f"rmmod {mod_name}", sudo=True, shell=True)
             else:
                 if self.is_module_loaded(mod_name, force_run=True):
                     self.run(
                         f"-r {mod_name}",
                         force_run=True,
                         sudo=True,
+                        shell=True,
                         expected_exit_code=0,
                         expected_exit_code_failure_message="Fail to remove module "
                         f"{mod_name}",
@@ -84,19 +87,28 @@ class Modprobe(Tool):
     def load(
         self,
         modules: Union[str, List[str]],
+        parameters: str = "",
         dry_run: bool = False,
     ) -> bool:
         if isinstance(modules, list):
+            if parameters:
+                raise UnsupportedOperationException(
+                    "Modprobe does not support loading multiple modules with parameters"
+                )
             modules_str = "-a " + " ".join(modules)
         else:
             modules_str = modules
-        command = f"{modules_str}"
+        if parameters:
+            command = f"{modules_str} {parameters}"
+        else:
+            command = f"{modules_str}"
         if dry_run:
             command = f"--dry-run {command}"
         result = self.run(
             command,
             force_run=True,
             sudo=True,
+            shell=True,
         )
         if dry_run:
             return result.exit_code == 0
@@ -134,6 +146,7 @@ class Modprobe(Tool):
         self.node.execute(
             f"insmod {file_name}",
             sudo=True,
+            shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"failed to load module {file_name}",
         )
@@ -148,4 +161,56 @@ class ModprobeFreeBSD(Modprobe):
             if not self.node.tools[KLDStat].module_exists(module):
                 return False
 
+        return True
+
+    def load(
+        self,
+        modules: Union[str, List[str]],
+        parameters: str = "",
+        dry_run: bool = False,
+    ) -> bool:
+        if parameters:
+            raise UnsupportedOperationException(
+                "ModprobeBSD does not support loading modules with parameters"
+            )
+        if dry_run:
+            raise UnsupportedOperationException("ModprobeBSD does not support dry-run")
+        if isinstance(modules, list):
+            for module in modules:
+                if self.module_exists(module):
+                    return True
+                else:
+                    self.node.tools[KLDLoad].load(module)
+        else:
+            if self.module_exists(modules):
+                return True
+            else:
+                self.node.tools[KLDLoad].load(modules)
+        return True
+
+
+class KLDLoad(Tool):
+    _MODULE_DRIVER_MAPPING = {
+        "mlx5_core": "mlx5en",
+        "mlx4_core": "mlx4en",
+        "mlx5_ib": "mlx5ib",
+    }
+
+    @property
+    def command(self) -> str:
+        return "kldload"
+
+    def load(self, module: str) -> bool:
+        if module in self._MODULE_DRIVER_MAPPING:
+            module = self._MODULE_DRIVER_MAPPING[module]
+        result = self.run(
+            f"{module}",
+            sudo=True,
+            shell=True,
+        )
+        result.assert_exit_code(
+            expected_exit_code=0,
+            message=f"Fail to load module: {module}.",
+            include_output=True,
+        )
         return True

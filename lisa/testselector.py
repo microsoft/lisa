@@ -126,6 +126,13 @@ def _apply_settings(
         applied_case_data.use_new_environment or case_runbook.use_new_environment
     )
 
+    # check for positive value just to be clearer
+    applied_case_data.timeout = (
+        max(case_runbook.timeout, applied_case_data.timeout)
+        if (case_runbook.timeout and case_runbook.timeout > 0)
+        else applied_case_data.timeout
+    )
+
     # use default value from selector
     applied_case_data.select_action = action
 
@@ -175,7 +182,7 @@ def _apply_filter(  # noqa: C901
             constants.TESTCASE_CRITERIA_CATEGORY,
         ]:
             pattern = cast(str, criteria_runbook_dict[runbook_key])
-            expression = re.compile(pattern)
+            expression = re.compile(pattern, re.IGNORECASE)
             patterns.append(
                 partial(_match_string, pattern=expression, attr_name=runbook_key)
             )

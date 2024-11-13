@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
     Iterable,
+    List,
     Optional,
     Type,
     TypeVar,
@@ -13,7 +15,7 @@ from typing import (
     cast,
 )
 
-from lisa import schema
+from lisa import schema, search_space
 from lisa.util import (
     InitializableMixin,
     LisaException,
@@ -86,11 +88,28 @@ class Feature(InitializableMixin):
         """
         return None
 
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        """
+        It's called in the platform to check if an image restricts the feature or not.
+        If it's restricted, create a setting.
+        """
+        return None
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         """
         override for initializing
         """
         ...
+
+    def get_settings(self) -> schema.FeatureSettings:
+        """
+        Returns a read-only copy of the feature settings.
+        Modifications to the returned settings won't be effective.
+        """
+        return copy.deepcopy(self._settings)
 
 
 T_FEATURE = TypeVar("T_FEATURE", bound=Feature)
@@ -170,3 +189,32 @@ def get_feature_settings_by_name(
         )
 
     return None
+
+
+def reload_platform_features(
+    node_space: schema.NodeSpace, platform_features: List[Type[Feature]]
+) -> None:
+    # no features, no need to reload
+    if not node_space or not node_space.features:
+        return
+
+    new_settings = search_space.SetSpace[schema.FeatureSettings](is_allow_set=True)
+
+    for current_settings in node_space.features.items:
+        # reload to type specified settings
+        try:
+            settings_type = get_feature_settings_type_by_name(
+                current_settings.type, platform_features
+            )
+        except NotMeetRequirementException as identifier:
+            raise LisaException(f"platform doesn't support all features. {identifier}")
+        new_setting = schema.load_by_type(settings_type, current_settings)
+        existing_setting = get_feature_settings_by_name(
+            new_setting.type, new_settings, True
+        )
+        if existing_setting:
+            new_settings.remove(existing_setting)
+            new_setting = existing_setting.intersect(new_setting)
+
+        new_settings.add(new_setting)
+    node_space.features = new_settings

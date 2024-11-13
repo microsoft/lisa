@@ -195,3 +195,7 @@ class SerialConsole(Feature):
 
     def write(self, data: str) -> None:
         raise NotImplementedError
+
+    def close(self) -> None:
+        # it's not required to implement close method.
+        pass

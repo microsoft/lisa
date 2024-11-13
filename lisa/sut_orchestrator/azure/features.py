@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import string
+import time
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -34,18 +35,20 @@ from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient  # type: ignor
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState  # type: ignore
 from azure.mgmt.serialconsole.operations import SerialPortsOperations  # type: ignore
 from dataclasses_json import dataclass_json
-from marshmallow import validate
 from retry import retry
 
 from lisa import Logger, features, schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.features.availability import AvailabilityType
 from lisa.features.gpu import ComputeSDK
+from lisa.features.hibernation import HibernationSettings
 from lisa.features.resize import ResizeAction
 from lisa.features.security_profile import (
     FEATURE_NAME_SECURITY_PROFILE,
     SecurityProfileType,
 )
+from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
 from lisa.search_space import RequirementMethod
@@ -56,6 +59,7 @@ from lisa.tools import (
     Dmesg,
     Find,
     IpInfo,
+    LisDriver,
     Ls,
     Lsblk,
     Lspci,
@@ -63,9 +67,12 @@ from lisa.tools import (
     Rm,
     Sed,
 )
+from lisa.tools.echo import Echo
+from lisa.tools.kernel_config import KernelConfig
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     LisaException,
+    LisaTimeoutException,
     NotMeetRequirementException,
     SkippedException,
     UnsupportedOperationException,
@@ -79,11 +86,16 @@ from lisa.util import (
 )
 
 if TYPE_CHECKING:
-    from .platform_ import AzurePlatform, AzureCapability
+    from .platform_ import AzurePlatform
+
+from lisa.util.perf_timer import create_timer
 
 from .. import AZURE
 from .common import (
+    AvailabilityArmParameter,
     AzureArmParameter,
+    AzureCapability,
+    AzureImageSchema,
     AzureNodeSchema,
     check_or_create_storage_account,
     create_update_private_dns_zone_groups,
@@ -104,6 +116,7 @@ from .common import (
     get_node_context,
     get_or_create_file_share,
     get_primary_ip_addresses,
+    get_storage_credential,
     get_virtual_networks,
     get_vm,
     global_credential_access_lock,
@@ -124,6 +137,13 @@ class AzureFeatureMixin:
 
 
 class StartStop(AzureFeatureMixin, features.StartStop):
+    azure_vm_status_map = {
+        "VM deallocated": VMStatus.Deallocated,
+        "VM running": VMStatus.Running,
+        "Provisioning succeeded": VMStatus.ProvisionSucceeded,
+        # Add more Azure-specific mappings as needed
+    }
+
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -153,6 +173,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
+        node_info[
+            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
+        ] = platform._azure_runbook.use_public_address
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -176,6 +199,23 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         )
         if wait:
             wait_operation(operation, failure_identity="Start/Stop")
+
+    def get_status(self) -> VMStatus:
+        try:
+            platform: AzurePlatform = self._platform  # type: ignore
+            compute_client = get_compute_client(platform)
+            status = (
+                compute_client.virtual_machines.get(
+                    self._resource_group_name, self._vm_name, expand="instanceView"
+                )
+                .instance_view.statuses[1]
+                .display_status
+            )
+            assert isinstance(status, str), f"actual: {type(status)}"
+            assert self.azure_vm_status_map.get(status) is not None, "unknown vm status"
+            return cast(VMStatus, self.azure_vm_status_map.get(status))
+        except Exception as e:
+            raise LisaException(f"fail to get status of vm {self._vm_name}") from e
 
 
 class FixedSerialPortsOperations(SerialPortsOperations):  # type: ignore
@@ -294,7 +334,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             return
         except websockets.ConnectionClosed as e:  # type: ignore
             # If the connection is closed, we need to reconnect
-            self._log.debug(f"Connection closed: {e}")
+            self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
@@ -308,10 +348,16 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             return output
         except websockets.ConnectionClosed as e:  # type: ignore
             # If the connection is closed, we need to reconnect
-            self._log.debug(f"Connection closed: {e}")
+            self._log.debug(f"Connection closed on read serial console: {e}")
             self._ws = None
             self._get_connection()
             raise e
+
+    def close(self) -> None:
+        if self._ws is not None:
+            self._log.debug("Closing connection to serial console")
+            self._get_event_loop().run_until_complete(self._ws.close())
+            self._ws = None
 
     def _get_event_loop(self) -> asyncio.AbstractEventLoop:
         # create asyncio loop if it doesn't exist
@@ -328,9 +374,17 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             connection_str = self._get_connection_string()
 
             # create websocket connection
-            self._ws = self._get_event_loop().run_until_complete(
+            ws = self._get_event_loop().run_until_complete(
                 websockets.connect(connection_str)  # type: ignore
             )
+
+            token = self._get_access_token()
+            # add to secret in case it's echo back.
+            add_secret(token)
+            # send token to auth
+            self._get_event_loop().run_until_complete(ws.send(token))
+
+            self._ws = ws
 
         return self._ws
 
@@ -370,6 +424,14 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
         return output
 
+    def _get_access_token(self) -> str:
+        platform: AzurePlatform = self._platform  # type: ignore
+        access_token = platform.credential.get_token(
+            "https://management.core.windows.net/.default"
+        ).token
+
+        return access_token
+
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
         return save_console_log(
@@ -382,7 +444,6 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
 
     def _get_connection_string(self) -> str:
         # setup connection string
-        platform: AzurePlatform = self._platform  # type: ignore
         connection = self._serial_port_operations.connect(
             resource_group_name=self._resource_group_name,
             resource_provider_namespace=self.RESOURCE_PROVIDER_NAMESPACE,
@@ -390,14 +451,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             parent_resource=self._vm_name,
             serial_port=self._serial_port.name,
         )
-        access_token = platform.credential.get_token(
-            "https://management.core.windows.net/.default"
-        ).token
-        serial_port_connection_str = (
-            f"{connection.connection_string}?authorization={access_token}"
-        )
-
-        return serial_port_connection_str
+        return str(connection.connection_string)
 
     def _initialize_serial_console(self, port_id: int) -> None:
         if self._serial_console_initialized:
@@ -443,6 +497,8 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
                 for serialport in serial_ports.value
                 if int(serialport.name) == port_id
             ][0]
+
+        self._log.debug(f"Serial port {port_id} is enabled: {self._serial_port}")
 
         # setup shared web socket connection variable
         self._ws = None
@@ -562,7 +618,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         value = raw_capabilities.get("GPUs", None)
         # refer https://learn.microsoft.com/en-us/azure/virtual-machines/sizes-gpu
         # NVv4 VMs currently support only Windows guest operating system.
-        if value and resource_sku.family not in ["standardNVSv4Family"]:
+        if value and resource_sku.family.casefold() not in ["standardnvsv4family"]:
             node_space.gpu_count = int(value)
             return schema.FeatureSettings.create(cls.name())
 
@@ -612,16 +668,18 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         else:
             raise LisaException("GPU Extension Provisioning Failed")
 
+    def install_compute_sdk(self, version: str = "") -> None:
+        try:
+            # install LIS driver if required and not already installed.
+            self._node.tools[LisDriver]
+        except Exception as identifier:
+            self._log.debug(
+                f"LisDriver is not installed. It might not be required. {identifier}"
+            )
+        super().install_compute_sdk(version)
+
 
 class Infiniband(AzureFeatureMixin, features.Infiniband):
-    @classmethod
-    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
-        arm_parameters: AzureArmParameter = kwargs.pop("arm_parameters")
-
-        arm_parameters.availability_set_properties["platformFaultDomainCount"] = 1
-        arm_parameters.availability_set_properties["platformUpdateDomainCount"] = 1
-        arm_parameters.use_availability_sets = True
-
     @classmethod
     def create_setting(
         cls, *args: Any, **kwargs: Any
@@ -653,21 +711,51 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         if len(devices) > 1:
             # upgrade waagent to latest version to resolve
             # multiple ib devices not getting ip address issue
-            waagent.upgrade_from_source()
+
+            # Upgrade to v2.9.0.4 since the latest v2.9.1.1 version
+            # does not successfully assign IP over the IB interface
+            waagent.upgrade_from_source("v2.9.0.4")
+
+            # Mark the node as dirty
+            self._node.mark_dirty()
         # Update waagent.conf
         sed = self._node.tools[Sed]
+        rdma_config = "OS.EnableRDMA=y"
+        waagent_config_path = "/etc/waagent.conf"
+
+        # CBLMariner's waagent configuration does not specify OS.EnableRDMA
+        # and thus need to manually append it for RDMA support
+        if isinstance(self._node.os, CBLMariner):
+            # Check whether OS.EnableRDMA=y is already specified
+            cat = self._node.tools[Cat]
+            if rdma_config not in cat.read(waagent_config_path, sudo=True):
+                sed.append(
+                    text=rdma_config,
+                    file=waagent_config_path,
+                    sudo=True,
+                )
+
         sed.substitute(
-            regexp="# OS.EnableRDMA=y",
-            replacement="OS.EnableRDMA=y",
-            file="/etc/waagent.conf",
+            regexp=f"# {rdma_config}",
+            replacement=rdma_config,
+            file=waagent_config_path,
             sudo=True,
         )
         sed.substitute(
             regexp="# AutoUpdate.Enabled=y",
             replacement="AutoUpdate.Enabled=y",
-            file="/etc/waagent.conf",
+            file=waagent_config_path,
             sudo=True,
         )
+
+        # For systems using the Mellanox inbox driver, need to make sure
+        # the following kernel modules are loaded in order to successfully
+        # make WALinuxAgent enable RDMA support
+        modprobe = self._node.tools[Modprobe]
+        for module in ["ib_uverbs", "ib_umad", "rdma_ucm", "ib_ipoib"]:
+            if modprobe.module_exists(module):
+                modprobe.load(module)
+
         waagent.restart()
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -1179,6 +1267,17 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
         (16384, 18000, 750),
         (32767, 20000, 900),
     ],
+    schema.DiskType.PremiumV2SSDLRS: [
+        (4, 1200, 300),
+        (8, 2400, 600),
+        (16, 4800, 1200),
+        (32, 9600, 2400),
+        (64, 19200, 4000),
+        (128, 38400, 4000),
+        (256, 76800, 4000),
+        (512, 153600, 4000),
+        (1024, 160000, 4000),
+    ],
     schema.DiskType.StandardHDDLRS: [
         (32, 500, 60),
         (8192, 1300, 300),
@@ -1235,6 +1334,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         result.merge(
             search_space.check_setspace(self.os_disk_type, capability.os_disk_type),
             "os_disk_type",
+        )
+        result.merge(
+            search_space.check_countspace(self.os_disk_size, capability.os_disk_size),
+            "os_disk_size",
         )
         result.merge(
             search_space.check_setspace(self.data_disk_type, capability.data_disk_type),
@@ -1337,6 +1440,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         else:
             raise LisaException(
                 f"unknown disk type on capability, type: {cap_disk_type}"
+            )
+
+        if self.os_disk_size is not None or capability.os_disk_size is not None:
+            value.os_disk_size = getattr(search_space, f"{method.value}_countspace")(
+                self.os_disk_size, capability.os_disk_size
             )
 
         value.data_disk_type = getattr(
@@ -1524,6 +1632,12 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
     )
 
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
+
+    # /dev/nvme0n1p15 -> /dev/nvme0
+    NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return AzureDiskOptionSettings
@@ -1537,33 +1651,26 @@ class Disk(AzureFeatureMixin, features.Disk):
         vm = get_vm(azure_platform, self._node)
         return vm.storage_profile.disk_controller_type
 
-    def get_raw_data_disks(self) -> List[str]:
-        # Handle BSD case
-        if isinstance(self._node.os, BSD):
-            return self._get_raw_data_disks_bsd()
-
-        if (
-            self._node.capability.disk
-            and self._node.capability.disk.disk_controller_type
-            == schema.DiskControllerType.NVME
-        ):
-            nvme = self._node.features[Nvme]
-            # Skip OS disk which is '[0]' in namespaces list
-            disk_array = nvme.get_namespaces()[1:]
-            return disk_array
-        # disk_controller_type == SCSI
+    def _get_scsi_data_disks(self) -> List[str]:
+        # This method restuns azure data disks attached to you given VM.
         # refer here to get data disks from folder /dev/disk/azure/scsi1
+        # Example: /dev/disk/azure/scsi1/lun0
         # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns  # noqa: E501
-        # /dev/disk/azure/scsi1/lun0
         ls_tools = self._node.tools[Ls]
         files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
 
-        if len(files) == 0:
+        azure_scsi_disks = []
+        assert self._node.capability.disk
+        assert isinstance(self._node.capability.disk.max_data_disk_count, int)
+        if len(files) == 0 and self._node.capability.disk.data_disk_count != 0:
             os = self._node.os
-            # there are known issues on ubuntu 16.04 and rhel 9.0
+            # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
+            # there are known issues on ubuntu 16.04, rhel 9.0 and mariner 3.0
             # try to workaround it
-            if (isinstance(os, Ubuntu) and os.information.release <= "16.04") or (
-                isinstance(os, Redhat) and os.information.release >= "9.0"
+            if (
+                (isinstance(os, Ubuntu) and os.information.release <= "16.04")
+                or (isinstance(os, Redhat) and os.information.release >= "9.0")
+                or isinstance(os, CBLMariner)
             ):
                 self._log.debug(
                     "download udev rules to construct a set of "
@@ -1592,15 +1699,74 @@ class Disk(AzureFeatureMixin, features.Disk):
                     timeout_message="wait for dev rule take effect",
                 )
                 files = ls_tools.list("/dev/disk/azure/scsi1", sudo=True)
+        azure_scsi_disks = [
+            x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""
+        ]
+        return azure_scsi_disks
 
-        assert_that(len(files)).described_as(
+    def get_luns(self) -> Dict[str, int]:
+        # disk_controller_type == SCSI
+        # get azure scsi attached disks
+        azure_scsi_disks = self._get_scsi_data_disks()
+        device_luns = {}
+        lun_number_pattern = re.compile(r"[0-9]+$", re.M)
+        for disk in azure_scsi_disks:
+            # /dev/disk/azure/scsi1/lun20 -> 20
+            device_lun = int(get_matched_str(disk, lun_number_pattern))
+            # readlink -f /dev/disk/azure/scsi1/lun0
+            # /dev/sdc
+            cmd_result = self._node.execute(
+                f"readlink -f {disk}", shell=True, sudo=True
+            )
+            device_luns.update({cmd_result.stdout: device_lun})
+        return device_luns
+
+    def get_raw_data_disks(self) -> List[str]:
+        # Handle BSD case
+        if isinstance(self._node.os, BSD):
+            return self._get_raw_data_disks_bsd()
+
+        # disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            # Getting OS disk nvme namespace and disk controller used by OS disk.
+            # Sample os_boot_partition:
+            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN,
+                )
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN,
+                )
+
+            # With NVMe disk controller type, all remote SCSI disks are connected to
+            # same NVMe controller. The same controller is used by OS disk.
+            # This loop collects all the SCSI remote disks except OS disk.
+            nvme = self._node.features[Nvme]
+            nvme_namespaces = nvme.get_namespaces()
+            disk_array = []
+            for name_space in nvme_namespaces:
+                if (
+                    name_space.startswith(os_disk_controller)
+                    and name_space != os_disk_namespace
+                ):
+                    disk_array.append(name_space)
+            return disk_array
+
+        # disk_controller_type == SCSI
+
+        # get azure scsi attached disks
+        azure_scsi_disks = self._get_scsi_data_disks()
+        assert_that(len(azure_scsi_disks)).described_as(
             "no data disks info found under /dev/disk/azure/scsi1"
         ).is_greater_than(0)
-        matched = [x for x in files if get_matched_str(x, self.SCSI_PATTERN) != ""]
-        # https://docs.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#get-the-latest-azure-storage-rules  # noqa: E501
-        assert matched, "not find data disks"
-        disk_array = [""] * len(matched)
-        for disk in matched:
+        assert azure_scsi_disks, "not find data disks"
+        disk_array = [""] * len(azure_scsi_disks)
+        for disk in azure_scsi_disks:
             # readlink -f /dev/disk/azure/scsi1/lun0
             # /dev/sdc
             cmd_result = self._node.execute(
@@ -1627,7 +1793,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         count: int,
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
+        lun: int = -1,
     ) -> List[str]:
+        if lun != -1:
+            assert_that(
+                count,
+                "Data disk add count should be equal to 1"
+                " when 'lun' number is passed by the caller",
+            ).is_equal_to(1)
         disk_sku = _disk_type_mapping.get(disk_type, None)
         assert disk_sku
         assert self._node.capability.disk
@@ -1640,7 +1813,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         # create managed disk
         managed_disks = []
         for i in range(count):
-            name = f"lisa_data_disk_{i+current_disk_count}"
+            name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
             async_disk_update = compute_client.disks.begin_create_or_update(
                 self._resource_group_name,
                 name,
@@ -1657,10 +1830,14 @@ class Disk(AzureFeatureMixin, features.Disk):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         vm = get_vm(azure_platform, self._node)
         for i, managed_disk in enumerate(managed_disks):
-            lun = str(i + current_disk_count)
+            if lun != -1:
+                lun_temp = lun
+            else:
+                lun_temp = i + current_disk_count
+            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")
             vm.storage_profile.data_disks.append(
                 {
-                    "lun": lun,
+                    "lun": lun_temp,
                     "name": managed_disk.name,
                     "create_option": DiskCreateOptionTypes.attach,
                     "managed_disk": {"id": managed_disk.id},
@@ -1794,6 +1971,7 @@ def get_azure_disk_type(disk_type: schema.DiskType) -> str:
 _disk_type_mapping: Dict[schema.DiskType, str] = {
     schema.DiskType.Ephemeral: "Ephemeral",
     schema.DiskType.PremiumSSDLRS: "Premium_LRS",
+    schema.DiskType.PremiumV2SSDLRS: "PremiumV2_LRS",
     schema.DiskType.StandardHDDLRS: "Standard_LRS",
     schema.DiskType.StandardSSDLRS: "StandardSSD_LRS",
     schema.DiskType.UltraSSDLRS: "UltraSSD_LRS",
@@ -2003,16 +2181,32 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         cls, *args: Any, **kwargs: Any
     ) -> Optional[schema.FeatureSettings]:
         raw_capabilities: Any = kwargs.get("raw_capabilities")
+        resource_sku: Any = kwargs.get("resource_sku")
 
-        if raw_capabilities.get("HibernationSupported", None) == "True":
-            return schema.FeatureSettings.create(cls.name())
+        if (
+            resource_sku.family.casefold()
+            in [
+                "standarddsv5family",
+                "standardddsv5family",
+                "standarddasv5family",
+                "standarddadsv5family",
+                "standardebdsv5family",
+                "standardesv5family",
+                "standardBsv2Family",
+            ]
+            or raw_capabilities.get("HibernationSupported", None) == "True"
+        ):
+            return HibernationSettings()
 
         return None
 
     @classmethod
     def _enable_hibernation(cls, *args: Any, **kwargs: Any) -> None:
-        parameters: Any = kwargs.get("arm_parameters")
-        if parameters.use_availability_sets:
+        parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        if (
+            parameters.availability_options.availability_type
+            == AvailabilityType.AvailabilitySet
+        ):
             raise SkippedException(
                 "Hibernation cannot be enabled on Virtual Machines created in an"
                 " Availability Set."
@@ -2021,6 +2215,8 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
         log = cast(Logger, kwargs.get("log"))
         log.debug("updating arm template to support vm hibernation.")
         resources = template["resources"]
+        if isinstance(resources, dict):
+            resources = list(resources.values())
         virtual_machines = find_by_name(resources, "Microsoft.Compute/virtualMachines")
         virtual_machines["properties"].update(json.loads(cls._hibernation_properties))
 
@@ -2068,6 +2264,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         SecurityProfileType.Standard: "",
         SecurityProfileType.SecureBoot: "TrustedLaunch",
         SecurityProfileType.CVM: "ConfidentialVM",
+        SecurityProfileType.Stateless: "ConfidentialVM",
     }
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -2089,11 +2286,11 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
         gen_value = raw_capabilities.get("HyperVGenerations", None)
         cvm_value = raw_capabilities.get("ConfidentialComputingType", None)
         # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#limitations # noqa: E501
-        if resource_sku.family not in [
-            "standardMSFamily",
-            "standardMDSMediumMemoryv2Family",
-            "standardMSMediumMemoryv2Family",
-            "standardMSv2Family",
+        if resource_sku.family.casefold() not in [
+            "standardmsfamily",
+            "standardmdsmediummemoryv2family",
+            "standardmsmediummemoryv2family",
+            "standardmsv2family",
         ]:
             # https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch#how-can-i-find-vm-sizes-that-support-trusted-launch # noqa: E501
             if (
@@ -2102,18 +2299,24 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 and raw_capabilities.get("TrustedLaunchDisabled", "False") == "False"
             ):
                 capabilities.append(SecurityProfileType.SecureBoot)
-        # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview # noqa: E501
-        if cvm_value and resource_sku.family in [
-            "standardDCASv5Family",
-            "standardDCADSv5Family",
-            "standardECASv5Family",
-            "standardECADSv5Family",
-        ]:
+
+        if cvm_value and cvm_value.casefold() == "snp":
             capabilities.append(SecurityProfileType.CVM)
+
+        if cvm_value and cvm_value.casefold() == "tdx":
+            capabilities.append(SecurityProfileType.CVM)
+            capabilities.append(SecurityProfileType.Stateless)
 
         return SecurityProfileSettings(
             security_profile=search_space.SetSpace(True, capabilities)
         )
+
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return SecurityProfileSettings(security_profile=image.security_profile)
 
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
@@ -2135,11 +2338,18 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile[
                     "security_type"
                 ] = cls._security_profile_mapping[settings.security_profile]
-                node_parameters.security_profile["encryption_type"] = (
-                    "DiskWithVMGuestState"
-                    if settings.encrypt_disk
-                    else "VMGuestStateOnly"
-                )
+                if settings.security_profile == SecurityProfileType.Stateless:
+                    node_parameters.security_profile["secure_boot"] = False
+                    node_parameters.security_profile[
+                        "encryption_type"
+                    ] = "NonPersistedTPM"
+                else:
+                    node_parameters.security_profile["secure_boot"] = True
+                    node_parameters.security_profile["encryption_type"] = (
+                        "DiskWithVMGuestState"
+                        if settings.encrypt_disk
+                        else "VMGuestStateOnly"
+                    )
                 node_parameters.security_profile[
                     "disk_encryption_set_id"
                 ] = settings.disk_encryption_set_id
@@ -2151,6 +2361,172 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         f"{settings.security_profile} "
                         "can only be set on gen2 image/vhd."
                     )
+
+
+availability_type_priority: List[AvailabilityType] = [
+    AvailabilityType.NoRedundancy,
+    AvailabilityType.AvailabilitySet,
+    AvailabilityType.AvailabilityZone,
+]
+
+
+class AvailabilitySettings(features.AvailabilitySettings):
+    def _resolve_availability_type_by_priority(
+        self, arm_parameters: Optional[AvailabilityArmParameter] = None
+    ) -> AvailabilityType:
+        if isinstance(self.availability_type, AvailabilityType):
+            return self.availability_type
+        if arm_parameters:
+            if (
+                arm_parameters.availability_set_properties
+                or arm_parameters.availability_set_tags
+            ) and AvailabilityType.AvailabilitySet in self.availability_type:
+                return AvailabilityType.AvailabilitySet
+            elif (
+                arm_parameters.availability_zones
+                and AvailabilityType.AvailabilityZone in self.availability_type
+            ):
+                return AvailabilityType.AvailabilityZone
+        for option in availability_type_priority:
+            if option in self.availability_type:
+                return option
+        raise LisaException(
+            "Could not resolve availability option."
+            f"Availability Options: {self.availability_type}"
+        )
+
+
+class Availability(AzureFeatureMixin, features.Availability):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return AvailabilitySettings
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        raw_capabilities: Any = kwargs.get("raw_capabilities")
+        availability_settings: AvailabilitySettings = AvailabilitySettings()
+        availability_settings.availability_type = search_space.SetSpace(
+            True,
+            [
+                AvailabilityType.NoRedundancy,
+                AvailabilityType.AvailabilitySet,
+            ],
+        )
+
+        availability_zones = raw_capabilities.get("availability_zones", None)
+        if availability_zones:
+            availability_settings.availability_type.add(
+                AvailabilityType.AvailabilityZone
+            )
+            availability_settings.availability_zones = search_space.SetSpace(
+                is_allow_set=True, items=availability_zones
+            )
+
+        return availability_settings
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+        settings = cast(AvailabilitySettings, kwargs.get("settings"))
+        params = arm_parameters.availability_options
+
+        try:
+            assert environment.runbook.nodes_requirement
+            assert environment.runbook.nodes_requirement[0].extended_schemas
+            is_maximize_capability = environment.runbook.nodes_requirement[
+                0
+            ].extended_schemas["azure"]["maximize_capability"]
+        except (KeyError, IndexError, AssertionError):
+            is_maximize_capability = False
+
+        if not is_maximize_capability:
+            assert isinstance(settings.availability_type, search_space.SetSpace)
+
+            # Ultra Disk does not support Availability Sets
+            assert environment.capability.nodes
+            assert environment.capability.nodes[0].disk
+            is_ultra_disk = (
+                environment.capability.nodes[0].disk.data_disk_type
+                == schema.DiskType.UltraSSDLRS
+            )
+            if is_ultra_disk:
+                settings.availability_type.discard(AvailabilityType.AvailabilitySet)
+                # If a region supports Ultra Disk in availability zones,
+                # then availability zones must be used
+                if AvailabilityType.AvailabilityZone in settings.availability_type:
+                    settings.availability_type.discard(AvailabilityType.NoRedundancy)
+
+            # Set ARM parameters based on min capability
+            if params.availability_type == AvailabilityType.Default:
+                params.availability_type = (
+                    settings._resolve_availability_type_by_priority(params).value
+                )
+            if (
+                params.availability_zones
+                and params.availability_type == AvailabilityType.AvailabilityZone
+            ):
+                params.availability_zones = [
+                    zone
+                    for zone in params.availability_zones
+                    if zone in settings.availability_zones
+                ]
+                assert params.availability_zones, (
+                    "Invalid zones provided. "
+                    "This SKU in this location supports zones: "
+                    f"{settings.availability_zones}. "
+                )
+            elif settings.availability_zones:
+                params.availability_zones = [settings.availability_zones.items[0]]
+
+            assert params.availability_type in [
+                type.value for type in AvailabilityType
+            ], ("Not a valid Availability Type: " f"{params.availability_type}")
+
+            assert (
+                AvailabilityType(params.availability_type) in settings.availability_type
+            ), (
+                f"Availability Type "
+                f"'{params.availability_type}' "
+                "is not supported in the current configuration. Please select one of "
+                f"{[type.value for type in settings.availability_type.items]}. "
+                "Or consider changing the disk type or location."
+            )
+
+        # If the availability_type is still set to Default, then
+        # resolve the default without considering capabilities
+        if params.availability_type == AvailabilityType.Default:
+            params.availability_type = (
+                AvailabilityType.AvailabilitySet.value
+                if params.availability_set_tags or params.availability_set_properties
+                else AvailabilityType.NoRedundancy.value
+            )
+
+        # Once the availability type has been determined, clear the unecessary
+        # fields for clarity
+        if params.availability_type == AvailabilityType.AvailabilitySet:
+            params.availability_zones.clear()
+            if "platformFaultDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformFaultDomainCount"] = 1
+            if "platformUpdateDomainCount" not in params.availability_set_properties:
+                params.availability_set_properties["platformUpdateDomainCount"] = 1
+        elif params.availability_type == AvailabilityType.AvailabilityZone:
+            assert (
+                params.availability_zones
+            ), "Availability Zone is selected, but no zone was provided."
+            params.availability_zones = [params.availability_zones[0]]
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+        else:
+            params.availability_set_tags.clear()
+            params.availability_set_properties.clear()
+            params.availability_zones.clear()
 
 
 class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
@@ -2192,7 +2568,10 @@ class ACC(AzureFeatureMixin, features.ACC):
     ) -> Optional[schema.FeatureSettings]:
         resource_sku: Any = kwargs.get("resource_sku")
 
-        if resource_sku.family in ["standardDCSv2Family", "standardDCSv3Family"]:
+        if resource_sku.family.casefold() in [
+            "standarddcsv2family",
+            "standarddcsv3family",
+        ]:
             return schema.FeatureSettings.create(cls.name())
         return None
 
@@ -2207,11 +2586,11 @@ class CVMNestedVirtualization(AzureFeatureMixin, features.CVMNestedVirtualizatio
         # add vm which support nested confidential virtualization
         # https://learn.microsoft.com/en-us/azure/virtual-machines/dcasccv5-dcadsccv5-series
         # https://learn.microsoft.com/en-us/azure/virtual-machines/ecasccv5-ecadsccv5-series
-        if resource_sku.family in [
-            "standardDCACCV5Family",
-            "standardECACCV5Family",
-            "standardDCADCCV5Family",
-            "standardECADCCV5Family",
+        if resource_sku.family.casefold() in [
+            "standarddcaccv5family",
+            "standardecaccv5family",
+            "standarddcadccv5family",
+            "standardecadccv5family",
         ]:
             return schema.FeatureSettings.create(cls.name())
         return None
@@ -2226,42 +2605,42 @@ class NestedVirtualization(AzureFeatureMixin, features.NestedVirtualization):
 
         # add vm which support nested virtualization
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family in [
-            "standardDDSv5Family",
-            "standardDDv4Family",
-            "standardDDv5Family",
-            "standardDSv3Family",
-            "standardDSv4Family",
-            "standardDSv5Family",
-            "standardDv3Family",
-            "standardDv4Family",
-            "standardDv5Family",
-            "standardDADSv5Family",
-            "standardDASv5Family",
-            "standardDDSv4Family",
-            "standardEIv5Family",
-            "standardEADSv5Family",
-            "standardEASv5Family",
-            "standardEDSv4Family",
-            "standardEDSv5Family",
-            "standardESv3Family",
-            "standardESv4Family",
-            "standardESv5Family",
-            "standardEBDSv5Family",
-            "standardEBSv5Family",
-            "standardEDv4Family",
-            "standardEv4Family",
-            "standardEDv5Family",
-            "standardEv3Family",
-            "standardEv5Family",
-            "standardXEIDSv4Family",
-            "standardXEISv4Family",
-            "standardFSv2Family",
-            "standardFXMDVSFamily",
-            "standardLASv3Family",
-            "standardLSv3Family",
-            "standardMSFamily",
-            "standardMSMediumMemoryv2Family",
+        if resource_sku.family.casefold() in [
+            "standardddsv5family",
+            "standardddv4family",
+            "standardddv5family",
+            "standarddsv3family",
+            "standarddsv4family",
+            "standarddsv5family",
+            "standarddv3family",
+            "standarddv4family",
+            "standarddv5family",
+            "standarddadsv5family",
+            "standarddasv5family",
+            "standardddsv4family",
+            "standardeiv5family",
+            "standardeadsv5family",
+            "standardeasv5family",
+            "standardedsv4family",
+            "standardedsv5family",
+            "standardesv3family",
+            "standardesv4family",
+            "standardesv5family",
+            "standardebdsv5family",
+            "standardebsv5family",
+            "standardedv4family",
+            "standardev4family",
+            "standardedv5family",
+            "standardev3family",
+            "standardev5family",
+            "standardxeidsv4family",
+            "standardxeisv4family",
+            "standardfsv2family",
+            "standardfxmdvsfamily",
+            "standardlasv3family",
+            "standardlsv3family",
+            "standardmsfamily",
+            "standardmsmediummemoryv2family",
         ]:
             return schema.FeatureSettings.create(cls.name())
         return None
@@ -2278,8 +2657,8 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         assert isinstance(node_space, schema.NodeSpace), f"actual: {type(node_space)}"
         # add vm which support nested virtualization
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
-        if resource_sku.family in [
-            "standardLSv2Family",
+        if resource_sku.family.casefold() in [
+            "standardlsv2family",
         ]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
             # NVMe disk count = vCPU / 8
@@ -2478,15 +2857,42 @@ class AzureExtension(AzureFeatureMixin, Feature):
 
         self._log.debug(f"extension_parameters: {extension_parameters.as_dict()}")
 
-        operation = compute_client.virtual_machine_extensions.begin_create_or_update(
+        operations = compute_client.virtual_machine_extensions.begin_create_or_update(
             resource_group_name=self._resource_group_name,
             vm_name=self._vm_name,
             vm_extension_name=name,
             extension_parameters=extension_parameters,
         )
-        result = wait_operation(operation, timeout)
 
-        return result
+        interval = 10
+        timer = create_timer()
+        while timeout >= timer.elapsed(False):
+            extension = self.get(name=name)
+            provisioning_state = str(extension.provisioning_state)
+
+            if provisioning_state.lower() in ["failed", "succeeded"]:
+                self._log.debug(
+                    f"Extension '{name}' provision status is '{provisioning_state}'."
+                    " Exiting loop."
+                )
+                break
+
+            self._log.debug(
+                f"Extension '{name}' is still '{provisioning_state}'."
+                f" Waiting {interval} seconds..."
+            )
+            time.sleep(interval)
+        if timeout < timer.elapsed():
+            raise LisaTimeoutException(
+                f"Azure operation failed: timeout after {timeout} seconds."
+            )
+
+        result = operations.result()
+        result_dict = result.as_dict() if result else None
+        if result_dict:
+            result_dict["provisioning_state"] = provisioning_state
+
+        return result_dict
 
     def delete(
         self,
@@ -2542,7 +2948,8 @@ class AzureExtension(AzureFeatureMixin, Feature):
             AzureNodeSchema, AZURE
         )
         self._location = node_runbook.location
-        self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
+        if hasattr(self._node, "os"):
+            self._node.tools[Waagent].enable_configuration("Extensions.Enabled")
 
 
 @dataclass_json()
@@ -2628,6 +3035,13 @@ class VhdGeneration(AzureFeatureMixin, Feature):
         return settings
 
     @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return VhdGenerationSettings(gen=image.hyperv_generation)
+
+    @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return VhdGenerationSettings
 
@@ -2644,10 +3058,22 @@ class VhdGeneration(AzureFeatureMixin, Feature):
 class ArchitectureSettings(schema.FeatureSettings):
     type: str = "Architecture"
     # Architecture in hyper-v
-    arch: str = field(
-        default="x64",
+    arch: Union[
+        schema.ArchitectureType, search_space.SetSpace[schema.ArchitectureType]
+    ] = field(  # type: ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
+        ),
         metadata=field_metadata(
-            validate=validate.OneOf(["x64", "Arm64"]),
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=schema.ArchitectureType,
+                default_values=[
+                    schema.ArchitectureType.x64,
+                    schema.ArchitectureType.Arm64,
+                ],
+            )
         ),
     )
 
@@ -2675,12 +3101,10 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
         result = super().check(capability)
-        if self.arch != capability.arch:
-            result.result = False
-            result.reasons.append(
-                f"image arch {self.arch} should be consistent with"
-                f" vm size arch {capability.arch}"
-            )
+        result.merge(
+            search_space.check_setspace(self.arch, capability.arch),
+            "architecture type",
+        )
 
         return result
 
@@ -2691,12 +3115,12 @@ class ArchitectureSettings(schema.FeatureSettings):
             capability, ArchitectureSettings
         ), f"actual: {type(capability)}"
 
-        assert_that(self.arch).described_as(
-            "req and capability should be the same"
-        ).is_equal_to(capability.arch)
-
         value = ArchitectureSettings()
-        value.arch = self.arch
+        value.arch = getattr(search_space, f"{method.value}_setspace_by_priority")(
+            self.arch,
+            capability.arch,
+            [schema.ArchitectureType.x64, schema.ArchitectureType.Arm64],
+        )
         return value
 
 
@@ -2709,6 +3133,13 @@ class Architecture(AzureFeatureMixin, Feature):
         return ArchitectureSettings(
             arch=raw_capabilities.get("CpuArchitectureType", "x64")
         )
+
+    @classmethod
+    def create_image_requirement(
+        cls, image: schema.ImageSchema
+    ) -> Optional[schema.FeatureSettings]:
+        assert isinstance(image, AzureImageSchema), f"actual: {type(image)}"
+        return ArchitectureSettings(arch=image.architecture)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -2759,3 +3190,204 @@ class PasswordExtension(AzureFeatureMixin, features.PasswordExtension):
         assert_that(result["provisioning_state"]).described_as(
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
+
+
+class AzureFileShare(AzureFeatureMixin, Feature):
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    def get_smb_version(self) -> str:
+        if self._node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
+            version = "3.1.1"
+        else:
+            version = "3.0"
+        return version
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        self._initialize_fileshare_information()
+
+    def _initialize_fileshare_information(self) -> None:
+        random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
+        self._storage_account_name = f"lisasc{random_str}"
+        self._fstab_info = (
+            f"nofail,vers={self.get_smb_version()},"
+            "credentials=/etc/smbcredentials/lisa.cred"
+            ",dir_mode=0777,file_mode=0777,serverino"
+        )
+
+    def create_file_share(
+        self,
+        file_share_names: List[str],
+        environment: Environment,
+        allow_shared_key_access: bool = False,
+        sku: str = "Standard_LRS",
+        kind: str = "StorageV2",
+        enable_https_traffic_only: bool = True,
+        enable_private_endpoint: bool = False,
+    ) -> Dict[str, str]:
+        platform: AzurePlatform = self._platform  # type: ignore
+        information = environment.get_information()
+        resource_group_name = self._resource_group_name
+        location = information["location"]
+        storage_account_name = self._storage_account_name
+
+        fs_url_dict: Dict[str, str] = {}
+
+        check_or_create_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            location=location,
+            log=self._log,
+            sku=sku,
+            kind=kind,
+            enable_https_traffic_only=enable_https_traffic_only,
+            allow_shared_key_access=allow_shared_key_access,
+        )
+        # If enable_private_endpoint is true, SMB share endpoint
+        # will dns resolve to <share>.privatelink.file.core.windows.net
+        # No changes need to be done in code calling function
+        for share_name in file_share_names:
+            fs_url_dict[share_name] = get_or_create_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        # Create file private endpoint, always after all shares have been created
+        # There is a known issue in API preventing access to data plane
+        # once private endpoint is created. Observed in Terraform provider as well
+        if enable_private_endpoint:
+            storage_account_resource_id = (
+                f"/subscriptions/{platform.subscription_id}/resourceGroups/"
+                f"{resource_group_name}/providers/Microsoft.Storage/storageAccounts"
+                f"/{storage_account_name}"
+            )
+            # get vnet and subnet id
+            virtual_networks_dict: Dict[str, List[str]] = get_virtual_networks(
+                platform, resource_group_name
+            )
+            virtual_networks_id = ""
+            subnet_id = ""
+            for vnet_id, subnet_ids in virtual_networks_dict.items():
+                virtual_networks_id = vnet_id
+                subnet_id = subnet_ids[0]
+                break
+
+            # Create Private endpoint
+            ipv4_address = create_update_private_endpoints(
+                platform,
+                resource_group_name,
+                location,
+                subnet_id,
+                storage_account_resource_id,
+                ["file"],
+                self._log,
+            )
+            # Create private zone
+            private_dns_zone_id = create_update_private_zones(
+                platform, resource_group_name, self._log
+            )
+            # create records sets
+            create_update_record_sets(
+                platform, resource_group_name, str(ipv4_address), self._log
+            )
+            # create virtual network links for the private zone
+            create_update_virtual_network_links(
+                platform, resource_group_name, virtual_networks_id, self._log
+            )
+            # create private dns zone groups
+            create_update_private_dns_zone_groups(
+                platform=platform,
+                resource_group_name=resource_group_name,
+                private_dns_zone_id=str(private_dns_zone_id),
+                log=self._log,
+            )
+
+        return fs_url_dict
+
+    def create_fileshare_folders(self, test_folders_share_dict: Dict[str, str]) -> None:
+        """
+        test_folders_share_dict is of the form
+            {
+            "foldername": "fileshareurl",
+            "foldername2": "fileshareurl2",
+            }
+        """
+        platform: AzurePlatform = self._platform  # type: ignore
+        account_credential = get_storage_credential(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=self._storage_account_name,
+            resource_group_name=self._resource_group_name,
+        )
+        self._prepare_azure_file_share(
+            self._node,
+            account_credential,
+            test_folders_share_dict,
+            self._fstab_info,
+        )
+
+    def delete_azure_fileshare(self, file_share_names: List[str]) -> None:
+        resource_group_name = self._resource_group_name
+        storage_account_name = self._storage_account_name
+        platform: AzurePlatform = self._platform  # type: ignore
+        for share_name in file_share_names:
+            delete_file_share(
+                credential=platform.credential,
+                subscription_id=platform.subscription_id,
+                cloud=platform.cloud,
+                account_name=storage_account_name,
+                file_share_name=share_name,
+                resource_group_name=resource_group_name,
+                log=self._log,
+            )
+        delete_storage_account(
+            credential=platform.credential,
+            subscription_id=platform.subscription_id,
+            cloud=platform.cloud,
+            account_name=storage_account_name,
+            resource_group_name=resource_group_name,
+            log=self._log,
+        )
+        # revert file into original status after testing.
+        self._node.execute("cp -f /etc/fstab_cifs /etc/fstab", sudo=True)
+
+    def _prepare_azure_file_share(
+        self,
+        node: Node,
+        account_credential: Dict[str, str],
+        test_folders_share_dict: Dict[str, str],
+        fstab_info: str,
+    ) -> None:
+        folder_path = node.get_pure_path("/etc/smbcredentials")
+        if node.shell.exists(folder_path):
+            node.execute(f"rm -rf {folder_path}", sudo=True)
+        node.shell.mkdir(folder_path)
+        file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+        echo = node.tools[Echo]
+        username = account_credential["account_name"]
+        password = account_credential["account_key"]
+        add_secret(password)
+        echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
+        echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
+        node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+        for folder_name, share in test_folders_share_dict.items():
+            node.execute(f"mkdir {folder_name}", sudo=True)
+            echo.write_to_file(
+                f"{share} {folder_name} cifs {fstab_info}",
+                node.get_pure_path("/etc/fstab"),
+                sudo=True,
+                append=True,
+            )

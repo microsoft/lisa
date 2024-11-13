@@ -74,6 +74,11 @@ class KernelInstallerTransformerSchema(DeploymentTransformerSchema):
         default=None, metadata=field_metadata(required=True)
     )
     raise_exception: Optional[bool] = True
+    # Set to False if we don't want to fail the process
+    # when the kernel version is not changed after installing the kernel.
+    # In some scenarios, we don't know the kernel version before the installation and
+    # whether the installed kernel version has been tested or not.
+    check_kernel_version: Optional[bool] = True
 
 
 class BaseInstaller(subclasses.BaseClassWithRunbookMixin):
@@ -159,16 +164,22 @@ class KernelInstallerTransformer(DeploymentTransformer):
 
             if (
                 isinstance(installer, RepoInstaller)
-                and installer.runbook.source != "linux-image-azure-fde"
+                and "fde" not in installer.runbook.source
             ) or (
                 isinstance(installer, SourceInstaller)
                 and not isinstance(installer, Dom0Installer)
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
-            elif isinstance(installer, RepoInstaller):
+            elif (
+                isinstance(installer, RepoInstaller)
+                and "fde" in installer.runbook.source
+            ):
+                # For fde/cvm kernels, it needs to remove the old
+                # kernel.efi files after installing the new kernel
+                # Ex: /boot/efi/EFI/ubuntu/kernel.efi-6.2.0-1019-azure
                 efi_files = node.execute(
-                    "ls -t /usr/lib/linux/efi/kernel.efi-*-azure-cvm",
+                    "ls -t /boot/efi/EFI/ubuntu/kernel.efi-*",
                     sudo=True,
                     shell=True,
                     expected_exit_code=0,
@@ -177,19 +188,13 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         " linux-image-azure-fde"
                     ),
                 )
-                efi_file = efi_files.stdout.splitlines()[0]
-                node.execute(
-                    (
-                        "cp /boot/efi/EFI/ubuntu/grubx64.efi "
-                        "/boot/efi/EFI/ubuntu/grubx64.efi.bak"
-                    ),
-                    sudo=True,
-                )
-                node.execute(
-                    f"cp {efi_file} /boot/efi/EFI/ubuntu/grubx64.efi",
-                    sudo=True,
-                    shell=True,
-                )
+                for old_efi_file in efi_files.stdout.splitlines()[1:]:
+                    self._log.info(f"Removing old kernel efi file: {old_efi_file}")
+                    node.execute(
+                        f"rm -f {old_efi_file}",
+                        sudo=True,
+                        shell=True,
+                    )
 
             self._log.info("rebooting")
             node.reboot(time_out=900)
@@ -197,9 +202,10 @@ class KernelInstallerTransformer(DeploymentTransformer):
             new_kernel_version = uname.get_linux_information(force_run=True)
             message.new_kernel_version = new_kernel_version.kernel_version_raw
             self._log.info(f"kernel version after install: " f"{new_kernel_version}")
-            assert_that(
-                new_kernel_version.kernel_version_raw, "Kernel installation Failed"
-            ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
+            if runbook.check_kernel_version:
+                assert_that(
+                    new_kernel_version.kernel_version_raw, "Kernel installation Failed"
+                ).is_not_equal_to(kernel_version_before_install.kernel_version_raw)
         except Exception as e:
             message.error_message = str(e)
             if runbook.raise_exception:
@@ -269,6 +275,12 @@ class RepoInstaller(BaseInstaller):
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = runbook.source
+        if full_package_name == "linux-azure-fips":
+            # Remove default fips repository before kernel installation.
+            # The default fips repository is not needed and it causes
+            # the kernel installation from proposed repos to fail.
+            self._log.info("Removing repo: https://esm.ubuntu.com/fips/ubuntu")
+            ubuntu.remove_repository("https://esm.ubuntu.com/fips/ubuntu")
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
 

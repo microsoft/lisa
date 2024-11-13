@@ -1,5 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from functools import partial
+from typing import Any, Dict
+
 from assertpy import assert_that
 
 from lisa import (
@@ -11,12 +14,13 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features import Infiniband, Sriov
+from lisa.features import AvailabilitySetEnabled, Infiniband, Sriov
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
 from lisa.util import (
     LisaException,
+    MissingPackagesException,
     SkippedException,
     UnsupportedDistroException,
     UnsupportedKernelException,
@@ -79,7 +83,11 @@ class InfinibandSuite(TestSuite):
     def verify_hpc_over_sriov(self, log: Logger, node: Node) -> None:
         try:
             infiniband = node.features[Infiniband]
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         assert_that(infiniband.is_over_sriov()).described_as(
@@ -100,7 +108,6 @@ class InfinibandSuite(TestSuite):
             "ib_uverbs",
             "ib_core",
             "mlx5_core",
-            "mlx_compat",
             "rdma_cm",
             "iw_cm",
             "ib_cm",
@@ -132,7 +139,11 @@ class InfinibandSuite(TestSuite):
 
         try:
             infiniband = node.features[Infiniband]
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         if not infiniband.is_over_nd():
@@ -161,7 +172,7 @@ class InfinibandSuite(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -181,7 +192,11 @@ class InfinibandSuite(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         server_ib_interfaces = server_infiniband.get_ib_interfaces()
@@ -226,7 +241,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -243,7 +258,11 @@ class InfinibandSuite(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         run_in_parallel([server_ib.install_intel_mpi, client_ib.install_intel_mpi])
@@ -316,7 +335,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -333,7 +352,11 @@ class InfinibandSuite(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         run_in_parallel([server_ib.install_open_mpi, client_ib.install_open_mpi])
@@ -412,12 +435,19 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
     )
-    def verify_ibm_mpi(self, environment: Environment, log: Logger) -> None:
+    def verify_ibm_mpi(
+        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        platform_mpi_url = variables.get("platform_mpi_url", "")
+        if not platform_mpi_url:
+            raise SkippedException(
+                "This case needs to provide the platform MPI installation URL."
+            )
         server_node = environment.nodes[0]
         client_node = environment.nodes[1]
 
@@ -429,10 +459,19 @@ class InfinibandSuite(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
-        run_in_parallel([server_ib.install_ibm_mpi, client_ib.install_ibm_mpi])
+        run_in_parallel(
+            [
+                partial(server_ib.install_ibm_mpi, platform_mpi_url),
+                partial(client_ib.install_ibm_mpi, platform_mpi_url),
+            ]
+        )
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
         # to take effect
@@ -507,7 +546,7 @@ class InfinibandSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
-            supported_features=[Infiniband],
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
             unsupported_os=[BSD, Windows],
         ),
@@ -524,7 +563,11 @@ class InfinibandSuite(TestSuite):
                     lambda: server_node.features[Infiniband],
                 ]
             )
-        except (UnsupportedDistroException, UnsupportedKernelException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedKernelException,
+            MissingPackagesException,
+        ) as err:
             raise SkippedException(err)
 
         run_in_parallel([server_ib.install_mvapich_mpi, client_ib.install_mvapich_mpi])

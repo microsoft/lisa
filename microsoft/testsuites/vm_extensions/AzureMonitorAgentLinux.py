@@ -1,6 +1,7 @@
 from typing import Any
 
 from assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Logger,
@@ -22,7 +23,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.util import SkippedException
+from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -51,12 +52,25 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
     def verify_azuremonitoragent_linux(self, log: Logger, node: Node) -> None:
         # Run VM Extension
         extension = node.features[AzureExtension]
+        extension_name = "Microsoft.Azure.Monitor.AzureMonitorLinuxAgent"
+        try:
+            # Delete VM Extension if already present
+            extension.delete(extension_name)
+            is_extension_present = True
+        except HttpResponseError as identifier:
+            if any(s in str(identifier) for s in ["was not found"]):
+                log.info("AzureMonitorLinuxAgent is not already installed")
+            else:
+                raise LisaException(
+                    f"unexpected exception happened {identifier} during delete"
+                    f" extension {extension_name}"
+                ) from identifier
 
         extension_result = extension.create_or_update(
-            name="AzureMonitorLinuxAgent",
+            name=extension_name,
             publisher="Microsoft.Azure.Monitor",
             type_="AzureMonitorLinuxAgent",
-            type_handler_version="1.28",
+            type_handler_version="1.0",
             auto_upgrade_minor_version=True,
         )
 
@@ -64,12 +78,14 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             "Expected the extension to succeed"
         ).is_equal_to("Succeeded")
 
-        # Delete VM Extension
-        extension.delete("AzureMonitorLinuxAgent")
+        if not is_extension_present:
+            # if extension installed by test then delete the extension
+            extension.delete(extension_name)
 
-        assert_that(extension.check_exist("AzureMonitorLinuxAgent")).described_as(
-            "Found the VM Extension still unexpectedly exists on the VM after deletion"
-        ).is_false()
+            assert_that(extension.check_exist(extension_name)).described_as(
+                "Found the VM Extension still unexpectedly exists on the VM"
+                " after deletion"
+            ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions_x86_64 = {

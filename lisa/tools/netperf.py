@@ -94,6 +94,7 @@ class Netperf(Tool):
                 "binutils",
                 "glibc-devel",
                 "zlib-devel",
+                "perl-CPAN",
                 "automake",
                 "autoconf",
             ]

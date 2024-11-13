@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import os
 import re
 from pathlib import Path
 from typing import Any, List
@@ -20,14 +19,24 @@ from lisa import (
 )
 from lisa.features import Gpu, GpuEnabled, SerialConsole, StartStop
 from lisa.features.gpu import ComputeSDK
-from lisa.operating_system import BSD, AlmaLinux, Debian, Oracle, Suse, Ubuntu, Windows
+from lisa.operating_system import (
+    BSD,
+    AlmaLinux,
+    Debian,
+    Linux,
+    Oracle,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Lspci, Mkdir, NvidiaSmi, Pip, Python, Reboot, Service, Tar, Wget
+from lisa.tools import Lspci, Mkdir, Modprobe, NvidiaSmi, Reboot, Tar, Wget
+from lisa.tools.python import PythonVenv
 from lisa.util import UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
-    "https://partnerpipelineshare.blob.core.windows.net/"
-    "packages/cudnn-10.0-linux-x64-v7.5.0.56.tgz"
+    "https://developer.download.nvidia.com/compute/redist/cudnn/"
+    "v7.5.0/cudnn-10.0-linux-x64-v7.5.0.56.tgz"
 )
 _cudnn_file_name = "cudnn.tgz"
 
@@ -215,25 +224,17 @@ class GpuTestSuite(TestSuite):
         log_path: Path,
         log: Logger,
     ) -> None:
-        _install_driver(node, log_path, log)
-        _check_driver_installed(node, log)
-
         lspci = node.tools[Lspci]
         gpu = node.features[Gpu]
 
-        # 1. Disable GPU devices.
         gpu_devices = lspci.get_gpu_devices()
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
-        # stop the service which uses nvidia module
-        service = node.tools[Service]
-        service_name_list = [
-            "nvidia-persistenced",
-            "nvidia-dcgm",
-            "nvidia-fabricmanager",
-        ]
-        for service_name in service_name_list:
-            service.stop_service(service_name)
 
+        # remove nvidia modules to release the GPU devices in used.
+        modprobe = node.tools[Modprobe]
+        modprobe.remove(["nvidia_drm", "nvidia_uvm", "nvidia_modeset", "nvidia"])
+
+        # 1. Disable GPU devices.
         for device in gpu_devices:
             lspci.disable_device(device)
 
@@ -262,49 +263,40 @@ class GpuTestSuite(TestSuite):
         _install_driver(node, log_path, log)
         _check_driver_installed(node, log)
 
-        # Step 1, pytorch and CUDA needs 8GB space to download and install
-        torch_required_space = 8
+        # Step 1, pytorch/CUDA needs 8GB to download & install, increase to 20GB
+        torch_required_space = 20
         work_path = node.get_working_path_with_required_space(torch_required_space)
-        use_new_path = work_path != str(node.working_path)
 
         # Step 2, Install cudnn and pyTorch
         _install_cudnn(node, log, work_path)
+        pythonvenv_path = work_path + "/gpu_pytorch"
+        pythonvenv = node.tools.create(PythonVenv, venv_path=pythonvenv_path)
 
-        pip = node.tools[Pip]
-        if not pip.exists_package("torch"):
-            if use_new_path:
-                pip.install_packages("torch", work_path)
-            else:
-                pip.install_packages("torch")
+        # Pip downloads .whl and other tmp files to root disk.
+        # Clean package cache to avoid disk full issue.
+        if isinstance(node.os, Linux):
+            node.os.clean_package_cache()
+
+        pythonvenv.install_packages("torch")
 
         # Step 3, verification
         gpu = node.features[Gpu]
         gpu_script = "import torch;print(f'gpu count: {torch.cuda.device_count()}')"
-        python = node.tools[Python]
         expected_count = gpu.get_gpu_count_with_lspci()
 
-        if use_new_path:
-            python_path = os.environ.get("PYTHONPATH", "")
-            python_path += f":{work_path}/python_packages"
-            python_envs = {"PYTHONPATH": python_path}
-        else:
-            python_envs = {}
-
-        script_result = python.run(
+        script_result = pythonvenv.run(
             f'-c "{gpu_script}"',
             force_run=True,
-            update_envs=python_envs,
         )
 
         if script_result.exit_code != 0 and self._numpy_error_pattern.findall(
             script_result.stdout
         ):
-            if pip.uninstall_package("numpy"):
-                pip.install_packages("numpy")
-            script_result = python.run(
+            if pythonvenv.uninstall_package("numpy"):
+                pythonvenv.install_packages("numpy")
+            script_result = pythonvenv.run(
                 f'-c "{gpu_script}"',
                 force_run=True,
-                update_envs=python_envs,
             )
 
         gpu_count_str = get_matched_str(script_result.stdout, self._pytorch_pattern)

@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
+from azure.core.exceptions import ResourceExistsError
 from azure.storage.blob import BlobType
 
 from lisa import Node
@@ -12,7 +13,7 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AZURE_SHARED_RG_NAME,
     AzureNodeSchema,
-    generate_blob_sas_token,
+    generate_user_delegation_sas_token,
     get_or_create_storage_container,
     get_storage_account_name,
     get_storage_credential,
@@ -82,7 +83,7 @@ def retrieve_storage_blob_url(
     test_file: str = "",
     is_sas: bool = False,
     script: str = "",
-    blob_type: BlobType = BlobType.BlockBlob,
+    blob_type: BlobType = BlobType.BLOCKBLOB,
 ) -> Any:
     platform = environment.platform
     assert isinstance(platform, AzurePlatform)
@@ -98,36 +99,42 @@ def retrieve_storage_blob_url(
 
     container_client = get_or_create_storage_container(
         credential=platform.credential,
-        subscription_id=subscription_id,
         cloud=platform.cloud,
         account_name=storage_account_name,
         container_name=container_name,
-        resource_group_name=AZURE_SHARED_RG_NAME,
     )
 
     blob = container_client.get_blob_client(blob_name)
     if not blob.exists():
         if is_public_container:
-            container_client.set_container_access_policy(
-                signed_identifiers={}, public_access="container"
-            )
+            try:
+                container_client.set_container_access_policy(
+                    signed_identifiers={}, public_access="container"
+                )
+            except ResourceExistsError as ex:
+                if (
+                    "public access is not permitted on this storage account"
+                    in str(ex).lower()
+                ):
+                    raise SkippedException(
+                        "Public access is not permitted on this storage account "
+                        f"{storage_account_name}. {ex}"
+                    )
+                raise ex
         # Upload blob to container if doesn't exist
         container_client.upload_blob(
-            name=blob_name, data=blob_data, blob_type=blob_type  # type: ignore
+            name=blob_name, data=blob_data, blob_type=blob_type
         )
 
     blob_url = blob.url
 
     if is_sas:
-        sas_token = generate_blob_sas_token(
+        sas_token = generate_user_delegation_sas_token(
+            container_name=blob.container_name,
+            blob_name=blob.blob_name,
             credential=platform.credential,
-            subscription_id=subscription_id,
             cloud=platform.cloud,
             account_name=storage_account_name,
-            resource_group_name=AZURE_SHARED_RG_NAME,
-            container_name=container_name,
-            file_name=blob_name,
-            expired_hours=1,
         )
 
         blob_url = blob_url + "?" + sas_token

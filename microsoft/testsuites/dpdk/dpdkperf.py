@@ -20,6 +20,7 @@ from lisa.messages import (
 )
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
+from lisa.tools.hugepages import HugePageSize
 from lisa.util import constants
 from microsoft.testsuites.dpdk.common import force_dpdk_default_source
 from microsoft.testsuites.dpdk.dpdkutil import (
@@ -62,7 +63,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "failsafe")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -106,7 +109,9 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        sender_kit = verify_dpdk_build(node, log, variables, "netvsc")
+        sender_kit = verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
         # shared results fields
@@ -253,7 +258,12 @@ class DpdkPerformance(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, pmd="netvsc", is_perf_test=True
+            environment,
+            log,
+            variables,
+            HugePageSize.HUGE_2MB,
+            pmd="netvsc",
+            is_perf_test=True,
         )
 
     def _run_dpdk_perf_test(
@@ -263,7 +273,6 @@ class DpdkPerformance(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         use_queues: bool = False,
-        service_cores: int = 1,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -277,7 +286,6 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_service_cores=service_cores,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -285,7 +293,8 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
-                    use_service_cores=service_cores,
+                    HugePageSize.HUGE_2MB,
+                    result=test_result,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -308,6 +317,7 @@ class DpdkPerformance(TestSuite):
         sender_fields: Dict[str, Any] = {}
         receiver_fields: Dict[str, Any] = {}
         test_case_name = test_result.runtime_data.metadata.name
+
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
             result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD

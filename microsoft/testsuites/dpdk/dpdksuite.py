@@ -10,21 +10,25 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    NotEnoughMemoryException,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     UnsupportedDistroException,
+    UnsupportedOperationException,
     schema,
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
-from lisa.testsuite import simple_requirement
-from lisa.tools import Echo, Git, Ip, Kill, Lsmod, Make, Modprobe
+from lisa.testsuite import TestResult, simple_requirement
+from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lsmod, Make, Modprobe
+from lisa.tools.hugepages import HugePageSize
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
+    PackageManagerInstall,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -36,7 +40,6 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     do_parallel_cleanup,
     enable_uio_hv_generic_for_nic,
     generate_send_receive_run_info,
-    init_hugepages,
     init_nodes_concurrent,
     initialize_node_resources,
     run_testpmd_concurrent,
@@ -88,9 +91,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_netvsc(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "netvsc")
+        verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -110,9 +119,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_gb_hugepages_netvsc(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "netvsc", gibibyte_hugepages=True)
+        verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_1GB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -132,9 +147,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_failsafe(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "failsafe")
+        verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_2MB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -154,9 +175,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_gb_hugepages_failsafe(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
-        verify_dpdk_build(node, log, variables, "failsafe", gibibyte_hugepages=True)
+        verify_dpdk_build(
+            node, log, variables, "failsafe", HugePageSize.HUGE_1GB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -179,7 +206,12 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         force_dpdk_default_source(variables)
-        test_kit = initialize_node_resources(node, log, variables, "netvsc")
+        try:
+            test_kit = initialize_node_resources(
+                node, log, variables, "netvsc", HugePageSize.HUGE_2MB
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
 
         # checkout OpenVirtualSwitch
         ovs = node.tools[DpdkOvs]
@@ -190,7 +222,11 @@ class Dpdk(TestSuite):
         ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
 
         # enable hugepages needed for dpdk EAL
-        init_hugepages(node)
+        hugepages = node.tools[Hugepages]
+        try:
+            hugepages.init_hugepages(HugePageSize.HUGE_2MB)
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
@@ -230,7 +266,12 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
         # hugepages needed for dpdk tests
-        init_hugepages(node)
+        hugepages = node.tools[Hugepages]
+        try:
+            hugepages.init_hugepages(HugePageSize.HUGE_2MB)
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
+
         # run the nff-go tests
         nff_go.run_test()
 
@@ -257,29 +298,29 @@ class Dpdk(TestSuite):
         server_app_name = "dpdk-mp_server"
         client_app_name = "dpdk-mp_client"
         # initialize DPDK with sample applications selected for build
-        test_kit = initialize_node_resources(
-            node,
-            log,
-            variables,
-            pmd,
-            sample_apps=[
-                "multi_process/client_server_mp/mp_server",
-                "multi_process/client_server_mp/mp_client",
-            ],
-        )
+        try:
+            test_kit = initialize_node_resources(
+                node,
+                log,
+                variables,
+                pmd,
+                HugePageSize.HUGE_2MB,
+                sample_apps=[
+                    "multi_process/client_server_mp/mp_server",
+                    "multi_process/client_server_mp/mp_client",
+                ],
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
 
         if test_kit.testpmd.is_connect_x3:
             raise SkippedException(
                 "Unsupported Hardware: ConnectX3 does not support secondary process RX"
             )
 
-        # enable hugepages needed for dpdk EAL
-        init_hugepages(node)
-
         # setup and run mp_server application
-        examples_path = test_kit.testpmd.dpdk_build_path.joinpath("examples")
-        server_app_path = examples_path.joinpath(server_app_name)
-        client_app_path = examples_path.joinpath(client_app_name)
+        server_app_path = test_kit.testpmd.get_example_app_path(server_app_name)
+        client_app_path = test_kit.testpmd.get_example_app_path(client_app_name)
 
         # EAL -l: start server on cores 1-2,
         # EAL -n: use 4 memory channels
@@ -345,9 +386,18 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_sriov_rescind_failover_receiver(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
     ) -> None:
-        test_kits = init_nodes_concurrent(environment, log, variables, "failsafe")
+        test_kits = init_nodes_concurrent(
+            environment,
+            log,
+            variables,
+            "failsafe",
+            HugePageSize.HUGE_2MB,
+        )
 
         try:
             check_send_receive_compatibility(test_kits)
@@ -385,7 +435,12 @@ class Dpdk(TestSuite):
     def verify_dpdk_sriov_rescind_failover_send_only(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        try:
+            test_kit = initialize_node_resources(
+                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_secondary_nic()
         testpmd_cmd = testpmd.generate_testpmd_command(test_nic, 0, "txonly")
@@ -447,8 +502,12 @@ class Dpdk(TestSuite):
                     node.os, "VPP test does not support Mariner installation."
                 )
             )
-        initialize_node_resources(node, log, variables, "failsafe")
-
+        try:
+            initialize_node_resources(
+                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
         vpp = node.tools[DpdkVpp]
         vpp.install()
 
@@ -493,8 +552,20 @@ class Dpdk(TestSuite):
         # we special case here to use to dpdk-stable as the default.
         force_dpdk_default_source(variables)
         # setup and unwrap the resources for this test
-        test_kit = initialize_node_resources(node, log, variables, "failsafe")
+        try:
+            test_kit = initialize_node_resources(
+                node, log, variables, "failsafe", HugePageSize.HUGE_2MB
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
         testpmd = test_kit.testpmd
+        if isinstance(testpmd.installer, PackageManagerInstall):
+            # The Testpmd tool doesn't get re-initialized
+            # even if you invoke it with new arguments.
+            raise SkippedException(
+                "DPDK ring_ping test is not implemented for "
+                " package manager installation."
+            )
 
         # grab a nic and run testpmd
         git = node.tools[Git]
@@ -502,7 +573,7 @@ class Dpdk(TestSuite):
         echo = node.tools[Echo]
         rping_build_env_vars = [
             "export RTE_TARGET=build",
-            f"export RTE_SDK={str(testpmd.dpdk_path)}",
+            f"export RTE_SDK={str(testpmd.installer.asset_path)}",
         ]
         echo.write_to_file(
             ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
@@ -561,11 +632,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "failsafe"
+                environment, log, variables, "failsafe", result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -587,11 +662,15 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, "netvsc"
+                environment, log, variables, "netvsc", result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -613,10 +692,21 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive(environment, log, variables, "failsafe")
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "failsafe",
+                HugePageSize.HUGE_2MB,
+                result=result,
+            )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
@@ -638,11 +728,20 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_failsafe(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
-                environment, log, variables, "failsafe", gibibyte_hugepages=True
+                environment,
+                log,
+                variables,
+                "failsafe",
+                HugePageSize.HUGE_1GB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -664,10 +763,21 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive(environment, log, variables, "netvsc")
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                "netvsc",
+                HugePageSize.HUGE_2MB,
+                result=result,
+            )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
 
@@ -689,11 +799,20 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_send_receive_gb_hugepages_netvsc(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         try:
             verify_dpdk_send_receive(
-                environment, log, variables, "netvsc", gibibyte_hugepages=True
+                environment,
+                log,
+                variables,
+                "netvsc",
+                HugePageSize.HUGE_1GB,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -721,11 +840,17 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
-        verify_dpdk_l3fwd_ntttcp_tcp(environment, log, variables, pmd=pmd)
+        verify_dpdk_l3fwd_ntttcp_tcp(
+            environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -748,12 +873,21 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_l3fwd_ntttcp_tcp_gb_hugepages(
-        self, environment: Environment, log: Logger, variables: Dict[str, Any]
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, pmd=pmd, enable_gibibyte_hugepages=True
+            environment,
+            log,
+            variables,
+            hugepage_size=HugePageSize.HUGE_1GB,
+            pmd=pmd,
+            result=result,
         )
 
     @TestCaseMetadata(

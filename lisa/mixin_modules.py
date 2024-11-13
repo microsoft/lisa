@@ -15,6 +15,7 @@ import lisa.notifiers.env_stats  # noqa: F401
 import lisa.notifiers.file  # noqa: F401
 import lisa.notifiers.html  # noqa: F401
 import lisa.notifiers.junit  # noqa: F401
+import lisa.notifiers.perfdump  # noqa: F401
 import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.lisa_runner  # noqa: F401
 import lisa.sut_orchestrator.ready  # noqa: F401
@@ -27,7 +28,10 @@ except ModuleNotFoundError as e:
 # Azure modules
 try:
     import lisa.sut_orchestrator.azure.hooks  # noqa: F401
+    import lisa.sut_orchestrator.azure.notifiers  # noqa: F401
     import lisa.sut_orchestrator.azure.transformers  # noqa: F401
+    import lisa.transformers.disable_cloud_components  # noqa: F401
+    import lisa.transformers.hyperv_preparation  # noqa: F401
 except ModuleNotFoundError as e:
     print(f"azure package is not installed. [{e}]")
 
@@ -62,12 +66,18 @@ if platform.system() == "Linux":
     except ModuleNotFoundError as e:
         print(f"libvirt package is not installed. [{e}]")
 
+# Hyper-V platform
+import lisa.sut_orchestrator.hyperv.platform_  # noqa: F401
+
+# Transformers
 import lisa.transformers.dom0_kernel_installer  # noqa: F401
 import lisa.transformers.dump_variables  # noqa: F401
 import lisa.transformers.file_uploader  # noqa: F401
 import lisa.transformers.kernel_source_installer  # noqa: F401
 import lisa.transformers.package_installer  # noqa: F401
+import lisa.transformers.repo_package_installer  # noqa: F401
 import lisa.transformers.rpm_kernel_installer  # noqa: F401
+import lisa.transformers.script_file_transformer  # noqa: F401
 import lisa.transformers.script_transformer  # noqa: F401
 import lisa.transformers.to_list  # noqa: F401
 import lisa.transformers.upgrade_packages  # noqa: F401

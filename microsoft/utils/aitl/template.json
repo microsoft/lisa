@@ -1,0 +1,33 @@
+{
+    "location": "westus3",
+    "properties": {
+        "vmSize": [
+            "Standard_D4_v4"
+        ],
+        "selections": [
+            {
+                "caseName": [],
+                "caseArea": [],
+                "caseCategory": [],
+                "casePriority": [
+                    0
+                ],
+                "caseTags": [],
+                "action": "include",
+                "testIterations": 1,
+                "retryCount": 0,
+                "useNewEnvironment": false,
+                "ignoreFailure": false
+            },
+            {
+                "caseName": [
+                    "verify_deployment_provision_ultra_datadisk",
+                    "perf_ultra_datadisks_1024k", 
+                    "perf_ultra_datadisks_4k"
+                ],
+                "action": "exclude"
+            }
+        ],
+        "concurrency": 4
+    }
+}

@@ -34,7 +34,7 @@ class Echo(Tool):
         if append:
             operator = ">>"
         result = self.run(
-            f"'{value}' {operator} {file}",
+            f'"{value}" {operator} "{file}"',
             force_run=True,
             shell=True,
             sudo=sudo,

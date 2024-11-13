@@ -3,12 +3,13 @@
 
 import re
 from enum import Enum
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Tuple, Type
+from xml import etree
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import FreeBSD, Posix
+from lisa.operating_system import CpuArchitecture, FreeBSD, Posix
 from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException, find_group_in_lines, find_groups_in_lines
 
@@ -52,8 +53,12 @@ class CPUInfo:
         return self.__str__()
 
 
-ARCH_X86_64 = "x86_64"
-ARCH_AARCH64 = "aarch64"
+ArchitectureNames = {
+    "x86_64": CpuArchitecture.X64,
+    "aarch64": CpuArchitecture.ARM64,
+    "amd64": CpuArchitecture.X64,
+    "arm64": CpuArchitecture.ARM64,
+}
 
 
 class Lscpu(Tool):
@@ -78,12 +83,7 @@ class Lscpu(Tool):
     __clusters = re.compile(r"^Cluster\(s\):[ ]+([\d]+)\r?$", re.M)
     # Architecture:        x86_64
     __architecture_pattern = re.compile(r"^Architecture:\s+(.*)?\r$", re.M)
-    __architecture_dict = {
-        "x86_64": ARCH_X86_64,
-        "aarch64": ARCH_AARCH64,
-        "amd64": ARCH_X86_64,
-        "arm64": ARCH_AARCH64,
-    }
+
     # 0 0 0 0:0:0:0
     # 96 0 10 1:1:1:0
     _core_numa_mappings = re.compile(
@@ -108,6 +108,10 @@ class Lscpu(Tool):
         return WindowsLscpu
 
     @classmethod
+    def _vmware_esxi_tool(cls) -> Optional[Type[Tool]]:
+        return VMWareESXiLscpu
+
+    @classmethod
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDLscpu
 
@@ -126,7 +130,7 @@ class Lscpu(Tool):
             )
         return self._check_exists()
 
-    def get_architecture(self, force_run: bool = False) -> str:
+    def get_architecture(self, force_run: bool = False) -> CpuArchitecture:
         architecture: str = ""
         result = self.run(force_run=force_run)
         matched = self.__architecture_pattern.findall(result.stdout)
@@ -138,9 +142,9 @@ class Lscpu(Tool):
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__architecture_dict.keys()}.",
-        ).is_subset_of(self.__architecture_dict.keys())
-        return self.__architecture_dict[architecture]
+            f"{ArchitectureNames.keys()}.",
+        ).is_subset_of(ArchitectureNames.keys())
+        return ArchitectureNames[architecture]
 
     def get_core_count(self, force_run: bool = False) -> int:
         result = self.run(force_run=force_run)
@@ -286,6 +290,11 @@ class Lscpu(Tool):
         # for 0 indexing
         return max([int(cpu.numa_node) for cpu in self.get_cpu_info()]) + 1
 
+    def get_cpu_range_in_numa_node(self, numa_node_index: int = 0) -> Tuple[int, int]:
+        cpus = self.get_cpu_info()
+        cpu_indexes = [cpu.cpu for cpu in cpus if cpu.numa_node == numa_node_index]
+        return min(cpu_indexes), max(cpu_indexes)
+
     def is_virtualization_enabled(self) -> bool:
         result = self.run(sudo=True).stdout
         if ("VT-x" in result) or ("AMD-V" in result):
@@ -363,13 +372,6 @@ class WindowsLscpu(Lscpu):
 
 
 class BSDLscpu(Lscpu):
-    __architecture_dict = {
-        "x86_64": "x86_64",
-        "aarch64": "aarch64",
-        "amd64": "x86_64",
-        "arm64": "aarch64",
-    }
-
     # FreeBSD/SMP: 1 package(s) x 4 core(s) x 2 hardware threads
     __cpu_info = re.compile(r"FreeBSD/SMP: (?P<package_count>\d+) package\(s\) .*")
 
@@ -382,30 +384,37 @@ class BSDLscpu(Lscpu):
         core_count = int(output.stdout.strip())
         return core_count
 
-    def get_architecture(self, force_run: bool = False) -> str:
+    def get_architecture(self, force_run: bool = False) -> CpuArchitecture:
         architecture = self.run(
             "-n hw.machine_arch", force_run=force_run
         ).stdout.strip()
         assert_that(
             [architecture],
             f"architecture {architecture} must be one of "
-            f"{self.__architecture_dict.keys()}.",
-        ).is_subset_of(self.__architecture_dict.keys())
-        return self.__architecture_dict[architecture]
+            f"{ArchitectureNames.keys()}.",
+        ).is_subset_of(ArchitectureNames.keys())
+        return ArchitectureNames[architecture]
 
     def get_cluster_count(self, force_run: bool = False) -> int:
         output = self.run(
             "-a | grep -i 'package(s)'",
             force_run=force_run,
             shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="kern.smp.core_per_cluster is not set",
-        ).stdout.strip()
+        )
 
-        matched = find_groups_in_lines(output, self.__cpu_info)
-        assert matched[0], "core_per_cluster_count is not set"
-
-        return int(matched[0]["package_count"])
+        if output.exit_code == 0:
+            matched = find_groups_in_lines(output.stdout.strip(), self.__cpu_info)
+            assert matched[0], "core_per_cluster_count is not set"
+            return int(matched[0]["package_count"])
+        else:
+            results = self.run(
+                "-n kern.sched.topology_spec",
+                force_run=force_run,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="kern.sched.topology_spec isn't set",
+            ).stdout.strip()
+            topology_spec = etree.ElementTree.fromstring(results)
+            return len(topology_spec.findall(".//group"))
 
     def get_core_per_cluster_count(self, force_run: bool = False) -> int:
         output = self.run(
@@ -433,3 +442,40 @@ class BSDLscpu(Lscpu):
             * self.get_cluster_count()
             * self.get_thread_per_core_count()
         )
+
+
+class VMWareESXiLscpu(Lscpu):
+    #    CPU Threads: 208
+    __cpu_threads = re.compile(r"CPU Threads:[ ]+([\d]+)?", re.M)
+    #    CPU Packages: 2
+    __cpu_packages = re.compile(r"CPU Packages:[ ]+([\d]+)?", re.M)
+    #    CPU Cores: 104
+    __cpu_cores = re.compile(r"CPU Cores:[ ]+([\d]+)?", re.M)
+
+    @property
+    def command(self) -> str:
+        return "esxcli"
+
+    def get_core_count(self, force_run: bool = False) -> int:
+        result = self.run("hardware cpu global get", force_run)
+        matched = self.__cpu_threads.findall(result.stdout)
+        assert_that(
+            len(matched),
+            f"cpu thread should have exact one line, but got {matched}",
+        ).is_equal_to(1)
+        self._core_count = int(matched[0])
+        return self._core_count
+
+    def calculate_vcpu_count(self, force_run: bool = False) -> int:
+        result = self.run("hardware cpu global get", force_run)
+        matched_cpu_packages = self.__cpu_packages.findall(result.stdout)
+        assert_that(
+            len(matched_cpu_packages),
+            f"cpu packages should have exact one line, but got {matched_cpu_packages}",
+        ).is_equal_to(1)
+        matched_cpu_cores = self.__cpu_cores.findall(result.stdout)
+        assert_that(
+            len(matched_cpu_cores),
+            f"cpu cores should have exact one line, but got {matched_cpu_cores}",
+        ).is_equal_to(1)
+        return int(matched_cpu_packages[0]) * int(matched_cpu_cores[0])

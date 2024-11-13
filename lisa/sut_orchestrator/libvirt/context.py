@@ -1,13 +1,15 @@
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt  # type: ignore
 
 from lisa.environment import Environment
 from lisa.node import Node
+from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 
 from .console_logger import QemuConsoleLogger
-from .schema import DiskImageFormat
+from .schema import DeviceAddressSchema, DiskImageFormat
 
 
 @dataclass
@@ -34,10 +36,26 @@ class InitSystem:
 
 
 @dataclass
+class DevicePassthroughContext:
+    pool_type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
+    device_list: List[DeviceAddressSchema] = field(
+        default_factory=list,
+    )
+    managed: str = ""
+
+
+@dataclass
+class GuestVmType(Enum):
+    Standard = "Standard"
+    ConfidentialVM = "ConfidentialVM"
+
+
+@dataclass
 class NodeContext:
     vm_name: str = ""
-    firmware_source_path: str = ""
-    firmware_path: str = ""
+    kernel_source_path: str = ""
+    kernel_path: str = ""
+    guest_vm_type: GuestVmType = GuestVmType.Standard
     cloud_init_file_path: str = ""
     ignition_file_path: str = ""
     os_disk_source_file_path: Optional[str] = None
@@ -56,6 +74,11 @@ class NodeContext:
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None
+
+    # Device pass through configuration
+    passthrough_devices: List[DevicePassthroughContext] = field(
+        default_factory=list,
+    )
 
 
 def get_environment_context(environment: Environment) -> EnvironmentContext:

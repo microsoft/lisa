@@ -57,7 +57,7 @@ class XdpDump(Tool):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
             else:
-                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-15"
+                toolchain = f"llvm-toolchain-{self.node.os.information.codename}-18"
 
             self.node.os.add_repository(
                 repo=(
@@ -88,6 +88,18 @@ class XdpDump(Tool):
             "xdpdump cloned path is inconsistent with pre-configured"
         ).is_equal_to(self._code_path.parent)
         git.init_submodules(cwd=self._code_path)
+
+        # This workaround addresses a discrepancy in the bpf_perf_event_read_simple
+        # function declaration and definition detected by the latest version of
+        # the clang C compiler. Specifically, the return value is incorrectly specified
+        # as an int in the .h file but as an enum in the C file.
+        sed = self.node.tools[Sed]
+        sed.substitute(
+            "LIBBPF_API int bpf_perf_event_read_simple",
+            "LIBBPF_API enum bpf_perf_event_ret bpf_perf_event_read_simple",
+            f"{self._code_path.parent}/libbpf/src/libbpf.h",
+            sudo=True,
+        )
 
         # create a default version for exists checking.
         make = self.node.tools[Make]

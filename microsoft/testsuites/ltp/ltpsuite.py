@@ -35,6 +35,13 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp lite tests.
+        1. When ltp_source_file (downloaded ltp code) is specified in .yml,
+        case will use it to extract the tar and run ltp, instead of downloading runtime.
+        Example:
+        - name: ltp_source_file
+          value: <path_to_ltp.tar.xz>
+          is_case_visible: true
+        2. When ltp_source_file not in .yml, clone github with ltp_tests_git_tag
         """,
         priority=3,
         timeout=_TIME_OUT,
@@ -55,6 +62,7 @@ class LtpTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         # parse variables
+        ltp_source_file = variables.get("ltp_source_file", "")
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
         ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
@@ -85,7 +93,9 @@ class LtpTestsuite(TestSuite):
                 )
 
         # run ltp lite tests
-        ltp: Ltp = node.tools.get(Ltp, git_tag=ltp_tests_git_tag)
+        ltp: Ltp = node.tools.get(
+            Ltp, git_tag=ltp_tests_git_tag, source_file=ltp_source_file
+        )
         ltp.run_test(
             result,
             test_list,

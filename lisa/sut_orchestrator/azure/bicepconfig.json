@@ -1,0 +1,14 @@
+{
+  "analyzers": {
+    "core": {
+      "rules": {
+        "no-unused-params": {
+          "level": "error"
+        }
+      }
+    }
+  },
+  "experimentalFeaturesEnabled": {
+    "userDefinedFunctions": true
+  }
+}

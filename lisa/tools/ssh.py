@@ -26,14 +26,14 @@ class Ssh(Tool):
             if self.node.shell.exists(file_path):
                 self.node.shell.remove(file_path)
         self.node.execute(
-            "echo | ssh-keygen -N ''",
+            "echo | ssh-keygen -t rsa -N ''",
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="error on generate key files.",
         )
         cat = self.node.tools[Cat]
         public_key = cat.read(
-            str(self.node.get_pure_path("~/.ssh/id_rsa.pub")),
+            str(self.node.get_pure_path("$HOME/.ssh/id_rsa.pub")),
             force_run=True,
         )
         return public_key
@@ -41,7 +41,7 @@ class Ssh(Tool):
     def enable_public_key(self, public_key: str) -> None:
         self.node.tools[Echo].write_to_file(
             public_key,
-            self.node.get_pure_path("~/.ssh/authorized_keys"),
+            self.node.get_pure_path("$HOME/.ssh/authorized_keys"),
             append=True,
         )
 

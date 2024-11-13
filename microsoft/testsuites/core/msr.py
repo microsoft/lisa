@@ -12,10 +12,16 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CBLMariner, Debian, Fedora, Linux, Suse
+from lisa.operating_system import (
+    CBLMariner,
+    CpuArchitecture,
+    Debian,
+    Fedora,
+    Linux,
+    Suse,
+)
 from lisa.sut_orchestrator import AZURE
 from lisa.tools import Lscpu, Modprobe
-from lisa.tools.lscpu import ARCH_AARCH64, ARCH_X86_64
 from lisa.util import MissingPackagesException
 
 # See docs for hypercall spec, sharing os info
@@ -44,8 +50,8 @@ class HvOsPlatformInfo:
     # HV_REGISTER_GUEST_OSID constant declared in linus kernel source:
     # arch/{ARCH_NAME}/include/asm/hyperv-tlfs.h
     HV_REGISTER_GUEST_OSID = {
-        ARCH_AARCH64: "0x00090002",
-        ARCH_X86_64: "0x40000000",
+        CpuArchitecture.ARM64: "0x00090002",
+        CpuArchitecture.X64: "0x40000000",
     }
     OS_ID_UNDEFINED = 0
     OS_ID_MSDOS = 1

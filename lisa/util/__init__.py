@@ -4,6 +4,7 @@ import random
 import re
 import string
 import sys
+from copy import deepcopy
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -81,6 +82,26 @@ _NAME_LISA = "lisa"
 plugin_manager = pluggy.PluginManager(_NAME_LISA)
 hookspec = pluggy.HookspecMarker(_NAME_LISA)
 hookimpl = pluggy.HookimplMarker(_NAME_LISA)
+
+
+PANIC_PATTERNS: List[Pattern[str]] = [
+    re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
+    re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
+    re.compile(r"^(.*grub>.*)$", re.MULTILINE),
+    re.compile(r"^The operating system has halted.$", re.MULTILINE),
+    # Synchronous Exception at 0x000000003FD04000
+    re.compile(r"^(.*Synchronous Exception at.*)$", re.MULTILINE),
+]
+
+# ignore some return lines, which shouldn't be a panic line.
+PANIC_IGNORABLE_PATTERNS: List[Pattern[str]] = [
+    re.compile(r"^(.*ipt_CLUSTERIP: ClusterIP.*loaded successfully.*)$", re.MULTILINE),
+    # This is a known issue with Hyper-V when running on AMD processors.
+    # The problem occurs in VM sizes that have 16 or more vCPUs which means 2 or
+    # more NUMA nodes on AMD processors.
+    # The call trace is annoying but does not affect correct operation of the VM.
+    re.compile(r"(.*RIP: 0010:topology_sane.isra.*)$", re.MULTILINE),
+]
 
 
 class LisaException(Exception):
@@ -181,6 +202,21 @@ class UnsupportedKernelException(LisaException):
         message = (
             f"Unsupported kernel version: '{self.kernel_version}' on '{self.version}'"
         )
+        if self._extended_message:
+            message = f"{message}. {self._extended_message}"
+        return message
+
+
+class NotEnoughMemoryException(LisaException):
+    """
+    This exception is used to indicate that that the system does not have enough memory.
+    """
+
+    def __init__(self, message: str = "") -> None:
+        self._extended_message = message
+
+    def __str__(self) -> str:
+        message = "Not enough memory"
         if self._extended_message:
             message = f"{message}. {self._extended_message}"
         return message
@@ -479,7 +515,9 @@ def set_filtered_fields(src: Any, dest: Any, fields: List[str]) -> None:
         else:
             raise LisaException(f"field '{field_name}' doesn't exist on src")
         if field_value is not None:
-            setattr(dest, field_name, field_value)
+            # deep copy, to avoid reference issue.
+            copied_value = deepcopy(field_value)
+            setattr(dest, field_name, copied_value)
 
 
 def find_patterns_in_lines(lines: str, patterns: List[Pattern[str]]) -> List[List[Any]]:
@@ -835,3 +873,22 @@ def get_first_combination(
         results.pop()
 
     return False
+
+
+def check_panic(content: str, stage: str, log: "Logger") -> None:
+    log.debug("checking panic...")
+    ignored_candidates = [
+        x
+        for sublist in find_patterns_in_lines(str(content), PANIC_IGNORABLE_PATTERNS)
+        for x in sublist
+        if x
+    ]
+    panics = [
+        x
+        for sublist in find_patterns_in_lines(str(content), PANIC_PATTERNS)
+        for x in sublist
+        if x and x not in ignored_candidates
+    ]
+
+    if panics:
+        raise KernelPanicException(stage, panics)

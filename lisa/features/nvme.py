@@ -10,30 +10,37 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema, search_space
 from lisa.feature import Feature
+from lisa.features import Disk
 from lisa.operating_system import BSD
 from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
-from lisa.util import field_metadata
+from lisa.util import field_metadata, get_matched_str
 
 
 class Nvme(Feature):
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
-    _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]$)", re.MULTILINE)
+    # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme10
+    _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]+$)", re.MULTILINE)
     # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n1
-    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme0n64
+    # brw-rw---- 1 root disk 259, 0 Jun 21 03:08 /dev/nvme11n1
     _namespace_pattern = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]n[0-9]+$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]+n[0-9]+$)", re.MULTILINE
     )
-    # '/dev/nvme0n1          351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
+    # '/dev/nvme0n1         351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
+    # '/dev/nvme11n1        351f1f720e5a00000001 Microsoft NVMe Direct Disk               1           0.00   B /   1.92  TB    512   B +  0 B   NVMDV001' # noqa: E501
     _namespace_cli_pattern = re.compile(
-        r"(?P<namespace>/dev/nvme[0-9]n[0-9])", re.MULTILINE
+        r"(?P<namespace>/dev/nvme[0-9]+n[0-9])", re.MULTILINE
     )
 
     # crw-------  1 root  wheel  0x4e Jul 27 21:16 /dev/nvme0ns1
+    # crw-------  1 root  wheel  0x4e Jul 27 21:16 /dev/nvme12ns1
     _namespace_pattern_bsd = re.compile(
-        r".*(?P<namespace>/dev/nvme[0-9]ns[0-9]+$)", re.MULTILINE
+        r".*(?P<namespace>/dev/nvme[0-9]+ns[0-9]+$)", re.MULTILINE
     )
+
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
 
     _pci_device_name = "Non-Volatile memory controller"
     _ls_devices: str = ""
@@ -73,6 +80,19 @@ class Nvme(Feature):
     def get_namespaces_from_cli(self) -> List[str]:
         return self._node.tools[Nvmecli].get_namespaces()
 
+    def get_os_disk_nvme_namespace(self) -> str:
+        node_disk = self._node.features[Disk]
+        os_partition_namespace = ""
+        os_boot_partition = node_disk.get_os_boot_partition()
+        # Sample os_boot_partition when disc controller type is NVMe:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        if os_boot_partition:
+            os_partition_namespace = get_matched_str(
+                os_boot_partition.name,
+                self.NVME_NAMESPACE_PATTERN,
+            )
+        return os_partition_namespace
+
     def get_devices_from_lspci(self) -> List[PciDevice]:
         devices_from_lspci = []
         lspci_tool = self._node.tools[Lspci]
@@ -84,6 +104,21 @@ class Nvme(Feature):
 
     def get_raw_data_disks(self) -> List[str]:
         return self.get_namespaces()
+
+    def get_raw_nvme_disks(self) -> List[str]:
+        # This routine returns Local NVMe devices as a list.
+        nvme_namespaces = self.get_namespaces()
+
+        # With disk controller type NVMe, OS disk appears as NVMe.
+        # It should be removed from the list of disks for NVMe tests as it is
+        # not an actual NVMe device.
+        # disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
+            # Removing OS disk from the list.
+            nvme_namespaces.remove(os_disk_nvme_namespace)
+        return nvme_namespaces
 
     def _get_device_from_ls(self, force_run: bool = False) -> None:
         if (not self._ls_devices) or force_run:

@@ -312,8 +312,10 @@ class CVTTest(TestSuite):
         description="""
         this test validate the functionality of ASR driver by verifying
         integrity of a source disk with respect to a target disk
+
+        Downgrade the case priority from 3 to 5 for its instability.
         """,
-        priority=3,
+        priority=5,
         timeout=TIMEOUT,
         requirement=simple_requirement(
             supported_features=[AzureExtension],

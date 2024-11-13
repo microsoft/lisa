@@ -335,7 +335,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_exists_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[platform_.AzureCapability]:
+    ) -> Optional[common.AzureCapability]:
         matched_vm_size = ""
         location_info = self._platform.get_location_info(location, self._log)
         self.assertEqual(
@@ -350,7 +350,7 @@ class AzurePrepareTestCase(TestCase):
 
     def verify_eligible_vm_size(
         self, location: str, vm_size: str, expect_exists: bool
-    ) -> Optional[platform_.AzureCapability]:
+    ) -> Optional[common.AzureCapability]:
         result = None
 
         location_info = self._platform.get_location_info(location, self._log)
@@ -368,6 +368,7 @@ class AzurePrepareTestCase(TestCase):
     def load_environment(
         self,
         node_req_count: int = 2,
+        retry: int = 0,
     ) -> Environment:
         runbook = schema.Environment()
         if node_req_count > 0:
@@ -377,7 +378,11 @@ class AzurePrepareTestCase(TestCase):
                 _ = node_req.get_extended_runbook(common.AzureNodeSchema, AZURE)
                 runbook._original_nodes_requirement.append(node_req)
         environment = Environment(
-            is_predefined=True, warn_as_error=False, id_=0, runbook=runbook
+            is_predefined=True,
+            warn_as_error=False,
+            id_=0,
+            runbook=runbook,
+            retry=retry,
         )
 
         return environment

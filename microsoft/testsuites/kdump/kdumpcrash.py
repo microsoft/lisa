@@ -20,10 +20,12 @@ from lisa import (
     node_requirement,
     schema,
     search_space,
+    simple_requirement,
 )
 from lisa.features import Disk, SerialConsole
+from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Redhat, Windows
-from lisa.tools import Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.tools import Df, Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
 from lisa.tools.free import Free
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
@@ -89,6 +91,7 @@ class KdumpCrash(TestSuite):
             node=schema.NodeSpace(
                 core_count=1, memory_mb=search_space.IntRange(min=2048)
             ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_single_core(
@@ -106,7 +109,8 @@ class KdumpCrash(TestSuite):
         requirement=node_requirement(
             node=schema.NodeSpace(
                 core_count=search_space.IntRange(min=2, max=8),
-            )
+            ),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_smp(self, node: Node, log_path: Path, log: Logger) -> None:
@@ -119,6 +123,9 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=1,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_kdumpcrash_on_random_cpu(
         self, node: Node, log_path: Path, log: Logger
@@ -136,7 +143,8 @@ class KdumpCrash(TestSuite):
         """,
         priority=2,
         requirement=node_requirement(
-            node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192))
+            node=schema.NodeSpace(core_count=search_space.IntRange(min=33, max=192)),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu32(
@@ -152,7 +160,8 @@ class KdumpCrash(TestSuite):
         """,
         priority=2,
         requirement=node_requirement(
-            node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415))
+            node=schema.NodeSpace(core_count=search_space.IntRange(min=193, max=415)),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu192(
@@ -168,7 +177,8 @@ class KdumpCrash(TestSuite):
         """,
         priority=4,
         requirement=node_requirement(
-            node=schema.NodeSpace(core_count=search_space.IntRange(min=416))
+            node=schema.NodeSpace(core_count=search_space.IntRange(min=416)),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_on_cpu415(
@@ -182,6 +192,9 @@ class KdumpCrash(TestSuite):
         The test steps are same as `kdumpcrash_validate_single_core`.
         """,
         priority=3,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_kdumpcrash_auto_size(
         self, node: Node, log_path: Path, log: Logger
@@ -201,6 +214,7 @@ class KdumpCrash(TestSuite):
         priority=3,
         requirement=node_requirement(
             node=schema.NodeSpace(memory_mb=search_space.IntRange(min=2097152)),
+            supported_features=[CvmDisabled()],
         ),
     )
     def verify_kdumpcrash_large_memory_auto_size(
@@ -254,6 +268,17 @@ class KdumpCrash(TestSuite):
         dump_path = mount_point + "/crash"
         return dump_path
 
+    def _is_system_with_more_memory(self, node: Node) -> bool:
+        free = node.tools[Free]
+        total_memory_in_gb = free.get_total_memory_gb()
+
+        df = node.tools[Df]
+        available_space_in_os_disk = df.get_filesystem_available_space("/", True)
+
+        if total_memory_in_gb > available_space_in_os_disk:
+            return True
+        return False
+
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
         try:
             self._check_supported(node)
@@ -267,14 +292,14 @@ class KdumpCrash(TestSuite):
         if self.is_auto:
             self.crash_kernel = "auto"
 
-        if "T" in total_memory and float(total_memory.strip("T")) > 1:
-            # System memory is more than 1T, need to change the dump path
-            # and increase the timeout duration
+        if self._is_system_with_more_memory(node):
+            # As system memory is more than free os disk size, need to
+            # change the dump path and increase the timeout duration
             kdump.config_resource_disk_dump_path(
                 self._get_resource_disk_dump_path(node)
             )
             self.timeout_of_dump_crash = 1200
-            if float(total_memory.strip("T")) > 6:
+            if "T" in total_memory and float(total_memory.strip("T")) > 6:
                 self.timeout_of_dump_crash = 2000
 
         kdump.config_crashkernel_memory(self.crash_kernel)
@@ -296,14 +321,15 @@ class KdumpCrash(TestSuite):
         echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
         node.execute("sync", shell=True, sudo=True)
 
+        kdump.capture_info()
+
         try:
             # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
             # We set a timeout time 10.
-            node.execute(
+            node.execute_async(
                 self.trigger_kdump_cmd,
                 shell=True,
                 sudo=True,
-                timeout=10,
             )
         except Exception as identifier:
             log.debug(f"ignorable ssh exception: {identifier}")

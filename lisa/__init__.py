@@ -16,6 +16,7 @@ from lisa.testsuite import (
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
+    NotEnoughMemoryException,
     PassedException,
     ResourceAwaitableException,
     SkippedException,
@@ -38,6 +39,7 @@ __all__ = [
     "LisaException",
     "Logger",
     "Node",
+    "NotEnoughMemoryException",
     "PassedException",
     "RemoteNode",
     "ResourceAwaitableException",

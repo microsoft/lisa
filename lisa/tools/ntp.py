@@ -6,7 +6,7 @@ from typing import cast
 from retry import retry
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import BSD, CBLMariner, Debian, Posix, Redhat, Suse
 from lisa.tools import Echo, Service
 from lisa.util import LisaException
 
@@ -62,6 +62,7 @@ class Ntp(Tool):
                 and self.node.os.information.version >= "12.0.0"
             )
             or isinstance(self.node.os, CBLMariner)
+            or isinstance(self.node.os, BSD)
         ):
             service_name = "ntpd"
         else:

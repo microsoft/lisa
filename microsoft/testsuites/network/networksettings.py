@@ -3,7 +3,6 @@
 
 import re
 import time
-from pathlib import PurePosixPath
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
@@ -24,7 +23,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
-from lisa.tools import Ethtool, Iperf3, KernelConfig, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Ls, Modinfo, Nm
 from lisa.util import parse_version
 from microsoft.testsuites.network.common import cleanup_iperf3
 
@@ -91,6 +90,9 @@ class NetworkSettings(TestSuite):
 
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_ringbuffer_settings_change(self, node: Node) -> None:
         ethtool = node.tools[Ethtool]
@@ -177,6 +179,8 @@ class NetworkSettings(TestSuite):
 
         """,
         priority=1,
+        # BSD unsupported due to channels being read only at runtime
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_channels_change(self, node: Node, log: Logger) -> None:
         kernel_ver = node.tools[Uname].get_linux_information().kernel_version
@@ -357,20 +361,18 @@ class NetworkSettings(TestSuite):
             5. Revert back the settings to original values.
         """,
         priority=2,
+        # BSD unsupported since hash is read only at run time.
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_rss_hash_key_change(self, node: Node, log: Logger) -> None:
         uname = node.tools[Uname]
         linux_info = uname.get_linux_information()
 
+        min_supported_kernel = linux_info.kernel_version
         if isinstance(node.os, Debian) or isinstance(node.os, Redhat):
-            min_supported_kernel = "5.0.0"
+            min_supported_kernel = parse_version("5.0.0")
         elif isinstance(node.os, Suse):
-            min_supported_kernel = "4.12.14"
-        else:
-            # For other OS, it is not known which minimum kernel version
-            # supports RSS Hash key change. This can be found and later
-            # enhanced after running tests.
-            min_supported_kernel = str(linux_info.kernel_version)
+            min_supported_kernel = parse_version("4.12.14")
 
         if linux_info.kernel_version < min_supported_kernel:
             raise SkippedException(
@@ -477,8 +479,14 @@ class NetworkSettings(TestSuite):
                 and name.
             3. Validate changing the message level flag setting.
             4. Revert back the setting to original value.
+
+            Note: BSD does not support the feature tested here and
+            lacks the hv_netvsc module used to support it.
         """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[BSD, Windows],
+        ),
     )
     def verify_device_msg_level_change(self, node: Node, log: Logger) -> None:
         # Check if feature is supported by the kernel
@@ -718,10 +726,10 @@ class NetworkSettings(TestSuite):
                     cwd=node.working_path,
                 ).stdout
 
-            assert node.shell.exists(
-                PurePosixPath(netvsc_module)
+            ls = node.tools[Ls]
+            assert ls.path_exists(
+                netvsc_module, sudo=True
             ), f"{netvsc_module} doesn't exist."
-
             nm = node.tools[Nm]
             msg_level_symbols = nm.get_symbol_table(netvsc_module)
         else:

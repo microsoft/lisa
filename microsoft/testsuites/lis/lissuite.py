@@ -8,9 +8,8 @@ from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CentOs, Redhat
-from lisa.sut_orchestrator.azure.tools import LisDriver
 from lisa.testsuite import simple_requirement
-from lisa.tools import Cat, Df, Fallocate, Modinfo, Rpm, Stat, Uname, Wget
+from lisa.tools import Cat, Df, Fallocate, LisDriver, Modinfo, Rpm, Stat, Uname, Wget
 from lisa.util import (
     LisaException,
     SkippedException,

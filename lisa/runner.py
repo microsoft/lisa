@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Type
 from lisa import messages, notifier, schema, transformer
 from lisa.action import Action
 from lisa.combinator import Combinator
+from lisa.environment import Environment
 from lisa.messages import TestResultMessage, TestResultMessageBase, TestStatus
 from lisa.notifier import register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
@@ -189,6 +190,20 @@ class BaseRunner(BaseClassMixin, InitializableMixin):
         _wait_resource_timer.reset()
         self._wait_resource_logged = False
         self._wait_resource_timers[name] = _wait_resource_timer
+
+    def _need_retry(self, environment: Environment) -> bool:
+        if environment.tried_times >= environment.retry:
+            if environment.retry > 0:
+                self._log.info(
+                    f"Tried {environment.tried_times + 1} times, but failed again."
+                )
+            return False
+
+        environment.tried_times += 1
+        self._log.info(
+            f"Retrying... (Attempt {environment.tried_times}/{environment.retry})"
+        )
+        return True
 
 
 class RootRunner(Action):

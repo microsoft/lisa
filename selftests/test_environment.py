@@ -198,6 +198,7 @@ class EnvironmentTestCase(TestCase):
         envs = load_environments(None)
         self.assertEqual(0, len(envs))
         self.assertEqual(False, envs.warn_as_error)
+        self.assertEqual(0, envs.retry)
 
     def test_create_from_runbook_split(self) -> None:
         runbook = generate_runbook(local=True, remote=True)

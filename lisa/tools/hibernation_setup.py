@@ -5,13 +5,13 @@ from __future__ import annotations
 import re
 from typing import List, Pattern, Type
 
-from lisa.base_tools import Systemctl
+from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
-from lisa.util import find_patterns_in_lines
+from lisa.util import find_patterns_in_lines, get_matched_str
 
-from .dmesg import Dmesg
 from .git import Git
+from .ls import Ls
 from .make import Make
 
 
@@ -27,6 +27,22 @@ class HibernationSetup(Tool):
     )
     # [  159.898806] hv_utils: Sent hibernation uevent
     _uevent_pattern = re.compile(r"^(.*Sent hibernation uevent.*)$", re.MULTILINE)
+
+    """
+    The below shows an example output of `filefrag -v /hibfile.sys`
+    We are interested in the physical offset of the hibfile.
+
+    Filesystem type is: ef53
+    File size of /hibfile is 1048576 (256 blocks of 4096 bytes)
+    ext:     logical_offset:        physical_offset: length:   expected: flags:
+    0:        0..      255:    123456..   123711:    256:             last,unwritten,eof
+    /hibfile: 1 extent found
+    """
+    _hibsys_resume_offset_pattern = re.compile(
+        r"^\s*\d+:\s+\d+\.\.\s+\d+:\s+(\d+)\.\.", re.MULTILINE
+    )
+
+    _cmdline_resume_offset_pattern = re.compile(r"resume_offset=(\d+)")
 
     @property
     def command(self) -> str:
@@ -62,6 +78,18 @@ class HibernationSetup(Tool):
     def hibernate(self) -> None:
         self.node.tools[Systemctl].hibernate()
 
+    def get_hibernate_resume_offset_from_hibfile(self) -> str:
+        filefrag_hibfile = self.node.execute(
+            "filefrag -v /hibfile.sys", sudo=True
+        ).stdout
+        offset = get_matched_str(filefrag_hibfile, self._hibsys_resume_offset_pattern)
+        return offset
+
+    def get_hibernate_resume_offset_from_cmd(self) -> str:
+        cmdline = self.node.tools[Cat].read("/proc/cmdline")
+        offset = get_matched_str(cmdline, self._cmdline_resume_offset_pattern)
+        return offset
+
     def _install(self) -> bool:
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
@@ -74,9 +102,14 @@ class HibernationSetup(Tool):
         return self._check_exists()
 
     def _check(self, pattern: Pattern[str]) -> int:
-        dmesg = self.node.tools[Dmesg]
-        dmesg_output = dmesg.get_output(force_run=True)
-        matched_lines = find_patterns_in_lines(dmesg_output, [pattern])
+        cat = self.node.tools[Cat]
+        log_output = ""
+        ls = self.node.tools[Ls]
+        if ls.path_exists("/var/log/syslog", sudo=True):
+            log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
+        if ls.path_exists("/var/log/messages", sudo=True):
+            log_output = cat.read("/var/log/messages", force_run=True, sudo=True)
+        matched_lines = find_patterns_in_lines(log_output, [pattern])
         if not matched_lines:
             return 0
         return len(matched_lines[0])

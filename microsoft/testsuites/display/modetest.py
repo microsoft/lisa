@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from lisa.executable import Tool
-from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.operating_system import CpuArchitecture, Oracle, Redhat, Suse, Ubuntu
 from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
 from lisa.util import UnsupportedDistroException
@@ -38,18 +38,36 @@ class Modetest(Tool):
     def _install_dep_packages(self) -> None:
         if isinstance(self.node.os, Redhat):
             arch = self.node.os.get_kernel_information().hardware_platform
+            libpciaccess = f"libpciaccess-devel.{arch}"
+            if arch == CpuArchitecture.ARM64:
+                # skip libpciaccess-devel installation for aarch64
+                libpciaccess = ""
             self.node.os.install_packages(
                 (
                     "make",
                     "autoconf",
                     "automake",
-                    f"libpciaccess-devel.{arch}",
+                    libpciaccess,
                     "libtool",
                     f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/xorg-x11-util-macros-1.19.3-4.el9.noarch.rpm",  # noqa: E501
-                    f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/ninja-build-1.10.2-6.el9.{arch}.rpm",  # noqa: E501
-                    f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
                 )
             )
+            if isinstance(self.node.os, Oracle):
+                major = self.node.os.information.version.major
+                self.node.os.install_packages(
+                    (
+                        "ninja-build",
+                        "meson",
+                    ),
+                    extra_args=[f"--enablerepo=ol{major}_codeready_builder"],
+                )
+            else:
+                self.node.os.install_packages(
+                    (
+                        f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/ninja-build-1.10.2-6.el9.{arch}.rpm",  # noqa: E501
+                        f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
+                    )
+                )
         elif isinstance(self.node.os, Suse):
             arch = self.node.os.get_kernel_information().hardware_platform
             os_version = self.node.os.information.release.split(".")

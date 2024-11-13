@@ -1,20 +1,37 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from decimal import Decimal
 from typing import cast
 
 from assertpy import assert_that
 
-from lisa import Environment, Logger, RemoteNode, features
+from lisa import Environment, Logger, Node, RemoteNode, features
+from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
+from lisa.features.startstop import VMStatus
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Fio, HibernationSetup, Iperf3, KernelConfig, Kill, Lscpu
-from lisa.util import LisaException, SkippedException, constants
+from lisa.tools import (
+    Dmesg,
+    Fio,
+    HibernationSetup,
+    Iperf3,
+    KernelConfig,
+    Kill,
+    Lscpu,
+    Mount,
+)
+from lisa.tools.uptime import Uptime
+from lisa.util import (
+    LisaException,
+    SkippedException,
+    UnsupportedDistroException,
+    find_group_in_lines,
+)
 from lisa.util.perf_timer import create_timer
-from lisa.util.shell import wait_tcp_port_ready
 
 
-def is_distro_supported(node: RemoteNode) -> None:
+def is_distro_supported(node: Node) -> None:
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -32,69 +49,106 @@ def is_distro_supported(node: RemoteNode) -> None:
         )
 
 
-def verify_hibernation(node: RemoteNode, log: Logger) -> None:
+def verify_hibernation(
+    node: Node, log: Logger, throw_error: bool = True, verify_using_logs: bool = True
+) -> None:
+    if isinstance(node.os, Redhat):
+        # Hibernation tests are run with higher os disk size.
+        # In case of LVM enabled Redhat images, increasing the os disk size
+        # does not increase the root partition. It requires growpart to grow the
+        # partition size.
+        _expand_os_partition(node, log)
+    hibernation_setup_tool = node.tools[HibernationSetup]
+    startstop = node.features[StartStop]
+    cat = node.tools[Cat]
+
     node_nic = node.nics
     lower_nics_before_hibernation = node_nic.get_lower_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
-    hibernation_setup_tool = node.tools[HibernationSetup]
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
     received_before_hibernation = hibernation_setup_tool.check_received()
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
-    startstop = node.features[StartStop]
+
+    # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
-    startstop.stop(state=features.StopState.Hibernate)
+    uptime = node.tools[Uptime]
+
+    uptime_before_hibernation = uptime.since_time()
+    hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
+
+    try:
+        startstop.stop(state=features.StopState.Hibernate)
+    except Exception as ex:
+        try:
+            node.tools[Dmesg].get_output(force_run=True)
+        except Exception as e:
+            log.debug(f"error on get dmesg output: {e}")
+        raise LisaException(f"fail to hibernate: {ex}")
+
     is_ready = True
     timeout = 900
     timer = create_timer()
     while timeout > timer.elapsed(False):
-        is_ready, _ = wait_tcp_port_ready(
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-            log=log,
-            timeout=10,
-        )
-        if not is_ready:
+        if startstop.get_status() == VMStatus.Deallocated:
+            is_ready = False
             break
     if is_ready:
-        raise LisaException("VM still can be accessed after hibernation")
+        raise LisaException("VM is not in deallocated status after hibernation")
+
     startstop.start()
+
+    dmesg = node.tools[Dmesg]
+    dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
+
+    offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
+    uptime_after_hibernation = uptime.since_time()
+    offset_from_sys_power = cat.read("/sys/power/resume_offset")
+
+    log.info(
+        "Uptime before Hibernation: "
+        f"{uptime_before_hibernation}, Uptime after Hibernation: "
+        f"{uptime_after_hibernation}"
+    )
+    log.info(
+        f"Hibfile resume offset: {hibfile_offset}, "
+        f"Resume offset from cmdline: {offset_from_cmd}"
+    )
+
+    log.info(f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}")
+
     entry_after_hibernation = hibernation_setup_tool.check_entry()
     exit_after_hibernation = hibernation_setup_tool.check_exit()
     received_after_hibernation = hibernation_setup_tool.check_received()
     uevent_after_hibernation = hibernation_setup_tool.check_uevent()
-    assert_that(
-        entry_after_hibernation - entry_before_hibernation,
-        "not find 'hibernation entry'.",
-    ).is_equal_to(1)
-    assert_that(
-        exit_after_hibernation - exit_before_hibernation,
-        "not find 'hibernation exit'.",
-    ).is_equal_to(1)
-    assert_that(
-        received_after_hibernation - received_before_hibernation,
-        "not find 'Hibernation request received'.",
-    ).is_equal_to(1)
-    assert_that(
-        uevent_after_hibernation - uevent_before_hibernation,
-        "not find 'Sent hibernation uevent'.",
-    ).is_equal_to(1)
+    if verify_using_logs:
+        assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
+            "not find 'hibernation entry'."
+        ).is_equal_to(1)
+        assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+            "not find 'hibernation exit'."
+        ).is_equal_to(1)
+        assert_that(
+            received_after_hibernation - received_before_hibernation
+        ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
+        assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
+            "not find 'Sent hibernation uevent'."
+        ).is_equal_to(1)
 
     node_nic = node.nics
     node_nic.initialize()
     lower_nics_after_hibernation = node_nic.get_lower_nics()
     upper_nics_after_hibernation = node_nic.get_nic_names()
-    assert_that(
-        len(lower_nics_after_hibernation),
-        "sriov nics count changes after hibernation.",
+
+    assert_that(len(lower_nics_after_hibernation)).described_as(
+        "sriov nics count changes after hibernation."
     ).is_equal_to(len(lower_nics_before_hibernation))
-    assert_that(
-        len(upper_nics_after_hibernation),
-        "synthetic nics count changes after hibernation.",
+    assert_that(len(upper_nics_after_hibernation)).described_as(
+        "synthetic nics count changes after hibernation."
     ).is_equal_to(len(upper_nics_before_hibernation))
 
 
-def run_storage_workload(node: RemoteNode) -> Decimal:
+def run_storage_workload(node: Node) -> Decimal:
     fio = node.tools[Fio]
     fiodata = node.get_pure_path("./fiodata")
     core_count = node.tools[Lscpu].get_core_count()
@@ -135,9 +189,44 @@ def run_network_workload(environment: Environment) -> Decimal:
 def cleanup_env(environment: Environment) -> None:
     remote_node = cast(RemoteNode, environment.nodes[0])
     startstop = remote_node.features[StartStop]
-    startstop.start()
+    if startstop.get_status() == VMStatus.Deallocated:
+        startstop.start()
     for node in environment.nodes.list():
         kill = node.tools[Kill]
         kill.by_name("iperf3")
         kill.by_name("fio")
         kill.by_name("stress-ng")
+
+
+def _expand_os_partition(node: Node, log: Logger) -> None:
+    if isinstance(node.os, Redhat):
+        pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
+        # The output of pvscan -s is like below.:
+        #  /dev/sda4
+        #  Total: 1 [299.31 GiB] / in use: 1 [299.31 GiB] / in no VG: 0 [0   ]
+        pattern = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)$", re.M)
+        matched = find_group_in_lines(pv_result, pattern)
+        if not matched:
+            log.debug("No physical volume found. Does not require partition resize.")
+            return
+        disk = matched.get("disk")
+        number = matched.get("number")
+        node.execute(f"growpart {disk} {number}", sudo=True)
+        node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
+        root_partition = node.tools[Mount].get_partition_info("/")[0]
+        device_name = root_partition.name
+        device_type = root_partition.type
+        cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
+        if cmd_result.exit_code == 0:
+            node.execute(f"lvextend -l 100%FREE {device_name}", sudo=True, shell=True)
+            if device_type == "xfs":
+                node.execute(f"xfs_growfs {device_name}", sudo=True)
+            elif device_type == "ext4":
+                node.execute(f"resize2fs {device_name}", sudo=True)
+            else:
+                raise LisaException(f"Unknown partition type: {device_type}")
+        else:
+            log.debug("No LV found. Does not require LV resize.")
+            return
+    else:
+        raise UnsupportedDistroException(node.os, "OS Partition Resize not supported")

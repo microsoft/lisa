@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
+import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
@@ -24,9 +24,11 @@ from lisa.tools import (
     Make,
     Mkdir,
     Pgrep,
+    RemoteCopy,
     Rm,
     Swap,
     Sysctl,
+    Tar,
 )
 from lisa.util import LisaException, find_patterns_in_lines
 
@@ -50,7 +52,7 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    DEFAULT_LTP_TESTS_GIT_TAG = "20200930"
+    DEFAULT_LTP_TESTS_GIT_TAG = "20230929"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
     LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
@@ -71,10 +73,11 @@ class Ltp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, node: Node, source_file: str, *args: Any, **kwargs: Any) -> None:
         super().__init__(node, args, kwargs)
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
+        self._source_file = source_file
 
     def run_test(
         self,
@@ -340,14 +343,29 @@ class Ltp(Tool):
         self.node.tools[Mkdir].create_directory(top_src_dir, sudo=True)
         self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=True)
 
-        # clone ltp
-        git = self.node.tools[Git]
-        ltp_path = git.clone(
-            self.LTP_GIT_URL, cwd=PurePosixPath(top_src_dir), dir_name=top_src_dir
-        )
+        if self._source_file:
+            self._log.debug(
+                f"Use downloaded source code tar file: {self._source_file}!"
+            )
+            remote_source_file = self.get_tool_path(use_global=True) / os.path.basename(
+                self._source_file
+            )
 
-        # checkout tag
-        git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
+            copy = self.node.tools[RemoteCopy]
+            copy.copy_to_remote(PurePath(self._source_file), remote_source_file)
+            self.node.tools[Tar].extract(
+                str(remote_source_file), top_src_dir, sudo=True
+            )
+            ltp_path = self.node.get_pure_path(top_src_dir)
+        else:
+            # clone ltp
+            git = self.node.tools[Git]
+            ltp_path = git.clone(
+                self.LTP_GIT_URL, cwd=PurePosixPath(top_src_dir), dir_name=top_src_dir
+            )
+
+            # checkout tag
+            git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
 
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test

@@ -2,8 +2,9 @@ import itertools
 import time
 from collections import deque
 from decimal import Decimal
+from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -13,10 +14,12 @@ from lisa import (
     LisaException,
     Logger,
     Node,
+    NotEnoughMemoryException,
     RemoteNode,
     SkippedException,
     UnsupportedDistroException,
     UnsupportedKernelException,
+    UnsupportedOperationException,
     constants,
     notifier,
 )
@@ -24,11 +27,12 @@ from lisa.base_tools.uname import Uname
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.testsuite import TestResult
 from lisa.tools import (
     Dmesg,
     Echo,
     Firewall,
-    Free,
+    Hugepages,
     Ip,
     KernelConfig,
     Kill,
@@ -36,20 +40,33 @@ from lisa.tools import (
     Lsmod,
     Lspci,
     Modprobe,
-    Mount,
     Ntttcp,
     Ping,
     Timeout,
 )
-from lisa.tools.mkfs import FileSystem
-from lisa.util.constants import SIGINT
+from lisa.tools.hugepages import HugePageSize
+from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
     DPDK_STABLE_GIT_REPO,
+    Downloader,
+    GitDownloader,
+    Installer,
+    TarDownloader,
     check_dpdk_support,
+    is_url_for_git_repo,
+    is_url_for_tarball,
+    update_kernel_from_repo,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.rdmacore import (
+    RDMA_CORE_MANA_DEFAULT_SOURCE,
+    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_SOURCE_DEPENDENCIES,
+    RdmaCorePackageManagerInstall,
+    RdmaCoreSourceInstaller,
+)
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv
@@ -87,84 +104,16 @@ class UnsupportedPackageVersionException(LisaException):
 
 # container class for test resources to be passed to run_testpmd_concurrent
 class DpdkTestResources:
-    def __init__(self, _node: Node, _testpmd: DpdkTestpmd) -> None:
+    def __init__(
+        self, _node: Node, _testpmd: DpdkTestpmd, _rdma_core: Installer
+    ) -> None:
         self.testpmd = _testpmd
         self.node = _node
         self.nic_controller = _node.features[NetworkInterface]
         self.dmesg = _node.tools[Dmesg]
         self._last_dmesg = ""
         self.switch_sriov = True
-
-
-def init_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    mount = node.tools[Mount]
-    if enable_gibibyte_hugepages:
-        mount.mount(
-            name="nodev",
-            point="/mnt/huge-1G",
-            fs_type=FileSystem.hugetlbfs,
-            options="pagesize=1G",
-        )
-    else:
-        mount.mount(name="nodev", point="/mnt/huge", fs_type=FileSystem.hugetlbfs)
-    _enable_hugepages(node, enable_gibibyte_hugepages)
-
-
-def _enable_hugepages(node: Node, enable_gibibyte_hugepages: bool = False) -> None:
-    echo = node.tools[Echo]
-
-    meminfo = node.tools[Free]
-    nics_count = len(node.nics.get_nic_names())
-
-    numa_nodes = node.tools[Lscpu].get_numa_node_count()
-    request_pages_2mb = (nics_count - 1) * 1024 * numa_nodes
-    request_pages_1gb = (nics_count - 1) * numa_nodes
-    memfree_2mb = meminfo.get_free_memory_mb()
-    memfree_1mb = meminfo.get_free_memory_gb()
-
-    # request 2iGB memory per nic, 1 of 2MiB pages and 1 GiB page
-    # check there is enough memory on the device first.
-    # default to enough for one nic if not enough is available
-    # this should be fine for tests on smaller SKUs
-
-    if enable_gibibyte_hugepages:
-        if memfree_1mb < (
-            request_pages_1gb * 2
-        ):  # account for 2MB pages by doubling ask
-            node.log.debug(
-                "WARNING: Not enough 1GB pages available for DPDK! "
-                f"Requesting {(request_pages_1gb * 2)} found {memfree_1mb} free. "
-                "Test may fail if it cannot allocate memory."
-            )
-        request_pages_1gb = 1
-    else:
-        if memfree_2mb < request_pages_2mb:
-            node.log.debug(
-                "WARNING: Not enough 2MB pages available for DPDK! "
-                f"Requesting {request_pages_2mb} found {memfree_2mb} free. "
-                "Test may fail if it cannot allocate memory."
-            )
-            request_pages_2mb = 1024
-
-    for i in range(numa_nodes):
-        if enable_gibibyte_hugepages:
-            echo.write_to_file(
-                f"{request_pages_1gb}",
-                node.get_pure_path(
-                    f"/sys/devices/system/node/node{i}/hugepages/"
-                    "hugepages-1048576kB/nr_hugepages"
-                ),
-                sudo=True,
-            )
-        else:
-            echo.write_to_file(
-                f"{request_pages_2mb}",
-                node.get_pure_path(
-                    f"/sys/devices/system/node/node{i}/hugepages/"
-                    "hugepages-2048kB/nr_hugepages"
-                ),
-                sudo=True,
-            )
+        self.rdma_core = _rdma_core
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -176,6 +125,35 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+
+
+def get_rdma_core_installer(
+    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+) -> Installer:
+    # set rdma-core installer type.
+    if rdma_source:
+        if is_url_for_git_repo(rdma_source):
+            # else, if we have a user provided rdma-core source, use it
+            downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
+        elif is_url_for_tarball(rdma_branch):
+            downloader = TarDownloader(node, rdma_source)
+        else:
+            # throw on unrecognized rdma core source type
+            raise AssertionError(
+                f"Invalid rdma-core source uri provided: {rdma_source}"
+            )
+    # handle MANA special case, build a default rdma-core with mana provider
+    elif not rdma_source and node.nics.is_mana_device_present():
+        downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
+    else:
+        # no rdma_source and not mana, just use the package manager
+        return RdmaCorePackageManagerInstall(
+            node, os_dependencies=RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES
+        )
+    # return the installer with the downloader we've picked
+    return RdmaCoreSourceInstaller(
+        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+    )
 
 
 def _ping_all_nodes_in_environment(environment: Environment) -> None:
@@ -305,13 +283,18 @@ def initialize_node_resources(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
-    enable_gibibyte_hugepages: bool = False,
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
+    if pmd == "failsafe" and node.nics.is_mana_device_present():
+        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
+    rdma_source = variables.get("rdma_source", "")
+    rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
@@ -340,18 +323,30 @@ def initialize_node_resources(
 
     # verify SRIOV is setup as-expected on the node after compat check
     node.nics.check_pci_enabled(pci_enabled=True)
-
+    update_kernel_from_repo(node)
+    rdma_core = get_rdma_core_installer(
+        node, dpdk_source, dpdk_branch, rdma_source, rdma_branch
+    )
+    rdma_core.do_installation()
     # create tool, initialize testpmd tool (installs dpdk)
-    testpmd: DpdkTestpmd = node.tools.get(
+    # use create over get to avoid skipping
+    # reinitialization of tool when new arguments are present
+    testpmd: DpdkTestpmd = node.tools.create(
         DpdkTestpmd,
         dpdk_source=dpdk_source,
         dpdk_branch=dpdk_branch,
         sample_apps=sample_apps,
         force_net_failsafe_pmd=force_net_failsafe_pmd,
     )
+    # Tools will skip installation if the binary is present, so
+    # force invoke install. Installer will skip if the correct
+    # *type* of installation is already installed,
+    # taking it's creation arguments into account.
+    testpmd.install()
 
     # init and enable hugepages (required by dpdk)
-    init_hugepages(node, enable_gibibyte_hugepages)
+    hugepages = node.tools[Hugepages]
+    hugepages.init_hugepages(hugepage_size)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
@@ -373,7 +368,7 @@ def initialize_node_resources(
         for extra_nic in extra_nics:
             do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
 
-    return DpdkTestResources(node, testpmd)
+    return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
@@ -459,7 +454,7 @@ def init_nodes_concurrent(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    enable_gibibyte_hugepages: bool = False,
+    hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
 ) -> List[DpdkTestResources]:
     # quick check when initializing, have each node ping the other nodes.
@@ -468,21 +463,24 @@ def init_nodes_concurrent(
     _ping_all_nodes_in_environment(environment)
 
     # Use threading module to parallelize the IO-bound node init.
-    test_kits = run_in_parallel(
-        [
-            partial(
-                initialize_node_resources,
-                node,
-                log,
-                variables,
-                pmd,
-                enable_gibibyte_hugepages=enable_gibibyte_hugepages,
-                sample_apps=sample_apps,
-            )
-            for node in environment.nodes.list()
-        ],
-        log,
-    )
+    try:
+        test_kits = run_in_parallel(
+            [
+                partial(
+                    initialize_node_resources,
+                    node,
+                    log,
+                    variables,
+                    pmd,
+                    hugepage_size=hugepage_size,
+                    sample_apps=sample_apps,
+                )
+                for node in environment.nodes.list()
+            ],
+            log,
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
     return test_kits
 
 
@@ -491,15 +489,21 @@ def verify_dpdk_build(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     multiple_queues: bool = False,
-    gibibyte_hugepages: bool = False,
+    result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
-    test_kit = initialize_node_resources(
-        node, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
-    )
+    try:
+        test_kit = initialize_node_resources(
+            node, log, variables, pmd, hugepage_size=hugepage_size
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
     testpmd = test_kit.testpmd
-
+    # annotate testpmd result
+    if result is not None:
+        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
     # grab a nic and run testpmd
     test_nic = node.nics.get_secondary_nic()
 
@@ -515,7 +519,8 @@ def verify_dpdk_build(
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
-    return DpdkTestResources(node, testpmd)
+
+    return test_kit
 
 
 def verify_dpdk_send_receive(
@@ -523,9 +528,10 @@ def verify_dpdk_send_receive(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
+    hugepage_size: HugePageSize,
     use_service_cores: int = 1,
     multiple_queues: bool = False,
-    gibibyte_hugepages: bool = False,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -543,12 +549,15 @@ def verify_dpdk_send_receive(
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, enable_gibibyte_hugepages=gibibyte_hugepages
+        environment, log, variables, pmd, hugepage_size=hugepage_size
     )
 
     check_send_receive_compatibility(test_kits)
-
     sender, receiver = test_kits
+
+    # annotate test result before starting
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
     kit_cmd_pairs = generate_send_receive_run_info(
         pmd,
@@ -603,12 +612,19 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: str,
-    use_service_cores: int = 1,
+    result: Optional[TestResult] = None,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     return verify_dpdk_send_receive(
-        environment, log, variables, pmd, use_service_cores=1, multiple_queues=True
+        environment,
+        log,
+        variables,
+        pmd,
+        HugePageSize.HUGE_2MB,
+        use_service_cores=1,
+        multiple_queues=True,
+        result=result,
     )
 
 
@@ -618,7 +634,11 @@ def do_parallel_cleanup(environment: Environment) -> None:
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=True)
             # cleanup temporary hugepage and driver changes
-        node.reboot()
+        try:
+            node.reboot(time_out=60)
+        except LisaException:
+            node.log.debug("Timeout during cleanup reboot. Marking node for deletion.")
+            node.mark_dirty()
 
     run_in_parallel(
         [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
@@ -716,10 +736,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
+    hugepage_size: HugePageSize,
     pmd: str = "netvsc",
-    enable_gibibyte_hugepages: bool = False,
     force_single_queue: bool = False,
     is_perf_test: bool = False,
+    result: Optional[TestResult] = None,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
@@ -853,17 +874,20 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # Do actual DPDK initialization, compile l3fwd and apply setup to
     # the extra forwarding nic
-    fwd_kit = initialize_node_resources(
-        forwarder,
-        log,
-        variables,
-        pmd,
-        sample_apps=["l3fwd"],
-        extra_nics=[subnet_b_nics[forwarder]],
-    )
-    # enable hugepages needed for dpdk EAL on forwarder
-    init_hugepages(forwarder, enable_gibibyte_hugepages=enable_gibibyte_hugepages)
-
+    try:
+        fwd_kit = initialize_node_resources(
+            forwarder,
+            log,
+            variables,
+            pmd,
+            hugepage_size,
+            sample_apps=["l3fwd"],
+            extra_nics=[subnet_b_nics[forwarder]],
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
@@ -894,8 +918,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # get binary path and dpdk device include args
-    examples_path = fwd_kit.testpmd.dpdk_build_path.joinpath("examples")
-    server_app_path = examples_path.joinpath(l3fwd_app_name)
+    server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
         fwd_kit.testpmd.generate_testpmd_include(
@@ -1076,3 +1099,78 @@ def create_l3fwd_rules_files(
     forwarder.tools[Echo].write_to_file(
         "\n".join(sample_rules_v6), rules_v6, append=True
     )
+
+
+# Device name match for LSPCI
+class NicType(Enum):
+    CX3 = "ConnectX-3"
+    CX4 = "ConnectX-4"
+    CX5 = "ConnectX-5"
+    MANA = "Device 00ba"
+
+
+# Short name for nic types
+NIC_SHORT_NAMES = {
+    NicType.CX3: "cx3",
+    NicType.CX4: "cx4",
+    NicType.CX5: "cx5",
+    NicType.MANA: "mana",
+}
+
+
+# Get the short name for the type of nic on a node
+def get_node_nic_short_name(node: Node) -> str:
+    devices = node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV)
+    if node.nics.is_mana_device_present():
+        return NIC_SHORT_NAMES[NicType.MANA]
+    non_mana_nics = [NicType.CX3, NicType.CX4, NicType.CX5]
+    for nic_name in non_mana_nics:
+        if any([nic_name.value in x.device_info for x in devices]):
+            return NIC_SHORT_NAMES[nic_name]
+    # We assert much earlier to enforce that SRIOV is enabled,
+    # so we should never hit this unless someone is testing a new platform.
+    # Instead of asserting, just log that the short name was not found.
+    short_names = map(lambda x: x.value, non_mana_nics)
+    known_nic_types = ",".join(short_names)
+    found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
+    node.log.debug(
+        "Unknown NIC hardware was detected during DPDK test case. "
+        f"Expected one of: {known_nic_types}. Found {found_nic_types}. "
+    )
+    # this is just a function for annotating a result, so don't assert
+    # if there's
+    return found_nic_types
+
+
+def _format_version_str(version: VersionInfo) -> str:
+    # get a smaller version string, we don't really care about build
+    major_minor_patch = [version.major, version.minor, version.patch]
+    return ".".join([str(x) for x in major_minor_patch if x is not None])
+
+
+# Add dpdk/rdma/nic info to dpdk test result
+# Enables rich reporting, coverage, and issue triage.
+def annotate_dpdk_test_result(
+    test_kit: DpdkTestResources, test_result: TestResult, log: Logger
+) -> None:
+    dpdk_version = None
+    rdma_version = None
+    nic_hw = None
+    try:
+        dpdk_version = test_kit.testpmd.get_dpdk_version()
+        test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
+        log.debug(f"Adding dpdk version: {dpdk_version}")
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
+    try:
+        rdma_version = test_kit.rdma_core.get_installed_version()
+        test_result.information["rdma_version"] = _format_version_str(rdma_version)
+        log.debug(f"Adding rdma version: {rdma_version}")
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
+    try:
+        nic_hw = get_node_nic_short_name(test_kit.node)
+        test_result.information["nic_hw"] = nic_hw
+        log.debug(f"Adding nic version: {nic_hw}")
+    except AssertionError as err:
+        test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")

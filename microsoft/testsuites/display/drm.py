@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Any
 
 from assertpy import assert_that
@@ -13,11 +14,16 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
-from lisa.operating_system import BSD, Windows
+from lisa.features.security_profile import CvmDisabled
+from lisa.operating_system import BSD, Fedora, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot
-from lisa.util import SkippedException
+from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot, Sed
+from lisa.util import SkippedException, get_matched_str
 from microsoft.testsuites.display.modetest import Modetest
+
+GRUB_CMDLINE_LINUX_DEFAULT_PATTERN = re.compile(
+    r'GRUB_CMDLINE_LINUX_DEFAULT="(?P<grub_cmdline>.*)"', re.M
+)
 
 
 @TestSuiteMetadata(
@@ -39,6 +45,9 @@ class Drm(TestSuite):
         2. Check if hyperv_drm exist in the list.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
         if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
@@ -64,10 +73,13 @@ class Drm(TestSuite):
         2. Verify it contains hyperv_drm string in it.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_dri_node(self, node: Node, log: Logger) -> None:
         cat = node.tools[Cat]
-        dri_path = "/sys/kernel/debug/dri/0/name"
+        dri_path = "/sys/kernel/debug/dri/*/name"
         dri_name = cat.read(dri_path, sudo=True, force_run=True)
         assert_that(dri_name).described_as(
             "dri node not populated for hyperv_drm"
@@ -83,6 +95,9 @@ class Drm(TestSuite):
         2. Check no 'Unable to send packet via vmbus' shown up in dmesg output.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_no_error_output(self, node: Node, log: Logger) -> None:
         assert_that(node.tools[Dmesg].get_output(force_run=True)).described_as(
@@ -99,6 +114,9 @@ class Drm(TestSuite):
         2. Verify the status return from modetest is connected.
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_features=[CvmDisabled()],
+        ),
     )
     def verify_connection_status(self, node: Node, log: Logger) -> None:
         is_status_connected = node.tools[Modetest].is_status_connected("hyperv_drm")
@@ -126,6 +144,37 @@ class Drm(TestSuite):
                     sudo=True,
                 )
                 node.tools[Reboot].reboot()
+
+            # if the hyperv_fb is built-in, then we need to blacklist it in grub
+            if lsmod.module_exists("hyperv_fb"):
+                cat = node.tools[Cat]
+                grub_content = "\n".join(
+                    cat.run("/etc/default/grub").stdout.splitlines()
+                )
+                result = get_matched_str(
+                    grub_content,
+                    GRUB_CMDLINE_LINUX_DEFAULT_PATTERN,
+                    first_match=False,
+                ).replace("/", r"\/")
+
+                sed = node.tools[Sed]
+
+                sed.substitute(
+                    regexp="GRUB_CMDLINE_LINUX_DEFAULT=.*",
+                    replacement=f'GRUB_CMDLINE_LINUX_DEFAULT="{result} '
+                    'module_blacklist=hyperv_fb"',
+                    file="/etc/default/grub",
+                    sudo=True,
+                )
+
+                if isinstance(node.os, Ubuntu):
+                    node.execute("update-grub", sudo=True)
+                elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
+                    node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+                # doesn't apply in debian as CONFIG_DRM_HYPERV isn't enabled in debian
+
+                node.reboot(time_out=600)
+
         else:
             raise SkippedException(
                 "DRM hyperv driver is not enabled in current distro"

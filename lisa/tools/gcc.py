@@ -57,12 +57,7 @@ class Gcc(Tool):
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         if isinstance(posix_os, BSD):
-            # Tools including sockperf need gcc11 on
-            # FreeBSD to compile.
-            posix_os.install_packages("gcc11-11.3.0_8")
-            self.node.execute(
-                "ln -s /usr/local/bin/gcc11 /usr/local/bin/gcc", sudo=True
-            )
+            posix_os.install_packages("lang/gcc")
         else:
             posix_os.install_packages("gcc")
         return self._check_exists()

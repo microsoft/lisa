@@ -22,6 +22,7 @@ from lisa import (
 )
 from lisa.environment import EnvironmentStatus
 from lisa.features import (
+    AvailabilityZoneEnabled,
     DiskEphemeral,
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
@@ -31,7 +32,6 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
-from lisa.nic import Nics
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
@@ -149,6 +149,28 @@ class Provisioning(TestSuite):
     ) -> None:
         self._smoke_test(
             log, node, log_path, "verify_deployment_provision_premium_disk"
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This case runs smoke test on a node provisioned with premium disk.
+        The test steps are same as `smoke_test`.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumV2SSDLRS,
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole, AvailabilityZoneEnabled()],
+        ),
+    )
+    def verify_deployment_provision_premiumv2_disk(
+        self, log: Logger, node: RemoteNode, log_path: Path
+    ) -> None:
+        self._smoke_test(
+            log, node, log_path, "verify_deployment_provision_premiumv2_disk"
         )
 
     @TestCaseMetadata(
@@ -342,7 +364,7 @@ class Provisioning(TestSuite):
         return all_mana_devices
 
     def check_sriov(self, log: Logger, node: RemoteNode) -> None:
-        node_nic_info = Nics(node)
+        node_nic_info = node.nics
         node_nic_info.initialize()
 
         network_interface_feature = node.features[NetworkInterface]

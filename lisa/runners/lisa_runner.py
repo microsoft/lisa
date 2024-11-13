@@ -292,6 +292,7 @@ class LisaRunner(BaseRunner):
     ) -> None:
         try:
             try:
+                # Attempt to deploy the environment
                 self.platform.deploy_environment(environment)
                 assert (
                     environment.status == EnvironmentStatus.Deployed
@@ -308,12 +309,16 @@ class LisaRunner(BaseRunner):
                     # rerun prepare to calculate resource again.
                     environment.status = EnvironmentStatus.New
         except Exception as identifier:
-            self._attach_failed_environment_to_result(
-                environment=environment,
-                result=test_results[0],
-                exception=identifier,
-            )
-            self._delete_environment_task(environment=environment, test_results=[])
+            if self._need_retry(environment):
+                environment.status = EnvironmentStatus.New
+            else:
+                # Final attempt failed; handle the failure
+                self._attach_failed_environment_to_result(
+                    environment=environment,
+                    result=test_results[0],
+                    exception=identifier,
+                )
+                self._delete_environment_task(environment=environment, test_results=[])
 
     def _initialize_environment_task(
         self, environment: Environment, test_results: List[TestResult]
@@ -427,6 +432,28 @@ class LisaRunner(BaseRunner):
             self._delete_environment_task(
                 environment=environment, test_results=test_results
             )
+
+        # Rerun test case, if the test case is not passed (failed or attempted),
+        # and set to retry.
+        if (
+            test_result.status not in [TestStatus.PASSED, TestStatus.SKIPPED]
+            and test_result.retried_times < test_result.runtime_data.retry
+        ):
+            self._log.debug(
+                f"retry test case '{test_result.name}' on "
+                f"environment '{environment.name}'"
+            )
+            self._delete_environment_task(
+                environment=environment, test_results=test_results
+            )
+            environment.status = EnvironmentStatus.New
+
+            test_result.retried_times += 1
+            test_result.set_status(TestStatus.QUEUED, "")
+            # clean up error message by set it to empty explicitly. The
+            # set_status doesn't clean it, since it appends.
+            test_result.message = ""
+            test_result.environment = environment
 
     def _delete_environment_task(
         self, environment: Environment, test_results: List[TestResult]
@@ -628,7 +655,9 @@ class LisaRunner(BaseRunner):
                     tested_environment = environment.get_guest_environment()
                 try:
                     if result.check_environment(
-                        environment=tested_environment, save_reason=True
+                        environment=tested_environment,
+                        environment_platform_type=self.platform.type_name(),
+                        save_reason=True,
                     ) and (
                         not result.runtime_data.use_new_environment
                         or environment.is_new
@@ -734,21 +763,20 @@ class LisaRunner(BaseRunner):
 
     def _get_ignored_features(self, nodes: List[schema.NodeSpace]) -> Set[str]:
         ignored_features: Set[str] = set()
-        for _, node_requirement in enumerate(nodes):
-            if (
-                node_requirement.features
-                and hasattr(self, "platform")
-                and self.platform.runbook.ignored_capability
-            ):
-                for feature in node_requirement.features:
-                    if str(feature).lower() in list(
-                        map(
-                            str.lower,
-                            self.platform.runbook.ignored_capability,
-                        )
-                    ):
-                        node_requirement.features.items.remove(feature)
-                        ignored_features.add(str(feature))
+        if hasattr(self, "platform") and self.platform.runbook.ignored_capability:
+            ignored_capability = set(
+                map(str.lower, self.platform.runbook.ignored_capability)
+            )
+            for node_requirement in nodes:
+                for feature_set in [
+                    node_requirement.features,
+                    node_requirement.excluded_features,
+                ]:
+                    if feature_set:
+                        for feature in list(feature_set):
+                            if str(feature).lower() in ignored_capability:
+                                feature_set.remove(feature)
+                                ignored_features.add(str(feature))
         return ignored_features
 
     def _merge_test_requirements(
@@ -758,9 +786,6 @@ class LisaRunner(BaseRunner):
         platform_type: str,
     ) -> None:
         assert platform_type
-        platform_type_set = search_space.SetSpace[str](
-            is_allow_set=True, items=[platform_type]
-        )
 
         cases_ignored_features: Dict[str, Set[str]] = {}
         # if platform defined requirement, replace the requirement from
@@ -771,12 +796,10 @@ class LisaRunner(BaseRunner):
             platform_requirement = self._create_platform_requirement()
             test_req: TestCaseRequirement = test_result.runtime_data.requirement
 
-            # check if there is platform requirement on test case
-            if test_req.platform_type and len(test_req.platform_type) > 0:
-                check_result = platform_type_set.check(test_req.platform_type)
-                if not check_result.result:
-                    test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
-                    continue
+            check_result = test_result.check_platform(platform_type)
+            if not check_result.result:
+                test_result.set_status(TestStatus.SKIPPED, check_result.reasons)
+                continue
 
             if test_result.can_run:
                 assert test_req.environment

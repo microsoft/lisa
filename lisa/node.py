@@ -22,7 +22,7 @@ from lisa import schema
 from lisa.executable import Tools
 from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
-from lisa.operating_system import BSD, OperatingSystem
+from lisa.operating_system import OperatingSystem
 from lisa.secret import add_secret
 from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
@@ -112,6 +112,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.capture_boot_time: bool = False
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
+        self.has_checked_bash_prompt: bool = False
 
     @property
     def shell(self) -> Shell:
@@ -288,6 +289,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         encoding: str = "",
     ) -> Process:
         self.initialize()
+        if isinstance(self, RemoteNode):
+            self._check_bash_prompt()
 
         return self._execute(
             cmd,
@@ -448,6 +451,19 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         not create extra folders.
         """
         raise NotImplementedError()
+
+    def _get_remote_working_path(self) -> PurePath:
+        if self.is_posix:
+            remote_root_path = Path("$HOME")
+        else:
+            remote_root_path = Path("%TEMP%")
+
+        working_path = remote_root_path.joinpath(
+            constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
+        ).as_posix()
+
+        # expand environment variables in path
+        return self.get_pure_path(self.expand_env_path(working_path))
 
     def mark_dirty(self) -> None:
         self.log.debug("mark node to dirty")
@@ -658,17 +674,7 @@ class RemoteNode(Node):
         super()._initialize(*args, **kwargs)
 
     def get_working_path(self) -> PurePath:
-        if self.is_posix:
-            remote_root_path = Path("$HOME")
-        else:
-            remote_root_path = Path("%TEMP%")
-
-        working_path = remote_root_path.joinpath(
-            constants.PATH_REMOTE_ROOT, constants.RUN_LOGIC_PATH
-        ).as_posix()
-
-        # expand environment variables in path
-        return self.get_pure_path(self.expand_env_path(working_path))
+        return self._get_remote_working_path()
 
     @property
     def support_sudo(self) -> bool:
@@ -736,8 +742,31 @@ class RemoteNode(Node):
         ssh_shell = cast(SshShell, self.shell)
         ssh_shell.password_prompts = password_prompts
 
+    def _check_bash_prompt(self) -> None:
+        # Check if there is bash prompt in stdout of command. If yes, the prompt
+        # should be filtered from the stdout. E.g. image yaseensmarket1645449809728
+        # wordpress-red-hat images.
+        if not self.has_checked_bash_prompt:
+            process = self._execute(f"echo {constants.LISA_TEST_FOR_BASH_PROMPT}")
+            result = process.wait_result(10)
+            if result.stdout.endswith(f"{constants.LISA_TEST_FOR_BASH_PROMPT}"):
+                bash_prompt = result.stdout.replace(
+                    constants.LISA_TEST_FOR_BASH_PROMPT, ""
+                )
+                if bash_prompt:
+                    self.log.debug(
+                        "detected bash prompt, it will be removed from every output: "
+                        f"{bash_prompt}"
+                    )
+                    ssh_shell = cast(SshShell, self.shell)
+                    ssh_shell.bash_prompt = bash_prompt
+            self.has_checked_bash_prompt = True
+
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension
+
+        if not hasattr(self, "features"):
+            return False
 
         if not self.features.is_supported(PasswordExtension):
             return False
@@ -870,6 +899,9 @@ class GuestNode(Node):
 
     def _provision(self) -> None:
         ...
+
+    def get_working_path(self) -> PurePath:
+        return self._get_remote_working_path()
 
 
 class WslContainerNode(GuestNode):
@@ -1186,7 +1218,10 @@ def create_nics(node: Node) -> Nics:
     """
     Returns a Nics object for the node based on the OS type.
     """
-    if isinstance(node.os, BSD):
+    # Uses uname instead of the node.os because sometimes node.os has not been
+    # populated when this is called.
+    os = node.execute(cmd="uname", no_error_log=True).stdout
+    if "FreeBSD" in os:
         return NicsBSD(node)
 
     return Nics(node)

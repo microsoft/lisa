@@ -44,6 +44,7 @@ class Modinfo(Tool):
             force_run=force_run,
             no_info_log=no_info_log,
             no_error_log=no_error_log,
+            shell=True,
         )
         if not ignore_error:
             result.assert_exit_code(0, f"Modinfo failed for module {mod_name}")

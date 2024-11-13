@@ -11,7 +11,7 @@ from retry import retry
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import CentOs, Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, Oracle, Redhat, Ubuntu
 from lisa.tools import Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
@@ -181,13 +181,14 @@ class Infiniband(Feature):
         firewall = node.tools[Firewall]
         firewall.stop()
         # Disable SELinux
-        sed = node.tools[Sed]
-        sed.substitute(
-            regexp="SELINUX=enforcing",
-            replacement="SELINUX=disabled",
-            file="/etc/selinux/config",
-            sudo=True,
-        )
+        if not isinstance(node.os, CBLMariner):
+            sed = node.tools[Sed]
+            sed.substitute(
+                regexp="SELINUX=enforcing",
+                replacement="SELINUX=disabled",
+                file="/etc/selinux/config",
+                sudo=True,
+            )
 
         # for non-hpc images, add net.ifnames=0 biosdevname=0 in boot kernel parameter
         # to make ib device name consistent across reboots
@@ -220,7 +221,7 @@ class Infiniband(Feature):
             "libxml2-dev",
             "m4",
             "byacc",
-            "python-setuptools",
+            "python3-setuptools",
             "tcl",
             "environment-modules",
             "tk",
@@ -241,7 +242,7 @@ class Infiniband(Feature):
             "libnl-route-3-dev",
             "libsecret-1-0",
             "dkms",
-            "python-setuptools",
+            "python3-setuptools",
             "g++",
             "libc6-i386",
             "cloud-init",
@@ -277,12 +278,17 @@ class Infiniband(Feature):
             "pciutils",
             "lsof",
         ]
-        if isinstance(node.os, CentOs):
-            node.execute(
-                "yum install -y https://partnerpipelineshare.blob.core.windows.net"
-                f"/kernel-devel-rpms/kernel-devel-{kernel}.rpm",
-                sudo=True,
-            )
+        cblmariner_required_packages = [
+            "rdma-core",
+            "rdma-core-devel",
+            "libibverbs",
+            "libibverbs-utils",
+            "build-essential",
+            "ucx",
+            "ucx-ib",
+            "ucx-rdmacm",
+            "ucx-cma",
+        ]
 
         if isinstance(node.os, Redhat):
             if node.os.information.version.major >= 9:
@@ -324,11 +330,14 @@ class Infiniband(Feature):
                 if node.os.is_package_in_repo(package):
                     ubuntu_required_packages.append(package)
             node.os.install_packages(ubuntu_required_packages)
+        elif isinstance(node.os, CBLMariner):
+            node.os.install_packages(cblmariner_required_packages)
         else:
             raise UnsupportedDistroException(
                 node.os,
-                "Only CentOS 7.6-8.3 and Ubuntu 18.04-20.04 distros are "
-                "supported by the HCP team",
+                "Only CentOS 7.6-8.3, Ubuntu 18.04-22.04 distros are "
+                "supported by the HPC team. Also supports CBLMariner 2.0 "
+                "distro which uses the Mellanox inbox driver",
             )
 
     def install_ofed(self) -> None:
@@ -338,6 +347,10 @@ class Infiniband(Feature):
         kernel = node.tools[Uname].get_linux_information().kernel_version_raw
         kernel_version = node.tools[Uname].get_linux_information().kernel_version
         self._install_dependencies()
+
+        # CBLMariner uses the Mellanox inbox driver instead of the OFED driver
+        if isinstance(node.os, CBLMariner):
+            return
 
         # Install OFED
         ofed_version = self._get_ofed_version()
@@ -400,7 +413,8 @@ class Infiniband(Feature):
                 kernel_src = kernel_dirs[0]
             else:
                 raise UnsupportedKernelException(
-                    node.os, "Cannot install OFED drivers without kernel-devel package"
+                    node.os,
+                    "Cannot install OFED drivers without kernel-devel package",
                 )
 
             extra_params = (
@@ -411,16 +425,19 @@ class Infiniband(Feature):
         if not self._is_legacy_device():
             extra_params += " --skip-unsupported-devices-check"
 
-        node.execute(
-            f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
-            f"--add-kernel-support {extra_params} "
-            f"--tmpdir {self.resource_disk_path}/tmp",
-            expected_exit_code=0,
-            expected_exit_code_failure_message="SetupRDMA: failed to install "
-            "OFED Drivers",
-            sudo=True,
-            timeout=1200,
-        )
+        try:
+            node.execute(
+                f"{self.resource_disk_path}/{ofed_folder}/mlnxofedinstall "
+                f"--add-kernel-support {extra_params} "
+                f"--tmpdir {self.resource_disk_path}/tmp",
+                expected_exit_code=0,
+                expected_exit_code_failure_message="SetupRDMA: failed to install "
+                "OFED Drivers",
+                sudo=True,
+                timeout=1200,
+            )
+        except AssertionError as e:
+            raise MissingPackagesException(["OFED Drivers"]) from e
         node.execute(
             "/etc/init.d/openibd force-restart",
             expected_exit_code=0,
@@ -433,7 +450,7 @@ class Infiniband(Feature):
         # Install Intel MPI
         wget = node.tools[Wget]
         script_path = wget.get(
-            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/17397/"
             "l_mpi_oneapi_p_2021.1.1.76_offline.sh",
             file_path=self.resource_disk_path,
             executable=True,
@@ -480,7 +497,7 @@ class Infiniband(Feature):
         make.make("", cwd=openmpi_folder, sudo=True)
         make.make_install(cwd=openmpi_folder, sudo=True)
 
-    def install_ibm_mpi(self) -> None:
+    def install_ibm_mpi(self, platform_mpi_url: str) -> None:
         node = self._node
         if isinstance(node.os, Redhat):
             node.os.install_packages("libstdc++.i686")
@@ -496,8 +513,7 @@ class Infiniband(Feature):
         # Install Open MPI
         wget = node.tools[Wget]
         script_path = wget.get(
-            "https://partnerpipelineshare.blob.core.windows.net/mpi/"
-            "platform_mpi-09.01.04.03r-ce.bin",
+            platform_mpi_url,
             file_path=self.resource_disk_path,
             executable=True,
             overwrite=False,
@@ -544,8 +560,10 @@ class Infiniband(Feature):
             f"{self.resource_disk_path}/mvapich2-2.3.7-1"
         )
 
-        if isinstance(node.os, Ubuntu) or (
-            isinstance(node.os, Redhat) and node.os.information.version.major >= 9
+        if (
+            isinstance(node.os, Ubuntu)
+            or isinstance(node.os, CBLMariner)
+            or (isinstance(node.os, Redhat) and node.os.information.version.major >= 9)
         ):
             params = "--disable-fortran --disable-mcast"
         else:

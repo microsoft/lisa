@@ -19,7 +19,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.testsuite import TestResult
-from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep
+from lisa.tools import Cat, Chmod, Echo, Git, Make, Pgrep, Rm, Sed
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -31,6 +31,7 @@ class XfstestsResult:
 
 class Xfstests(Tool):
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+    branch = "v2024.02.09"
     common_dep = [
         "acl",
         "attr",
@@ -112,6 +113,7 @@ class Xfstests(Tool):
         "kernel-headers",
         "util-linux-devel",
         "psmisc",
+        "perl-CPAN",
     ]
     # Passed all 35 tests
     __all_pass_pattern = re.compile(
@@ -170,11 +172,15 @@ class Xfstests(Tool):
 
         pgrep = self.node.tools[Pgrep]
         # this is the actual process name, when xfstests runs.
-        pgrep.wait_processes("check", timeout=timeout)
-
-        self.check_test_results(
-            log_path=log_path, test_type=test_type, result=result, data_disk=data_disk
-        )
+        try:
+            pgrep.wait_processes("check", timeout=timeout)
+        finally:
+            self.check_test_results(
+                log_path=log_path,
+                test_type=test_type,
+                result=result,
+                data_disk=data_disk,
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
@@ -274,9 +280,17 @@ class Xfstests(Tool):
         self._add_test_users()
         tool_path = self.get_tool_path(use_global=True)
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path)
+        git.clone(url=self.repo, cwd=tool_path, ref=self.branch)
         make = self.node.tools[Make]
         code_path = tool_path.joinpath("xfstests-dev")
+
+        self.node.tools[Rm].remove_file(str(code_path / "src" / "splice2pipe.c"))
+        self.node.tools[Sed].substitute(
+            regexp="splice2pipe",
+            replacement="",
+            file=str(code_path / "src" / "Makefile"),
+        )
+
         make.make_install(code_path)
         return True
 
@@ -387,71 +401,84 @@ class Xfstests(Tool):
     ) -> None:
         xfstests_path = self.get_xfstests_path()
         console_log_results_path = xfstests_path / "xfstest.log"
-        if not self.node.shell.exists(console_log_results_path):
-            raise LisaException(
-                f"Console log path {console_log_results_path} doesn't exist, please"
-                " check testing runs well or not."
-            )
-        log_result = self.node.tools[Cat].run(
-            str(console_log_results_path), force_run=True, sudo=True
-        )
-        log_result.assert_exit_code()
-        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-        raw_message = ansi_escape.sub("", log_result.stdout)
-        self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
-
         results_path = xfstests_path / "results/check.log"
-        if not self.node.shell.exists(results_path):
-            raise LisaException(
-                f"Result path {results_path} doesn't exist, please check testing runs"
-                " well or not."
-            )
-        results = self.node.tools[Cat].run(str(results_path), force_run=True, sudo=True)
-        results.assert_exit_code()
-        pass_match = self.__all_pass_pattern.match(results.stdout)
-        if pass_match:
-            pass_count = pass_match.group("pass_count")
-            self._log.debug(
-                f"All pass in xfstests, total pass case count is {pass_count}."
-            )
-            return
-        fail_match = self.__fail_pattern.match(results.stdout)
-        assert fail_match
-        fail_count = fail_match.group("fail_count")
-        total_count = fail_match.group("total_count")
-        fail_cases_match = self.__fail_cases_pattern.match(results.stdout)
-        assert fail_cases_match
-        fail_info = ""
-        fail_cases = fail_cases_match.group("fail_cases")
-        for fail_case in fail_cases.split():
-            fail_info += find_patterns_in_lines(
-                raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
-            )[0][0]
-        self.save_xfstests_log(fail_cases.split(), log_path, test_type)
-        results_folder = xfstests_path / "results/"
-        self.node.execute(f"rm -rf {results_folder}", sudo=True)
-        self.node.execute(f"rm -f {console_log_results_path}", sudo=True)
-        raise LisaException(
-            f"Fail {fail_count} cases of total {total_count}, fail cases"
-            f" {fail_cases}, details {fail_info}, please investigate."
-        )
+        fail_cases_list: List[str] = []
+
+        try:
+            if not self.node.shell.exists(console_log_results_path):
+                self._log.error(
+                    f"Console log path {console_log_results_path} doesn't exist, please"
+                    " check testing runs well or not."
+                )
+            else:
+                log_result = self.node.tools[Cat].run(
+                    str(console_log_results_path), force_run=True, sudo=True
+                )
+                log_result.assert_exit_code()
+                ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+                raw_message = ansi_escape.sub("", log_result.stdout)
+                self.create_send_subtest_msg(result, raw_message, test_type, data_disk)
+
+            if not self.node.shell.exists(results_path):
+                self._log.error(
+                    f"Result path {results_path} doesn't exist, please check testing"
+                    " runs well or not."
+                )
+            else:
+                results = self.node.tools[Cat].run(
+                    str(results_path), force_run=True, sudo=True
+                )
+                results.assert_exit_code()
+                pass_match = self.__all_pass_pattern.match(results.stdout)
+                if pass_match:
+                    pass_count = pass_match.group("pass_count")
+                    self._log.debug(
+                        f"All pass in xfstests, total pass case count is {pass_count}."
+                    )
+                    return
+
+                fail_match = self.__fail_pattern.match(results.stdout)
+                assert fail_match
+                fail_count = fail_match.group("fail_count")
+                total_count = fail_match.group("total_count")
+                fail_cases_match = self.__fail_cases_pattern.match(results.stdout)
+                assert fail_cases_match
+                fail_info = ""
+                fail_cases = fail_cases_match.group("fail_cases")
+                for fail_case in fail_cases.split():
+                    fail_info += find_patterns_in_lines(
+                        raw_message, [re.compile(f".*{fail_case}.*$", re.MULTILINE)]
+                    )[0][0]
+                fail_cases_list = fail_cases.split()
+                raise LisaException(
+                    f"Fail {fail_count} cases of total {total_count}, fail cases"
+                    f" {fail_cases}, details {fail_info}, please investigate."
+                )
+        finally:
+            self.save_xfstests_log(fail_cases_list, log_path, test_type)
+            results_folder = xfstests_path / "results/"
+            self.node.execute(f"rm -rf {results_folder}", sudo=True)
+            self.node.execute(f"rm -f {console_log_results_path}", sudo=True)
 
     def save_xfstests_log(
-        self, fail_cases: List[str], log_path: Path, test_type: str
+        self, fail_cases_list: List[str], log_path: Path, test_type: str
     ) -> None:
         if "generic" == test_type:
             test_type = "xfs"
         xfstests_path = self.get_xfstests_path()
         self.node.tools[Chmod].update_folder(str(xfstests_path), "a+rwx", sudo=True)
-        self.node.shell.copy_back(
-            xfstests_path / "results/check.log",
-            log_path / "xfstests/check.log",
-        )
-        self.node.shell.copy_back(
-            xfstests_path / "xfstest.log",
-            log_path / "xfstests/xfstest.log",
-        )
-        for fail_case in fail_cases:
+        if self.node.shell.exists(xfstests_path / "results/check.log"):
+            self.node.shell.copy_back(
+                xfstests_path / "results/check.log",
+                log_path / "xfstests/check.log",
+            )
+        if self.node.shell.exists(xfstests_path / "xfstest.log"):
+            self.node.shell.copy_back(
+                xfstests_path / "xfstest.log",
+                log_path / "xfstests/xfstest.log",
+            )
+
+        for fail_case in fail_cases_list:
             file_name = f"results/{test_type}/{fail_case}.out.bad"
             result_path = xfstests_path / file_name
             if self.node.shell.exists(result_path):

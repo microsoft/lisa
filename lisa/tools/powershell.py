@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 from lisa.executable import Tool
 from lisa.util import LisaException
+from lisa.util.process import Process
 
 
 class PowerShell(Tool):
@@ -19,6 +20,28 @@ class PowerShell(Tool):
         # TODO: install PowerShell core on Linux.
         return False
 
+    def run_cmdlet_async(
+        self,
+        cmdlet: str,
+        force_run: bool = False,
+        sudo: bool = False,
+    ) -> Process:
+        # encoding command for any special characters
+        self._log.debug(f"encoding command: {cmdlet}")
+        encoded_command = base64.b64encode(cmdlet.encode("utf-16-le")).decode("utf-8")
+
+        encoded_command = f"-EncodedCommand {encoded_command}"
+
+        return self.run_async(
+            encoded_command,
+            force_run=force_run,
+            sudo=sudo,
+            shell=True,
+            no_error_log=True,
+            no_info_log=True,
+            no_debug_log=True,
+        )
+
     def run_cmdlet(
         self,
         cmdlet: str,
@@ -27,22 +50,13 @@ class PowerShell(Tool):
         fail_on_error: bool = True,
         timeout: int = 600,
     ) -> str:
-        # encoding command for any special characters
-        self._log.debug(f"encoding command: {cmdlet}")
-        encoded_command = base64.b64encode(cmdlet.encode("utf-16-le")).decode("utf-8")
-
-        encoded_command = f"-EncodedCommand {encoded_command}"
-
-        result = self.run(
-            encoded_command,
+        process = self.run_cmdlet_async(
+            cmdlet=cmdlet,
             force_run=force_run,
             sudo=sudo,
-            timeout=timeout,
-            shell=True,
-            no_error_log=True,
-            no_info_log=True,
-            no_debug_log=True,
         )
+
+        result = process.wait_result(timeout=timeout)
         if result.exit_code == 0:
             self._log.debug(f"stdout:\n{result.stdout}")
         else:

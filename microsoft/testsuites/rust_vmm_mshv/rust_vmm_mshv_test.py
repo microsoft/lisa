@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PurePath
+from typing import Any, Dict
 
 from assertpy.assertpy import assert_that
 
@@ -10,7 +10,7 @@ from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
-from lisa.tools import Cargo, Git, Ls
+from lisa.tools import Cargo, Dmesg, Git, Ls, RemoteCopy
 from lisa.util import SkippedException
 from lisa.util.process import ExecutableResult
 
@@ -34,6 +34,11 @@ class RustVmmTestSuite(TestSuite):
                 "Rust Vmm MSHV test can be run with MSHV wrapper (/dev/mshv) only."
             )
 
+    def after_case(self, log: Logger, **kwargs: Any) -> None:
+        node = kwargs["node"]
+        dmesg = node.tools[Dmesg]
+        dmesg.get_output(force_run=True)
+
     @TestCaseMetadata(
         description="""
             Runs rust-vmm/mshv tests
@@ -46,10 +51,20 @@ class RustVmmTestSuite(TestSuite):
         node: Node,
         log_path: Path,
         result: TestResult,
+        variables: Dict[str, Any],
     ) -> None:
         repo = "https://github.com/rust-vmm/mshv.git"
+        ref = variables.get("mshv_crate_ref", "main")
         git = node.tools[Git]
-        repo_root = git.clone(repo, node.get_working_path())
+        repo_root = git.clone(repo, node.get_working_path(), ref=ref)
+        mshv_bindings_path = variables.get("mshv_bindings_path", "")
+        if mshv_bindings_path:
+            git_bindings_path = repo_root / "mshv-bindings" / "src"
+            rcp = node.tools[RemoteCopy]
+            rcp.copy_to_remote(
+                src=PurePath(mshv_bindings_path),
+                dest=git_bindings_path,
+            )
         testcase_log = log_path / "rust_vmm_mshv.log"
         cargo = node.tools[Cargo]
         test_result: ExecutableResult = cargo.test(cwd=repo_root, sudo=True)

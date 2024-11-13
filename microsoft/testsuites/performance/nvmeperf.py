@@ -13,6 +13,7 @@ from lisa.features import Nvme, NvmeSettings
 from lisa.messages import DiskSetupType, DiskType
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, Lscpu
+from lisa.tools.fio import IoEngine
 from microsoft.testsuites.performance.common import perf_disk
 
 
@@ -24,11 +25,12 @@ from microsoft.testsuites.performance.common import perf_disk
     """,
 )
 class NvmePerformace(TestSuite):
-    TIME_OUT = 5000
+    TIME_OUT = 7200
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test NVMe disk performance.
+        This test case uses fio to test NVMe disk performance
+        using 'libaio' as ioengine
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -37,8 +39,27 @@ class NvmePerformace(TestSuite):
         ),
     )
     def perf_nvme(self, node: Node, result: TestResult) -> None:
+        self._perf_nvme(node, IoEngine.LIBAIO, result)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test NVMe disk performance
+        using 'io_uring' as ioengine.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_features=[Nvme],
+        ),
+    )
+    def perf_nvme_io_uring(self, node: Node, result: TestResult) -> None:
+        self._perf_nvme(node, IoEngine.IO_URING, result, max_iodepth=1024)
+
+    def _perf_nvme(
+        self, node: Node, ioengine: IoEngine, result: TestResult, max_iodepth: int = 256
+    ) -> None:
         nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_namespaces()
+        nvme_namespaces = nvme.get_raw_nvme_disks()
         disk_count = len(nvme_namespaces)
         assert_that(disk_count).described_as(
             "At least 1 NVMe disk for fio testing."
@@ -59,7 +80,6 @@ class NvmePerformace(TestSuite):
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
         start_iodepth = 1
-        max_iodepth = 256
         perf_disk(
             node,
             start_iodepth,
@@ -71,4 +91,5 @@ class NvmePerformace(TestSuite):
             disk_setup_type=DiskSetupType.raw,
             disk_type=DiskType.nvme,
             test_result=result,
+            ioengine=ioengine,
         )

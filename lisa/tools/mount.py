@@ -22,18 +22,24 @@ class PartitionInfo(object):
     disk: str
     mount_point: str
     type: str
-
+    options: List[str]
     # /dev/sda1
     # /dev/sdc
     _disk_regex = re.compile(r"\s*\/dev\/(?P<disk>\D+).*")
 
-    def __init__(self, name: str, mount_point: str, fs_type: str) -> None:
+    def __init__(
+        self, name: str, mount_point: str, fs_type: str, options: Optional[List[str]]
+    ) -> None:
         self.name = name
         self.mount_point = mount_point
         self.type = fs_type
         matched = self._disk_regex.fullmatch(name)
         assert matched
         self.disk = matched.group("disk")
+        if options:
+            self.options = options
+        else:
+            self.options = []
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -43,7 +49,8 @@ class PartitionInfo(object):
             f"name: {self.name}, "
             f"disk: {self.disk}, "
             f"mount_point: {self.mount_point}, "
-            f"type: {self.type}"
+            f"type: {self.type}, "
+            f"options: {','.join(self.options)}"
         )
 
 
@@ -57,15 +64,18 @@ class Mount(Tool):
     # /dev/sda1 on / type ext4 (rw,relatime,discard)
     # /dev/sda1 on /mnt/a type ext4 (rw,relatime,discard)
     _partition_info_regex = re.compile(
-        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s+.*"
+        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type"
+        r"\s+(?P<type>.*)\s+\(?(?P<options>.*)\)?"
     )
     _mount_info_regex = re.compile(
         r"\s*(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+type\s+(?P<type>.*)\s\(+.*"
     )
 
     # /dev/da1p1 on /mnt/resource (ufs, local, soft-updates)
+    # zroot/ROOT/default on / (zfs, local, nfsv4acls)
     _partition_info_regex_bsd = re.compile(
-        r"\s*/dev/(?P<name>.*)\s+on\s+(?P<mount_point>.*)\s+(\((?P<type>.*),.*,.*\))"
+        r"\s*(?:\/dev\/|zroot\/)(?P<name>.*)\s+on\s+(?P<mount_point>.*?)\s+"
+        r"(\((?P<type>.*),(?P<options>.*)\))"
     )
 
     @property
@@ -98,6 +108,27 @@ class Mount(Tool):
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
         cmd_result.assert_exit_code()
 
+    @retry(tries=24, delay=5)
+    def remount(
+        self,
+        point: str,
+        options: List[str],
+    ) -> None:
+        runline = [self.command]
+        if isinstance(self.node.os, BSD):
+            # BSD allows updating mount options with -u flag
+            # User must specify all options on the commandline
+            runline.append("-u")
+        else:
+            # Linux 'mount' allows remounting using old mount options
+            # ex: mount -o remount,exec /path
+            # will remount path and replace noexec with exec, but keep other any options
+            options = ["remount"] + options
+        runline.append(f"-o {','.join(options)}")
+        runline.append(f"{point}")
+        cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+
     def umount(
         self, disk_name: str, point: str, erase: bool = True, fs_type: str = ""
     ) -> None:
@@ -116,7 +147,7 @@ class Mount(Tool):
         ):
             raise LisaException(f"Fail to umount {point}: {cmd_result.stdout}")
 
-    def get_partition_info(self) -> List[PartitionInfo]:
+    def get_partition_info(self, mountpoint: str = "") -> List[PartitionInfo]:
         # partition entries in the output are of the form
         # /dev/<name> on <mount_point> type <type>
         # Example:
@@ -130,16 +161,32 @@ class Mount(Tool):
                 matched = self._partition_info_regex.fullmatch(line)
             if matched:
                 partition_name = matched.group("name")
+                option_match = matched.group("options")
+                if not option_match:
+                    options = []
+                else:
+                    split_options = option_match.split(",")
+                    options = [option.strip() for option in split_options]
                 partition_info.append(
                     PartitionInfo(
-                        f"/dev/{partition_name}",
-                        matched.group("mount_point"),
-                        matched.group("type"),
+                        name=f"/dev/{partition_name}",
+                        mount_point=matched.group("mount_point"),
+                        fs_type=matched.group("type"),
+                        options=options,
                     )
                 )
 
         self._log.debug(f"Found disk partitions : {partition_info}")
-        return partition_info
+        if mountpoint:
+            return list(
+                [
+                    partition
+                    for partition in partition_info
+                    if partition.mount_point == mountpoint
+                ]
+            )
+        else:
+            return partition_info
 
     def get_mount_point_for_partition(self, partition_name: str) -> Optional[str]:
         partition_info = self.get_partition_info()
@@ -169,6 +216,13 @@ class Mount(Tool):
         )
         self._log.debug(f"Found mount points: {mount_points}")
         return any([x for x in mount_points if mount_point == x["mount_point"]])
+
+    def reload_fstab_config(self) -> None:
+        res = self.run("-a", force_run=True, sudo=True)
+        if res.exit_code != 0:
+            raise LisaException(
+                f"Failed to reload fstab configuration file: {res.stdout}"
+            )
 
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)

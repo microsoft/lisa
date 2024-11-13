@@ -8,12 +8,25 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy.assertpy import assert_that, fail
 
+from lisa import Node
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import CBLMariner
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Docker, Echo, Git, Whoami
+from lisa.tools import (
+    Chmod,
+    Chown,
+    Dmesg,
+    Docker,
+    Echo,
+    Git,
+    Ls,
+    Mkdir,
+    Modprobe,
+    Whoami,
+)
+from lisa.util import find_groups_in_lines
 
 
 @dataclass
@@ -24,12 +37,14 @@ class CloudHypervisorTestResult:
 
 
 class CloudHypervisorTests(Tool):
-    CMD_TIME_OUT = 7200
+    CMD_TIME_OUT = 3600
     # Slightly higher case timeout to give the case a window to
     # - list subtests before running the tests.
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
-    PERF_CMD_TIME_OUT = 900
+    # 2 Hrs of timeout for perf tests and 2400 seconds for other operations
+    PERF_CASE_TIME_OUT = 7200 + 2400
+    PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -37,11 +52,19 @@ class CloudHypervisorTests(Tool):
     }
 
     ms_clh_repo = ""
-    ms_igvm_parser_repo = ""
     use_ms_clh_repo = False
     ms_access_token = ""
     clh_guest_vm_type = ""
     use_ms_guest_kernel = ""
+    use_ms_hypervisor_fw = ""
+    use_ms_ovmf_fw = ""
+    use_ms_bz_image = ""
+
+    # Block perf related env var
+    use_datadisk = ""
+    datadisk_name = ""
+    disable_datadisk_cache = ""
+    block_size_kb = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -85,9 +108,14 @@ class CloudHypervisorTests(Tool):
             skip_args = ""
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
+        if isinstance(self.node.os, CBLMariner) and hypervisor == "mshv":
+            # Install dependency to create VDPA Devices
+            self.node.os.install_packages(["iproute", "iproute-devel"])
+            # Load VDPA kernel module and create devices
+            self._configure_vdpa_devices(self.node)
+
         result = self.run(
-            f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
-            " -Z unstable-options --format json",
+            f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}",
             timeout=self.CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
@@ -224,20 +252,49 @@ class CloudHypervisorTests(Tool):
                 clone_path,
                 auth_token=self.ms_access_token,
             )
-            git.clone(
-                self.ms_igvm_parser_repo,
-                clone_path,
-                auth_token=self.ms_access_token,
-            )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
             if self.use_ms_guest_kernel:
                 self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+            if self.use_ms_hypervisor_fw:
+                self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
+            if self.use_ms_ovmf_fw:
+                self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
+            if self.use_ms_bz_image:
+                self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
+
+            if self.use_datadisk:
+                self.env_vars["USE_DATADISK"] = self.use_datadisk
+            if self.datadisk_name:
+                self.env_vars["DATADISK_NAME"] = self.datadisk_name
+            if self.disable_datadisk_cache:
+                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
+            if self.block_size_kb:
+                self.env_vars["PERF_BLOCK_SIZE_KB"] = self.block_size_kb
         else:
             git.clone(self.upstream_repo, clone_path)
 
         if isinstance(self.node.os, CBLMariner):
-            daemon_json_file = PurePath("/etc/docker/daemon.json")
-            daemon_json = '{"default-ulimits":{"nofile":{"Hard":65535,"Name":"nofile","Soft":65535}}}'  # noqa: E501
+            docker_config_dir = "/etc/docker/"
+
+            docker_config: Dict[str, Any] = {}
+            docker_config["default-ulimits"] = {}
+            nofiles = {"Hard": 65535, "Name": "nofile", "Soft": 65535}
+            docker_config["default-ulimits"]["nofile"] = nofiles
+
+            ls = self.node.tools[Ls]
+            if not ls.path_exists(path=docker_config_dir, sudo=True):
+                self.node.tools[Mkdir].create_directory(
+                    path=docker_config_dir,
+                    sudo=True,
+                )
+
+            node_info = self.node.get_information()
+            distro = node_info.get("distro_version", "")
+            if distro == "Microsoft Azure Linux 3.0":
+                docker_config["userland-proxy"] = False
+
+            daemon_json = json.dumps(docker_config).replace('"', '\\"')
+            daemon_json_file = PurePath(f"{docker_config_dir}/daemon.json")
             self.node.tools[Echo].write_to_file(
                 daemon_json, daemon_json_file, sudo=True
             )
@@ -262,6 +319,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             no_info_log=False,
             shell=True,
+            update_envs=self.env_vars,
         )
         # e.g. "integration::test_vfio: test"
         matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
@@ -274,50 +332,30 @@ class CloudHypervisorTests(Tool):
         results: List[CloudHypervisorTestResult] = []
         subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
 
-        # Cargo will output test status for each test separately in JSON format. Parse
-        # the output line by line to obtain the list of all tests run along with their
-        # outcomes.
-        #
         # Example output:
-        # { "type": "test", "event": "ok", "name": "integration::test_vfio" }
-        lines = output.split("\n")
-        for line in lines:
-            try:
-                json_results = [json.loads(line)]
-            except json.decoder.JSONDecodeError:
-                json_results = extract_jsons(line)
+        # test common_parallel::test_snapshot_restore_basic ... ok
+        # test common_parallel::test_virtio_balloon_deflate_on_oom ... FAILED
 
-            for result in json_results:
-                if type(result) is not dict:
-                    continue
-                if "type" not in result or result["type"] != "test":
-                    continue
-                if "event" not in result or result["event"] not in [
-                    "started",
-                    "ok",
-                    "failed",
-                    "ignored",
-                ]:
-                    continue
-                if result["event"] == "started":
-                    status = TestStatus.RUNNING
-                elif result["event"] == "ok":
-                    status = TestStatus.PASSED
-                elif result["event"] == "failed":
-                    status = TestStatus.FAILED
-                elif result["event"] == "ignored":
-                    status = TestStatus.SKIPPED
+        pattern = re.compile(r"test (?P<test_name>[^\s]+) \.{3} (?P<status>\w+)")
+        test_results = find_groups_in_lines(
+            lines=output,
+            pattern=pattern,
+        )
 
-                subtest_status[result["name"]] = status
+        for test_result in test_results:
+            test_status = test_result["status"].strip().lower()
+            test_name = test_result["test_name"].strip().lower()
 
-                # store stdout of failed subtests
-                if status == TestStatus.FAILED:
-                    # test case names have ':'s in them (e.g. "integration::test_vfio").
-                    #  ':'s are not allowed in file names in Windows.
-                    testcase = result["name"].replace(":", "-")
-                    testcase_log_file = log_path / f"{testcase}.log"
-                    with open(testcase_log_file, "w") as f:
-                        f.write(result["stdout"])
+            if test_status == "started":
+                status = TestStatus.RUNNING
+            elif test_status == "ok":
+                status = TestStatus.PASSED
+            elif test_status == "failed":
+                status = TestStatus.FAILED
+            elif test_status == "ignored":
+                status = TestStatus.SKIPPED
+
+            subtest_status[test_name] = status
 
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
@@ -351,6 +389,7 @@ class CloudHypervisorTests(Tool):
             cwd=self.repo_root,
             shell=True,
             expected_exit_code=0,
+            update_envs=self.env_vars,
         )
 
         stdout = result.stdout
@@ -408,8 +447,54 @@ class CloudHypervisorTests(Tool):
         else:
             dmesg_str = self.node.tools[Dmesg].get_output(force_run=True)
             dmesg_path = log_path / "dmesg"
-            with open(str(dmesg_path), "w") as f:
+            with open(str(dmesg_path), "w", encoding="utf-8") as f:
                 f.write(dmesg_str)
+
+    def _configure_vdpa_devices(self, node: Node) -> None:
+        # Load the VDPA kernel modules
+        node.tools[Modprobe].load("vdpa")
+        node.tools[Modprobe].load("vhost_vdpa")
+        node.tools[Modprobe].load("vdpa_sim")
+        node.tools[Modprobe].load("vdpa_sim_blk")
+        node.tools[Modprobe].load("vdpa_sim_net")
+
+        # Device Config
+        device_config = [
+            {
+                "dev_name": "vdpa-blk0",
+                "mgmtdev_name": "vdpasim_blk",
+                "device_path": "/dev/vhost-vdpa-0",
+                "permission": "660",
+            },
+            {
+                "dev_name": "vdpa-blk1",
+                "mgmtdev_name": "vdpasim_blk",
+                "device_path": "/dev/vhost-vdpa-1",
+                "permission": "660",
+            },
+            {
+                "dev_name": "vdpa-blk2",
+                "mgmtdev_name": "vdpasim_net",
+                "device_path": "/dev/vhost-vdpa-2",
+                "permission": "660",
+            },
+        ]
+
+        # Create VDPA Devices
+        user = node.tools[Whoami].get_username()
+        for device in device_config:
+            dev_name = device["dev_name"]
+            mgmtdev_name = device["mgmtdev_name"]
+            device_path = device["device_path"]
+            permission = device["permission"]
+
+            node.execute(
+                cmd=f"vdpa dev add name {dev_name} mgmtdev {mgmtdev_name}",
+                sudo=True,
+                shell=True,
+            )
+            node.tools[Chown].change_owner(file=PurePath(device_path), user=user)
+            node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
 
 
 def extract_jsons(input_string: str) -> List[Any]:
