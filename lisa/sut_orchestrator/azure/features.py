@@ -2495,7 +2495,8 @@ class Availability(AzureFeatureMixin, features.Availability):
                 "is not supported in the current configuration. "
                 "Please select one of "
                 f"{[type.value for type in settings.availability_type.items]}. "
-                "Or consider changing the disk type or location."
+                "The supported availability types is affected by disk type, "
+                "location, and test case requirements."
             )
 
     @classmethod
