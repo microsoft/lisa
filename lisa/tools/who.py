@@ -27,7 +27,7 @@ class Who(Tool):
             "-b",
             force_run=True,
             no_error_log=no_error_log,
-            timeout=20,
+            timeout=60,
         )
         command_result.assert_exit_code(
             0, f"'last' return non-zero exit code: {command_result.stderr}"

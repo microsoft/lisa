@@ -113,6 +113,9 @@ class Reboot(Tool):
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {identifier}")
 
+        self._log.debug("start sleep")
+        time.sleep(300)
+
         connected: bool = False
         # The previous steps may take longer time than time out. After that, it
         # needs to connect at least once.
