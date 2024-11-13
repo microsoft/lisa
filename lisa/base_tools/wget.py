@@ -78,6 +78,7 @@ class Wget(Tool):
             if matched_result:
                 download_file_path = matched_result.group("path")
             else:
+                self.node.tools[Rm].remove_file(log_file, sudo=sudo)
                 raise LisaException(
                     f"cannot find file path in stdout of '{command}', it may be caused "
                     " due to failed download or pattern mismatch."
