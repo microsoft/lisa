@@ -130,9 +130,8 @@ class Nics(InitializableMixin):
     _device_module_map = {
         "mlx5_core": ModuleInformation(["mlx5_ib"], "CONFIG_MLX5_CORE"),
         "mlx4_core": ModuleInformation(["mlx4_en", "mlx4_ib"], "CONFIG_MLX4_CORE"),
-        "mana": ModuleInformation(
-            ["mana", "mana_en", "mana_ib"], "CONFIG_MICROSOFT_MANA"
-        ),
+        "mana": ModuleInformation(["mana"], "CONFIG_MICROSOFT_MANA"),
+        "mana_ib": ModuleInformation(["mana_ib"], "CONFIG_MANA_INFINIBAND"),
     }
 
     def __init__(self, node: "Node"):
@@ -454,6 +453,9 @@ class Nics(InitializableMixin):
 
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+
+    def is_mana_ib_driver_enabled(self) -> bool:
+        return self._node.tools[KernelConfig].is_enabled("CONFIG_MANA_INFINIBAND")
 
     def _get_default_nic(self) -> None:
         self.default_nic: str = ""
