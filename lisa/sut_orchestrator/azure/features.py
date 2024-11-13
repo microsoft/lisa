@@ -1649,7 +1649,7 @@ class Disk(AzureFeatureMixin, features.Disk):
     # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 6 (da4,pass5)
     # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 7 (da3,pass4)
     LUN_PATTERN_BSD = re.compile(
-        r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(cd\d+|da\d+)", re.M
+        r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(da\d+)", re.M
     )
 
     @classmethod
