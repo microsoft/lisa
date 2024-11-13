@@ -17,7 +17,6 @@ from lisa.operating_system import BSD
 from lisa.testsuite import TestResult
 from lisa.tools import Curl
 from lisa.util import LisaException, SkippedException
-
 from microsoft.testsuites.mdatp.mdatp_tools import Mdatp
 
 

@@ -3,9 +3,10 @@
 import json
 from typing import Any
 
-from lisa.tools import Chmod
 from lisa.base_tools import Wget
 from lisa.executable import Tool
+from lisa.tools import Chmod
+
 
 class Mdatp(Tool):
     @property
