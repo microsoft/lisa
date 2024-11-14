@@ -235,7 +235,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         rpc_status = response.provisioning_state
         assert_that(rpc_status, "RPC creation failed").is_equal_to("Succeeded")
         count = 0
-        for count in range(10):
+        for _ in range(10):
             try:
                 # create a restore point for the VM
                 restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -265,7 +265,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 else:
                     raise e
             time.sleep(1)
-            count = count + 1
+            count += 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
 
     def _find_extension_dir(self, node: Node) -> str:
