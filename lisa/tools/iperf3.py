@@ -367,7 +367,12 @@ class Iperf3(Tool):
         for client_result_raw in client_result_list:
             # remove warning which will bring exception when load json
             # warning: UDP block size 8192 exceeds TCP MSS 1406, may result in fragmentation / drops # noqa: E501
-            client_result = json.loads(self._pre_handle(client_result_raw.stdout))
+            try:
+                client_result = json.loads(self._pre_handle(client_result_raw.stdout))
+            except Exception as e:
+                raise LisaException(
+                    f"fail to load json from iperf3 client result: {str(e)} \n {self._pre_handle(client_result_raw.stdout)}"
+                )
             if (
                 "sum" in client_result["end"].keys()
                 and "lost_percent" in client_result["end"]["sum"].keys()
