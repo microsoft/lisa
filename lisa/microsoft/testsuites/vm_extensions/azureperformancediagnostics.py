@@ -26,9 +26,9 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
+    add_system_assign_identity,
     check_or_create_storage_account,
     get_node_context,
-    add_system_assign_identity,
     list_blobs,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -61,7 +61,7 @@ class AzurePerformanceDiagnostics(TestSuite):
          storage account key, which we cannot use currently.
         Will change it back once the extension works with MSI.
         """,
-        priority=5,
+        priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
@@ -93,8 +93,12 @@ class AzurePerformanceDiagnostics(TestSuite):
         )
 
         # Assign system identity to VM
-        # This MSI will be pre-configured with the necessary role assigments to Storage Account from Subscription level
-        # Permissions required: Storage Account Contributor, Storage Blob Data Contributor, Storage Blob Data Contributor
+        # This MSI will be pre-configured with the necessary
+        # role assigments to Storage Account from Subscription level
+        # Permissions required:
+        #   Storage Account Contributor
+        #   Storage Blob Data Contributor
+        #   Storage Blob Data Contributor
         add_system_assign_identity(
             platform=platform,
             resource_group_name=node_context.resource_group_name,
@@ -120,7 +124,7 @@ class AzurePerformanceDiagnostics(TestSuite):
 
         protected_settings = {
             "storageAccountName": storage_account_name,
-            "authenticationType": "SystemManagedIdentity"
+            "authenticationType": "SystemManagedIdentity",
         }
 
         extension_result = extension.create_or_update(
@@ -175,7 +179,8 @@ class AzurePerformanceDiagnostics(TestSuite):
             Suse: [12, 15],
             SLES: [12, 15],
             AlmaLinux: [8],
-            CBLMariner: [2, 3], #AzureLinux uses CBLMariner class
+            # AzureLinux uses CBLMariner class
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions:
