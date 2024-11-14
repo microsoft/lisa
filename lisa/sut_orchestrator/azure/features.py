@@ -2012,6 +2012,143 @@ class Resize(AzureFeatureMixin, features.Resize):
         self._node.capability = cast(schema.Capability, new_capability)
         return new_capability, origin_vm_size, new_vm_size_info.vm_size
 
+    def _compare_disk_property(
+        self,
+        candidate_size: AzureCapability,
+        current_vm_size: AzureCapability,
+        property_name: str,
+    ) -> bool:
+        assert candidate_size.capability
+        assert current_vm_size.capability
+        assert candidate_size.capability.disk
+        assert current_vm_size.capability.disk
+        candidate_value = getattr(candidate_size.capability.disk, property_name, None)
+        current_value = getattr(current_vm_size.capability.disk, property_name, None)
+        if candidate_value is None or current_value is None:
+            return False
+        # If both values are iterable (list or set), check if there's any match
+        if isinstance(candidate_value, (list, set)):
+            return any(dc_type in candidate_value for dc_type in current_value)
+        # Otherwise, do a simple direct comparison
+        if isinstance(candidate_value, AzureDiskOptionSettings) and isinstance(
+            current_value, AzureDiskOptionSettings
+        ):
+            return candidate_value == current_value
+        return False
+
+    def _compare_architecture(
+        self,
+        candidate_size: AzureCapability,
+        current_vm_size: AzureCapability,
+    ) -> bool:
+        assert candidate_size.capability
+        assert current_vm_size.capability
+        assert current_vm_size.capability.features
+        assert candidate_size.capability.features
+        current_arch = next(
+            (
+                feature
+                for feature in current_vm_size.capability.features
+                if feature.type == ArchitectureSettings.type
+            ),
+            None,
+        )
+        candidate_arch = next(
+            (
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == ArchitectureSettings.type
+            ),
+            None,
+        )
+        if isinstance(current_arch, ArchitectureSettings) and isinstance(
+            candidate_arch, ArchitectureSettings
+        ):
+            return current_arch.arch == candidate_arch.arch
+        return False
+
+    def _compare_size_generation(
+        self,
+        candidate_size: AzureCapability,
+        current_vm_size: AzureCapability,
+    ) -> bool:
+        assert candidate_size.capability
+        assert current_vm_size.capability
+        assert current_vm_size.capability.features
+        assert candidate_size.capability.features
+        current_gen = next(
+            (
+                feature
+                for feature in current_vm_size.capability.features
+                if feature.type == VhdGenerationSettings.type
+            ),
+            None,
+        )
+        candidate_gen = next(
+            (
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == VhdGenerationSettings.type
+            ),
+            None,
+        )
+
+        if isinstance(current_gen, VhdGenerationSettings) and isinstance(
+            candidate_gen, VhdGenerationSettings
+        ):
+            result = search_space.check_setspace(current_gen.gen, candidate_gen.gen)
+            return result.result
+        return False
+
+    def _compare_network_interface(
+        self, candidate_size: AzureCapability, current_vm_size: AzureCapability
+    ) -> bool:
+        assert candidate_size.capability
+        assert current_vm_size.capability
+        assert current_vm_size.capability.network_interface
+        assert candidate_size.capability.network_interface
+        current_network_interface = current_vm_size.capability.network_interface
+        assert_that(current_network_interface).described_as(
+            "current_network_interface is not of type NetworkInterfaceOptionSettings."
+        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+        current_data_path = current_network_interface.data_path
+        candidate_network_interface = candidate_size.capability.network_interface
+        assert_that(candidate_network_interface).described_as(
+            "candidate_network_interface is not of type NetworkInterfaceOptionSettings."
+        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+        candidate_data_path = candidate_network_interface.data_path
+
+        # If current VM has accelerated networking enabled
+        # check that the candidate also has it enabled
+        if schema.NetworkDataPath.Sriov in current_data_path:  # type: ignore
+            return schema.NetworkDataPath.Sriov in candidate_data_path  # type: ignore
+        return True
+
+    def _compare_core_count(
+        self,
+        candidate_size: AzureCapability,
+        current_vm_size: AzureCapability,
+        resize_action: ResizeAction,
+    ) -> bool:
+        assert candidate_size.capability
+        assert current_vm_size.capability
+        assert current_vm_size.capability.core_count
+        assert candidate_size.capability.core_count
+
+        candidate_core_count = candidate_size.capability.core_count
+        current_core_count = current_vm_size.capability.core_count
+        if (
+            resize_action == ResizeAction.IncreaseCoreCount
+            and candidate_core_count < current_core_count  # type: ignore
+        ):
+            return False
+        if (
+            resize_action == ResizeAction.DecreaseCoreCount
+            and candidate_core_count > current_core_count  # type: ignore
+        ):
+            return False
+        return True
+
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[str, "AzureCapability"]:
@@ -2060,91 +2197,58 @@ class Resize(AzureFeatureMixin, features.Resize):
 
                 avail_eligible_intersect.append(new_vm_size)
 
-        current_network_interface = current_vm_size.capability.network_interface
-        assert_that(current_network_interface).described_as(
-            "current_network_interface is not of type NetworkInterfaceOptionSettings."
-        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
-        current_data_path = current_network_interface.data_path  # type: ignore
         current_core_count = current_vm_size.capability.core_count
         assert_that(current_core_count).described_as(
             "Didn't return an integer to represent the current VM size core count."
         ).is_instance_of(int)
         assert current_vm_size.capability.features
-        current_arch = [
-            feature
-            for feature in current_vm_size.capability.features
-            if feature.type == ArchitectureSettings.type
-        ]
-        current_gen = [
-            feature
-            for feature in current_vm_size.capability.features
-            if feature.type == VhdGenerationSettings.type
-        ]
+
         # Loop removes candidate vm sizes if they can't be resized to or if the
         # change in cores resulting from the resize is undesired
         for candidate_size in avail_eligible_intersect[:]:
-            assert candidate_size.capability.features
-            candidate_arch = [
-                feature
-                for feature in candidate_size.capability.features
-                if feature.type == ArchitectureSettings.type
-            ]
-            # Removing vm size from candidate list if the candidate architecture is
-            # different with current vm size
-            if isinstance(current_arch[0], ArchitectureSettings) and isinstance(
-                candidate_arch[0], ArchitectureSettings
-            ):
-                if candidate_arch[0].arch != current_arch[0].arch:
-                    avail_eligible_intersect.remove(candidate_size)
-                    continue
-
-            candidate_gen = [
-                feature
-                for feature in candidate_size.capability.features
-                if feature.type == VhdGenerationSettings.type
-            ]
-            if isinstance(current_gen[0], VhdGenerationSettings) and isinstance(
-                candidate_gen[0], VhdGenerationSettings
-            ):
-                result = search_space.check_setspace(
-                    current_gen[0].gen, candidate_gen[0].gen
-                )
-                # Removing vm size from candidate list if the candidate vhd gen type is
-                # different with current vm size gen type
-                if not result.result:
-                    avail_eligible_intersect.remove(candidate_size)
-                    continue
-            candidate_network_interface = candidate_size.capability.network_interface
-            assert_that(candidate_network_interface).described_as(
-                "candidate_network_interface is not of type "
-                "NetworkInterfaceOptionSettings."
-            ).is_instance_of(schema.NetworkInterfaceOptionSettings)
-            candidate_data_path = candidate_network_interface.data_path  # type: ignore
-            # Can't resize from an accelerated networking enabled size to a size where
-            # accelerated networking isn't enabled
-            if (
-                schema.NetworkDataPath.Sriov in current_data_path  # type: ignore
-                and schema.NetworkDataPath.Sriov not in candidate_data_path  # type: ignore # noqa: E501
-            ):
-                # Removing sizes without accelerated networking capabilities
-                # if original size has it enabled
+            if not self._compare_architecture(candidate_size, current_vm_size):
                 avail_eligible_intersect.remove(candidate_size)
                 continue
 
-            candidate_core_count = candidate_size.capability.core_count
-            assert_that(candidate_core_count).described_as(
-                "Didn't return an integer to represent the "
-                "candidate VM size core count."
-            ).is_instance_of(int)
-            # Removing vm size from candidate list if the change in core count
-            # doesn't align with the ResizeAction passed into this function
-            if (
-                resize_action == ResizeAction.IncreaseCoreCount
-                and candidate_core_count < current_core_count  # type: ignore
-                or resize_action == ResizeAction.DecreaseCoreCount
-                and candidate_core_count > current_core_count  # type: ignore
+            # List of disk properties to compare
+            disk_properties_to_compare = [
+                "disk_controller_type",
+                "os_disk_type",
+                "data_disk_type",
+            ]
+            # Flag to track whether the candidate passed all disk property checks
+            candidate_passed_all_checks = True
+            for prop in disk_properties_to_compare:
+                # compare the current property between the candidate size
+                # and the current VM size
+                if not self._compare_disk_property(
+                    candidate_size, current_vm_size, prop
+                ):
+                    # If the comparison fails (returns False)
+                    # mark the candidate as failing all checks
+                    candidate_passed_all_checks = False
+                    break
+            # If the candidate failed any of the checks (disk properties did not match)
+            if not candidate_passed_all_checks:
+                # Remove the candidate size from the list of available eligible sizes
+                avail_eligible_intersect.remove(candidate_size)
+                # Continue to the next candidate size in the loop
+                # without checking further
+                continue
+
+            if not self._compare_size_generation(candidate_size, current_vm_size):
+                avail_eligible_intersect.remove(candidate_size)
+                continue
+
+            if not self._compare_network_interface(candidate_size, current_vm_size):
+                avail_eligible_intersect.remove(candidate_size)
+                continue
+
+            if not self._compare_core_count(
+                candidate_size, current_vm_size, resize_action
             ):
                 avail_eligible_intersect.remove(candidate_size)
+                continue
 
         if not avail_eligible_intersect:
             raise LisaException(
