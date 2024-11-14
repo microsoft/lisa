@@ -265,7 +265,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                 else:
                     raise e
             time.sleep(1)
-            count +=1
+            count += 1
         assert_that(count, "Restore point creation failed.").is_less_than(10)
 
     def _find_extension_dir(self, node: Node) -> str:
