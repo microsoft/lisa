@@ -96,7 +96,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             Ubuntu: [16, 18, 20],
             Suse: [12, 15],
             SLES: [12, 15],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         supported_major_versions_arm64 = {
@@ -105,7 +105,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             Debian: [11],
             Ubuntu: [18, 20],
             SLES: [15],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions_x86_64:
