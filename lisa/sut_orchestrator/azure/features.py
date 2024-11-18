@@ -805,6 +805,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         dest_hop: str,
         em_first_hop: str = "",
         next_hop_type: str = "",
+        resource_group_name: str = "",
     ) -> None:
         # some quick checks that the subnet mask looks correct
         check_mask = self.__ipv4_mask_check_regex.match(subnet_mask)
@@ -813,6 +814,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         ).is_not_none()
 
         azure_platform: AzurePlatform = self._platform  # type: ignore
+        if not resource_group_name:
+            resource_group_name = self._resource_group_name
+
         # Step 1: create the route table, apply comes later.
         route_table = self._do_create_route_table(
             em_first_hop,
@@ -824,18 +828,17 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         )
         # Step 2: Get the virtual networks in the resource group.
         vnets: Dict[str, List[str]] = get_virtual_networks(
-            azure_platform, self._resource_group_name
+            azure_platform, resource_group_name
         )
         # get the subnets in the virtual network
         vnet_id = ""
         subnet_ids: List[str] = []
-        # assert_that(vnets.items()).described_as(
-        #     "There is more than one virtual network in this RG!"
-        #     " This RG is setup is unexpected, test cannot infer which VNET to use."
-        #     "Check if LISA has changed it's test setup logic, verify if the "
-        #     "DPDK test suite needs to be modified."
-        # ).is_length(1)
-
+        assert_that(vnets.items()).described_as(
+            "There is more than one virtual network in this RG!"
+            " This RG is setup is unexpected, test cannot infer which VNET to use."
+            "Check if LISA has changed it's test setup logic, verify if the "
+            "DPDK test suite needs to be modified."
+        ).is_length(1)
         # get the subnets for the virtual network in the test RG.
         # dict will have a single entry, lisa is only creating one vnet per test vm.
         vnet_items: List[Tuple[str, List[str]]] = list(vnets.items())

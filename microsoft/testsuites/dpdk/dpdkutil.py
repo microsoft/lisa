@@ -818,6 +818,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     run_in_parallel(
         [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
     )
+    # check if LISA was told to use a specific resource group for the vnet
+    resource_group_name = variables.get("vnet_resource_group", "")
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
@@ -870,6 +872,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_a_nics[forwarder].ip_addr,
+        resource_group=resource_group_name,
     )
     receiver.features[NetworkInterface].create_route_table(
         nic_name=subnet_b_nics[forwarder].name,
@@ -878,6 +881,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_b_nics[forwarder].ip_addr,
+        resource_group=resource_group_name,
     )
 
     # Do actual DPDK initialization, compile l3fwd and apply setup to
