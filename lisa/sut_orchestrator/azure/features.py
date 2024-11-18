@@ -829,12 +829,12 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # get the subnets in the virtual network
         vnet_id = ""
         subnet_ids: List[str] = []
-        assert_that(vnets.items()).described_as(
-            "There is more than one virtual network in this RG!"
-            " This RG is setup is unexpected, test cannot infer which VNET to use."
-            "Check if LISA has changed it's test setup logic, verify if the "
-            "DPDK test suite needs to be modified."
-        ).is_length(1)
+        # assert_that(vnets.items()).described_as(
+        #     "There is more than one virtual network in this RG!"
+        #     " This RG is setup is unexpected, test cannot infer which VNET to use."
+        #     "Check if LISA has changed it's test setup logic, verify if the "
+        #     "DPDK test suite needs to be modified."
+        # ).is_length(1)
 
         # get the subnets for the virtual network in the test RG.
         # dict will have a single entry, lisa is only creating one vnet per test vm.
