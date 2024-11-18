@@ -55,3 +55,9 @@ class SecurityProfile(features.SecurityProfile):
             node_context.guest_vm_type = cls._security_profile_mapping[
                 settings.security_profile
             ]
+
+
+class CVMNestedVirtualization(features.CVMNestedVirtualization):
+    @classmethod
+    def create_setting(cls, *args: Any, **kwargs: Any) -> schema.FeatureSettings:
+        return schema.FeatureSettings.create(cls.name())

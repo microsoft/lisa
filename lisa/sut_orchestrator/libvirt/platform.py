@@ -59,7 +59,7 @@ from .context import (
     get_environment_context,
     get_node_context,
 )
-from .features import SecurityProfile, SecurityProfileSettings
+from .features import CVMNestedVirtualization, SecurityProfile, SecurityProfileSettings
 from .platform_interface import IBaseLibvirtPlatform
 from .schema import (
     FIRMWARE_TYPE_BIOS,
@@ -93,6 +93,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     CONFIG_FILE_MARKER = "lisa-libvirt-platform"
 
     _supported_features: List[Type[Feature]] = [
+        CVMNestedVirtualization,
         SerialConsole,
         StartStop,
         SecurityProfile,
@@ -350,9 +351,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         node_capabilities.network_interface.nic_count = 1
         node_capabilities.gpu_count = 0
         security_profile_setting = SecurityProfileSettings()
+        cvm_nested_virtualization = CVMNestedVirtualization.create_setting()
         node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True,
             items=[
+                cvm_nested_virtualization,
                 schema.FeatureSettings.create(SerialConsole.name()),
                 security_profile_setting,
             ],
