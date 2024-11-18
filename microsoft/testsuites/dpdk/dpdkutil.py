@@ -872,7 +872,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_a_nics[forwarder].ip_addr,
-        resource_group=resource_group_name,
+        resource_group_name=resource_group_name,
     )
     receiver.features[NetworkInterface].create_route_table(
         nic_name=subnet_b_nics[forwarder].name,
@@ -881,7 +881,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         em_first_hop=AZ_ROUTE_ALL_TRAFFIC,
         next_hop_type="VirtualAppliance",
         dest_hop=subnet_b_nics[forwarder].ip_addr,
-        resource_group=resource_group_name,
+        resource_group_name=resource_group_name,
     )
 
     # Do actual DPDK initialization, compile l3fwd and apply setup to

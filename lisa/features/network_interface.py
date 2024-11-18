@@ -38,7 +38,7 @@ class NetworkInterface(Feature):
         dest_hop: str,
         em_first_hop: str = "",
         next_hop_type: str = "",
-        resource_group: str = "",
+        resource_group_name: str = "",
     ) -> None:
         raise NotImplementedError
 
