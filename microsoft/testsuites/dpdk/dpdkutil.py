@@ -1127,7 +1127,7 @@ class NicType(Enum):
 
 
 # Short name for nic types
-NIC_SHORT_NAMES = {
+NIC_SHORT_NAMES: Dict[NicType, str] = {
     NicType.CX3: "cx3",
     NicType.CX4: "cx4",
     NicType.CX5: "cx5",
@@ -1150,13 +1150,12 @@ def get_node_nic_short_name(node: Node) -> str:
     short_names = map(lambda x: x.value, non_mana_nics)
     known_nic_types = ",".join(short_names)
     found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
-    node.log.debug(
+    # assert, this will be caught in annotate_dpdk_test_result
+    # and logged, rather than failing the test.
+    raise AssertionError(
         "Unknown NIC hardware was detected during DPDK test case. "
         f"Expected one of: {known_nic_types}. Found {found_nic_types}. "
     )
-    # this is just a function for annotating a result, so don't assert
-    # if there's
-    return found_nic_types
 
 
 def _format_version_str(version: VersionInfo) -> str:
@@ -1178,19 +1177,19 @@ def annotate_dpdk_test_result(
         test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
         log.debug(f"Adding dpdk version: {dpdk_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
+        log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
         test_result.information["rdma_version"] = _format_version_str(rdma_version)
         log.debug(f"Adding rdma version: {rdma_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
+        log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
         log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
+        log.debug(f"Could not fetch NIC short name: {str(err)}")
 
 
 def skip_32bit_test_on_unsupported_distros(os: OperatingSystem) -> None:
