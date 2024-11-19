@@ -143,6 +143,7 @@ class WindowsTar(Tar):
         gzip: bool = False,
         sudo: bool = False,
         raise_error: bool = True,
+        skip_existing_files: bool = False,
     ) -> None:
         mkdir = self.node.tools[Mkdir]
         mkdir.create_directory(dest_dir)
