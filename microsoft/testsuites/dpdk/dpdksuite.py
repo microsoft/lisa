@@ -121,11 +121,13 @@ class Dpdk(TestSuite):
         ),
     )
     def verify_dpdk_build_netvsc_32bit(
-        self, node: Node, log: Logger, variables: Dict[str, Any]
+        self, node: Node, log: Logger, variables: Dict[str, Any], result: TestResult
     ) -> None:
         skip_32bit_test_on_unsupported_distros(node.os)
         force_dpdk_default_source(variables, build_arch=CpuArchitecture.I386)
-        verify_dpdk_build(node, log, variables, "netvsc", HugePageSize.HUGE_2MB)
+        verify_dpdk_build(
+            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -150,6 +152,7 @@ class Dpdk(TestSuite):
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
+        result: TestResult,
     ) -> None:
         node = environment.default_node
         skip_32bit_test_on_unsupported_distros(node.os)
@@ -161,6 +164,7 @@ class Dpdk(TestSuite):
             "netvsc",
             HugePageSize.HUGE_2MB,
             multiple_queues=True,
+            result=result,
         )
 
     @TestCaseMetadata(
