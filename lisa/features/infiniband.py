@@ -9,10 +9,11 @@ from assertpy import assert_that
 from retry import retry
 
 from lisa.base_tools import Cat, Sed, Uname, Wget
+from lisa.tools.git import Git
 from lisa.feature import Feature
 from lisa.features import Disk
 from lisa.operating_system import CBLMariner, Oracle, Redhat, Ubuntu
-from lisa.tools import Firewall, Ls, Lspci, Make, Service
+from lisa.tools import Chmod, Find, Firewall, Ls, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
@@ -466,7 +467,6 @@ class Infiniband(Feature):
 
     def install_open_mpi(self) -> None:
         node = self._node
-        # Install Open MPI
         wget = node.tools[Wget]
         tar_file = (
             "https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.gz"
@@ -496,6 +496,55 @@ class Infiniband(Feature):
         make = node.tools[Make]
         make.make("", cwd=openmpi_folder, sudo=True)
         make.make_install(cwd=openmpi_folder, sudo=True)
+
+    def install_intel_mpi_benchmarking_tool(self, tool_names: List[str] = ["IMB-MPI1"]) -> None:
+        # Assumption is we have required mpi package built and installed
+        node = self._node
+        if not isinstance(node.os, CBLMariner):
+            # These tools are included in other distro packages
+            return
+        # Clone and build Intel MPI Benchmarks https://github.com/intel/mpi-benchmarks.git
+        git = node.tools[Git]
+        git.clone(url="https://github.com/intel/mpi-benchmarks.git", cwd=node.working_path)
+        
+        imb_src_folder = node.get_pure_path(f"{node.working_path}/mpi-benchmarks")
+
+        find = node.tools[Find]
+        # find mpicc path
+        find_results = find.find_files(
+            node.get_pure_path("/"), "mpicc", sudo=True
+        )
+        assert_that(len(find_results)).described_as(
+            "Could not find location of mpicc from MPI package"
+        ).is_greater_than(0)
+        mpicc_path = find_results[0]
+        assert_that(mpicc_path).described_as(
+            "Could not find location of mpicc from MPI package"
+        ).is_not_empty()
+
+        # find mpicxx path
+        find_results = find.find_files(
+            node.get_pure_path("/"), "mpicxx", sudo=True
+        )
+        assert_that(len(find_results)).described_as(
+            "Could not find location of mpicxx from MPI package"
+        ).is_greater_than(0)
+        mpicxx_path = find_results[0]
+        assert_that(mpicxx_path).described_as(
+            "Could not find location of mpicxx from MPI package"
+        ).is_not_empty()
+
+        node.tools[Chmod].chmod(mpicc_path, "755", sudo=True)
+        node.tools[Chmod].chmod(mpicxx_path, "755", sudo=True)
+
+        # tool_names = ["IMB-MPI1", "IMB-RMA", "IMB-NBC"]
+        for tool in tool_names:
+            make = node.tools[Make]
+            make.make(f"{tool} CC={mpicc_path} CXX={mpicxx_path}", 
+                      cwd=imb_src_folder, sudo=True, 
+                      shell=False, sendYesCmd=False)
+            node.tools[Chmod].chmod(f"{imb_src_folder}/{tool}", "755", sudo=True)
+        
 
     def install_ibm_mpi(self, platform_mpi_url: str) -> None:
         node = self._node
