@@ -820,6 +820,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
     # check if LISA was told to use a specific resource group for the vnet
     resource_group_name = variables.get("vnet_resource_group", "")
+    if resource_group_name:
+        log.debug(f"Using RGname: {resource_group_name}")
 
     # organize our nics by subnet.
     # NOTE: we're ignoring the primary interfaces on each VM since we need it
