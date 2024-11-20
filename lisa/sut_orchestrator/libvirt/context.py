@@ -55,7 +55,7 @@ class NodeContext:
     vm_name: str = ""
     kernel_source_path: str = ""
     kernel_path: str = ""
-    guest_vm_type: GuestVmType = GuestVmType.Standard
+    guest_vm_type: GuestVmType = field(default_factory=lambda: GuestVmType.Standard)
     cloud_init_file_path: str = ""
     ignition_file_path: str = ""
     os_disk_source_file_path: Optional[str] = None
