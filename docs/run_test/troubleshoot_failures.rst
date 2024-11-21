@@ -12,12 +12,12 @@ It's essential to understand the results after running tests. LISA has 7
 kinds of test results in total: 3 of which are intermediate results, and
 4 of which are final results, as explained here: <understand_results>.  
 To understand a test failure, the recommended troubleshooting path is:
-1. Check the test result error messages in console output.
-2. Check the log file.  Search the root log file which contains
+   1. Check the test result error messages in console output.
+   1. Check the log file.  Search the root log file which contains
 call traces and commands output, as well as the split log files which
 are smaller in size.
-3. Search the LISA code for issues.
-4. Try to reproduce failure manually, deploy and run resources.
+   1. Search the LISA code for issues.
+   1. Try to reproduce failure manually, deploy and run resources.
 
 Console Output
 --------------------
