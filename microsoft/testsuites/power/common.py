@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import Redhat, Suse, Ubuntu, CBLMariner
+from lisa.operating_system import CBLMariner, Redhat, Suse, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -21,7 +21,6 @@ from lisa.tools import (
     Lscpu,
     Mount,
 )
-from lisa.tools.uptime import Uptime
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -73,6 +72,13 @@ def verify_hibernation(
 
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
+    # This is a temporary workaround for a bug observed in Redhat Distros
+    # where the VM is not able to hibernate immediately after installing
+    # the hibernation-setup tool.
+    # A sleep(100) also works, but we are unsure of the exact time required.
+    # So it is safer to reboot the VM.
+    if type(node.os) == Redhat:
+        node.reboot()
 
     boot_time_before_hibernation = node.execute(
         "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
