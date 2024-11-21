@@ -19,7 +19,6 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
-from lisa.features.security_profile import CvmDisabled
 from lisa.node import RemoteNode
 from lisa.tools import (
     Ethtool,
@@ -186,7 +185,6 @@ class CPUSuite(TestSuite):
         priority=4,
         requirement=simple_requirement(
             min_core_count=16,
-            supported_features=[CvmDisabled()],
         ),
     )
     def verify_cpu_offline_channel_add(self, log: Logger, node: Node) -> None:
