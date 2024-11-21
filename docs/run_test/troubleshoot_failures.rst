@@ -12,12 +12,12 @@ It's essential to understand the results after running tests. LISA has 7
 kinds of test results in total: 3 of which are intermediate results, and
 4 of which are final results, as explained here: <understand_results>.  
 To understand a test failure, the recommended troubleshooting path is:
-   1. Check the test result error messages in console output.
-   1. Check the log file.  Search the root log file which contains
+#. Check the test result error messages in console output.
+#. Check the log file.  Search the root log file which contains
 call traces and commands output, as well as the split log files which
 are smaller in size.
-   1. Search the LISA code for issues.
-   1. Try to reproduce failure manually, deploy and run resources.
+#. Search the LISA code for issues.
+#. Try to reproduce failure manually, deploy and run resources.
 
 Console Output
 --------------------
@@ -47,12 +47,12 @@ logs will show INFO and above levels by default.
 
 - **LOG FOLDER CONTENTS** 
 
-  - **environment** folder, which contains logs split for the
+  * **environment** folder, which contains logs split for the
     environment.
-  - **tests** folder, which contains logs split for the test cases.
-  - **lisa.html** A formatted summary of test results. It can be viewed
+  * **tests** folder, which contains logs split for the test cases.
+  * **lisa.html** A formatted summary of test results. It can be viewed
     by opening the file in a web browser.
-  - **lisa-<timestamp>.log** A full log of the test run. It contains all
+  * **lisa-<timestamp>.log** A full log of the test run. It contains all
     the information about the test run, including the test cases,
     environments, and results.
 
@@ -60,33 +60,36 @@ logs will show INFO and above levels by default.
    :alt: log_dir_structure
 
 -  **LOG FILE SEGMENTS**
+  
   Each line (log entry) in the log file contains the following segments
   from left to right: 
   
-  - **timestamp** The timestamp corresponding to log entry 
-  - **thread number** The thread number of the log entry 
-  - **log level** The log level of the log entry 
-  - **component level** The component level provides the source of log entry
+  * **timestamp** The timestamp corresponding to log entry 
+  * **thread number** The thread number of the log entry 
+  * **log level** The log level of the log entry 
+  * **component level** The component level provides the source of log entry
 
 .. figure:: ../img/log_file_segments.png
    :alt: log_file_segments
 
 -  **REMOTE COMMANDS LOGS**
+
   LISA logs all the commands executed on the remote machine.  The
-  commands are logged in the **lisa-<timestamp>.log** file, unless the it
+  commands are logged in the **lisa-<timestamp>.log** file, unless it
   is too long.  Each command has a random id that is used to collocate
   async command outputs.  Previous output may be reused, so check the
   environment log to get previous output.  The commands are logged in
   the following format: 
   
-  - **Command line info** The command line that was executed 
-  - **stdout** The standard output of the command 
-  - **exit info** The exit code of the command
+  * **Command line info** The command line that was executed 
+  * **stdout** The standard output of the command 
+  * **exit info** The exit code of the command
 
 .. figure:: ../img/remote_command_output.png
    :alt: remote_command_output
 
 -  **ENVIRONMENT LOGS**
+  
   The environment logs are ordered by timestamp.  An environment may
   have multiple nodes.
 
@@ -94,6 +97,7 @@ logs will show INFO and above levels by default.
    :alt: environment_logs
 
 -  **SERIAL CONSOLE LOGS**
+  
   The serial console logs are for the Azure platform.  Use the name
   column from the environment_stats.log to locate the proper
   environment folder.  The serial console log will be uploaded when the
@@ -103,6 +107,7 @@ logs will show INFO and above levels by default.
    :alt: serial_console_logs
 
 -  **TEST RESULT LOGS - SPLIT BY CASE**
+
   The test folder may contain more logs, split by test case.  If so, a
   folder with in the format <timestamp>-<testcase> will be created, that
   containes log files named <timestamp>-<testcase>.log.
