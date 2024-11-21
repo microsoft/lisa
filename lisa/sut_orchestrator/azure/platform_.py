@@ -627,29 +627,9 @@ class AzurePlatform(Platform):
                 f"as it's a dry run."
             )
         else:
-            assert self._rm_client
-            az_rg_exists = self._rm_client.resource_groups.check_existence(
-                resource_group_name
-            )
-            if not az_rg_exists:
-                return
             log.info(
-                f"deleting resource group: {resource_group_name}, "
-                f"wait: {self._azure_runbook.wait_delete}"
+                f"SKIPPED deleting resource group: {resource_group_name}"
             )
-            delete_operation: Any = None
-            try:
-                delete_operation = self._rm_client.resource_groups.begin_delete(
-                    resource_group_name
-                )
-            except Exception as identifier:
-                log.debug(f"exception on delete resource group: {identifier}")
-            if delete_operation and self._azure_runbook.wait_delete:
-                wait_operation(
-                    delete_operation, failure_identity="delete resource group"
-                )
-            else:
-                log.debug("not wait deleting")
 
     def _save_console_log_and_check_panic(
         self,
