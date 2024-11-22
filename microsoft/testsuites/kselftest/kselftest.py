@@ -78,6 +78,8 @@ class Kselftest(Tool):
         r"^(?P<status>(not ok|ok))\s+\d+\s+selftests:\s+\S+:\s+(?P<name>\S+)\s*(?:# (?:exit=)?(?P<reason>SKIP|TIMEOUT\d+).*)?(?:# exit=(?P<exit>\d+))?"  # noqa: E501
     )
 
+    _install_as_sudo = True
+
     @property
     def command(self) -> str:
         return str(self._command)
@@ -88,14 +90,25 @@ class Kselftest(Tool):
 
     def _check_exists(self) -> bool:
         return (
-            len(self.node.tools[Ls].list(str(self._kself_installed_dir), sudo=True)) > 0
+            len(
+                self.node.tools[Ls].list(
+                    str(self._kself_installed_dir), sudo=self._install_as_sudo
+                )
+            )
+            > 0
         )
 
     def __init__(
-        self, node: Node, kselftest_file_path: str, *args: Any, **kwargs: Any
+        self,
+        node: Node,
+        kselftest_file_path: str,
+        install_as_sudo: bool = True,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(node, *args, **kwargs)
 
+        self._install_as_sudo = install_as_sudo
         # tar file path specified in yml
         self._tar_file_path = kselftest_file_path
         if self._tar_file_path:
@@ -128,7 +141,9 @@ class Kselftest(Tool):
             mkdir.create_directory(self._remote_tar_path.parent.as_posix())
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
             self.node.tools[Tar].extract(
-                str(self._remote_tar_path), str(self._kself_installed_dir), sudo=True
+                str(self._remote_tar_path),
+                str(self._kself_installed_dir),
+                sudo=self._install_as_sudo,
             )
             self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
         else:
@@ -170,13 +185,13 @@ class Kselftest(Tool):
                 ),
                 dest=PurePath(".config"),
                 cwd=kernel_path,
-                sudo=True,
+                sudo=self._install_as_sudo,
             )
 
             self.node.tools[Make].run(
                 "headers",
                 cwd=kernel_path,
-                sudo=True,
+                sudo=self._install_as_sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failed to build kernel headers.",
             ).assert_exit_code()
@@ -186,14 +201,16 @@ class Kselftest(Tool):
                 cmd=f"./kselftest_install.sh {self._kself_installed_dir}",
                 shell=True,
                 cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
-                sudo=True,
+                sudo=self._install_as_sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to build & install kselftest",
             ).assert_exit_code()
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder(self._kself_installed_dir.as_posix(), "777", sudo=True)
+            chmod.update_folder(
+                self._kself_installed_dir.as_posix(), "777", sudo=self._install_as_sudo
+            )
 
         return self._check_exists()
 
@@ -227,7 +244,7 @@ class Kselftest(Tool):
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
-        chmod.update_folder(result_file, "644", sudo=True)
+        chmod.update_folder(result_file, "644", sudo=self._install_as_sudo)
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]

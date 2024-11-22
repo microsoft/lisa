@@ -50,8 +50,7 @@ class KselftestTestsuite(TestSuite):
         file_path = variables.get("kselftest_file_path", "")
         try:
             kselftest: Kselftest = node.tools.get(
-                Kselftest,
-                kselftest_file_path=file_path,
+                Kselftest, kselftest_file_path=file_path, install_as_sudo=False
             )
             kselftest.run_all(result, log_path, self._KSELF_TIMEOUT)
         except UnsupportedDistroException as identifier:
