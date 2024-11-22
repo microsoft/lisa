@@ -1,0 +1,25 @@
+{
+    "location": "westus3",
+    "properties": {
+        "jobTemplateInstance": {
+            "templateTags": [],
+            "selections": [
+                {
+                    "casePriority": [
+                        0
+                    ]
+                }
+            ],
+            "region": [],
+            "vmSize": []
+        },
+        "image": {
+            "type": "shared_gallery",
+            "architecture": "x64",
+            "vhdGeneration": 2,
+            "gallery": "<gallery name>",
+            "definition": "<image definition>",
+            "version": "<version>"
+        }
+    }
+}

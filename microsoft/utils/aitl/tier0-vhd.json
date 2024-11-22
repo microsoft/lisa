@@ -1,0 +1,23 @@
+{
+    "location": "westus3",
+    "properties": {
+        "jobTemplateInstance": {
+            "templateTags": [],
+            "selections": [
+                {
+                    "casePriority": [
+                        0
+                    ]
+                }
+            ],
+            "region": [],
+            "vmSize": []
+        },
+        "image": {
+            "type": "vhd",
+            "architecture": "x64",
+            "vhdGeneration": 2,
+            "url": "<sas url of vhd>"
+        }
+    }
+}
