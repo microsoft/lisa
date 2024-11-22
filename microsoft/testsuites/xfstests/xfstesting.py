@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import BSD, Oracle, Redhat, Windows, CBLMariner
+from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureFileShare
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -516,7 +516,8 @@ class Xfstesting(TestSuite):
         # Fix Mariner umask for xfstests
         if isinstance(node.os, CBLMariner):
             echo = node.tools[Echo]
-            echo.write_to_file("umask 0022\n", "/etc/profile", sudo=True, append=True)
+            profile_path = node.get_pure_path("/etc/profile")
+            echo.write_to_file("umask 0022\n", profile_path, sudo=True, append=True)
             # Close the current session to apply the umask change on the next login
             node.close()
 
