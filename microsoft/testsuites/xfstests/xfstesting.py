@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import Disk, Nvme
-from lisa.operating_system import BSD, Oracle, Redhat, Windows
+from lisa.operating_system import BSD, Oracle, Redhat, Windows, CBLMariner
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureFileShare
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
@@ -27,8 +27,8 @@ from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
 from lisa.util import BadEnvironmentStateException, generate_random_chars
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
-_scratch_folder = "/root/scratch"
-_test_folder = "/root/test"
+_scratch_folder = "/mnt/scratch"
+_test_folder = "/mnt/test"
 
 
 def _prepare_data_disk(
@@ -512,6 +512,14 @@ class Xfstesting(TestSuite):
         assert environment, "fail to get environment from testresult"
 
         node = cast(RemoteNode, environment.nodes[0])
+
+        # Fix Mariner umask for xfstests
+        if isinstance(node.os, CBLMariner):
+            echo = node.tools[Echo]
+            echo.write_to_file("umask 0022\n", "/etc/profile", sudo=True, append=True)
+            # Close the current session to apply the umask change on the next login
+            node.close()
+
         # TODO: will include generic/641 once the kernel contains below fix.
         # exclude this case generic/641 temporarily
         # it will trigger oops on RHEL8.3/8.4, VM will reboot
