@@ -111,7 +111,7 @@ class RemoteCopy(Tool):
             return self.node
 
     def _is_file(self, node: "Node", path: PurePath) -> bool:
-        return node.tools[Ls].is_file(path, sudo=True)
+        return node.tools[Ls].is_file(path, sudo=False)
 
     def _prepare_tmp_copy(
         self,
