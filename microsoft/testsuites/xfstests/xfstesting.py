@@ -357,7 +357,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p2",
             excluded_tests=self.excluded_tests,
         )
-    
+
     @TestCaseMetadata(
         description="""
         This test case will run generic xfstests testing against
@@ -370,7 +370,9 @@ class Xfstesting(TestSuite):
             supported_features=[Nvme], unsupported_os=[BSD, Windows]
         ),
     )
-    def verify_generic_ext4_nvme_datadisk(self, log_path: Path, result: TestResult) -> None:
+    def verify_generic_ext4_nvme_datadisk(
+        self, log_path: Path, result: TestResult
+    ) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         node = cast(RemoteNode, environment.nodes[0])
