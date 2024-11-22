@@ -87,7 +87,7 @@ class Kselftest(Tool):
         return True
 
     def _check_exists(self) -> bool:
-        return len(self.node.tools[Ls].list(str(self._installed_path), sudo=True)) > 0
+        return len(self.node.tools[Ls].list(str(self._installed_path))) > 0
 
     def __init__(
         self,
@@ -187,7 +187,6 @@ class Kselftest(Tool):
             self.node.tools[Make].run(
                 "headers",
                 cwd=kernel_path,
-                sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failed to build kernel headers.",
             ).assert_exit_code()
@@ -197,14 +196,13 @@ class Kselftest(Tool):
                 cmd=f"./kselftest_install.sh {self._installed_path}",
                 shell=True,
                 cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
-                sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to build & install kselftest",
             ).assert_exit_code()
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder(self._installed_path.as_posix(), "777", sudo=True)
+            chmod.update_folder(self._installed_path.as_posix(), "777")
 
         return self._check_exists()
 
@@ -215,8 +213,7 @@ class Kselftest(Tool):
         timeout: int = 5000,
         run_test_as_root: bool = False,
     ) -> List[KselftestResult]:
-        # Executing kselftest as root may cause
-        # VM to hang
+        # Executing kselftest as root may cause VM to hang
 
         # get username
         username = self.node.tools[Whoami].get_username()
@@ -229,8 +226,15 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
+
+        if self._tar_file_path:
+            work_dir = PurePosixPath(self._installed_path)
+        else:
+            work_dir = None
+
         self.run(
-            f" 2>&1 | tee {result_file}",
+            f" -s 2>&1 | tee {result_file}",
+            cwd=work_dir,
             sudo=run_test_as_root,
             force_run=True,
             shell=True,
@@ -240,11 +244,13 @@ class Kselftest(Tool):
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
-        chmod.update_folder(result_file, "644", sudo=True)
+        chmod.update_folder(result_file, "644")
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]
-        remote_copy.copy_to_local(PurePosixPath(result_file), PurePath(log_path))
+        remote_copy.copy_to_local(
+            PurePosixPath(result_file), PurePath(log_path), False, False
+        )
 
         local_kselftest_results_path = PurePath(log_path) / result_file_name
 
