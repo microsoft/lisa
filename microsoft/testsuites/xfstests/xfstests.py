@@ -304,14 +304,14 @@ class Xfstests(Tool):
         test_dev: str,
         test_folder: str,
         test_type: str,
+        fs_type: str,
         mount_opts: str = "",
     ) -> None:
         xfstests_path = self.get_xfstests_path()
         config_path = xfstests_path.joinpath("local.config")
         if self.node.shell.exists(config_path):
             self.node.shell.remove(config_path)
-        if "generic" == test_type:
-            test_type = "xfs"
+
         echo = self.node.tools[Echo]
         if mount_opts:
             content = "\n".join(
@@ -326,7 +326,7 @@ class Xfstests(Tool):
             content = "\n".join(
                 [
                     f"[{test_type}]",
-                    f"FSTYP={test_type}",
+                    f"FSTYP={fs_type}",
                 ]
             )
         echo.write_to_file(content, config_path, append=True)

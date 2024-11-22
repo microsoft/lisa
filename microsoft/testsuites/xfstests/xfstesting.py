@@ -180,6 +180,44 @@ class Xfstesting(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case will run generic xfstests testing against
+         standard data disk with ext4 type system.
+        """,
+        requirement=simple_requirement(
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
+                data_disk_iops=500,
+                data_disk_count=search_space.IntRange(min=1),
+            ),
+            unsupported_os=[BSD, Windows],
+        ),
+        timeout=TIME_OUT,
+        use_new_environment=True,
+        priority=3,
+    )
+    def verify_generic_ext4_standard_datadisk(
+        self, log_path: Path, result: TestResult
+    ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
+        xfstests = self._install_xfstests(node)
+        disk = node.features[Disk]
+        data_disks = disk.get_raw_data_disks()
+        self._execute_xfstests(
+            log_path,
+            xfstests,
+            result,
+            data_disks[0],
+            f"{data_disks[0]}1",
+            f"{data_disks[0]}2",
+            file_system=FileSystem.ext4,
+            excluded_tests=self.excluded_tests,
+        )
+
+    @TestCaseMetadata(
+        description="""
         This test case will run xfs xfstests testing against
          standard data disk with xfs type system.
         """,
@@ -317,6 +355,38 @@ class Xfstesting(TestSuite):
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
+            excluded_tests=self.excluded_tests,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will run generic xfstests testing against
+         nvme data disk with ext4 type system.
+        """,
+        timeout=TIME_OUT,
+        priority=3,
+        use_new_environment=True,
+        requirement=simple_requirement(
+            supported_features=[Nvme], unsupported_os=[BSD, Windows]
+        ),
+    )
+    def verify_generic_ext4_nvme_datadisk(
+        self, log_path: Path, result: TestResult
+    ) -> None:
+        environment = result.environment
+        assert environment, "fail to get environment from testresult"
+        node = cast(RemoteNode, environment.nodes[0])
+        xfstests = self._install_xfstests(node)
+        nvme_disk = node.features[Nvme]
+        nvme_data_disks = nvme_disk.get_raw_data_disks()
+        self._execute_xfstests(
+            log_path,
+            xfstests,
+            result,
+            nvme_data_disks[0],
+            f"{nvme_data_disks[0]}p1",
+            f"{nvme_data_disks[0]}p2",
+            file_system=FileSystem.ext4,
             excluded_tests=self.excluded_tests,
         )
 
@@ -547,6 +617,7 @@ class Xfstesting(TestSuite):
             test_dev,
             _test_folder,
             test_type,
+            file_system.name,
             mount_opts,
         )
         xfstests.set_excluded_tests(excluded_tests)
