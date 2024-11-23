@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Any, Dict
 
+from assertpy import assert_that
+
 from lisa import (
     Environment,
     Logger,
@@ -13,7 +15,7 @@ from lisa import (
     features,
 )
 from lisa.features.security_profile import CvmEnabled
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls
@@ -21,6 +23,7 @@ from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.cvm.cvm_attestation_tool import (
     AzureCVMAttestationTests,
     NestedCVMAttestationTests,
+    SnpGuest,
 )
 
 
@@ -34,10 +37,11 @@ from microsoft.testsuites.cvm.cvm_attestation_tool import (
 class AzureCVMAttestationTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        if not isinstance(node.os, Ubuntu):
+        if not isinstance(node.os, Ubuntu) and not isinstance(node.os, CBLMariner):
             raise SkippedException(
                 UnsupportedDistroException(
-                    node.os, "CVM attestation report supports only Ubuntu."
+                    node.os,
+                    "CVM attestation report supports only Ubuntu and Azure Linux.",
                 )
             )
 
@@ -61,11 +65,14 @@ class AzureCVMAttestationTestSuite(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
-        node.tools[AzureCVMAttestationTests].run_cvm_attestation(
-            result,
-            environment,
-            log_path,
-        )
+        if isinstance(node.os, Ubuntu):
+            node.tools[AzureCVMAttestationTests].run_cvm_attestation(
+                result,
+                environment,
+                log_path,
+            )
+        elif isinstance(node.os, CBLMariner):
+            assert_that(node.tools[SnpGuest].run_cvm_attestation()).is_true()
 
 
 @TestSuiteMetadata(
