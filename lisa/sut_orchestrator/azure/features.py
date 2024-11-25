@@ -3091,18 +3091,38 @@ class AzureExtension(AzureFeatureMixin, Feature):
         self,
         name: str = "",
         timeout: int = 60 * 25,
-    ) -> None:
+        ignore_not_found: bool = False,
+    ) -> bool:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
         self._log.debug(f"uninstall extension: {name}")
-
-        operation = compute_client.virtual_machine_extensions.begin_delete(
-            resource_group_name=self._resource_group_name,
-            vm_name=self._vm_name,
-            vm_extension_name=name,
-        )
-        # no return for this operation
-        wait_operation(operation, timeout)
+        try:
+            operation = compute_client.virtual_machine_extensions.begin_delete(
+                resource_group_name=self._resource_group_name,
+                vm_name=self._vm_name,
+                vm_extension_name=name,
+            )
+            # no return for this operation
+            wait_operation(operation, timeout)
+            return True
+        except HttpResponseError as identifier:
+            error_message = str(identifier)
+            if "was not found" in error_message:
+                if ignore_not_found:
+                    self._log.info(
+                        f"Extension '{name}' not installed, ignoring deletion."
+                    )
+                    return False
+                else:
+                    raise LisaException(
+                        f"Extension '{name}' not found. Cannot delete "
+                        "non-existent extension."
+                    ) from identifier
+            else:
+                raise LisaException(
+                    "Unexpected error occurred while deleting extension "
+                    f"'{name}': {error_message}"
+                ) from identifier
 
     def list_all(self) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
