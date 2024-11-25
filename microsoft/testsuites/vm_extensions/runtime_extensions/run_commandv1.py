@@ -37,10 +37,12 @@ def _create_and_verify_extension_run(
     assert_exception: Optional[Any] = None,
 ) -> None:
     extension = node.features[AzureExtension]
+    extension_name = "RunCommandv1"
+    extension.delete(name=extension_name, ignore_not_found=True)
 
     def enable_extension() -> Any:
         result = extension.create_or_update(
-            name="RunCommandv1",
+            name=extension_name,
             publisher="Microsoft.CPlat.Core",
             type_="RunCommandLinux",
             type_handler_version="1.0",
