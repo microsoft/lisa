@@ -614,7 +614,7 @@ class AzurePlatform(Platform):
         # like capability doesn't meet case requirement.
 
         if True:
-            log.debug(f"Skipping RG Deletion as part of this Branch and Testing.")
+            log.debug(f"Skipping RG Deletion as part of this Branch and Testing..")
             return
 
         if not resource_group_name:
