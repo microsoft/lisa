@@ -187,6 +187,12 @@ def set_cpu_state(node: Node, cpu: str, online: bool = False) -> bool:
     state = CPUState.OFFLINE
     if online:
         state = CPUState.ONLINE
-    node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
-    result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
-    return result == state
+    # node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
+    # result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+    # return result == state
+
+    test_echo_command = f"nice --20 sh -c 'echo {state} > {node.get_pure_path(file_path)}'"
+    result = node.execute(test_echo_command, shell=True, no_info_log=True, sudo=True)
+    test_cat_command = f"nice --20 sh -c 'cat {file_path}'"
+    result = node.execute(test_cat_command, shell=True, no_info_log=True, sudo=True)
+    return result.stdout == state
