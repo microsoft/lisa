@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import Redhat, Suse, Ubuntu
+from lisa.operating_system import Debian, Redhat, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -21,7 +21,6 @@ from lisa.tools import (
     Lscpu,
     Mount,
 )
-from lisa.tools.uptime import Uptime
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -38,10 +37,10 @@ def is_distro_supported(node: Node) -> None:
             f"version {node.os.information.version}"
         )
 
-    if (
-        (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
-        or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
-        or (isinstance(node.os, Suse) and node.os.information.version < "15.3.0")
+    if not (
+        (type(node.os) == Ubuntu and node.os.information.version >= "18.04.0")
+        or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
+        or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
@@ -72,9 +71,20 @@ def verify_hibernation(
 
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
-    uptime = node.tools[Uptime]
+    # This is a temporary workaround for a bug observed in Redhat Distros
+    # where the VM is not able to hibernate immediately after installing
+    # the hibernation-setup tool.
+    # A sleep(100) also works, but we are unsure of the exact time required.
+    # So it is safer to reboot the VM.
+    if type(node.os) == Redhat:
+        node.reboot()
 
-    uptime_before_hibernation = uptime.since_time()
+    boot_time_before_hibernation = node.execute(
+        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
+        sudo=True,
+        shell=True,
+    ).stdout
+
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
     try:
@@ -98,18 +108,26 @@ def verify_hibernation(
 
     startstop.start()
 
+    boot_time_after_hibernation = node.execute(
+        "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
+        sudo=True,
+        shell=True,
+    ).stdout
+
+    log.info(
+        f"Boot time before hibernation: {boot_time_before_hibernation},"
+        f"boot time after hibernation: {boot_time_after_hibernation}"
+    )
+    assert_that(boot_time_before_hibernation).described_as(
+        "boot time before hibernation should be equal to boot time after hibernation"
+    ).is_equal_to(boot_time_after_hibernation)
+
     dmesg = node.tools[Dmesg]
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
     offset_from_cmd = hibernation_setup_tool.get_hibernate_resume_offset_from_cmd()
-    uptime_after_hibernation = uptime.since_time()
     offset_from_sys_power = cat.read("/sys/power/resume_offset")
 
-    log.info(
-        "Uptime before Hibernation: "
-        f"{uptime_before_hibernation}, Uptime after Hibernation: "
-        f"{uptime_after_hibernation}"
-    )
     log.info(
         f"Hibfile resume offset: {hibfile_offset}, "
         f"Resume offset from cmdline: {offset_from_cmd}"
