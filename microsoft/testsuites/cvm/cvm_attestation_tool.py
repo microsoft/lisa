@@ -229,7 +229,7 @@ class SnpGuest(Tool):
             force_run=True,
         )
 
-    def run_cvm_attestation(self, processor_model: str = "milan") -> bool:
+    def run_cvm_attestation(self, processor_model: str = "milan") -> None:
         """Regular attestation workflow
 
         1. Request attestation report
@@ -261,8 +261,6 @@ class SnpGuest(Tool):
         self._verify_attestation(
             certs_dir.as_posix(), attestation_report_path.as_posix()
         )
-
-        return True
 
 
 class NestedCVMAttestationTests(Tool):

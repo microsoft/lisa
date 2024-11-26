@@ -72,7 +72,7 @@ class AzureCVMAttestationTestSuite(TestSuite):
                 log_path,
             )
         elif isinstance(node.os, CBLMariner):
-            assert_that(node.tools[SnpGuest].run_cvm_attestation()).is_true()
+            node.tools[SnpGuest].run_cvm_attestation()
 
 
 @TestSuiteMetadata(
