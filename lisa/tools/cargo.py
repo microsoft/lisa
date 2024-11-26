@@ -3,7 +3,7 @@
 import os
 import re
 from pathlib import PurePath
-from typing import Any, List, Optional, Type, Union, cast
+from typing import Any, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
@@ -117,7 +117,8 @@ class Cargo(Tool):
 
     def build(
         self,
-        options: str = "",
+        release: bool = True,
+        features: str = "",
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
     ) -> ExecutableResult:
@@ -133,7 +134,11 @@ class Cargo(Tool):
         if os.path.dirname(self._command) not in path:
             path = f"{os.path.dirname(self._command)}:{path}"
 
-        command = f"build {options}"
+        command = "build"
+        if release:
+            command = f"{command} --release"
+        if features:
+            command = f"{command} --features={features}"
         result = self.run(
             command,
             expected_exit_code=0,

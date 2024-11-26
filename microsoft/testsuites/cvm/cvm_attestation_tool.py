@@ -153,9 +153,7 @@ class SnpGuest(Tool):
         git.clone(self._snpguest_repo, tool_path)
 
         cargo = self.node.tools[Cargo]
-        cargo.build(
-            options="--release --features=hyperv", sudo=False, cwd=self.repo_root
-        )
+        cargo.build(release=True, features="hyperv", sudo=False, cwd=self.repo_root)
 
         return self._check_exists()
 
