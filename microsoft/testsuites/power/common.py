@@ -38,7 +38,7 @@ def is_distro_supported(node: Node) -> None:
         )
 
     if not (
-        (type(node.os) == Ubuntu and node.os.information.version >= "18.04.0")
+        (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
         or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
         or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
     ):
