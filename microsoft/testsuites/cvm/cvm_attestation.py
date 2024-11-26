@@ -3,8 +3,6 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from assertpy import assert_that
-
 from lisa import (
     Environment,
     Logger,
