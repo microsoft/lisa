@@ -213,6 +213,18 @@ class HyperV(Tool):
 
         return VMSwitch.from_json(switch_json)  # type: ignore
 
+    def get_default_internal_switch(self) -> Optional[VMSwitch]:
+        switch_json = self.node.tools[PowerShell].run_cmdlet(
+            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "Internal"} '
+            "| Select -First 1 | select Name | ConvertTo-Json",
+            force_run=True,
+        )
+
+        if not switch_json:
+            return None
+
+        return VMSwitch.from_json(switch_json)  # type: ignore
+
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VMSwitch -Name {name}",
