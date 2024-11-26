@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import CBLMariner, Redhat, Suse, Ubuntu
+from lisa.operating_system import Debian, Redhat, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -37,11 +37,10 @@ def is_distro_supported(node: Node) -> None:
             f"version {node.os.information.version}"
         )
 
-    if (
-        (isinstance(node.os, Redhat) and node.os.information.version < "8.3.0")
-        or (isinstance(node.os, Ubuntu) and node.os.information.version < "18.4.0")
-        or (isinstance(node.os, Suse) and node.os.information.version < "15.3.0")
-        or (isinstance(node.os, CBLMariner))
+    if not (
+        (type(node.os) == Ubuntu and node.os.information.version >= "18.04.0")
+        or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
+        or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
