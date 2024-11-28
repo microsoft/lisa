@@ -133,7 +133,8 @@ class CPUSuite(TestSuite):
             ).is_true()
         finally:
             # kill fio process
-            node.tools[Kill].by_name("fio", ignore_not_exist=True)
+            # node.tools[Kill].by_name("fio", ignore_not_exist=True)
+            pass
 
     @TestCaseMetadata(
         description="""

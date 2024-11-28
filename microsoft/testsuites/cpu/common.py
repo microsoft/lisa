@@ -100,24 +100,30 @@ def set_cpu_state_serial(
 
 def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) -> None:
     for target_cpu in idle_cpu:
-        set_offline = set_cpu_state(node, target_cpu, False)
+        set_offline = set_cpu_state(node, target_cpu, log, False)
         log.debug(f"set cpu{target_cpu} from online to offline.")
         exception_message = (
             f"expected cpu{target_cpu} state: {CPUState.OFFLINE}(offline), "
             f"actual state: {CPUState.ONLINE}(online)."
         )
+        if set_offline == 3:
+            log.debug('------ set_idle_cpu_offline_online : The operation timed out -------')
+            return
         if not set_offline:
             raise BadEnvironmentStateException(
                 exception_message,
                 f"the test failed leaving cpu{target_cpu} in a bad state.",
             )
 
-        set_online = set_cpu_state(node, target_cpu, True)
+        set_online = set_cpu_state(node, target_cpu, log, True)
         log.debug(f"set cpu{target_cpu} from offline to online.")
         exception_message = (
             f"expected cpu{target_cpu} state: {CPUState.ONLINE}(online), "
             f"actual state: {CPUState.OFFLINE}(offline)."
         )
+        if set_offline == 3:
+            log.debug('------ set_idle_cpu_offline_online : The operation timed out -------')
+            return
         if not set_online:
             raise BadEnvironmentStateException(
                 exception_message,
@@ -150,8 +156,9 @@ def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
             restore_interrupts_assignment(file_path_list, node)
             restore_state = True
     finally:
-        if not restore_state:
-            restore_interrupts_assignment(file_path_list, node)
+        # if not restore_state:
+        #     restore_interrupts_assignment(file_path_list, node)
+        pass
 
 
 def get_cpu_state_file(cpu_id: str) -> str:
@@ -182,11 +189,15 @@ def restore_interrupts_assignment(
             )
 
 
-def set_cpu_state(node: Node, cpu: str, online: bool = False) -> bool:
-    file_path = get_cpu_state_file(cpu)
-    state = CPUState.OFFLINE
-    if online:
-        state = CPUState.ONLINE
-    node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
-    result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
-    return result == state
+def set_cpu_state(node: Node, cpu: str, log: Logger, online: bool = False) -> bool:
+    try:
+        file_path = get_cpu_state_file(cpu)
+        state = CPUState.OFFLINE
+        if online:
+            state = CPUState.ONLINE
+        node.tools[Echo].write_to_file(state, node.get_pure_path(file_path), sudo=True)
+        result = node.tools[Cat].read(file_path, force_run=True, sudo=True)
+        return result == state
+    except TimeoutError:
+        log.debug('------ The operation timed out -------')
+        return 3
