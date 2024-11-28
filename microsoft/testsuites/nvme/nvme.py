@@ -11,26 +11,34 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    constants,
     simple_requirement,
 )
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, Echo, Fdisk, Lscpu, Lspci, Mount, Nvmecli
+from lisa.tools import Cat, Df, Echo, Fdisk, Lscpu, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
+from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
 
 
 def _format_mount_disk(
     node: Node,
     namespace: str,
     file_system: FileSystem,
+    use_partitions: bool = True,
 ) -> None:
     mount_point = namespace.rpartition("/")[-1]
     fdisk = node.tools[Fdisk]
     mount = node.tools[Mount]
     mount.umount(namespace, mount_point)
-    fdisk.make_partition(namespace, file_system)
-    mount.mount(f"{namespace}p1", mount_point)
+    fdisk.delete_partitions(namespace)
+    if use_partitions:
+        fdisk.make_partition(namespace, file_system)
+        mount.mount(f"{namespace}p1", mount_point)
+    else:
+        # Format and mount the whole disk without partitions.
+        format_disk = node.tools[Mkfs]
+        format_disk.mkfs(f"{namespace}", file_system)
+        mount.mount(f"{namespace}", mount_point)
 
 
 @TestSuiteMetadata(
@@ -97,75 +105,28 @@ class NvmeTestSuite(TestSuite):
         ),
     )
     def verify_nvme_function(self, node: Node) -> None:
-        nvme = node.features[Nvme]
-        nvme_namespaces = nvme.get_raw_nvme_disks()
-        nvme_cli = node.tools[Nvmecli]
-        cat = node.tools[Cat]
-        mount = node.tools[Mount]
-        for namespace in nvme_namespaces:
-            # 1. Get the number of errors from nvme-cli before operations.
-            error_count_before_operations = nvme_cli.get_error_count(namespace)
+        self._verify_nvme_function(node)
 
-            # 2. Create a partition, filesystem and mount it.
-            _format_mount_disk(node, namespace, FileSystem.ext4)
-
-            # 3. Create a txt file on the partition, content is 'TestContent'.
-            mount_point = namespace.rpartition("/")[-1]
-            cmd_result = node.execute(
-                f"echo TestContent > {mount_point}/testfile.txt", shell=True, sudo=True
-            )
-            cmd_result.assert_exit_code(
-                message=f"{mount_point}/testfile.txt may not exist."
-            )
-
-            # 4. Create a file 'data' on the partition, get the md5sum value.
-            cmd_result = node.execute(
-                f"dd if=/dev/zero of={mount_point}/data bs=10M count=100",
-                shell=True,
-                sudo=True,
-            )
-            cmd_result.assert_exit_code(
-                message=f"{mount_point}/data is not created successfully, "
-                "please check the disk space."
-            )
-            initial_md5 = node.execute(
-                f"md5sum {mount_point}/data", shell=True, sudo=True
-            )
-            initial_md5.assert_exit_code(
-                message=f"{mount_point}/data not exist or md5sum command enounter"
-                " unexpected error."
-            )
-
-            # 5. Umount and remount the partition.
-            mount.umount(namespace, mount_point, erase=False)
-            mount.mount(f"{namespace}p1", mount_point)
-
-            # 6. Get the txt file content, compare the value.
-            file_content = cat.run(f"{mount_point}/testfile.txt", shell=True, sudo=True)
-            assert_that(
-                file_content.stdout,
-                f"content of {mount_point}/testfile.txt should keep consistent "
-                "after umount and re-mount.",
-            ).is_equal_to("TestContent")
-
-            # 6. Get md5sum value of file 'data', compare with initial value.
-            final_md5 = node.execute(
-                f"md5sum {mount_point}/data", shell=True, sudo=True
-            )
-            assert_that(
-                initial_md5.stdout,
-                f"md5sum of {mount_point}/data should keep consistent "
-                "after umount and re-mount.",
-            ).is_equal_to(final_md5.stdout)
-
-            # 7. Compare the number of errors from nvme-cli after operations.
-            error_count_after_operations = nvme_cli.get_error_count(namespace)
-            assert_that(
-                error_count_before_operations,
-                "error-log should not increase after operations.",
-            ).is_equal_to(error_count_after_operations)
-
-            mount.umount(disk_name=namespace, point=mount_point)
+    @TestCaseMetadata(
+        description="""
+        The test case is same as `verify_nvme_function`, except it uses
+        unpartitioned disks.
+        This test case will do following things for each NVMe device.
+        1. Get the number of errors from nvme-cli before operations.
+        2. Create filesystem and mount it.
+        3. Create a txt file on the partition, content is 'TestContent'.
+        4. Create a file 'data' on the partition, get the md5sum value.
+        5. Umount and remount the partition.
+        6. Get the txt file content, compare the value.
+        7. Compare the number of errors from nvme-cli after operations.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_features=[Nvme],
+        ),
+    )
+    def verify_nvme_function_unpartitioned(self, node: Node) -> None:
+        self._verify_nvme_function(node, use_partitions=False)
 
     @TestCaseMetadata(
         description="""
@@ -187,6 +148,7 @@ class NvmeTestSuite(TestSuite):
         nvme = node.features[Nvme]
         nvme_namespaces = nvme.get_raw_nvme_disks()
         mount = node.tools[Mount]
+        df = node.tools[Df]
 
         for namespace in nvme_namespaces:
             mount_point = namespace.rpartition("/")[-1]
@@ -202,12 +164,16 @@ class NvmeTestSuite(TestSuite):
                 message=f"{mount_point} not exist or fstrim command enounter "
                 "unexpected error."
             )
-
-            # 3. Create a 300 gb file 'data' using dd command in the partition.
+            # Use 80% of free space to create a test file.
+            free_space_gb = int(df.get_filesystem_available_space(mount_point) * 0.8)
+            # limit the free space to 300GB to avoid long time operation.
+            free_space_gb = min(free_space_gb, 300)
+            # 3. Create a file 'data' using dd command in the partition.
             cmd_result = node.execute(
-                f"dd if=/dev/zero of={mount_point}/data bs=1G count=300",
+                f"dd if=/dev/zero of={mount_point}/data bs=1G count={free_space_gb}",
                 shell=True,
                 sudo=True,
+                timeout=1200,
             )
             cmd_result.assert_exit_code(
                 message=f"{mount_point}/data is not created successfully, "
@@ -350,7 +316,9 @@ class NvmeTestSuite(TestSuite):
         description="""
         This test case will
         1. Disable NVME devices.
-        2. Enable NVME device.
+        2. Enable PCI devices.
+        3. Get NVMe devices slots.
+        4. Check NVMe devices are back after rescan.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -360,9 +328,16 @@ class NvmeTestSuite(TestSuite):
     def verify_nvme_rescind(self, node: Node) -> None:
         lspci = node.tools[Lspci]
         # 1. Disable NVME devices.
-        lspci.disable_devices_by_type(device_type=constants.DEVICE_TYPE_NVME)
-        # 2. Enable NVME device.
+        before_pci_count = lspci.disable_devices_by_type(device_type=DEVICE_TYPE_NVME)
+        # 2. Enable PCI devices.
         lspci.enable_devices()
+        # 3. Get PCI devices slots.
+        after_devices_slots = lspci.get_device_names_by_type(DEVICE_TYPE_NVME, True)
+        # 4. Check PCI devices are back after rescan.
+        assert_that(
+            after_devices_slots,
+            "After rescan, the disabled NVMe PCI devices should be back.",
+        ).is_length(before_pci_count)
 
     @TestCaseMetadata(
         description="""
@@ -381,7 +356,7 @@ class NvmeTestSuite(TestSuite):
     )
     def verify_nvme_sriov_rescind(self, node: Node) -> None:
         lspci = node.tools[Lspci]
-        device_types = [constants.DEVICE_TYPE_NVME, constants.DEVICE_TYPE_SRIOV]
+        device_types = [DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV]
         for device_type in device_types:
             # 1. Disable PCI devices.
             before_pci_count = lspci.disable_devices_by_type(device_type)
@@ -392,7 +367,7 @@ class NvmeTestSuite(TestSuite):
             # 4. Check PCI devices are back after rescan.
             assert_that(
                 after_devices_slots,
-                "After rescan, the disabled PCI devices should be back.",
+                f"After rescan, the disabled {device_type} PCI devices should be back.",
             ).is_length(before_pci_count)
 
     def _verify_nvme_disk(self, environment: Environment, node: Node) -> None:
@@ -431,3 +406,78 @@ class NvmeTestSuite(TestSuite):
             assert_that(nvme_namespace).described_as(
                 "nvme devices count should be equal to [vCPU/8]."
             ).is_length(expected_count)
+
+    def _verify_nvme_function(self, node: Node, use_partitions: bool = True) -> None:
+        # Verify the basic function of all NVMe disks
+        nvme = node.features[Nvme]
+        nvme_namespaces = nvme.get_raw_nvme_disks()
+        nvme_cli = node.tools[Nvmecli]
+        cat = node.tools[Cat]
+        mount = node.tools[Mount]
+        for namespace in nvme_namespaces:
+            # 1. Get the number of errors from nvme-cli before operations.
+            error_count_before_operations = nvme_cli.get_error_count(namespace)
+
+            # 2. Create a partition, filesystem and mount it.
+            _format_mount_disk(node, namespace, FileSystem.ext4, use_partitions)
+
+            # 3. Create a txt file on the partition, content is 'TestContent'.
+            mount_point = namespace.rpartition("/")[-1]
+            cmd_result = node.execute(
+                f"echo TestContent > {mount_point}/testfile.txt", shell=True, sudo=True
+            )
+            cmd_result.assert_exit_code(
+                message=f"{mount_point}/testfile.txt may not exist."
+            )
+
+            # 4. Create a file 'data' on the partition, get the md5sum value.
+            cmd_result = node.execute(
+                f"dd if=/dev/zero of={mount_point}/data bs=10M count=100",
+                shell=True,
+                sudo=True,
+            )
+            cmd_result.assert_exit_code(
+                message=f"{mount_point}/data is not created successfully, "
+                "please check the disk space."
+            )
+            initial_md5 = node.execute(
+                f"md5sum {mount_point}/data", shell=True, sudo=True
+            )
+            initial_md5.assert_exit_code(
+                message=f"{mount_point}/data not exist or md5sum command encountered"
+                " unexpected error."
+            )
+
+            # 5. Umount and remount the partition.
+            mount.umount(namespace, mount_point, erase=False)
+            if use_partitions:
+                mount.mount(f"{namespace}p1", mount_point)
+            else:
+                mount.mount(f"{namespace}", mount_point)
+
+            # 6. Get the txt file content, compare the value.
+            file_content = cat.run(f"{mount_point}/testfile.txt", shell=True, sudo=True)
+            assert_that(
+                file_content.stdout,
+                f"content of {mount_point}/testfile.txt should keep consistent "
+                "after umount and re-mount.",
+            ).is_equal_to("TestContent")
+
+            # 6. Get md5sum value of file 'data', compare with initial value.
+            final_md5 = node.execute(
+                f"md5sum {mount_point}/data", shell=True, sudo=True
+            )
+            assert_that(
+                initial_md5.stdout,
+                f"md5sum of {mount_point}/data should keep consistent "
+                "after umount and re-mount.",
+            ).is_equal_to(final_md5.stdout)
+
+            # 7. Compare the number of errors from nvme-cli after operations.
+            error_count_after_operations = nvme_cli.get_error_count(namespace)
+            assert_that(
+                error_count_before_operations,
+                "error-log should not increase after operations.",
+            ).is_equal_to(error_count_after_operations)
+
+            mount.umount(disk_name=namespace, point=mount_point)

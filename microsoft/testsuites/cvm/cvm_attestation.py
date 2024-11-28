@@ -16,7 +16,8 @@ from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Ls
+from lisa.tools import Ls, Lscpu
+from lisa.tools.lscpu import CpuType
 from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.cvm.cvm_attestation_tool import (
     AzureCVMAttestationTests,
@@ -41,6 +42,11 @@ class AzureCVMAttestationTestSuite(TestSuite):
                     node.os,
                     "CVM attestation report supports only Ubuntu and Azure Linux.",
                 )
+            )
+
+        if node.tools[Lscpu].get_cpu_type() != CpuType.AMD:
+            raise SkippedException(
+                "CVM attestation report supports only SEV-SNP (AMD) CPU."
             )
 
     @TestCaseMetadata(
@@ -90,6 +96,11 @@ class NestedCVMAttestationTestSuite(TestSuite):
         )
         if not sev_guest_exists:
             raise SkippedException("/dev/sev-guest: Device Not Found")
+
+        if node.tools[Lscpu].get_cpu_type() != CpuType.AMD:
+            raise SkippedException(
+                "CVM attestation report supports only SEV-SNP (AMD) CPU."
+            )
 
     @TestCaseMetadata(
         description="""
