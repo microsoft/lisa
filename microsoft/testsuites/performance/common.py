@@ -3,7 +3,7 @@
 import inspect
 import pathlib
 from functools import partial
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast, Tuple
 
 from assertpy import assert_that
 from retry import retry
@@ -464,10 +464,16 @@ def perf_iperf(
             node.close()
     for buffer_length in buffer_length_list:
         for connection in connections:
-            server_iperf3_process_list: List[Process] = []
-            client_iperf3_process_list: List[Process] = []
-            client_result_list: List[ExecutableResult] = []
-            server_result_list: List[ExecutableResult] = []
+            # print(f"Running iperf3 test with buffer_length: {buffer_length} connection: {connection}")
+            log = node.log
+            log.info(
+                f"Running iperf3 test with buffer_length: {buffer_length} "
+                f"connection: {connection}"
+            )
+            server_iperf3_process_list: List[Tuple[Process,str]] = []
+            client_iperf3_process_list: List[Tuple[Process,str]] = []
+            client_result_list: List[Tuple[ExecutableResult,str]] = []
+            server_result_list: List[Tuple[ExecutableResult,str]] = []
             if connection < 64:
                 num_threads_p = connection
                 num_threads_n = 1
@@ -506,9 +512,9 @@ def perf_iperf(
                 )
                 current_client_port += 1
             for client_iperf3_process in client_iperf3_process_list:
-                client_result_list.append(client_iperf3_process.wait_result())
+                client_result_list.append((client_iperf3_process[0].wait_result(),client_iperf3_process[1]))
             for server_iperf3_process in server_iperf3_process_list:
-                server_result_list.append(server_iperf3_process.wait_result())
+                server_result_list.append((server_iperf3_process[0].wait_result(),server_iperf3_process[1]))
             if udp_mode:
                 iperf3_messages_list.append(
                     client_iperf3.create_iperf_udp_performance_message(

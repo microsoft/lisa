@@ -4,7 +4,7 @@ import json
 import re
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast, Tuple
 
 from retry import retry
 
@@ -119,7 +119,7 @@ class Iperf3(Tool):
         use_json_format: bool = False,
         one_connection_only: bool = False,
         daemon: bool = True,
-    ) -> Process:
+    ) -> Tuple[Process,str]:
         # -s: run iperf3 as server mode
         # -D: run iperf3 as a daemon
         cmd = " -s"
@@ -143,7 +143,7 @@ class Iperf3(Tool):
                 lambda: self.node.tools[Lsof].is_port_opened(port=port) is True,
                 timeout_message=f"wait for {port} open",
             )
-        return process
+        return process,cmd
 
     def run_as_server(
         self,
@@ -190,7 +190,7 @@ class Iperf3(Tool):
         client_ip: str = "",
         ip_version: str = "",
         udp_mode: bool = False,
-    ) -> Process:
+    ) -> Tuple[Process,str]:
         # -c: run iperf3 as client mode, followed by iperf3 server ip address
         # -t: run iperf3 testing for given seconds
         # --logfile: save logs into specified file
@@ -273,7 +273,7 @@ class Iperf3(Tool):
             # check if stdout buffers contain "bits/sec" to determine if running
             process.wait_output("bits/sec")
 
-        return process
+        return process,cmd
 
     def run_as_client(
         self,
@@ -321,8 +321,8 @@ class Iperf3(Tool):
         test_case_name: str,
         test_result: "TestResult",
     ) -> NetworkTCPPerformanceMessage:
-        server_json = json.loads(self._pre_handle(server_result))
-        client_json = json.loads(self._pre_handle(client_result))
+        server_json = json.loads(self._pre_handle(server_result[0].stdout,buffer_length,connections_num,server_result[1]))
+        client_json = json.loads(self._pre_handle(client_result[0].stdout,buffer_length,connections_num,client_result[1]))
         congestion_windowsize_kb_total: Decimal = Decimal(0)
         for client_interval in client_json["intervals"]:
             streams = client_interval["streams"]
@@ -354,8 +354,8 @@ class Iperf3(Tool):
 
     def create_iperf_udp_performance_message(
         self,
-        server_result_list: List[ExecutableResult],
-        client_result_list: List[ExecutableResult],
+        server_result_list: List[Tuple[ExecutableResult,str]],
+        client_result_list: List[Tuple[ExecutableResult,str]],
         buffer_length: int,
         connections_num: int,
         test_case_name: str,
@@ -367,7 +367,7 @@ class Iperf3(Tool):
         for client_result_raw in client_result_list:
             # remove warning which will bring exception when load json
             # warning: UDP block size 8192 exceeds TCP MSS 1406, may result in fragmentation / drops # noqa: E501
-            client_result = json.loads(self._pre_handle(client_result_raw.stdout))
+            client_result = json.loads(self._pre_handle(client_result_raw[0].stdout,buffer_length,connections_num,client_result_raw[1]))
             if (
                 "sum" in client_result["end"].keys()
                 and "lost_percent" in client_result["end"]["sum"].keys()
@@ -392,7 +392,7 @@ class Iperf3(Tool):
         server_intervals_throughput_list: List[Decimal] = []
         server_throughput_list: List[Decimal] = []
         for server_result_raw in server_result_list:
-            server_result = json.loads(self._pre_handle(server_result_raw.stdout))
+            server_result = json.loads(self._pre_handle(server_result_raw[0].stdout,buffer_length,connections_num,server_result_raw[1]))
             if (
                 "sum" in server_result["end"].keys()
                 and "lost_percent" in server_result["end"]["sum"].keys()
@@ -466,8 +466,18 @@ class Iperf3(Tool):
         assert matched, "fail to get bandwidth"
         return Decimal(matched.group("bandwidth"))
 
-    def _pre_handle(self, result: str) -> str:
+    def _pre_handle(self, result: str, buffer_length: int = -1, connections_num: int = -1, cmd: str = "") -> str:
         result = result.replace("-nan", "0")
+        log = self.node.log
+        # log.info(
+        #     f"result:: {result}"
+        # )
         result_matched = get_matched_str(result, self._json_pattern)
-        assert result_matched, "fail to find json format results"
+        # log.info(
+        #     f"result_matched:: {result_matched}"
+        # )
+        assert result_matched, (f"fail to find json format results::\n{result} \n"
+                                f"buffer_length:: {buffer_length} \n"
+                                f"connections_num:: {connections_num} \n"
+                                f"cmd:: {cmd}")
         return result_matched
