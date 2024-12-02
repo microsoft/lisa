@@ -14,4 +14,3 @@ RUN git clone --branch $(curl --silent "https://api.github.com/repos/microsoft/l
 RUN python3 -m pip install --upgrade pip
 WORKDIR /app/lisa
 RUN python3 -m pip install --editable .[azure,libvirt,baremetal] --config-settings editable_mode=compat
-RUN ln -fs /app/.local/bin/lisa /bin/lisa
