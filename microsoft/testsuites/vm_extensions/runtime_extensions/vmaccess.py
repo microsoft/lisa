@@ -2,22 +2,24 @@
 # Licensed under the MIT license.
 
 import uuid
+from typing import cast
 
 from assertpy import assert_that
 
 from lisa import (
     Logger,
     Node,
+    RemoteNode,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD, CBLMariner
+from lisa.operating_system import BSD, CBLMariner, Ubuntu
 from lisa.secret import add_secret
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Usermod
+from lisa.tools import Sshpass, Usermod
 from lisa.util import generate_random_chars
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import (
     create_and_verify_vmaccess_extension_run,
@@ -83,10 +85,8 @@ def _generate_and_retrieve_pem_cert(node: Node) -> str:
 
 
 def _validate_password(
-    node: Node, username: str, password: str, valid: bool = True
+    node: Node, username: str, password: str, expected_exit_code: int = 0
 ) -> None:
-    message = f"Password not set as intended for user {username}."
-
     if isinstance(node.os, CBLMariner):
         if node.os.information.version >= "2.0.0":
             # In Mariner 2.0, there is a security restriction that only allows wheel
@@ -95,12 +95,25 @@ def _validate_password(
             node.tools[Usermod].add_user_to_group("wheel", sudo=True)
 
     # simple command to determine if username password combination is valid/invalid
-    node.execute(
-        cmd=f'echo "{password}" | su --command true {username}',
-        shell=True,
-        expected_exit_code=0 if valid else 1,
-        expected_exit_code_failure_message=message,
-    )
+    if type(node.os) == Ubuntu and node.os.information.release in ["18.04", "16.04"]:
+        message = "Permission denied, please try again."
+        ssh_pass = node.tools[Sshpass]
+        node = cast(RemoteNode, node)
+        ssh_pass.verify_user_password_with_sshpass(
+            target_ip=node.internal_address,
+            target_password=password,
+            target_username=username,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=message,
+        )
+    else:
+        message = f"Password not set as intended for user {username}."
+        node.execute(
+            cmd=f'echo "{password}" | su --command true {username}',
+            shell=True,
+            expected_exit_code=0 if expected_exit_code == 0 else 1,
+            expected_exit_code_failure_message=message,
+        )
 
 
 def _validate_ssh_key_exists(node: Node, username: str, exists: bool = True) -> None:
@@ -180,7 +193,10 @@ class VMAccessTests(TestSuite):
         )
         _validate_password(node=node, username=username, password=password)
         _validate_password(
-            node=node, username=username, password=incorrect_password, valid=False
+            node=node,
+            username=username,
+            password=incorrect_password,
+            expected_exit_code=5,
         )
 
     @TestCaseMetadata(
@@ -248,7 +264,9 @@ class VMAccessTests(TestSuite):
         )
         # Expecting no ssh keys and password to exist for this user
         _validate_ssh_key_exists(node=node, username=username, exists=False)
-        _validate_password(node=node, username=username, password=password, valid=False)
+        _validate_password(
+            node=node, username=username, password=password, expected_exit_code=255
+        )
 
     @TestCaseMetadata(
         description="""
@@ -306,7 +324,9 @@ class VMAccessTests(TestSuite):
         create_and_verify_vmaccess_extension_run(
             node=node, protected_settings=protected_settings
         )
-        _validate_password(node=node, username=username, password=password, valid=False)
+        _validate_password(
+            node=node, username=username, password=password, expected_exit_code=5
+        )
 
     @TestCaseMetadata(
         description="""
