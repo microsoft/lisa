@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 from lisa import schema
 from lisa.feature import Feature
 from lisa.operating_system import BSD
-from lisa.tools import Mount
+from lisa.tools import Ls, Mount
 from lisa.tools.mount import PartitionInfo
 from lisa.util import LisaException, get_matched_str
 
@@ -81,12 +81,18 @@ class Disk(Feature):
     def get_luns(self) -> Dict[str, int]:
         raise NotImplementedError
 
-    # Get boot partition of VM by looking for "/boot" and "/boot/efi"
+    # Get boot partition of VM by looking for "/boot", "/boot/efi", and "/efi"
     def get_os_boot_partition(self) -> Optional[PartitionInfo]:
+        # We need to access /efi to force systemd to
+        # mount the boot partition on some distros.
+        self._node.tools[Ls].path_exists("/efi", sudo=True)
+
         partition_info = self._node.tools[Mount].get_partition_info()
         boot_partition: Optional[PartitionInfo] = None
         for partition in partition_info:
-            if partition.mount_point.startswith("/boot"):
+            if partition.mount_point.startswith(
+                "/boot"
+            ) or partition.mount_point.startswith("/efi"):
                 boot_partition = partition
                 if isinstance(self._node.os, BSD):
                     # Get the device name from the GPT since they are abstracted
