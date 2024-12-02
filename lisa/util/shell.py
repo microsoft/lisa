@@ -269,7 +269,11 @@ class SshShell(InitializableMixin):
             stdout = try_connect(self.connection_info, sock=sock)
         except Exception as identifier:
             raise LisaException(
-                f"failed to connect SSH "
+                "failed to connect SSH port of the VM. It might be due to one of the "
+                "following reasons: 1. Port 22 is not open. 2. The VM denies other "
+                "users' access. 3. The VM is refusing the private key authentication. "
+                "Please modify the relevant configurations and try again. Error details"
+                ": failed to connect "
                 f"[{self.connection_info.address}:{self.connection_info.port}], "
                 f"{identifier.__class__.__name__}: {identifier}"
             )
