@@ -26,7 +26,7 @@ class Wget(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._url_file_cache: Dict[str, str] = dict()
-        return super()._initialize(*args, **kwargs)
+        super()._initialize(*args, **kwargs)
 
     @property
     def can_install(self) -> bool:
