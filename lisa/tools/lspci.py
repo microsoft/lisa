@@ -84,10 +84,10 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
     ],
     constants.DEVICE_TYPE_NVME: [
-        "b111"  # Microsoft Corporation Device, Local NVMe discs
+        "b111"  # Microsoft Corporation Device, Local NVMe disks
     ],
     constants.DEVICE_TYPE_ASAP: [
-        "00a9"  # Remote discs connected using NVMe disc controller
+        "00a9"  # Remote disks connected using NVMe disk controller
     ],
     constants.DEVICE_TYPE_GPU: [
         "1db4",  # NVIDIA Corporation GV100GL [Tesla V100 PCIe 16GB]
