@@ -3,6 +3,7 @@
 
 import base64
 import gzip
+import random
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -385,7 +386,8 @@ class CustomScriptTests(TestSuite):
     ) -> None:
         container_name = "cselisa"
         blob_name = "no-sas.sh"
-        test_file = "/tmp/cse-no-sas.txt"
+        random_str = "".join(random.sample("0123456789", 10))
+        test_file = f"/tmp/cse-no-sas-{random_str}.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
