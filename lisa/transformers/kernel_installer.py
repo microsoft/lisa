@@ -289,7 +289,8 @@ class RepoInstaller(BaseInstaller):
         self._log.info(f"installing kernel package: {full_package_name}")
         ubuntu.install_packages(full_package_name)
 
-        kernel_version = self._get_kernel_version(runbook.source, node)
+        # kernel_version = self._get_kernel_version(runbook.source, node)
+        kernel_version = "6.8.0-1035"
 
         return kernel_version
 
