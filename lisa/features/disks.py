@@ -86,7 +86,9 @@ class Disk(Feature):
         partition_info = self._node.tools[Mount].get_partition_info()
         boot_partition: Optional[PartitionInfo] = None
         for partition in partition_info:
-            if partition.mount_point.startswith("/boot"):
+            if partition.mount_point.startswith(
+                "/boot"
+            ) or partition.mount_point.startswith("/efi"):
                 boot_partition = partition
                 if isinstance(self._node.os, BSD):
                     # Get the device name from the GPT since they are abstracted
