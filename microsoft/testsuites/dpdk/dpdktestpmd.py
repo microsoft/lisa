@@ -223,9 +223,11 @@ class DpdkSourceInstall(Installer):
             if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
                 self._os.update_packages("linux-azure")
                 self._node.reboot()
+
         # install( Tool ) doesn't seem to install the tool until it's used :\
         # which breaks when another tool checks for it's existence before building...
         # like cmake, meson, make, autoconf, etc.
+        # So install the tool before proceeding.
         self._node.tools[Ninja].install()
         self._node.tools[Pip].install_packages("pyelftools")
         local_path = PurePath(__file__).parent.joinpath("devname")
@@ -496,6 +498,51 @@ class DpdkTestpmd(Tool):
                 )
             )
 
+    _devname_match_regex = re.compile(
+        r"dpdk-devname found port=(?P<port_id>[0-9]+) "
+        r"driver=(?P<driver>[a-zA-Z0-9_\-]+) "
+        r"get_name_by_port_name=(?P<port_name>[a-zA-Z0-9_\:\-]+) "
+        r"owner_id=(?P<owner_id>0x[0-9a-fA-F]+) "
+        r"owner_name=(?P<owner_name>[a-zA-Z0-9\:_\-]+) "
+        r"macaddr=(?P<mac_addr>[a-fA-F0-9\:]+)"
+    )
+
+    def get_portmask_for_mac_addr(
+        self,
+        mac_addr: str,
+        bound_driver: str = "",
+        owner: str = "",
+        eal_include: str = "",
+    ) -> str:
+        if not isinstance(self.installer, DpdkSourceInstall):
+            return ""
+        self.node.log.debug(
+            "Searching for port for: "
+            f"{mac_addr} {bound_driver} "
+            f"{owner} {eal_include}"
+        )
+        devname_path = self.installer.asset_path.joinpath("build/examples/dpdk-devname")
+        devname_output = self.node.execute(
+            f"{str(devname_path)} {eal_include}",
+            sudo=True,
+            shell=True,
+        ).stdout
+        for line in devname_output.splitlines():
+            match = self._devname_match_regex.search(line)
+            if not match:
+                continue
+            found_port_id = match.group("port_id")
+            found_mac_addr = match.group("mac_addr")
+            mac_addr_check = found_mac_addr == mac_addr
+            bound_driver_check = (
+                not bound_driver or match.group("driver") == bound_driver
+            )
+            owner_check = not owner or match.group("port_name") == owner
+            if mac_addr_check and bound_driver_check and owner_check:
+                return hex(1 << int(found_port_id))
+
+        raise AssertionError(f"Devname could not find port info for {mac_addr}!")
+
     def generate_testpmd_command(
         self,
         nic_to_include: NicInfo,
@@ -528,14 +575,24 @@ class DpdkTestpmd(Tool):
 
         # MANA needs a file descriptor argument, mlnx doesn't.
         txd = 128
-
+        port_mask = ""
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
         if isinstance(self.installer, DpdkSourceInstall):
             devname_path = self.installer.asset_path.joinpath(
                 "build/examples/dpdk-devname"
             )
-            self.node.execute(f"{str(devname_path)}", sudo=True, shell=True)
+            self.node.execute(
+                f"{str(devname_path)}", sudo=True, shell=True
+            )  # NOTE: Logging only
+            port_mask = self.get_portmask_for_mac_addr(
+                nic_to_include.mac_addr,
+                bound_driver="net_mana",
+                # owner=nic_to_include.dev_uuid,
+            )
+            if port_mask:
+                port_mask = f"--portmask={port_mask}"
+
         # infer core count to assign based on number of queues
         cores_available = self.node.tools[Lscpu].get_core_count()
         assert_that(cores_available).described_as(
@@ -584,7 +641,8 @@ class DpdkTestpmd(Tool):
         return (
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"-a --stats-period 2 --nb-cores={forwarding_cores} "
+            f"{port_mask} {extra_args} "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
