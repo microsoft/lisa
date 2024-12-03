@@ -81,10 +81,25 @@ class Nvme(Feature):
                 namespaces.append(matched_result.group("namespace"))
         return self._remove_nvme_os_disk(namespaces)
 
-    # With disk controller type NVMe, OS disk along with all remote iSCSI devices
+    # With disk controller type NVMe (ASAP), OS disk along with all remote iSCSI devices
     # appears as NVMe.
     # Removing OS disk from the list of NVMe devices will remove all the
     # remote non-NVME disks.
+    # Sample output of lsblk command on a ASAP enabled VM:
+    # lisa [ ~ ]$ lsblk
+    # NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+    # sr0          11:0    1 1024M  0 rom
+    # nvme0n1     259:0    0   30G  0 disk # Remote OS disk
+    # |-nvme0n1p1 259:1    0   64M  0 part /boot/efi
+    # |-nvme0n1p2 259:2    0  500M  0 part /boot
+    # `-nvme0n1p3 259:3    0 29.4G  0 part /
+    # nvme0n2     259:8    0    4G  0 disk # Remote data disk 1
+    # nvme0n3     259:9    0    4G  0 disk # Remote data disk 2
+    # nvme1n1     259:4    0  440G  0 disk # nvme resource disk
+    # nvme2n1     259:5    0  440G  0 disk # nvme resource disk
+    # nvme3n1     259:6    0  440G  0 disk # nvme resource disk
+    # nvme4n1     259:7    0  440G  0 disk # nvme resource disk
+    # lisa [ ~ ]$
     def _remove_nvme_os_disk(self, disk_list: List[str]) -> List[str]:
         if (
             self._node.features[Disk].get_os_disk_controller_type()
@@ -106,7 +121,7 @@ class Nvme(Feature):
         node_disk = self._node.features[Disk]
         os_partition_namespace = ""
         os_boot_partition = node_disk.get_os_boot_partition()
-        # Sample os_boot_partition when disc controller type is NVMe:
+        # Sample os_boot_partition when disk controller type is NVMe:
         # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
         if os_boot_partition:
             os_partition_namespace = get_matched_str(
@@ -119,7 +134,7 @@ class Nvme(Feature):
     def _get_os_disk_nvme_device(self) -> str:
         os_disk_nvme_device = ""
         os_disk_nvme_namespace = self.get_os_disk_nvme_namespace()
-        # Sample os_boot_partition when disc controller type is NVMe:
+        # Sample os_boot_partition when disk controller type is NVMe:
         # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
         if os_disk_nvme_namespace:
             os_disk_nvme_device = get_matched_str(
