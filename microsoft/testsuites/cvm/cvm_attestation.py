@@ -10,11 +10,10 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    features,
 )
 from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import CBLMariner, Ubuntu
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, CLOUD_HYPERVISOR
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls, Lscpu
 from lisa.tools.lscpu import CpuType
@@ -109,7 +108,8 @@ class NestedCVMAttestationTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[features.CVMNestedVirtualization],
+            supported_features=[CvmEnabled()],
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def verify_nested_cvm_attestation_report(
