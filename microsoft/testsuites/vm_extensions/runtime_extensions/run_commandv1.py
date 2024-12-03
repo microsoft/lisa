@@ -3,6 +3,7 @@
 
 import base64
 import gzip
+import random
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -383,7 +384,8 @@ class RunCommandV1Tests(TestSuite):
     ) -> None:
         container_name = "rcv1lisa"
         blob_name = "no-sas.sh"
-        test_file = "/tmp/rcv1-no-sas.txt"
+        random_str = "".join(random.sample("0123456789", 10))
+        test_file = f"/tmp/rcv1-no-sas-{random_str}.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,
