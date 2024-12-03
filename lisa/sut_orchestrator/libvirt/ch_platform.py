@@ -70,6 +70,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
         else:
             node_context.kernel_path = node_runbook.kernel.path
+        node_context.host_data = secrets.token_hex(32)
 
     def _create_node(
         self,
@@ -131,7 +132,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             policy = ET.SubElement(launch_sec, "policy")
             policy.text = "0"
             host_data = ET.SubElement(launch_sec, "host_data")
-            host_data.text = secrets.token_hex(32)
+            host_data.text = node_context.host_data
 
         devices = ET.SubElement(domain, "devices")
         if len(node_context.passthrough_devices) > 0:

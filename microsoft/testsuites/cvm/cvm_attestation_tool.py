@@ -157,11 +157,12 @@ class NestedCVMAttestationTests(Tool):
         output: str = command.stdout
         result = self._extract_result(output)
         self._log.debug(f"Attestation result: {result}")
+        attestation_host_data = result["host_data"].replace(" ", "").strip()
 
         assert_that(
             host_data,
             "'host_data' passed to testcase is not matching with attestation result",
-        ).is_equal_to(result["host_data"].strip())
+        ).is_equal_to(attestation_host_data)
 
         # save the attestation report under log_path as cvm_attestation_report.txt
         self._save_attestation_report(output, log_path)
