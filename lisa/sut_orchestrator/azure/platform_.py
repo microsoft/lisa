@@ -1351,6 +1351,14 @@ class AzurePlatform(Platform):
     ) -> AzureNodeArmParameter:
         runbook = capability.get_extended_runbook(AzureNodeSchema, type_name=AZURE)
         arm_parameters = AzureNodeArmParameter.from_node_runbook(runbook)
+        max_disk_size_by_requirement = max(
+            arm_parameters.osdisk_size_in_gb,
+            (
+                int(capability.disk.os_disk_size)
+                if capability.disk and isinstance(capability.disk.os_disk_size, int)
+                else 0
+            ),
+        )
 
         if arm_parameters.vhd and arm_parameters.vhd.vhd_path:
             # vhd is higher priority
@@ -1393,7 +1401,7 @@ class AzurePlatform(Platform):
                     image_info.os_disk_image
                 ), "'image_info.os_disk_image' must not be 'None'"
                 arm_parameters.osdisk_size_in_gb = max(
-                    arm_parameters.osdisk_size_in_gb,
+                    max_disk_size_by_requirement,
                     _get_disk_size_in_gb(
                         image_info.os_disk_image.additional_properties
                     ),
