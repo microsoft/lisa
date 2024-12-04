@@ -10,10 +10,11 @@ from assertpy.assertpy import assert_that
 from lisa import Environment
 from lisa.executable import Tool
 from lisa.features import SerialConsole
-from lisa.operating_system import Posix, Ubuntu
+from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Echo, Git, Make
+from lisa.tools import Cargo, Dmesg, Echo, Git, Make, Mkdir
 from lisa.util import UnsupportedDistroException
+from lisa.util.process import ExecutableResult
 
 
 class AzureCVMAttestationTests(Tool):
@@ -119,6 +120,147 @@ class AzureCVMAttestationTests(Tool):
         report_path = log_path / "cvm_attestation_report.txt"
         with open(str(report_path), "w") as f:
             f.write(output)
+
+
+class SnpGuest(Tool):
+    _snpguest_repo = "https://github.com/virtee/snpguest"
+    cmd_path: PurePath
+    repo_root: PurePath
+
+    @property
+    def command(self) -> str:
+        return str(self.cmd_path)
+
+    @property
+    def can_install(self) -> bool:
+        return True
+
+    @property
+    def dependencies(self) -> List[Type[Tool]]:
+        return [Git, Cargo, Mkdir]
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        tool_path = self.get_tool_path(use_global=True)
+
+        self.repo_root = tool_path / "snpguest"
+        self.cmd_path = self.repo_root / "target" / "release" / "snpguest"
+
+    def _install(self) -> bool:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["perl", "tpm2-tss-devel"])
+        tool_path = self.get_tool_path(use_global=True)
+        git = self.node.tools[Git]
+        git.clone(self._snpguest_repo, tool_path)
+
+        cargo = self.node.tools[Cargo]
+        cargo.build(release=True, features="hyperv", sudo=False, cwd=self.repo_root)
+
+        return self._check_exists()
+
+    def _fetch_ca(
+        self,
+        certs_dir: str,
+        encoding: str = "der",
+        processor_model: str = "milan",
+        endorser: str = "vcek",
+    ) -> ExecutableResult:
+        failure_msg = "failed to request CA chain from the KDS"
+        return self.run(
+            f"fetch ca {encoding} {processor_model} {certs_dir} --endorser {endorser}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            shell=True,
+            sudo=False,
+            force_run=True,
+        )
+
+    def _fetch_vcek(
+        self,
+        certs_dir: str,
+        attestation_report_path: str,
+        encoding: str = "der",
+        processor_model: str = "milan",
+    ) -> ExecutableResult:
+        failure_msg = "failed to request VCEK from the KDS"
+        return self.run(
+            f"fetch vcek {encoding} {processor_model} {certs_dir} "
+            f"{attestation_report_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            shell=True,
+            sudo=False,
+            force_run=True,
+        )
+
+    def _request_attestation_report(
+        self, attestation_report_path: str, request_file_path: str
+    ) -> ExecutableResult:
+        failure_msg = "failed to request attestation report from the host"
+        return self.run(
+            f"report {attestation_report_path} {request_file_path} --platform --vmpl 0",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            shell=True,
+            sudo=True,
+            force_run=True,
+        )
+
+    def _verify_certs(self, certs_dir: str) -> ExecutableResult:
+        failure_msg = "failed to verify certificates"
+        return self.run(
+            f"verify certs {certs_dir}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            shell=True,
+            sudo=False,
+            force_run=True,
+        )
+
+    def _verify_attestation(
+        self, certs_dir: str, attestation_report_path: str
+    ) -> ExecutableResult:
+        failure_msg = "failed to verify attestation report"
+        return self.run(
+            f"verify attestation {certs_dir} {attestation_report_path}",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=failure_msg,
+            shell=True,
+            sudo=False,
+            force_run=True,
+        )
+
+    def run_cvm_attestation(self, processor_model: str = "milan") -> None:
+        """Regular attestation workflow
+
+        1. Request attestation report
+        2. Request AMD Root Key (ARK) and AMD SEV Key (ASK) from AMD Key Distribution
+           Service (KDS)
+        3. Request the Versioned Chip Endorsement Key (VCEK) from AMD KDS
+        4. Verify the certificates obtained
+        5. Verify the attestation report
+        """
+        data_dir = self.repo_root / "data"
+        certs_dir = data_dir / "certs"
+        attestation_report_path = data_dir / "attestation-report.bin"
+        request_file_path = data_dir / "request-file.txt"
+
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(certs_dir.as_posix())
+
+        self._request_attestation_report(
+            attestation_report_path.as_posix(), request_file_path.as_posix()
+        )
+        self._fetch_ca(certs_dir.as_posix(), processor_model=processor_model)
+        self._fetch_vcek(
+            certs_dir.as_posix(),
+            attestation_report_path.as_posix(),
+            processor_model=processor_model,
+        )
+
+        self._verify_certs(certs_dir.as_posix())
+        self._verify_attestation(
+            certs_dir.as_posix(), attestation_report_path.as_posix()
+        )
 
 
 class NestedCVMAttestationTests(Tool):

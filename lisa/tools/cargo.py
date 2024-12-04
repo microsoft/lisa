@@ -117,6 +117,8 @@ class Cargo(Tool):
 
     def build(
         self,
+        release: bool = True,
+        features: str = "",
         sudo: bool = False,
         cwd: Optional[PurePath] = None,
     ) -> ExecutableResult:
@@ -132,8 +134,13 @@ class Cargo(Tool):
         if os.path.dirname(self._command) not in path:
             path = f"{os.path.dirname(self._command)}:{path}"
 
+        command = "build"
+        if release:
+            command = f"{command} --release"
+        if features:
+            command = f"{command} --features={features}"
         result = self.run(
-            "build",
+            command,
             expected_exit_code=0,
             expected_exit_code_failure_message=err_msg,
             sudo=sudo,
