@@ -3,6 +3,7 @@
 
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
+from urllib.parse import urlparse
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -126,7 +127,6 @@ class TarDownloader(Downloader):
         for suffix in [".tar.gz", ".tar.bz2", ".tar"]:
             if self._tar_url.endswith(suffix):
                 is_tarball = True
-                tarfile_suffix = suffix
                 break
         assert_that(is_tarball).described_as(
             (
@@ -136,9 +136,7 @@ class TarDownloader(Downloader):
         ).is_true()
         if self._is_remote_tarball:
             tarfile = node.tools[Wget].get(
-                self._tar_url,
-                file_path=str(work_path),
-                overwrite=False,
+                self._tar_url, overwrite=False, file_path=str(node.get_working_path())
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
@@ -149,16 +147,18 @@ class TarDownloader(Downloader):
                 local_path=PurePath(self._tar_url),
                 node_path=remote_path,
             )
+        tar_root_folder = node.tools[Tar].get_root_folder(str(remote_path))
         # create tarfile dest dir
-        self.asset_path = work_path.joinpath(
-            self.tar_filename[: -(len(tarfile_suffix))]
-        )
+        self.asset_path = work_path.joinpath(tar_root_folder)
         # unpack into the dest dir
         # force name as tarfile name
+        # add option to skip files which already exist on disk
+        # in the event we have already extracted this specific tar
         node.tools[Tar].extract(
             file=str(remote_path),
             dest_dir=str(work_path),
             gzip=True,
+            skip_existing_files=True,
         )
         return self.asset_path
 
@@ -350,7 +350,16 @@ def check_dpdk_support(node: Node) -> None:
 
 
 def is_url_for_tarball(url: str) -> bool:
-    return ".tar" in PurePath(url).suffixes
+    # fetch the resource from the url
+    # ex. get example/thing.tar from www.github.com/example/thing.tar.gz
+    url_path = urlparse(url).path
+    if not url_path:
+        return False
+    suffixes = PurePath(url_path).suffixes
+    if not suffixes:
+        return False
+    # check if '.tar' in [ '.tar', '.gz' ]
+    return ".tar" in suffixes
 
 
 def is_url_for_git_repo(url: str) -> bool:
