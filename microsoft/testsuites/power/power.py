@@ -18,6 +18,7 @@ from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
+from lisa.schema import DiskOptionSettings
 from lisa.testsuite import simple_requirement
 from lisa.tools import Date, Hwclock, StressNg
 from lisa.util import SkippedException
@@ -78,6 +79,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
+            disk=DiskOptionSettings(os_disk_size=300),
         ),
     )
     def verify_hibernation_sriov_network(self, node: Node, log: Logger) -> None:
