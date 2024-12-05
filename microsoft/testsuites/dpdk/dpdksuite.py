@@ -28,7 +28,6 @@ from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
-    DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
     force_dpdk_default_source_variables,
 )

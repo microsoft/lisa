@@ -50,7 +50,6 @@ from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
     AZ_ROUTE_ALL_TRAFFIC,
-    DPDK_STABLE_GIT_REPO,
     Downloader,
     GitDownloader,
     Installer,
