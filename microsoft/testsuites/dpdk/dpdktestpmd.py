@@ -578,7 +578,10 @@ class DpdkTestpmd(Tool):
         port_mask = ""
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
-        if isinstance(self.installer, DpdkSourceInstall):
+        if (
+            isinstance(self.installer, DpdkSourceInstall)
+            and self.node.nics.is_mana_device_present()
+        ):
             devname_path = self.installer.asset_path.joinpath(
                 "build/examples/dpdk-devname"
             )
@@ -587,8 +590,8 @@ class DpdkTestpmd(Tool):
             )  # NOTE: Logging only
             port_mask = self.get_portmask_for_mac_addr(
                 nic_to_include.mac_addr,
-                bound_driver="net_mana",
-                # owner=nic_to_include.dev_uuid,
+                bound_driver="net_netvsc",
+                eal_include=nic_include_info,
             )
             if port_mask:
                 port_mask = f"--portmask={port_mask}"
