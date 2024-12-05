@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import re
 from decimal import Decimal
+import time
 from typing import cast
 
 from assertpy import assert_that
@@ -76,8 +77,7 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat:
-        node.reboot()
+    time.sleep(1000)
 
     boot_time_before_hibernation = node.execute(
         "echo \"$(last reboot -F | head -n 1 | awk '{print $5, $6, $7, $8, $9}')\"",
