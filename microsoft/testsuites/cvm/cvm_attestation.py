@@ -14,7 +14,6 @@ from lisa import (
 from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE, CLOUD_HYPERVISOR
-from lisa.sut_orchestrator.libvirt.context import get_node_context
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls, Lscpu
 from lisa.tools.lscpu import CpuType
@@ -122,6 +121,8 @@ class NestedCVMAttestationTestSuite(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
+
         node_context = get_node_context(node)
         host_data = node_context.host_data
         if not host_data:
