@@ -26,6 +26,26 @@ class Sshpass(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Make, Gcc]
 
+    def verify_user_password_with_sshpass(
+        self,
+        target_ip: str,
+        target_username: str,
+        target_password: str,
+        expected_exit_code: int = 0,
+        expected_exit_code_failure_message: str = "",
+        command: str = "whoami",
+        target_port: int = 22,
+    ) -> None:
+        self.run(
+            f"-p {target_password} ssh {target_username}@{target_ip} "
+            "-o 'StrictHostKeyChecking no' "
+            f"-p {target_port} {command}",
+            shell=True,
+            force_run=True,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=expected_exit_code_failure_message,
+        )
+
     def copy(
         self,
         source_path: str,
