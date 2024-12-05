@@ -19,7 +19,7 @@ from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroExce
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 # 32bit test relies on newer versions of DPDK.
 # Release candidates are not in stable, so use the github mirror.
-DPDK_32BIT_DEFAULT_BRANCH = "v24.11-rc1"
+DPDK_32BIT_DEFAULT_BRANCH = "v24.11"
 # TODO: update these when v24.11 is released to stable.
 DPDK_32BIT_DEFAULT_SOURCE = "https://github.com/DPDK/dpdk.git"
 # azure routing table magic subnet prefix
