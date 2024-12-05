@@ -58,6 +58,7 @@ from microsoft.testsuites.dpdk.common import (
     check_dpdk_support,
     is_url_for_git_repo,
     is_url_for_tarball,
+    set_forced_source_by_distro,
     update_kernel_from_repo,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
@@ -116,17 +117,6 @@ class DpdkTestResources:
         self._last_dmesg = ""
         self.switch_sriov = True
         self.rdma_core = _rdma_core
-
-
-def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
-    # DPDK packages 17.11 which is EOL and doesn't have the
-    # net_vdev_netvsc pmd used for simple handling of hyper-v
-    # guests. Force stable source build on this platform.
-    # Default to 20.11 unless another version is provided by the
-    # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 def get_rdma_core_installer(
@@ -302,7 +292,7 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
-    _set_forced_source_by_distro(node, variables)
+    set_forced_source_by_distro(node, variables)
     if pmd == "failsafe" and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
 

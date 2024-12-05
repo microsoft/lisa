@@ -330,6 +330,7 @@ class PackageManagerInstall(Installer):
         return True
 
 
+# force specific default sources for arch tests (os-independent)
 def force_dpdk_default_source(
     variables: Dict[str, Any], build_arch: Optional[CpuArchitecture] = None
 ) -> None:
@@ -345,6 +346,19 @@ def force_dpdk_default_source(
 
     if not variables.get("dpdk_source", None):
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
+
+
+# force source builds for distros which need a later verison.
+# ie. ubuntu 18.04
+def set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+    # DPDK packages 17.11 which is EOL and doesn't have the
+    # net_vdev_netvsc pmd used for simple handling of hyper-v
+    # guests. Force stable source build on this platform.
+    # Default to 20.11 unless another version is provided by the
+    # user. 20.11 is the latest dpdk version for 18.04.
+    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
 
 
 _UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
