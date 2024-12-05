@@ -551,27 +551,33 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
 
         if isinstance(node.os, Ubuntu):
             node.execute("systemctl disable apparmor", shell=True, sudo=True)
-        node.execute("systemctl enable libvirtd", shell=True, sudo=True)
-        node.reboot(time_out=900)
-        if isinstance(node.os, CBLMariner):
-            # After reboot, libvirtd service is in failed state and needs to
-            # be restarted manually. Doing it immediately after restart
-            # fails. So wait for a while before restarting libvirtd.
-            # This is an issue in Mariner and below lines can be removed once
-            # it has been addressed.
-            tries = 0
-            while tries <= 10:
-                try:
-                    node.tools[Service].restart_service("libvirtd")
-                    break
-                except Exception:
-                    time.sleep(1)
-                    tries += 1
     else:
         libvirt_version = libvirt_installer._get_version()
         log.info(f"Already installed! libvirt version: {libvirt_version}")
         _fix_mariner_installation(node=node)
-        node.reboot(time_out=900)
+
+    node.execute("systemctl enable libvirtd", shell=True, sudo=True)
+    node.execute("systemctl enable virtnetworkd", shell=True, sudo=True)
+    log.info("Enabled libvirtd and virtnetworkd services")
+    node.reboot(time_out=900)
+    _wait_for_libvirtd(node)
+
+
+def _wait_for_libvirtd(node: Node) -> None:
+    if isinstance(node.os, CBLMariner):
+        # After reboot, libvirtd service is in failed state and needs to
+        # be restarted manually. Doing it immediately after restart
+        # fails. So wait for a while before restarting libvirtd.
+        # This is an issue in Mariner and below lines can be removed once
+        # it has been addressed.
+        tries = 0
+        while tries <= 10:
+            try:
+                node.tools[Service].restart_service("libvirtd")
+                break
+            except Exception:
+                time.sleep(1)
+                tries += 1
 
 
 # Some fixes to the libvirt installation on Mariner.
