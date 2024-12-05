@@ -30,7 +30,7 @@ from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
     PackageManagerInstall,
-    force_dpdk_default_source,
+    force_dpdk_default_source_variables,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
@@ -124,7 +124,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any], result: TestResult
     ) -> None:
         skip_32bit_test_on_unsupported_distros(node.os)
-        force_dpdk_default_source(variables, build_arch=CpuArchitecture.I386)
+        force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
         verify_dpdk_build(
             node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
         )
@@ -156,7 +156,7 @@ class Dpdk(TestSuite):
     ) -> None:
         node = environment.default_node
         skip_32bit_test_on_unsupported_distros(node.os)
-        force_dpdk_default_source(variables, build_arch=CpuArchitecture.I386)
+        force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
         verify_dpdk_send_receive(
             environment,
             log,
@@ -271,7 +271,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         try:
             test_kit = initialize_node_resources(
                 node, log, variables, "netvsc", HugePageSize.HUGE_2MB
@@ -358,7 +358,7 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # multiprocess test requires dpdk source.
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         kill = node.tools[Kill]
         pmd = "failsafe"
         server_app_name = "dpdk-mp_server"
@@ -616,7 +616,7 @@ class Dpdk(TestSuite):
     ) -> None:
         # ring ping requires dpdk source to run, since default is package_manager
         # we special case here to use to dpdk-stable as the default.
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         # setup and unwrap the resources for this test
         try:
             test_kit = initialize_node_resources(
@@ -912,7 +912,7 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
@@ -945,7 +945,7 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         pmd = "netvsc"
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,

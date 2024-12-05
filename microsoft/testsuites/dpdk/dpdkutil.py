@@ -58,7 +58,7 @@ from microsoft.testsuites.dpdk.common import (
     check_dpdk_support,
     is_url_for_git_repo,
     is_url_for_tarball,
-    set_forced_source_by_distro,
+    set_default_dpdk_source,
     update_kernel_from_repo,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
@@ -292,7 +292,7 @@ def initialize_node_resources(
     sample_apps: Union[List[str], None] = None,
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
-    set_forced_source_by_distro(node, variables)
+    set_default_dpdk_source(node, variables)
     if pmd == "failsafe" and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
 

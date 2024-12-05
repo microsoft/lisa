@@ -20,8 +20,8 @@ DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
 # 32bit test relies on newer versions of DPDK.
 # Release candidates are not in stable, so use the github mirror.
 DPDK_32BIT_DEFAULT_BRANCH = "v24.11"
-# TODO: update these when v24.11 is released to stable.
-DPDK_32BIT_DEFAULT_SOURCE = "https://github.com/DPDK/dpdk.git"
+# MANA testing requires newer versions of DPDK.
+DPDK_MANA_DEFAULT_BRANCH = "v24.11"
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
 AZ_ROUTE_ALL_TRAFFIC = "0.0.0.0/0"
@@ -241,7 +241,7 @@ class Installer:
             # At the moment, we use create() to force re-initialization.
             # If we ever fix things so that we use .get,
             # we will need this check. So add it now.q
-            or (self._arch and required_arch != self._arch)
+            or bool(self._arch and required_arch != self._arch)
             or (
                 required_version is not None
                 and required_version > self.get_installed_version()
@@ -331,7 +331,7 @@ class PackageManagerInstall(Installer):
 
 
 # force specific default sources for arch tests (os-independent)
-def force_dpdk_default_source(
+def force_dpdk_default_source_variables(
     variables: Dict[str, Any], build_arch: Optional[CpuArchitecture] = None
 ) -> None:
     if build_arch:
@@ -341,16 +341,13 @@ def force_dpdk_default_source(
         if not variables.get("dpdk_branch", None):
             # assign a default branch with needed MANA commits for 32bit test
             variables["dpdk_branch"] = DPDK_32BIT_DEFAULT_BRANCH
-        if not variables.get("dpdk_source", None):
-            variables["dpdk_source"] = DPDK_32BIT_DEFAULT_SOURCE
-
     if not variables.get("dpdk_source", None):
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-# force source builds for distros which need a later verison.
-# ie. ubuntu 18.04
-def set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+# force source builds for distros and environments which need a later verison.
+# ie. ubuntu 18.04 and MANA
+def set_default_dpdk_source(node: Node, variables: Dict[str, Any]) -> None:
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
@@ -359,6 +356,12 @@ def set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+    # MANA runs need a later version of DPDK
+    if node.nics.is_mana_device_present():
+        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_branch"] = variables.get(
+            "dpdk_branch", DPDK_MANA_DEFAULT_BRANCH
+        )
 
 
 _UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
