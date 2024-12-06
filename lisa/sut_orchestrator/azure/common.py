@@ -523,7 +523,24 @@ class VhdSchema(AzureImageSchema):
     vmgs_path: Optional[str] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
-        return
+        # There are no platform tags to parse, but we can assume the
+        # security profile based on the presence of a VMGS path.
+        if self.vmgs_path:
+            self.security_profile = search_space.SetSpace(
+                True,
+                [
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ],
+            )
+        else:
+            self.security_profile = search_space.SetSpace(
+                True,
+                [
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                ],
+            )
 
 
 @dataclass_json()
