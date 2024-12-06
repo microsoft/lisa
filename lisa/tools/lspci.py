@@ -86,7 +86,7 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_NVME: [
         "b111"  # Microsoft Corporation Device, Local NVMe disks
     ],
-    constants.DEVICE_TYPE_ASAP: [
+    constants.DEVICE_TYPE_NVME_DCT: [
         "00a9"  # Remote disks connected using NVMe disk controller
     ],
     constants.DEVICE_TYPE_GPU: [
@@ -195,8 +195,8 @@ class Lspci(Tool):
     # Returns device slots for given device type based on device ids.
     # Usecase: If two device types are using same controller type, this method can get
     # the device slots only for the given device type.
-    # Example: To get local NVMe devices by ignoring ASAP devices which uses same nvme
-    # driver and the NVMe controller id.
+    # Example: To get actual NVMe devices by ignoring remote SCSI disks connected as
+    # NVMe devices which uses same nvme driver and the NVMe controller id.
     # Best practice: Use this method only for usecases like above. For other usecases,
     # use 'get_device_names_by_type' method. As its difficult to maintain the list of
     # device ids for each device type. For example, the list of device ids for SRIOV and
@@ -216,13 +216,15 @@ class Lspci(Tool):
 
     # Returns device slot ids for given device type based on controller ids.
     # This method cannot distinguish between different device types which uses same
-    # controller id. For example, NVME and ASAP devices use same controller id for.
+    # controller id.
+    # For example, NVME devices and remote SCSI devices on a VM with DiskControllerType
+    # as NVMe use same controller id.
     # In such cases, use 'get_device_names_by_device_id' method.
     def get_device_names_by_type(
         self, device_type: str, force_run: bool = False
     ) -> List[str]:
-        # NVME devices are searched based on device ids as 'ASAP' devices use same
-        # controller id.
+        # NVME devices are searched based on device ids as remote SCSI devices on VM
+        # with DiskControllerType as NVMe use same controller id
         if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
             return self.get_device_names_by_device_id(device_type, force_run)
         if device_type.upper() not in CONTROLLER_ID_DICT.keys():
@@ -256,8 +258,8 @@ class Lspci(Tool):
     def get_devices_by_type(
         self, device_type: str, force_run: bool = False
     ) -> List[PciDevice]:
-        # NVME devices are searched based on device ids as 'ASAP' devices use same
-        # controller id.
+        # NVME devices are searched based on device ids as remote SCSI devices on VM
+        # with DiskControllerType as NVMe use the same NVMe controller id.
         if device_type.upper() in [constants.DEVICE_TYPE_NVME]:
             return self.get_devices_by_device_id(device_type, force_run)
         if device_type.upper() not in CONTROLLER_ID_DICT.keys():

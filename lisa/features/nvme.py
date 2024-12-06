@@ -81,11 +81,11 @@ class Nvme(Feature):
                 namespaces.append(matched_result.group("namespace"))
         return self._remove_nvme_os_disk(namespaces)
 
-    # With disk controller type NVMe (ASAP), OS disk along with all remote iSCSI devices
-    # appears as NVMe.
+    # With disk controller type NVMe, OS disk along with all remote iSCSI devices
+    # appears as NVMe devices.
     # Removing OS disk from the list of NVMe devices will remove all the
     # remote non-NVME disks.
-    # Sample output of lsblk command on a ASAP enabled VM:
+    # Sample output of lsblk command on a VM with DiskControllerType as NVMe:
     # lisa [ ~ ]$ lsblk
     # NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
     # sr0          11:0    1 1024M  0 rom
