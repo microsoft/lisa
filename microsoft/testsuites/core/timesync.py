@@ -191,13 +191,12 @@ class TimeSync(TestSuite):
             }
             cat = node.tools[Cat]
             lscpu = node.tools[Lscpu]
-            sysctl = node.tools[Sysctl]
-            dmesg = node.tools[Dmesg]
             arch = lscpu.get_architecture()
             clocksource = clocksource_map.get(arch, None)
             if not clocksource:
                 raise UnsupportedCpuArchitectureException(arch)
-            if "FreeBSD" in node.os.name:
+            if isinstance(node.os, BSD):
+                sysctl = node.tools[Sysctl]
                 clock_source_result = sysctl.get("kern.timecounter.hardware")
                 assert_that([clock_source_result]).described_as(
                     f"Expected clocksource name is one of {clocksource}, "
@@ -212,7 +211,7 @@ class TimeSync(TestSuite):
 
             # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
             if CpuArchitecture.X64 == arch:
-                if "FreeBSD" not in node.os.name:
+                if not isinstance(node.os, BSD):
                     cpu_info_result = cat.run("/proc/cpuinfo")
                     if CpuType.Intel == lscpu.get_cpu_type():
                         expected_tsc_str = " constant_tsc "
@@ -224,6 +223,7 @@ class TimeSync(TestSuite):
                         f" equal to cpu count."
                     ).is_equal_to(lscpu.get_core_count())
                 else:
+                    dmesg = node.tools[Dmesg]
                     cpu_info_result = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
                     )
@@ -234,7 +234,7 @@ class TimeSync(TestSuite):
                     ).is_equal_to(lscpu.get_core_count())
 
             # 3. Check clocksource name shown up in dmesg.
-            if "FreeBSD" in node.os.name:
+            if isinstance(node.os, BSD):
                 assert_that(dmesg.get_output()).described_as(
                     f'Expected Timecounter "{clock_source_result}"'
                     f" shown up in dmesg."
