@@ -1,3 +1,4 @@
+import re
 import time
 from copy import deepcopy
 from datetime import timedelta
@@ -21,7 +22,18 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Windows
-from lisa.tools import Cat, Chrony, Dmesg, Hwclock, Ls, Lscpu, Ntp, Ntpstat, Service
+from lisa.tools import (
+    Cat,
+    Chrony,
+    Dmesg,
+    Hwclock,
+    Ls,
+    Lscpu,
+    Ntp,
+    Ntpstat,
+    Service,
+    Sysctl,
+)
 from lisa.tools.date import Date
 from lisa.tools.lscpu import CpuType
 from lisa.util import constants
@@ -167,41 +179,67 @@ class TimeSync(TestSuite):
                     "lis_hyperv_clocksource_tsc_page",
                     "hyperv_clocksource",
                     "tsc",
+                    "Hyper-V-TSC",
                 ],
                 CpuArchitecture.ARM64: [
                     "arch_sys_counter",
+                    "ARM MPCore Timecounter",
                 ],
             }
+            cat = node.tools[Cat]
             lscpu = node.tools[Lscpu]
+            sysctl = node.tools[Sysctl]
+            dmesg = node.tools[Dmesg]
+            freebsd_tsc_filter = re.compile(r"Features=.*<.*,TSC,.*>")
             arch = lscpu.get_architecture()
             clocksource = clocksource_map.get(arch, None)
             if not clocksource:
                 raise UnsupportedCpuArchitectureException(arch)
-            cat = node.tools[Cat]
-            clock_source_result = cat.run(self.current_clocksource)
-            assert_that([clock_source_result.stdout]).described_as(
-                f"Expected clocksource name is one of {clocksource},"
-                f" but actual it is {clock_source_result.stdout}."
-            ).is_subset_of(clocksource)
+            if "FreeBSD" in node.os.name:
+                clock_source_result = sysctl.get("kern.timecounter.hardware")
+                assert_that([clock_source_result]).described_as(
+                    f"Expected clocksource name is one of {clocksource}, "
+                    f"but actual it is {clock_source_result}."
+                ).is_subset_of(clocksource)
+            else:
+                clock_source_result = cat.run(self.current_clocksource)
+                assert_that([clock_source_result.stdout]).described_as(
+                    f"Expected clocksource name is one of {clocksource}, "
+                    f"but actual it is {clock_source_result.stdout}."
+                ).is_subset_of(clocksource)
 
             # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
             if CpuArchitecture.X64 == arch:
-                cpu_info_result = cat.run("/proc/cpuinfo")
-                if CpuType.Intel == lscpu.get_cpu_type():
-                    expected_tsc_str = " constant_tsc "
-                elif CpuType.AMD == lscpu.get_cpu_type():
-                    expected_tsc_str = " tsc "
-                shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
-                assert_that(shown_up_times).described_as(
-                    f"Expected {expected_tsc_str} shown up times in cpu flags is"
-                    " equal to cpu count."
-                ).is_equal_to(lscpu.get_core_count())
+                if "FreeBSD" not in node.os.name:
+                    cpu_info_result = cat.run("/proc/cpuinfo")
+                    if CpuType.Intel == lscpu.get_cpu_type():
+                        expected_tsc_str = " constant_tsc "
+                    elif CpuType.AMD == lscpu.get_cpu_type():
+                        expected_tsc_str = " tsc "
+                    shown_up_times = cpu_info_result.stdout.count(expected_tsc_str)
+                    assert_that(shown_up_times).described_as(
+                        f"Expected {expected_tsc_str} shown up times in cpu flags is"
+                        f" equal to cpu count."
+                    ).is_equal_to(lscpu.get_core_count())
+                else:
+                    cpu_info_result = freebsd_tsc_filter.findall(dmesg.get_output())
+                    count_of_results = len(cpu_info_result)
+                    assert_that(count_of_results).described_as(
+                        "Expected TSC shown up times in cpu flags is"
+                        " equal to cpu count."
+                    ).is_equal_to(lscpu.get_core_count())
 
             # 3. Check clocksource name shown up in dmesg.
-            dmesg = node.tools[Dmesg]
-            assert_that(dmesg.get_output()).described_as(
-                f"Expected clocksource {clock_source_result.stdout} shown up in dmesg."
-            ).contains(f"clocksource {clock_source_result.stdout}")
+            if "FreeBSD" in node.os.name:
+                assert_that(dmesg.get_output()).described_as(
+                    f'Expected Timecounter "{clock_source_result}"'
+                    f" shown up in dmesg."
+                ).contains(f'Timecounter "{clock_source_result}"')
+            else:
+                assert_that(dmesg.get_output()).described_as(
+                    f"Expected clocksource {clock_source_result.stdout}"
+                    f" shown up in dmesg."
+                ).contains(f"clocksource {clock_source_result.stdout}")
 
             # 4. Unbind current clock source if there are 2+ clock sources,
             # check current clock source can be switched to a different one.

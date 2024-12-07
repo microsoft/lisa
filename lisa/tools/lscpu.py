@@ -443,6 +443,19 @@ class BSDLscpu(Lscpu):
             * self.get_thread_per_core_count()
         )
 
+    def get_cpu_type(self, force_run: bool = False) -> CpuType:
+        result = self.run("-n hw.model", force_run=force_run).stdout.strip()
+        if "AMD" in result.stdout:
+            return CpuType.AMD
+        elif "Intel" in result.stdout:
+            return CpuType.Intel
+        elif "ARM" in result.stdout or "aarch64" in result.stdout:
+            return CpuType.ARM
+        else:
+            raise LisaException(
+                f"Unknow cpu type. The output of lscpu is {result.stdout}"
+            )
+
 
 class VMWareESXiLscpu(Lscpu):
     #    CPU Threads: 208
