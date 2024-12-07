@@ -86,6 +86,9 @@ class TimeSync(TestSuite):
     )
     current_clockevent = "/sys/devices/system/clockevents/clockevent0/current_device"
     unbind_clockevent = "/sys/devices/system/clockevents/clockevent0/unbind_device"
+    # Positive Example:
+    # Features=0x1c77b221<FPU,VME,DE,PSE,TSC,MSR,PAE,MCE,CX8,APIC,SEP,MTRR,PGE,MCA,CMOV,PAT,PSE36,CLFLUSH,MMX,FXSR,SSE,SSE2,HTT>
+    __freebsd_tsc_filter = re.compile(r"Features=.*<.*,TSC,.*>")
 
     @TestCaseMetadata(
         description="""
@@ -190,7 +193,6 @@ class TimeSync(TestSuite):
             lscpu = node.tools[Lscpu]
             sysctl = node.tools[Sysctl]
             dmesg = node.tools[Dmesg]
-            freebsd_tsc_filter = re.compile(r"Features=.*<.*,TSC,.*>")
             arch = lscpu.get_architecture()
             clocksource = clocksource_map.get(arch, None)
             if not clocksource:
@@ -222,7 +224,9 @@ class TimeSync(TestSuite):
                         f" equal to cpu count."
                     ).is_equal_to(lscpu.get_core_count())
                 else:
-                    cpu_info_result = freebsd_tsc_filter.findall(dmesg.get_output())
+                    cpu_info_result = self.__freebsd_tsc_filter.findall(
+                        dmesg.get_output()
+                    )
                     count_of_results = len(cpu_info_result)
                     assert_that(count_of_results).described_as(
                         "Expected TSC shown up times in cpu flags is"
