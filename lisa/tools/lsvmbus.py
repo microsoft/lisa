@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Set, Type
 from lisa.base_tools.wget import Wget
 from lisa.executable import Tool
 from lisa.operating_system import Redhat, Suse, Ubuntu
-from lisa.tools import Dmesg
+from lisa.tools import Dmesg, Echo
 from lisa.util import LisaException, find_groups_in_lines
 
 from .python import Python
@@ -189,9 +189,16 @@ class Lsvmbus(Tool):
 
     def _install_from_src(self) -> None:
         wget_tool = self.node.tools[Wget]
-        file_path = wget_tool.get(
-            self._lsvmbus_repo, "$HOME/.local/bin", executable=True
-        )
+        echo = self.node.tools[Echo]
+        tool_path = echo.run(
+            "$HOME/.local/bin",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to get $HOME/.local/bin via echo"
+            ),
+        ).stdout
+        file_path = wget_tool.get(self._lsvmbus_repo, tool_path, executable=True)
         self._command = file_path
 
     def install(self) -> bool:
