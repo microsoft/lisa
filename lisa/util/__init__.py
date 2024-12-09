@@ -85,12 +85,12 @@ hookimpl = pluggy.HookimplMarker(_NAME_LISA)
 
 
 PANIC_PATTERNS: List[Pattern[str]] = [
-    re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
-    re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
-    re.compile(r"^(.*grub>.*)$", re.MULTILINE),
-    re.compile(r"^The operating system has halted.$", re.MULTILINE),
+    re.compile(r"^(.*Kernel panic - not syncing:.*)$"),
+    re.compile(r"^(.*RIP:.*)$"),
+    re.compile(r"^(.*grub>.*)$"),
+    re.compile(r"^The operating system has halted.$"),
     # Synchronous Exception at 0x000000003FD04000
-    re.compile(r"^(.*Synchronous Exception at.*)$", re.MULTILINE),
+    re.compile(r"^(.*Synchronous Exception at.*)$"),
 ]
 
 # ignore some return lines, which shouldn't be a panic line.
@@ -328,7 +328,12 @@ class KernelPanicException(LisaException):
         self.source = source
 
     def __str__(self) -> str:
-        return f"{self.stage} found panic in {self.source}: {self.panics}"
+        return (
+            f"{self.stage} found panic in {self.source}. You can check the panic "
+            "details from the serial console log. Please download the test logs and "
+            "retrieve the serial_log from 'environments' directory, or you can ask "
+            f"support. Detected Panic phrases: {self.panics}"
+        )
 
 
 class RequireUserPasswordException(LisaException):

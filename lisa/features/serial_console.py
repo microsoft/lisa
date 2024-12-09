@@ -20,12 +20,12 @@ NAME_SERIAL_CONSOLE_LOG = "serial_console.log"
 
 class SerialConsole(Feature):
     panic_patterns: List[Pattern[str]] = [
-        re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
-        re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
-        re.compile(r"^(.*grub>.*)$", re.MULTILINE),
-        re.compile(r"^The operating system has halted.$", re.MULTILINE),
+        re.compile(r"^(.*Kernel panic - not syncing:.*)$"),
+        re.compile(r"^(.*RIP:.*)$"),
+        re.compile(r"^(.*grub>.*)$"),
+        re.compile(r"^The operating system has halted.$"),
         # Synchronous Exception at 0x000000003FD04000
-        re.compile(r"^(.*Synchronous Exception at.*)$", re.MULTILINE),
+        re.compile(r"^(.*Synchronous Exception at.*)$"),
     ]
 
     # ignore some return lines, which shouldn't be a panic line.
