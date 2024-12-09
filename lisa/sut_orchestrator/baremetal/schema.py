@@ -86,6 +86,18 @@ class BootConfigSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
 @dataclass_json()
 @dataclass
+class IPPowerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    type: str = field(default="Ip9285", metadata=field_metadata(required=True))
+    hostname: str = ""
+    username: str = ""
+    password: str = ""
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.password)
+
+
+@dataclass_json()
+@dataclass
 class ClusterSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = field(default="rackmanager", metadata=field_metadata(required=True))
     build: Optional[BuildSchema] = None
