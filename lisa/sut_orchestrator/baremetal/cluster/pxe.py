@@ -2,11 +2,14 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from time import sleep
 from typing import Any, Optional, Type, cast
+
+import requests
 
 from lisa import features
 from lisa.environment import Environment
-from lisa.features.serial_console import SerialConsole
+from lisa.features import SerialConsole, StartStop
 from lisa.node import Node, RemoteNode, quick_connect
 from lisa.platform_ import Platform
 from lisa.schema import FeatureSettings
@@ -16,6 +19,9 @@ from lisa.util.logger import Logger
 from .. import schema
 from ..context import get_node_context
 from .cluster import Cluster
+
+REQUEST_TIMEOUT = 3
+POWER_DOWN_DELAY = 3
 
 
 class RemoteComSerialConsole(features.SerialConsole):
@@ -100,7 +106,56 @@ class RemoteComSerialConsole(features.SerialConsole):
         process.wait_output("\n", timeout=1, interval=0.1)
 
         self._process = process
-        self._log.debug("connected to serial console: {serial_port}")
+        self._log.debug(f"connected to serial console: {serial_port}")
+
+
+class Ip9285StartStop(features.StartStop):
+    def __init__(
+        self, settings: FeatureSettings, node: Node, platform: Platform
+    ) -> None:
+        super().__init__(settings, node, platform)
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+
+        context = get_node_context(self._node)
+        pxe_cluster = cast(schema.PxeCluster, context.cluster)
+        assert pxe_cluster.start_stop, "start_stop is not defined"
+
+        ip_power_runbook = pxe_cluster.start_stop.get_extended_runbook(schema.Ip9285)
+
+        self._request_cmd = (
+            f"http://{ip_power_runbook.host}/set.cmd?"
+            f"user={ip_power_runbook.username}+pass="
+            f"{ip_power_runbook.password}+cmd="
+            f"setpower+P6{ip_power_runbook.ctrl_port}"
+        )
+
+    def _set_ip_power(self, power_cmd: str) -> None:
+        response = requests.get(power_cmd, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        self._log.debug("Command {power_cmd} done in set_ip_power")
+
+    def _stop(
+        self,
+        wait: bool = True,
+        state: features.StopState = features.StopState.Shutdown,
+    ) -> None:
+        request_off = f"{self._request_cmd}=0"
+        self._set_ip_power(request_off)
+        # To make sure power-off is fully settled down, it is recommended
+        # to wait a short time before power-on is triggered. Local tests showed
+        # 1s is actually good enough to get a stable power-off status, here
+        # 3s is used in order to garantee power-off is successfully executed.
+        sleep(POWER_DOWN_DELAY)
+
+    def _start(self, wait: bool = True) -> None:
+        request_on = f"{self._request_cmd}=1"
+        self._set_ip_power(request_on)
+
+    def _restart(self, wait: bool = True) -> None:
+        self._stop()
+        self._start()
 
 
 class Pxe(Cluster):
@@ -124,6 +179,15 @@ class Pxe(Cluster):
             raise NotImplementedError(
                 f"serial console type {self.runbook.serial_console.type} "
                 f"is not supported."
+            )
+
+    def get_start_stop(self) -> Type[StartStop]:
+        assert self.runbook.start_stop, "start_stop is not defined"
+        if self.runbook.start_stop.type == "Ip9285":
+            return Ip9285StartStop
+        else:
+            raise NotImplementedError(
+                f"start_stop type {self.runbook.start_stop.type} is not supported."
             )
 
     def deploy(self, environment: Environment) -> Any:
