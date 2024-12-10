@@ -74,7 +74,7 @@ class KeyLoaderSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
 
 @dataclass_json()
-@dataclass      
+@dataclass
 class BootConfigSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = field(default="boot_config", metadata=field_metadata(required=True))
 
