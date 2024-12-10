@@ -12,7 +12,8 @@ from urllib3.util.url import parse_url
 from lisa import Node
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
-from lisa.tools import Git, Tar, Wget
+from lisa.tools import Git, Lscpu, Tar, Wget
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
@@ -306,6 +307,11 @@ def check_dpdk_support(node: Node) -> None:
     # check requirements according to:
     # https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk
     supported = False
+    arch = node.tools[Lscpu].get_architecture()
+    if arch == CpuArchitecture.ARM64 and not isinstance(node.os, Ubuntu):
+        raise UnsupportedDistroException(
+            node.os, "ARM64 tests are only supported on Ubuntu."
+        )
     if isinstance(node.os, Debian):
         if isinstance(node.os, Ubuntu):
             node.log.debug(
