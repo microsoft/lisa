@@ -782,10 +782,10 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
-    if (
-        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64
-        or not isinstance(forwarder.os, Ubuntu)
-        or forwarder.os.information.version < "22.4.0"
+    if not (
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+        and isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
     ):
         raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 

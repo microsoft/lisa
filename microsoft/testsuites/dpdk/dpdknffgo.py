@@ -5,8 +5,9 @@ from typing import List, Type
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Ubuntu
-from lisa.tools import Echo, Git, Make, Tar, Wget
-from lisa.util import UnsupportedDistroException
+from lisa.tools import Echo, Git, Lscpu, Make, Tar, Wget
+from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroException
 
 
 class DpdkNffGo(Tool):
@@ -52,7 +53,10 @@ class DpdkNffGo(Tool):
         node = self.node
         os = node.os
         version = os.information.version
-        if isinstance(os, Ubuntu):
+        node_arch = node.tools[Lscpu].get_architecture()
+        if node_arch != CpuArchitecture.X64:
+            raise UnsupportedCpuArchitectureException(arch=str(node_arch.value))
+        elif isinstance(os, Ubuntu):
             if version != "18.4.0":
                 raise UnsupportedDistroException(
                     os, "NFF-GO test is not supported on Ubuntu != 18.04"
