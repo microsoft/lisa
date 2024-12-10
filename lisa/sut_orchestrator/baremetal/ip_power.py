@@ -12,6 +12,7 @@ from lisa.util.logger import get_logger
 from .schema import IPPowerSchema
 
 REQUEST_TIMEOUT = 3
+REQUEST_SUCCESS_CODE = 200
 
 
 class IPPower(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
@@ -49,14 +50,19 @@ class Ip9285(IPPower):
 
     def on(self, port: str) -> None:
         request_on = f"{self._request_cmd}{port}=1"
-        try:
-            requests.get(request_on, timeout=REQUEST_TIMEOUT)
-        except requests.Timeout:
-            raise LisaException(f"Failed to turn off port {port}")
+        self._set_ip_power(request_on)
 
     def off(self, port: str) -> None:
         request_off = f"{self._request_cmd}{port}=0"
+        self._set_ip_power(request_off)
+
+    def _set_ip_power(self, power_cmd: str) -> None:
         try:
-            requests.get(request_off, timeout=REQUEST_TIMEOUT)
-        except requests.Timeout:
-            raise LisaException(f"Failed to turn off port {port}")
+            response = requests.get(power_cmd, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+        except requests.HTTPError as http_err:
+            raise LisaException(f"HTTP error: {http_err} in set_ip_power occurred")
+        except Exception as err:
+            raise LisaException(f"Other Error: {err} in set_ip_power occurred")
+        else:
+            self._log.debug(f"Command {power_cmd} in set_ip_power done")
