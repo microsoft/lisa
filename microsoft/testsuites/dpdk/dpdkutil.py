@@ -45,6 +45,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -782,10 +783,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
     if (
-        not isinstance(forwarder.os, Ubuntu)
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64
+        or not isinstance(forwarder.os, Ubuntu)
         or forwarder.os.information.version < "22.4.0"
     ):
-        raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
