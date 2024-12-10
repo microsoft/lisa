@@ -6,10 +6,12 @@ from typing import Type
 import requests
 
 from lisa import schema
-from lisa.util import ContextMixin, InitializableMixin, subclasses
+from lisa.util import ContextMixin, InitializableMixin, LisaException, subclasses
 from lisa.util.logger import get_logger
 
 from .schema import IPPowerSchema
+
+REQUEST_TIMEOUT = 3
 
 
 class IPPower(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixin):
@@ -21,10 +23,10 @@ class IPPower(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableM
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return IPPowerSchema
 
-    def on(self, port: int) -> None:
+    def on(self, port: str) -> None:
         raise NotImplementedError()
 
-    def off(self, port: int) -> None:
+    def off(self, port: str) -> None:
         raise NotImplementedError()
 
 
@@ -32,7 +34,7 @@ class Ip9285(IPPower):
     def __init__(self, runbook: IPPowerSchema) -> None:
         super().__init__(runbook)
         self._request_cmd = (
-            f"http://{runbook.hostname}/set.cmd?"
+            f"http://{runbook.host}/set.cmd?"
             f"user={runbook.username}+pass="
             f"{runbook.password}+cmd=setpower+P6"
         )
@@ -45,10 +47,16 @@ class Ip9285(IPPower):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return IPPowerSchema
 
-    def on(self, port: int) -> None:
+    def on(self, port: str) -> None:
         request_on = f"{self._request_cmd}{port}=1"
-        requests.get(request_on)
+        try:
+            requests.get(request_on, timeout=REQUEST_TIMEOUT)
+        except requests.Timeout:
+            raise LisaException(f"Failed to turn off port {port}")
 
-    def off(self, port: int) -> None:
+    def off(self, port: str) -> None:
         request_off = f"{self._request_cmd}{port}=0"
-        requests.get(request_off)
+        try:
+            requests.get(request_off, timeout=REQUEST_TIMEOUT)
+        except requests.Timeout:
+            raise LisaException(f"Failed to turn off port {port}")
