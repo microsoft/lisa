@@ -310,7 +310,7 @@ def check_dpdk_support(node: Node) -> None:
     arch = node.tools[Lscpu].get_architecture()
     if arch == CpuArchitecture.ARM64 and not isinstance(node.os, Ubuntu):
         raise UnsupportedDistroException(
-            node.os, "ARM64 tests are only supported on Ubuntu."
+            node.os, "ARM64 tests are only supported on Ubuntu + failsafe."
         )
     if isinstance(node.os, Debian):
         if isinstance(node.os, Ubuntu):
