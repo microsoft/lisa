@@ -7,8 +7,13 @@ from assertpy import assert_that
 
 from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Suse
-from lisa.tools import Cat, Echo, Gcc, Git, Make, Modprobe
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.tools import Cat, Echo, Gcc, Git, Lscpu, Make, Modprobe
+from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import (
+    SkippedException,
+    UnsupportedCpuArchitectureException,
+    UnsupportedDistroException,
+)
 
 
 class DpdkVpp(Tool):
