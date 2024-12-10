@@ -11,7 +11,7 @@ from urllib3.util.url import parse_url
 
 from lisa import Node
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Oracle, Posix, Redhat, Suse, Ubuntu
+from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
@@ -327,7 +327,7 @@ def check_dpdk_support(node: Node) -> None:
             )
         else:
             supported = node.os.information.version >= "11.0.0"
-    elif isinstance(node.os, Redhat) and not isinstance(node.os, Oracle):
+    elif isinstance(node.os, Fedora) and not isinstance(node.os, Oracle):
         supported = node.os.information.version >= "7.5.0"
     elif isinstance(node.os, Suse):
         supported = node.os.information.version >= "15.0.0"
