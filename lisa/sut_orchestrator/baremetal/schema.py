@@ -74,7 +74,7 @@ class KeyLoaderSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
 
 @dataclass_json()
-@dataclass
+@dataclass      
 class BootConfigSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = field(default="boot_config", metadata=field_metadata(required=True))
 
@@ -89,10 +89,6 @@ class IPPowerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.password)
-
-        
-class BootConfigSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    type: str = field(default="boot_config", metadata=field_metadata(required=True))
 
 
 @dataclass_json()
