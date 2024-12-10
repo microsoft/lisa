@@ -45,6 +45,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -296,8 +297,7 @@ def initialize_node_resources(
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
-    if pmd == "failsafe" and node.nics.is_mana_device_present():
-        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+    check_pmd_support(node, pmd)
 
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
@@ -377,6 +377,18 @@ def initialize_node_resources(
             do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
+
+
+def check_pmd_support(node: Node, pmd: str) -> None:
+    # Check environment (kernel, drivers, etc) supports selected PMD.
+    if pmd == "failsafe" and node.nics.is_mana_device_present():
+        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+    if pmd == "netvsc" and not (
+        node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
+    ):
+        raise SkippedException(
+            "Netvsc pmd test not supported if uio_hv_generic missing"
+        )
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
@@ -789,11 +801,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
-    if (
-        not isinstance(forwarder.os, Ubuntu)
-        or forwarder.os.information.version < "22.4.0"
+    if not (
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+        and isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
     ):
-        raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
