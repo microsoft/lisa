@@ -195,18 +195,18 @@ class TimeSync(TestSuite):
             clocksource = clocksource_map.get(arch, None)
             if not clocksource:
                 raise UnsupportedCpuArchitectureException(arch)
-            if isinstance(node.os, BSD):
+            if not isinstance(node.os, BSD):
+                clock_source_result = cat.run(self.current_clocksource)
+                assert_that([clock_source_result.stdout]).described_as(
+                    f"Expected clocksource name is one of {clocksource}, "
+                    f"but actual it is {clock_source_result.stdout}."
+                ).is_subset_of(clocksource)
+            else:
                 sysctl = node.tools[Sysctl]
                 clock_source_result = sysctl.get("kern.timecounter.hardware")
                 assert_that([clock_source_result]).described_as(
                     f"Expected clocksource name is one of {clocksource}, "
                     f"but actual it is {clock_source_result}."
-                ).is_subset_of(clocksource)
-            else:
-                clock_source_result = cat.run(self.current_clocksource)
-                assert_that([clock_source_result.stdout]).described_as(
-                    f"Expected clocksource name is one of {clocksource}, "
-                    f"but actual it is {clock_source_result.stdout}."
                 ).is_subset_of(clocksource)
 
             # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
