@@ -212,6 +212,7 @@ class TimeSync(TestSuite):
             ).is_subset_of(clocksource)
 
             # 2. Check CPU flag contains constant_tsc from /proc/cpuinfo.
+            dmesg = node.tools[Dmesg]
             if CpuArchitecture.X64 == arch:
                 if not isinstance(node.os, BSD):
                     cpu_info_result = cat.run("/proc/cpuinfo")
@@ -225,7 +226,6 @@ class TimeSync(TestSuite):
                         f" equal to cpu count."
                     ).is_equal_to(lscpu.get_core_count())
                 else:
-                    dmesg = node.tools[Dmesg]
                     cpu_info_results = self.__freebsd_tsc_filter.findall(
                         dmesg.get_output()
                     )
