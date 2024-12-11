@@ -246,7 +246,7 @@ class VhdTransformer(Transformer):
         )
 
         if vmgs_sas_url:
-            vmgs_path = runbook.custom_blob_name.replace(".vhd", "_vmgs.vhd")
+            vmgs_path = vhd_path.replace(".vhd", "_vmgs.vhd")
             assert vmgs_path != vhd_path, (
                 "vmgs url path is the same as vhd url path. "
                 "Make sure the custom_blob_name ends in .vhd"
