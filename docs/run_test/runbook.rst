@@ -524,6 +524,13 @@ its value will be overwritten by the transformer. For example,
 ``to_list_image`` to ``image``. The original variable name must exist in
 the output variables of the transformer.
 
+enable_file_logging
+^^^^^^^^^^^^^^^^^^^
+
+type: bool, optional, default is False.
+
+When set to True, the transformer will log the output to a file.
+
 .. _combinator:
 
 combinator
