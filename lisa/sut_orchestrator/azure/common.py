@@ -9,6 +9,7 @@ import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from functools import lru_cache, partial
 from pathlib import Path, PurePath
 from threading import Lock
@@ -1070,6 +1071,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     os_disk_type: str = ""
     data_disk_type: str = ""
     disk_controller_type: str = ""
+    ephemeral_disk_placement_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -1104,6 +1106,25 @@ class DataDiskCreateOption:
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
         ]
+
+
+# EphemeralOSDiskPlacements
+# refer
+# https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks-faq
+class DiskPlacementType(str, Enum):
+    NONE = ""
+    RESOURCE = "ResourceDisk"
+    CACHE = "CacheDisk"
+    NVME = "NvmeDisk"
+
+
+def get_disk_placement_priority() -> List[DiskPlacementType]:
+    return [
+        DiskPlacementType.NVME,
+        DiskPlacementType.CACHE,
+        DiskPlacementType.RESOURCE,
+        DiskPlacementType.NONE,
+    ]
 
 
 @dataclass_json()

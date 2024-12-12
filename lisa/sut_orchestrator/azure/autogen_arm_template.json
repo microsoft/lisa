@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.30.23.60470",
-      "templateHash": "17909783643222378721"
+      "version": "0.32.4.45862",
+      "templateHash": "16398577375970436728"
     }
   },
   "functions": [
@@ -113,7 +113,7 @@
               "name": "[format('{0}-osDisk', parameters('node').name)]",
               "diffDiskSettings": {
                 "option": "local",
-                "placement": "CacheDisk"
+                "placement": "[parameters('node').ephemeral_disk_placement_type]"
               },
               "caching": "ReadOnly",
               "createOption": "FromImage",
@@ -685,7 +685,7 @@
         "count": "[length(range(0, variables('node_count')))]"
       },
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2022-08-01",
+      "apiVersion": "2024-03-01",
       "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]",
       "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
       "tags": "[variables('combined_vm_tags')]",
@@ -787,8 +787,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.30.23.60470",
-              "templateHash": "12249187708601787514"
+              "version": "0.32.4.45862",
+              "templateHash": "7856159159103188049"
             }
           },
           "functions": [
