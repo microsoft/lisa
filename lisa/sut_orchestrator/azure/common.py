@@ -1068,6 +1068,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     os_disk_type: str = ""
     data_disk_type: str = ""
     disk_controller_type: str = ""
+    ephemeral_disk_placement_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
