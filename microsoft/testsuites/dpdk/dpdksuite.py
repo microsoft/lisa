@@ -119,13 +119,18 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
         ),
     )
-    def verify_dpdk_build_netvsc_32bit(
+    def verify_dpdk_build_32bit_netvsc(
         self, node: Node, log: Logger, variables: Dict[str, Any], result: TestResult
     ) -> None:
         skip_32bit_test_on_unsupported_distros(node.os)
         force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
         verify_dpdk_build(
-            node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -146,7 +151,44 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
         ),
     )
-    def verify_dpdk_send_receive_netvsc_32bit(
+    def verify_dpdk_send_receive_32bit_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        node = environment.default_node
+        skip_32bit_test_on_unsupported_distros(node.os)
+        force_dpdk_default_source_variables(variables, build_arch=CpuArchitecture.I386)
+        verify_dpdk_send_receive(
+            environment,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            result=result,
+        )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_count=2,
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_mq_32bit_netvsc(
         self,
         environment: Environment,
         log: Logger,
