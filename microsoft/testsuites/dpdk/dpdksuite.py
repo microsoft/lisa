@@ -207,6 +207,9 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
+        if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
+            raise SkippedException("OVS test not supported on ARM64")
+
         force_dpdk_default_source(variables)
         try:
             test_kit = initialize_node_resources(
