@@ -6,7 +6,7 @@ from typing import List, Type
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Suse
+from lisa.operating_system import Debian, Fedora, Oracle, Suse
 from lisa.tools import Cat, Echo, Gcc, Git, Make, Modprobe
 from lisa.util import SkippedException, UnsupportedDistroException
 
@@ -92,11 +92,11 @@ class DpdkVpp(Tool):
 
     def _install(self) -> bool:
         node = self.node
-        if isinstance(node.os, Fedora):
-            node.os.install_epel()
         if isinstance(node.os, Debian):
             pkg_type = "deb"
-        elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
+        elif not isinstance(node.os, Oracle) and (
+            isinstance(node.os, Fedora) or isinstance(node.os, Suse)
+        ):
             pkg_type = "rpm"
         else:
             raise SkippedException(
@@ -105,6 +105,8 @@ class DpdkVpp(Tool):
                 )
             )
 
+        if isinstance(node.os, Fedora):
+            node.os.install_epel()
         node.execute(
             (
                 "curl -s https://packagecloud.io/install/repositories/fdio/release/"
