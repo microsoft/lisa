@@ -286,6 +286,7 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
+                    result=test_result,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
