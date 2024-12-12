@@ -110,6 +110,7 @@ from .common import (
     CommunityGalleryImageSchema,
     DataDiskCreateOption,
     DataDiskSchema,
+    DiskPlacementType,
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
@@ -1455,6 +1456,7 @@ class AzurePlatform(Platform):
         arm_parameters.os_disk_type = features.get_azure_disk_type(
             capability.disk.os_disk_type
         )
+
         assert isinstance(capability.disk.data_disk_type, schema.DiskType)
         arm_parameters.data_disk_type = features.get_azure_disk_type(
             capability.disk.data_disk_type
@@ -1470,6 +1472,17 @@ class AzurePlatform(Platform):
                 "Gen 1 image cannot be set to NVMe Disk Controller Type"
             )
         arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
+
+        cap_disk: features.AzureDiskOptionSettings = cast(
+            features.AzureDiskOptionSettings,
+            capability.disk,
+        )
+        assert isinstance(
+            cap_disk.ephemeral_disk_placement_type, DiskPlacementType
+        ), f"actual: {type(cap_disk.ephemeral_disk_placement_type)}"
+        arm_parameters.ephemeral_disk_placement_type = (
+            cap_disk.ephemeral_disk_placement_type.value
+        )
 
         assert capability.network_interface
         assert isinstance(
@@ -1832,14 +1845,45 @@ class AzurePlatform(Platform):
         else:
             node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
 
+        # If EphemeralOSDisk is supported, then check for the placement type
         if azure_raw_capabilities.get("EphemeralOSDiskSupported", None) == "True":
-            # Check if CachedDiskBytes is greater than 30GB
-            # We use diff disk as cache disk for ephemeral OS disk
+            node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+            # Add the EphemeralDiskPlacementType
+            node_space.disk.ephemeral_disk_placement_type = search_space.SetSpace(
+                True, [DiskPlacementType.NONE]
+            )
+            ephemeral_disk_placement_types = azure_raw_capabilities.get(
+                "SupportedEphemeralOSDiskPlacements", None
+            )
+            if ephemeral_disk_placement_types:
+                for allowed_type in ephemeral_disk_placement_types.split(","):
+                    try:
+                        node_space.disk.ephemeral_disk_placement_type.add(
+                            DiskPlacementType(allowed_type)
+                        )
+                    except ValueError:
+                        self._log.error(
+                            f"'{allowed_type}' is not a known Ephemeral Disk Placement"
+                            f" Type "
+                            f"({[x for x in DiskPlacementType]})"
+                        )
+
+            # EphemeralDiskPlacementType can be - ResourceDisk, CacheDisk or NvmeDisk.
+            # Depending on that, "CachedDiskBytes" may or may not be found in
+            # capabilities.
+            # refer
+            # https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks-faq
+            resource_disk_bytes = azure_raw_capabilities.get("MaxResourceVolumeMB", 0)
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
-            cached_disk_bytes_gb = int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
-            if cached_disk_bytes_gb >= 30:
-                node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
-                node_space.disk.os_disk_size = cached_disk_bytes_gb
+            nvme_disk_bytes = azure_raw_capabilities.get("NvmeDiskSizeInMiB", 0)
+            if nvme_disk_bytes:
+                node_space.disk.os_disk_size = int(int(nvme_disk_bytes) / 1024)
+            elif cached_disk_bytes:
+                node_space.disk.os_disk_size = int(
+                    int(cached_disk_bytes) / 1024 / 1024 / 1024
+                )
+            else:
+                node_space.disk.os_disk_size = int(int(resource_disk_bytes) / 1024)
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -2085,6 +2129,10 @@ class AzurePlatform(Platform):
         ](is_allow_set=True, items=[])
         node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
         node_space.disk.disk_controller_type.add(schema.DiskControllerType.NVME)
+        node_space.disk.ephemeral_disk_placement_type = search_space.SetSpace[
+            DiskPlacementType
+        ](is_allow_set=True, items=[])
+        node_space.disk.ephemeral_disk_placement_type.add(DiskPlacementType.NVME)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath
@@ -2793,6 +2841,18 @@ class AzurePlatform(Platform):
             isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
             and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
         ):
+            node_disk: features.AzureDiskOptionSettings = cast(
+                features.AzureDiskOptionSettings,
+                node_space.disk,
+            )
+            if isinstance(node_disk.ephemeral_disk_placement_type, DiskPlacementType):
+                node_disk.ephemeral_disk_placement_type = search_space.SetSpace[
+                    DiskPlacementType
+                ](
+                    is_allow_set=True,
+                    items=[node_disk.ephemeral_disk_placement_type],
+                )
+
             node_space.disk.os_disk_size = search_space.IntRange(
                 min=self._get_os_disk_size(azure_runbook)
             )
