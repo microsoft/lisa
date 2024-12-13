@@ -294,6 +294,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_sriov(self, result: TestResult) -> None:
@@ -307,6 +308,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_sriov(self, result: TestResult) -> None:
@@ -320,6 +322,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_synthetic(self, result: TestResult) -> None:
@@ -333,6 +336,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_synthetic(self, result: TestResult) -> None:
@@ -346,6 +350,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_sriov_busy_poll(self, result: TestResult) -> None:
@@ -364,6 +369,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_sriov_busy_poll(self, result: TestResult) -> None:
@@ -382,6 +388,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_synthetic_busy_poll(self, result: TestResult) -> None:
@@ -400,6 +407,7 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
+            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_synthetic_busy_poll(self, result: TestResult) -> None:
