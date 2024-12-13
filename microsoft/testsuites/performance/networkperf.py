@@ -288,6 +288,10 @@ class NetworkPerformace(TestSuite):
 
     # Marked all following tests to skip on BSD since
     # sockperf compilation is not natively supported at this time
+    # This is due to the default compiler on freebsd being c++17
+    # and sockperf is designed to compile on c+11 which is no longer available
+    # This is a way to compile it but it requires adding a patch file
+    # to the sockperf repo to remove references to std::unary and std::binary
     @TestCaseMetadata(
         description="""
         This test case uses sockperf to test sriov network latency.
