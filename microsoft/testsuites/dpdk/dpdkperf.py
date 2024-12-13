@@ -22,7 +22,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.tools.hugepages import HugePageSize
 from lisa.util import constants
-from microsoft.testsuites.dpdk.common import force_dpdk_default_source
+from microsoft.testsuites.dpdk.common import force_dpdk_default_source_variables
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkTestResources,
     SkippedException,
@@ -256,7 +256,7 @@ class DpdkPerformance(TestSuite):
     def perf_dpdk_l3fwd_ntttcp_tcp(
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        force_dpdk_default_source(variables)
+        force_dpdk_default_source_variables(variables)
         verify_dpdk_l3fwd_ntttcp_tcp(
             environment,
             log,
