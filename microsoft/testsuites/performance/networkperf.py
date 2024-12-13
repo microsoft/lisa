@@ -286,6 +286,8 @@ class NetworkPerformace(TestSuite):
             udp_mode=True,
         )
 
+    # Marked all following tests to skip on BSD since
+    # sockperf compilation is not natively supported at this time
     @TestCaseMetadata(
         description="""
         This test case uses sockperf to test sriov network latency.
