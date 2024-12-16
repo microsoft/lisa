@@ -40,7 +40,7 @@ class Sockperf(Tool):
             and (self.node.os.information.version < "18.4.0")
         )
 
-    _sockperf_repo = "https://github.com/Mellanox/sockperf.git"
+    _sockperf_repo = "https://github.com/LiliDeng/sockperf"
 
     sockperf_result_regex = re.compile(
         r"sockperf: ---> <MAX> observation"
@@ -98,13 +98,12 @@ class Sockperf(Tool):
                 "m4",
                 "autoconf",
                 "libtool",
+                Gcc,
             ]
 
             if not isinstance(posix_os, BSD):
                 # perl already provided by automake for BSD
                 packages.append("perl")
-                # bsd ships with clang, don't use gcc
-                packages.append(Gcc)
 
             # mariner needs headers and -dev packages
             if isinstance(posix_os, CBLMariner):
@@ -129,7 +128,7 @@ class Sockperf(Tool):
             except AssertionError:  # catch build failures
                 self.node.tools[Make].run("clean", cwd=code_path, force_run=True)
                 # try and older stable tag
-                git.checkout(cwd=code_path, ref="3.10")
+                git.checkout(cwd=code_path, ref="fix_compile_error_on_freebsd")
                 self.node.log.debug(
                     "Latest build failed, re-running with stable version 3.10."
                 )
