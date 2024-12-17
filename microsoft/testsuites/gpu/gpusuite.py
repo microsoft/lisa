@@ -217,6 +217,7 @@ class GpuTestSuite(TestSuite):
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
         ),
+        use_new_environment=True,
     )
     def verify_gpu_rescind_validation(
         self,
