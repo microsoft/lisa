@@ -1447,6 +1447,36 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                 self.os_disk_size, capability.os_disk_size
             )
 
+        # refer
+        # https://learn.microsoft.com/en-us/powershell/module/az.compute/set-azvmssstorageprofile?view=azps-13.0.0               # noqa: E501
+        # https://github.com/MicrosoftDocs/azure-compute-docs/blob/main/articles/virtual-machines/ephemeral-os-disks-faq.md      # noqa: E501
+        if value.os_disk_type == schema.DiskType.Ephemeral:
+            cap_ephemeral_disk_placement_type = capability.ephemeral_disk_placement_type
+            if isinstance(cap_ephemeral_disk_placement_type, search_space.SetSpace):
+                assert len(cap_ephemeral_disk_placement_type) > 0, (
+                    "capability should have at least one ephemeral disk placement type,"
+                    " but it's empty"
+                )
+            elif isinstance(
+                    cap_ephemeral_disk_placement_type,
+                    schema.EphemeralDiskPlacementType):
+                cap_ephemeral_disk_placement_type = search_space.SetSpace[
+                    schema.EphemeralDiskPlacementType](
+                        is_allow_set=True, items=[cap_ephemeral_disk_placement_type])
+            else:
+                raise LisaException(
+                    "unknown ephemeral disk placement type "
+                    f"on capability, type: {cap_ephemeral_disk_placement_type}"
+                )
+
+            value.ephemeral_disk_placement_type = getattr(
+                search_space, f"{method.value}_setspace_by_priority"
+            )(
+                self.ephemeral_disk_placement_type,
+                capability.ephemeral_disk_placement_type,
+                schema.ephemeral_disk_placement_type_priority,
+            )
+
         value.data_disk_type = getattr(
             search_space, f"{method.value}_setspace_by_priority"
         )(self.data_disk_type, capability.data_disk_type, schema.disk_type_priority)
@@ -1664,6 +1694,11 @@ class Disk(AzureFeatureMixin, features.Disk):
         azure_platform: AzurePlatform = self._platform  # type: ignore
         vm = get_vm(azure_platform, self._node)
         return vm.storage_profile.disk_controller_type
+
+    def get_ephemeral_disk_placement_type(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+        return vm.storage_profile.os_disk.diff_disk_settings.placement
 
     def _get_scsi_data_disks(self) -> List[str]:
         # This method restuns azure data disks attached to you given VM.
