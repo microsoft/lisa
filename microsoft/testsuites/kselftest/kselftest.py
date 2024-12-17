@@ -79,6 +79,7 @@ class Kselftest(Tool):
     )
 
     _install_as_sudo = True
+    _kernel_path: PurePath = PurePath()
 
     @property
     def command(self) -> str:
@@ -103,12 +104,16 @@ class Kselftest(Tool):
         node: Node,
         kselftest_file_path: str,
         install_as_sudo: bool = True,
+        build_src_file: bool = True,
+        kselftest_branch: str = "master",
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(node, *args, **kwargs)
 
         self._install_as_sudo = install_as_sudo
+        self._build_src_file = build_src_file
+        self._kselftest_branch = kselftest_branch
         # tar file path specified in yml
         self._tar_file_path = kselftest_file_path
         if self._tar_file_path:
@@ -145,8 +150,10 @@ class Kselftest(Tool):
                 str(self._kself_installed_dir),
                 sudo=self._install_as_sudo,
             )
-            self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
-        else:
+            self._log.debug(
+                f"Extracted '{self._remote_tar_path}' to '{self._kself_installed_dir}'"
+            )
+        else:  # download code
             mkdir = self.node.tools[Mkdir]
             mkdir.create_directory(self._kself_installed_dir.as_posix())
             if isinstance(self.node.os, Ubuntu):
@@ -168,29 +175,32 @@ class Kselftest(Tool):
                 # clone kernel, build kernel, then build kselftests
                 self.node.os.install_packages(_MARINER_OS_PACKAGES)
 
-            uname = self.node.tools[Uname]
-            uname_result = uname.get_linux_information(force_run=False)
             git = self.node.tools[Git]
-
-            branch = "master"
-            branch_to_clone = f"{self._KSELF_TEST_SRC_REPO} -b {branch} --depth 1"
-            kernel_path = git.clone(
+            branch_to_clone = (
+                f"{self._KSELF_TEST_SRC_REPO} -b {self._kselftest_branch} --depth 1"
+            )
+            self._kernel_path = git.clone(
                 branch_to_clone,
                 self.get_tool_path(use_global=True),
                 fail_on_exists=False,
             )
+
+        if self._build_src_file:  # default is True
+            # build source code
+            uname = self.node.tools[Uname]
+            uname_result = uname.get_linux_information(force_run=False)
             self.node.tools[Cp].copy(
                 src=self.node.get_pure_path(
                     f"/boot/config-{uname_result.kernel_version_raw}"
                 ),
                 dest=PurePath(".config"),
-                cwd=kernel_path,
+                cwd=self._kernel_path,
                 sudo=self._install_as_sudo,
             )
 
             self.node.tools[Make].run(
                 "headers",
-                cwd=kernel_path,
+                cwd=self._kernel_path,
                 sudo=self._install_as_sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failed to build kernel headers.",
@@ -200,7 +210,7 @@ class Kselftest(Tool):
             self.node.execute(
                 cmd=f"./kselftest_install.sh {self._kself_installed_dir}",
                 shell=True,
-                cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
+                cwd=PurePosixPath(self._kernel_path, "tools/testing/selftests"),
                 sudo=self._install_as_sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to build & install kselftest",
@@ -233,13 +243,23 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
-        self.run(
-            f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
-            force_run=True,
-            shell=True,
-            timeout=timeout,
-        )
+        if self._build_src_file:
+            self.run(
+                f" 2>&1 | tee {result_file}",
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+            )
+        else:
+            self.run(
+                f" 2>&1 | tee {result_file}",
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+                cwd=PurePosixPath(self._kself_installed_dir),
+            )
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
