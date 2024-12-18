@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Type
 
 from lisa import schema
 from lisa.feature import Feature
@@ -27,14 +27,17 @@ class ClusterFeature(Feature):
         )
         self._inner.initialize()
 
+    def _get_inner_type(self) -> Type[Feature]:
+        raise NotImplementedError()
+
 
 class StartStop(ClusterFeature):
-    def _get_inner_type(self) -> Feature:
+    def _get_inner_type(self) -> Type[Feature]:
         platform: BareMetalPlatform = self._platform  # type: ignore
-        return platform.cluster.get_start_stop()  # type: ignore
+        return platform.cluster.get_start_stop()
 
 
 class SerialConsole(ClusterFeature):
-    def _get_inner_type(self) -> Feature:
+    def _get_inner_type(self) -> Type[Feature]:
         platform: BareMetalPlatform = self._platform  # type: ignore
-        return platform.cluster.get_serial_console()  # type: ignore
+        return platform.cluster.get_serial_console()
