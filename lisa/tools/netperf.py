@@ -4,7 +4,15 @@
 from typing import Any, List, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import (
+    BSD,
+    CBLMariner,
+    CpuArchitecture,
+    Debian,
+    Posix,
+    Redhat,
+    Suse,
+)
 from lisa.util import LisaException
 from lisa.util.process import Process
 
@@ -118,7 +126,7 @@ class Netperf(Tool):
         configure_cmd = "./configure"
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         gcc_version = self.node.tools[Gcc].get_version()
-        if arch == "aarch64":
+        if arch == CpuArchitecture.ARM64:
             configure_cmd += f" --build={arch}-unknown-linux-gnu"
         # fix compile issue when gcc version > 10
         if gcc_version >= "10.0.0":
