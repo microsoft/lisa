@@ -98,13 +98,12 @@ class Sockperf(Tool):
                 "m4",
                 "autoconf",
                 "libtool",
+                Gcc,
             ]
 
             if not isinstance(posix_os, BSD):
                 # perl already provided by automake for BSD
                 packages.append("perl")
-                # bsd ships with clang, don't use gcc
-                packages.append(Gcc)
 
             # mariner needs headers and -dev packages
             if isinstance(posix_os, CBLMariner):
@@ -152,8 +151,13 @@ class Sockperf(Tool):
             ),
         )
 
+        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
+        configure_cmd = "./configure --prefix=/usr"
+        if arch == "aarch64":
+            configure_cmd += f" --host={arch}-unknown-linux-gnu"
+
         self.node.execute(
-            "./configure --prefix=/usr",
+            configure_cmd,
             shell=True,
             cwd=code_path,
             expected_exit_code=0,
@@ -165,7 +169,10 @@ class Sockperf(Tool):
         make.make_install(cwd=code_path, sudo=True)
 
     def start(self, command: str) -> Process:
-        return self.run_async(command, shell=True, force_run=True)
+        # set higher ulimit value to fix error 'errno=12 Cannot allocate memory'
+        return self.node.execute_async(
+            f"ulimit -n 65535 && {self.command} {command}", shell=True
+        )
 
     def start_server_async(self, mode: str, timeout: int = 30) -> Process:
         self_ip = self.node.nics.get_primary_nic().ip_addr
