@@ -29,13 +29,13 @@ from .kernel_installer import BaseInstaller, BaseInstallerSchema
 @dataclass_json()
 @dataclass
 class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    pass
 
 
 @dataclass_json()
 @dataclass
 class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    pass
 
 
 @dataclass_json()
