@@ -64,6 +64,7 @@ from lisa.tools import (
     Lsblk,
     Lspci,
     Modprobe,
+    Nvmecli,
     Rm,
     Sed,
 )
@@ -1719,9 +1720,50 @@ class Disk(AzureFeatureMixin, features.Disk):
         return azure_scsi_disks
 
     def get_luns(self) -> Dict[str, int]:
-        # disk_controller_type == SCSI
         # get azure scsi attached disks
         device_luns = {}
+        # If disk_controller_type == NVME
+        # lun number is a concept of SCSI, so it's not applicable for NVME.
+        # But lun numbers are represented as "Namespace" field in nvme-cli output
+        # with an off set of +2.
+        # Except the OS disk, if we reduce the Namespace id by 2 we can get the LUN id of
+        # any attached azure data disks.
+        # Example:
+        # root@lisa--170-e0-n0:/home/lisa# nvme -list
+        # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
+        # --------------------- -------------------- ---------------------------------------- --------- -------------------------- ---------------- -------  # noqa: E501
+        # /dev/nvme0n1          SN: 000001           MSFT NVMe Accelerator v1.0               1          29.87  GB /  29.87  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n2          SN: 000001           MSFT NVMe Accelerator v1.0               2           4.29  GB /   4.29  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n3          SN: 000001           MSFT NVMe Accelerator v1.0               15         44.02  GB /  44.02  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n4          SN: 000001           MSFT NVMe Accelerator v1.0               14          6.44  GB /   6.44  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+        # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+        #
+        # In the above output all devices starting with /dev/nvme0 are
+        # Azure remote data disks.
+        # /dev/nvme0n1 is the OS disk and
+        # /dev/nvme0n2, /dev/nvme0n3, /dev/nvme0n3 are azure remote data disks.
+        # They are connected at LUN 0, 13 and 12 respectively and their Namespace ids
+        # are 1, 15 and 14.
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            data_disks = self.get_raw_data_disks()
+            nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids()
+
+            for nvme_device_id in nvme_device_ids:
+                nvme_device_file = list(nvme_device_id.keys())[0]
+                if self._is_remote_data_disk(nvme_device_file):
+                    # Reduce 2 from Namespace to get the actual LUN number.
+                    device_lun = int(list(nvme_device_id.values())[0]) - 2
+                    if nvme_device_file in data_disks:
+                        device_luns.update(
+                            {
+                                nvme_device_file: device_lun,
+                            }
+                        )
+            return device_luns
+
+        # If disk_controller_type == SCSI
         if isinstance(self._node.os, BSD):
             cmd_result = self._node.execute(
                 "camcontrol devlist",
@@ -1749,6 +1791,52 @@ class Disk(AzureFeatureMixin, features.Disk):
                 device_luns.update({cmd_result.stdout: device_lun})
         return device_luns
 
+    def get_nvme_os_disk_controller(self) -> str:
+        # Getting OS disk nvme controller.
+        # Sample os_boot_partition:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        # In the above example, '/dev/nvme0' is the controller.
+        os_disk_controller = ""
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN,
+                )
+        return os_disk_controller
+
+    def get_nvme_os_disk_namespace(self) -> str:
+        # Getting OS disk nvme namespace.
+        # Sample os_boot_partition:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        # In the above example, '/dev/nvme0n1' is the namespace.
+        os_disk_namespace = ""
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN,
+                )
+        return os_disk_namespace
+
+    def _is_remote_data_disk(self, disk: str) -> bool:
+        # If disk_controller_type == NVME
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_namespace = self.get_nvme_os_disk_namespace()
+            os_disk_controller = self.get_nvme_os_disk_controller()
+            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+                return True
+            return False
+
+        # If disk_controller_type == SCSI
+        azure_scsi_disks = self._get_scsi_data_disks()
+        return disk in azure_scsi_disks
+
     def get_raw_data_disks(self) -> List[str]:
         # Handle BSD case
         if isinstance(self._node.os, BSD):
@@ -1757,32 +1845,15 @@ class Disk(AzureFeatureMixin, features.Disk):
         # disk_controller_type == NVME
         node_disk = self._node.features[Disk]
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            # Getting OS disk nvme namespace and disk controller used by OS disk.
-            # Sample os_boot_partition:
-            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
-            os_boot_partition = node_disk.get_os_boot_partition()
-            if os_boot_partition:
-                os_disk_namespace = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_NAMESPACE_PATTERN,
-                )
-                os_disk_controller = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_CONTROLLER_PATTERN,
-                )
-
             # With NVMe disk controller type, all remote SCSI disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
             # This loop collects all the SCSI remote disks except OS disk.
-            nvme = self._node.features[Nvme]
-            nvme_namespaces = nvme.get_namespaces()
+            nvme_cli = self._node.tools[Nvmecli]
+            nvme_disks = nvme_cli.get_disks()
             disk_array = []
-            for name_space in nvme_namespaces:
-                if (
-                    name_space.startswith(os_disk_controller)
-                    and name_space != os_disk_namespace
-                ):
-                    disk_array.append(name_space)
+            for nvme_disk in nvme_disks:
+                if self._is_remote_data_disk(nvme_disk):
+                    disk_array.append(nvme_disk)
             return disk_array
 
         # disk_controller_type == SCSI

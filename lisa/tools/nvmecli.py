@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import json
 import re
-from typing import List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -98,12 +99,71 @@ class Nvmecli(Tool):
 
     def get_namespaces(self) -> List[str]:
         namespaces_cli = []
-        nvme_list = self.run("list", shell=True, sudo=True)
+        nvme_list = self.run("list", shell=True, sudo=True, force_run=True)
         for row in nvme_list.stdout.splitlines():
             matched_result = self._namespace_cli_pattern.match(row)
             if matched_result:
                 namespaces_cli.append(matched_result.group("namespace"))
         return namespaces_cli
+
+    def get_devices(self) -> Any:
+        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=True)
+        nvme_devices = json.loads(nvme_list.stdout)
+        return nvme_devices["Devices"]
+
+    def get_disks(self) -> List[str]:
+        nvme_devices = self.get_devices()
+        return [device["DevicePath"] for device in nvme_devices]
+
+    # NVME namespace ids are unique for each disk under any NVME controller.
+    # These are useful in detecting the lun id of the remote azure disk disks.
+    # Example output of nvme -list -o json and nvme -list
+    # root@lisa--170-e0-n0:/home/lisa# nvme -list -o json
+    # {
+    #  "Devices" : [
+    #    {
+    #      "NameSpace" : 1,
+    #      "DevicePath" : "/dev/nvme0n1",
+    #      "Firmware" : "v1.00000",
+    #      "Index" : 0,
+    #      "ModelNumber" : "MSFT NVMe Accelerator v1.0",
+    #      "ProductName" : "Non-Volatile memory controller: Microsoft Corporation Device 0x00a9",  # noqa: E501
+    #      "SerialNumber" : "SN: 000001",
+    #      "UsedBytes" : 536870912000,
+    #      "MaximumLBA" : 1048576000,
+    #      "PhysicalSize" : 536870912000,
+    #      "SectorSize" : 512
+    #    },
+    #    {
+    #      "NameSpace" : 2,
+    #      "DevicePath" : "/dev/nvme0n2",
+    #      "Firmware" : "v1.00000",
+    #      "Index" : 0,
+    #      "ModelNumber" : "MSFT NVMe Accelerator v1.0",
+    #      "ProductName" : "Non-Volatile memory controller: Microsoft Corporation Device 0x00a9",  # noqa: E501
+    #      "SerialNumber" : "SN: 000001",
+    #      "UsedBytes" : 4294967296,
+    #      "MaximumLBA" : 8388608,
+    #      "PhysicalSize" : 4294967296,
+    #      "SectorSize" : 512
+    #    }
+    #   ]
+    # }
+    # root@lisa--170-e0-n0:/home/lisa# nvme -list
+    # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
+    # --------------------- -------------------- ---------------------------------------- --------- -------------------------- ---------------- -------  # noqa: E501
+    # /dev/nvme0n1          SN: 000001           MSFT NVMe Accelerator v1.0               1         536.87  GB / 536.87  GB    512   B +  0 B   v1.0000  # noqa: E501
+    # /dev/nvme0n2          SN: 000001           MSFT NVMe Accelerator v1.0               2           4.29  GB /   4.29  GB    512   B +  0 B   v1.0000  # noqa: E501
+    # /dev/nvme0n3          SN: 000001           MSFT NVMe Accelerator v1.0               15         44.02  GB /  44.02  GB    512   B +  0 B   v1.0000  # noqa: E501
+    # /dev/nvme0n4          SN: 000001           MSFT NVMe Accelerator v1.0               14          6.44  GB /   6.44  GB    512   B +  0 B   v1.0000  # noqa: E501
+    # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+    # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+
+    def get_namespace_ids(self) -> List[Dict[str, int]]:
+        nvme_devices = self.get_devices()
+        return [
+            {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
+        ]
 
 
 class BSDNvmecli(Nvmecli):
