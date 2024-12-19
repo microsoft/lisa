@@ -446,11 +446,22 @@ class ResourceDiskType(str, Enum):
     NVME = constants.STORAGE_INTERFACE_TYPE_NVME
 
 
+class EphemeralDiskPlacementType(str, Enum):
+    Resource = constants.DISK_PLACEMENT_TYPE_RESOURCE
+    Cache = constants.DISK_PLACEMENT_TYPE_CACHE
+    Nvme = constants.DISK_PLACEMENT_TYPE_NVME
+
+
 disk_controller_type_priority: List[DiskControllerType] = [
     DiskControllerType.SCSI,
     DiskControllerType.NVME,
 ]
 
+ephemeral_disk_placement_type_priority: List[EphemeralDiskPlacementType] = [
+    EphemeralDiskPlacementType.Nvme,
+    EphemeralDiskPlacementType.Cache,
+    EphemeralDiskPlacementType.Resource,
+]
 
 os_disk_types: List[DiskType] = [
     DiskType.StandardHDDLRS,
@@ -559,6 +570,34 @@ class DiskOptionSettings(FeatureSettings):
             )
         ),
     )
+    ephemeral_disk_placement_type: Optional[
+        Union[
+            search_space.SetSpace[
+                EphemeralDiskPlacementType
+            ],
+            EphemeralDiskPlacementType,
+        ]
+    ] = field(  # type:ignore
+        default_factory=partial(
+            search_space.SetSpace,
+            items=[
+                EphemeralDiskPlacementType.Resource,
+                EphemeralDiskPlacementType.Cache,
+                EphemeralDiskPlacementType.Nvme,
+            ],
+        ),
+        metadata=field_metadata(
+            decoder=partial(
+                search_space.decode_nullable_set_space,
+                base_type=EphemeralDiskPlacementType,
+                default_values=[
+                    EphemeralDiskPlacementType.Resource,
+                    EphemeralDiskPlacementType.Cache,
+                    EphemeralDiskPlacementType.Nvme,
+                ],
+            )
+        ),
+    )
 
     def __eq__(self, o: object) -> bool:
         if not super().__eq__(o):
@@ -577,6 +616,7 @@ class DiskOptionSettings(FeatureSettings):
             and self.data_disk_size == o.data_disk_size
             and self.max_data_disk_count == o.max_data_disk_count
             and self.disk_controller_type == o.disk_controller_type
+            and self.ephemeral_disk_placement_type == o.ephemeral_disk_placement_type
         )
 
     def __repr__(self) -> str:
@@ -591,6 +631,7 @@ class DiskOptionSettings(FeatureSettings):
             f"size: {self.data_disk_size},"
             f"max_data_disk_count: {self.max_data_disk_count},"
             f"disk_controller_type: {self.disk_controller_type}"
+            f"ephemeral_disk_placement_type: {self.ephemeral_disk_placement_type}"
         )
 
     def __str__(self) -> str:
@@ -641,6 +682,7 @@ class DiskOptionSettings(FeatureSettings):
             f"{self.data_disk_caching_type}/{self.data_disk_iops}/"
             f"{self.data_disk_throughput}/{self.data_disk_size}/"
             f"{self.disk_controller_type}"
+            f"{self.ephemeral_disk_placement_type}"
         )
 
     def _call_requirement_method(
@@ -699,6 +741,17 @@ class DiskOptionSettings(FeatureSettings):
                 self.disk_controller_type,
                 capability.disk_controller_type,
                 disk_controller_type_priority,
+            )
+        if (
+            self.ephemeral_disk_placement_type
+            or capability.ephemeral_disk_placement_type
+        ):
+            value.ephemeral_disk_placement_type = getattr(
+                search_space, f"{method.value}_setspace_by_priority"
+            )(
+                self.ephemeral_disk_placement_type,
+                capability.ephemeral_disk_placement_type,
+                ephemeral_disk_placement_type_priority,
             )
 
         return value

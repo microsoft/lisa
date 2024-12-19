@@ -183,3 +183,10 @@ SIGKILL = 9
 # StorageInterfaceTypes
 STORAGE_INTERFACE_TYPE_NVME = "NVMe"
 STORAGE_INTERFACE_TYPE_SCSI = "SCSI"
+
+# SupportedEphemeralOSDiskPlacements
+# refer
+# https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks-faq
+DISK_PLACEMENT_TYPE_RESOURCE = "ResourceDisk"
+DISK_PLACEMENT_TYPE_CACHE = "CacheDisk"
+DISK_PLACEMENT_TYPE_NVME = "NvmeDisk"

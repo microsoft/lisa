@@ -143,7 +143,8 @@ class Disk(Feature):
 
 
 DiskEphemeral = partial(
-    schema.DiskOptionSettings, os_disk_type=schema.DiskType.Ephemeral
+    schema.DiskOptionSettings,
+    os_disk_type=schema.DiskType.Ephemeral,
 )
 DiskPremiumSSDLRS = partial(
     schema.DiskOptionSettings,
