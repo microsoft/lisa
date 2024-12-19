@@ -286,12 +286,6 @@ class NetworkPerformace(TestSuite):
             udp_mode=True,
         )
 
-    # Marked all following tests to skip on BSD since
-    # sockperf compilation is not natively supported at this time
-    # This is due to the default compiler on freebsd being c++17
-    # and sockperf is designed to compile on c+11 which is no longer available
-    # This is a way to compile it but it requires adding a patch file
-    # to the sockperf repo to remove references to std::unary and std::binary
     @TestCaseMetadata(
         description="""
         This test case uses sockperf to test sriov network latency.
@@ -300,7 +294,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_sriov(self, result: TestResult) -> None:
@@ -314,7 +307,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_sriov(self, result: TestResult) -> None:
@@ -328,7 +320,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_synthetic(self, result: TestResult) -> None:
@@ -342,7 +333,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_synthetic(self, result: TestResult) -> None:
@@ -356,7 +346,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_sriov_busy_poll(self, result: TestResult) -> None:
@@ -375,7 +364,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_sriov_busy_poll(self, result: TestResult) -> None:
@@ -394,7 +382,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_udp_synthetic_busy_poll(self, result: TestResult) -> None:
@@ -413,7 +400,6 @@ class NetworkPerformace(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
-            unsupported_os=[BSD, Windows],
         ),
     )
     def perf_sockperf_latency_tcp_synthetic_busy_poll(self, result: TestResult) -> None:
