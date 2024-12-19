@@ -153,6 +153,7 @@ class Sockperf(Tool):
 
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         configure_cmd = "./configure --prefix=/usr"
+        print(f"lili {arch}")
         if arch == "aarch64":
             configure_cmd += f" --host={arch}-unknown-linux-gnu"
 
