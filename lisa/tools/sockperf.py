@@ -11,7 +11,7 @@ from assertpy import assert_that
 from lisa import notifier
 from lisa.executable import Tool
 from lisa.messages import NetworkLatencyPerformanceMessage, create_perf_message
-from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
+from lisa.operating_system import BSD, CBLMariner, CpuArchitecture, Posix, Ubuntu
 from lisa.util import constants
 from lisa.util.process import Process
 
@@ -154,7 +154,7 @@ class Sockperf(Tool):
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         configure_cmd = "./configure --prefix=/usr"
         print(f"lili {arch}")
-        if arch == "aarch64":
+        if arch == CpuArchitecture.ARM64:
             configure_cmd += f" --host={arch}-unknown-linux-gnu"
 
         self.node.execute(
