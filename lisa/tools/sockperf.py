@@ -165,7 +165,11 @@ class Sockperf(Tool):
         make.make_install(cwd=code_path, sudo=True)
 
     def start(self, command: str) -> Process:
-        return self.run_async(command, shell=True, force_run=True)
+        # set higher ulimit value to fix error 'errno=12 Cannot allocate memory'
+        # seen on ubuntu 24.10
+        return self.node.execute_async(
+            f"ulimit -n 65535 && {self.command} {command}", shell=True, sudo=True
+        )
 
     def start_server_async(self, mode: str, timeout: int = 30) -> Process:
         self_ip = self.node.nics.get_primary_nic().ip_addr
