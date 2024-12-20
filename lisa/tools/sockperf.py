@@ -18,6 +18,7 @@ from lisa.util.process import Process
 from .firewall import Firewall
 from .gcc import Gcc
 from .git import Git
+from .lscpu import Lscpu
 from .make import Make
 
 if TYPE_CHECKING:
@@ -99,6 +100,7 @@ class Sockperf(Tool):
                 "autoconf",
                 "libtool",
                 Gcc,
+                "libgcc",
             ]
 
             if not isinstance(posix_os, BSD):
@@ -151,9 +153,8 @@ class Sockperf(Tool):
             ),
         )
 
-        arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         configure_cmd = "./configure --prefix=/usr"
-        print(f"lili {arch}")
+        arch = self.node.tools[Lscpu].get_architecture()
         if arch == CpuArchitecture.ARM64:
             configure_cmd += f" --host={arch}-unknown-linux-gnu"
 
