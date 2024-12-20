@@ -97,22 +97,22 @@ class Nvmecli(Tool):
         cmd_result.assert_exit_code()
         return self.__format_device_support in cmd_result.stdout
 
-    def get_namespaces(self) -> List[str]:
+    def get_namespaces(self, force_run: bool = False) -> List[str]:
         namespaces_cli = []
-        nvme_list = self.run("list", shell=True, sudo=True, force_run=True)
+        nvme_list = self.run("list", shell=True, sudo=True, force_run=force_run)
         for row in nvme_list.stdout.splitlines():
             matched_result = self._namespace_cli_pattern.match(row)
             if matched_result:
                 namespaces_cli.append(matched_result.group("namespace"))
         return namespaces_cli
 
-    def get_devices(self) -> Any:
-        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=True)
+    def get_devices(self, force_run: bool = False) -> Any:
+        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=force_run)
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
 
-    def get_disks(self) -> List[str]:
-        nvme_devices = self.get_devices()
+    def get_disks(self, force_run: bool = False) -> List[str]:
+        nvme_devices = self.get_devices(force_run=force_run)
         return [device["DevicePath"] for device in nvme_devices]
 
     # NVME namespace ids are unique for each disk under any NVME controller.
