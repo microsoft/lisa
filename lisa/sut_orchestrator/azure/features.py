@@ -1748,7 +1748,9 @@ class Disk(AzureFeatureMixin, features.Disk):
         node_disk = self._node.features[Disk]
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
             data_disks = self.get_raw_data_disks()
-            nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids()
+            nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids(
+                force_run=True
+            )
 
             for nvme_device_id in nvme_device_ids:
                 nvme_device_file = list(nvme_device_id.keys())[0]
