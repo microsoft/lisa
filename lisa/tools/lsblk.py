@@ -250,15 +250,18 @@ class Lsblk(Tool):
         # -b print SIZE in bytes rather than in human readable format
         # -J output in JSON format
         # -o list of columns to output
+        # -e exclude devices by major number, '-e 7' excludes loop devices
         cmd_result = self.run(
-            "-b -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE", sudo=True, force_run=force_run
+            "-e 7 -b -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE",
+            sudo=True,
+            force_run=force_run,
         )
         output = cmd_result.stdout
         if cmd_result.exit_code != 0 and re.match(
             self._INVAILD_JSON_OPTION_PATTERN, output
         ):
             output = self.run(
-                "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE",
+                "-e 7 -b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE",
                 sudo=True,
                 force_run=force_run,
             ).stdout
