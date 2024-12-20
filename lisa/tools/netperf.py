@@ -119,12 +119,12 @@ class Netperf(Tool):
         arch = self.node.os.get_kernel_information().hardware_platform  # type: ignore
         if arch == "aarch64":
             configure_cmd += f" --build={arch}-unknown-linux-gnu"
+        gcc_version = self.node.tools[Gcc].get_version()
+        # fix compile issue when gcc version > 10
+        if gcc_version >= "10.0.0":
+            configure_cmd += " CC=gcc CFLAGS='-std=gnu89 -fcommon' "
         self.node.execute(configure_cmd, cwd=code_path).assert_exit_code()
-        arguments = ""
-        # fix compile issue when gcc version >= 10
-        if self.node.tools[Gcc].get_version() >= "10.0.0":
-            arguments = "CFLAGS=-fcommon"
-        make.make_install(code_path, arguments=arguments)
+        make.make_install(code_path)
         self.node.execute(
             "ln -s /usr/local/bin/netperf /usr/bin/netperf", sudo=True, cwd=code_path
         ).assert_exit_code()
