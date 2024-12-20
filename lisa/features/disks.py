@@ -68,6 +68,7 @@ class Disk(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.disks: List[str] = []
+        self._os_disk_controller_type: Optional[schema.DiskControllerType] = None
 
     def get_resource_disk_mount_point(self) -> str:
         raise NotImplementedError
@@ -136,10 +137,13 @@ class Disk(Feature):
 
     # Get disk controller type from the VM by checking the boot partition
     def get_os_disk_controller_type(self) -> schema.DiskControllerType:
-        boot_partition = self.get_os_boot_partition()
-        assert boot_partition, "'boot_partition' must not be 'None'"
-        os_disk_controller_type = self.get_disk_type(boot_partition.disk)
-        return schema.DiskControllerType(os_disk_controller_type)
+        if self._os_disk_controller_type is None:
+            boot_partition = self.get_os_boot_partition()
+            assert boot_partition, "'boot_partition' must not be 'None'"
+            self._os_disk_controller_type = schema.DiskControllerType(
+                self.get_disk_type(boot_partition.disk)
+            )
+        return self._os_disk_controller_type
 
 
 DiskEphemeral = partial(
