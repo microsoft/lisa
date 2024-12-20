@@ -159,8 +159,8 @@ class Nvmecli(Tool):
     # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
     # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
 
-    def get_namespace_ids(self) -> List[Dict[str, int]]:
-        nvme_devices = self.get_devices()
+    def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
+        nvme_devices = self.get_devices(force_run=force_run)
         return [
             {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
         ]
