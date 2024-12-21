@@ -37,7 +37,15 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         raise NotImplementedError()
 
     def get_client_capabilities(self, client: ClientSchema) -> ClientCapabilities:
-        raise NotImplementedError()
+        # If the cluster doesn't support detecting capability, return an empty
+        # capability.
+        if client.capabilities:
+            return client.capabilities
+        cluster_capabilities = ClientCapabilities()
+        # Give minimun values to pass basic checks.
+        cluster_capabilities.core_count = 1
+        cluster_capabilities.free_memory_mb = 512
+        return cluster_capabilities
 
     def cleanup(self) -> None:
-        raise NotImplementedError()
+        pass
