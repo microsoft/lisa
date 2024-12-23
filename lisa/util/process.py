@@ -308,6 +308,11 @@ class Process:
             # save for logging.
             self._cmd = split_command
             self._running = True
+
+            # set keep alive for ssh connection, it avoids the connection being
+            # closed without any data transfer.
+            if self._shell.is_remote:
+                self._process._channel.transport.set_keepalive(30)
         except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
