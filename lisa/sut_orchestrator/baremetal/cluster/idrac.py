@@ -86,10 +86,9 @@ class Idrac(Cluster):
         "ForceOff": "Off",
     }
 
-    def __init__(self, runbook: ClusterSchema) -> None:
-        super().__init__(runbook)
+    def __init__(self, runbook: ClusterSchema, **kwargs: Any) -> None:
+        super().__init__(runbook, **kwargs)
         self.idrac_runbook: IdracSchema = self.runbook
-        self._log = get_logger("idrac", self.__class__.__name__)
         assert_that(len(self.idrac_runbook.client)).described_as(
             "only one client is supported for idrac, don't specify more than one client"
         ).is_equal_to(1)

@@ -56,7 +56,9 @@ class BareMetalPlatform(Platform):
         # currently only support one cluster
         assert self._baremetal_runbook.cluster, "no cluster is specified in the runbook"
         self._cluster_runbook = self._baremetal_runbook.cluster[0]
-        self.cluster = self.cluster_factory.create_by_runbook(self._cluster_runbook)
+        self.cluster = self.cluster_factory.create_by_runbook(
+            self._cluster_runbook, parent_logger=self._log
+        )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
