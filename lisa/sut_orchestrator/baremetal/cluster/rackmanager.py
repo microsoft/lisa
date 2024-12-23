@@ -5,7 +5,6 @@ from typing import Any, Type
 from lisa import features, schema
 from lisa.environment import Environment
 from lisa.node import quick_connect
-from lisa.util.logger import get_logger
 
 from ..platform_ import BareMetalPlatform
 from ..schema import RackManagerSchema
@@ -37,10 +36,9 @@ class RackManagerStartStop(features.StartStop):
 
 
 class RackManager(Cluster):
-    def __init__(self, runbook: RackManagerSchema) -> None:
-        super().__init__(runbook)
+    def __init__(self, runbook: RackManagerSchema, **kwargs: Any) -> None:
+        super().__init__(runbook, **kwargs)
         self.rm_runbook: RackManagerSchema = self.runbook
-        self._log = get_logger("rackmanager", self.__class__.__name__)
 
     @classmethod
     def type_name(cls) -> str:

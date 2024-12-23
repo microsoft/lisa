@@ -6,7 +6,7 @@ from typing import Any, Type
 from lisa import features, schema
 from lisa.environment import Environment
 from lisa.util import InitializableMixin, subclasses
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 
 from ..schema import ClientCapabilities, ClientSchema, ClusterSchema
 
@@ -15,10 +15,11 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(
         self,
         runbook: ClusterSchema,
+        parent_logger: Logger,
     ) -> None:
         super().__init__(runbook=runbook)
         self.cluster_runbook: ClusterSchema = self.runbook
-        self._log = get_logger("cluster", self.__class__.__name__)
+        self._log = get_logger(name=self.__class__.__name__, parent=parent_logger)
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
