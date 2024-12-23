@@ -82,19 +82,13 @@ class FileSingleChecker(ReadyChecker):
         return os.path.exists(self.file_single_runbook.file)
 
 
-@dataclass_json()
-@dataclass
-class SshSchema(ReadyCheckerSchema):
-    ...
-
-
 class SshChecker(ReadyChecker):
     def __init__(
         self,
-        runbook: SshSchema,
+        runbook: ReadyCheckerSchema,
     ) -> None:
         super().__init__(runbook=runbook)
-        self.ssh_runbook: SshSchema = self.runbook
+        self.ssh_runbook: ReadyCheckerSchema = self.runbook
         self._log = get_logger("ssh", self.__class__.__name__)
 
     @classmethod
@@ -103,7 +97,7 @@ class SshChecker(ReadyChecker):
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
-        return SshSchema
+        return ReadyCheckerSchema
 
     def is_ready(self, node: Node) -> bool:
         context = get_node_context(node)
