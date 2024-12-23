@@ -180,12 +180,21 @@ def try_connect(
 
             # Give it some time to process the command, otherwise reads on
             # stdout on calling contexts have been seen having empty strings
-            # from stdout, on Windows. There is a certain 3s penalty on Linux
-            # systems, as it's never ready for that (nonexisting) command, but
-            # that should only happen once per node (not per command)
-            tries = 3
-            while not stdout.channel.recv_ready() and tries:
-                sleep(1)
+            # from stdout, on Windows.When the recv_ready is False, Windows
+            # returns empty string. So it needs to wait recv_ready to True. But
+            # Linux doesn't support recv_ready, it's always False. So add the
+            # eof_sent for Linux and its readiness checks. When eof_sent is
+            # True, it means the send is done, and it's Linux. Combine both
+            # recv_ready and eof_sent to make sure the channel is ready for both
+            # Windows and Linux, and not block on both OSes. The logic has a 3
+            # seconds timeout, so if both of them are not support, it wait 3
+            # seconds.
+            tries = 30
+            while (
+                stdout.channel.recv_ready() is False
+                and stdout.channel.eof_sent is not True
+            ) and tries:
+                sleep(0.1)
                 tries -= 1
 
             stdin.channel.shutdown_write()
