@@ -30,11 +30,15 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         assert isinstance(runbook, DeploymentTransformerSchema)
         node = self._node
         powershell = node.tools[PowerShell]
+        # Install Hyper-V and DHCP server
         powershell.run_cmdlet(
             "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
             force_run=True,
         )
+        # Reboot the node to apply the changes
         node.reboot()
+
+        # Create and Configure the Hyper-V switch
         powershell.run_cmdlet(
             "New-VMSwitch -Name 'InternalNAT' -SwitchType Internal",
             force_run=True,
@@ -45,6 +49,20 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         )
         powershell.run_cmdlet(
             'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
+            force_run=True,
+        )
+        # Configure the DHCP server
+        powershell.run_cmdlet(
+            'Add-DhcpServerV4Scope -Name "DHCP-$switchName" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            force_run=True,
+        )
+        # Restart the DHCP server to apply the changes
+        powershell.run_cmdlet(
+            "Restart-service dhcpserver",
             force_run=True,
         )
         return {}
