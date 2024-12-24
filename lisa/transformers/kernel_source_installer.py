@@ -10,7 +10,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
-from lisa.operating_system import CBLMariner, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, CpuArchitecture, Redhat, Ubuntu
 from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
@@ -182,8 +182,6 @@ class SourceInstaller(BaseInstaller):
             kconfig_file=kconfig_file,
             kernel_version=build_kernel_version,
         )
-        self._install_build(node=node, code_path=self._code_path)
-
         result = node.execute(
             "make kernelrelease 2>/dev/null",
             cwd=self._code_path,
@@ -194,6 +192,11 @@ class SourceInstaller(BaseInstaller):
             f"failed on get kernel release: {result.stdout}",
         )
         build_kernel_release = result.stdout
+        self._install_build(
+            node=node,
+            code_path=self._code_path,
+            build_kernel_release=build_kernel_release,
+        )
 
         # copy current config back to system folder.
         result = node.execute(
@@ -205,7 +208,9 @@ class SourceInstaller(BaseInstaller):
 
         return build_kernel_release
 
-    def _install_build(self, node: Node, code_path: PurePath) -> None:
+    def _install_build(
+        self, node: Node, code_path: PurePath, build_kernel_release: str
+    ) -> None:
         make = node.tools[Make]
         make.make(arguments="modules", cwd=code_path, sudo=True)
 
@@ -213,7 +218,37 @@ class SourceInstaller(BaseInstaller):
             arguments="INSTALL_MOD_STRIP=1 modules_install", cwd=code_path, sudo=True
         )
 
-        make.make(arguments="install", cwd=code_path, sudo=True)
+        if isinstance(node.os, CBLMariner) and node.os.information.version >= "3.0.0":
+            cp = node.tools[Cp]
+            arch = node.tools[Lscpu].get_architecture()
+            image_path = ""
+            if arch == CpuArchitecture.ARM64:
+                image_path = "arch/arm64/boot/bzImage"
+            elif arch == CpuArchitecture.X64:
+                image_path = "arch/x86/boot/bzImage"
+            else:
+                raise LisaException(f"unsupported architecture: {arch}")
+            cp.copy(
+                PurePath(image_path),
+                PurePath(f"/boot/Image-{build_kernel_release}"),
+                cwd=code_path,
+                sudo=True,
+            )
+            node.execute(
+                f"dracut initramfs-{build_kernel_release}.img {build_kernel_release}",
+                cwd=code_path,
+                sudo=True,
+            )
+            cp.copy(
+                PurePath(f"initramfs-{build_kernel_release}.img"),
+                PurePath(f"/boot/initramfs-{build_kernel_release}.img"),
+                cwd=code_path,
+                sudo=True,
+            )
+            result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+            result.assert_exit_code()
+        else:
+            make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
         # here, not in OS.
@@ -266,6 +301,7 @@ class SourceInstaller(BaseInstaller):
                 src=kernel_config,
                 dest=PurePath(".config"),
                 cwd=code_path,
+                sudo=True,
             )
         else:
             cp.copy(
@@ -274,6 +310,7 @@ class SourceInstaller(BaseInstaller):
                 ),
                 dest=PurePath(".config"),
                 cwd=code_path,
+                sudo=True,
             )
 
         config_path = code_path.joinpath(".config")
@@ -296,6 +333,7 @@ class SourceInstaller(BaseInstaller):
             "scripts/config --disable SYSTEM_TRUSTED_KEYS",
             cwd=code_path,
             shell=True,
+            sudo=True,
         )
         result.assert_exit_code()
 
@@ -307,6 +345,7 @@ class SourceInstaller(BaseInstaller):
             "scripts/config --disable SYSTEM_REVOCATION_KEYS",
             cwd=code_path,
             shell=True,
+            sudo=True,
         )
         result.assert_exit_code()
 
