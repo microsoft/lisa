@@ -2289,6 +2289,7 @@ def get_deployable_vhd_path(
             vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
             matches = SAS_URL_PATTERN.match(vhd_path)
             assert matches, f"fail to generate sas url for {vhd_path}"
+            add_secret(vhd_path, PATTERN_URL)
             log.debug(
                 f"the vhd location {location} is not same with running case "
                 f"location {vhd_location}, generate a sas url for source vhd, "
