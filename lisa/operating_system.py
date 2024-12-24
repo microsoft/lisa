@@ -357,7 +357,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         return re.compile(f"^{cls.type_name()}$")
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
-        raise NotImplementedError("update boot entry is not implemented")
+        pass
 
     def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
         uname = self._node.tools[Uname]
