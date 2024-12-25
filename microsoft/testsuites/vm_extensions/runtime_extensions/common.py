@@ -102,6 +102,7 @@ def retrieve_storage_blob_url(
         cloud=platform.cloud,
         account_name=storage_account_name,
         container_name=container_name,
+        platform=platform,
     )
 
     blob = container_client.get_blob_client(blob_name)

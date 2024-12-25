@@ -233,6 +233,7 @@ class VhdTransformer(Transformer):
             cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             container_name=runbook.container_name,
+            platform=platform,
         )
 
         if runbook.custom_blob_name:
