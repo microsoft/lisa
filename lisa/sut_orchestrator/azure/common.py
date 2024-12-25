@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import hashlib
 import json
 import os
@@ -26,6 +27,7 @@ from typing import (
 
 import requests
 from assertpy import assert_that
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
@@ -1696,6 +1698,7 @@ def get_or_create_storage_container(
     """
     Create a Azure Storage container if it does not exist.
     """
+    credential = get_static_access_token("AZURE_STORAGE_ACCESS_TOKEN") or credential
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
@@ -2696,14 +2699,60 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
+class StaticAccessTokenCredential(TokenCredential):
+    def __init__(self, token: str) -> None:
+        """
+        Initialize StaticAccessTokenCredential with the provided token.
+
+        :param token: The Azure access token as a string.
+        """
+        self._token = token
+        self._expires_on = self._get_exp()
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """
+        Get the access token for the specified scopes.
+
+        :param scopes: The OAuth 2.0 scopes the token applies to.
+        :param kwargs: Additional keyword arguments that may be required by the SDK.
+        :return: An AccessToken instance containing the token and its expiry time.
+        """
+        # You can choose to print or log the scopes and kwargs for debugging if needed
+        return AccessToken(self._token, self._expires_on)
+
+    def _get_exp(self) -> Any:
+        # The second part of the JWT is the payload
+        payload = self._token.split(".")[1]
+        # Add padding to ensure Base64 decoding works properly
+        padded_payload = payload + "=" * (4 - len(payload) % 4)
+        # Decode the Base64 URL-safe encoded payload
+        decoded_payload = base64.urlsafe_b64decode(padded_payload)
+        # Convert the payload into a dictionary and get the expiration time
+        # 'exp' is the UNIX timestamp for expiration
+        return json.loads(decoded_payload).get("exp")
+
+
+def get_static_access_token(token_type: str) -> Any:
+    credential = None
+    if token_type in os.environ:
+        credential = StaticAccessTokenCredential(os.environ[token_type])
+    return credential
+
+
 def get_certificate_client(
     vault_url: str, platform: "AzurePlatform"
 ) -> CertificateClient:
-    return CertificateClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token("AZURE_KEYVAULT_ACCESS_TOKEN") or platform.credential
+    )
+    return CertificateClient(vault_url, credential)
 
 
 def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
-    return SecretClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token("AZURE_KEYVAULT_ACCESS_TOKEN") or platform.credential
+    )
+    return SecretClient(vault_url, credential)
 
 
 def get_key_vault_management_client(
@@ -2799,7 +2848,13 @@ def get_identity_id(
     else:
         endpoint = "me"
     graph_api_url = f"{base_url}{api_version}/{endpoint}"
-    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
+    credential = (
+        get_static_access_token("AZURE_GRAPH_ACCESS_TOKEN") or platform.credential
+    )
+    if isinstance(credential, StaticAccessTokenCredential):
+        token = credential._token
+    else:
+        token = credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
         "Authorization": f"Bearer {token}",
@@ -3002,9 +3057,10 @@ def create_certificate(
 def check_certificate_existence(
     vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
 ) -> bool:
-    certificate_client = CertificateClient(
-        vault_url=vault_url, credential=platform.credential
+    credential = (
+        get_static_access_token("AZURE_KEYVAULT_ACCESS_TOKEN") or platform.credential
     )
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
 
     try:
         certificate = certificate_client.get_certificate(cert_name)
