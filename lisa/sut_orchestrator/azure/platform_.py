@@ -7,6 +7,7 @@ import math
 import os
 import re
 import sys
+import time
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
@@ -17,6 +18,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -246,6 +248,8 @@ class AzurePlatformSchema:
         ),
     )
     service_principal_key: str = field(default="")
+    access_token: str = field(default="")
+    token_expiry_hours: int = 24
     subscription_id: str = field(
         default="",
         metadata=field_metadata(
@@ -320,6 +324,7 @@ class AzurePlatformSchema:
                 "service_principal_tenant_id",
                 "service_principal_client_id",
                 "service_principal_key",
+                "access_token",
                 "subscription_id",
                 "shared_resource_group_name",
                 "resource_group_name",
@@ -338,6 +343,8 @@ class AzurePlatformSchema:
             add_secret(self.subscription_id, mask=PATTERN_GUID)
         if self.service_principal_key:
             add_secret(self.service_principal_key)
+        if self.access_token:
+            add_secret(self.access_token)
         if self.service_principal_client_id:
             add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
 
@@ -400,6 +407,29 @@ class AzurePlatformSchema:
             self.cloud_raw = value.to_dict()  # type: ignore
 
 
+class StaticAccessTokenCredential(TokenCredential):
+    def __init__(self, token: str, expires_on: int) -> None:
+        """
+        Initialize StaticAccessTokenCredential with the provided token and expiry time.
+
+        :param token: The Azure access token as a string.
+        :param expires_on: The expiry time of the token as an integer (Unix timestamp).
+        """
+        self._token = token
+        self._expires_on = expires_on
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """
+        Get the access token for the specified scopes.
+
+        :param scopes: The OAuth 2.0 scopes the token applies to.
+        :param kwargs: Additional keyword arguments that may be required by the SDK.
+        :return: An AccessToken instance containing the token and its expiry time.
+        """
+        # You can choose to print or log the scopes and kwargs for debugging if needed
+        return AccessToken(self._token, self._expires_on)
+
+
 class AzurePlatform(Platform):
     _diagnostic_storage_container_pattern = re.compile(
         r"(https:\/\/)(?P<storage_name>.*)([.].*){4}\/(?P<container_name>.*)\/",
@@ -407,14 +437,14 @@ class AzurePlatform(Platform):
     )
     _arm_template: Any = None
 
-    _credentials: Dict[str, DefaultAzureCredential] = {}
+    _credentials: Dict[str, Union[DefaultAzureCredential, TokenCredential]] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
         # for type detection
-        self.credential: DefaultAzureCredential
+        self.credential: Union[DefaultAzureCredential, TokenCredential]
         self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
@@ -936,10 +966,18 @@ class AzurePlatform(Platform):
                 ] = azure_runbook.service_principal_client_id
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
+            if azure_runbook.access_token:
+                os.environ["AZURE_ACCESS_TOKEN"] = azure_runbook.access_token
 
-            credential = DefaultAzureCredential(
-                authority=self.cloud.endpoints.active_directory,
-            )
+            if os.environ["AZURE_ACCESS_TOKEN"]:
+                credential = StaticAccessTokenCredential(
+                    os.environ["AZURE_ACCESS_TOKEN"],
+                    int(time.time()) + 3600 * azure_runbook.token_expiry_hours,
+                )
+            else:
+                credential = DefaultAzureCredential(
+                    authority=self.cloud.endpoints.active_directory,
+                )
 
             with SubscriptionClient(
                 credential,
