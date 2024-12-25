@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import hashlib
 import json
 import os
@@ -26,6 +27,7 @@ from typing import (
 
 import requests
 from assertpy import assert_that
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
@@ -1634,12 +1636,14 @@ def generate_user_delegation_sas_token(
     connection_string: Optional[str] = None,
     writable: bool = False,
     expired_hours: int = 1,
+    platform: Optional["AzurePlatform"] = None,
 ) -> Any:
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
+        platform=platform,
     )
     start_time = datetime.now(timezone.utc)
     expiry_time = start_time + timedelta(hours=expired_hours)
@@ -1664,6 +1668,7 @@ def get_blob_service_client(
     credential: Optional[Any] = None,
     account_name: Optional[str] = None,
     connection_string: Optional[str] = None,
+    platform: Optional["AzurePlatform"] = None,
 ) -> BlobServiceClient:
     """
     Create a Azure Storage container if it does not exist.
@@ -1677,7 +1682,10 @@ def get_blob_service_client(
         assert (
             account_name
         ), "account_name is required, if connection_string is not set."
-
+        if platform and platform._azure_runbook.azure_storage_access_token:
+            credential = get_static_access_token(
+                platform._azure_runbook.azure_storage_access_token
+            )
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
             credential,
@@ -1692,15 +1700,21 @@ def get_or_create_storage_container(
     account_name: Optional[str] = None,
     connection_string: Optional[str] = None,
     allow_create: bool = True,
+    platform: Optional["AzurePlatform"] = None,
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
     """
+    if platform and platform._azure_runbook.azure_storage_access_token:
+        credential = get_static_access_token(
+            platform._azure_runbook.azure_storage_access_token
+        )
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
+        platform=platform,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
@@ -1836,6 +1850,7 @@ def copy_vhd_to_storage(
         cloud=platform.cloud,
         account_name=storage_name,
         container_name=SAS_COPIED_CONTAINER_NAME,
+        platform=platform,
     )
     full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
 
@@ -1882,6 +1897,7 @@ def copy_vhd_to_storage(
                     cloud=platform.cloud,
                     account_name=storage_name,
                     writable=True,
+                    platform=platform,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
                 log.info(f"copying vhd by azcopy {dst_vhd_name}")
@@ -2254,6 +2270,7 @@ def _generate_sas_token_for_vhd(
         cloud=platform.cloud,
         account_name=sc_name,
         container_name=container_name,
+        platform=platform,
     )
     source_blob = source_container_client.get_blob_client(blob_name)
     sas_token = generate_user_delegation_sas_token(
@@ -2262,6 +2279,7 @@ def _generate_sas_token_for_vhd(
         credential=platform.credential,
         cloud=platform.cloud,
         account_name=sc_name,
+        platform=platform,
     )
     source_url = source_blob.url + "?" + sas_token
     return source_url
@@ -2546,6 +2564,7 @@ def check_blob_exist(
         account_name=account_name,
         container_name=container_name,
         allow_create=False,
+        platform=platform,
     )
     blob_client = container_client.get_blob_client(blob_name)
     blob_exist = blob_client.exists()
@@ -2696,14 +2715,62 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
+class StaticAccessTokenCredential(TokenCredential):
+    def __init__(self, token: str) -> None:
+        """
+        Initialize StaticAccessTokenCredential with the provided token.
+
+        :param token: The Azure access token as a string.
+        """
+        self._token = token
+        self._expires_on = self._get_exp()
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """
+        Get the access token for the specified scopes.
+
+        :param scopes: The OAuth 2.0 scopes the token applies to.
+        :param kwargs: Additional keyword arguments that may be required by the SDK.
+        :return: An AccessToken instance containing the token and its expiry time.
+        """
+        # You can choose to print or log the scopes and kwargs for debugging if needed
+        return AccessToken(self._token, self._expires_on)
+
+    def _get_exp(self) -> Any:
+        # The second part of the JWT is the payload
+        payload = self._token.split(".")[1]
+        # Add padding to ensure Base64 decoding works properly
+        padded_payload = payload + "=" * (4 - len(payload) % 4)
+        # Decode the Base64 URL-safe encoded payload
+        decoded_payload = base64.urlsafe_b64decode(padded_payload)
+        # Convert the payload into a dictionary and get the expiration time
+        # 'exp' is the UNIX timestamp for expiration
+        return json.loads(decoded_payload).get("exp")
+
+
+def get_static_access_token(token: str) -> Any:
+    credential = None
+    if token:
+        credential = StaticAccessTokenCredential(token)
+    return credential
+
+
 def get_certificate_client(
     vault_url: str, platform: "AzurePlatform"
 ) -> CertificateClient:
-    return CertificateClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
+    )
+    return CertificateClient(vault_url, credential)
 
 
 def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
-    return SecretClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
+    )
+    return SecretClient(vault_url, credential)
 
 
 def get_key_vault_management_client(
@@ -2799,7 +2866,14 @@ def get_identity_id(
     else:
         endpoint = "me"
     graph_api_url = f"{base_url}{api_version}/{endpoint}"
-    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_graph_access_token)
+        or platform.credential
+    )
+    if isinstance(credential, StaticAccessTokenCredential):
+        token = credential._token
+    else:
+        token = credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
         "Authorization": f"Bearer {token}",
@@ -3002,9 +3076,11 @@ def create_certificate(
 def check_certificate_existence(
     vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
 ) -> bool:
-    certificate_client = CertificateClient(
-        vault_url=vault_url, credential=platform.credential
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
     )
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
 
     try:
         certificate = certificate_client.get_certificate(cert_name)

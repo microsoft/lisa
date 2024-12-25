@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
+from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -116,6 +117,7 @@ from .common import (
     get_or_create_storage_container,
     get_primary_ip_addresses,
     get_resource_management_client,
+    get_static_access_token,
     get_storage_account_name,
     get_vhd_details,
     get_vm,
@@ -246,6 +248,10 @@ class AzurePlatformSchema:
         ),
     )
     service_principal_key: str = field(default="")
+    azure_arm_access_token: str = field(default="")
+    azure_storage_access_token: str = field(default="")
+    azure_keyvault_access_token: str = field(default="")
+    azure_graph_access_token: str = field(default="")
     subscription_id: str = field(
         default="",
         metadata=field_metadata(
@@ -320,6 +326,10 @@ class AzurePlatformSchema:
                 "service_principal_tenant_id",
                 "service_principal_client_id",
                 "service_principal_key",
+                "azure_arm_access_token",
+                "azure_storage_access_token",
+                "azure_keyvault_access_token",
+                "azure_graph_access_token",
                 "subscription_id",
                 "shared_resource_group_name",
                 "resource_group_name",
@@ -338,6 +348,14 @@ class AzurePlatformSchema:
             add_secret(self.subscription_id, mask=PATTERN_GUID)
         if self.service_principal_key:
             add_secret(self.service_principal_key)
+        if self.azure_arm_access_token:
+            add_secret(self.azure_arm_access_token)
+        if self.azure_storage_access_token:
+            add_secret(self.azure_storage_access_token)
+        if self.azure_keyvault_access_token:
+            add_secret(self.azure_keyvault_access_token)
+        if self.azure_graph_access_token:
+            add_secret(self.azure_graph_access_token)
         if self.service_principal_client_id:
             add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
 
@@ -407,14 +425,14 @@ class AzurePlatform(Platform):
     )
     _arm_template: Any = None
 
-    _credentials: Dict[str, DefaultAzureCredential] = {}
+    _credentials: Dict[str, Union[DefaultAzureCredential, TokenCredential]] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
         # for type detection
-        self.credential: DefaultAzureCredential
+        self.credential: Union[DefaultAzureCredential, TokenCredential]
         self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
@@ -937,7 +955,9 @@ class AzurePlatform(Platform):
             if azure_runbook.service_principal_key:
                 os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
 
-            credential = DefaultAzureCredential(
+            credential = get_static_access_token(
+                azure_runbook.azure_arm_access_token
+            ) or DefaultAzureCredential(
                 authority=self.cloud.endpoints.active_directory,
             )
 
@@ -2270,6 +2290,7 @@ class AzurePlatform(Platform):
             cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
+            platform=self,
         )
 
         vhd_blob = container_client.get_blob_client(result_dict["blob_name"])
