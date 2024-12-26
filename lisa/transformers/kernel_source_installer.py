@@ -230,7 +230,7 @@ class SourceInstaller(BaseInstaller):
                 raise LisaException(f"unsupported architecture: {arch}")
             cp.copy(
                 PurePath(image_path),
-                PurePath(f"/boot/Image-{build_kernel_release}"),
+                PurePath(f"/boot/vmlinuz-{build_kernel_release}"),
                 cwd=code_path,
                 sudo=True,
             )
