@@ -17,7 +17,7 @@ from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
 from ..platform_ import BareMetalPlatform
-from ..schema import ClientCapabilities, ClientSchema, ClusterSchema, IdracSchema
+from ..schema import ClientCapability, ClientSchema, ClusterSchema, IdracSchema
 from .cluster import Cluster
 
 
@@ -125,14 +125,14 @@ class Idrac(Cluster):
         self._clear_serial_console_log()
         self.logout()
 
-    def get_client_capabilities(self, client: ClientSchema) -> ClientCapabilities:
-        if client.capabilities:
-            return client.capabilities
+    def get_client_capability(self, client: ClientSchema) -> ClientCapability:
+        if client.capability:
+            return client.capability
         self.login()
         response = self.redfish_instance.get(
             "/redfish/v1/Systems/System.Embedded.1/",
         )
-        cluster_capabilities = ClientCapabilities()
+        cluster_capabilities = ClientCapability()
         cluster_capabilities.core_count = int(
             response.dict["ProcessorSummary"]["LogicalProcessorCount"]
         )
