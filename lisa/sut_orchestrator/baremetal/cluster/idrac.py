@@ -13,7 +13,6 @@ from assertpy import assert_that
 from lisa import features, schema
 from lisa.environment import Environment
 from lisa.util import LisaException, check_till_timeout
-from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
 from ..platform_ import BareMetalPlatform
