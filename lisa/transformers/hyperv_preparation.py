@@ -58,6 +58,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
             f"Get-VMSwitch -Name '{switch_name}'",
             force_run=True,
             output_json=True,
+            fail_on_error=False,
         )
         switch_exists = json.loads(output)
         if switch_exists:
