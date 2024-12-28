@@ -107,6 +107,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
             "Get-DhcpServerv4Scope",
             force_run=True,
             output_json=True,
+            fail_on_error=False,
         )
         scope_exists = json.loads(output)
         if scope_exists:
