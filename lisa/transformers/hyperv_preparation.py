@@ -60,8 +60,8 @@ class HyperVPreparationTransformer(DeploymentTransformer):
             output_json=True,
             fail_on_error=False,
         )
-        switch_exists = json.loads(output)
-        if switch_exists:
+        # switch_exists = json.loads(output)
+        if output:
             return
         # Create and Configure the Hyper-V switch
         powershell.run_cmdlet(
@@ -84,11 +84,14 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         powershell = node.tools[PowerShell]
 
         # check if Hyper-V is already installed
-        output = powershell.run_cmdlet(
-            "Get-WindowsOptionalFeature -Online -FeatureName Hyper-V",
-            force_run=True,
-            output_json=True,
-        )
+        # output = powershell.run_cmdlet(
+        #     "Get-WindowsOptionalFeature -Online -FeatureName Hyper-V",
+        #     force_run=True,
+        #     output_json=True,
+        # )
+        # feature = json.loads(output)
+        # if feature["State"] == "Enabled":
+        #     return {}
         # Install Hyper-V and DHCP server
         powershell.run_cmdlet(
             "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
@@ -109,8 +112,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
             output_json=True,
             fail_on_error=False,
         )
-        scope_exists = json.loads(output)
-        if scope_exists:
+        if output:
             return
         # Configure the DHCP server
         powershell.run_cmdlet(
