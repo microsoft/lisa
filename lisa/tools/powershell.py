@@ -45,11 +45,14 @@ class PowerShell(Tool):
     def run_cmdlet(
         self,
         cmdlet: str,
+        output_json: bool = False,
         force_run: bool = False,
         sudo: bool = False,
         fail_on_error: bool = True,
         timeout: int = 600,
     ) -> str:
+        if output_json:
+            cmdlet = f"{cmdlet} | ConvertTo-Json"
         process = self.run_cmdlet_async(
             cmdlet=cmdlet,
             force_run=force_run,
