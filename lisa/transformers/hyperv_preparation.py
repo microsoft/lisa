@@ -1,5 +1,6 @@
 import json
 import time
+from retry import retry
 from typing import Any, Dict, List, Type
 
 from lisa import schema
@@ -45,15 +46,48 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
         raise AssertionError(f"'{service_name}' service is not ready")
 
+    @retry(tries=3, delay=10)
+    def _create_vswitch(
+        self,
+        powershell: PowerShell,
+        switch_name: str,
+        switch_type: str,
+    ) -> None:
+        # Check if the Hyper-V switch already exists
+        output = powershell.run_cmdlet(
+            f"Get-VMSwitch -Name '{switch_name}'",
+            force_run=True,
+            output_json=True,
+        )
+        switch_exists = json.loads(output)
+        if switch_exists:
+            return
+        # Create and Configure the Hyper-V switch
+        powershell.run_cmdlet(
+            f"New-VMSwitch -Name '{switch_name}' -SwitchType {switch_type}",
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            f"New-NetNat -Name '{switch_name}' -InternalIPInterfaceAddressPrefix '192.168.0.0/24' -Confirm:$false",  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
+            force_run=True,
+        )
+
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
         node = self._node
         powershell = node.tools[PowerShell]
 
-        # Wait for WMI service to be ready after reboot
-        self._wait_for_service_ready('wuauserv')
-
+        # check if Hyper-V is already installed
+        output = powershell.run_cmdlet(
+            "Get-WindowsOptionalFeature -Online -FeatureName Hyper-V",
+            force_run=True,
+            output_json=True,
+        )
         # Install Hyper-V and DHCP server
         powershell.run_cmdlet(
             "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
@@ -61,26 +95,24 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         )
         # Reboot the node to apply the changes
         node.reboot()
+        self._create_vswitch(powershell, "InternalNAT", "Internal")
 
-        # Wait for WMI service to be ready after reboot
-        self._wait_for_service_ready('wuauserv')
+        self._configure_dhcp(powershell, dhcp_scope_name="DHCPInternalNAT")
+        return {}
 
-        # Create and Configure the Hyper-V switch
-        powershell.run_cmdlet(
-            "New-VMSwitch -Name 'InternalNAT' -SwitchType Internal",
+    def _configure_dhcp(self, powershell: PowerShell, dhcp_scope_name: str) -> None:
+        # check if DHCP server is already configured
+        output = powershell.run_cmdlet(
+            "Get-DhcpServerv4Scope",
             force_run=True,
+            output_json=True,
         )
-        powershell.run_cmdlet(
-            "New-NetNat -Name 'InternalNAT' -InternalIPInterfaceAddressPrefix '192.168.0.0/24'",  # noqa: E501
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
-            force_run=True,
-        )
+        scope_exists = json.loads(output)
+        if scope_exists:
+            return
         # Configure the DHCP server
         powershell.run_cmdlet(
-            'Add-DhcpServerV4Scope -Name "DHCP-$switchName" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
         powershell.run_cmdlet(
@@ -92,4 +124,4 @@ class HyperVPreparationTransformer(DeploymentTransformer):
             "Restart-service dhcpserver",
             force_run=True,
         )
-        return {}
+        self._wait_for_service_ready("dhcpserver")
