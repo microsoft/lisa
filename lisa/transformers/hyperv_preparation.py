@@ -1,3 +1,5 @@
+import json
+import time
 from typing import Any, Dict, List, Type
 
 from lisa import schema
@@ -25,14 +27,23 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _output_names(self) -> List[str]:
         return []
 
-    def _wait_for_wmi_service_ready(self) -> None:
+    def _wait_for_service_ready(self, service_name: str) -> None:
         node = self._node
         powershell = node.tools[PowerShell]
         # Wait for WMI service to be ready
-        powershell.run_cmdlet(
-            "while ((Get-Service winmgmt).Status -ne 'Running') { Start-Sleep -Seconds 1 }",
-            force_run=True,
-        )
+        for _ in range(10):
+            output = powershell.run_cmdlet(
+                f"Get-Service {service_name}",
+                force_run=True,
+                output_json=True,
+            )
+            service_status = json.loads(output)
+            print(service_status["Status"])
+            if int(schema.WindowsServiceStatus.RUNNING) == service_status["Status"]:
+                return
+            time.sleep(5)
+
+        raise AssertionError(f"'{service_name}' service is not ready")
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
@@ -41,7 +52,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         powershell = node.tools[PowerShell]
 
         # Wait for WMI service to be ready after reboot
-        self._wait_for_wmi_service_ready()
+        self._wait_for_service_ready('wuauserv')
 
         # Install Hyper-V and DHCP server
         powershell.run_cmdlet(
@@ -52,7 +63,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         node.reboot()
 
         # Wait for WMI service to be ready after reboot
-        self._wait_for_wmi_service_ready()
+        self._wait_for_service_ready('wuauserv')
 
         # Create and Configure the Hyper-V switch
         powershell.run_cmdlet(
