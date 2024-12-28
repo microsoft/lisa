@@ -25,11 +25,24 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _output_names(self) -> List[str]:
         return []
 
+    def _wait_for_wmi_service_ready(self) -> None:
+        node = self._node
+        powershell = node.tools[PowerShell]
+        # Wait for WMI service to be ready
+        powershell.run_cmdlet(
+            "while ((Get-Service winmgmt).Status -ne 'Running') { Start-Sleep -Seconds 1 }",
+            force_run=True,
+        )
+
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
         node = self._node
         powershell = node.tools[PowerShell]
+
+        # Wait for WMI service to be ready after reboot
+        self._wait_for_wmi_service_ready()
+
         # Install Hyper-V and DHCP server
         powershell.run_cmdlet(
             "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
@@ -37,6 +50,9 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         )
         # Reboot the node to apply the changes
         node.reboot()
+
+        # Wait for WMI service to be ready after reboot
+        self._wait_for_wmi_service_ready()
 
         # Create and Configure the Hyper-V switch
         powershell.run_cmdlet(
