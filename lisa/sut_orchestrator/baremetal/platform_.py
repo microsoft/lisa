@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
-from lisa import RemoteNode, feature, schema, search_space
+from lisa import RemoteNode, feature, schema
 from lisa.environment import Environment
 from lisa.platform_ import Platform
 from lisa.util.logger import Logger
@@ -20,7 +20,7 @@ from .features import SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
-from .schema import BareMetalPlatformSchema, BuildSchema, ClientCapability
+from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
 
 
@@ -56,17 +56,21 @@ class BareMetalPlatform(Platform):
         # currently only support one cluster
         assert self._baremetal_runbook.cluster, "no cluster is specified in the runbook"
         self._cluster_runbook = self._baremetal_runbook.cluster[0]
+
         self.cluster = self.cluster_factory.create_by_runbook(
             self._cluster_runbook, parent_logger=self._log
         )
+        self.cluster.initialize()
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
-        client_capability = self.cluster.get_client_capability(
-            self.cluster.runbook.client[0]
-        )
-        return self._configure_node_capability(environment, log, client_capability)
+        assert environment.runbook.nodes_requirement, "nodes requirement is required"
+        if len(environment.runbook.nodes_requirement) > 1:
+            # so far only supports one node
+            return False
+
+        return self._check_capability(environment, log, self.cluster.client)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         # process the cluster elements from runbook
@@ -193,61 +197,25 @@ class BareMetalPlatform(Platform):
             node_context.connection = connection_info
             index = index + 1
 
-    def _configure_node_capability(
+    def _check_capability(
         self,
         environment: Environment,
         log: Logger,
-        client_capability: ClientCapability,
+        client_capability: schema.NodeSpace,
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
-        nodes_capability = self._create_node_capability(client_capability)
-
         nodes_requirement = []
         for node_space in environment.runbook.nodes_requirement:
-            if not node_space.check(nodes_capability):
+            if not node_space.check(client_capability):
                 return False
 
-            node_requirement = node_space.generate_min_capability(nodes_capability)
+            node_requirement = node_space.generate_min_capability(client_capability)
             nodes_requirement.append(node_requirement)
 
         environment.runbook.nodes_requirement = nodes_requirement
         return True
-
-    def _create_node_capability(
-        self, cluster_capabilities: ClientCapability
-    ) -> schema.NodeSpace:
-        node_capability = schema.NodeSpace()
-        node_capability.name = "baremetal"
-        node_capability.node_count = 1
-        node_capability.core_count = search_space.IntRange(
-            min=1, max=cluster_capabilities.core_count
-        )
-        node_capability.memory_mb = cluster_capabilities.free_memory_mb
-        node_capability.disk = schema.DiskOptionSettings(
-            data_disk_count=search_space.IntRange(min=0),
-            data_disk_size=search_space.IntRange(min=1),
-        )
-        node_capability.network_interface = schema.NetworkInterfaceOptionSettings()
-        node_capability.network_interface.max_nic_count = 1
-        node_capability.network_interface.nic_count = 1
-        node_capability.network_interface.data_path = search_space.SetSpace[
-            schema.NetworkDataPath
-        ](
-            is_allow_set=True,
-            items=[schema.NetworkDataPath.Sriov, schema.NetworkDataPath.Synthetic],
-        )
-        node_capability.gpu_count = 0
-        node_capability.features = search_space.SetSpace[schema.FeatureSettings](
-            is_allow_set=True,
-            items=[
-                schema.FeatureSettings.create(SerialConsole.name()),
-                schema.FeatureSettings.create(StartStop.name()),
-            ],
-        )
-
-        return node_capability
 
     def _cleanup(self) -> None:
         self.cluster.cleanup()
