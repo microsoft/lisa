@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Type
 
 from lisa import schema
 from lisa.tools import PowerShell
+from lisa.tools.hyperv import HyperV
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -47,36 +48,6 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         raise AssertionError(f"'{service_name}' service is not ready")
 
     @retry(tries=3, delay=10)
-    def _create_vswitch(
-        self,
-        powershell: PowerShell,
-        switch_name: str,
-        switch_type: str,
-    ) -> None:
-        # Check if the Hyper-V switch already exists
-        output = powershell.run_cmdlet(
-            f"Get-VMSwitch -Name '{switch_name}'",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        # switch_exists = json.loads(output)
-        if output:
-            return
-        # Create and Configure the Hyper-V switch
-        powershell.run_cmdlet(
-            f"New-VMSwitch -Name '{switch_name}' -SwitchType {switch_type}",
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            f"New-NetNat -Name '{switch_name}' -InternalIPInterfaceAddressPrefix '192.168.0.0/24' -Confirm:$false",  # noqa: E501
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
-            force_run=True,
-        )
-
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
@@ -99,33 +70,9 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         )
         # Reboot the node to apply the changes
         node.reboot()
-        self._create_vswitch(powershell, "InternalNAT", "Internal")
+        hv = node.tools[HyperV]
 
-        self._configure_dhcp(powershell, dhcp_scope_name="DHCPInternalNAT")
+        hv.setup_nat_networking(switch_name="InternalNAT", nat_name="InternalNAT")
+
+        hv.configure_dhcp()
         return {}
-
-    def _configure_dhcp(self, powershell: PowerShell, dhcp_scope_name: str) -> None:
-        # check if DHCP server is already configured
-        output = powershell.run_cmdlet(
-            "Get-DhcpServerv4Scope",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        if output:
-            return
-        # Configure the DHCP server
-        powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
-            force_run=True,
-        )
-        # Restart the DHCP server to apply the changes
-        powershell.run_cmdlet(
-            "Restart-service dhcpserver",
-            force_run=True,
-        )
-        self._wait_for_service_ready("dhcpserver")

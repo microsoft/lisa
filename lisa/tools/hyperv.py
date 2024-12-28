@@ -240,13 +240,13 @@ class HyperV(Tool):
                 force_run=True,
             )
 
-    def create_switch(self, name: str) -> None:
+    def create_switch(self, name: str, switch_type: str = "Internal") -> None:
         # remove switch if it exists
         self.delete_switch(name)
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
-            f"New-VMSwitch -Name {name} -SwitchType Internal",
+            f"New-VMSwitch -Name {name} -SwitchType {switch_type}",
             force_run=True,
         )
 
@@ -407,9 +407,12 @@ class HyperV(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
-
+        powershell = self.node.tools[PowerShell]
+        # check if Hyper-V is already installed
+        if self._check_exists():
+            return True
         # enable hyper-v
-        self.node.tools[PowerShell].run_cmdlet(
+        powershell.run_cmdlet(
             "Install-WindowsFeature -Name Hyper-V -IncludeManagementTools",
             force_run=True,
         )
@@ -431,4 +434,30 @@ class HyperV(Tool):
             extra_args = {}
         return pwsh.run_cmdlet(
             f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+        )
+
+    def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
+        powershell = self.node.tools[PowerShell]
+        # check if DHCP server is already configured
+        output = powershell.run_cmdlet(
+            "Get-DhcpServerv4Scope",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        if output:
+            return
+        # Configure the DHCP server
+        powershell.run_cmdlet(
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            force_run=True,
+        )
+        # Restart the DHCP server to apply the changes
+        powershell.run_cmdlet(
+            "Restart-service dhcpserver",
+            force_run=True,
         )
