@@ -25,6 +25,9 @@ class PowerShell(Tool):
         cmdlet: str,
         force_run: bool = False,
         sudo: bool = False,
+        # Powershell error log is the xml format, it needs extra decoding. But
+        # for long running script, it needs to look real time results.
+        no_debug_log: bool = True,
     ) -> Process:
         # encoding command for any special characters
         self._log.debug(f"encoding command: {cmdlet}")
@@ -39,7 +42,7 @@ class PowerShell(Tool):
             shell=True,
             no_error_log=True,
             no_info_log=True,
-            no_debug_log=True,
+            no_debug_log=no_debug_log,
         )
 
     def run_cmdlet(
@@ -49,15 +52,21 @@ class PowerShell(Tool):
         sudo: bool = False,
         fail_on_error: bool = True,
         timeout: int = 600,
+        # Powershell error log is the xml format, it needs extra decoding. But
+        # for long running script, it needs to look real time results.
+        no_debug_log: bool = True,
     ) -> str:
         process = self.run_cmdlet_async(
-            cmdlet=cmdlet,
-            force_run=force_run,
-            sudo=sudo,
+            cmdlet=cmdlet, force_run=force_run, sudo=sudo, no_debug_log=no_debug_log
         )
 
         result = self.wait_result(
-            process=process, cmdlet=cmdlet, fail_on_error=fail_on_error, timeout=timeout
+            process=process,
+            cmdlet=cmdlet,
+            fail_on_error=fail_on_error,
+            timeout=timeout,
+            # if stdout is output already, it doesn't need to output again.
+            no_debug_log=not no_debug_log,
         )
 
         return result.stdout
@@ -68,6 +77,7 @@ class PowerShell(Tool):
         cmdlet: str = "",
         fail_on_error: bool = True,
         timeout: int = 600,
+        no_debug_log: bool = True,
     ) -> ExecutableResult:
         result = process.wait_result(timeout=timeout)
         stderr = self._parse_error_message(result.stderr)
@@ -81,7 +91,7 @@ class PowerShell(Tool):
                 )
             else:
                 self._log.debug(f"stderr:\n{stderr}")
-        else:
+        elif no_debug_log is False:
             self._log.debug(f"stdout:\n{result.stdout}")
 
         return result
