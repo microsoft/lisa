@@ -301,7 +301,7 @@ class Process:
                 cwd=cwd_path,
                 update_env=update_envs,
                 allow_error=True,
-                store_pid=self._is_posix,
+                store_pid=True,
                 encoding=encoding,
                 use_pty=use_pty,
             )
@@ -448,17 +448,26 @@ class Process:
             and self._shell._inner_shell._spur._shell_type
             == spur.ssh.ShellTypes.minimal
         ):
+            self._log.debug("skip killing process on minimal shell")
             return
         if self._process:
-            self._log.debug(f"Killing process : {self._id_}")
+            self._log.debug(f"Killing process : {self._id_}, pid: {self._process.pid}")
             try:
-                if self._shell.is_remote:
-                    # Support remote Posix so far
-                    self._process.send_signal(9)
+                if self._is_posix:
+                    if self._shell.is_remote:
+                        # Support remote Posix so far
+                        self._process.send_signal(9)
+                    else:
+                        # local process should use the compiled value
+                        # the value is different between windows and posix
+                        self._process.send_signal(signal.SIGTERM)
                 else:
-                    # local process should use the compiled value
-                    # the value is different between windows and posix
-                    self._process.send_signal(signal.SIGTERM)
+                    # windows
+                    kill_process = Process(
+                        self._id_, self._shell, parent_logger=self._log
+                    )
+                    kill_process.start("taskkill /F /T /PID " + str(self._process.pid))
+                    kill_process.wait_result(1)
             except Exception as identifier:
                 self._log.debug(f"failed on killing process: {identifier}")
 
