@@ -28,6 +28,10 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def deploy(self, environment: Environment) -> Any:
         raise NotImplementedError()
 
+    def delete(self, environment: Environment, log: Logger) -> None:
+        # the delete is not required for all clusters.
+        pass
+
     def has_serial_console(self) -> bool:
         raise NotImplementedError()
 

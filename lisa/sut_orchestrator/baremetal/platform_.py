@@ -104,6 +104,9 @@ class BareMetalPlatform(Platform):
 
         self._log.debug(f"deploy environment {environment.name} successfully")
 
+    def _delete_environment(self, environment: Environment, log: Logger) -> None:
+        self.cluster.delete(environment, log)
+
     def _copy(self, build_schema: BuildSchema, sources_path: List[Path]) -> None:
         if sources_path:
             build = self.build_factory.create_by_runbook(build_schema)
