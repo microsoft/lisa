@@ -5,10 +5,12 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional
+import json
 
 from assertpy import assert_that
 from dataclasses_json import config, dataclass_json
 
+from lisa import schema
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
@@ -436,8 +438,32 @@ class HyperV(Tool):
             f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
         )
 
+
+    def wait_for_service_ready(self, service_name: str) -> None:
+        node = self.node
+        powershell = node.tools[PowerShell]
+        # Wait for WMI service to be ready
+        for _ in range(10):
+            output = powershell.run_cmdlet(
+                f"Get-Service {service_name}",
+                force_run=True,
+                output_json=True,
+            )
+            service_status = json.loads(output)
+            print(service_status["Status"])
+            if int(schema.WindowsServiceStatus.RUNNING) == service_status["Status"]:
+                return
+            time.sleep(5)
+
+        raise AssertionError(f"'{service_name}' service is not ready")
+
     def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
         powershell = self.node.tools[PowerShell]
+        powershell.run_cmdlet(
+            "Install-WindowsFeature -Name DHCP -IncludeManagementTools",
+            force_run=True,
+        )
+
         # check if DHCP server is already configured
         output = powershell.run_cmdlet(
             "Get-DhcpServerv4Scope",
@@ -461,3 +487,6 @@ class HyperV(Tool):
             "Restart-service dhcpserver",
             force_run=True,
         )
+
+        # Wait for DHCP server to be ready
+        self.wait_for_service_ready("dhcpserver")
