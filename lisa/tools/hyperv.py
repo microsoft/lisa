@@ -463,6 +463,14 @@ class HyperV(Tool):
             "Install-WindowsFeature -Name DHCP -IncludeManagementTools",
             force_run=True,
         )
+        # Restart the DHCP server to apply the changes
+        powershell.run_cmdlet(
+            "Restart-service dhcpserver",
+            force_run=True,
+        )
+
+        # Wait for DHCP server to be ready
+        self.wait_for_service_ready("dhcpserver")
 
         # check if DHCP server is already configured
         output = powershell.run_cmdlet(
