@@ -347,7 +347,7 @@ class Process:
                     break
 
     def input(self, content: str) -> None:
-        assert self._process
+        assert self._process, "The process object is None, the process may end."
         self._log.debug(f"Inputting {len(content)} chars to process.")
         self._process.stdin_write(content)
 
