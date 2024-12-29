@@ -12,6 +12,7 @@ from dataclasses_json import config, dataclass_json
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
+from lisa.tools.windows_feature import WindowsFeature
 from lisa.util import LisaException
 from lisa.util.process import Process
 from lisa.tools.service import Service
@@ -395,28 +396,15 @@ class HyperV(Tool):
         )
 
     def _check_exists(self) -> bool:
-        try:
-            self.node.tools[PowerShell].run_cmdlet(
-                "Get-VM",
-                force_run=True,
-            )
-            self._log.debug("Hyper-V is installed")
-            return True
-        except LisaException as e:
-            self._log.debug(f"Hyper-V not installed: {e}")
-            return False
+        return self.node.tools[WindowsFeature].is_installed("Hyper-V")
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
-        powershell = self.node.tools[PowerShell]
         # check if Hyper-V is already installed
         if self._check_exists():
             return True
         # enable hyper-v
-        powershell.run_cmdlet(
-            "Install-WindowsFeature -Name Hyper-V -IncludeManagementTools",
-            force_run=True,
-        )
+        self.node.tools[WindowsFeature].install_feature("Hyper-V")
 
         # reboot node
         self.node.reboot()
@@ -440,10 +428,8 @@ class HyperV(Tool):
     def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
         powershell = self.node.tools[PowerShell]
         service = self.node.tools[Service]
-        powershell.run_cmdlet(
-            "Install-WindowsFeature -Name DHCP -IncludeManagementTools",
-            force_run=True,
-        )
+        self.node.tools[WindowsFeature].install_feature("DHCP")
+
         # Restart the DHCP server to apply the changes
         service.restart("dhcpserver")
 
