@@ -7,7 +7,7 @@ from xml.etree import ElementTree
 
 from lisa.executable import Tool
 from lisa.util import LisaException
-from lisa.util.process import Process
+from lisa.util.process import ExecutableResult, Process
 
 
 class PowerShell(Tool):
@@ -56,20 +56,35 @@ class PowerShell(Tool):
             sudo=sudo,
         )
 
+        result = self.wait_result(
+            process=process, cmdlet=cmdlet, fail_on_error=fail_on_error, timeout=timeout
+        )
+
+        return result.stdout
+
+    def wait_result(
+        self,
+        process: Process,
+        cmdlet: str = "",
+        fail_on_error: bool = True,
+        timeout: int = 600,
+    ) -> ExecutableResult:
         result = process.wait_result(timeout=timeout)
-        if result.exit_code == 0:
-            self._log.debug(f"stdout:\n{result.stdout}")
-        else:
-            stderr = self._parse_error_message(result.stderr)
-            self._log.debug(f"stderr:\n{stderr}")
+        stderr = self._parse_error_message(result.stderr)
+        if result.exit_code != 0 or stderr:
             if fail_on_error:
                 raise LisaException(
-                    f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
+                    f"non-zero exit code {result.exit_code} or error found "
+                    f"from cmdlet '{cmdlet}'. "
                     f"output:\n{result.stdout}"
                     f"error:\n{stderr}"
                 )
+            else:
+                self._log.debug(f"stderr:\n{stderr}")
+        else:
+            self._log.debug(f"stdout:\n{result.stdout}")
 
-        return result.stdout
+        return result
 
     def install_module(self, name: str) -> None:
         self.run_cmdlet(
