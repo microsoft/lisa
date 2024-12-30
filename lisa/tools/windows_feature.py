@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, List
 from lisa.util import LisaException
 
 from lisa.executable import Tool
@@ -63,7 +63,7 @@ class WindowsFeature(Tool):
             == "True"
         )
 
-    def get_installed_features(self) -> list[str]:
+    def get_installed_features(self) -> List[str]:
         return (
             self._powershell.run_cmdlet(
                 "Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object -ExpandProperty Name",  # noqa: E501
@@ -73,7 +73,7 @@ class WindowsFeature(Tool):
             .split("\n")
         )
 
-    def get_available_features(self) -> list[str]:
+    def get_available_features(self) -> List[str]:
         return (
             self._powershell.run_cmdlet(
                 "Get-WindowsFeature | Where-Object { $_.Installed -eq $false } | Select-Object -ExpandProperty Name",  # noqa: E501
