@@ -1,10 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Type
+from time import sleep
+from typing import Optional, Type, Any
 
+from assertpy import assert_that
+
+from lisa import schema
 from lisa.executable import ExecutableResult, Tool
+from lisa.tools.powershell import PowerShell
 from lisa.util import (
+    LisaException,
     UnsupportedDistroException,
     filter_ansi_escape,
     find_group_in_lines,
@@ -24,6 +30,10 @@ class Service(Tool):
     @property
     def can_install(self) -> bool:
         return False
+
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsService
 
     def _check_exists(self) -> bool:
         cmd_result = self.node.execute(
@@ -57,6 +67,89 @@ class Service(Tool):
 
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
+
+
+class WindowsService(Tool):
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._command = ""
+        self._powershell = self.node.tools[PowerShell]
+
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    @property
+    def command(self) -> str:
+        return self._command
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self._powershell.run_cmdlet(
+            f"Restart-service {name}",
+            force_run=True,
+        )
+        self.wait_for_till_ready(name)
+
+    def wait_for_till_ready(self, name: str) -> None:
+        for _ in range(10):
+            service_status = self._powershell.run_cmdlet(
+                f"Get-Service {name}",
+                force_run=True,
+                output_json=True,
+            )
+            if schema.WindowsServiceStatus.RUNNING == schema.WindowsServiceStatus(
+                service_status["Status"]
+            ):
+                return
+
+            self._log.debug(
+                f"service '{name}' is not ready yet, retrying... after 5 seconds"
+            )
+            sleep(5)
+
+        raise LisaException(f"service '{name}' failed to start")
+
+    def _get_status(self, name: str = "") -> schema.WindowsServiceStatus:
+        service_status = self._powershell.run_cmdlet(
+            f"Get-Service {name}",
+            force_run=True,
+            output_json=True,
+        )
+        if not service_status:
+            raise LisaException(f"service '{name}' does not exist")
+        return schema.WindowsServiceStatus(service_status["Status"])
+
+    def stop_service(self, name: str) -> None:
+        self._powershell.run_cmdlet(
+            f"Stop-Service {name} -Force",
+            force_run=True,
+            output_json=True,
+        )
+        assert_that(self._get_status(name)).described_as(
+            f"Failed to stop service {name}"
+        ).is_not_equal_to(schema.WindowsServiceStatus.RUNNING)
+
+    def enable_service(self, name: str) -> None:
+        raise NotImplementedError()
+
+    def check_service_status(self, name: str) -> bool:
+        return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
+
+    def check_service_exists(self, name: str) -> bool:
+        try:
+            self._get_status(name)
+            return True
+        except LisaException:
+            return False
+
+    def is_service_inactive(self, name: str) -> bool:
+        return self._get_status(name) == schema.WindowsServiceStatus.STOPPED
+
+    # Check if service is running
+    def is_service_running(self, name: str) -> bool:
+        return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
 
 
 class ServiceInternal(Tool):

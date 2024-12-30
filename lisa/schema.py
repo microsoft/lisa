@@ -431,7 +431,7 @@ disk_type_priority: List[DiskType] = [
 ]
 
 
-class ServiceStatus(int, Enum):
+class WindowsServiceStatus(int, Enum):
     CONTINUE_PENDING = 5
     PAUSE_PENDING = 6
     PAUSED = 7
