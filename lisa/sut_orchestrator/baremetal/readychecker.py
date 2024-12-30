@@ -107,10 +107,11 @@ class SshChecker(ReadyChecker):
         connection = context.client.connection
         remote_node.set_connection_info(
             address=connection.address,
-            public_port=connection.port,
+            port=connection.port,
             username=connection.username,
             password=connection.password,
             private_key_file=connection.private_key_file,
+            use_public_address=False,
         )
         self._log.debug(f"try to connect to client: {node}")
         try_connect(
