@@ -27,7 +27,6 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _output_names(self) -> List[str]:
         return []
 
-    @retry(tries=3, delay=10)
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)

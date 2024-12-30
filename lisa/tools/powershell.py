@@ -72,7 +72,7 @@ class PowerShell(Tool):
                     f"output:\n{result.stdout}"
                     f"error:\n{stderr}"
                 )
-        if output_json:
+        if output_json and result.stdout:
             return json.loads(result.stdout)
         return result.stdout
 

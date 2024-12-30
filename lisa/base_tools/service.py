@@ -68,6 +68,9 @@ class Service(Tool):
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
 
+    def wait_for_service_start(self, name: str) -> None:
+        raise NotImplementedError()
+
 
 class WindowsService(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -90,9 +93,9 @@ class WindowsService(Tool):
             f"Restart-service {name}",
             force_run=True,
         )
-        self.wait_for_till_ready(name)
+        self.wait_for_service_start(name)
 
-    def wait_for_till_ready(self, name: str) -> None:
+    def wait_for_service_start(self, name: str) -> None:
         for _ in range(10):
             service_status = self._powershell.run_cmdlet(
                 f"Get-Service {name}",
