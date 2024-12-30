@@ -3,6 +3,7 @@
 
 import base64
 from typing import Any
+import json
 from xml.etree import ElementTree
 
 from lisa.executable import Tool
@@ -50,7 +51,7 @@ class PowerShell(Tool):
         sudo: bool = False,
         fail_on_error: bool = True,
         timeout: int = 600,
-    ) -> str:
+    ) -> Any:
         if output_json:
             cmdlet = f"{cmdlet} | ConvertTo-Json"
         process = self.run_cmdlet_async(
@@ -71,7 +72,8 @@ class PowerShell(Tool):
                     f"output:\n{result.stdout}"
                     f"error:\n{stderr}"
                 )
-
+        if output_json:
+            return json.loads(result.stdout)
         return result.stdout
 
     def install_module(self, name: str) -> None:
