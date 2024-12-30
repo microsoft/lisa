@@ -213,8 +213,8 @@ class Process:
         self._nohup: bool = False
 
         # add a string stream handler to the logger
-        self._log_buffer = io.StringIO()
-        self._log_handler = logging.StreamHandler(self._log_buffer)
+        self.log_buffer = io.StringIO()
+        self._log_handler = logging.StreamHandler(self.log_buffer)
         msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
         add_handler(self._log_handler, self._log, msg_only_format)
 
@@ -378,7 +378,7 @@ class Process:
                 process_result = spur.results.result(
                     return_code=1,
                     allow_error=True,
-                    output=self._log_buffer.getvalue(),
+                    output=self.log_buffer.getvalue(),
                     stderr_output="",
                 )
             else:
@@ -492,7 +492,7 @@ class Process:
             self._stdout_writer.flush()
 
             # check if buffer contains the keyword
-            if keyword in self._log_buffer.getvalue():
+            if keyword in self.log_buffer.getvalue():
                 return
 
             time.sleep(interval)
