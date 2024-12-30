@@ -91,16 +91,20 @@ class BareMetalPlatform(Platform):
             if ready_checker:
                 ready_checker.is_ready(node)
 
+            assert node_context.client.connection, "connection is required"
             # get ip address
             if self._cluster_runbook.ip_getter:
                 ip_getter = self.ip_getter_factory.create_by_runbook(
                     self._cluster_runbook.ip_getter
                 )
-                node_context.connection.address = ip_getter.get_ip()
+
+                node_context.client.connection.address = ip_getter.get_ip()
 
             assert isinstance(node, RemoteNode), f"actual: {type(node)}"
             node.name = f"node_{index}"
-            try_connect(node_context.connection)
+            try_connect(
+                node_context.client.connection.get_connection_info(is_public=False)
+            )
 
         self._log.debug(f"deploy environment {environment.name} successfully")
 
@@ -187,17 +191,8 @@ class BareMetalPlatform(Platform):
                     index
                 ].connection.private_key_file = key_file
 
-            connection_info = schema.ConnectionInfo(
-                address=self.cluster.runbook.client[index].connection.address,
-                port=self.cluster.runbook.client[index].connection.port,
-                username=self.cluster.runbook.client[index].connection.username,
-                private_key_file=self.cluster.runbook.client[
-                    index
-                ].connection.private_key_file,
-                password=self.cluster.runbook.client[index].connection.password,
-            )
-
-            node_context.connection = connection_info
+            node_context.client = self.cluster.runbook.client[index]
+            node_context.cluster = self.cluster.runbook
             index = index + 1
 
     def _check_capability(
