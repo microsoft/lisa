@@ -481,8 +481,8 @@ class Process:
         keyword: str,
         timeout: int = 300,
         error_on_missing: bool = True,
-        interval: int = 1,
-    ) -> None:
+        interval: float = 1,
+    ) -> bool:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
         start_time = time.time()
@@ -493,7 +493,7 @@ class Process:
 
             # check if buffer contains the keyword
             if keyword in self.log_buffer.getvalue():
-                return
+                return True
 
             time.sleep(interval)
 
@@ -505,6 +505,8 @@ class Process:
             self._log.debug(
                 f"not found '{keyword}' in {timeout} seconds, but ignore it."
             )
+
+        return False
 
     def _recycle_resource(self) -> None:
         # TODO: The spur library is not very good and leaves open
