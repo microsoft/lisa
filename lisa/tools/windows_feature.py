@@ -5,11 +5,14 @@ from typing import Any, List
 
 from lisa.executable import Tool
 from lisa.tools.powershell import PowerShell
+from lisa.util import LisaException
 
 
-# WindowsFeature management tool for Windows.
+# WindowsFeature management tool for Windows Servers.
 # It can install, uninstall, and check the status of Windows features.
+# Hyper-V, DHCP etc. are examples of Windows features.
 # This tool uses PowerShell to manage Windows features.
+# Not supported on PC versions like Windows 10, 11 etc.
 class WindowsFeature(Tool):
     @property
     def command(self) -> str:
@@ -20,7 +23,16 @@ class WindowsFeature(Tool):
         return False
 
     def _check_exists(self) -> bool:
-        return True
+        try:
+            self.node.tools[PowerShell].run_cmdlet(
+                "Get-WindowsFeature",
+                force_run=True,
+            )
+            self._log.debug("'Get-WindowsFeature' is installed")
+            return True
+        except LisaException as e:
+            self._log.debug(f"'Get-WindowsFeature' is not available: {e}")
+            return False
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._powershell = self.node.tools[PowerShell]
