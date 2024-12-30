@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from functools import partial
 
-from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 
+from . import schema as baremetal_schema
 from .build import Build
 
 
@@ -15,8 +14,11 @@ class EnvironmentContext:
 
 @dataclass
 class NodeContext:
-    connection: schema.ConnectionInfo = field(
-        default_factory=partial(schema.ConnectionInfo, password="mock")
+    cluster: baremetal_schema.ClusterSchema = field(
+        default_factory=baremetal_schema.ClusterSchema
+    )
+    client: baremetal_schema.ClientSchema = field(
+        default_factory=baremetal_schema.ClientSchema
     )
 
 
