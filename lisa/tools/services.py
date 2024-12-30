@@ -11,7 +11,7 @@ from lisa.tools.powershell import PowerShell
 from lisa.util import LisaException
 
 
-class Service(Tool):
+class Services(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # timeout to wait
         self._command = "/usr/sbin/service"
@@ -30,12 +30,12 @@ class Service(Tool):
     def restart(self, name: str) -> None:
         self.run(f"{self.command} {name} restart", shell=True, sudo=True)
 
-    def wait_for_till_ready(self, name: str) -> None:
+    def wait_for_service_start(self, name: str) -> None:
         raise NotImplementedError()
 
-    def get_status(self, name: str = "") -> schema.ServiceStatus:
+    def get_status(self, name: str = "") -> schema.WindowsServiceStatus:
         raise NotImplementedError()
-
+ 
 
 class WindowsService(Service):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
@@ -54,17 +54,16 @@ class WindowsService(Service):
             f"Restart-service {name}",
             force_run=True,
         )
-        self.wait_for_till_ready(name)
+        self.wait_for_service_start(name)
 
-    def wait_for_till_ready(self, name: str) -> None:
+    def wait_for_service_start(self, name: str) -> None:
         for _ in range(10):
-            output = self._powershell.run_cmdlet(
+            service_status = self._powershell.run_cmdlet(
                 f"Get-Service {name}",
                 force_run=True,
                 output_json=True,
             )
-            service_status = json.loads(output)
-            if schema.ServiceStatus.RUNNING == schema.ServiceStatus(
+            if schema.WindowsServiceStatus.RUNNING == schema.WindowsServiceStatus(
                 service_status["Status"]
             ):
                 return
@@ -76,11 +75,10 @@ class WindowsService(Service):
 
         raise LisaException(f"service '{name}' failed to start")
 
-    def get_status(self, name: str = "") -> schema.ServiceStatus:
-        output = self._powershell.run_cmdlet(
+    def get_status(self, name: str = "") -> schema.WindowsServiceStatus:
+        service_status = self._powershell.run_cmdlet(
             f"Get-Service {name}",
             force_run=True,
             output_json=True,
         )
-        service_status = json.loads(output)
-        return schema.ServiceStatus(service_status["Status"])
+        return schema.WindowsServiceStatus(service_status["Status"])
