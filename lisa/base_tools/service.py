@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from time import sleep
-from typing import Optional, Type, Any
+from typing import Any, Optional, Type
 
 from assertpy import assert_that
 
@@ -101,6 +101,7 @@ class WindowsService(Tool):
                 f"Get-Service {name}",
                 force_run=True,
                 output_json=True,
+                fail_on_error=False,
             )
             if schema.WindowsServiceStatus.RUNNING == schema.WindowsServiceStatus(
                 service_status["Status"]
@@ -110,7 +111,7 @@ class WindowsService(Tool):
             self._log.debug(
                 f"service '{name}' is not ready yet, retrying... after 5 seconds"
             )
-            sleep(5)
+            sleep(3)
 
         raise LisaException(f"service '{name}' failed to start")
 
@@ -119,6 +120,7 @@ class WindowsService(Tool):
             f"Get-Service {name}",
             force_run=True,
             output_json=True,
+            fail_on_error=False,
         )
         if not service_status:
             raise LisaException(f"service '{name}' does not exist")
@@ -129,6 +131,7 @@ class WindowsService(Tool):
             f"Stop-Service {name} -Force",
             force_run=True,
             output_json=True,
+            fail_on_error=False,
         )
         assert_that(self._get_status(name)).described_as(
             f"Failed to stop service {name}"

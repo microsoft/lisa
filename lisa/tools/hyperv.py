@@ -18,6 +18,7 @@ from lisa.util.process import Process
 
 from lisa.base_tools import Service
 
+
 @dataclass_json
 @dataclass
 class VMSwitch:
@@ -211,6 +212,7 @@ class HyperV(Tool):
             'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
             "| Select -First 1 | select Name | ConvertTo-Json",
             force_run=True,
+            fail_on_error=False,
         )
 
         if not switch_json:
@@ -223,6 +225,7 @@ class HyperV(Tool):
             'Get-VMSwitch | Where-Object {$_.SwitchType -eq "Internal"} '
             "| Select -First 1 | select Name | ConvertTo-Json",
             force_run=True,
+            fail_on_error=False,
         )
 
         if not switch_json:
@@ -238,16 +241,17 @@ class HyperV(Tool):
         )
         return output.strip() != ""
 
-    def delete_switch(self, name: str) -> None:
+    def delete_switch(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_switch(name):
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-VMSwitch -Name {name} -Force",
                 force_run=True,
+                fail_on_error=fail_on_error,
             )
 
     def create_switch(self, name: str, switch_type: str = "Internal") -> None:
         # remove switch if it exists
-        self.delete_switch(name)
+        self.delete_switch(name, fail_on_error=False)
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
@@ -270,16 +274,17 @@ class HyperV(Tool):
         )
         return output.strip() != ""
 
-    def delete_nat(self, name: str) -> None:
+    def delete_nat(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_nat(name):
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-NetNat -Name {name} -Confirm:$false",
                 force_run=True,
+                fail_on_error=fail_on_error,
             )
 
     def create_nat(self, name: str, ip_range: str) -> None:
         # delete NAT if it exists
-        self.delete_nat(name)
+        self.delete_nat(name, fail_on_error=False)
 
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(

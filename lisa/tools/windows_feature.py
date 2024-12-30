@@ -55,16 +55,17 @@ class WindowsFeature(Tool):
         )
 
     def is_installed(self, name: str) -> bool:
-        return (
+        return bool(
             self._powershell.run_cmdlet(
                 f"Get-WindowsFeature -Name {name} | Select-Object -ExpandProperty Installed",  # noqa: E501
                 force_run=True,
+                fail_on_error=False,
             ).strip()
             == "True"
         )
 
     def get_installed_features(self) -> List[str]:
-        return (
+        return List(
             self._powershell.run_cmdlet(
                 "Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object -ExpandProperty Name",  # noqa: E501
                 force_run=True,
@@ -74,7 +75,7 @@ class WindowsFeature(Tool):
         )
 
     def get_available_features(self) -> List[str]:
-        return (
+        return List(
             self._powershell.run_cmdlet(
                 "Get-WindowsFeature | Where-Object { $_.Installed -eq $false } | Select-Object -ExpandProperty Name",  # noqa: E501
                 force_run=True,
