@@ -37,7 +37,7 @@ class HyperV(Tool):
         return False
 
     def _check_exists(self) -> bool:
-        return True
+        return self.node.tools[WindowsFeature].is_installed("Hyper-V")
 
     def exists_vm(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
@@ -397,9 +397,6 @@ class HyperV(Tool):
             "-ResiliencySettingName Simple",
             force_run=True,
         )
-
-    def _check_exists(self) -> bool:
-        return self.node.tools[WindowsFeature].is_installed("Hyper-V")
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)

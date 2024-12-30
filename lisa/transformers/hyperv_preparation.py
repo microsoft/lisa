@@ -32,17 +32,13 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
         node = self._node
-        powershell = node.tools[PowerShell]
 
-        powershell.run_cmdlet(
-            "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
-            force_run=True,
-        )
-        # Reboot the node to apply the changes
-        node.reboot()
+        # Install Hyper-V feature and reboot the server.
         hv = node.tools[HyperV]
 
+        # Setup Hyper-V networking
         hv.setup_nat_networking(switch_name="InternalNAT", nat_name="InternalNAT")
 
+        # Configure DHCP
         hv.configure_dhcp()
         return {}
