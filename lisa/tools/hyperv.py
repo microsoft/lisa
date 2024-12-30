@@ -34,6 +34,9 @@ class HyperV(Tool):
 
     @property
     def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
         return True
 
     def exists_vm(self, name: str) -> bool:

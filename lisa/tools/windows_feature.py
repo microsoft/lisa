@@ -14,8 +14,10 @@ class WindowsFeature(Tool):
 
     @property
     def can_install(self) -> bool:
-        # TODO: install PowerShell core on Linux.
         return False
+
+    def _check_exists(self) -> bool:
+        return True
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._powershell = self.node.tools[PowerShell]
