@@ -32,9 +32,6 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # the delete is not required for all clusters.
         pass
 
-    def has_serial_console(self) -> bool:
-        raise NotImplementedError()
-
     def get_serial_console(self) -> Type[features.SerialConsole]:
         raise NotImplementedError()
 
