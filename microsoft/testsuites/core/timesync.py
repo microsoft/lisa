@@ -414,6 +414,11 @@ class TimeSync(TestSuite):
         priority=2,
     )
     def verify_timesync_chrony(self, node: Node) -> None:
+        # On FreeBSD images, Chrony is not enabled by default after installation.
+        # To enabled it the line chronyd_enable=YES must be added to /etc/rc.conf.
+        if isinstance(node.os, BSD):
+            node.execute("chmod +x /etc/rc.conf", sudo=True)
+            node.execute("bash -c 'echo chronyd_enable=YES >> /etc/rc.conf'", sudo=True)
         chrony = node.tools[Chrony]
         # 1. Restart chrony service.
         chrony.restart()
