@@ -32,7 +32,7 @@ class WindowsFeatureManagement(Tool):
             return True
         except LisaException as e:
             self._log.debug(
-                f"'Get-WindowsFeature' is only available on Windows Server editions: {e}"
+                f"'Get-WindowsFeature' is only available on Windows Server editions {e}"
             )
             return False
 
