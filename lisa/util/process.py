@@ -214,9 +214,6 @@ class Process:
 
         # add a string stream handler to the logger
         self.log_buffer = io.StringIO()
-        self._log_handler = logging.StreamHandler(self.log_buffer)
-        msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
-        add_handler(self._log_handler, self._log, msg_only_format)
 
     @_retry_spawn
     def start(
@@ -251,6 +248,11 @@ class Process:
         self.stderr_logger = get_logger("stderr", parent=self._log)
         self._stdout_writer = LogWriter(logger=self.stdout_logger, level=stdout_level)
         self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
+
+        self._log_handler = logging.StreamHandler(self.log_buffer)
+        msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
+        add_handler(self._log_handler, self.stdout_logger, msg_only_format)
+        add_handler(self._log_handler, self.stderr_logger, msg_only_format)
 
         self._sudo = sudo
         self._nohup = nohup
