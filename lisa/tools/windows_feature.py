@@ -3,6 +3,7 @@
 
 from typing import Any, List
 from lisa.util import LisaException
+from lisa.operating_system import Windows
 
 from lisa.executable import Tool
 from lisa.tools.powershell import PowerShell
@@ -22,6 +23,7 @@ class WindowsFeature(Tool):
         return False
 
     def _check_exists(self) -> bool:
+        assert isinstance(self.node.os, Windows)
         try:
             self.node.tools[PowerShell].run_cmdlet(
                 "Get-WindowsFeature",
@@ -33,14 +35,11 @@ class WindowsFeature(Tool):
             self._log.debug(f"'Get-WindowsFeature' is not available: {e}")
             return False
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._powershell = self.node.tools[PowerShell]
-
     def install_feature(self, name: str) -> None:
         if self.is_installed(name):
             self._log.debug(f"Feature {name} is already installed.")
             return
-        self._powershell.run_cmdlet(
+        self.node.tools[PowerShell].run_cmdlet(
             f"Install-WindowsFeature -Name {name} -IncludeManagementTools",
             force_run=True,
         )
@@ -49,37 +48,17 @@ class WindowsFeature(Tool):
         if not self.is_installed(name):
             self._log.debug(f"Feature {name} is not installed.")
             return
-        self._powershell.run_cmdlet(
+        self.node.tools[PowerShell].run_cmdlet(
             f"Uninstall-WindowsFeature -Name {name}",
             force_run=True,
         )
 
     def is_installed(self, name: str) -> bool:
         return bool(
-            self._powershell.run_cmdlet(
+            self.node.tools[PowerShell].run_cmdlet(
                 f"Get-WindowsFeature -Name {name} | Select-Object -ExpandProperty Installed",  # noqa: E501
                 force_run=True,
                 fail_on_error=False,
             ).strip()
             == "True"
-        )
-
-    def get_installed_features(self) -> List[str]:
-        return List(
-            self._powershell.run_cmdlet(
-                "Get-WindowsFeature | Where-Object { $_.Installed -eq $true } | Select-Object -ExpandProperty Name",  # noqa: E501
-                force_run=True,
-            )
-            .strip()
-            .split("\n")
-        )
-
-    def get_available_features(self) -> List[str]:
-        return List(
-            self._powershell.run_cmdlet(
-                "Get-WindowsFeature | Where-Object { $_.Installed -eq $false } | Select-Object -ExpandProperty Name",  # noqa: E501
-                force_run=True,
-            )
-            .strip()
-            .split("\n")
         )
