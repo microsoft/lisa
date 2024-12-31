@@ -4,11 +4,10 @@
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
-from lisa import RemoteNode, feature, schema
+from lisa import feature, schema
 from lisa.environment import Environment
 from lisa.platform_ import Platform
 from lisa.util.logger import Logger
-from lisa.util.shell import try_connect
 from lisa.util.subclasses import Factory
 
 from .. import BAREMETAL
@@ -100,11 +99,8 @@ class BareMetalPlatform(Platform):
 
                 node_context.client.connection.address = ip_getter.get_ip()
 
-            assert isinstance(node, RemoteNode), f"actual: {type(node)}"
             node.name = f"node_{index}"
-            try_connect(
-                node_context.client.connection.get_connection_info(is_public=False)
-            )
+            node.initialize()
 
         self._log.debug(f"deploy environment {environment.name} successfully")
 
@@ -174,13 +170,13 @@ class BareMetalPlatform(Platform):
                 key_file = key_loader.load_key(self.local_artifacts_path)
 
         assert environment.runbook.nodes_requirement, "no node is specified"
-        for node_space in environment.runbook.nodes_requirement:
+        for index, node_space in enumerate(environment.runbook.nodes_requirement):
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
-            environment.create_node_from_requirement(node_space)
+            node = environment.create_node_from_requirement(node_space)
 
-        for index, node in enumerate(environment.nodes.list()):
+            node.features = feature.Features(node, self)
             node_context = get_node_context(node)
 
             if (
