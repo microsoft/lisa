@@ -180,6 +180,44 @@ class RackManagerSchema(ClusterSchema):
 
 @dataclass_json()
 @dataclass
+class SerialConsoleServer(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    # for internal most used default value
+    bps: int = 115200
+
+
+@dataclass_json()
+@dataclass
+class RemoteComSerialConsoleServer(SerialConsoleServer):
+    type: str = "remote_com"
+    connection: Optional[schema.RemoteNode] = field(
+        default=None, metadata=field_metadata(required=True)
+    )
+    plink_path: str = ""
+
+
+@dataclass_json()
+@dataclass
+class SerialConsoleClient(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    port: str = field(default="", metadata=field_metadata(required=True))
+    type: str = "com"
+
+
+@dataclass_json()
+@dataclass
+class PxeClient(ClientSchema):
+    serial_console: Optional[SerialConsoleClient] = field(default=None)
+
+
+@dataclass_json()
+@dataclass
+class PxeCluster(ClusterSchema):
+    type: str = "pxe"
+    serial_console: Optional[SerialConsoleServer] = field(default=None)
+    client: List[PxeClient] = field(default_factory=list)
+
+
+@dataclass_json()
+@dataclass
 class BareMetalPlatformSchema:
     source: Optional[SourceSchema] = field(default=None)
     cluster: List[ClusterSchema] = field(default_factory=list)

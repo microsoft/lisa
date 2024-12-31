@@ -40,6 +40,7 @@ try:
     import lisa.sut_orchestrator.baremetal.build  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.cluster  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.idrac  # noqa: F401
+    import lisa.sut_orchestrator.baremetal.cluster.pxe  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.rackmanager  # noqa: F401
     import lisa.sut_orchestrator.baremetal.ip_getter  # noqa: F401
     import lisa.sut_orchestrator.baremetal.platform_  # noqa: F401
