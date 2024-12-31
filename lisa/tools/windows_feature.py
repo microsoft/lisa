@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, List
-
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
@@ -14,7 +12,7 @@ from lisa.util import LisaException
 # Hyper-V, DHCP etc. are examples of Windows features.
 # This tool uses PowerShell to manage Windows features.
 # Not supported on PC versions like Windows 10, 11 etc.
-class WindowsFeature(Tool):
+class WindowsFeatureManagement(Tool):
     @property
     def command(self) -> str:
         return ""
@@ -33,7 +31,9 @@ class WindowsFeature(Tool):
             self._log.debug("'Get-WindowsFeature' is installed")
             return True
         except LisaException as e:
-            self._log.debug(f"'Get-WindowsFeature' is not available: {e}")
+            self._log.debug(
+                f"'Get-WindowsFeature' is only available on Windows Server editions: {e}"
+            )
             return False
 
     def install_feature(self, name: str) -> None:
@@ -56,10 +56,12 @@ class WindowsFeature(Tool):
 
     def is_installed(self, name: str) -> bool:
         return bool(
-            self.node.tools[PowerShell].run_cmdlet(
+            self.node.tools[PowerShell]
+            .run_cmdlet(
                 f"Get-WindowsFeature -Name {name} | Select-Object -ExpandProperty Installed",  # noqa: E501
                 force_run=True,
                 fail_on_error=False,
-            ).strip()
+            )
+            .strip()
             == "True"
         )
