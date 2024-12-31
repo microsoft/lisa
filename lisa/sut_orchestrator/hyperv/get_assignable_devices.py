@@ -15,8 +15,8 @@ from .schema import DeviceAddressSchema
 class HypervAssignableDevices:
     PKEY_DEVICE_TYPE = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  1"
     PKEY_BASE_CLASS = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  3"
-    PKEY_REQUIRES_RESERVED_MEMORY_REGION = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  34" # noqa E501
-    PKEY_ACS_COMPATIBLE_UP_HIERARCHY = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  31" # noqa E501
+    PKEY_REQUIRES_RESERVED_MEMORY_REGION = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  34"
+    PKEY_ACS_COMPATIBLE_UP_HIERARCHY = "{3AB22E31-8264-4b4e-9AF5-A8D2D8E33E62}  31"
     PROP_DEVICE_TYPE_PCI_EXPRESS_ENDPOINT = "2"
     PROP_DEVICE_TYPE_PCI_EXPRESS_LEGACY_ENDPOINT = "3"
     PROP_DEVICE_TYPE_PCI_EXPRESS_ROOT_COMPLEX_INTEGRATED_ENDPOINT = "4"
@@ -28,9 +28,9 @@ class HypervAssignableDevices:
         self.host_node = host_node
         self.log = log
         self.pwsh = self.host_node.tools[PowerShell]
-        self.pnp_allocated_resources: List[Dict[str, str]] = (
-            self.__load_pnp_allocated_resources()
-        )
+        self.pnp_allocated_resources: List[
+            Dict[str, str]
+        ] = self.__load_pnp_allocated_resources()
 
     def get_assignable_devices(
         self,
@@ -84,10 +84,12 @@ class HypervAssignableDevices:
             if not res:
                 raise LisaException("Can not extract DeviceId/Description")
 
-            devices.append({
-                "device_id": res["device_id"].strip(),
-                "friendly_name": res["desc"].strip(),
-            })
+            devices.append(
+                {
+                    "device_id": res["device_id"].strip(),
+                    "friendly_name": res["desc"].strip(),
+                }
+            )
         return devices
 
     def __get_pnp_device_property(self, device_id: str, property_name: str) -> str:
@@ -169,7 +171,7 @@ class HypervAssignableDevices:
         pnp_allocated_resources = stdout.strip().split("\r\n\r\n")
         result: List[Dict[str, str]] = []
         # Regular expression to match the key-value pairs
-        pattern = re.compile(r'(?P<key>\S+)\s*:\s*(?P<value>.*?)(?=\n\S|\Z)', re.DOTALL)
+        pattern = re.compile(r"(?P<key>\S+)\s*:\s*(?P<value>.*?)(?=\n\S|\Z)", re.DOTALL)
 
         for rec in pnp_allocated_resources:
             extract_val = {}
@@ -247,8 +249,7 @@ class HypervAssignableDevices:
             return None
 
         dev_type = self.__get_pnp_device_property(
-            device_id=device_id,
-            property_name=self.PKEY_DEVICE_TYPE
+            device_id=device_id, property_name=self.PKEY_DEVICE_TYPE
         )
         dev_type = dev_type.strip()
         if dev_type == self.PROP_DEVICE_TYPE_PCI_EXPRESS_ENDPOINT:
@@ -277,8 +278,7 @@ class HypervAssignableDevices:
                     )
                 else:
                     self.log.debug(
-                        "Old-style PCI device, switch port, etc. "
-                        "Not assignable."
+                        "Old-style PCI device, switch port, etc. " "Not assignable."
                     )
                 return None
 
@@ -311,12 +311,14 @@ class HypervAssignableDevices:
             return None
 
         irq_assignements = [
-            i for i in self.pnp_allocated_resources
+            i
+            for i in self.pnp_allocated_resources
             if i["Dependent"].find(device_id.replace("\\", "\\\\")) >= 0
         ]
         if irq_assignements:
             msi_assignments = [
-                i for i in self.pnp_allocated_resources
+                i
+                for i in self.pnp_allocated_resources
                 if i["Antecedent"].find("IRQNumber=42949") >= 0
             ]
             if not msi_assignments:
@@ -330,7 +332,8 @@ class HypervAssignableDevices:
             self.log.debug("It has no interrupts at all -- assignment can work.")
 
         mmio_assignments = [
-            i for i in self.pnp_allocated_resources
+            i
+            for i in self.pnp_allocated_resources
             if i["Dependent"].find(device_id.replace("\\", "\\\\")) >= 0
             and i["__RELPATH"].find("Win32_DeviceMemoryAddres") >= 0
         ]
