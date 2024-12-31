@@ -22,7 +22,9 @@ class WindowsFeatureManagement(Tool):
         return False
 
     def _check_exists(self) -> bool:
-        assert isinstance(self.node.os, Windows)
+        assert isinstance(
+            self.node.os, Windows
+        ), "WindowsFeatureManagement is only supported on Windows."
         try:
             self.node.tools[PowerShell].run_cmdlet(
                 "Get-WindowsFeature",
