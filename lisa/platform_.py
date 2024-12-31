@@ -187,7 +187,12 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # initialize features
         # features may need platform, so create it in platform
         for node in environment.nodes.list():
-            node.features = Features(node, self)
+            # Baremetal platform needs to initialize SerialConsole feature to
+            # get serial log from beginning, so the features are created
+            # already. If recreate the SerialConsole, the service resource
+            # leaks, and SerialConsole cannot be opend again.
+            if not hasattr(node, "features"):
+                node.features = Features(node, self)
             node.capture_azure_information = platform_runbook.capture_azure_information
             node.capture_boot_time = platform_runbook.capture_boot_time
             node.capture_kernel_config = (
