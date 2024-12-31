@@ -97,15 +97,7 @@ class WindowsService(Tool):
 
     def wait_for_service_start(self, name: str) -> None:
         for _ in range(10):
-            service_status = self._powershell.run_cmdlet(
-                f"Get-Service {name}",
-                force_run=True,
-                output_json=True,
-                fail_on_error=False,
-            )
-            if schema.WindowsServiceStatus.RUNNING == schema.WindowsServiceStatus(
-                service_status["Status"]
-            ):
+            if schema.WindowsServiceStatus.RUNNING == self._get_status(name):
                 return
 
             self._log.debug(
@@ -135,26 +127,26 @@ class WindowsService(Tool):
         )
         assert_that(self._get_status(name)).described_as(
             f"Failed to stop service {name}"
-        ).is_not_equal_to(schema.WindowsServiceStatus.RUNNING)
+        ).is_equal_to(schema.WindowsServiceStatus.STOPPED)
 
     def enable_service(self, name: str) -> None:
-        raise NotImplementedError()
+        pass
 
-    def check_service_status(self, name: str) -> bool:
+    def _check_service_status(self, name: str) -> bool:
         return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
 
-    def check_service_exists(self, name: str) -> bool:
+    def _check_service_exists(self, name: str) -> bool:
         try:
             self._get_status(name)
             return True
         except LisaException:
             return False
 
-    def is_service_inactive(self, name: str) -> bool:
+    def _is_service_inactive(self, name: str) -> bool:
         return self._get_status(name) == schema.WindowsServiceStatus.STOPPED
 
     # Check if service is running
-    def is_service_running(self, name: str) -> bool:
+    def _is_service_running(self, name: str) -> bool:
         return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
 
 
