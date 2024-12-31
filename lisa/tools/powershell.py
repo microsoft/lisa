@@ -1,9 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import base64
-from typing import Any
 import json
+from typing import Any
 from xml.etree import ElementTree
 
 from lisa.executable import Tool
