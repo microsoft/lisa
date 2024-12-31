@@ -466,7 +466,10 @@ class Process:
                     kill_process = Process(
                         self._id_, self._shell, parent_logger=self._log
                     )
-                    kill_process.start("taskkill /F /T /PID " + str(self._process.pid))
+                    kill_process.start(
+                        "taskkill /F /T /PID " + str(self._process.pid),
+                        no_info_log=True,
+                    )
                     kill_process.wait_result(1)
             except Exception as identifier:
                 self._log.debug(f"failed on killing process: {identifier}")
