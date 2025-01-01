@@ -3,14 +3,23 @@
 
 import copy
 import functools
+from logging import FileHandler
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from lisa import schema
 from lisa.environment import Environment
 from lisa.node import Node
 from lisa.parameter_parser.runbook import RunbookBuilder
-from lisa.util import InitializableMixin, LisaException, constants, subclasses
-from lisa.util.logger import get_logger
+from lisa.util import (
+    InitializableMixin,
+    LisaException,
+    constants,
+    get_datetime_path,
+    is_unittest,
+    subclasses,
+)
+from lisa.util.logger import create_file_handler, get_logger, remove_handler
 from lisa.variable import VariableEntry, merge_variables
 
 _get_init_logger = functools.partial(get_logger, "init", "transformer")
@@ -29,15 +38,18 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         self.prefix = runbook.prefix
         self.depends_on = runbook.depends_on
         self.rename = runbook.rename
+        self.enable_file_logging = runbook.enable_file_logging
 
         self._runbook_builder = runbook_builder
         self._log = get_logger("transformer", self.name)
+
+        if self.enable_file_logging:
+            self._log_handler = self._create_log_handler()
 
     def run(self) -> Dict[str, VariableEntry]:
         """
         Call by the transformer flow, don't override it in subclasses.
         """
-
         self._log.info("transformer is running.")
         variables = self._internal_run()
 
@@ -52,6 +64,10 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         self._log.debug(f"returned variables: {[x for x in results]}")
         if unmatched_rename:
             raise LisaException(f"unmatched rename variable: {unmatched_rename}")
+
+        if self.enable_file_logging and self._log_handler:
+            remove_handler(self._log_handler)
+            self._log_handler.close()
         return results
 
     @property
@@ -71,6 +87,18 @@ class Transformer(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         The logic to transform
         """
         raise NotImplementedError()
+
+    def _create_log_path(self) -> Path:
+        path = constants.RUN_LOCAL_LOG_PATH / "transformers" / self.name
+        if not is_unittest():
+            path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _create_log_handler(self) -> FileHandler:
+        self._log_path = self._create_log_path()
+        self._log_file = self._log_path / f"{get_datetime_path()}-{self.name}.log"
+        log_handler = create_file_handler(self._log_file, self._log)
+        return log_handler
 
 
 def _sort(transformers: List[schema.Transformer]) -> List[schema.Transformer]:
