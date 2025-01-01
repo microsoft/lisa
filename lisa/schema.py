@@ -431,15 +431,6 @@ disk_type_priority: List[DiskType] = [
 ]
 
 
-class WindowsServiceStatus(int, Enum):
-    CONTINUE_PENDING = 5
-    PAUSE_PENDING = 6
-    PAUSED = 7
-    RUNNING = 4
-    START_PENDING = 2
-    STOP_PENDING = 3
-    STOPPED = 1
-
 
 class StorageInterfaceType(str, Enum):
     SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI

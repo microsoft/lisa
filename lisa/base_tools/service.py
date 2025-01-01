@@ -2,9 +2,8 @@
 # Licensed under the MIT license.
 import re
 from time import sleep
-from typing import Any, Optional, Type
-
-from assertpy import assert_that
+from typing import Optional, Type
+from enum import Enum
 
 from lisa import schema
 from lisa.executable import ExecutableResult, Tool
@@ -14,6 +13,7 @@ from lisa.util import (
     UnsupportedDistroException,
     filter_ansi_escape,
     find_group_in_lines,
+    create_timer,
 )
 
 
@@ -67,87 +67,6 @@ class Service(Tool):
 
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
-
-    def wait_for_service_start(self, name: str) -> None:
-        raise NotImplementedError()
-
-
-class WindowsService(Tool):
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._command = ""
-        self._powershell = self.node.tools[PowerShell]
-
-    @property
-    def can_install(self) -> bool:
-        return False
-
-    @property
-    def command(self) -> str:
-        return self._command
-
-    def _check_exists(self) -> bool:
-        return True
-
-    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
-        self._powershell.run_cmdlet(
-            f"Restart-service {name}",
-            force_run=True,
-        )
-        self.wait_for_service_start(name)
-
-    def wait_for_service_start(self, name: str) -> None:
-        for _ in range(10):
-            if schema.WindowsServiceStatus.RUNNING == self._get_status(name):
-                return
-
-            self._log.debug(
-                f"service '{name}' is not ready yet, retrying... after 5 seconds"
-            )
-            sleep(3)
-
-        raise LisaException(f"service '{name}' failed to start")
-
-    def _get_status(self, name: str = "") -> schema.WindowsServiceStatus:
-        service_status = self._powershell.run_cmdlet(
-            f"Get-Service {name}",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        if not service_status:
-            raise LisaException(f"service '{name}' does not exist")
-        return schema.WindowsServiceStatus(service_status["Status"])
-
-    def stop_service(self, name: str) -> None:
-        self._powershell.run_cmdlet(
-            f"Stop-Service {name} -Force",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        assert_that(self._get_status(name)).described_as(
-            f"Failed to stop service {name}"
-        ).is_equal_to(schema.WindowsServiceStatus.STOPPED)
-
-    def enable_service(self, name: str) -> None:
-        pass
-
-    def _check_service_status(self, name: str) -> bool:
-        return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
-
-    def _check_service_exists(self, name: str) -> bool:
-        try:
-            self._get_status(name)
-            return True
-        except LisaException:
-            return False
-
-    def _is_service_inactive(self, name: str) -> bool:
-        return self._get_status(name) == schema.WindowsServiceStatus.STOPPED
-
-    # Check if service is running
-    def _is_service_running(self, name: str) -> bool:
-        return self._get_status(name) == schema.WindowsServiceStatus.RUNNING
 
 
 class ServiceInternal(Tool):
@@ -291,3 +210,89 @@ class Systemctl(Tool):
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
     cmd_result.assert_exit_code(expected_exit_code=[0, error_code])
+
+
+class WindowsServiceStatus(int, Enum):
+    CONTINUE_PENDING = 5
+    PAUSE_PENDING = 6
+    PAUSED = 7
+    RUNNING = 4
+    START_PENDING = 2
+    STOP_PENDING = 3
+    STOPPED = 1
+
+
+class WindowsService(Tool):
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    def enable_service(self, name: str) -> None:
+        pass
+
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Restart-service {name}",
+            force_run=True,
+        )
+        self.wait_for_service_start(name)
+
+    def stop_service(self, name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Stop-Service {name} -Force",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        self.wait_for_service_stop(name)
+
+    def wait_for_service_start(self, name: str) -> None:
+        self._wait_for_service(name, WindowsServiceStatus.RUNNING)
+
+    def wait_for_service_stop(self, name: str) -> None:
+        self._wait_for_service(name, WindowsServiceStatus.STOPPED)
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def _check_service_exists(self, name: str) -> bool:
+        try:
+            self._get_status(name)
+            return True
+        except LisaException:
+            return False
+
+    def _check_service_running(self, name: str) -> bool:
+        return self._get_status(name) == WindowsServiceStatus.RUNNING
+
+    def _get_status(self, name: str = "") -> WindowsServiceStatus:
+        service_status = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-Service {name}",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        if not service_status:
+            raise LisaException(f"service '{name}' does not exist")
+        return WindowsServiceStatus(service_status["Status"])
+
+    def _is_service_inactive(self, name: str) -> bool:
+        return self._get_status(name) == WindowsServiceStatus.STOPPED
+
+    def _wait_for_service(self, name: str, status: WindowsServiceStatus) -> None:
+        timeout = 60
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            current_service_status = self._get_status(name)
+            if status == current_service_status:
+                return
+            sleep(0.5)
+
+        if timeout < timer.elapsed():
+            raise LisaException(
+                f"service '{name}' still in '{current_service_status}' state after '{timeout}' seconds"  # noqa: E501
+            )
