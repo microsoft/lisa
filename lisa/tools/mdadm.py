@@ -171,7 +171,7 @@ class WindowsMdadm(Mdadm):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def _delete_pool(self, pool_name: str) -> None:
         if self._exists_pool(pool_name):

@@ -41,7 +41,7 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_vm_async(self, name: str) -> Optional[Process]:
         # check if vm is present
@@ -219,7 +219,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_switch(self, name: str) -> None:
         if self.exists_switch(name):
@@ -251,7 +251,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_nat(self, name: str) -> None:
         if self.exists_nat(name):
@@ -317,7 +317,7 @@ class HyperV(Tool):
         if not ip_address:
             raise LisaException(f"Could not find IP address for VM {name}")
 
-        return ip_address
+        return str(ip_address)
 
     def exist_port_forwarding(
         self,
@@ -328,7 +328,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_port_forwarding(self, nat_name: str) -> None:
         if self.exist_port_forwarding(nat_name):
@@ -359,7 +359,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return  bool(output.strip() != "")
 
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
@@ -417,6 +417,8 @@ class HyperV(Tool):
         pwsh = self.node.tools[PowerShell]
         if not extra_args:
             extra_args = {}
-        return pwsh.run_cmdlet(
-            f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+        return str(
+            pwsh.run_cmdlet(
+                f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+            )
         )
