@@ -359,7 +359,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return  bool(output.strip() != "")
+        return bool(output.strip() != "")
 
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
