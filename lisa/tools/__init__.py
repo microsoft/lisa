@@ -124,6 +124,7 @@ from .vdsotest import Vdsotest
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
+from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
 
 __all__ = [
@@ -260,5 +261,6 @@ __all__ = [
     "VirtualClientTool",
     "Who",
     "Whoami",
+    "WindowsFeatureManagement",
     "Wsl",
 ]
