@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import base64
+import json
 from typing import Any
 from xml.etree import ElementTree
 
@@ -48,6 +48,7 @@ class PowerShell(Tool):
     def run_cmdlet(
         self,
         cmdlet: str,
+        output_json: bool = False,
         force_run: bool = False,
         sudo: bool = False,
         fail_on_error: bool = True,
@@ -55,7 +56,9 @@ class PowerShell(Tool):
         # Powershell error log is the xml format, it needs extra decoding. But
         # for long running script, it needs to look real time results.
         no_debug_log: bool = True,
-    ) -> str:
+    ) -> Any:
+        if output_json:
+            cmdlet = f"{cmdlet} | ConvertTo-Json"
         process = self.run_cmdlet_async(
             cmdlet=cmdlet, force_run=force_run, sudo=sudo, no_debug_log=no_debug_log
         )
@@ -68,7 +71,8 @@ class PowerShell(Tool):
             # if stdout is output already, it doesn't need to output again.
             no_debug_log=not no_debug_log,
         )
-
+        if output_json and result.stdout:
+            return json.loads(result.stdout)
         return result.stdout
 
     def wait_result(

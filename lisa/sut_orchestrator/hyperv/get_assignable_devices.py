@@ -106,7 +106,7 @@ class HypervAssignableDevices:
             sudo=True,
             force_run=True,
         )
-        return output.strip()
+        return str(output.strip())
 
     def __load_pnp_allocated_resources(self) -> List[Dict[str, str]]:
         # Command output result (just 2 device properties)
