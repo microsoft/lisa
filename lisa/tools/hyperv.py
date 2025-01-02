@@ -12,9 +12,11 @@ from dataclasses_json import config, dataclass_json
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
+from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
 
+from lisa.base_tools import Service
 
 @dataclass_json
 @dataclass
@@ -206,6 +208,20 @@ class HyperV(Tool):
             'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
             "| Select -First 1 | select Name | ConvertTo-Json",
             force_run=True,
+            fail_on_error=False,
+        )
+
+        if not switch_json:
+            return None
+
+        return VMSwitch.from_json(switch_json)  # type: ignore
+
+    def get_default_internal_switch(self) -> Optional[VMSwitch]:
+        switch_json = self.node.tools[PowerShell].run_cmdlet(
+            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "Internal"} '
+            "| Select -First 1 | select Name | ConvertTo-Json",
+            force_run=True,
+            fail_on_error=False,
         )
 
         if not switch_json:
@@ -221,20 +237,21 @@ class HyperV(Tool):
         )
         return bool(output.strip() != "")
 
-    def delete_switch(self, name: str) -> None:
+    def delete_switch(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_switch(name):
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-VMSwitch -Name {name} -Force",
                 force_run=True,
+                fail_on_error=fail_on_error,
             )
 
-    def create_switch(self, name: str) -> None:
+    def create_switch(self, name: str, switch_type: str = "Internal") -> None:
         # remove switch if it exists
-        self.delete_switch(name)
+        self.delete_switch(name, fail_on_error=False)
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
-            f"New-VMSwitch -Name {name} -SwitchType Internal",
+            f"New-VMSwitch -Name {name} -SwitchType {switch_type}",
             force_run=True,
         )
 
@@ -253,16 +270,17 @@ class HyperV(Tool):
         )
         return bool(output.strip() != "")
 
-    def delete_nat(self, name: str) -> None:
+    def delete_nat(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_nat(name):
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-NetNat -Name {name} -Confirm:$false",
                 force_run=True,
+                fail_on_error=fail_on_error,
             )
 
     def create_nat(self, name: str, ip_range: str) -> None:
         # delete NAT if it exists
-        self.delete_nat(name)
+        self.delete_nat(name, fail_on_error=False)
 
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
@@ -381,30 +399,51 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def _check_exists(self) -> bool:
-        try:
-            self.node.tools[PowerShell].run_cmdlet(
-                "Get-VM",
-                force_run=True,
-            )
-            self._log.debug("Hyper-V is installed")
-            return True
-        except LisaException as e:
-            self._log.debug(f"Hyper-V not installed: {e}")
-            return False
+    def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
+        powershell = self.node.tools[PowerShell]
+        service: Service = self.node.tools[Service]
+        self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
+
+        # Restart the DHCP server to make it available
+        service.restart_service("dhcpserver")
+
+        # check if DHCP server is already configured
+        output = powershell.run_cmdlet(
+            "Get-DhcpServerv4Scope",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        if output:
+            return
+        # Configure the DHCP server
+        powershell.run_cmdlet(
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            force_run=True,
+        )
+        # Restart the DHCP server to apply the changes
+        service.restart_service("dhcpserver")
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
 
+        service: Service = self.node.tools[Service]
+        # check if Hyper-V is already installed
+        if self._check_exists():
+            return True
         # enable hyper-v
-        self.node.tools[PowerShell].run_cmdlet(
-            "Install-WindowsFeature -Name Hyper-V -IncludeManagementTools",
-            force_run=True,
-        )
+        self.node.tools[WindowsFeatureManagement].install_feature("Hyper-V")
 
         # reboot node
         self.node.reboot()
 
+        # wait for Hyper-V services to start
+        service.wait_for_service_start("vmms")
+        service.wait_for_service_start("vmcompute")
         return self._check_exists()
 
     def _run_hyperv_cmdlet(
@@ -422,3 +461,6 @@ class HyperV(Tool):
                 f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
             )
         )
+
+    def _check_exists(self) -> bool:
+        return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
