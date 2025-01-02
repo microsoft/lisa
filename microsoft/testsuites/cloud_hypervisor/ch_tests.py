@@ -206,7 +206,6 @@ class CloudHypervisorTestSuite(TestSuite):
         # will not run it with data-disk and it would not add direct=on
         # if run_without_cache is not set to YES
         use_datadisk = variables.get("use_datadisk", "")
-        datadisk_name = variables.get("datadisk_name", "")
         disable_datadisk_cache = variables.get("disable_datadisk_cache", "")
         block_size_kb = variables.get("block_size_kb", "")
 
@@ -232,8 +231,6 @@ class CloudHypervisorTestSuite(TestSuite):
             CloudHypervisorTests.block_size_kb = block_size_kb
         if use_datadisk:
             CloudHypervisorTests.use_datadisk = use_datadisk
-        if datadisk_name:
-            CloudHypervisorTests.datadisk_name = datadisk_name
         if disable_datadisk_cache:
             CloudHypervisorTests.disable_datadisk_cache = disable_datadisk_cache
 

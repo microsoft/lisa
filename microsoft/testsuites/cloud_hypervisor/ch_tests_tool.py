@@ -22,6 +22,7 @@ from lisa.tools import (
     Echo,
     Git,
     Ls,
+    Lsblk,
     Mkdir,
     Modprobe,
     Whoami,
@@ -62,7 +63,6 @@ class CloudHypervisorTests(Tool):
 
     # Block perf related env var
     use_datadisk = ""
-    datadisk_name = ""
     disable_datadisk_cache = ""
     block_size_kb = ""
 
@@ -164,6 +164,20 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        if self.use_datadisk:
+            datadisk_name = ""
+            disks = self.node.tools[Lsblk].get_disks()
+            # get the first unmounted disk (data disk)
+            for disk in disks:
+                if disk.is_mounted:
+                    continue
+                if disk.name.startswith("sd") or disk.name.startswith("vd"):
+                    datadisk_name = disk.device_name
+                    break
+            self.node.execute("lsblk", shell=True, sudo=True)
+            print(f"Data Disk Name: {datadisk_name}")
+            self.env_vars["DATADISK_NAME"] = datadisk_name
+
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -264,8 +278,6 @@ class CloudHypervisorTests(Tool):
 
             if self.use_datadisk:
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
-            if self.datadisk_name:
-                self.env_vars["DATADISK_NAME"] = self.datadisk_name
             if self.disable_datadisk_cache:
                 self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
             if self.block_size_kb:
