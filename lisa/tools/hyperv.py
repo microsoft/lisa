@@ -402,6 +402,8 @@ class HyperV(Tool):
     def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
         powershell = self.node.tools[PowerShell]
         service: Service = self.node.tools[Service]
+
+        # Install DHCP server
         self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
 
         # Restart the DHCP server to make it available
@@ -416,15 +418,19 @@ class HyperV(Tool):
         )
         if output:
             return
-        # Configure the DHCP server
+
+        # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
             f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
+
+        # Set the DHCP server options
         powershell.run_cmdlet(
             "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
             force_run=True,
         )
+
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
 
@@ -432,9 +438,11 @@ class HyperV(Tool):
         assert isinstance(self.node.os, Windows)
 
         service: Service = self.node.tools[Service]
+
         # check if Hyper-V is already installed
         if self._check_exists():
             return True
+
         # enable hyper-v
         self.node.tools[WindowsFeatureManagement].install_feature("Hyper-V")
 
