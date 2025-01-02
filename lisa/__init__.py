@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from lisa.environment import Environment
 from lisa.executable import CustomScript, CustomScriptBuilder
+from lisa.feature import Feature
 from lisa.node import Node, RemoteNode
 from lisa.testsuite import (
     TestCaseMetadata,
@@ -36,6 +37,7 @@ __all__ = [
     "CustomScript",
     "CustomScriptBuilder",
     "Environment",
+    "Feature",
     "LisaException",
     "Logger",
     "Node",
