@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from assertpy import assert_that
 from dataclasses_json import config, dataclass_json
 
+from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
@@ -16,7 +17,6 @@ from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
 
-from lisa.base_tools import Service
 
 @dataclass_json
 @dataclass
