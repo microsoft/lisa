@@ -286,6 +286,7 @@ class WindowsService(Tool):
     def _wait_for_service(self, name: str, status: WindowsServiceStatus) -> None:
         timeout = 60
         timer = create_timer()
+        self._log.debug(f"waiting for service '{name}' to be in '{status}' state")
         while timeout > timer.elapsed(False):
             current_service_status = self._get_status(name)
             if status == current_service_status:

@@ -18,7 +18,6 @@ from lisa.util.process import Process
 
 from lisa.base_tools import Service
 
-
 @dataclass_json
 @dataclass
 class VMSwitch:
@@ -37,9 +36,6 @@ class HyperV(Tool):
     def can_install(self) -> bool:
         return True
 
-    def _check_exists(self) -> bool:
-        return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
-
     def exists_vm(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
             f"Get-VM -Name {name}",
@@ -47,7 +43,7 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_vm_async(self, name: str) -> Optional[Process]:
         # check if vm is present
@@ -239,7 +235,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_switch(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_switch(name):
@@ -272,7 +268,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_nat(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_nat(name):
@@ -339,7 +335,7 @@ class HyperV(Tool):
         if not ip_address:
             raise LisaException(f"Could not find IP address for VM {name}")
 
-        return ip_address
+        return str(ip_address)
 
     def exist_port_forwarding(
         self,
@@ -350,7 +346,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_port_forwarding(self, nat_name: str) -> None:
         if self.exist_port_forwarding(nat_name):
@@ -381,7 +377,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
@@ -403,8 +399,38 @@ class HyperV(Tool):
             force_run=True,
         )
 
+    def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
+        powershell = self.node.tools[PowerShell]
+        service: Service = self.node.tools[Service]
+        self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
+
+        # Restart the DHCP server to make it available
+        service.restart_service("dhcpserver")
+
+        # check if DHCP server is already configured
+        output = powershell.run_cmdlet(
+            "Get-DhcpServerv4Scope",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        if output:
+            return
+        # Configure the DHCP server
+        powershell.run_cmdlet(
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            force_run=True,
+        )
+        powershell.run_cmdlet(
+            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            force_run=True,
+        )
+        # Restart the DHCP server to apply the changes
+        service.restart_service("dhcpserver")
+
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
+
         service: Service = self.node.tools[Service]
         # check if Hyper-V is already installed
         if self._check_exists():
@@ -430,35 +456,11 @@ class HyperV(Tool):
         pwsh = self.node.tools[PowerShell]
         if not extra_args:
             extra_args = {}
-        return pwsh.run_cmdlet(
-            f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+        return str(
+            pwsh.run_cmdlet(
+                f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+            )
         )
 
-    def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
-        powershell = self.node.tools[PowerShell]
-        service: Service = self.node.tools[Service]
-        self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
-
-        # Restart the DHCP server to apply the changes
-        service.restart_service("dhcpserver")
-
-        # check if DHCP server is already configured
-        output = powershell.run_cmdlet(
-            "Get-DhcpServerv4Scope",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        if output:
-            return
-        # Configure the DHCP server
-        powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
-            force_run=True,
-        )
-        # Restart the DHCP server to apply the changes
-        service.restart_service("dhcpserver")
+    def _check_exists(self) -> bool:
+        return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
