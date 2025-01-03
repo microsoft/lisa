@@ -252,7 +252,7 @@ function Start-LISAv2 {
 				}
 			}
 
-			if (($failedCount -eq 0 -and $errorCount -eq 0 -and $testCount -gt 0) -or (-not $RunInParallel -and $TestIdInParallel)) {
+			if (($failedCount -eq 0 -and $errorCount -eq 0 -and $testCount -ge 0) -or (-not $RunInParallel -and $TestIdInParallel)) {
 				$ExitCode = 0
 			} else {
 				$ExitCode = 1

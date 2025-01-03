@@ -123,8 +123,9 @@ Class JUnitReportGenerator
 	[System.Xml.XmlElement] $ReportRootNode
 	[object] $TestSuiteLogTable
 	[object] $TestSuiteCaseLogTable
-
-	JUnitReportGenerator([string]$ReportPath)
+    [string] $TestCategory
+	[string] $MachineName
+	JUnitReportGenerator([string]$ReportPath,[string]$TestCategory,[string]$MachineName)
 	{
 		$this.JunitReportPath = $ReportPath
 		$this.JunitReport = New-Object System.Xml.XmlDocument
@@ -132,6 +133,8 @@ Class JUnitReportGenerator
 		$this.ReportRootNode = $this.JunitReport.AppendChild($newElement)
 		$this.TestSuiteLogTable = @{}
 		$this.TestSuiteCaseLogTable = @{}
+		$this.TestCategory=$TestCategory
+		$this.MachineName=$MachineName
 	}
 
 	[void] SaveLogReport()
@@ -156,6 +159,11 @@ Class JUnitReportGenerator
 		$newElement.SetAttribute("errors", 0)
 		$newElement.SetAttribute("skipped", 0)
 		$newElement.SetAttribute("time", 0)
+		$newElement.SetAttribute("TestCategory", $this.TestCategory)
+		$newElement.SetAttribute("MachineName", $this.MachineName)
+		if ( $global:BaseOSVHD ) {
+			$newElement.SetAttribute("ImageUnderTest",  $global:BaseOSVHD )
+		}
 		$testsuiteNode = $this.ReportRootNode.AppendChild($newElement)
 
 		$testsuite = [ReportNode]::New($testsuiteNode)
