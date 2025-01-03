@@ -1,19 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from enum import Enum
 from time import sleep
 from typing import Optional, Type
-from enum import Enum
 
-from lisa import schema
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.powershell import PowerShell
 from lisa.util import (
     LisaException,
     UnsupportedDistroException,
+    create_timer,
     filter_ansi_escape,
     find_group_in_lines,
-    create_timer,
 )
 
 
@@ -270,18 +269,18 @@ class WindowsService(Tool):
         return self._get_status(name) == WindowsServiceStatus.RUNNING
 
     def _get_status(self, name: str = "") -> WindowsServiceStatus:
-        service_status = self.node.tools[PowerShell].run_cmdlet(
-            f"Get-Service {name}",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
-        if not service_status:
-            raise LisaException(f"service '{name}' does not exist")
-        return WindowsServiceStatus(service_status["Status"])
+        try:
+            service_status = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-Service {name}", force_run=True, output_json=True
+            )
+            return WindowsServiceStatus(int(service_status["Status"]))
+        except LisaException as identifier:
+            if "Cannot find any service with service name" in str(identifier):
+                raise LisaException(f"service '{name}' does not exist")
+            raise identifier
 
     def _is_service_inactive(self, name: str) -> bool:
-        return self._get_status(name) == WindowsServiceStatus.STOPPED
+        return self._get_status(name) == WindowsServiceStatus.PAUSED
 
     def _wait_for_service(self, name: str, status: WindowsServiceStatus) -> None:
         timeout = 60
@@ -295,5 +294,6 @@ class WindowsService(Tool):
 
         if timeout < timer.elapsed():
             raise LisaException(
-                f"service '{name}' still in '{current_service_status}' state after '{timeout}' seconds"  # noqa: E501
+                f"service '{name}' still in '{current_service_status}' state"
+                f"after '{timeout}' seconds"
             )
