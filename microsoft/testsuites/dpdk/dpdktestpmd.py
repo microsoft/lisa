@@ -565,6 +565,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            "--mbuf-size=2048,8096"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

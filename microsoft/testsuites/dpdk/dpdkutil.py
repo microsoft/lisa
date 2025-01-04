@@ -346,7 +346,7 @@ def initialize_node_resources(
 
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
-    hugepages.init_hugepages(hugepage_size)
+    hugepages.init_hugepages(hugepage_size, minimum_gb=4)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
