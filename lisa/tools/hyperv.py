@@ -5,10 +5,12 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional
+from enum import Enum
 
 from assertpy import assert_that
 from dataclasses_json import config, dataclass_json
 
+from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
@@ -16,13 +18,16 @@ from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
 
-from lisa.base_tools import Service
 
 @dataclass_json
 @dataclass
 class VMSwitch:
     name: str = field(metadata=config(field_name="Name"))
 
+
+class HypervSwitchType(Enum):
+    INTERNAL = "Internal"
+    EXTERNAL = "External"
 
 class HyperV(Tool):
     # 192.168.5.12
@@ -203,26 +208,16 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_external_switch(self) -> Optional[VMSwitch]:
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-            fail_on_error=False,
-        )
-
-        if not switch_json:
-            return None
-
-        return VMSwitch.from_json(switch_json)  # type: ignore
-
-    def get_default_internal_switch(self) -> Optional[VMSwitch]:
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "Internal"} '
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-            fail_on_error=False,
-        )
+    def get_default_switch(self, switch_type: HypervSwitchType) -> Optional[VMSwitch]:
+        if switch_type in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
+            switch_json = self.node.tools[PowerShell].run_cmdlet(
+                f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type}"}}'
+                "| Select -First 1 | select Name | ConvertTo-Json",
+                force_run=True,
+                fail_on_error=False,
+            )
+        else:
+            raise LisaException(f"Unknown switch type {switch_type}")
 
         if not switch_json:
             return None
@@ -402,6 +397,8 @@ class HyperV(Tool):
     def configure_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
         powershell = self.node.tools[PowerShell]
         service: Service = self.node.tools[Service]
+
+        # Install DHCP server
         self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
 
         # Restart the DHCP server to make it available
@@ -416,15 +413,19 @@ class HyperV(Tool):
         )
         if output:
             return
-        # Configure the DHCP server
+
+        # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
             f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
+
+        # Set the DHCP server options
         powershell.run_cmdlet(
             "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
             force_run=True,
         )
+
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
 
@@ -432,9 +433,11 @@ class HyperV(Tool):
         assert isinstance(self.node.os, Windows)
 
         service: Service = self.node.tools[Service]
+
         # check if Hyper-V is already installed
         if self._check_exists():
             return True
+
         # enable hyper-v
         self.node.tools[WindowsFeatureManagement].install_feature("Hyper-V")
 
