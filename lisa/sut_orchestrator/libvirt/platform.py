@@ -1369,6 +1369,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.host_node:
             result = self.host_node.execute("libvirtd --version", shell=True).stdout
             result = filter_ansi_escape(result)
+            # Libvirtd returns version info as "libvirtd (libvirt) 10.8.0"
+            # From the return value, only return the version info
+            result = result.split()[-1]
         return result
 
     def _get_vmm_version(self) -> str:
