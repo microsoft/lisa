@@ -122,7 +122,9 @@ class SourceInstaller(BaseInstaller):
         gcc = self._node.tools[Gcc]
         information = dict()
         if self._code_path:
-            information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
+            x = git.get_latest_commit_id(cwd=self._code_path)
+            information["commit_id"] = x
+            self._log.info("Latest Commit ID Fetched: {x}")
             information["tag"] = git.get_tag(cwd=self._code_path)
             information["git_repository_url"] = git.get_repo_url(cwd=self._code_path)
             information["git_repository_branch"] = git.get_current_branch(
