@@ -535,6 +535,14 @@ def verify_dpdk_build(
     return test_kit
 
 
+def get_dpdk_expected_throughput(node: Node, rx_or_tx: str = "tx"):
+    nic_type = get_node_nic_type(node)
+    try:
+        return NIC_EXPECTED_THROUGHPUT[nic_type][rx_or_tx]
+    except ValueError as err:
+        raise err
+
+
 def verify_dpdk_send_receive(
     environment: Environment,
     log: Logger,
@@ -608,13 +616,21 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    rcv_rx_gbps = receiver.testpmd.get_mean_rx_bps() * (10**-9)
+    snd_tx_gbps = sender.testpmd.get_mean_tx_bps() * (10**-9)
+
+    log.info(f"receiver rx-gbps: {rcv_rx_gbps}")
+    log.info(f"sender tx-gbps: {snd_tx_gbps}")
+    expected_rx = get_dpdk_expected_throughput(receiver.node, rx_or_tx="rx")
+    expected_tx = get_dpdk_expected_throughput(sender.node, rx_or_tx="tx")
+
     # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
+    assert_that(rcv_rx_gbps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(2**20)
-    assert_that(snd_tx_pps).described_as(
+    ).is_greater_than(expected_rx)
+    assert_that(snd_tx_gbps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
-    ).is_greater_than(2**20)
+    ).is_greater_than(expected_tx)
 
     return sender, receiver
 
@@ -1120,6 +1136,7 @@ class NicType(Enum):
     CX4 = "ConnectX-4"
     CX5 = "ConnectX-5"
     MANA = "Device 00ba"
+    SYNTHETIC = "synthetic"
 
 
 # Short name for nic types
@@ -1129,6 +1146,24 @@ NIC_SHORT_NAMES = {
     NicType.CX5: "cx5",
     NicType.MANA: "mana",
 }
+
+NIC_EXPECTED_THROUGHPUT = {
+    NicType.CX3: {"rx": 6, "tx": 7},
+    NicType.CX4: {"rx": 6, "tx": 7},
+    NicType.CX5: {"rx": 6, "tx": 7},
+    NicType.MANA: {"rx": 6, "tx": 7},
+}
+
+
+def get_node_nic_type(node: Node) -> NicType:
+    if node.nics.is_mana_device_present():
+        return NicType.MANA
+    devices = node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV)
+    non_mana_nics = [NicType.CX3, NicType.CX4, NicType.CX5]
+    for nic_name in non_mana_nics:
+        if any([nic_name.value in x.device_info for x in devices]):
+            return nic_name
+    return NicType.SYNTHETIC
 
 
 # Get the short name for the type of nic on a node

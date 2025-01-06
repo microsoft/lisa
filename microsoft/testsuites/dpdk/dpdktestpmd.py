@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Pattern, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -365,10 +365,19 @@ class DpdkTestpmd(Tool):
     _tx_pps_key = "transmit-packets-per-second"
     _rx_pps_key = "receive-packets-per-second"
 
-    _testpmd_output_regex = {
-        _tx_pps_key: r"Tx-pps:\s+([0-9]+)",
-        _rx_pps_key: r"Rx-pps:\s+([0-9]+)",
+    _testpmd_output_pps_regex = {
+        _tx_pps_key: re.compile(r"Tx-pps:\s+([0-9]+)"),
+        _rx_pps_key: re.compile(r"Rx-pps:\s+([0-9]+)"),
     }
+
+    _tx_bps_key = "transmit-bytes-per-second"
+    _rx_bps_key = "receive-bytes-per-second"
+
+    _testpmd_output_bps_regex = {
+        _tx_bps_key: re.compile(r"Tx-bps:\s+([0-9]+)"),
+        _rx_bps_key: re.compile(r"Rx-bps:\s+([0-9]+)"),
+    }
+
     _source_build_dest_dir = "/usr/local/bin"
 
     @property
@@ -565,6 +574,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            "--mbuf-size=2048,8096 --txpkts=1500"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -626,6 +636,7 @@ class DpdkTestpmd(Tool):
     def get_data_from_testpmd_output(
         self,
         search_key_constant: str,
+        search_key_regexes: Dict[str, Pattern[str]],
         testpmd_output: str,
     ) -> List[int]:
         # Find all data in the output that matches
@@ -634,13 +645,11 @@ class DpdkTestpmd(Tool):
         assert_that(testpmd_output).described_as(
             "Could not find output from last testpmd run."
         ).is_not_equal_to("")
-        matches = re.findall(
-            self._testpmd_output_regex[search_key_constant], testpmd_output
-        )
+        matches = search_key_regexes[search_key_constant].findall(testpmd_output)
         assert_that(matches).described_as(
             (
                 "Could not locate any matches for search key "
-                f"{self._testpmd_output_regex[search_key_constant]} "
+                f"{search_key_regexes[search_key_constant].pattern} "
                 "in the test output."
             )
         )
@@ -650,34 +659,48 @@ class DpdkTestpmd(Tool):
 
     def populate_performance_data(self) -> None:
         self.rx_pps_data = self.get_data_from_testpmd_output(
-            self._rx_pps_key, self._last_run_output
+            self._rx_pps_key, self._testpmd_output_pps_regex, self._last_run_output
         )
         self.tx_pps_data = self.get_data_from_testpmd_output(
-            self._tx_pps_key, self._last_run_output
+            self._tx_pps_key, self._testpmd_output_pps_regex, self._last_run_output
+        )
+        self.rx_bps_data = self.get_data_from_testpmd_output(
+            self._rx_bps_key, self._testpmd_output_bps_regex, self._last_run_output
+        )
+        self.tx_bps_data = self.get_data_from_testpmd_output(
+            self._tx_bps_key, self._testpmd_output_bps_regex, self._last_run_output
         )
 
+    def get_mean_rx_bps(self) -> int:
+        self._check_testpmd_data("RX", "bps")
+        return _mean(self.rx_bps_data)
+
+    def get_mean_tx_bps(self) -> int:
+        self._check_testpmd_data("TX", "bps")
+        return _mean(self.tx_bps_data)
+
     def get_mean_rx_pps(self) -> int:
-        self._check_pps_data("RX")
+        self._check_testpmd_data("RX", "pps")
         return _mean(self.rx_pps_data)
 
     def get_mean_tx_pps(self) -> int:
-        self._check_pps_data("TX")
+        self._check_testpmd_data("TX", "pps")
         return _mean(self.tx_pps_data)
 
     def get_max_rx_pps(self) -> int:
-        self._check_pps_data("RX")
+        self._check_testpmd_data("RX", "pps")
         return max(self.rx_pps_data)
 
     def get_max_tx_pps(self) -> int:
-        self._check_pps_data("TX")
+        self._check_testpmd_data("TX", "pps")
         return max(self.tx_pps_data)
 
     def get_min_rx_pps(self) -> int:
-        self._check_pps_data("RX")
+        self._check_testpmd_data("RX", "pps")
         return min(self.rx_pps_data)
 
     def get_min_tx_pps(self) -> int:
-        self._check_pps_data("TX")
+        self._check_testpmd_data("TX", "pps")
         return min(self.tx_pps_data)
 
     def get_mean_tx_pps_sriov_rescind(self) -> Tuple[int, int, int]:
@@ -757,32 +780,23 @@ class DpdkTestpmd(Tool):
         )
         self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
-    def _check_pps_data_exists(self, rx_or_tx: str) -> None:
-        data_attr_name = f"{rx_or_tx.lower()}_pps_data"
+    def _check_data_exists(self, rx_or_tx: str, data_type: str = "pps") -> None:
+        data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
             (
-                f"PPS data ({rx_or_tx}) did not exist for testpmd object. "
+                f"{data_type} data ({rx_or_tx}) did not exist for testpmd object. "
                 "This indicates either testpmd did not run or the suite is "
                 "missing an assert. Contact the test maintainer."
             )
         ).is_true()
 
-    def _check_pps_data(self, rx_or_tx: str) -> None:
-        self._check_pps_data_exists(rx_or_tx)
-        data_set: List[int] = []
-        if rx_or_tx == "RX":
-            data_set = self.rx_pps_data
-        elif rx_or_tx == "TX":
-            data_set = self.tx_pps_data
-        else:
-            fail(
-                "Identifier passed to _check_pps_data was not recognized, "
-                f"must be RX or TX. Found {rx_or_tx}"
-            )
+    def _check_testpmd_data(self, rx_or_tx: str, data_type: str = "pps") -> None:
+        self._check_data_exists(rx_or_tx, data_type=data_type)
+        data_set: List[int] = getattr(self, f"{rx_or_tx.lower()}_{data_type}_data")
 
         assert_that(any(data_set)).described_as(
             f"any({str(data_set)}) resolved to false. Test data was "
-            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
+            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_{data_type}_data."
         ).is_true()
 
     def _install(self) -> bool:
@@ -959,14 +973,17 @@ class DpdkTestpmd(Tool):
 
         before_rescind = self.get_data_from_testpmd_output(
             key_constant,
+            self._testpmd_output_pps_regex,
             self._testpmd_output_before_rescind,
         )
         during_rescind = self.get_data_from_testpmd_output(
             key_constant,
+            self._testpmd_output_pps_regex,
             self._testpmd_output_during_rescind,
         )
         after_reenable = self.get_data_from_testpmd_output(
             key_constant,
+            self._testpmd_output_pps_regex,
             self._testpmd_output_after_reenable,
         )
         before, during, after = map(
