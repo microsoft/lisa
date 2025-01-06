@@ -21,6 +21,7 @@ from lisa.tools import (
     Lscpu,
     Mount,
 )
+from lisa.tools.hwclock import Hwclock
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -206,6 +207,8 @@ def run_network_workload(environment: Environment) -> Decimal:
 
 def cleanup_env(environment: Environment) -> None:
     remote_node = cast(RemoteNode, environment.nodes[0])
+    hwclock = remote_node.tools[Hwclock]
+    hwclock.set_rtc_clock_to_system_time()
     startstop = remote_node.features[StartStop]
     if startstop.get_status() == VMStatus.Deallocated:
         startstop.start()
