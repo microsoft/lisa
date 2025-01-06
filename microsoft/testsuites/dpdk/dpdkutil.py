@@ -528,9 +528,18 @@ def verify_dpdk_build(
         f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
-    assert_that(tx_pps).described_as(
-        f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
-    ).is_greater_than(2**20)
+    snd_tx_pps = test_kit.testpmd.get_mean_tx_pps()
+    log.info(f"sender tx-pps: {snd_tx_pps}")
+
+    snd_tx_gbps = test_kit.testpmd.get_mean_tx_bps() * (10**-9)
+
+    log.info(f"sender tx-gbps: {snd_tx_gbps}")
+    expected_tx = get_dpdk_expected_throughput(test_kit.node, rx_or_tx="tx")
+
+    # differences in NIC type throughput can lead to different snd/rcv counts
+    assert_that(snd_tx_gbps).described_as(
+        "Throughput for SEND was below the correct order of magnitude"
+    ).is_greater_than(expected_tx)
 
     return test_kit
 
