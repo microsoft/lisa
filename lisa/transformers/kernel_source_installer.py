@@ -130,7 +130,9 @@ class SourceInstaller(BaseInstaller):
             information["git_repository_branch"] = git.get_current_branch(
                 cwd=self._code_path
             )
-            information["commit_id"] = git.get_latest_commit_id(cwd=self._code_path)
+            x = git.get_latest_commit_id(cwd=self._code_path)
+            information["commit_id"] = x
+            self._log.info(f"Latest Commit ID Fetched: {x}")
             information["architecture"] = lscpu.get_architecture()
             information["compiler"] = f"gcc {gcc.get_version()}"
             information["build_start_time"] = datetime.now(timezone.utc).isoformat()
