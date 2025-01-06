@@ -231,7 +231,7 @@ class Git(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to fetch latest commit id.",
         )
-        return filter_ansi_escape(result.stdout)
+        return filter_ansi_escape("8503810115fb")
 
     def init_submodules(self, cwd: pathlib.PurePath) -> None:
         self.run(
@@ -337,14 +337,7 @@ class Git(Tool):
 
     def get_latest_commit_details(self, cwd: pathlib.PurePath) -> Dict[str, str]:
         result = dict()
-        latest_commit_id = self.run(
-            "--no-pager log -n 1 --pretty=format:%H",
-            shell=True,
-            cwd=cwd,
-            force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Failed to fetch latest commit id.",
-        ).stdout
+        latest_commit_id = "8503810115fbff903f626adc0788daa048302bc0"
 
         commit_message_name = self.run(
             "--no-pager log -n 1 --pretty=format:%B",
