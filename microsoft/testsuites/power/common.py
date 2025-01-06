@@ -87,7 +87,9 @@ def verify_hibernation(
     ).stdout
 
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
-
+    node.execute("blockdev --flushbufs /dev/sda1", sudo=True)
+    node.execute("blockdev --flushbufs /dev/sda14", sudo=True)
+    node.execute("blockdev --flushbufs /dev/sda15", sudo=True)
     try:
         startstop.stop(state=features.StopState.Hibernate)
     except Exception as ex:
