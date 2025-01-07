@@ -235,19 +235,29 @@ class WindowsService(Tool):
         pass
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
-        self.node.tools[PowerShell].run_cmdlet(
-            f"Restart-service {name}",
-            force_run=True,
-        )
+        try:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Restart-service {name}",
+                force_run=True,
+            )
+        except LisaException as identifier:
+            if "Cannot find any service with service name" in str(identifier):
+                self._log.debug(f"service '{name}' does not exist")
+                return
+            raise identifier
         self.wait_for_service_start(name)
 
     def stop_service(self, name: str) -> None:
-        self.node.tools[PowerShell].run_cmdlet(
-            f"Stop-Service {name} -Force",
-            force_run=True,
-            output_json=True,
-            fail_on_error=False,
-        )
+        try:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Stop-Service {name} -Force",
+                force_run=True,
+            )
+        except LisaException as identifier:
+            if "Cannot find any service with service name" in str(identifier):
+                self._log.debug(f"service '{name}' does not exist")
+                return
+            raise identifier
         self.wait_for_service_stop(name)
 
     def wait_for_service_start(self, name: str) -> None:
@@ -276,16 +286,17 @@ class WindowsService(Tool):
                 force_run=True,
                 output_json=True,
             )
-            return WindowsServiceStatus(int(service_status["Status"]))
         except LisaException as identifier:
             if "Cannot find any service with service name" in str(identifier):
                 if fail_on_error:
                     raise LisaException(f"service '{name}' does not exist")
                 return WindowsServiceStatus.NOT_FOUND
             raise identifier
+        return WindowsServiceStatus(int(service_status["Status"]))
 
-    def _wait_for_service(self, name: str, status: WindowsServiceStatus) -> None:
-        timeout = 60
+    def _wait_for_service(
+        self, name: str, status: WindowsServiceStatus, timeout: int = 30
+    ) -> None:
         timer = create_timer()
         self._log.debug(f"waiting for service '{name}' to be in '{status}' state")
         while timeout > timer.elapsed(False):
