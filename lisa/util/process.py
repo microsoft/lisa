@@ -377,6 +377,7 @@ class Process:
                 # LogWriter only flushes if "\n" is written, so we need to flush
                 # manually.
                 self._stdout_writer.flush()
+                self._stderr_writer.flush()
                 process_result = spur.results.result(
                     return_code=1,
                     allow_error=True,
@@ -495,6 +496,7 @@ class Process:
             # LogWriter only flushes if "\n" is written, so we need to flush
             # manually.
             self._stdout_writer.flush()
+            self._stderr_writer.flush()
 
             # check if buffer contains the keyword
             if keyword in self.log_buffer.getvalue():
