@@ -1726,8 +1726,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         # lun number is a concept of SCSI, so it's not applicable for NVME.
         # But lun numbers are represented as "Namespace" field in nvme-cli output
         # with an off set of +2.
-        # Except the OS disk, if we reduce the Namespace id by 2 we can get the LUN id of
-        # any attached azure data disks.
+        # To get LUN id of NVMe disks, we need to reduce the Namespace id by 2.
         # Example:
         # root@lisa--170-e0-n0:/home/lisa# nvme -list
         # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
@@ -1743,26 +1742,32 @@ class Disk(AzureFeatureMixin, features.Disk):
         # Azure remote data disks.
         # /dev/nvme0n1 is the OS disk and
         # /dev/nvme0n2, /dev/nvme0n3, /dev/nvme0n3 are azure remote data disks.
-        # They are connected at LUN 0, 13 and 12 respectively and their Namespace ids
-        # are 1, 15 and 14.
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+        # Their Namespace ids are 2, 15 and 14.
+        # They are attached at LUN 0, 13 and 12 respectively.
+        if (
+            self._node.features[Disk].get_os_disk_controller_type()
+            == schema.DiskControllerType.NVME
+        ):
+            # Get all the raw data disks attached to the VM.
             data_disks = self.get_raw_data_disks()
+
+            # Get all the NVMe devices and their Namespace ids.
             nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids(
                 force_run=True
             )
 
             for nvme_device_id in nvme_device_ids:
+                # Example nvme_device_ids: [{'/dev/nvme0n1': '1'}, {'/dev/nvme0n2': '2'}]
+                # Example nvme_device_id: {'/dev/nvme0n1': '1'}
                 nvme_device_file = list(nvme_device_id.keys())[0]
-                if self._is_remote_data_disk(nvme_device_file):
-                    # Reduce 2 from Namespace to get the actual LUN number.
+                if nvme_device_file in data_disks:
+                    # Reduce 2 from Namespace ID to get the actual LUN number.
                     device_lun = int(list(nvme_device_id.values())[0]) - 2
-                    if nvme_device_file in data_disks:
-                        device_luns.update(
-                            {
-                                nvme_device_file: device_lun,
-                            }
-                        )
+                    device_luns.update(
+                        {
+                            nvme_device_file: device_lun,
+                        }
+                    )
             return device_luns
 
         # If disk_controller_type == SCSI
@@ -1793,15 +1798,16 @@ class Disk(AzureFeatureMixin, features.Disk):
                 device_luns.update({cmd_result.stdout: device_lun})
         return device_luns
 
-
     def get_raw_data_disks(self) -> List[str]:
         # Handle BSD case
         if isinstance(self._node.os, BSD):
             return self._get_raw_data_disks_bsd()
 
         # disk_controller_type == NVME
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+        if (
+            self._node.features[Disk].get_os_disk_controller_type()
+            == schema.DiskControllerType.NVME
+        ):
             # With NVMe disk controller type, all remote SCSI disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
             # This loop collects all the SCSI remote disks except OS disk.
@@ -1865,8 +1871,10 @@ class Disk(AzureFeatureMixin, features.Disk):
 
     def _is_remote_data_disk(self, disk: str) -> bool:
         # If disk_controller_type == NVME
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+        if (
+            self._node.features[Disk].get_os_disk_controller_type()
+            == schema.DiskControllerType.NVME
+        ):
             os_disk_namespace = self.get_nvme_os_disk_namespace()
             os_disk_controller = self.get_nvme_os_disk_controller()
             if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
