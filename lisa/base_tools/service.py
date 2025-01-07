@@ -219,6 +219,7 @@ class WindowsServiceStatus(int, Enum):
     START_PENDING = 2
     STOP_PENDING = 3
     STOPPED = 1
+    NOT_FOUND = 0
 
 
 class WindowsService(Tool):
@@ -258,29 +259,30 @@ class WindowsService(Tool):
     def _check_exists(self) -> bool:
         return True
 
-    def _check_service_exists(self, name: str) -> bool:
-        try:
-            self._get_status(name)
-            return True
-        except LisaException:
+    def check_service_exists(self, name: str) -> bool:
+        if (
+            self._get_status(name, fail_on_error=False)
+            == WindowsServiceStatus.NOT_FOUND
+        ):
             return False
+        return True
 
-    def _check_service_running(self, name: str) -> bool:
-        return self._get_status(name) == WindowsServiceStatus.RUNNING
-
-    def _get_status(self, name: str = "") -> WindowsServiceStatus:
+    def _get_status(
+        self, name: str = "", fail_on_error: bool = True
+    ) -> WindowsServiceStatus:
         try:
             service_status = self.node.tools[PowerShell].run_cmdlet(
-                f"Get-Service {name}", force_run=True, output_json=True
+                f"Get-Service {name}",
+                force_run=True,
+                output_json=True,
             )
             return WindowsServiceStatus(int(service_status["Status"]))
         except LisaException as identifier:
             if "Cannot find any service with service name" in str(identifier):
-                raise LisaException(f"service '{name}' does not exist")
+                if fail_on_error:
+                    raise LisaException(f"service '{name}' does not exist")
+                return WindowsServiceStatus.NOT_FOUND
             raise identifier
-
-    def _is_service_inactive(self, name: str) -> bool:
-        return self._get_status(name) == WindowsServiceStatus.PAUSED
 
     def _wait_for_service(self, name: str, status: WindowsServiceStatus) -> None:
         timeout = 60

@@ -2,7 +2,7 @@ from retry import retry
 from typing import Any, Dict, List, Type
 
 from lisa import schema
-from lisa.tools import PowerShell
+from lisa.tools import PowerShell, Service
 from lisa.tools.hyperv import HyperV
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
@@ -40,4 +40,6 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
         # Configure DHCP
         hv.configure_dhcp()
+        service: Service = self._node.tools[Service]
+        print(service.check_service_exists("dhcpd"))
         return {}

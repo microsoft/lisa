@@ -230,11 +230,7 @@ class HypervPlatform(Platform):
         vm_name_prefix = f"{normalized_name}-e{environment.id}"
 
         hv = self._server.tools[HyperV]
-        default_switch = hv.get_default_external_switch()
-        if not default_switch:
-            self._log.debug("No external switch found, looking for internal switch")
-            default_switch = hv.get_default_internal_switch()
-        assert default_switch, "No default switch found"
+        default_switch = hv.get_default_switch()
 
         extra_args = {
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args

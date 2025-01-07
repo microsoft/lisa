@@ -29,6 +29,7 @@ class HypervSwitchType(Enum):
     INTERNAL = "Internal"
     EXTERNAL = "External"
 
+
 class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
@@ -208,19 +209,20 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_switch(self, switch_type: HypervSwitchType) -> Optional[VMSwitch]:
+    def get_default_switch(
+        self, switch_type: HypervSwitchType = HypervSwitchType.EXTERNAL
+    ) -> Optional[VMSwitch]:
         if switch_type in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
             switch_json = self.node.tools[PowerShell].run_cmdlet(
                 f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type}"}}'
                 "| Select -First 1 | select Name | ConvertTo-Json",
                 force_run=True,
-                fail_on_error=False,
             )
         else:
             raise LisaException(f"Unknown switch type {switch_type}")
 
         if not switch_json:
-            return None
+            raise LisaException(f"Could not find default switch of type {switch_type}")
 
         return VMSwitch.from_json(switch_json)  # type: ignore
 
@@ -242,7 +244,7 @@ class HyperV(Tool):
 
     def create_switch(self, name: str, switch_type: str = "Internal") -> None:
         # remove switch if it exists
-        self.delete_switch(name, fail_on_error=False)
+        self.delete_switch(name)
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
