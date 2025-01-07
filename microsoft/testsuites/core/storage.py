@@ -731,6 +731,8 @@ class Storage(TestSuite):
 
             # verify the lun number from linux VM
             linux_device_luns_after = disk.get_luns()
+            if not linux_device_luns_after:
+                raise LisaException("Attached new disk is not found on VM")
             linux_device_lun_diff = [
                 linux_device_luns_after[k]
                 for k in set(linux_device_luns_after) - set(linux_device_luns)
