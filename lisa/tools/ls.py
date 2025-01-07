@@ -106,7 +106,7 @@ class WindowsLs(Ls):
             sudo=sudo,
         )
         if output:
-            return List(output.split())
+            return list(output.split())
         else:
             return []
 
