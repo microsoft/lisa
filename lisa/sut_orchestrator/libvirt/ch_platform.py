@@ -18,7 +18,8 @@ from lisa.sut_orchestrator.libvirt.context import (
     get_node_context,
 )
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
-from lisa.tools import QemuImg
+from lisa.tools import Ls, QemuImg
+from lisa.util import LisaException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import CLOUD_HYPERVISOR
@@ -101,7 +102,21 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context = get_node_context(node)
 
         domain = ET.Element("domain")
-        domain.attrib["type"] = "ch"
+
+        libvirt_version = self._get_libvirt_version()
+        if parse_version(libvirt_version) > "10.0.2":
+            if self.host_node.tools[Ls].path_exists("/dev/mshv", sudo=True):
+                domain.attrib["type"] = "hyperv"
+            elif self.host_node.tools[Ls].path_exists("/dev/kvm", sudo=True):
+                domain.attrib["type"] = "kvm"
+            else:
+                raise LisaException(
+                    "kvm, mshv are the only supported \
+                                    hypervsiors. Both are missing on the host"
+                )
+
+        else:
+            domain.attrib["type"] = "ch"
 
         name = ET.SubElement(domain, "name")
         name.text = node_context.vm_name
