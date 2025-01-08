@@ -105,7 +105,6 @@ class Kselftest(Tool):
         kselftest_file_path: str,
         install_as_sudo: bool = True,
         build_src_file: bool = True,
-        kselftest_branch: str = "master",
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -113,7 +112,6 @@ class Kselftest(Tool):
 
         self._install_as_sudo = install_as_sudo
         self._build_src_file = build_src_file
-        self._kselftest_branch = kselftest_branch
         # tar file path specified in yml
         self._tar_file_path = kselftest_file_path
         if self._tar_file_path:
@@ -175,9 +173,15 @@ class Kselftest(Tool):
                 # clone kernel, build kernel, then build kselftests
                 self.node.os.install_packages(_MARINER_OS_PACKAGES)
 
+            kernel_version = self.node.os.get_kernel_information().version
+            kselftest_branch = (
+                f"linux-{kernel_version.major()}.{kernel_version.minor()}.y"
+            )
+            self._log.debug(f"checkout kernel branch'{kselftest_branch}'")
+
             git = self.node.tools[Git]
             branch_to_clone = (
-                f"{self._KSELF_TEST_SRC_REPO} -b {self._kselftest_branch} --depth 1"
+                f"{self._KSELF_TEST_SRC_REPO} -b {kselftest_branch} --depth 1"
             )
             self._kernel_path = git.clone(
                 branch_to_clone,

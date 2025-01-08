@@ -49,16 +49,15 @@ class KselftestTestsuite(TestSuite):
     ) -> None:
         file_path = variables.get("kselftest_file_path", "")
         build_src_file = variables.get("build_kselftest_src_file", True)
-        kselftest_branch = variables.get("kselftest_branch", "master")
+        run_as_sudo = variables.get("run_as_sudo", True)
 
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
                 kselftest_file_path=file_path,
-                install_as_sudo=False,
+                install_as_sudo=run_as_sudo,
                 build_src_file=build_src_file,
-                kselftest_branch=kselftest_branch,
             )
-            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT)
+            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT, run_as_sudo)
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
