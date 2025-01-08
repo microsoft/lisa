@@ -179,13 +179,14 @@ class BSDNvmecli(Nvmecli):
     def can_install(self) -> bool:
         return False
 
-    def get_namespaces(self) -> List[str]:
+    def get_namespaces(self, force_run: bool = False) -> List[str]:
         output = self.run(
             "devlist",
             shell=True,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="Unable to get namespaces information",
+            force_run=force_run,
         )
         namespaces_cli = []
         matched = find_patterns_in_lines(output.stdout, [self._namespace_cli_pattern])
