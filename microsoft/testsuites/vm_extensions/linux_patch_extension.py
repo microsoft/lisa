@@ -15,7 +15,16 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Oracle, Ubuntu
+from lisa.operating_system import (
+    BSD,
+    SLES,
+    CBLMariner,
+    CentOs,
+    Debian,
+    Oracle,
+    Redhat,
+    Ubuntu,
+)
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -48,28 +57,26 @@ def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -
                 _unsupported_image_exception_msg(node)
 
 
-def _verify_unsupported_images(node: Node, full_version: Any) -> None:
-    # Unsupported detailed versions for x86_64
-    unsupported_versions_x86_64 = {
-        # Major Minor Gen
-        SLES: ["15.5.1", "15.5.2"],
-        CBLMariner: ["1.0.1", "2.0.1", "2.0.2", "3.0.1"],
-        Debian: [
-            "10.12.1",
-            "10.12.2",
-            "10.13.1",
-            "11.6.1",
-            "11.7.1",
-            "11.7.2",
-            "11.9.2",
-        ],
+def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> None:
+    # lpe current supported images
+    lpe_supported_images_versions = {
+        # major.minor.gen
+        CentOs: ["7.7.1", "7.7.2", "7.9.2"],
+        Oracle: ["7.9.1", "7.9.2", "8.1.1", "8.1.2", "8.2.1", "8.2.2", "8.3.1", "8.3.2", "8.4.1", "8.4.2", "8.5.1", "8.5.2", "8.9.1", "8.9.2", "8.10.1", "8.10.2", "9.0.1", "9.0.2", "9.1.1", "9.1.2", "9.4.1", "9.4.2"],
+        Redhat: ["7.2.1", "7.2.2", "7.3.1", "7.3.2", "7.4.1", "7.4.2", "7.5.1", "7.5.2", "7.6.1", "7.6.2","7.7.1", "7.7.2", "7.8.1", "7.8.2", "7.9.1", "7.9.2", "8.0.1", "8.0.2", "8.1.1", "8.1.2", "8.2.1", "8.2.2", "8.3.1", "8.3.2", "8.4.1", "8.4.2", "8.5.1", "8.5.2", "8.6.1", "8.6.2", "8.7.1", "8.8.1", "8.8.2", "8.9.1", "8.9.2", "8.10.1", "8.10.2", "9.0.1", "9.0.2", "9.1.1", "9.1.2", "9.2.1", "9.2.2", "9.3.1", "9.3.2", "9.4.1", "9.4.2", "9.5.1", "9.5.2"],
+        SLES: ["12.5.1", "12.5.2", "15.2.1", "15.2.2"],
+        Ubuntu: ["16.4.1", "16.4.2", "18.4.1", "18.4.2", "20.4.1", "20.4.2", "22.4.1", "22.4.2"],
     }
 
-    for distro in unsupported_versions_x86_64:
+    for distro in lpe_supported_images_versions:
         if isinstance(node.os, distro):
-            version_list = unsupported_versions_x86_64.get(distro)
+            version_list = lpe_supported_images_versions.get(distro)
             if version_list is not None and full_version in version_list:
+                log.debug(f"This is a supported image: {full_version}")
+                return
+            else:
                 # Raise an exception for unsupported version
+                log.debug(f"This is an unsupported image: {full_version}")
                 _unsupported_image_exception_msg(node)
 
 
@@ -126,7 +133,7 @@ def _verify_supported_images_and_vm_agent(node: Node, log: Logger) -> None:
     if arch == "aarch64":
         _verify_supported_arm64_images(node, log, full_version)
     else:
-        _verify_unsupported_images(node, full_version)
+        _verify_lpe_supported_images(node, log, full_version)
 
     # Verify if VM agent service is running, lpe is a dependent of VM agent
     _verify_vm_agent_running(node, log)
