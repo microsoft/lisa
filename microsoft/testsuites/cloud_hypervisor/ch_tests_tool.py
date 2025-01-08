@@ -22,11 +22,12 @@ from lisa.tools import (
     Echo,
     Git,
     Ls,
+    Lsblk,
     Mkdir,
     Modprobe,
     Whoami,
 )
-from lisa.util import find_groups_in_lines
+from lisa.util import LisaException, find_groups_in_lines
 
 
 @dataclass
@@ -62,7 +63,6 @@ class CloudHypervisorTests(Tool):
 
     # Block perf related env var
     use_datadisk = ""
-    datadisk_name = ""
     disable_datadisk_cache = ""
     block_size_kb = ""
 
@@ -164,6 +164,9 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        if self.use_datadisk:
+            self._set_data_disk()
+
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -264,8 +267,6 @@ class CloudHypervisorTests(Tool):
 
             if self.use_datadisk:
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
-            if self.datadisk_name:
-                self.env_vars["DATADISK_NAME"] = self.datadisk_name
             if self.disable_datadisk_cache:
                 self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
             if self.block_size_kb:
@@ -495,6 +496,24 @@ class CloudHypervisorTests(Tool):
             )
             node.tools[Chown].change_owner(file=PurePath(device_path), user=user)
             node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
+
+    def _set_data_disk(self) -> None:
+        datadisk_name = ""
+        lsblk = self.node.tools[Lsblk]
+        disks = lsblk.get_disks()
+        # get the first unmounted disk (data disk)
+        for disk in disks:
+            if disk.is_mounted:
+                continue
+            if disk.name.startswith("sd"):
+                datadisk_name = disk.device_name
+                break
+        # running lsblk once again, just for human readable logs
+        lsblk.run()
+        if not datadisk_name:
+            raise LisaException("No unmounted data disk (/dev/sdX) found")
+        self._log.debug(f"Using data disk: {datadisk_name}")
+        self.env_vars["DATADISK_NAME"] = datadisk_name
 
 
 def extract_jsons(input_string: str) -> List[Any]:
