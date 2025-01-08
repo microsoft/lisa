@@ -2736,6 +2736,7 @@ def get_static_access_token(token_type: str) -> Any:
     credential = None
     if token_type in os.environ:
         credential = StaticAccessTokenCredential(os.environ[token_type])
+        print(f"Using static access {token_type} token for Azure authentication.")
     return credential
 
 
