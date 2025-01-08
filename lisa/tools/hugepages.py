@@ -7,12 +7,12 @@ from typing import Any, Set
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.tools.echo import Echo
 from lisa.tools.free import Free
 from lisa.tools.ls import Ls
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.mkfs import FileSystem
 from lisa.tools.mount import Mount
+from lisa.tools.tee import Tee
 from lisa.util import NotEnoughMemoryException, UnsupportedOperationException
 
 PATTERN_HUGEPAGE = re.compile(
@@ -68,7 +68,7 @@ class Hugepages(Tool):
     def _enable_hugepages(
         self, hugepage_size_kb: HugePageSize, request_space_kb: int
     ) -> None:
-        echo = self.node.tools[Echo]
+        tee = self.node.tools[Tee]
         meminfo = self.node.tools[Free]
         numa_nodes = self.node.tools[Lscpu].get_numa_node_count()
         # ask for enough space, note that we enable pages per numa node
@@ -92,7 +92,7 @@ class Hugepages(Tool):
             # nr_hugepages will be written with the number calculated
             # based on 2MB hugepages if not specified, subject to change
             # this based on further discussion
-            echo.write_to_file(
+            tee.write_to_file(
                 f"{pages_per_numa_node}",
                 self.node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
