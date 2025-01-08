@@ -4,8 +4,6 @@ import re
 from enum import Enum
 from typing import Any, Set
 
-from assertpy import assert_that
-
 from lisa.executable import Tool
 from lisa.tools.echo import Echo
 from lisa.tools.free import Free
@@ -84,10 +82,12 @@ class Hugepages(Tool):
             )
         total_request_pages = request_space_kb // hugepage_size_kb.value
         pages_per_numa_node = total_request_pages // numa_nodes
-        assert_that(pages_per_numa_node).described_as(
-            "Must request huge page count > 0. Verify this system has enough "
-            "free memory to allocate ~2GB of hugepages"
-        ).is_greater_than(0)
+        if pages_per_numa_node <= 0:
+            raise NotEnoughMemoryException(
+                "Must request huge page count > 0. Verify this system has enough "
+                "free memory to allocate ~2GB of hugepages"
+            )
+
         for i in range(numa_nodes):
             # nr_hugepages will be written with the number calculated
             # based on 2MB hugepages if not specified, subject to change
