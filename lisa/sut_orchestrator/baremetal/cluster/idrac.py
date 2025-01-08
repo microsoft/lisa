@@ -214,11 +214,13 @@ class Idrac(Cluster):
                 task = response.monitor(self.redfish_instance)
 
         if response.status not in [200, 202, 204]:
+            print(f"response: {response}")
             raise LisaException("Failed to complete task! - status:", response.status)
 
     def _insert_virtual_media(self, iso_http_url: str) -> None:
         self._log.debug("Inserting virtual media...")
         body = {"Image": iso_http_url}
+        print(f"body: {body}, iso_http_url: {iso_http_url}")
         response = self.redfish_instance.post(
             "/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/CD/Actions/"
             "VirtualMedia.InsertMedia",

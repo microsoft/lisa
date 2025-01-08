@@ -820,6 +820,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
 
             node_context = get_node_context(node)
+            # if self.host_node.is_remote:
+            #     node_context.host_node = remote_node
+            # else:
+            #     node_context.host_node = self.host_node
             if node_context.init_system == InitSystem.CLOUD_INIT:
                 # Ensure cloud-init completes its setup.
                 node.execute(

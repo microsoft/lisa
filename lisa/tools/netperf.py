@@ -31,10 +31,17 @@ class Netperf(Tool):
     def dependencies(self) -> List[Type[Tool]]:
         return [Gcc, Git, Make, Texinfo]
 
-    def run_as_server(self, port: int = 30000, daemon: bool = True) -> None:
+    def run_as_server(
+        self,
+        port: int = 30000,
+        daemon: bool = True,
+        interface_ip: str = "",
+    ) -> None:
         cmd = f"netserver -p {port} "
         if not daemon:
             cmd += " -D "
+        if interface_ip:
+            cmd += f" -L {interface_ip}"
         self.node.execute(
             cmd,
             sudo=True,
@@ -50,9 +57,11 @@ class Netperf(Tool):
         test_name: str = "TCP_RR",
         seconds: int = 150,
         time_unit: int = 1,
+        interface_ip: str = "",
         send_recv_offset: str = "THROUGHPUT, THROUGHPUT_UNITS, MIN_LATENCY, MAX_LATENCY, MEAN_LATENCY, REQUEST_SIZE, RESPONSE_SIZE, STDDEV_LATENCY",  # noqa: E501
     ) -> Process:
         # -H: Specify the target machine and/or local ip and family
+        # -L: Specify the IP for client interface to be used
         # -p: Specify netserver port number and/or local port
         # -t: Specify test to perform
         # -n: Set the number of processors for CPU util
@@ -61,8 +70,11 @@ class Netperf(Tool):
         #     initial guess for units per second. A negative value for time will make
         #     heavy use of the system's timestamping functionality
         # -O: Set the remote send,recv buffer offset
-        cmd = (
-            f"-H {server_ip} -p {port} -t {test_name} -n {core_count} -l {seconds}"
+        cmd: str = ""
+        if interface_ip:
+            cmd += f" -L {interface_ip}"
+        cmd += (
+            f" -H {server_ip} -p {port} -t {test_name} -n {core_count} -l {seconds}"
             f" -D {time_unit} -- -O '{send_recv_offset}'"
         )
         process = self.node.execute_async(f"{self.command} {cmd}", sudo=True)
