@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import Debian, Redhat, Ubuntu
+from lisa.operating_system import AlmaLinux, Debian, Redhat, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -31,6 +31,7 @@ from lisa.util.perf_timer import create_timer
 
 
 def is_distro_supported(node: Node) -> None:
+    return
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -76,7 +77,7 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat:
+    if type(node.os) == Redhat or type(node.os) == AlmaLinux:
         node.reboot()
 
     boot_time_before_hibernation = node.execute(

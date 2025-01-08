@@ -81,7 +81,7 @@ class Power(TestSuite):
         ),
     )
     def verify_hibernation_sriov_network(self, node: Node, log: Logger) -> None:
-        is_distro_supported(node)
+        # is_distro_supported(node)
         verify_hibernation(node, log)
 
     @TestCaseMetadata(
