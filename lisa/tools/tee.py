@@ -39,4 +39,11 @@ class Tee(Tool):
         if sudo:
             cmd = f"sudo {cmd}"
         cmd = f"{cmd} {str(file)}"
-        self.node.execute(f"echo '{value}' | {cmd}", shell=True)
+        self.node.execute(
+            f"echo '{value}' | {cmd}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not write {value} to file {str(file)}"
+            ),
+        )
