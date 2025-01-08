@@ -561,6 +561,18 @@ def _install_libvirt(runbook: schema.TypedSchema, node: Node, log: Logger) -> No
     log.info("Enabled libvirtd and virtnetworkd services")
     node.reboot(time_out=900)
     _wait_for_libvirtd(node)
+    if isinstance(node.os, CBLMariner):
+        # Some time we have seen 'default' nw of libvirt is not started
+        # start it in that case and mark it auto-start
+        node.execute(
+            cmd="virsh net-start default",
+            sudo=True,
+        )
+        node.execute(
+            cmd="virsh net-autostart default",
+            sudo=True,
+        )
+        log.info("Marked 'default' libvirt network as auto-start")
 
 
 def _wait_for_libvirtd(node: Node) -> None:
