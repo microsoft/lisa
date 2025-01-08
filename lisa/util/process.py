@@ -344,13 +344,16 @@ class Process:
                             "Running commands with sudo requires user's password,"
                             " but no password is provided."
                         )
-                    self.input(f"{self._shell.connection_info.password}\n")
+                    self.input(f"{self._shell.connection_info.password}\n", False)
                     self._log.debug("The user's password is input")
                     break
 
-    def input(self, content: str) -> None:
+    def input(self, content: str, is_log_input: bool = True) -> None:
         assert self._process, "The process object is None, the process may end."
-        self._log.debug(f"Inputting {len(content)} chars to process.")
+        if is_log_input:
+            self._log.debug(f"input content: {content}")
+        else:
+            self._log.debug(f"Inputting {len(content)} chars to process.")
         self._process.stdin_write(content)
 
     def wait_result(
@@ -466,11 +469,12 @@ class Process:
                         self._process.send_signal(signal.SIGTERM)
                 else:
                     # windows
+                    task_kill = "taskkill"
                     kill_process = Process(
-                        self._id_, self._shell, parent_logger=self._log
+                        task_kill, self._shell, parent_logger=self._log
                     )
                     kill_process.start(
-                        "taskkill /F /T /PID " + str(self._process.pid),
+                        f"{task_kill} /F /T /PID " + str(self._process.pid),
                         no_info_log=True,
                     )
                     kill_process.wait_result(1)
