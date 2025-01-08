@@ -328,7 +328,12 @@ class KernelPanicException(LisaException):
         self.source = source
 
     def __str__(self) -> str:
-        return f"{self.stage} found panic in {self.source}: {self.panics}"
+        return (
+            f"{self.stage} found panic in {self.source}. You can check the panic "
+            "details from the serial console log. Please download the test logs and "
+            "retrieve the serial_log from 'environments' directory, or you can ask "
+            f"support. Detected Panic phrases: {self.panics}"
+        )
 
 
 class RequireUserPasswordException(LisaException):
