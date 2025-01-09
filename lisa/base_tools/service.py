@@ -243,10 +243,8 @@ class WindowsService(Tool):
         except LisaException as identifier:
             if "Cannot find any service with service name" in str(identifier):
                 self._log.debug(f"service '{name}' does not exist")
-                return
             elif "cannot be stopped due to the following error" in str(identifier):
                 self._log.debug(f"service '{name}' cannot be stopped")
-                return
             raise identifier
         self.wait_for_service_start(name)
 
@@ -259,10 +257,8 @@ class WindowsService(Tool):
         except LisaException as identifier:
             if "Cannot find any service with service name" in str(identifier):
                 self._log.debug(f"service '{name}' does not exist")
-                return
             elif "cannot be stopped due to the following error" in str(identifier):
                 self._log.debug(f"service '{name}' cannot be stopped")
-                return
             raise identifier
         self.wait_for_service_stop(name)
 
