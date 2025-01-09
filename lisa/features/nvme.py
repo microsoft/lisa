@@ -4,7 +4,7 @@
 import re
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, List, Pattern, Type
 
 from dataclasses_json import dataclass_json
 
@@ -15,11 +15,13 @@ from lisa.operating_system import BSD
 from lisa.schema import FeatureSettings
 from lisa.tools import Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
-from lisa.util import field_metadata, get_matched_str
+from lisa.util import LisaException, field_metadata, get_matched_str
 from lisa.util.constants import DEVICE_TYPE_NVME
 
 
 class Nvme(Feature):
+    _os_disk_namespace = ""
+    _os_disk_controller = ""
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme0
     # crw------- 1 root root 251, 0 Jun 21 03:08 /dev/nvme10
     _device_pattern = re.compile(r".*(?P<device_name>/dev/nvme[0-9]+$)", re.MULTILINE)
@@ -42,6 +44,9 @@ class Nvme(Feature):
 
     # /dev/nvme0n1p15 -> /dev/nvme0n1
     NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
+
+    # /dev/nvme0n1p15 -> /dev/nvme0
+    NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
 
     # /dev/nvme0n1p15 -> /dev/nvme0n1
     NVME_DEVICE_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
@@ -79,7 +84,48 @@ class Nvme(Feature):
                 matched_result = self._namespace_pattern.match(row)
             if matched_result:
                 namespaces.append(matched_result.group("namespace"))
+        # When disk controller type is NVMe, OS disk will show up as NVMe device.
+        # Removing OS disk from the list of NVMe devices which is not an NVMe device.
         return self._remove_nvme_os_disk(namespaces)
+
+    def get_nvme_os_disk_info(self, pattern: Pattern[str]) -> str:
+        """
+        Generic function to get OS disk nvme information based on the provided pattern.
+        """
+        os_disk_info = ""
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_info = get_matched_str(
+                    os_boot_partition.name,
+                    pattern,
+                )
+        else:
+            raise LisaException("OS disk is not of type NVMe.")
+        return os_disk_info
+
+    def get_nvme_os_disk_controller(self) -> str:
+        # Getting OS disk nvme controller.
+        # Sample os_boot_partition:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        # In the above example, '/dev/nvme0' is the controller.
+        if self._os_disk_controller == "":
+            self._os_disk_controller = self.get_nvme_os_disk_info(
+                self.NVME_CONTROLLER_PATTERN
+            )
+        return self._os_disk_controller
+
+    def get_nvme_os_disk_namespace(self) -> str:
+        # Getting OS disk nvme namespace.
+        # Sample os_boot_partition:
+        # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+        # In the above example, '/dev/nvme0n1' is the namespace.
+        if self._os_disk_namespace == "":
+            self._os_disk_namespace = self.get_nvme_os_disk_info(
+                self.NVME_NAMESPACE_PATTERN
+            )
+        return self._os_disk_namespace
 
     # With disk controller type NVMe (ASAP), OS disk along with all remote iSCSI devices
     # appears as NVMe.
