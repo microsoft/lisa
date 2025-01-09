@@ -244,6 +244,9 @@ class WindowsService(Tool):
             if "Cannot find any service with service name" in str(identifier):
                 self._log.debug(f"service '{name}' does not exist")
                 return
+            elif "cannot be stopped due to the following error" in str(identifier):
+                self._log.debug(f"service '{name}' cannot be stopped")
+                return
             raise identifier
         self.wait_for_service_start(name)
 
@@ -257,6 +260,9 @@ class WindowsService(Tool):
             if "Cannot find any service with service name" in str(identifier):
                 self._log.debug(f"service '{name}' does not exist")
                 return
+            elif "cannot be stopped due to the following error" in str(identifier):
+                self._log.debug(f"service '{name}' cannot be stopped")
+                return
             raise identifier
         self.wait_for_service_stop(name)
 
@@ -266,15 +272,15 @@ class WindowsService(Tool):
     def wait_for_service_stop(self, name: str) -> None:
         self._wait_for_service(name, WindowsServiceStatus.STOPPED)
 
-    def _check_exists(self) -> bool:
-        return True
-
     def check_service_exists(self, name: str) -> bool:
         if (
             self._get_status(name, fail_on_error=False)
             == WindowsServiceStatus.NOT_FOUND
         ):
             return False
+        return True
+
+    def _check_exists(self) -> bool:
         return True
 
     def _get_status(
