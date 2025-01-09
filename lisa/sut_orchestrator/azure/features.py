@@ -64,6 +64,7 @@ from lisa.tools import (
     Lsblk,
     Lspci,
     Modprobe,
+    Nvmecli,
     Rm,
     Sed,
 )
@@ -1632,12 +1633,6 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
     )
 
-    # /dev/nvme0n1p15 -> /dev/nvme0n1
-    NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
-
-    # /dev/nvme0n1p15 -> /dev/nvme0
-    NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
-
     # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 0 (pass0,da0)
     # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 1 (pass1,da1)
     # <Msft Virtual DVD-ROM 1.0>         at scbus0 target 0 lun 2 (pass2,cd0)
@@ -1719,34 +1714,78 @@ class Disk(AzureFeatureMixin, features.Disk):
         return azure_scsi_disks
 
     def get_luns(self) -> Dict[str, int]:
-        # disk_controller_type == SCSI
         # get azure scsi attached disks
         device_luns = {}
-        if isinstance(self._node.os, BSD):
-            cmd_result = self._node.execute(
-                "camcontrol devlist",
-                shell=True,
-                sudo=True,
+        # If disk_controller_type == NVME
+        #
+        # LUN numbers is a concept of SCSI and not applicable for NVME.
+        # But in Azure, remote data disks attached with NVME disk controller show LUN
+        # numbers in "Namespace" field of nvme-cli output with an off set of +2.
+        # If we reduce the Namespace id by 2 we can get the LUN id of any attached
+        # azure data disks.
+        # Example:
+        # root@lisa--170-e0-n0:/home/lisa# nvme -list
+        # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
+        # --------------------- -------------------- ---------------------------------------- --------- -------------------------- ---------------- -------  # noqa: E501
+        # /dev/nvme0n1          SN: 000001           MSFT NVMe Accelerator v1.0               1          29.87  GB /  29.87  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n2          SN: 000001           MSFT NVMe Accelerator v1.0               2           4.29  GB /   4.29  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n3          SN: 000001           MSFT NVMe Accelerator v1.0               15         44.02  GB /  44.02  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme0n4          SN: 000001           MSFT NVMe Accelerator v1.0               14          6.44  GB /   6.44  GB    512   B +  0 B   v1.0000  # noqa: E501
+        # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+        # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
+        #
+        # In the above output all devices starting with /dev/nvme0 are
+        # Azure remote data disks.
+        # /dev/nvme0n1 is the OS disk and
+        # /dev/nvme0n2, /dev/nvme0n3, /dev/nvme0n4 are azure remote data disks.
+        # They are connected at LUN 0, 13 and 12 respectively and their Namespace ids
+        # are 2, 15 and 14.
+        node_disk = self._node.features[Disk]
+        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            data_disks = self.get_raw_data_disks()
+            nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids(
+                force_run=True
             )
-            for line in cmd_result.stdout.splitlines():
-                match = self.LUN_PATTERN_BSD.search(line)
-                if match:
-                    lun_number = int(match.group(1))
-                    device_name = match.group(2)
-                    device_luns.update({device_name: lun_number})
-        else:
-            azure_scsi_disks = self._get_scsi_data_disks()
-            device_luns = {}
-            lun_number_pattern = re.compile(r"[0-9]+$", re.M)
-            for disk in azure_scsi_disks:
-                # /dev/disk/azure/scsi1/lun20 -> 20
-                device_lun = int(get_matched_str(disk, lun_number_pattern))
-                # readlink -f /dev/disk/azure/scsi1/lun0
-                # /dev/sdc
+
+            for nvme_device_id in nvme_device_ids:
+                nvme_device_file = list(nvme_device_id.keys())[0]
+                if self._is_remote_data_disk(nvme_device_file):
+                    # Reduce 2 from Namespace to get the actual LUN number.
+                    device_lun = int(list(nvme_device_id.values())[0]) - 2
+                    if nvme_device_file in data_disks:
+                        device_luns.update(
+                            {
+                                nvme_device_file: device_lun,
+                            }
+                        )
+            return device_luns
+        # If disk_controller_type == SCSI
+        elif node_disk.get_os_disk_controller_type() == schema.DiskControllerType.SCSI:
+            if isinstance(self._node.os, BSD):
                 cmd_result = self._node.execute(
-                    f"readlink -f {disk}", shell=True, sudo=True
+                    "camcontrol devlist",
+                    shell=True,
+                    sudo=True,
                 )
-                device_luns.update({cmd_result.stdout: device_lun})
+                for line in cmd_result.stdout.splitlines():
+                    match = self.LUN_PATTERN_BSD.search(line)
+                    if match:
+                        lun_number = int(match.group(1))
+                        device_name = match.group(2)
+                        device_luns.update({device_name: lun_number})
+            else:
+                azure_scsi_disks = self._get_scsi_data_disks()
+                device_luns = {}
+                lun_number_pattern = re.compile(r"[0-9]+$", re.M)
+                for disk in azure_scsi_disks:
+                    # /dev/disk/azure/scsi1/lun20 -> 20
+                    device_lun = int(get_matched_str(disk, lun_number_pattern))
+                    # readlink -f /dev/disk/azure/scsi1/lun0
+                    # /dev/sdc
+                    cmd_result = self._node.execute(
+                        f"readlink -f {disk}", shell=True, sudo=True
+                    )
+                    device_luns.update({cmd_result.stdout: device_lun})
         return device_luns
 
     def get_raw_data_disks(self) -> List[str]:
@@ -1757,32 +1796,15 @@ class Disk(AzureFeatureMixin, features.Disk):
         # disk_controller_type == NVME
         node_disk = self._node.features[Disk]
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            # Getting OS disk nvme namespace and disk controller used by OS disk.
-            # Sample os_boot_partition:
-            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
-            os_boot_partition = node_disk.get_os_boot_partition()
-            if os_boot_partition:
-                os_disk_namespace = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_NAMESPACE_PATTERN,
-                )
-                os_disk_controller = get_matched_str(
-                    os_boot_partition.name,
-                    self.NVME_CONTROLLER_PATTERN,
-                )
-
             # With NVMe disk controller type, all remote SCSI disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
             # This loop collects all the SCSI remote disks except OS disk.
-            nvme = self._node.features[Nvme]
-            nvme_namespaces = nvme.get_namespaces()
+            nvme_cli = self._node.tools[Nvmecli]
+            nvme_disks = nvme_cli.get_disks(force_run=True)
             disk_array = []
-            for name_space in nvme_namespaces:
-                if (
-                    name_space.startswith(os_disk_controller)
-                    and name_space != os_disk_namespace
-                ):
-                    disk_array.append(name_space)
+            for nvme_disk in nvme_disks:
+                if self._is_remote_data_disk(nvme_disk):
+                    disk_array.append(nvme_disk)
             return disk_array
 
         # disk_controller_type == SCSI
@@ -2006,6 +2028,22 @@ class Disk(AzureFeatureMixin, features.Disk):
         return any(
             partition.mountpoint == "/mnt/resource" for partition in disk.partitions
         )
+
+    def _is_remote_data_disk(self, disk: str) -> bool:
+        # If disk_controller_type == NVME
+        nvme = self._node.features[Nvme]
+        if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            os_disk_namespace = nvme.get_nvme_os_disk_namespace()
+            os_disk_controller = nvme.get_nvme_os_disk_controller()
+            # When disk_controller_type is NVME, all remote disks are connected to
+            # same NVMe controller. The same controller is used by OS disk.
+            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
+                return True
+            return False
+
+        # If disk_controller_type == SCSI
+        azure_scsi_disks = self._get_scsi_data_disks()
+        return disk in azure_scsi_disks
 
     def _get_raw_data_disks_bsd(self) -> List[str]:
         disks = self._node.tools[Lsblk].get_disks()
