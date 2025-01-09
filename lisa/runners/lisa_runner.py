@@ -291,6 +291,8 @@ class LisaRunner(BaseRunner):
         self, environment: Environment, test_results: List[TestResult]
     ) -> None:
         try:
+            test_result = test_results[0]
+            test_result.subscribe_log(environment.log)
             try:
                 # Attempt to deploy the environment
                 self.platform.deploy_environment(environment)
@@ -315,10 +317,12 @@ class LisaRunner(BaseRunner):
                 # Final attempt failed; handle the failure
                 self._attach_failed_environment_to_result(
                     environment=environment,
-                    result=test_results[0],
+                    result=test_result,
                     exception=identifier,
                 )
                 self._delete_environment_task(environment=environment, test_results=[])
+        finally:
+            test_result.unsubscribe_log(environment.log)
 
     def _initialize_environment_task(
         self, environment: Environment, test_results: List[TestResult]
@@ -616,7 +620,10 @@ class LisaRunner(BaseRunner):
         # so deployment failure can be tracked.
         environment.platform = self.platform
         result.environment = environment
-        result.handle_exception(exception=exception, log=self._log, phase="deployment")
+
+        result.handle_exception(
+            exception=exception, log=environment.log, phase="deployment"
+        )
         self._log.info(
             f"'{environment.name}' attached to test case "
             f"'{result.runtime_data.metadata.full_name}({result.id_})': "
