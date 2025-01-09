@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import traceback
 from dataclasses import dataclass, field
 from functools import wraps
@@ -85,12 +86,16 @@ class TestResult:
     log_file: str = ""
     stacktrace: Optional[str] = None
     retried_times: int = 0
+    _log_file_handler: Optional[logging.FileHandler] = None
+    _case_log_path: Optional[Path] = None
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self._send_result_message()
         self._timer: Timer
 
         self._environment_information: Dict[str, Any] = {}
+        # parent_log = get_logger("suite", self.runtime_data.metadata.suite.name)
+        self.log = get_logger("case", self.name)
 
     @property
     def is_queued(self) -> bool:
@@ -265,6 +270,44 @@ class TestResult:
 
         return result
 
+    def subscribe_log(self, log: Logger) -> None:
+        add_handler(self._get_log_file_handler(), log)
+
+    def unsubscribe_log(self, log: Logger) -> None:
+        remove_handler(self._get_log_file_handler(), log)
+
+    def get_case_log_path(self) -> Path:
+        if not self._case_log_path:
+            self._case_log_path = self.__create_case_log_path()
+        return self._case_log_path
+
+    def _get_log_file_handler(self) -> logging.FileHandler:
+        if not self._log_file_handler:
+            case_log_path = self.get_case_log_path()
+            case_log_file = case_log_path / f"{case_log_path.name}.log"
+            self._log_file_handler = create_file_handler(case_log_file, self.log)
+            self.log_file = case_log_file.relative_to(
+                constants.RUN_LOCAL_LOG_PATH
+            ).as_posix()
+        return self._log_file_handler
+
+    def close_log_file_handler(self) -> None:
+        if self._log_file_handler:
+            remove_handler(self._log_file_handler, self.log)
+            self._log_file_handler.close()
+            self._log_file_handler = None
+
+    def capture_serial_console_log(self) -> None:
+        if not self.environment:
+            raise LisaException("Environment is not set for saving environment logs")
+        nodes = self.environment.nodes
+        for node in nodes.list():
+            if hasattr(node, "features") and node.features.is_supported(SerialConsole):
+                serial_console = node.features[SerialConsole]
+                log_dir = self.get_case_log_path() / Path(f"serial_console_{node.name}")
+                log_dir.mkdir(parents=True)
+                serial_console.get_console_log(log_dir, force_run=True)
+
     def _send_result_message(self, stacktrace: Optional[str] = None) -> None:
         self.elapsed = self.get_elapsed()
 
@@ -315,6 +358,23 @@ class TestResult:
         plugin_manager.hook.update_test_result_message(message=result_message)
 
         notifier.notify(result_message)
+
+    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
+    def __create_case_log_path(self) -> Path:
+        case_name = self.runtime_data.name
+        while True:
+            path = (
+                constants.RUN_LOCAL_LOG_PATH
+                / "tests"
+                / f"{get_datetime_path()}-{case_name}"
+            )
+            if not path.exists():
+                break
+            sleep(0.1)
+        # avoid to create folder for UT
+        if not is_unittest():
+            path.mkdir(parents=True)
+        return path
 
 
 @dataclass
@@ -636,18 +696,14 @@ class TestSuite:
             raise LisaException("after_suite is not supported. Please use after_case")
         #  replace to case's logger temporarily
         for case_result in case_results:
-            case_name = case_result.runtime_data.name
-
             case_result.environment = environment
-            case_log = get_logger("case", case_name, parent=self.__log)
+            case_log = case_result.log
+            case_result.subscribe_log(environment.log)
+            case_log_path = case_result.get_case_log_path()
 
-            case_log_path = self.__create_case_log_path(case_name)
             case_part_path = self.__get_test_part_path(case_log_path)
             case_working_path = self.__get_case_working_path(case_part_path)
             case_unique_name = case_log_path.name
-            case_log_file = case_log_path / f"{case_log_path.name}.log"
-            case_log_handler = create_file_handler(case_log_file, case_log)
-            add_handler(case_log_handler, environment.log)
 
             case_kwargs = test_kwargs.copy()
             case_kwargs.update({"case_name": case_unique_name})
@@ -662,9 +718,6 @@ class TestSuite:
             )
             is_continue: bool = is_suite_continue
             total_timer = create_timer()
-            case_result.log_file = case_log_file.relative_to(
-                constants.RUN_LOCAL_LOG_PATH
-            ).as_posix()
             case_result.set_status(TestStatus.RUNNING, "")
 
             # check for positive value just to be clearer
@@ -708,7 +761,7 @@ class TestSuite:
 
             if case_result.status == TestStatus.FAILED:
                 try:
-                    self.__save_serial_log(environment, case_log_path)
+                    case_result.capture_serial_console_log()
                 except Exception as e:
                     suite_log.debug(
                         f"exception thrown during serial console log read. [{e}]"
@@ -717,10 +770,8 @@ class TestSuite:
             case_log.info(
                 f"result: {case_result.status.name}, " f"elapsed: {total_timer}"
             )
-            remove_handler(case_log_handler, case_log)
-            remove_handler(case_log_handler, environment.log)
-            if case_log_handler:
-                case_log_handler.close()
+            case_result.unsubscribe_log(environment.log)
+            case_result.close_log_file_handler()
 
             if self._should_stop:
                 suite_log.info("received stop message, stop run")
@@ -728,31 +779,6 @@ class TestSuite:
 
     def stop(self) -> None:
         self._should_stop = True
-
-    def __save_serial_log(self, environment: Environment, log_path: Path) -> None:
-        nodes = environment.nodes
-        for node in nodes.list():
-            if hasattr(node, "features") and node.features.is_supported(SerialConsole):
-                serial_console = node.features[SerialConsole]
-                log_dir = log_path / Path(f"serial_console_{node.name}")
-                log_dir.mkdir(parents=True)
-                serial_console.get_console_log(log_dir, force_run=True)
-
-    @retry(exceptions=FileExistsError, tries=30, delay=0.1)
-    def __create_case_log_path(self, case_name: str) -> Path:
-        while True:
-            path = (
-                constants.RUN_LOCAL_LOG_PATH
-                / "tests"
-                / f"{get_datetime_path()}-{case_name}"
-            )
-            if not path.exists():
-                break
-            sleep(0.1)
-        # avoid to create folder for UT
-        if not is_unittest():
-            path.mkdir(parents=True)
-        return path
 
     def __get_test_part_path(self, log_path: Path) -> Path:
         if is_unittest():

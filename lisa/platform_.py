@@ -177,7 +177,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def deploy_environment(self, environment: Environment) -> None:
         platform_runbook = cast(schema.Platform, self.runbook)
 
-        log = get_logger(f"deploy[{environment.name}]", parent=self._log)
+        log = get_logger("deploy", parent=environment.log)
         log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
         environment.platform = self
