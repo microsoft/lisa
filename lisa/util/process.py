@@ -214,6 +214,7 @@ class Process:
 
         # add a string stream handler to the logger
         self.log_buffer = io.StringIO()
+        self.log_buffer_offset = 0
 
     @_retry_spawn
     def start(
@@ -488,6 +489,7 @@ class Process:
         timeout: int = 300,
         error_on_missing: bool = True,
         interval: float = 1,
+        delta_only: bool = False,
     ) -> bool:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
@@ -499,10 +501,14 @@ class Process:
             self._stderr_writer.flush()
 
             # check if buffer contains the keyword
-            if keyword in self.log_buffer.getvalue():
+            find_pos = self.log_buffer_offset if delta_only else 0
+            if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
+                self.log_buffer_offset = len(self.log_buffer.getvalue())
                 return True
 
             time.sleep(interval)
+
+        self.log_buffer_offset = len(self.log_buffer.getvalue())
 
         if error_on_missing:
             raise LisaException(
