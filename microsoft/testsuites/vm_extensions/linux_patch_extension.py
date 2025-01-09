@@ -54,79 +54,22 @@ def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> 
         # major.minor.gen
         CentOs: ["7.7.1", "7.7.2", "7.9.2"],
         Oracle: [
-            "7.9.1",
-            "7.9.2",
-            "8.1.1",
-            "8.1.2",
-            "8.2.1",
-            "8.2.2",
-            "8.3.1",
-            "8.3.2",
-            "8.4.1",
-            "8.4.2",
-            "8.5.1",
-            "8.5.2",
-            "8.9.1",
-            "8.9.2",
-            "8.10.1",
-            "8.10.2",
-            "9.0.1",
-            "9.0.2",
-            "9.1.1",
-            "9.1.2",
-            "9.4.1",
-            "9.4.2",
+            f"{major}.{minor}.{gen}"
+            for major in range(7, 10)  # major 7-9
+            for minor in range(0, 10)  # minor 0-9
+            for gen in range(1, 3)  # gen 1 and 2
+            if not (major == 7 and minor < 9)  # skip 7.x.x for minor < 9
+            and not (
+                major == 8 and minor not in [1, 2, 3, 4, 5, 9, 10]
+            )  # skip 8.6.x, 8.7.x, 8.8.x
+            and not (major == 9 and minor not in [0, 1, 4])  # skip 9.2.x, 9.3.x
         ],
         Redhat: [
-            "7.2.1",
-            "7.2.2",
-            "7.3.1",
-            "7.3.2",
-            "7.4.1",
-            "7.4.2",
-            "7.5.1",
-            "7.5.2",
-            "7.6.1",
-            "7.6.2",
-            "7.7.1",
-            "7.7.2",
-            "7.8.1",
-            "7.8.2",
-            "7.9.1",
-            "7.9.2",
-            "8.0.1",
-            "8.0.2",
-            "8.1.1",
-            "8.1.2",
-            "8.2.1",
-            "8.2.2",
-            "8.3.1",
-            "8.3.2",
-            "8.4.1",
-            "8.4.2",
-            "8.5.1",
-            "8.5.2",
-            "8.6.1",
-            "8.6.2",
-            "8.7.1",
-            "8.8.1",
-            "8.8.2",
-            "8.9.1",
-            "8.9.2",
-            "8.10.1",
-            "8.10.2",
-            "9.0.1",
-            "9.0.2",
-            "9.1.1",
-            "9.1.2",
-            "9.2.1",
-            "9.2.2",
-            "9.3.1",
-            "9.3.2",
-            "9.4.1",
-            "9.4.2",
-            "9.5.1",
-            "9.5.2",
+            f"{major}.{minor}.{gen}"
+            for major in range(7, 10)  # major 7-9
+            for minor in range(0, 10)  # minor 0-9
+            for gen in range(1, 3)  # gen 1 and 2
+            if not (major == 7 and minor < 2)  # skip 7.0.x, 7.1.x
         ],
         SLES: ["12.5.1", "12.5.2", "15.2.1", "15.2.2"],
         Ubuntu: [
@@ -140,6 +83,12 @@ def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> 
             "22.4.2",
         ],
     }
+
+    # check if image is not supported, raise an exception
+    if not any(isinstance(node.os, distro) for distro in lpe_supported_images_versions):
+        # Raise an exception for unsupported distro
+        log.debug(f"This is an unsupported image: {full_version}")
+        _unsupported_image_exception_msg(node)
 
     for distro in lpe_supported_images_versions:
         if isinstance(node.os, distro):
