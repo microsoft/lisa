@@ -8,6 +8,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Debian, Fedora, Redhat, Suse
 from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
 
+from .find import Find
 from .ls import Ls
 
 
@@ -58,6 +59,16 @@ class Dhclient(Tool):
             config_path = next(
                 (path for path in paths_to_check if ls.path_exists(path, sudo=True)), ""
             )
+            if not config_path:
+                # Use 'find' command to locate the configuration file
+                find = self.node.tools[Find]
+                search_result = find.find_files(
+                    self.node.get_pure_path("/"), f"{self._command}.conf", sudo=True
+                )
+                if search_result:
+                    config_path = search_result[
+                        0
+                    ]  # Take the first result if multiple are found
 
             if not config_path:
                 raise LisaException(f"Configuration file for {self._command} not found")
