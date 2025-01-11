@@ -75,7 +75,8 @@ def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> 
         log.debug(f"This is a supported image: {full_version}")
         return
 
-    # check for supported Oracle image versions [7.9.1-> 8.5.2] [8.9.1 -> 9.1.2] [9.4.1 -> 9.4.2]
+    # check for supported Oracle image versions [7.9.1-> 8.5.2]
+    # [8.9.1 -> 9.1.2] [9.4.1 -> 9.4.2]
     if isinstance(node.os, Oracle) and (
         (
             full_version >= parse_version("7.9.1")
@@ -246,7 +247,8 @@ def _unsupported_image_exception_msg(node: Node) -> None:
 
 
 def _assert_assessment_patch(
-    node: Node, log: Logger, compute_client: Any, resource_group_name: Any, vm_name: Any
+    node: Node, log: Logger, compute_client: Any,
+    resource_group_name: Any, vm_name: Any
 ) -> None:
     try:
         log.debug("Initiate the API call for the assessment patches.")
