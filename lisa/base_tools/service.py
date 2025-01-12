@@ -235,27 +235,17 @@ class WindowsService(Tool):
         pass
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
-        try:
-            self.node.tools[PowerShell].run_cmdlet(
-                f"Restart-service {name}",
-                force_run=True,
-            )
-        except LisaException as identifier:
-            if "cannot be stopped due to the following error" in str(identifier):
-                self._log.debug(f"service '{name}' cannot be stopped")
-            raise identifier
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Restart-service {name}",
+            force_run=True,
+        )
         self.wait_for_service_start(name)
 
     def stop_service(self, name: str) -> None:
-        try:
-            self.node.tools[PowerShell].run_cmdlet(
-                f"Stop-Service {name} -Force",
-                force_run=True,
-            )
-        except LisaException as identifier:
-            if "cannot be stopped due to the following error" in str(identifier):
-                self._log.debug(f"service '{name}' cannot be stopped")
-            raise identifier
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Stop-Service {name} -Force",
+            force_run=True,
+        )
         self.wait_for_service_stop(name)
 
     def wait_for_service_start(self, name: str) -> None:
