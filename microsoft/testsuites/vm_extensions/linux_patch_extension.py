@@ -36,16 +36,8 @@ def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -
         Ubuntu: ["20.4.2"],
     }
 
-    for distro in supported_versions_arm64:
-        if isinstance(node.os, distro):
-            version_list = supported_versions_arm64.get(distro)
-            if version_list is not None and full_version in version_list:
-                log.debug(f"supported arm64 os: {full_version}")
-                return
-            else:
-                # Raise an exception for unsupported version
-                log.debug(f"unsupported arm64 os: {full_version}")
-                _unsupported_image_exception_msg(node)
+    # check for other supported image versions
+    _validate_supported_distro(node, log, full_version, supported_versions_arm64)
 
 
 def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> None:
@@ -95,16 +87,21 @@ def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> 
         return
 
     # check for other supported image versions
-    for distro in lpe_supported_images_versions:
-        if isinstance(node.os, distro):
-            version_list = lpe_supported_images_versions.get(distro)
-            if version_list is not None and full_version in version_list:
-                log.debug(f"This is a supported image: {full_version}")
-                return
-        else:
-            # Raise an exception for unsupported image version
-            log.debug(f"This is an unsupported image: {full_version}")
-            _unsupported_image_exception_msg(node)
+    _validate_supported_distro(node, log, full_version, lpe_supported_images_versions)
+
+
+def _validate_supported_distro(
+    node: Node, log: Logger, full_version: Any, supported_distro_list: Any
+) -> None:
+    # check for other supported image versions
+    for distro, version_list in supported_distro_list.items():
+        if isinstance(node.os, distro) and full_version in version_list:
+            log.debug(f"This is a supported image: {full_version}")
+            return
+
+    # Raise an exception for unsupported image versions
+    log.debug(f"This is an unsupported image: {full_version}")
+    _unsupported_image_exception_msg(node)
 
 
 def _verify_unsupported_vm_agent(
@@ -247,8 +244,7 @@ def _unsupported_image_exception_msg(node: Node) -> None:
 
 
 def _assert_assessment_patch(
-    node: Node, log: Logger, compute_client: Any,
-    resource_group_name: Any, vm_name: Any
+    node: Node, log: Logger, compute_client: Any, resource_group_name: Any, vm_name: Any
 ) -> None:
     try:
         log.debug("Initiate the API call for the assessment patches.")
