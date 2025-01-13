@@ -39,10 +39,12 @@ class OsPackageDependencies:
         matcher: Callable[[Posix], bool],
         packages: Optional[Sequence[Union[str, Tool, Type[Tool]]]] = None,
         stop_on_match: bool = False,
+        requires_reboot: bool = False,
     ) -> None:
         self.matcher = matcher
         self.packages = packages
         self.stop_on_match = stop_on_match
+        self.requires_reboot = requires_reboot
 
 
 class DependencyInstaller:
@@ -65,6 +67,10 @@ class DependencyInstaller:
         for requirement in self.requirements:
             if requirement.matcher(os) and requirement.packages:
                 packages += requirement.packages
+                if requirement.requires_reboot:
+                    os.install_packages(packages=packages, extra_args=extra_args)
+                    packages = []
+                    node.reboot()
                 if requirement.stop_on_match:
                     break
         os.install_packages(packages=packages, extra_args=extra_args)
