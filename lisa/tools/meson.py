@@ -30,9 +30,25 @@ class Meson(Tool):
     def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         # use pip to make sure we install a recent version
-        if (not posix_os.package_exists("meson")) or posix_os.get_package_information(
-            "meson", use_cached=False
-        ) < "0.52.0":
+
+        package_installed = ""
+        package_available = ""
+        for pkg in ["meson", "python3-meson"]:
+            if (
+                posix_os.package_exists(pkg)
+                and posix_os.get_package_information(pkg, use_cached=False) >= "0.52.0"
+            ):
+                package_installed = pkg
+                break
+            elif posix_os.is_package_in_repo(pkg):
+                package_available = pkg
+                break
+
+        if package_installed:
+            return self._check_exists()
+        if package_available:
+            posix_os.install_packages(package_available)
+        else:
             username = self.node.tools[Whoami].get_username()
             self.node.tools[Pip].install_packages("meson", install_to_user=True)
             # environment variables won't expand even when using shell=True :\
@@ -48,6 +64,7 @@ class Meson(Tool):
                 no_info_log=True,
                 no_error_log=True,
             )
+
         return self._check_exists()
 
     def setup(self, args: str, cwd: PurePath, build_dir: str = "build") -> PurePath:
