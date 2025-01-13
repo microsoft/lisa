@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools.service import Service
-from lisa.operating_system import BSD, SLES, CBLMariner, CentOs, Debian, Oracle, Ubuntu
+from lisa.operating_system import BSD, SLES, CentOs, Oracle, Redhat, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     get_compute_client,
@@ -24,7 +24,7 @@ from lisa.sut_orchestrator.azure.common import (
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.util import SkippedException, UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException, parse_version
 
 
 def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -> None:
@@ -36,41 +36,72 @@ def _verify_supported_arm64_images(node: Node, log: Logger, full_version: Any) -
         Ubuntu: ["20.4.2"],
     }
 
-    for distro in supported_versions_arm64:
-        if isinstance(node.os, distro):
-            version_list = supported_versions_arm64.get(distro)
-            if version_list is not None and full_version in version_list:
-                log.debug(f"supported arm64 os: {full_version}")
-                return
-            else:
-                # Raise an exception for unsupported version
-                log.debug(f"unsupported arm64 os: {full_version}")
-                _unsupported_image_exception_msg(node)
+    # check for other supported image versions
+    _validate_supported_distro(node, log, full_version, supported_versions_arm64)
 
 
-def _verify_unsupported_images(node: Node, full_version: Any) -> None:
-    # Unsupported detailed versions for x86_64
-    unsupported_versions_x86_64 = {
-        # Major Minor Gen
-        SLES: ["15.5.1", "15.5.2"],
-        CBLMariner: ["1.0.1", "2.0.1", "2.0.2", "3.0.1"],
-        Debian: [
-            "10.12.1",
-            "10.12.2",
-            "10.13.1",
-            "11.6.1",
-            "11.7.1",
-            "11.7.2",
-            "11.9.2",
+def _verify_lpe_supported_images(node: Node, log: Logger, full_version: Any) -> None:
+    # lpe current supported images
+    lpe_supported_images_versions = {
+        # major.minor.gen
+        CentOs: ["7.7.1", "7.7.2", "7.9.2"],
+        SLES: ["12.5.1", "12.5.2", "15.2.1", "15.2.2"],
+        Ubuntu: [
+            "16.4.1",
+            "16.4.2",
+            "18.4.1",
+            "18.4.2",
+            "20.4.1",
+            "20.4.2",
+            "22.4.1",
+            "22.4.2",
         ],
     }
 
-    for distro in unsupported_versions_x86_64:
-        if isinstance(node.os, distro):
-            version_list = unsupported_versions_x86_64.get(distro)
-            if version_list is not None and full_version in version_list:
-                # Raise an exception for unsupported version
-                _unsupported_image_exception_msg(node)
+    # check for supported Redhat image versions [7.2.1 -> 9.5.2]
+    if (
+        isinstance(node.os, Redhat)
+        and full_version >= parse_version("7.2.1")
+        and full_version <= parse_version("9.5.2")
+    ):
+        log.debug(f"This is a supported image: {full_version}")
+        return
+
+    # check for supported Oracle image versions [7.9.1-> 8.5.2]
+    # [8.9.1 -> 9.1.2] [9.4.1 -> 9.4.2]
+    if isinstance(node.os, Oracle) and (
+        (
+            full_version >= parse_version("7.9.1")
+            and full_version <= parse_version("8.5.2")
+        )
+        or (
+            full_version >= parse_version("8.9.1")
+            and full_version <= parse_version("9.1.2")
+        )
+        or (
+            full_version >= parse_version("9.4.1")
+            and full_version <= parse_version("9.4.2")
+        )
+    ):
+        log.debug(f"This is a supported image: {full_version}")
+        return
+
+    # check for other supported image versions
+    _validate_supported_distro(node, log, full_version, lpe_supported_images_versions)
+
+
+def _validate_supported_distro(
+    node: Node, log: Logger, full_version: Any, supported_distro_list: Any
+) -> None:
+    # check for other supported image versions
+    for distro, version_list in supported_distro_list.items():
+        if isinstance(node.os, distro) and full_version in version_list:
+            log.debug(f"This is a supported image: {full_version}")
+            return
+
+    # Raise an exception for unsupported image versions
+    log.debug(f"This is an unsupported image: {full_version}")
+    _unsupported_image_exception_msg(node)
 
 
 def _verify_unsupported_vm_agent(
@@ -126,7 +157,7 @@ def _verify_supported_images_and_vm_agent(node: Node, log: Logger) -> None:
     if arch == "aarch64":
         _verify_supported_arm64_images(node, log, full_version)
     else:
-        _verify_unsupported_images(node, full_version)
+        _verify_lpe_supported_images(node, log, full_version)
 
     # Verify if VM agent service is running, lpe is a dependent of VM agent
     _verify_vm_agent_running(node, log)
