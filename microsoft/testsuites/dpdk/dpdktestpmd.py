@@ -63,6 +63,7 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
             and bool(x.get_kernel_information().version >= "5.15.0")
             and x.is_package_in_repo("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
+            requires_reboot=True,
         ),
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian),
@@ -229,7 +230,8 @@ class DpdkSourceInstall(Installer):
         # like cmake, meson, make, autoconf, etc.
         # So install the tool before proceeding.
         self._node.tools[Ninja].install()
-        self._node.tools[Pip].install_packages("pyelftools")
+        if not isinstance(self._os, Debian):
+            self._node.tools[Pip].install_packages("pyelftools")
         local_path = PurePath(__file__).parent.joinpath("devname")
         remote_path = self.asset_path.joinpath("examples/devname")
 
