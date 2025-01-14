@@ -2094,6 +2094,35 @@ class Suse(Linux):
                 "There are no enabled repositories defined in this image.",
             )
 
+    def _uninstall_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"zypper --non-interactive {add_args}"
+        if not signed:
+            command += " --no-gpg-checks "
+        command += f" rm {' '.join(packages)}"
+        self.wait_running_process("zypper")
+        install_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
+        if install_result.exit_code in (1, 100):
+            raise LisaException(
+                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
+                f"stderr: {install_result.stderr}"
+            )
+        elif install_result.exit_code == 0:
+            self._log.debug(f"{packages} is/are installed successfully.")
+        else:
+            self._log.debug(
+                f"{packages} is/are installed."
+                " A system reboot or package manager restart might be required."
+            )
+
     def _install_packages(
         self,
         packages: List[str],
