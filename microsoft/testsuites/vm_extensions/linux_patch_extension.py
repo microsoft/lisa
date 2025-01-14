@@ -198,9 +198,17 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
         assert_that(status_file["status"]).described_as(
             f"{expected_warning_status_msg} - Actual status: {status_file['status']}"
         ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
-        assert_that(error_code).described_as(
-            "Expected error code in status file patches operation"
-        ).is_equal_to("2")
+
+        # PACKAGE_LIST_TRUNCATED error code is 2
+        if len(status_file["error"]["details"]) <= 1:
+            assert_that(error_code).described_as(
+                "Expected error code in status file patches operation"
+            ).is_equal_to("2")
+        else:
+            # multiple errors, error code is 1
+            assert_that(error_code).described_as(
+                "Expected error code in status file patches operation"
+            ).is_equal_to("1")
 
     elif ua_esm_required_code and not file_status_is_error:
         assert_that(status_file["status"]).described_as(
