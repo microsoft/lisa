@@ -200,7 +200,7 @@ def _assert_status_file_result(status_file: Any, error_code: str) -> None:
         ).is_in("Warning", "CompletedWithWarnings", "Succeeded")
 
         # PACKAGE_LIST_TRUNCATED error code is 2
-        if len(status_file["error"]["details"]) == 1:
+        if len(status_file["error"]["details"]) <= 1:
             assert_that(error_code).described_as(
                 "Expected error code in status file patches operation"
             ).is_equal_to("2")
