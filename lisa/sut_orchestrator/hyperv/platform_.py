@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -8,7 +9,7 @@ from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
-from lisa.tools import Cp, HyperV, Mkdir, PowerShell
+from lisa.tools import Cp, HyperV, Mkdir, Mount, PowerShell
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
@@ -313,6 +314,9 @@ class HypervPlatform(Platform):
             node.set_connection_info(
                 address=ip_addr, username=username, password=password
             )
+            # In some cases, we observe that resize vhd resizes the entire disk
+            # but fails to expand the partition size.
+            self._expand_root_partition(node)
 
     def _resize_vhd_if_needed(
         self, vhd_path: PurePath, node_runbook: HypervNodeSchema
@@ -324,6 +328,31 @@ class HypervPlatform(Platform):
                 f"Resize-VHD -Path {vhd_path} "
                 f"-SizeBytes {node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024}"
             )
+
+    def _expand_root_partition(self, node: RemoteNode) -> None:
+        # Get the root partition info
+        # The root partition is the one that has the mount point "/"
+        # sample root partition info: name: /dev/sda2, disk: sda,
+        # mount_point: /, type: ext4, options: ('rw', 'relatime')
+        root_partition = node.tools[Mount].get_partition_info("/")[0]
+        device_name = root_partition.name
+        partition = root_partition.disk
+        # for root partition name: /dev/sda2, partition is "sda" and
+        # we need to extract the partition number i.e. 2
+        root_part_num = re.findall(r"\d+", device_name)[0]
+        # Grow the partition and resize the filesystem
+        cmd_result = node.execute(
+            f"growpart /dev/{partition} {root_part_num}", sudo=True
+        )
+
+        # In case the partition is already expanded to full disk size, the
+        # command will print "NOCHANGE: partition 2 is size <size>. it cannot
+        # be grown". In this case, it returns exit code 1 which we can ignore
+        if cmd_result.exit_code != 0:
+            if "NOCHANGE" in cmd_result.stdout:
+                return
+            raise LisaException(f"Failed to grow partition: {cmd_result.stdout}")
+        node.execute(f"resize2fs {device_name}", sudo=True, expected_exit_code=0)
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
