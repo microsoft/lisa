@@ -180,15 +180,7 @@ class StoragePerformance(TestSuite):
         This test case uses fio to test vm with 24 data disks.
         """,
         priority=3,
-        timeout=TIME_OUT,
-        requirement=simple_requirement(
-            disk=schema.DiskOptionSettings(
-                data_disk_type=schema.DiskType.PremiumSSDLRS,
-                os_disk_type=schema.DiskType.PremiumSSDLRS,
-                data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=24),
-            ),
-        ),
+        timeout=TIME_OUT
     )
     def perf_premium_datadisks_io(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result, max_iodepth=64)
@@ -556,7 +548,7 @@ class StoragePerformance(TestSuite):
         max_iodepth: int = 256,
     ) -> None:
         disk = node.features[Disk]
-        data_disks = disk.get_raw_data_disks()
+        data_disks = disk.get_all_disks()
         disk_count = len(data_disks)
         assert_that(disk_count).described_as(
             "At least 1 data disk for fio testing."
