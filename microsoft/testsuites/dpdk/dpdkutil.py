@@ -259,7 +259,9 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
             )
 
     # enable if it is not already enabled
-    if not lsmod.module_exists("uio_hv_generic", force_run=True):
+    if not lsmod.module_exists(
+        "uio_hv_generic", force_run=True
+    ) and not kconfig.is_built_in("uio_hv_generic"):
         modprobe.load("uio_hv_generic")
     # vmbus magic to enable uio_hv_generic
     echo.write_to_file(
@@ -384,7 +386,8 @@ def check_pmd_support(node: Node, pmd: str) -> None:
     if pmd == "failsafe" and node.nics.is_mana_device_present():
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
     if pmd == "netvsc" and not (
-        node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
+        node.tools[KernelConfig].is_built_in("CONFIG_UIO_HV_GENERIC")
+        or node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
     ):
         raise SkippedException(
             "Netvsc pmd test not supported if uio_hv_generic missing"
