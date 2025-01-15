@@ -2110,17 +2110,13 @@ class Suse(Linux):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
-        if install_result.exit_code in (1, 100):
-            raise LisaException(
-                f"Failed to install {packages}. exit_code: {install_result.exit_code}, "
-                f"stderr: {install_result.stderr}"
-            )
-        elif install_result.exit_code == 0:
-            self._log.debug(f"{packages} is/are installed successfully.")
+
+        if install_result.exit_code == 0:
+            self._log.debug(f"{packages} is/are removed successfully.")
         else:
-            self._log.debug(
-                f"{packages} is/are installed."
-                " A system reboot or package manager restart might be required."
+            raise LisaException(
+                f"Failed to remove {packages}. exit_code: {install_result.exit_code}, "
+                f"stderr: {install_result.stderr}"
             )
 
     def _install_packages(
