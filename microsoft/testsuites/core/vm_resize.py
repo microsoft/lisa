@@ -137,6 +137,7 @@ class VmResize(TestSuite):
             except Exception as identifier:
                 if "no available size for resizing" in str(identifier):
                     raise SkippedException(str(identifier))
+                print(str(identifier))
                 if (
                     "cannot find current vm size in eligible list" in str(identifier)
                     or "OperationNotAllowed" in str(identifier)
@@ -150,6 +151,7 @@ class VmResize(TestSuite):
                     or "Following SKUs have failed for Capacity Restrictions"
                     in str(identifier)
                 ):
+                    print("retry:" retry)
                     retry = retry + 1
                 else:
                     raise identifier
