@@ -1,14 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, cast
 
 from assertpy.assertpy import assert_that
 from dataclasses_json import dataclass_json
-
+from pathlib import Path
 from lisa import notifier, schema
 from lisa.messages import KernelBuildMessage
 from lisa.node import Node
@@ -19,7 +19,7 @@ from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
 )
-from lisa.util import field_metadata, filter_ansi_escape, get_matched_str, subclasses
+from lisa.util import constants, field_metadata, filter_ansi_escape, get_matched_str, subclasses
 from lisa.util.logger import Logger, get_logger
 
 
@@ -214,10 +214,21 @@ class KernelInstallerTransformer(DeploymentTransformer):
         finally:
             message.is_success = build_sucess and boot_success
             notifier.notify(message)
+            self.write_info_to_file(
+                Path(self.runbook.output_filepath), self._information
+            )
         return {
             self._information_output_name: self._information,
             self._is_success_output_name: build_sucess and boot_success,
         }
+    
+    def write_info_to_file(self, file: Path, info: Dict[str, Any]) -> None:
+        file_path = Path(file)
+        if not file_path.is_absolute():
+            file_path = constants.RUN_LOCAL_LOG_PATH / file_path
+        self._log.debug(f"Writing info to file: {file_path}")
+        with open(file_path, "w") as f:
+            json.dump(info, f)
 
 
 class RepoInstaller(BaseInstaller):
