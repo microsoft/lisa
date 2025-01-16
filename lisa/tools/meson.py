@@ -15,7 +15,7 @@ from .whoami import Whoami
 
 
 class Meson(Tool):
-    _minimum_version = "0.52.0"
+    _minimum_version = VersionInfo(major=0, minor=52, patch=0)
 
     @property
     def command(self) -> str:
@@ -45,11 +45,7 @@ class Meson(Tool):
             "python3-meson",
             "meson",
         ]:
-            if (
-                posix_os.package_exists(pkg)
-                and posix_os.get_package_information(pkg, use_cached=False)
-                >= self._minimum_version
-            ):
+            if posix_os.package_exists(pkg, minimum_version=self._minimum_version):
                 package_installed = pkg
                 break
             elif posix_os.is_package_in_repo(pkg):
@@ -62,7 +58,7 @@ class Meson(Tool):
         if package_available:
             posix_os.install_packages(package_available)
             # verify version is correct if it's installed from pkg manager
-            if posix_os.get_package_information(pkg) < self._minimum_version:
+            if not posix_os.package_exists(pkg, minimum_version=self._minimum_version):
                 posix_os.uninstall_packages(pkg)
                 package_available = ""
 
