@@ -30,6 +30,9 @@ variable:
   - name: admin_password
     value: ""
     is_secret: true
+  - name: azure_arm_access_token
+    value: ""
+    is_secret: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -44,6 +47,7 @@ platform:
       deploy: $(deploy)
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
+      azure_arm_access_token: $(azure_arm_access_token)
     requirement:
       core_count:
         min: 2
