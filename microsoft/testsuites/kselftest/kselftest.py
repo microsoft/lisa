@@ -128,7 +128,7 @@ class Kselftest(Tool):
             mkdir.create_directory(self._remote_tar_path.parent.as_posix())
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
             self.node.tools[Tar].extract(
-                str(self._remote_tar_path), str(self._kself_installed_dir), sudo=True
+                str(self._remote_tar_path), str(self._kself_installed_dir)
             )
             self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
         else:
