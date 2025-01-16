@@ -106,8 +106,6 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "dpkg-dev",
                 "pkg-config",
                 "python3-pip",
-                "python3-pyelftools",
-                "python-pyelftools",
                 # 18.04 doesn't need linux-modules-extra-azure
                 # since it will never have MANA support
             ],
@@ -128,7 +126,6 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
                 "build-essential",
                 "libnuma-dev",
                 "libmnl-dev",
-                "python3-pyelftools",
                 "libelf-dev",
                 "pkg-config",
             ],
@@ -228,6 +225,8 @@ class DpdkSourceInstall(Installer):
         # like cmake, meson, make, autoconf, etc.
         self._node.tools[Ninja].install()
         if not isinstance(self._os, Debian):
+            self._os.install_packages("python3-pyelftools")
+        else:
             self._node.tools[Pip].install_packages("pyelftools")
 
     def _uninstall(self) -> None:
