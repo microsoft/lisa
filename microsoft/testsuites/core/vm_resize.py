@@ -151,7 +151,7 @@ class VmResize(TestSuite):
                     or "Following SKUs have failed for Capacity Restrictions"
                     in str(identifier)
                 ):
-                    print("retry:" retry)
+                    print(retry)
                     retry = retry + 1
                 else:
                     raise identifier
