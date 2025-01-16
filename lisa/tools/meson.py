@@ -15,13 +15,18 @@ from .whoami import Whoami
 
 
 class Meson(Tool):
+    _minimum_version = "0.52.0"
+
     @property
     def command(self) -> str:
         return "meson"
 
     def _check_exists(self) -> bool:
         result = self.node.execute("meson --version", shell=True)
-        return result.exit_code == 0 and VersionInfo.parse(result.stdout) >= "0.52.0"
+        return (
+            result.exit_code == 0
+            and VersionInfo.parse(result.stdout) >= self._minimum_version
+        )
 
     @property
     def can_install(self) -> bool:
@@ -33,10 +38,17 @@ class Meson(Tool):
 
         package_installed = ""
         package_available = ""
-        for pkg in ["meson", "python3-meson"]:
+        # packaged as 'meson' on older systems and 'python3-meson' on newer ones,
+        # since it's actually just a python package.
+        # So check for both
+        for pkg in [
+            "python3-meson",
+            "meson",
+        ]:
             if (
                 posix_os.package_exists(pkg)
-                and posix_os.get_package_information(pkg, use_cached=False) >= "0.52.0"
+                and posix_os.get_package_information(pkg, use_cached=False)
+                >= self._minimum_version
             ):
                 package_installed = pkg
                 break
@@ -44,14 +56,22 @@ class Meson(Tool):
                 package_available = pkg
                 break
 
+        # prefer the packaged version as long as it's the right version
         if package_installed:
             return self._check_exists()
         if package_available:
             posix_os.install_packages(package_available)
-        else:
+            # verify version is correct if it's installed from pkg manager
+            if posix_os.get_package_information(pkg) < self._minimum_version:
+                posix_os.uninstall_packages(pkg)
+                package_available = ""
+
+        # otherwise, install with pip
+        # this can get weird on some systems since they have started
+        # returning an error code if you try to use pip without a venv
+        if not (package_available or package_installed):
             username = self.node.tools[Whoami].get_username()
             self.node.tools[Pip].install_packages("meson", install_to_user=True)
-            # environment variables won't expand even when using shell=True :\
             self.node.tools[Ln].create_link(
                 f"/home/{username}/.local/bin/meson", "/usr/bin/meson", force=True
             )
