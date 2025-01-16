@@ -404,13 +404,24 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._uninstall_packages(package_names, signed, timeout, extra_args)
 
-    def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
+    def package_exists(
+        self,
+        package: Union[str, Tool, Type[Tool]],
+        minimum_version: Optional[VersionInfo] = None,
+    ) -> bool:
         """
         Query if a package/tool is installed on the node.
         Return Value - bool
         """
         package_name = self.__resolve_package_name(package)
-        return self._package_exists(package_name)
+        exists = self._package_exists(package_name)
+        if exists and minimum_version:
+            return (
+                self.get_package_information(package_name=package_name)
+                >= minimum_version
+            )
+        else:
+            return exists
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
