@@ -418,6 +418,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         self,
         package: Union[str, Tool, Type[Tool]],
         assert_existance: Union[bool, None] = None,
+        minimum_version: Optional[VersionInfo] = None,
     ) -> bool:
         """
         Query if a package/tool is installed on the node.
@@ -433,7 +434,13 @@ class Posix(OperatingSystem, BaseClassMixin):
                 f"Package {package} installation status is unexpected."
             ).is_equal_to(assert_existance)
 
-        return exists
+        if exists and minimum_version:
+            return (
+                self.get_package_information(package_name=package_name)
+                >= minimum_version
+            )
+        else:
+            return exists
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
