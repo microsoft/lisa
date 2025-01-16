@@ -53,7 +53,12 @@ from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.features import Disk
+from lisa.features import (
+    Disk,
+    SecurityProfile,
+    SecurityProfileSettings,
+    SecurityProfileType,
+)
 from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
@@ -716,6 +721,19 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+
+            security_profile = node.features[SecurityProfile].get_settings()
+            if (
+                security_profile
+                and isinstance(security_profile, SecurityProfileSettings)
+                and isinstance(security_profile.security_profile, SecurityProfileType)
+            ):
+                information[
+                    "security_profile"
+                ] = security_profile.security_profile.value
+                if security_profile.security_profile == SecurityProfileType.CVM:
+                    information["encrypt_disk"] = security_profile.encrypt_disk
+
             if node.capture_kernel_config:
                 node.log.debug("detecting mana driver enabled...")
                 information[
