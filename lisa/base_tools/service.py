@@ -67,6 +67,9 @@ class Service(Tool):
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
 
+    def wait_for_service_start(self, name: str) -> None:
+        pass
+
 
 class ServiceInternal(Tool):
     @property

@@ -211,7 +211,7 @@ class HyperV(Tool):
 
     def get_default_switch(
         self, switch_type: HypervSwitchType = HypervSwitchType.EXTERNAL
-    ) -> Optional[VMSwitch]:
+    ) -> VMSwitch:
         if switch_type not in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
             raise LisaException(f"Unknown switch type {switch_type}")
 
@@ -449,10 +449,10 @@ class HyperV(Tool):
 
         # reboot node
         self.node.reboot()
-
+        service: Service = self.node.tools[Service]
         # wait for Hyper-V services to start
-        self.node.tools[Service].wait_for_service_start("vmms")
-        self.node.tools[Service].wait_for_service_start("vmcompute")
+        service.wait_for_service_start("vmms")
+        service.wait_for_service_start("vmcompute")
 
         return self._check_exists()
 
