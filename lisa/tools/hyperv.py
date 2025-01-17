@@ -451,7 +451,7 @@ class HyperV(Tool):
         self.node.reboot()
 
         # wait for Hyper-V services to start
-        service.wait_for_service_start("vmms")
+        self.node.tools[Service].wait_for_service_start("vmms")
         self.node.tools[Service].wait_for_service_start("vmcompute")
 
         return self._check_exists()
