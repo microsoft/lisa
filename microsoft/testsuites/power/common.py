@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import Debian, Redhat, Ubuntu
+from lisa.operating_system import SLES, Debian, Redhat, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -42,6 +42,7 @@ def is_distro_supported(node: Node) -> None:
         (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
         or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
         or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
+        or (type(node.os) == SLES and node.os.information.version >= "15.6.0")
     ):
         raise SkippedException(
             f"hibernation setup tool doesn't support current distro {node.os.name}, "
@@ -77,7 +78,7 @@ def verify_hibernation(
     # the hibernation-setup tool.
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) == Redhat:
+    if type(node.os) == Redhat or type(node.os) == SLES:
         node.reboot()
 
     boot_time_before_hibernation = node.execute(
