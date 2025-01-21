@@ -2129,14 +2129,12 @@ class Suse(Linux):
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
-
-        if install_result.exit_code == 0:
-            self._log.debug(f"{packages} is/are removed successfully.")
-        else:
-            raise LisaException(
-                f"Failed to remove {packages}. exit_code: {install_result.exit_code}, "
-                f"stderr: {install_result.stderr}"
-            )
+        assert_that(install_result.exit_code).described_as(
+            f"Failed to remove {packages}. "
+            f"exit_code: {install_result.exit_code}, "
+            f"stderr: {install_result.stderr}"
+        ).is_equal_to(0)
+        self._log.debug(f"{packages} is/are removed successfully.")
 
     def _install_packages(
         self,
