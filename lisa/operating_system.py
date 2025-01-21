@@ -434,11 +434,19 @@ class Posix(OperatingSystem, BaseClassMixin):
                 f"Package {package} installation status is unexpected."
             ).is_equal_to(assert_existance)
 
-        if exists and minimum_version:
-            return (
+        if exists and minimum_version is not None:
+            acceptable = bool(
                 self.get_package_information(package_name=package_name)
                 >= minimum_version
             )
+            if not acceptable:
+                self._log.debug(
+                    (
+                        f"Minimum version of package {package_name} "
+                        f"did not meet minimum of {str(minimum_version)}."
+                    )
+                )
+            return acceptable
         else:
             return exists
 
