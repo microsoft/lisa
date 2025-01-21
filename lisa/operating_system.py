@@ -2124,13 +2124,14 @@ class Suse(Linux):
         command = f"zypper --non-interactive {add_args}"
         if not signed:
             command += " --no-gpg-checks "
-        command += f" rm {' '.join(packages)}"
+        remove_packages = " ".join(packages)
+        command += f" rm {remove_packages}"
         self.wait_running_process("zypper")
         install_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
         assert_that(install_result.exit_code).described_as(
-            f"Failed to remove {packages}. "
+            f"Failed to remove {remove_packages}. "
             f"exit_code: {install_result.exit_code}, "
             f"stderr: {install_result.stderr}"
         ).is_equal_to(0)
