@@ -555,6 +555,7 @@ class BSDNtttcp(Ntttcp):
     )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self.pre_command = ""
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
