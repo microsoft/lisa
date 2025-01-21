@@ -267,17 +267,17 @@ class DpdkSourceInstall(Installer):
         self.dpdk_build_path = node.tools[Meson].setup(
             args=sample_apps, build_dir="build", cwd=self.asset_path
         )
-        node.tools[Ninja].run(
+        install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
             shell=True,
             timeout=1800,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ninja build for dpdk failed. check build spew for missing headers "
-                "or dependencies. Also check that this ninja version requirement "
-                "has not changed for dpdk."
-            ),
         )
+        # there are enough known installation failures to make
+        # raising each as a seperate useful message annoying.
+        # Also enough to make raising a single generic message useless.
+        # Use this function to parse and raise them.
+        _check_for_dpdk_build_errors(result=install_result)
+
         # using sudo and pip modules can get weird on some distros,
         # whether you install with pip3 --user or not.
         # to work around, add the user python path to sudo one
@@ -1007,3 +1007,25 @@ def _discard_first_and_last_sample(data: List[int]) -> List[int]:
 
 def _mean(data: List[int]) -> int:
     return sum(data) // len(data)
+
+
+def _check_for_dpdk_build_errors(result: ExecutableResult) -> None:
+    # check for common build errors and raise specific error messages for them
+    errors = [
+        # build unexpectedly ran out of space
+        "final link failed: No space left on device",
+        # elftools module not found (new OS version or package name change)
+        "Exception: elftools module not found",
+    ]
+    if result.exit_code == 0:
+        return
+    # check for known common issues
+    for error in errors:
+        if error in result.stdout:
+            fail(f"DPDK source build issue: {error}")
+    # otherwise, raise a generic error asking for triage
+    fail(
+        "ninja build for dpdk failed. check build spew for missing headers "
+        "or dependencies. Also check that this ninja version requirement "
+        "has not changed for dpdk."
+    )
