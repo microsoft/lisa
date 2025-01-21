@@ -105,9 +105,10 @@ class GitDownloader(Downloader):
         # NOTE: fail on exists is set to True.
         # The expectation is that the parent Installer class should
         # remove any lingering installations
+        work_path = self._node.get_working_path_with_required_space(5)
         self.asset_path = self._node.tools[Git].clone(
             self._git_repo,
-            cwd=self._node.get_working_path(),
+            cwd=self._node.get_pure_path(work_path),
             ref=self._git_ref,
             fail_on_exists=False,
         )
@@ -129,7 +130,9 @@ class TarDownloader(Downloader):
     # then extract it
     def download(self) -> PurePath:
         node = self._node
-        work_path = self._node.get_working_path()
+        work_path = self._node.get_pure_path(
+            self._node.get_working_path_with_required_space(5)
+        )
         is_tarball = False
         for suffix in [".tar.gz", ".tar.bz2", ".tar"]:
             if self._tar_url.endswith(suffix):
@@ -143,7 +146,9 @@ class TarDownloader(Downloader):
         ).is_true()
         if self._is_remote_tarball:
             tarfile = node.tools[Wget].get(
-                self._tar_url, overwrite=False, file_path=str(node.get_working_path())
+                self._tar_url,
+                overwrite=False,
+                file_path=str(work_path),
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
