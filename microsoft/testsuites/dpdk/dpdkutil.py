@@ -365,7 +365,8 @@ def initialize_node_resources(
         f"Error: Expected test nic {test_nic.name} to be "
         f"bound to hv_netvsc. Found {test_nic.module_name}."
     ).is_equal_to("hv_netvsc")
-
+    # ensure drivers are loaded even after mid-suite reboots
+    testpmd.load_drivers_for_dpdk()
     # netvsc pmd requires uio_hv_generic to be loaded before use
     do_pmd_driver_setup(node=node, test_nic=test_nic, testpmd=testpmd, pmd=pmd)
     if extra_nics:
