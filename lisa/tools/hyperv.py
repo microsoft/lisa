@@ -209,21 +209,18 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_switch(
-        self, switch_type: HypervSwitchType = HypervSwitchType.EXTERNAL
-    ) -> VMSwitch:
-        if switch_type not in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
-            raise LisaException(f"Unknown switch type {switch_type}")
-
-        # get default switch of type `switch_type` from hyperv
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type}"}}'
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-        )
+    # get default switch from hyperv
+    def get_default_switch(self) -> VMSwitch:
+        # try to get external switch first
+        for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
+            switch_json = self.node.tools[PowerShell].run_cmdlet(
+                f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'
+                "| Select -First 1 | select Name | ConvertTo-Json",
+                force_run=True,
+            )
 
         if not switch_json:
-            raise LisaException(f"Could not find default switch of type {switch_type}")
+            raise LisaException("Could not find any default switch")
 
         return VMSwitch.from_json(switch_json)  # type: ignore
 
