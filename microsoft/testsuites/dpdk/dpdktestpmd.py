@@ -333,6 +333,7 @@ class DpdkSourceInstall(Installer):
         )
 
     def _get_meson_parameters(self) -> str:
+        enable_examples = ""
         # enable any apps we need (namely, testpmd)
         enable_apps = "-Denable_apps=" + ",".join(self._enable_apps)
         # add net/mana to the pmd list if we need it
@@ -341,14 +342,15 @@ class DpdkSourceInstall(Installer):
         # build the driver enable arg
         enable_drivers = "-Denable_drivers=" + ",".join(self._enable_drivers)
         # add any needed -Dc_flags or -Dc_link_args arguments
+        if self._sample_applications:
+            enable_examples = f"-Dexamples={','.join(self._sample_applications)}"
+
         c_args = self._get_c_arguments()
-        return " ".join([c_args, enable_apps, enable_drivers])
+
+        return " ".join([c_args, enable_apps, enable_drivers, enable_examples])
 
     def _install(self) -> None:
         super()._install()
-        if self._sample_applications:
-            self._meson_arguments = f"-Dexamples={','.join(self._sample_applications)}"
-
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
