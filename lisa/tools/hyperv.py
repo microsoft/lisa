@@ -214,8 +214,8 @@ class HyperV(Tool):
         # try to get external switch first
         for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
             switch_json = self.node.tools[PowerShell].run_cmdlet(
-                f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'
-                "| Select -First 1 | select Name | ConvertTo-Json",
+                f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'  # noqa: E501
+                " | Select -First 1 | select Name | ConvertTo-Json",
                 force_run=True,
             )
 
