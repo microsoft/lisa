@@ -249,6 +249,11 @@ class AzureImageStandard(TestSuite):
             r"^(.*mlx5_core0: WARN: mlx5_fwdump_prep:92:\(pid 0\).*)$",
             re.M,
         ),
+        # ACPI failback to PDC
+        re.compile(r"^(.* ACPI: _OSC evaluation for CPUs failed, trying _PDC\r)$", re.M),
+        re.compile(r"^(.*Buffer I/O error on dev sr0, logical block 1, async page read\r)$", re.M),
+        re.compile(r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F]+ phys_seg 1 prio class 2\r)$", re.M),
+        re.compile(r'(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\](?:\s*)?audit:\s+type=(?P<type>\d+)\s+audit\((?P<audit_time>\d+\.\d+):(?P<audit_id>\d+)\):\s+pid=(?P<pid>\d+)\s+uid=(?P<uid>\d+)\s+auid=(?P<auid>\d+)\s+ses=(?P<ses>\d+)\s+subj=(?P<subj>[a-zA-Z0-9\-]+)\s+msg=\'op=PAM:setcred\s+grantors=\?[\s\S]*?acct="(?P<acct>[a-zA-Z0-9\*\-]+)"\s+exe="(?P<exe>[^\"]+)"\s+hostname=\? addr=\? terminal=\? res=(?P<res>[a-zA-Z]+)\'\r'),
     ]
 
     @TestCaseMetadata(
@@ -393,6 +398,13 @@ class AzureImageStandard(TestSuite):
                 network_file.upper(),
                 f"networking=yes should be present in {network_file_path}",
             ).contains("networking=yes".upper())
+        elif isinstance(node.os, CBLMariner):
+            network_file_path = "/etc/systemd/networkd.conf"
+            file_exists = node.shell.exists(PurePosixPath(network_file_path))
+            assert_that(
+                file_exists,
+                f"The network file should be present at {network_file_path}",
+            ).is_true()
         else:
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
@@ -449,7 +461,7 @@ class AzureImageStandard(TestSuite):
                 "/usr/lib64/udev/rules.d/75-persistent-net-generator.rules"
             )
             udev_file_path_70_rule = "/usr/lib64/udev/rules.d/70-persistent-net.rules"
-        elif isinstance(node.os, Fedora):
+        elif isinstance(node.os, Fedora) or isinstance(node.os, CBLMariner):
             udev_file_path_75_rule = (
                 "/lib/udev/rules.d/75-persistent-net-generator.rules"
             )
@@ -497,6 +509,26 @@ class AzureImageStandard(TestSuite):
                 'DHCLIENT_SET_HOSTNAME="no" should be present in '
                 f"file {dhcp_file_path}",
             ).contains('DHCLIENT_SET_HOSTNAME="no"')
+        elif isinstance(node.os, CBLMariner):
+            if node.os.information.version.major == 3:
+                dhcp_file_path = "/etc/dhcpcd.conf"
+                dhcp_file_content = 'option host_name'
+            else:
+                dhcp_file_path = "/etc/dhcp/dhclient.conf"
+                dhcp_file_content = 'host-name'
+            file_exists = node.shell.exists(PurePosixPath(dhcp_file_path))
+
+            assert_that(
+                file_exists,
+                f"The dhcp file should be present at {dhcp_file_path}",
+            ).is_true()
+
+            dhcp_file = node.tools[Cat].read(dhcp_file_path)
+            assert_that(
+                dhcp_file,
+                'option host_name" should be present in '
+                f"file {dhcp_file_path}",
+            ).contains(dhcp_file_content)
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
