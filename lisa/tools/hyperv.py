@@ -229,7 +229,7 @@ class HyperV(Tool):
                     break
 
             if self._default_switch is None:
-                raise LisaException("Could not find any default switch")
+                raise LisaException("Could not find any 'Internal' or 'External' switch")
         return self._default_switch
 
     def exists_switch(self, name: str) -> bool:
