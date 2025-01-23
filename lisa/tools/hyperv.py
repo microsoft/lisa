@@ -19,20 +19,23 @@ from lisa.util import LisaException
 from lisa.util.process import Process
 
 
-@dataclass_json
-@dataclass
-class VMSwitch:
-    name: str = field(metadata=config(field_name="Name"))
-
-
 class HypervSwitchType(Enum):
     INTERNAL = "Internal"
     EXTERNAL = "External"
 
 
+@dataclass_json
+@dataclass
+class VMSwitch:
+    name: str = field(metadata=config(field_name="Name"))
+    type: HypervSwitchType = field(default=HypervSwitchType.INTERNAL)
+
+
 class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    _default_switch = None
+    _free_internal_port = 50000
 
     @property
     def command(self) -> str:
@@ -209,23 +212,25 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_switch(
-        self, switch_type: HypervSwitchType = HypervSwitchType.EXTERNAL
-    ) -> VMSwitch:
-        if switch_type not in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
-            raise LisaException(f"Unknown switch type {switch_type}")
+    # get default switch from hyperv
+    def get_default_switch(self) -> Optional[VMSwitch]:
+        if self._default_switch is None:
+            # try to get external switch first
+            for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
+                switch_json = self.node.tools[PowerShell].run_cmdlet(
+                    f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'  # noqa: E501
+                    " | Select -First 1 | select Name | ConvertTo-Json",
+                    force_run=True,
+                )
+                if switch_json:
+                    self._default_switch = VMSwitch.from_json(switch_json)  # type: ignore
+                    if self._default_switch is not None:
+                        self._default_switch.type = switch_type
+                    break
 
-        # get default switch of type `switch_type` from hyperv
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type}"}}'
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-        )
-
-        if not switch_json:
-            raise LisaException(f"Could not find default switch of type {switch_type}")
-
-        return VMSwitch.from_json(switch_json)  # type: ignore
+            if not self._default_switch:
+                raise LisaException("Could not find any default switch")
+        return self._default_switch
 
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
@@ -282,6 +287,17 @@ class HyperV(Tool):
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
             f"New-NetNat -Name {name} -InternalIPInterfaceAddressPrefix '{ip_range}' ",
+            force_run=True,
+        )
+
+    def add_nat_mapping(
+        self, nat_name: str, internal_ip: str, external_port: int
+    ) -> None:
+        # create a new NAT
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-NetNatStaticMapping -NatName {nat_name} -Protocol TCP "
+            f"-ExternalIPAddress 0.0.0.0 -InternalIPAddress {internal_ip} "
+            f"-InternalPort 22 -ExternalPort {external_port}",
             force_run=True,
         )
 
@@ -424,13 +440,13 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.5.5 -EndRange 192.168.5.150 -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            "Set-DhcpServerV4OptionValue -Router 192.168.5.1 -DnsServer 168.63.129.16",
             force_run=True,
         )
 
@@ -466,9 +482,10 @@ class HyperV(Tool):
         pwsh = self.node.tools[PowerShell]
         if not extra_args:
             extra_args = {}
+        extra_args_str = extra_args.get(cmd.lower(), '')
         return str(
             pwsh.run_cmdlet(
-                f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+                f"{cmd} {args} {extra_args_str}", force_run=force_run
             )
         )
 
