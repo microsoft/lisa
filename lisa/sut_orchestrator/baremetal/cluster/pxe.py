@@ -94,7 +94,11 @@ class RemoteComSerialConsole(features.SerialConsole):
         )
 
         found_error = process.wait_output(
-            "Unable to open connection", timeout=1, error_on_missing=False, interval=0.1
+            "Unable to open connection",
+            timeout=1,
+            error_on_missing=False,
+            interval=0.1,
+            delta_only=True,
         )
         if found_error:
             process.kill()
@@ -134,7 +138,7 @@ class Ip9285StartStop(features.StartStop):
     def _set_ip_power(self, power_cmd: str) -> None:
         response = requests.get(power_cmd, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-        self._log.debug("Command {power_cmd} done in set_ip_power")
+        self._log.debug(f"Command {power_cmd} done in set_ip_power")
 
     def _stop(
         self,
