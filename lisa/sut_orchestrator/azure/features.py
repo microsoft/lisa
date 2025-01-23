@@ -2878,7 +2878,10 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         self.storage_account_name: str = ""
         self.file_share_name: str = ""
 
-    def create_share(self) -> None:
+    def create_share(
+        self,
+        quota: int = 107374182400,
+    ) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
         location = node_context.location
@@ -2909,6 +2912,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name=resource_group_name,
             protocols="NFS",
             log=self._log,
+            quota=quota,
         )
 
         storage_account_resource_id = (
@@ -3442,6 +3446,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
+        quota: int = 107374182400,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3467,6 +3472,8 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # If enable_private_endpoint is true, SMB share endpoint
         # will dns resolve to <share>.privatelink.file.core.windows.net
         # No changes need to be done in code calling function
+        # For Quota, currently all volumes will share same quota number.
+        # Ensure that you use the highest value applicable for your shares
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -3476,6 +3483,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
+                quota=quota,
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
