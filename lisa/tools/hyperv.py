@@ -3,12 +3,12 @@
 
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional
 
 from assertpy import assert_that
-from dataclasses_json import config, dataclass_json, from_dict
+from dataclasses_json import dataclass_json
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
