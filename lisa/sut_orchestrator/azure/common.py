@@ -1976,7 +1976,7 @@ def get_share_service_client(
 
 
 # Update: Added quota to allow creation of variable sized file share volumes.
-# Default is 107374182400 bytes or 100GiB
+# Default is 100 GiB. All units are in GiB.
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
