@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Type
 
 from lisa import schema
-from lisa.tools import PowerShell, HyperV
+from lisa.tools import HyperV
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
