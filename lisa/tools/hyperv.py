@@ -3,12 +3,12 @@
 
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional
 
 from assertpy import assert_that
-from dataclasses_json import config, dataclass_json
+from dataclasses_json import dataclass_json
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
@@ -35,7 +35,6 @@ class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
     _default_switch: Optional[VMSwitch] = None
-    _free_internal_port = 50000
 
     @property
     def command(self) -> str:
@@ -230,7 +229,7 @@ class HyperV(Tool):
                     break
 
             if self._default_switch is None:
-                raise LisaException("Could not find any default switch")
+                raise LisaException("Could not find any Internal or External switch")
         return self._default_switch
 
     def exists_switch(self, name: str) -> bool:
