@@ -1986,7 +1986,7 @@ def get_or_create_file_share(
     resource_group_name: str,
     log: Logger,
     protocols: str = "SMB",
-    quota: int = 107374182400,
+    quota: int = 100,
 ) -> str:
     """
     Create an Azure Storage file share if it does not exist.

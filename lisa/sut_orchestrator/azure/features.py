@@ -2880,7 +2880,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 
     def create_share(
         self,
-        quota: int = 107374182400,
+        quota: int = 100,
     ) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
@@ -3446,7 +3446,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
-        quota: int = 107374182400,
+        quota: int = 100,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
