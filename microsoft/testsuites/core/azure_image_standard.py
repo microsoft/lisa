@@ -798,52 +798,29 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check the serial console is enabled from kernel command line
-         in dmesg.
+        This test will check the serial console is enabled from kernel command line.
 
         Steps:
-        1. Get the kernel command line from /var/log/messages or
-            /var/log/syslog output.
+        1. Get the kernel command line from /var/log/messages, /var/log/syslog,
+            dmesg, or journalctl output.
         2. Check expected setting from kernel command line.
             2.1. Expected to see 'console=ttyAMA0' for aarch64.
             2.2. Expected to see 'console=ttyS0' for x86_64.
+            2.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
-        console_device = {
-            CpuArchitecture.X64: "ttyS0",
-            CpuArchitecture.ARM64: "ttyAMA0",
-        }
         if isinstance(node.os, CBLMariner):
             if node.os.information.version < "2.0.0":
                 raise SkippedException(
                     "CBLMariner 1.0 has a known 'wont fix' issue with this test"
                 )
-        if isinstance(node.os, CBLMariner) or (
-            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
-        ):
-            log_output = node.tools[Dmesg].get_output()
-            log_file = "dmesg"
-        else:
-            cat = node.tools[Cat]
-            if node.shell.exists(node.get_pure_path("/var/log/messages")):
-                log_file = "/var/log/messages"
-                log_output = cat.read(log_file, force_run=True, sudo=True)
-            elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
-                log_file = "/var/log/syslog"
-                log_output = cat.read(log_file, force_run=True, sudo=True)
-            else:
-                log_file = "journalctl"
-                journalctl = node.tools[Journalctl]
-                log_output = journalctl.first_n_logs_from_boot()
-            if not log_output:
-                raise LisaException(
-                    "Neither /var/log/messages nor /var/log/syslog found."
-                    "and journal ctl log is empty."
-                )
-
+        console_device = {
+            CpuArchitecture.X64: "ttyS0",
+            CpuArchitecture.ARM64: "ttyAMA0",
+        }
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[arch]
@@ -851,15 +828,49 @@ class AzureImageStandard(TestSuite):
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
         freebsd_pattern = re.compile(r"^(.*uart0: console \(115200,n,8,1\).*)$", re.M)
-        result = find_patterns_in_lines(
-            log_output, [console_enabled_pattern, freebsd_pattern]
-        )
-        if not (result[0] or result[1]):
+        patterns = [console_enabled_pattern, freebsd_pattern]
+        logs_checked = []
+        pattern_found = False
+        # Check dmesg output for the patterns if certain OS detected
+        if isinstance(node.os, CBLMariner) or (
+            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
+        ):
+            dmesg_tool = node.tools[Dmesg]
+            log_output = dmesg_tool.get_output()
+            logs_checked.append(f"{dmesg_tool.command}")
+            if any(find_patterns_in_lines(log_output, patterns)):
+                pattern_found = True
+        else:
+            # Check each log source, if it is accessible, for the defined patterns
+            # If log files can be read, add to list of logs checked
+            # If pattern detected, break out of loop and pass test
+            log_sources = [
+                ("/var/log/syslog", node.tools[Cat]),
+                ("/var/log/messages", node.tools[Cat]),
+            ]
+            for log_file, tool in log_sources:
+                if node.shell.exists(node.get_pure_path(log_file)):
+                    current_log_output = tool.read(log_file, force_run=True, sudo=True)
+                    if current_log_output:
+                        logs_checked.append(log_file)
+                        if any(find_patterns_in_lines(current_log_output, patterns)):
+                            pattern_found = True
+                            break
+            # Check journalctl logs if patterns were not found in other log sources
+            journalctl_tool = node.tools[Journalctl]
+            if not pattern_found and journalctl_tool.exists:
+                current_log_output = journalctl_tool.first_n_logs_from_boot()
+                if current_log_output:
+                    logs_checked.append(f"{journalctl_tool.command}")
+                    if any(find_patterns_in_lines(current_log_output, patterns)):
+                        pattern_found = True
+        # Raise an exception if the patterns were not found in any of the checked logs
+        if not pattern_found:
             raise LisaException(
                 "Fail to find console enabled line "
                 f"'console [{current_console_device}] enabled' "
                 "or 'uart0: console (115200,n,8,1)' "
-                f"from {log_file} output",
+                f"from {', '.join(logs_checked)} output"
             )
 
     @TestCaseMetadata(
