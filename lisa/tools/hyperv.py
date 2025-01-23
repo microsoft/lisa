@@ -27,14 +27,14 @@ class HypervSwitchType(Enum):
 @dataclass_json
 @dataclass
 class VMSwitch:
-    name: str = field(metadata=config(field_name="Name"))
-    type: HypervSwitchType = field(default=HypervSwitchType.INTERNAL)
+    name: str = ""
+    type: HypervSwitchType = HypervSwitchType.EXTERNAL
 
 
 class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-    _default_switch = None
+    _default_switch: Optional[VMSwitch] = None
     _free_internal_port = 50000
 
     @property
@@ -213,22 +213,23 @@ class HyperV(Tool):
         )
 
     # get default switch from hyperv
-    def get_default_switch(self) -> Optional[VMSwitch]:
+    def get_default_switch(self) -> VMSwitch:
         if self._default_switch is None:
             # try to get external switch first
             for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
                 switch_json = self.node.tools[PowerShell].run_cmdlet(
                     f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'  # noqa: E501
-                    " | Select -First 1 | select Name | ConvertTo-Json",
+                    " | Select -First 1",
                     force_run=True,
+                    output_json=True,
                 )
                 if switch_json:
-                    self._default_switch = VMSwitch.from_json(switch_json)  # type: ignore
-                    if self._default_switch is not None:
-                        self._default_switch.type = switch_type
+                    self._default_switch = VMSwitch()
+                    self._default_switch.name = switch_json["Name"]
+                    self._default_switch.type = switch_type
                     break
 
-            if not self._default_switch:
+            if self._default_switch is None:
                 raise LisaException("Could not find any default switch")
         return self._default_switch
 
