@@ -2880,7 +2880,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 
     def create_share(
         self,
-        quota: int = 100,
+        quota_in_gb: int = 100,
     ) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
@@ -2912,7 +2912,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name=resource_group_name,
             protocols="NFS",
             log=self._log,
-            quota=quota,
+            quota_in_gb=quota_in_gb
         )
 
         storage_account_resource_id = (
@@ -3446,7 +3446,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
-        quota: int = 100,
+        quota_in_gb: int = 100,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3483,7 +3483,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
-                quota=quota,
+                quota_in_gb=quota_in_gb
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane

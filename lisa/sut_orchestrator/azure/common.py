@@ -1986,7 +1986,7 @@ def get_or_create_file_share(
     resource_group_name: str,
     log: Logger,
     protocols: str = "SMB",
-    quota: int = 100,
+    quota_in_gb: int = 100,
 ) -> str:
     """
     Create an Azure Storage file share if it does not exist.
@@ -1999,10 +1999,10 @@ def get_or_create_file_share(
         resource_group_name,
     )
     all_shares = list(share_service_client.list_shares())
-    if file_share_name not in (x.name for x in all_shares):  # type: ignore
+    if file_share_name not in (x.name for x in all_shares):
         log.debug(f"creating file share {file_share_name} with protocols {protocols}")
         share_service_client.create_share(
-            file_share_name, protocols=protocols, quota=quota
+            file_share_name, protocols=protocols, quota=quota_in_gb
         )
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
