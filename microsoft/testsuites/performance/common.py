@@ -207,6 +207,7 @@ def perf_tcp_pps(
     test_type: str,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
+    run_with_internal_address: bool = False,
 ) -> None:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -226,6 +227,14 @@ def perf_tcp_pps(
         [lambda: client.tools[Netperf], lambda: server.tools[Netperf]]  # type: ignore
     )
 
+    server_interface_ip: str = ""
+    client_interface_ip: str = ""
+    if run_with_internal_address:
+        server_interface_ip = server.internal_address
+        client_interface_ip = client.internal_address
+        assert server_interface_ip, "Server Node: internal address is not set"
+        assert client_interface_ip, "Client Node: internal address is not set"
+
     cpu = client.tools[Lscpu]
     core_count = cpu.get_core_count()
     if "maxpps" == test_type:
@@ -235,9 +244,14 @@ def perf_tcp_pps(
     else:
         ports = range(30000, 30001)
     for port in ports:
-        server_netperf.run_as_server(port)
+        server_netperf.run_as_server(port, interface_ip=server_interface_ip)
     for port in ports:
-        client_netperf.run_as_client_async(server.internal_address, core_count, port)
+        client_netperf.run_as_client_async(
+            server_ip=server.internal_address,
+            core_count=core_count,
+            port=port,
+            interface_ip=client_interface_ip,
+        )
     client_sar = client.tools[Sar]
     server_sar = server.tools[Sar]
     server_sar.get_statistics_async()
@@ -446,17 +460,33 @@ def perf_iperf(
     connections: List[int],
     buffer_length_list: List[int],
     udp_mode: bool = False,
+    server: Optional[RemoteNode] = None,
+    client: Optional[RemoteNode] = None,
+    run_with_internal_address: bool = False,
 ) -> None:
-    environment = test_result.environment
-    assert environment, "fail to get environment from testresult"
+    if server is not None or client is not None:
+        assert server is not None, "server need to be specified, if client is set"
+        assert client is not None, "client need to be specified, if server is set"
+    else:
+        environment = test_result.environment
+        assert environment, "fail to get environment from testresult"
+        # set server and client from environment, if not set explicitly
+        client = cast(RemoteNode, environment.nodes[0])
+        server = cast(RemoteNode, environment.nodes[1])
 
-    client = cast(RemoteNode, environment.nodes[0])
-    server = cast(RemoteNode, environment.nodes[1])
     client_iperf3, server_iperf3 = run_in_parallel(
-        [lambda: client.tools[Iperf3], lambda: server.tools[Iperf3]]
+        [lambda: client.tools[Iperf3], lambda: server.tools[Iperf3]]  # type: ignore
     )
     test_case_name = inspect.stack()[1][3]
     iperf3_messages_list: List[Any] = []
+    server_interface_ip = ""
+    client_interface_ip = ""
+    if run_with_internal_address:
+        server_interface_ip = server.internal_address
+        client_interface_ip = client.internal_address
+        assert server_interface_ip, "Server Node: internal address is not set"
+        assert client_interface_ip, "Client Node: internal address is not set"
+
     if udp_mode:
         for node in [client, server]:
             ssh = node.tools[Ssh]
@@ -481,7 +511,13 @@ def perf_iperf(
                 current_server_iperf_instances += 1
                 server_iperf3_process_list.append(
                     server_iperf3.run_as_server_async(
-                        current_server_port, "g", 10, True, True, False
+                        port=current_server_port,
+                        report_unit="g",
+                        report_periodic=10,
+                        use_json_format=True,
+                        one_connection_only=True,
+                        daemon=False,
+                        interface_ip=server_interface_ip,
                     )
                 )
                 current_server_port += 1
@@ -502,6 +538,7 @@ def perf_iperf(
                         parallel_number=num_threads_p,
                         ip_version="4",
                         udp_mode=udp_mode,
+                        client_ip=client_interface_ip,
                     )
                 )
                 current_client_port += 1
