@@ -2002,7 +2002,9 @@ def get_or_create_file_share(
     if file_share_name not in (x.name for x in all_shares):
         log.debug(f"creating file share {file_share_name} with protocols {protocols}")
         share_service_client.create_share(
-            file_share_name, protocols=protocols, quota=quota_in_gb
+            file_share_name,
+            protocols=protocols,
+            quota=quota_in_gb,
         )
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 

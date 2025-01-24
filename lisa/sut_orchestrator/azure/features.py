@@ -2912,7 +2912,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name=resource_group_name,
             protocols="NFS",
             log=self._log,
-            quota_in_gb=quota_in_gb
+            quota_in_gb=quota_in_gb,
         )
 
         storage_account_resource_id = (
@@ -3483,7 +3483,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
-                quota_in_gb=quota_in_gb
+                quota_in_gb=quota_in_gb,
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
