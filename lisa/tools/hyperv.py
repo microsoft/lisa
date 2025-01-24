@@ -3,12 +3,12 @@
 
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional
 
 from assertpy import assert_that
-from dataclasses_json import config, dataclass_json
+from dataclasses_json import dataclass_json
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
@@ -19,20 +19,22 @@ from lisa.util import LisaException
 from lisa.util.process import Process
 
 
-@dataclass_json
-@dataclass
-class VMSwitch:
-    name: str = field(metadata=config(field_name="Name"))
-
-
 class HypervSwitchType(Enum):
     INTERNAL = "Internal"
     EXTERNAL = "External"
 
 
+@dataclass_json
+@dataclass
+class VMSwitch:
+    name: str = ""
+    type: HypervSwitchType = HypervSwitchType.EXTERNAL
+
+
 class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    _default_switch: Optional[VMSwitch] = None
 
     @property
     def command(self) -> str:
@@ -209,23 +211,26 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_switch(
-        self, switch_type: HypervSwitchType = HypervSwitchType.EXTERNAL
-    ) -> VMSwitch:
-        if switch_type not in (HypervSwitchType.INTERNAL, HypervSwitchType.EXTERNAL):
-            raise LisaException(f"Unknown switch type {switch_type}")
+    # get default switch from hyperv
+    def get_default_switch(self) -> VMSwitch:
+        if self._default_switch is None:
+            # try to get external switch first
+            for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
+                switch_json = self.node.tools[PowerShell].run_cmdlet(
+                    f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'  # noqa: E501
+                    " | Select -First 1",
+                    force_run=True,
+                    output_json=True,
+                )
+                if switch_json:
+                    self._default_switch = VMSwitch()
+                    self._default_switch.name = switch_json["Name"]
+                    self._default_switch.type = switch_type
+                    break
 
-        # get default switch of type `switch_type` from hyperv
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type}"}}'
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-        )
-
-        if not switch_json:
-            raise LisaException(f"Could not find default switch of type {switch_type}")
-
-        return VMSwitch.from_json(switch_json)  # type: ignore
+            if self._default_switch is None:
+                raise LisaException("Could not find any Internal or External switch")
+        return self._default_switch
 
     def exists_switch(self, name: str) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
