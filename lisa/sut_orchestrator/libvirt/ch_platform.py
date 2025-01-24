@@ -139,7 +139,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel.text = node_context.kernel_path
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
             launch_sec = ET.SubElement(domain, "launchSecurity")
-            launch_sec.attrib["type"] = "sev"
+            if parse_version(libvirt_version) >= "10.5.0":
+                launch_sec.attrib["type"] = "sev-snp"
+            else:
+                launch_sec.attrib["type"] = "sev"
+
             cbitpos = ET.SubElement(launch_sec, "cbitpos")
             cbitpos.text = "0"
             reducedphysbits = ET.SubElement(launch_sec, "reducedPhysBits")
