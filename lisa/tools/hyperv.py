@@ -232,9 +232,12 @@ class HyperV(Tool):
                 raise LisaException("Could not find any Internal or External switch")
         return self._default_switch
 
-    def exists_switch(self, name: str) -> bool:
+    def exists_switch(self, name: str, switch_type: str = "") -> bool:
+        cmd = f"Get-VMSwitch -Name {name}"
+        if switch_type != "":
+            cmd += f"  -SwitchType '{switch_type}'"
         output = self.node.tools[PowerShell].run_cmdlet(
-            f"Get-VMSwitch -Name {name}",
+            cmdlet=cmd,
             fail_on_error=False,
             force_run=True,
         )
@@ -248,8 +251,8 @@ class HyperV(Tool):
             )
 
     def create_switch(self, name: str, switch_type: str = "Internal") -> None:
-        # remove switch if it exists
-        self.delete_switch(name)
+        if self.exists_switch(name, switch_type):
+            return
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
