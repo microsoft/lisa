@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
@@ -13,6 +13,7 @@ from dataclasses_json import dataclass_json
 from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import Windows
+from lisa.tools.rm import Rm
 from lisa.tools.powershell import PowerShell
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
@@ -29,6 +30,20 @@ class HypervSwitchType(Enum):
 class VMSwitch:
     name: str = ""
     type: HypervSwitchType = HypervSwitchType.EXTERNAL
+
+
+@dataclass
+class VMDisk:
+    # The unique identifier of the virtual hard disk.
+    id: str = ""
+    # The file path of the virtual hard disk (VHDX) file.
+    path: str = ""
+    # 0 - IDE, 1 - SCSI
+    controller_type: int = 0
+    # The number of the controller to which the virtual hard disk is attached.
+    controller_number: int = 0
+    # The location of the controller to which the virtual hard disk is attached.
+    controller_location: int = 0
 
 
 class HyperV(Tool):
@@ -55,15 +70,61 @@ class HyperV(Tool):
 
         return bool(output.strip() != "")
 
+    def get_vm_disks(self, name: str) -> List[VMDisk]:
+        vm_disks: List[VMDisk] = []
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMHardDiskDrive -VMName {name} ",
+            force_run=True,
+            output_json=True,
+        )
+        # above command returns a list of disks if there are multiple disks.
+        # if there is only one disk, it returns a single disk but not a list.
+        # so convert the output to a list if it is not already a list
+        if not isinstance(output, List):
+            output = [output]
+        for disk in output:
+            vm_disks.append(
+                VMDisk(
+                    id=disk["Id"],
+                    path=disk["Path"],
+                    controller_type=disk["ControllerType"],
+                    controller_number=disk["ControllerNumber"],
+                    controller_location=disk["ControllerLocation"],
+                )
+            )
+        return vm_disks
+
+    def delete_vm_disks(self, name: str) -> None:
+        # get vm disks
+        vm_disks = self.get_vm_disks(name)
+
+        # delete vm disks
+        for disk in vm_disks:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-VMHardDiskDrive -VMName {name} "
+                f"-ControllerType {disk.controller_type} "
+                f"-ControllerNumber {disk.controller_number} "
+                f"-ControllerLocation {disk.controller_location}",
+                force_run=True,
+            )
+            self.node.tools[Rm].remove_file(
+                disk.path,
+                sudo=True,
+            )
+
     def delete_vm_async(self, name: str) -> Optional[Process]:
-        # check if vm is present
+        # check if VM is present
         if not self.exists_vm(name):
             return None
 
-        # stop and delete vm
+        # stop the VM before deleting it
         self.stop_vm(name=name)
-        powershell = self.node.tools[PowerShell]
-        return powershell.run_cmdlet_async(
+
+        # delete VM disks before deleting vm
+        self.delete_vm_disks(name)
+
+        # delete vm
+        return self.node.tools[PowerShell].run_cmdlet_async(
             f"Remove-VM -Name {name} -Force",
             force_run=True,
         )
