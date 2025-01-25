@@ -1975,6 +1975,8 @@ def get_share_service_client(
     return share_service_client
 
 
+# Update: Added quota to allow creation of variable sized file share volumes.
+# Default is 100 GiB. All units are in GiB.
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
@@ -1984,9 +1986,10 @@ def get_or_create_file_share(
     resource_group_name: str,
     log: Logger,
     protocols: str = "SMB",
+    quota_in_gb: int = 100,
 ) -> str:
     """
-    Create a Azure Storage file share if it does not exist.
+    Create an Azure Storage file share if it does not exist.
     """
     share_service_client = get_share_service_client(
         credential,
@@ -1998,7 +2001,11 @@ def get_or_create_file_share(
     all_shares = list(share_service_client.list_shares())
     if file_share_name not in (x.name for x in all_shares):
         log.debug(f"creating file share {file_share_name} with protocols {protocols}")
-        share_service_client.create_share(file_share_name, protocols=protocols)
+        share_service_client.create_share(
+            file_share_name,
+            protocols=protocols,
+            quota=quota_in_gb,
+        )
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
