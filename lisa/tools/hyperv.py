@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
@@ -32,9 +32,18 @@ class VMSwitch:
 
 
 class HyperV(Tool):
+    # Internal NAT network configuration
+    INTERNAL_NAT_ROUTER = "192.168.5.1"
+    INTERNAL_NAT_SUBNET = "192.168.5.0/24"
+    INTERNAL_NAT_DHCP_IP_START = "192.168.5.50"
+    INTERNAL_NAT_DHCP_IP_END = "192.168.5.100"
+    # Azure DNS server
+    AZURE_DNS_SERVER = "168.63.129.16"
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
     _default_switch: Optional[VMSwitch] = None
+    _external_forwarding_port_start = 50000
+    _assigned_nat_ports: Set[int] = set()
 
     @property
     def command(self) -> str:
@@ -57,6 +66,10 @@ class HyperV(Tool):
         # check if vm is present
         if not self.exists_vm(name):
             return None
+
+        # delete port mapping for internal IP address of the VM
+        internal_ip = self.get_ip_address(name)
+        self.delete_nat_mapping(internal_ip=internal_ip)
 
         # stop and delete vm
         self.stop_vm(name=name)
@@ -293,6 +306,50 @@ class HyperV(Tool):
             force_run=True,
         )
 
+    def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
+        # get next available NAT port
+        external_port = self._get_next_available_nat_port()
+        # create a new NAT
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-NetNatStaticMapping -NatName {nat_name} -Protocol TCP "
+            f"-ExternalIPAddress 0.0.0.0 -InternalIPAddress {internal_ip} "
+            f"-InternalPort 22 -ExternalPort {external_port}",
+            force_run=True,
+        )
+        return external_port
+
+    def get_nat_mapping_id(self, external_port: int) -> Any:
+        return self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
+            f" | Select-Object -ExpandProperty StaticMappingID",
+            force_run=True,
+        )
+
+    # delete NAT mapping for a port or internal IP
+    def delete_nat_mapping(
+        self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
+    ) -> None:
+        if external_port is None:
+            external_port = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-NetNatStaticMapping | "
+                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
+                f" | Select-Object -ExpandProperty ExternalPort",
+                force_run=True,
+            )
+        mapping_id = self.get_nat_mapping_id(external_port)
+        if mapping_id:
+            # delete the NAT mapping if it exists
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} "
+                "-Confirm:$false",
+                force_run=True,
+            )
+            if external_port:
+                self._release_nat_port(int(external_port))
+        else:
+            self._log.debug(f"Mapping for port {external_port} does not exist")
+
     def delete_nat_networking(self, switch_name: str, nat_name: str) -> None:
         # Delete switch
         self.delete_switch(switch_name)
@@ -313,13 +370,13 @@ class HyperV(Tool):
 
         # set switch interface as gateway for NAT
         self.node.tools[PowerShell].run_cmdlet(
-            "New-NetIPAddress -IPAddress 192.168.5.1 "
+            f"New-NetIPAddress -IPAddress {self.INTERNAL_NAT_ROUTER} "
             f"-InterfaceIndex {interface_index} -PrefixLength 24",
             force_run=True,
         )
 
         # create a new NAT
-        self.create_nat(nat_name, "192.168.5.0/24")
+        self.create_nat(nat_name, self.INTERNAL_NAT_SUBNET)
 
     def get_ip_address(self, name: str) -> str:
         # verify vm is running
@@ -432,13 +489,18 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" '
+            f"-StartRange {self.INTERNAL_NAT_DHCP_IP_START} "
+            f"-EndRange {self.INTERNAL_NAT_DHCP_IP_END} "
+            f"-SubnetMask 255.255.255.0",
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            f"Set-DhcpServerV4OptionValue "
+            f"-Router {self.INTERNAL_NAT_ROUTER} "
+            f"-DnsServer {self.AZURE_DNS_SERVER}",
             force_run=True,
         )
 
@@ -482,3 +544,19 @@ class HyperV(Tool):
 
     def _check_exists(self) -> bool:
         return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
+
+    def _get_next_available_nat_port(self) -> int:
+        # Start checking from the external forwarding port start and
+        # find the first available one
+        port = self._external_forwarding_port_start
+        while self.get_nat_mapping_id(port):
+            port += 1
+        self._assigned_nat_ports.add(port)  # Assign this port
+        return port
+
+    def _release_nat_port(self, port: int) -> None:
+        # Release a port if used
+        if port in self._assigned_nat_ports:
+            self._assigned_nat_ports.remove(port)
+        else:
+            print(f"Port {port} was not assigned.")
