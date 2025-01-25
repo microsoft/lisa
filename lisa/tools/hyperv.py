@@ -13,8 +13,8 @@ from dataclasses_json import dataclass_json
 from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import Windows
-from lisa.tools.rm import Rm
 from lisa.tools.powershell import PowerShell
+from lisa.tools.rm import Rm
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
