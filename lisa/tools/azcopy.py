@@ -18,7 +18,7 @@ class AzCopy(Tool):
 
     def download_file(
         self,
-        sas: str,
+        sas_url: str,
         localfile: PurePath,
         sudo: bool = False,
         timeout: int = 600,
@@ -40,46 +40,53 @@ class WindowsAzCopy(AzCopy):
 
     def download_file(
         self,
-        sas: str,
+        sas_url: str,
         localfile: PurePath,
         sudo: bool = False,
         timeout: int = 600,
     ) -> None:
-        cmd = f'{self.command} {sas} "{self.node.get_str_path(localfile)}"'
+        self._azcopy_file(sas_url, str(localfile), sudo=sudo, timeout=timeout)
+
+    def _azcopy_file(
+        self,
+        source: str,
+        destination: str,
+        sudo: bool = False,
+        timeout: int = 600,
+    ) -> None:
+        cmd = f'{self.command} copy "{source}" "{destination}"'
         self.node.tools[PowerShell].run_cmdlet(
             cmd, sudo=sudo, timeout=timeout, fail_on_error=True
         )
 
     def _check_exists(self) -> bool:
-        return True
+        return False
 
     def _install(self) -> bool:
-        download_path = "C:\\azcopy.zip"
+        download_path = r"C:\AzCopy.zip"
+        install_path = r"C:\AzCopy"
+        ps = self.node.tools[PowerShell]
         # download azcopy
-        self.node.tools[PowerShell].run_cmdlet(
+        ps.run_cmdlet(
             f'Invoke-WebRequest -Uri "https://aka.ms/downloadazcopy-v10-windows" '
             f'-OutFile "{download_path}"',
             sudo=True,
             fail_on_error=True,
         )
         # extract azcopy
-        self.node.tools[PowerShell].run_cmdlet(
-            cmdlet=(
-                f'Expand-Archive -Path "{download_path}" '
-                f'-DestinationPath r"C:\\AZCopy\\"'
-            ),
+        ps.run_cmdlet(
+            cmdlet=f'Expand-Archive -Path "{download_path}" -DestinationPath "{install_path}"',  # noqa: E501
             sudo=True,
             fail_on_error=True,
         )
         # get the path of azcopy.exe
-        self._command = self.node.tools[PowerShell].run_cmdlet(
+        ps.run_cmdlet(
             cmdlet=(
-                'Get-ChildItem -Path r"C:\\AZCopy\\" -Recurse | '
-                'Where-Object {{ $_.Name -eq "azcopy.exe" }} | '
-                "Select-Object -ExpandProperty FullName"
+                f"(Get-ChildItem -path '{install_path}' -Recurse -File -Filter 'azcopy.exe').FullName"
             ),
             sudo=True,
             fail_on_error=True,
+            output_json=True,
         )
 
         return True

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Type
 
 from lisa import schema
-from lisa.tools import PowerShell
+from lisa.tools import AzCopy, PowerShell
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -28,6 +28,11 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
+        azcopy = self._node.tools[AzCopy]
+        azcopy.download_file(
+            sas_url = r'url',
+            localfile=r"C:\Ubuntu2404.vhdx"
+        )
         node = self._node
         powershell = node.tools[PowerShell]
         powershell.run_cmdlet(
