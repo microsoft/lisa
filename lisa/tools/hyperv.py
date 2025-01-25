@@ -293,6 +293,17 @@ class HyperV(Tool):
             force_run=True,
         )
 
+    def add_nat_mapping(
+        self, nat_name: str, internal_ip: str, external_port: int
+    ) -> None:
+        # create a new NAT
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-NetNatStaticMapping -NatName {nat_name} -Protocol TCP "
+            f"-ExternalIPAddress 0.0.0.0 -InternalIPAddress {internal_ip} "
+            f"-InternalPort 22 -ExternalPort {external_port}",
+            force_run=True,
+        )
+
     def delete_nat_networking(self, switch_name: str, nat_name: str) -> None:
         # Delete switch
         self.delete_switch(switch_name)
@@ -432,13 +443,13 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.0.50 -EndRange 192.168.0.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.5.50 -EndRange 192.168.5.100 -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.0.1 -DnsServer 168.63.129.16",
+            "Set-DhcpServerV4OptionValue -Router 192.168.5.1 -DnsServer 168.63.129.16",
             force_run=True,
         )
 
