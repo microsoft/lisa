@@ -32,14 +32,19 @@ class VMSwitch:
     type: HypervSwitchType = HypervSwitchType.EXTERNAL
 
 
+class ControllerType(Enum):
+    IDE = 0
+    SCSI = 1
+
+
 @dataclass
 class VMDisk:
     # The unique identifier of the virtual hard disk.
     id: str = ""
     # The file path of the virtual hard disk (VHDX) file.
     path: str = ""
-    # 0 - IDE, 1 - SCSI
-    controller_type: int = 0
+    # The type of the controller (IDE or SCSI).
+    controller_type: ControllerType = ControllerType.IDE
     # The number of the controller to which the virtual hard disk is attached.
     controller_number: int = 0
     # The location of the controller to which the virtual hard disk is attached.
