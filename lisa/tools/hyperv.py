@@ -296,6 +296,9 @@ class HyperV(Tool):
     def add_nat_mapping(
         self, nat_name: str, internal_ip: str, external_port: int
     ) -> None:
+        # delete existing NAT mapping
+        self.delete_nat_mapping(external_port)
+
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
             f"Add-NetNatStaticMapping -NatName {nat_name} -Protocol TCP "
@@ -303,6 +306,22 @@ class HyperV(Tool):
             f"-InternalPort 22 -ExternalPort {external_port}",
             force_run=True,
         )
+
+    def delete_nat_mapping(self, external_port: int) -> None:
+        # create a new NAT
+        mapping_id = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
+            f" | Select-Object -ExpandProperty StaticMappingID",
+            force_run=True,
+        )
+        if mapping_id:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} -Confirm:$false",
+                force_run=True,
+            )
+        else:
+            self._log.debug(f"Mapping for port {external_port} does not exist")
 
     def delete_nat_networking(self, switch_name: str, nat_name: str) -> None:
         # Delete switch
