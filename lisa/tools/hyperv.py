@@ -317,7 +317,8 @@ class HyperV(Tool):
         )
         if mapping_id:
             self.node.tools[PowerShell].run_cmdlet(
-                f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} -Confirm:$false",
+                f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} "
+                "-Confirm:$false",
                 force_run=True,
             )
         else:
