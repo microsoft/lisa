@@ -44,7 +44,9 @@ class DmsgOops(notifier.Notifier):
     """
     A sample notifier to check for Panics/OOPs Errors in the DMesg Logs.
     """
-    dmesg_errors: Dict[str, Dict[str, List[str]]]
+
+    dmesg_errors: Dict[str, Dict[str, List[List[str]]]]
+
     @classmethod
     def type_name(cls) -> str:
         return "dmsg_oops_notifier"
