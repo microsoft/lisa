@@ -46,7 +46,6 @@ class HypervPlatform(Platform):
         self._source_vhd: Optional[PurePath] = None
         self._source_factory = Factory[Source](Source)
         self._source_files: Optional[List[PurePath]] = None
-        self._external_forwarding_port = 50000
 
         self.device_pool = HyperVDevicePool(
             node=self._server,
@@ -315,14 +314,11 @@ class HypervPlatform(Platform):
             # If the switch type is internal, we need to add a NAT mapping to access the
             # VM from the outside of HyperV host.
             if default_switch.type == HypervSwitchType.INTERNAL:
-                hv.add_nat_mapping(
+                port = hv.add_nat_mapping(
                     nat_name=default_switch.name,
                     internal_ip=ip_addr,
-                    external_port=self._external_forwarding_port,
                 )
                 ip_addr = node_context.host.public_address
-                port = self._external_forwarding_port
-                self._external_forwarding_port += 1
             username = self.runbook.admin_username
             password = self.runbook.admin_password
             node.set_connection_info(

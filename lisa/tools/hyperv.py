@@ -35,6 +35,8 @@ class HyperV(Tool):
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
     _default_switch: Optional[VMSwitch] = None
+    _external_forwarding_port_start = 50000
+    _assigned_nat_ports: set[int] = set()
 
     @property
     def command(self) -> str:
@@ -293,9 +295,24 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def add_nat_mapping(
-        self, nat_name: str, internal_ip: str, external_port: int
-    ) -> None:
+    def _get_next_available_nat_port(self) -> int:
+        # Start checking from the start_port and find the first available one
+        port = self._external_forwarding_port_start
+        while port in self._assigned_nat_ports:
+            port += 1
+        self._assigned_nat_ports.add(port)  # Assign this port
+        return port
+
+    def _release_nat_port(self, port: int) -> None:
+        # Release a port if needed
+        if port in self._assigned_nat_ports:
+            self._assigned_nat_ports.remove(port)
+        else:
+            print(f"Port {port} is not assigned.")
+
+    def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
+        external_port = self._get_next_available_nat_port()
+
         # delete existing NAT mapping
         self.delete_nat_mapping(external_port)
 
@@ -306,9 +323,10 @@ class HyperV(Tool):
             f"-InternalPort 22 -ExternalPort {external_port}",
             force_run=True,
         )
+        return external_port
 
     def delete_nat_mapping(self, external_port: int) -> None:
-        # create a new NAT
+        # get the NAT mapping id for the port
         mapping_id = self.node.tools[PowerShell].run_cmdlet(
             f"Get-NetNatStaticMapping | "
             f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
@@ -316,11 +334,13 @@ class HyperV(Tool):
             force_run=True,
         )
         if mapping_id:
+            # delete the NAT mapping if it exists
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} "
                 "-Confirm:$false",
                 force_run=True,
             )
+            self._release_nat_port(external_port)
         else:
             self._log.debug(f"Mapping for port {external_port} does not exist")
 
