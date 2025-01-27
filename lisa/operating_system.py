@@ -415,21 +415,16 @@ class Posix(OperatingSystem, BaseClassMixin):
         """
         package_name = self.__resolve_package_name(package)
         exists = self._package_exists(package_name)
-        if exists and minimum_version is not None:
-            acceptable = bool(
-                self.get_package_information(package_name=package_name)
-                >= minimum_version
-            )
-            if not acceptable:
-                self._log.debug(
-                    (
-                        f"Minimum version of package {package_name} "
-                        f"did not meet minimum of {str(minimum_version)}."
-                    )
-                )
-            return acceptable
-        else:
+        self._log.debug(f"package '{package}' exists: {exists}")
+        if minimum_version is None or not exists:
             return exists
+
+        actual_version = self.get_package_information(package_name=package_name)
+        self._log.debug(
+            f"package '{package}' expected min version: "
+            f"{str(minimum_version)}, actual version: {str(actual_version)}"
+        )
+        return actual_version >= minimum_version
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
