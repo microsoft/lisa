@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
@@ -36,7 +36,7 @@ class HyperV(Tool):
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
-    _assigned_nat_ports: set[int] = set()
+    _assigned_nat_ports: Set[int] = set()
 
     @property
     def command(self) -> str:
@@ -294,7 +294,6 @@ class HyperV(Tool):
             f"New-NetNat -Name {name} -InternalIPInterfaceAddressPrefix '{ip_range}' ",
             force_run=True,
         )
-
 
     def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
         external_port = self._get_next_available_nat_port()
