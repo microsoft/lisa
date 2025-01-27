@@ -5,7 +5,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Pattern, Type, cast
+from typing import Any, Dict, List, Pattern, Type, cast
 
 from dataclasses_json import dataclass_json
 
@@ -44,7 +44,7 @@ class DmsgOops(notifier.Notifier):
     """
     A sample notifier to check for Panics/OOPs Errors in the DMesg Logs.
     """
-
+    dmesg_errors: Dict[str, Dict[str, List[str]]]
     @classmethod
     def type_name(cls) -> str:
         return "dmsg_oops_notifier"
@@ -59,9 +59,9 @@ class DmsgOops(notifier.Notifier):
             file_path = constants.RUN_LOCAL_LOG_PATH / file_path
         self._log.info(f"Writing output to file {file_path}")
         with open(file_path, "w") as f:
-            f.write(str(self.dmesg_errors))  # type: ignore
+            f.write(str(self.dmesg_errors))
 
-    def check_kernel_oops(self, dmesg_logs: str, context_lines: int = 4) -> list[str]:
+    def check_kernel_oops(self, dmesg_logs: str, context_lines: int = 4) -> List[str]:
         oops_list = []
         lines = dmesg_logs.splitlines()
         for i, line in enumerate(lines):
@@ -80,7 +80,7 @@ class DmsgOops(notifier.Notifier):
         self._log.info("DMesg logs check completed")
 
     def process_serial_logs(
-        self, test_name: str, file_path: str, pattern_start: str, pattern_end: str
+        self, test_name: str, file_path: Path, pattern_start: str, pattern_end: str
     ) -> None:
         with open(file_path, "r") as file:
             buffer = file.read()
