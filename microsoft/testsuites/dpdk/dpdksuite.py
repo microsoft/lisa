@@ -24,7 +24,19 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
+from lisa.tools import (
+    Echo,
+    Git,
+    Hugepages,
+    Ip,
+    Kill,
+    Lscpu,
+    Lsmod,
+    Make,
+    Modprobe,
+    Ping,
+    Timeout,
+)
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
@@ -40,7 +52,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
-    enable_uio_hv_generic_for_nic,
+    enable_uio_hv_generic,
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
@@ -101,6 +113,123 @@ class Dpdk(TestSuite):
     ) -> None:
         verify_dpdk_build(
             node, log, variables, "netvsc", HugePageSize.HUGE_2MB, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            netvsc pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_symmetric_mp(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        # setup and unwrap the resources for this test
+        nics = [node.nics.get_nic("eth1"), node.nics.get_nic("eth2")]
+        test_nic = node.nics.get_secondary_nic()
+        extra_nics = [nic for nic in nics if nic.name != test_nic.name]
+        ping = node.tools[Ping]
+        ping.install()
+        try:
+            test_kit = initialize_node_resources(
+                node,
+                log,
+                variables,
+                "netvsc",
+                HugePageSize.HUGE_2MB,
+                extra_nics=extra_nics,
+            )
+        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+            raise SkippedException(err)
+        testpmd = test_kit.testpmd
+        if isinstance(testpmd.installer, PackageManagerInstall):
+            # The Testpmd tool doesn't get re-initialized
+            # even if you invoke it with new arguments.
+            raise SkippedException(
+                "DPDK symmetric_mp test is not implemented for "
+                " package manager installation."
+            )
+        symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
+        node.log.debug("\n".join([str(nic) for nic in nics]))
+        if node.nics.is_mana_device_present():
+            nic_args = (
+                f'--vdev="{test_nic.pci_slot},'
+                f"mac={test_nic.mac_addr},"
+                f'mac={extra_nics[0].mac_addr}"'
+            )
+        else:
+            nic_args = f"-b {node.nics.get_primary_nic().pci_slot}"
+
+        output = node.execute(
+            f"{str(testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
+            sudo=True,
+            shell=True,
+        ).stdout
+        port_mask = 0x0
+        port_regex = re.compile(
+            r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+        )
+        matches = port_regex.findall(output)
+        if not matches:
+            fail("could not find port ids")
+        for match in matches:
+            port_mask ^= 1 << (int(match))
+
+        node.log.debug(f"Port mask: {hex(port_mask)}")
+        # primary_nic = node.nics.get_primary_nic().pci_slot
+        symmetric_mp_args = (
+            f"{nic_args} --proc-type auto "
+            "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
+            f"-- -p {hex(port_mask)[2:]} --num-procs 2"
+        )
+        primary = node.tools[Timeout].start_with_timeout(
+            command=f"{str(symmetric_mp_path)} -l 1 {symmetric_mp_args} --proc-id 0",
+            timeout=150,
+            signal=SIGINT,
+            kill_timeout=30,
+        )
+        primary.wait_output("APP: Finished Process Init")
+        secondary = node.tools[Timeout].start_with_timeout(
+            command=f"{str(symmetric_mp_path)} -l 2 {symmetric_mp_args} --proc-id 1",
+            timeout=120,
+            signal=SIGINT,
+            kill_timeout=35,
+        )
+        _ = ping.ping_async(
+            target=test_nic.ip_addr,
+            nic_name=node.nics.get_primary_nic().name,
+            count=100,
+        )
+        secondary_exit = secondary.wait_result()
+        assert_that(secondary_exit.exit_code).described_as(
+            f"Secondary process failure: {secondary_exit.stdout}"
+        ).is_zero()
+        process_result = primary.wait_result(
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Primary process failed to exit with 0",
+        )
+        node.log.debug(
+            f"Primary process:\n\n{process_result.stdout}\n"
+            f"\nprimary stderr:\n{process_result.stderr}"
+        )
+        node.log.debug(
+            f"Secondary system:\n\n{secondary_exit.stdout}\n"
+            f"secondary stderr:\n{secondary_exit.stderr}"
         )
 
     @TestCaseMetadata(
@@ -925,7 +1054,7 @@ class Dpdk(TestSuite):
         nic = node.nics.get_secondary_nic()
         node.nics.get_nic_driver(nic.name)
         if nic.module_name == "hv_netvsc":
-            enable_uio_hv_generic_for_nic(node, nic)
+            enable_uio_hv_generic(node)
 
         original_driver = nic.driver_sysfs_path
         node.nics.unbind(nic)
