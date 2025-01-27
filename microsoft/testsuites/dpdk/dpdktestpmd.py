@@ -198,6 +198,7 @@ class DpdkSourceInstall(Installer):
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
+        "multi_process/symmetric_mp",
     ]
 
     def _check_if_installed(self) -> bool:
@@ -257,6 +258,12 @@ class DpdkSourceInstall(Installer):
 
     def _install(self) -> None:
         super()._install()
+        _ = self._node.tools[Git].clone(
+            url="https://github.com/mcgov/devname.git",
+            cwd=self.asset_path.joinpath("examples"),
+            dir_name="devname",
+        )
+        self._sample_applications += ["devname"]
         if self._sample_applications:
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
