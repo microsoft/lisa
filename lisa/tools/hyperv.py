@@ -295,20 +295,6 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def _get_next_available_nat_port(self) -> int:
-        # Start checking from the start_port and find the first available one
-        port = self._external_forwarding_port_start
-        while port in self._assigned_nat_ports:
-            port += 1
-        self._assigned_nat_ports.add(port)  # Assign this port
-        return port
-
-    def _release_nat_port(self, port: int) -> None:
-        # Release a port if needed
-        if port in self._assigned_nat_ports:
-            self._assigned_nat_ports.remove(port)
-        else:
-            print(f"Port {port} is not assigned.")
 
     def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
         external_port = self._get_next_available_nat_port()
@@ -533,3 +519,19 @@ class HyperV(Tool):
 
     def _check_exists(self) -> bool:
         return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
+
+    def _get_next_available_nat_port(self) -> int:
+        # Start checking from the external forwarding port start and
+        # find the first available one
+        port = self._external_forwarding_port_start
+        while port in self._assigned_nat_ports:
+            port += 1
+        self._assigned_nat_ports.add(port)  # Assign this port
+        return port
+
+    def _release_nat_port(self, port: int) -> None:
+        # Release a port if used
+        if port in self._assigned_nat_ports:
+            self._assigned_nat_ports.remove(port)
+        else:
+            print(f"Port {port} was not assigned.")
