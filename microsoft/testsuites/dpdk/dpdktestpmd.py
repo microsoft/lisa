@@ -805,11 +805,11 @@ class DpdkTestpmd(Tool):
 
         self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
-        self._load_drivers_for_dpdk()
+        self.load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)
         return True
 
-    def _load_drivers_for_dpdk(self) -> None:
+    def load_drivers_for_dpdk(self) -> None:
         self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             network_drivers = ["mlx4_core", "mlx4_ib"]
