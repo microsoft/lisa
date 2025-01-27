@@ -224,9 +224,16 @@ class DpdkSourceInstall(Installer):
         # which breaks when another tool checks for it's existence before building...
         # like cmake, meson, make, autoconf, etc.
         self._node.tools[Ninja].install()
-        if not isinstance(self._os, Debian):
+        # try multiple avenues for installing pyelftools, preferring the
+        # more recent convention of prepending apt/dnf/etc python system packages
+        # with python3-...
+        if self._os.is_package_in_repo("python3-pyelftools"):
             self._os.install_packages("python3-pyelftools")
+        # then try the older package manager name if it's available
+        elif self._os.is_package_in_repo("pyelftools"):
+            self._os.install_packages("pyelftools")
         else:
+            # otherwise try pip. This can fail to install for the system on ubuntu 24.04
             self._node.tools[Pip].install_packages("pyelftools")
 
     def _uninstall(self) -> None:
