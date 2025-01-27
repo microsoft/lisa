@@ -3,37 +3,27 @@
 
 import logging
 import re
-import subprocess
 from dataclasses import dataclass
-from typing import Any, List, Pattern, Type, cast
-import smtplib
-import os
 from pathlib import Path
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from typing import Any, List, Pattern, Type, cast
+
 from dataclasses_json import dataclass_json
 
 from lisa import messages, notifier, schema
+from lisa.messages import TestResultMessage, TestStatus
 from lisa.util import constants
-from lisa.tools import Dmesg
-from lisa.messages import (
-    MessageBase,
-    TestResultMessage,
-    TestRunMessage,
-    TestRunStatus,
-    TestStatus,
-)
-from lisa.util import (
-    check_panic,
-    get_matched_str,
-    KernelPanicException
-)
 
 oops_regex_patterns: List[Pattern[str]] = [
     re.compile(r"Oops: [0-9]+ \[\#.*\]"),  # Basic Oops Detection
-    re.compile(r"BUG: unable to handle kernel NULL pointer dereference at (0x)?[0-9a-fA-F]+"),  # Null Pointer Dereference
-    re.compile(r"BUG: unable to handle kernel paging request at (0x)?[0-9a-fA-F]+"),  # Invalid Memory Access
-    re.compile(r"RIP: [0-9a-fA-F]+:([a-zA-Z0-9_]+)\+[0-9a-fA-Fx]+/[0-9a-fA-Fx]+"),  # RIP in Trace
+    re.compile(
+        r"BUG: unable to handle kernel NULL pointer dereference at (0x)?[0-9a-fA-F]+"
+    ),  # Null Pointer Dereference
+    re.compile(
+        r"BUG: unable to handle kernel paging request at (0x)?[0-9a-fA-F]+"
+    ),  # Invalid Memory Access
+    re.compile(
+        r"RIP: [0-9a-fA-F]+:([a-zA-Z0-9_]+)\+[0-9a-fA-Fx]+/[0-9a-fA-Fx]+"
+    ),  # RIP in Trace
     re.compile(r"Call Trace:\s*(.*)"),  # Kernel Call Trace
     re.compile(r"general protection fault: [0-9]+ \[#.*\]"),  # General Fault Errors
     re.compile(r"Kernel panic - not syncing: (.*)"),  # Kernel Panic Information
@@ -41,6 +31,7 @@ oops_regex_patterns: List[Pattern[str]] = [
     re.compile(r"Stack:\s*(.*)"),  # Stack Dump
     re.compile(r"Code:\s*(.*)"),  # Code Dump
 ]
+
 
 @dataclass_json
 @dataclass
@@ -84,28 +75,23 @@ class DmsgOops(notifier.Notifier):
         return oops_list
 
     def dmesg_error_check(self, test_name: str, dmesg_logs: str) -> None:
-        try:
-            check_panic(dmesg_logs, "Result", self._log)
-        except KernelPanicException as e:
-            self._log.error(
-                f"Kernel Panic found in the dmesg logs. {e}"
-            )
-            self.dmesg_errors['panics'].setdefault(test_name, []).append(e)
         oops_list = self.check_kernel_oops(dmesg_logs)
-        self.dmesg_errors['oops'].setdefault(test_name, []).append(oops_list)
-        self._log.info(f"DMesg logs check completed")
+        self.dmesg_errors["oops"].setdefault(test_name, []).append(oops_list)
+        self._log.info("DMesg logs check completed")
 
-    def process_serial_logs(self, test_name: str, file_path: str, pattern_start: str, pattern_end: str) -> None:
-        with open(file_path, 'r') as file:
+    def process_serial_logs(
+        self, test_name: str, file_path: str, pattern_start: str, pattern_end: str
+    ) -> None:
+        with open(file_path, "r") as file:
             buffer = file.read()
         while True:
             start_index = buffer.find(pattern_start)
             end_index = buffer.find(pattern_end, start_index + len(pattern_start))
             if start_index == -1 or end_index == -1:
                 break
-            data_segment = buffer[start_index + len(pattern_start):end_index]
+            data_segment = buffer[start_index + len(pattern_start) : end_index]
             self.dmesg_error_check(test_name, data_segment)
-            buffer = buffer[end_index + len(pattern_end):]
+            buffer = buffer[end_index + len(pattern_end) :]
 
     def process_test_result_message(self, message: TestResultMessage) -> None:
         if message.log_file and message.status in [
@@ -117,11 +103,14 @@ class DmsgOops(notifier.Notifier):
             local_file_path = constants.RUN_LOCAL_LOG_PATH / message.log_file
             local_absolute_file_path = local_file_path.absolute()
             try:
-                self.process_serial_logs(message.name, local_absolute_file_path, "cmd: ['sudo', 'dmesg']", "execution time:")
-            except Exception as e:
-                self._log.error(
-                    f"Error while Processing Serial Console Logs : {e}"
+                self.process_serial_logs(
+                    message.name,
+                    local_absolute_file_path,
+                    "cmd: ['sudo', 'dmesg']",
+                    "execution time:",
                 )
+            except Exception as e:
+                self._log.error(f"Error while Processing Serial Console Logs : {e}")
 
             self.save_results()
 
@@ -135,7 +124,7 @@ class DmsgOops(notifier.Notifier):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         runbook = cast(DmsgOopsSchema, self.runbook)
         self._log_level = runbook.log_level
-        self.dmesg_errors = {"panics": {}, "oops": {}}
+        self.dmesg_errors = {"oops": {}}
 
     def __init__(self, runbook: DmsgOopsSchema) -> None:
         notifier.Notifier.__init__(self, runbook)
