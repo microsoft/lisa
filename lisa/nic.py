@@ -56,6 +56,7 @@ class NicInfo:
             f"pci_slot: {self.pci_slot}\n"
             f"ip_addr: {self.ip_addr}\n"
             f"mac_addr: {self.mac_addr}\n"
+            f"dev_uuid: {self.dev_uuid}\n"
         )
 
     @property

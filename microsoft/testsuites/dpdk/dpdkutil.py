@@ -224,7 +224,7 @@ UIO_HV_GENERIC_SYSFS_PATH = "/sys/bus/vmbus/drivers/uio_hv_generic"
 HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
 
 
-def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
+def enable_uio_hv_generic(node: Node) -> None:
     # hv_uio_generic driver uuid, a constant value used by vmbus.
     # https://doc.dpdk.org/guides/nics/netvsc.html#installation
     hv_uio_generic_uuid = "f8615163-df3e-46c5-913f-f2d2f965ed0e"
@@ -262,21 +262,29 @@ def enable_uio_hv_generic_for_nic(node: Node, nic: NicInfo) -> None:
 
 
 def do_pmd_driver_setup(
-    node: Node, test_nic: NicInfo, testpmd: DpdkTestpmd, pmd: str = "failsafe"
+    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: str = "failsafe"
 ) -> None:
     if pmd == "netvsc":
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
-        enable_uio_hv_generic_for_nic(node, test_nic)
-        node.nics.unbind(test_nic)
-        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+        enable_uio_hv_generic(node)
+        # bound vmbus device may be the same when using vports
+        # ie... MANA. So track which devices we've already unbound to avoid
+        # doing things twice.
+        bound: List[str] = []
+        for nic in test_nics:
+            if nic.dev_uuid not in bound:
+                node.nics.unbind(nic)
+                node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
+                bound.append(nic.dev_uuid)
 
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
         ip = node.tools[Ip]
-        if test_nic.lower and ip.is_device_up(test_nic.lower):
-            ip.down(test_nic.lower)
+        for test_nic in test_nics:
+            if test_nic.lower and ip.is_device_up(test_nic.lower):
+                ip.down(test_nic.lower)
 
 
 def initialize_node_resources(
@@ -368,10 +376,11 @@ def initialize_node_resources(
     # ensure drivers are loaded even after mid-suite reboots
     testpmd.load_drivers_for_dpdk()
     # netvsc pmd requires uio_hv_generic to be loaded before use
-    do_pmd_driver_setup(node=node, test_nic=test_nic, testpmd=testpmd, pmd=pmd)
-    if extra_nics:
-        for extra_nic in extra_nics:
-            do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
+    test_nics = [test_nic]
+    if extra_nics is not None:
+        test_nics += extra_nics
+
+    do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
 
