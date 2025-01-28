@@ -407,7 +407,6 @@ class Posix(OperatingSystem, BaseClassMixin):
     def package_exists(
         self,
         package: Union[str, Tool, Type[Tool]],
-        minimum_version: Optional[VersionInfo] = None,
     ) -> bool:
         """
         Query if a package/tool is installed on the node.
@@ -416,15 +415,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_name = self.__resolve_package_name(package)
         exists = self._package_exists(package_name)
         self._log.debug(f"package '{package}' exists: {exists}")
-        if minimum_version is None or not exists:
-            return exists
-
-        actual_version = self.get_package_information(package_name=package_name)
-        self._log.debug(
-            f"package '{package}' expected min version: "
-            f"{str(minimum_version)}, actual version: {str(actual_version)}"
-        )
-        return actual_version >= minimum_version
+        return exists
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -2122,14 +2113,14 @@ class Suse(Linux):
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
         self.wait_running_process("zypper")
-        install_result = self._node.execute(
+        uninstall_result = self._node.execute(
             command, shell=True, sudo=True, timeout=timeout
         )
-        assert_that(install_result.exit_code).described_as(
-            f"Failed to remove {remove_packages}. "
-            f"exit_code: {install_result.exit_code}, "
-            f"stderr: {install_result.stderr}"
-        ).is_equal_to(0)
+        uninstall_result.assert_exit_code(
+            expected_exit_code=0,
+            message=f"Could not uninstall package(s): {remove_packages}",
+            include_output=True,
+        )
         self._log.debug(f"{packages} is/are removed successfully.")
 
     def _install_packages(
