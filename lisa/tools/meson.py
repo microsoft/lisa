@@ -8,14 +8,14 @@ from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-
+from lisa.util import parse_version
 from .ln import Ln
 from .python import Pip
 from .whoami import Whoami
 
 
 class Meson(Tool):
-    _minimum_version = VersionInfo(major=0, minor=52, patch=0)
+    _minimum_version = parse_version("0.52.0")
 
     @property
     def command(self) -> str:
