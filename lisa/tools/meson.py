@@ -9,6 +9,7 @@ from semver import VersionInfo
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import parse_version
+
 from .ln import Ln
 from .python import Pip
 from .whoami import Whoami
@@ -40,32 +41,45 @@ class Meson(Tool):
         package_available = ""
         # packaged as 'meson' on older systems and 'python3-meson' on newer ones,
         # since it's actually just a python package.
-        # So check for both
+        # But now we have a bunch of annoying cases.
+        # 'meson' is installed but the wrong version
+        # meson is installed but the right version
+        # meson is not installed and it's the wrong version
+        # meson is not installed and it's the right version
         for pkg in [
             "python3-meson",
             "meson",
         ]:
-            if posix_os.package_exists(pkg, minimum_version=self._minimum_version):
+            if posix_os.package_exists(pkg):
                 package_installed = pkg
                 break
             elif posix_os.is_package_in_repo(pkg):
                 package_available = pkg
                 break
 
-        # prefer the packaged version as long as it's the right version
-        if package_installed:
-            return self._check_exists()
+        # install the available package, if one was available and not installed
         if package_available:
             posix_os.install_packages(package_available)
-            # verify version is correct if it's installed from pkg manager
-            if not posix_os.package_exists(pkg, minimum_version=self._minimum_version):
-                posix_os.uninstall_packages(pkg)
-                package_available = ""
+            package_installed = package_available
 
-        # otherwise, install with pip
-        # this can get weird on some systems since they have started
-        # returning an error code if you try to use pip without a venv
-        if not (package_available or package_installed):
+        # now, if either previoulsy or newly installed package, check the version
+        if package_installed:
+            if (
+                posix_os.get_package_information(package_installed, use_cached=False)
+                < self._minimum_version
+            ):
+                # and uninstall if the version is not recent enough
+                posix_os.uninstall_packages(package_installed)
+                package_installed = ""
+            else:
+                # otherwise, we're done.
+                return self._check_exists()
+
+        # If we get here, we couldn't find a good version from the package manager
+        # so we will install with pip. This is least desirable since it introduces
+        # unpredictable behavior when running meson or ninja with sudo.
+        # Like sudo ninja install, for example.
+        if not package_installed:
             username = self.node.tools[Whoami].get_username()
             self.node.tools[Pip].install_packages("meson", install_to_user=True)
             self.node.tools[Ln].create_link(
