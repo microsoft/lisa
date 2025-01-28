@@ -346,8 +346,9 @@ def initialize_node_resources(
 
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
+    numa_nodes = node.tools[Lscpu].get_numa_node_count()
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=4)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
