@@ -148,7 +148,7 @@ class Dpdk(TestSuite):
                 log,
                 variables,
                 "netvsc",
-                HugePageSize.HUGE_1GB,
+                HugePageSize.HUGE_2MB,
                 extra_nics=extra_nics,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
@@ -170,16 +170,27 @@ class Dpdk(TestSuite):
             f'mac={extra_nics[0].mac_addr}"'
         )
 
-        # node.execute(
-        #     f"{str(testpmd.get_example_app_path('dpdk-devname'))} {' '.join(nic_args)}",
-        #     sudo=True,
-        #     shell=True,
-        # )
+        output = node.execute(
+            f"{str(testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
+            sudo=True,
+            shell=True,
+        ).stdout
+        port_mask = 0x0
+        port_regex = re.compile(
+            r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+        )
+        matches = port_regex.findall(output)
+        if not matches:
+            fail("could not find port ids")
+        for match in matches:
+            port_mask ^= 1 << (int(match))
+
+        node.log.debug(f"Port mask: {hex(port_mask)}")
         # primary_nic = node.nics.get_primary_nic().pci_slot
         symmetric_mp_args = (
             f"{nic_args} --proc-type auto "
-            # "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
-            "-- --num-procs 2 -p 6"
+            "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
+            f"-- -p {hex(port_mask)[2:]} --num-procs 2"
         )
         primary = node.tools[Timeout].start_with_timeout(
             command=f"{str(symmetric_mp_path)} -l 1,2 {symmetric_mp_args} --proc-id 0",
