@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import os
 import re
 import secrets
@@ -71,7 +72,14 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
         else:
             node_context.kernel_path = node_runbook.kernel.path
-        node_context.host_data = secrets.token_hex(32)
+        libvirt_version = self._get_libvirt_version()
+        assert libvirt_version, "Can not get libvirt version"
+        token = secrets.token_hex(32)
+        if parse_version(libvirt_version) >= "10.5.0":
+            en = "utf-8"
+            node_context.host_data = base64.b64encode(token.encode(en)).decode(en)
+        else:
+            node_context.host_data = token
 
     def _create_node(
         self,
@@ -138,19 +146,21 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
-            launch_sec = ET.SubElement(domain, "launchSecurity")
+            attrb_type = "sev"
+            attrb_host_data = "host_data"
             if parse_version(libvirt_version) >= "10.5.0":
-                launch_sec.attrib["type"] = "sev-snp"
-            else:
-                launch_sec.attrib["type"] = "sev"
+                attrb_type = "sev-snp"
+                attrb_host_data = "hostData"
 
+            launch_sec = ET.SubElement(domain, "launchSecurity")
+            launch_sec.attrib["type"] = attrb_type
             cbitpos = ET.SubElement(launch_sec, "cbitpos")
             cbitpos.text = "0"
             reducedphysbits = ET.SubElement(launch_sec, "reducedPhysBits")
             reducedphysbits.text = "0"
             policy = ET.SubElement(launch_sec, "policy")
             policy.text = "0"
-            host_data = ET.SubElement(launch_sec, "host_data")
+            host_data = ET.SubElement(launch_sec, attrb_host_data)
             host_data.text = node_context.host_data
 
         devices = ET.SubElement(domain, "devices")
