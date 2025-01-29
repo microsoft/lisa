@@ -12,9 +12,10 @@ from lisa import Node
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Cat,
     Chmod,
     Chown,
     Dmesg,
@@ -22,12 +23,12 @@ from lisa.tools import (
     Echo,
     Git,
     Ls,
-    Lsblk,
     Mkdir,
     Modprobe,
+    Sed,
     Whoami,
 )
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import UnsupportedDistroException, find_groups_in_lines
 
 
 @dataclass
@@ -166,6 +167,7 @@ class CloudHypervisorTests(Tool):
     ) -> None:
         if self.use_datadisk:
             self._set_data_disk()
+            self._save_kernel_logs(log_path)
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
@@ -498,20 +500,63 @@ class CloudHypervisorTests(Tool):
             node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
 
     def _set_data_disk(self) -> None:
-        datadisk_name = ""
-        lsblk = self.node.tools[Lsblk]
-        disks = lsblk.get_disks()
-        # get the first unmounted disk (data disk)
-        for disk in disks:
-            if disk.is_mounted:
-                continue
-            if disk.name.startswith("sd"):
-                datadisk_name = disk.device_name
-                break
-        # running lsblk once again, just for human readable logs
-        lsblk.run()
-        if not datadisk_name:
-            raise LisaException("No unmounted data disk (/dev/sdX) found")
+        # datadisk_name = ""
+        # lsblk = self.node.tools[Lsblk]
+        # disks = lsblk.get_disks()
+        # # get the first unmounted disk (data disk)
+        # for disk in disks:
+        #     if disk.is_mounted:
+        #         continue
+        #     if disk.name.startswith("sd"):
+        #         datadisk_name = disk.device_name
+        #         break
+        # # running lsblk once again, just for human readable logs
+        # lsblk.run()
+        # if not datadisk_name:
+        #     raise LisaException("No unmounted data disk (/dev/sdX) found")
+
+        """
+        Following is the last usable entry in e829 table and is safest to use for
+        pmem since its most likely to be free. 0x0000001000000000 is64G.
+        [    0.000000] BIOS-e820: [mem 0x0000001000000000-0x00000040ffffffff] usable
+
+        """
+        memmap_str = "memmap=16G!64G"
+
+        self._log.debug("lsblk before reboot")
+        self.node.execute("lsblk", shell=True, sudo=True)
+
+        sed = self.node.tools[Sed]
+        cat = self.node.tools[Cat]
+        grub_file = "/etc/default/grub"
+        grub_cmdline = cat.read_with_filter(
+            file=grub_file,
+            grep_string="GRUB_CMDLINE_LINUX=",
+            sudo=True,
+        )
+        if memmap_str not in grub_cmdline:
+            sed.substitute(
+                file=grub_file,
+                match_lines="^GRUB_CMDLINE_LINUX=",
+                regexp='"$',
+                replacement=' memmap=16G!64G "',
+                sudo=True,
+            )
+        if isinstance(self.node.os, CBLMariner):
+            self.node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+        elif isinstance(self.node.os, Ubuntu):
+            self.node.execute("update-grub", sudo=True)
+        else:
+            raise UnsupportedDistroException(
+                self.node.os,
+                "pmem for CH tests is supported only on Ubuntu and CBLMariner",
+            )
+
+        self.node.reboot(time_out=900)
+        self.node.execute("lsblk", shell=True, sudo=True)
+        self.node.execute("ls /dev/pmem*", shell=True, sudo=True)
+
+        datadisk_name = "/dev/pmem0"
         self._log.debug(f"Using data disk: {datadisk_name}")
         self.env_vars["DATADISK_NAME"] = datadisk_name
 
