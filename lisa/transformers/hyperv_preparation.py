@@ -57,8 +57,8 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         runbook: HyperVPreparationTransformerSchema = self.runbook
         assert isinstance(runbook, HyperVPreparationTransformerSchema)
 
-        if runbook.guest_image_blob_url:
-            self._upload_blob_to_server()
+        #if runbook.guest_image_blob_url:
+        #    self._upload_blob_to_server()
 
         switch_name = "InternalNAT"
 
