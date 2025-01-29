@@ -37,6 +37,10 @@ class HyperV(Tool):
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
+    internal_nat_router = "192.168.5.1"
+    internal_nat_subnet = "192.168.5.0/24"
+    internal_nat_dhcp_ip_start = "192.168.5.50"
+    internal_nat_dhcp_ip_end = "192.168.5.100"
 
     @property
     def command(self) -> str:
@@ -349,13 +353,13 @@ class HyperV(Tool):
 
         # set switch interface as gateway for NAT
         self.node.tools[PowerShell].run_cmdlet(
-            "New-NetIPAddress -IPAddress 192.168.5.1 "
+            f"New-NetIPAddress -IPAddress {self.internal_nat_router} "
             f"-InterfaceIndex {interface_index} -PrefixLength 24",
             force_run=True,
         )
 
         # create a new NAT
-        self.create_nat(nat_name, "192.168.5.0/24")
+        self.create_nat(nat_name, self.internal_nat_subnet)
 
     def get_ip_address(self, name: str) -> str:
         # verify vm is running
@@ -468,13 +472,13 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange 192.168.5.50 -EndRange 192.168.5.100 -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange {self.internal_nat_dhcp_ip_start} -EndRange {self.internal_nat_dhcp_ip_end} -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            "Set-DhcpServerV4OptionValue -Router 192.168.5.1 -DnsServer 168.63.129.16",
+            f"Set-DhcpServerV4OptionValue -Router {self.internal_nat_router} -DnsServer 168.63.129.16",
             force_run=True,
         )
 
