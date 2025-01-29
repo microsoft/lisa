@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import base64
-import binascii
 from pathlib import Path
 from typing import Any, Dict
 
@@ -16,6 +15,7 @@ from lisa import (
 from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE, CLOUD_HYPERVISOR
+from lisa.sut_orchestrator.libvirt.context import NodeContext
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls, Lscpu
 from lisa.tools.lscpu import CpuType
@@ -126,7 +126,7 @@ class NestedCVMAttestationTestSuite(TestSuite):
         from lisa.sut_orchestrator.libvirt.context import get_node_context
 
         node_context = get_node_context(node)
-        host_data = self._get_host_data(node_context.host_data)
+        host_data = self._get_host_data(node_context)
         if not host_data:
             raise SkippedException("host_data is empty")
         node.tools[NestedCVMAttestationTests].run_cvm_attestation(
@@ -136,15 +136,14 @@ class NestedCVMAttestationTestSuite(TestSuite):
             host_data,
         )
 
-    def _get_host_data(self, host_data: str) -> str:
+    def _get_host_data(self, node_context: NodeContext) -> str:
         # Based on libvirt version our libvirt platform will set
         # either plain text or b64 encoded string as host data.
         # We need to decode it as this test would get host_data
         # from attestation tool as plain text
         # or
-        # Return original data if decoding fails considering
-        # this is non-encoded string
-        try:
-            return base64.b64decode(host_data).decode("utf-8")
-        except (binascii.Error, UnicodeDecodeError):
-            return host_data
+        # Return original data if not set as base64 encoded string
+        host_data = node_context.host_data
+        if node_context.is_host_data_base64:
+            host_data = base64.b64decode(host_data).hex()
+        return host_data
