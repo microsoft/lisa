@@ -67,6 +67,10 @@ class HyperV(Tool):
         if not self.exists_vm(name):
             return None
 
+        # delete port mapping for internal IP address of the VM
+        internal_ip = self.get_ip_address(name)
+        self.delete_nat_mapping(internal_ip=internal_ip)
+
         # stop and delete vm
         self.stop_vm(name=name)
         powershell = self.node.tools[PowerShell]
@@ -304,9 +308,8 @@ class HyperV(Tool):
 
     def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
         external_port = self._get_next_available_nat_port()
-
-        # delete existing NAT mapping
-        self.delete_nat_mapping(external_port)
+        # delete NAT mapping if the port is already in use
+        self.delete_nat_mapping(external_port=external_port)
 
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
@@ -317,14 +320,32 @@ class HyperV(Tool):
         )
         return external_port
 
-    def delete_nat_mapping(self, external_port: int) -> None:
-        # get the NAT mapping id for the port
-        mapping_id = self.node.tools[PowerShell].run_cmdlet(
-            f"Get-NetNatStaticMapping | "
-            f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
-            f" | Select-Object -ExpandProperty StaticMappingID",
-            force_run=True,
-        )
+    # delete NAT mapping for a port or internal IP
+    def delete_nat_mapping(
+        self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
+    ) -> None:
+        mapping_id = None
+        if external_port is not None:
+            # get the NAT mapping id for the port
+            mapping_id = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-NetNatStaticMapping | "
+                f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
+                f" | Select-Object -ExpandProperty StaticMappingID",
+                force_run=True,
+            )
+        elif internal_ip is not None:
+            mapping_id = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-NetNatStaticMapping | "
+                f"Where-Object {{$_.InternalIPAddress -eq {internal_ip}}}"
+                f" | Select-Object -ExpandProperty StaticMappingID",
+                force_run=True,
+            )
+            external_port = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-NetNatStaticMapping | "
+                f"Where-Object {{$_.InternalIPAddress -eq {internal_ip}}}"
+                f" | Select-Object -ExpandProperty ExternalPort",
+                force_run=True,
+            )
         if mapping_id:
             # delete the NAT mapping if it exists
             self.node.tools[PowerShell].run_cmdlet(
@@ -332,7 +353,8 @@ class HyperV(Tool):
                 "-Confirm:$false",
                 force_run=True,
             )
-            self._release_nat_port(external_port)
+            if external_port:
+                self._release_nat_port(external_port)
         else:
             self._log.debug(f"Mapping for port {external_port} does not exist")
 
