@@ -22,12 +22,11 @@ from lisa.tools import (
     Echo,
     Git,
     Ls,
-    Lsblk,
     Mkdir,
     Modprobe,
     Whoami,
 )
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import find_groups_in_lines
 
 
 @dataclass
@@ -498,20 +497,28 @@ class CloudHypervisorTests(Tool):
             node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
 
     def _set_data_disk(self) -> None:
-        datadisk_name = ""
-        lsblk = self.node.tools[Lsblk]
-        disks = lsblk.get_disks()
-        # get the first unmounted disk (data disk)
-        for disk in disks:
-            if disk.is_mounted:
-                continue
-            if disk.name.startswith("sd"):
-                datadisk_name = disk.device_name
-                break
-        # running lsblk once again, just for human readable logs
-        lsblk.run()
-        if not datadisk_name:
-            raise LisaException("No unmounted data disk (/dev/sdX) found")
+        # datadisk_name = ""
+        # lsblk = self.node.tools[Lsblk]
+        # disks = lsblk.get_disks()
+        # # get the first unmounted disk (data disk)
+        # for disk in disks:
+        #     if disk.is_mounted:
+        #         continue
+        #     if disk.name.startswith("sd"):
+        #         datadisk_name = disk.device_name
+        #         break
+        # # running lsblk once again, just for human readable logs
+        # lsblk.run()
+        # if not datadisk_name:
+        #     raise LisaException("No unmounted data disk (/dev/sdX) found")
+
+        self.node.execute("free -h", shell=True)
+        self.node.execute(
+            "modprobe brd rd_size=16777216 max_part=1 rd_nr=1", shell=True, sudo=True
+        )
+        self.node.execute("free -h", shell=True)
+        self.node.execute("ls /dev/ram0", shell=True, sudo=True)
+        datadisk_name = "/dev/ram0"
         self._log.debug(f"Using data disk: {datadisk_name}")
         self.env_vars["DATADISK_NAME"] = datadisk_name
 
