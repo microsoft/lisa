@@ -74,12 +74,14 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             node_context.kernel_path = node_runbook.kernel.path
         libvirt_version = self._get_libvirt_version()
         assert libvirt_version, "Can not get libvirt version"
-        token = secrets.token_hex(32)
+
         if parse_version(libvirt_version) >= "10.5.0":
             en = "utf-8"
+            token = secrets.token_hex(16)
             node_context.host_data = base64.b64encode(token.encode(en)).decode(en)
+            node_context.is_host_data_base64 = True
         else:
-            node_context.host_data = token
+            node_context.host_data = secrets.token_hex(32)
 
     def _create_node(
         self,
