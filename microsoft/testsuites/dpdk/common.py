@@ -68,10 +68,11 @@ class DependencyInstaller:
     # evaluate the list of package dependencies,
     def install_required_packages(
         self,
-        os: Posix,
+        node: Node,
         extra_args: Union[List[str], None],
         arch: Optional[CpuArchitecture] = None,
     ) -> None:
+        os = node.os
         assert isinstance(os, Posix), (
             "DependencyInstaller is not compatible with this OS: "
             f"{os.information.vendor} {os.information.release}"
@@ -221,7 +222,7 @@ class Installer:
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
             self._os_dependencies.install_required_packages(
-                self._os, extra_args=self._package_manager_extra_args, arch=self._arch
+                self._node, extra_args=self._package_manager_extra_args, arch=self._arch
             )
 
     # define how to check the installed version
