@@ -404,13 +404,18 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._uninstall_packages(package_names, signed, timeout, extra_args)
 
-    def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
+    def package_exists(
+        self,
+        package: Union[str, Tool, Type[Tool]],
+    ) -> bool:
         """
         Query if a package/tool is installed on the node.
         Return Value - bool
         """
         package_name = self.__resolve_package_name(package)
-        return self._package_exists(package_name)
+        exists = self._package_exists(package_name)
+        self._log.debug(f"package '{package}' exists: {exists}")
+        return exists
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
@@ -2093,6 +2098,30 @@ class Suse(Linux):
                 self._node.os,
                 "There are no enabled repositories defined in this image.",
             )
+
+    def _uninstall_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        add_args = self._process_extra_package_args(extra_args)
+        command = f"zypper --non-interactive {add_args}"
+        if not signed:
+            command += " --no-gpg-checks "
+        remove_packages = " ".join(packages)
+        command += f" rm {remove_packages}"
+        self.wait_running_process("zypper")
+        uninstall_result = self._node.execute(
+            command, shell=True, sudo=True, timeout=timeout
+        )
+        uninstall_result.assert_exit_code(
+            expected_exit_code=0,
+            message=f"Could not uninstall package(s): {remove_packages}",
+            include_output=True,
+        )
+        self._log.debug(f"{packages} is/are removed successfully.")
 
     def _install_packages(
         self,
