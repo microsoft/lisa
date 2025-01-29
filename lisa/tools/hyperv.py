@@ -82,6 +82,8 @@ class HyperV(Tool):
             force_run=True,
             output_json=True,
         )
+        if not output:
+            return []
         # above command returns a list of disks if there are multiple disks.
         # if there is only one disk, it returns a single disk but not a list.
         # so convert the output to a list if it is not already a list
