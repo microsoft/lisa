@@ -32,15 +32,18 @@ class VMSwitch:
 
 
 class HyperV(Tool):
+    # Internal NAT network configuration
+    INTERNAL_NAT_ROUTER = "192.168.5.1"
+    INTERNAL_NAT_SUBNET = "192.168.5.0/24"
+    INTERNAL_NAT_DHCP_IP_START = "192.168.5.50"
+    INTERNAL_NAT_DHCP_IP_END = "192.168.5.100"
+    # Azure DNS server
+    AZURE_DNS_SERVER = "168.63.129.16"
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
-    internal_nat_router = "192.168.5.1"
-    internal_nat_subnet = "192.168.5.0/24"
-    internal_nat_dhcp_ip_start = "192.168.5.50"
-    internal_nat_dhcp_ip_end = "192.168.5.100"
 
     @property
     def command(self) -> str:
@@ -353,13 +356,13 @@ class HyperV(Tool):
 
         # set switch interface as gateway for NAT
         self.node.tools[PowerShell].run_cmdlet(
-            f"New-NetIPAddress -IPAddress {self.internal_nat_router} "
+            f"New-NetIPAddress -IPAddress {self.INTERNAL_NAT_ROUTER} "
             f"-InterfaceIndex {interface_index} -PrefixLength 24",
             force_run=True,
         )
 
         # create a new NAT
-        self.create_nat(nat_name, self.internal_nat_subnet)
+        self.create_nat(nat_name, self.INTERNAL_NAT_SUBNET)
 
     def get_ip_address(self, name: str) -> str:
         # verify vm is running
@@ -472,13 +475,13 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange {self.internal_nat_dhcp_ip_start} -EndRange {self.internal_nat_dhcp_ip_end} -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange {self.INTERNAL_NAT_DHCP_IP_START} -EndRange {self.INTERNAL_NAT_DHCP_IP_END} -SubnetMask 255.255.255.0',  # noqa: E501
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            f"Set-DhcpServerV4OptionValue -Router {self.internal_nat_router} -DnsServer 168.63.129.16",
+            f"Set-DhcpServerV4OptionValue -Router {self.INTERNAL_NAT_ROUTER} -DnsServer {self.AZURE_DNS_SERVER}",  # noqa: E501
             force_run=True,
         )
 
