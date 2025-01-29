@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
@@ -308,8 +308,8 @@ class HyperV(Tool):
 
     def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
         external_port = self._get_next_available_nat_port()
-        # delete NAT mapping if the port is already in use
-        self.delete_nat_mapping(external_port=external_port)
+        if self.get_nat_mapping_id(external_port):
+            raise LisaException(f"Mapping for port {external_port} already exists")
 
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
@@ -320,32 +320,26 @@ class HyperV(Tool):
         )
         return external_port
 
+    def get_nat_mapping_id(self, external_port: int) -> Any:
+        return self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
+            f" | Select-Object -ExpandProperty StaticMappingID",
+            force_run=True,
+        )
+
     # delete NAT mapping for a port or internal IP
     def delete_nat_mapping(
         self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
     ) -> None:
-        mapping_id = None
-        if external_port is not None:
-            # get the NAT mapping id for the port
-            mapping_id = self.node.tools[PowerShell].run_cmdlet(
-                f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
-                f" | Select-Object -ExpandProperty StaticMappingID",
-                force_run=True,
-            )
-        elif internal_ip is not None:
-            mapping_id = self.node.tools[PowerShell].run_cmdlet(
-                f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
-                f" | Select-Object -ExpandProperty StaticMappingID",
-                force_run=True,
-            )
+        if external_port is None:
             external_port = self.node.tools[PowerShell].run_cmdlet(
                 f"Get-NetNatStaticMapping | "
                 f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
                 f" | Select-Object -ExpandProperty ExternalPort",
                 force_run=True,
             )
+        mapping_id = self.get_nat_mapping_id(external_port)
         if mapping_id:
             # delete the NAT mapping if it exists
             self.node.tools[PowerShell].run_cmdlet(
