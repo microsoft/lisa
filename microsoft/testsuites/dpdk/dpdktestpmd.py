@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from assertpy import assert_that, fail
 from semver import VersionInfo
@@ -28,6 +28,7 @@ from lisa.tools import (
     Timeout,
     Wget,
 )
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -44,6 +45,7 @@ from microsoft.testsuites.dpdk.common import (
     PackageManagerInstall,
     TarDownloader,
     get_debian_backport_repo_args,
+    i386_not_implemented_thrower,
     is_url_for_git_repo,
     is_url_for_tarball,
     unsupported_os_thrower,
@@ -53,38 +55,42 @@ PACKAGE_MANAGER_SOURCE = "package_manager"
 
 
 # declare package dependencies for package manager DPDK installation
-DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
+DPDK_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
     requirements=[
+        # raise exception early if package manager install is used for i386 test.
+        OsPackageDependencies(matcher=i386_not_implemented_thrower),
         # install linux-modules-extra-azure if it's available for mana_ib
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Debian)
-            and bool(x.get_kernel_information().version >= "5.15.0")
-            and x.is_package_in_repo("linux-modules-extra-azure"),
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
+            and bool(os.get_kernel_information().version >= "5.15.0")
+            and os.is_package_in_repo("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Debian),
+            matcher=lambda os, arch=None: isinstance(os, Debian),  # type: ignore
             packages=["dpdk", "dpdk-dev"],
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Suse)
-            and bool(parse_version(x.information.release) == "15.5.0"),
+            matcher=lambda os, arch=None: isinstance(os, Suse)  # type: ignore
+            and bool(parse_version(os.information.release) == "15.5.0"),
             packages=["dpdk22", "dpdk22-devel"],
             stop_on_match=True,
         ),
         OsPackageDependencies(
             # alma/rocky have started
             # including testpmd by default in 'dpdk'
-            matcher=lambda x: isinstance(x, Fedora)
-            and not x.is_package_in_repo("dpdk-devel"),
+            matcher=lambda os, arch=None: isinstance(os, Fedora)  # type: ignore
+            and not os.is_package_in_repo("dpdk-devel"),
             packages=["dpdk"],
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, (Fedora, Suse)),
+            matcher=lambda os, arch=None: isinstance(  # type: ignore
+                os, (Fedora, Suse)
+            ),
             packages=["dpdk", "dpdk-devel"],
             stop_on_match=True,
         ),
@@ -92,11 +98,11 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
     ]
 )
 # declare package/tool dependencies for DPDK source installation
-DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
+DPDK_SOURCE_DEPENDENCIES = DependencyInstaller(
     requirements=[
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Ubuntu)
-            and x.information.codename == "bionic",
+            matcher=lambda os, arch=None: isinstance(os, Ubuntu)  # type: ignore
+            and os.information.codename == "bionic",
             packages=[
                 "build-essential",
                 "libmnl-dev",
@@ -116,13 +122,29 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
         # older debian kernels won't have mana_ib packaged,
         # so skip the check on those kernels.
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Debian)
-            and bool(x.get_kernel_information().version >= "5.15.0")
-            and x.is_package_in_repo("linux-modules-extra-azure"),
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
+            and bool(os.get_kernel_information().version >= "5.15.0")
+            and os.is_package_in_repo("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
         ),
+        # Install 32-bit dependencies if we're building for i386
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Debian),
+            matcher=lambda os, arch=None: isinstance(os, Debian)  # type: ignore
+            and arch == CpuArchitecture.I386,
+            packages=[
+                "python3-pyelftools",
+                "libelf-dev:i386",
+                "libnuma-dev:i386",
+                "pkg-config",
+                "python3-pip",
+                "cmake",
+                "libnl-3-dev:i386",
+                "meson",
+                "gcc-i686-linux-gnu",
+            ],
+        ),
+        OsPackageDependencies(
+            matcher=lambda os, arch=None: isinstance(os, Debian),  # type: ignore
             packages=[
                 "build-essential",
                 "libnuma-dev",
@@ -134,7 +156,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, Suse),
+            matcher=lambda os, arch=None: isinstance(os, Suse),  # type: ignore
             packages=[
                 "psmisc",
                 "libnuma-devel",
@@ -145,7 +167,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
             stop_on_match=True,
         ),
         OsPackageDependencies(
-            matcher=lambda x: isinstance(x, (Fedora)),
+            matcher=lambda os, arch=None: isinstance(os, (Fedora)),  # type: ignore
             packages=[
                 "psmisc",
                 "numactl-devel",
@@ -194,11 +216,57 @@ class DpdkPackageManagerInstall(PackageManagerInstall):
 
 # implement SourceInstall for DPDK
 class DpdkSourceInstall(Installer):
+    def _get_pkgconfig_path(self) -> str:
+        if self._arch == CpuArchitecture.I386:
+            return "${PKG_CONFIG_PATH}:/usr/local/lib/i386-linux-gnu/pkgconfig"
+        else:
+            return "${PKG_CONFIG_PATH}:/usr/local/lib/pkgconfig"
+
+    def _get_bashrc_defines(self) -> List[str]:
+        if self._arch == CpuArchitecture.I386:
+            arch_folder = "i386-linux-gnu"
+        else:
+            arch_folder = "lib64"
+        return [
+            f"export PKG_CONFIG_PATH={self._get_pkgconfig_path()}",
+            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/"
+            + f"{arch_folder}",
+        ]
+
     _sample_applications = [
         "l3fwd",
         "multi_process/client_server_mp/mp_server",
         "multi_process/client_server_mp/mp_client",
     ]
+
+    def _get_meson_defines(self) -> Optional[Dict[str, str]]:
+        if self._arch == CpuArchitecture.I386:
+            return {
+                "CC": "/usr/bin/i686-linux-gnu-gcc",
+                "LDFLAGS": "-m32",
+                "PKG_CONFIG_LIBDIR": "/usr/local/lib/i386-linux-gnu/pkgconfig",
+            }
+        else:
+            return {"PATH": "$PATH:/usr/local/bin:/home/$USER/.local/bin"}
+
+    def _get_c_arguments(self) -> str:
+        if self._arch == CpuArchitecture.I386:
+            return "-Dc_link_args=-m32"
+        else:
+            return ""
+
+    _build_dir: str = "build"
+    _enable_drivers: List[str] = [
+        "*/mlx*",
+        "net/*netvsc",
+        "net/ring",
+        "net/virtio",
+        "net/bonding",
+        "bus/*",
+        "common/*",
+        "mempool/*",
+    ]
+    _enable_apps: List[str] = ["app/test-pmd"]
 
     def _check_if_installed(self) -> bool:
         try:
@@ -218,6 +286,15 @@ class DpdkSourceInstall(Installer):
     def _setup_node(self) -> None:
         super()._setup_node()
         if isinstance(self._os, Debian):
+            if self._arch == CpuArchitecture.I386:
+                self._node.execute(
+                    "dpkg --add-architecture i386",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Could not enable i386 packages."
+                    ),
+                )
             self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
             if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
                 self._os.update_packages("linux-azure")
@@ -252,21 +329,43 @@ class DpdkSourceInstall(Installer):
 
     def get_installed_version(self) -> VersionInfo:
         return self._node.tools[Pkgconfig].get_package_version(
-            "libdpdk", update_cached=True
+            "libdpdk", update_cached=True, pkg_config_path=self._get_pkgconfig_path()
         )
+
+    def _get_meson_parameters(self) -> str:
+        enable_examples = ""
+        # enable any apps we need (namely, testpmd)
+        enable_apps = "-Denable_apps=" + ",".join(self._enable_apps)
+        # add net/mana to the pmd list if we need it
+        if self._node.nics.is_mana_device_present():
+            self._enable_drivers += ["net/mana"]
+        # build the driver enable arg
+        enable_drivers = "-Denable_drivers=" + ",".join(self._enable_drivers)
+        # add any needed -Dc_flags or -Dc_link_args arguments
+        if self._sample_applications:
+            enable_examples = f"-Dexamples={','.join(self._sample_applications)}"
+
+        c_args = self._get_c_arguments()
+
+        return " ".join([c_args, enable_apps, enable_drivers, enable_examples])
 
     def _install(self) -> None:
         super()._install()
-        if self._sample_applications:
-            sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
-        else:
-            sample_apps = ""
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
+
+        # handle arch special cases for env vars
+        update_envs = self._get_meson_defines()
+        # run [DEFINE='...'] meson setup ... $build_dir
+        # configures the installation
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=self._get_meson_parameters(),
+            cwd=self.asset_path,
+            build_dir=self._build_dir,
+            update_envs=update_envs,
         )
+        # run the build
         node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
             shell=True,
@@ -300,12 +399,9 @@ class DpdkSourceInstall(Installer):
             expected_exit_code=0,
             expected_exit_code_failure_message="ldconfig failed, check for error spew.",
         )
-        library_bashrc_lines = [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
-            "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
-        ]
+        # add the define lines we need
         node.tools[Echo].write_to_file(
-            ";".join(library_bashrc_lines),
+            ";".join(self._get_bashrc_defines()),
             node.get_pure_path("$HOME/.bashrc"),
             append=True,
         )
@@ -703,13 +799,14 @@ class DpdkTestpmd(Tool):
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
+        self._build_arch: Optional[CpuArchitecture] = kwargs.pop("build_arch", None)
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
-                self.node, DPDK_PACKAGE_MANAGER_PACKAGES
+                self.node, DPDK_PACKAGE_MANAGER_DEPENDENCIES, arch=self._build_arch
             )
         # if not package manager, choose source installation
         else:
@@ -737,10 +834,12 @@ class DpdkTestpmd(Tool):
                     " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
                     "https://__/__.tar[.gz]"
                 )
+
             self.installer = DpdkSourceInstall(
                 node=self.node,
-                os_dependencies=DPDK_SOURCE_INSTALL_PACKAGES,
+                os_dependencies=DPDK_SOURCE_DEPENDENCIES,
                 downloader=downloader,
+                arch=self._build_arch,
             )
         # if dpdk is already installed, find the binary and check the version
         if self.find_testpmd_binary(assert_on_fail=False):
@@ -802,7 +901,7 @@ class DpdkTestpmd(Tool):
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
-        self.installer.do_installation()
+        self.installer.do_installation(required_arch=self._build_arch)
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)
