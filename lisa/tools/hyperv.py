@@ -336,13 +336,13 @@ class HyperV(Tool):
         elif internal_ip is not None:
             mapping_id = self.node.tools[PowerShell].run_cmdlet(
                 f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.InternalIPAddress -eq {internal_ip}}}"
+                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
                 f" | Select-Object -ExpandProperty StaticMappingID",
                 force_run=True,
             )
             external_port = self.node.tools[PowerShell].run_cmdlet(
                 f"Get-NetNatStaticMapping | "
-                f"Where-Object {{$_.InternalIPAddress -eq {internal_ip}}}"
+                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
                 f" | Select-Object -ExpandProperty ExternalPort",
                 force_run=True,
             )
@@ -354,7 +354,7 @@ class HyperV(Tool):
                 force_run=True,
             )
             if external_port:
-                self._release_nat_port(external_port)
+                self._release_nat_port(int(external_port))
         else:
             self._log.debug(f"Mapping for port {external_port} does not exist")
 
