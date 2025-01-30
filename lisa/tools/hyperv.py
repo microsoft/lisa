@@ -85,7 +85,7 @@ class HyperV(Tool):
         # above command returns a list of disks if there are multiple disks.
         # if there is only one disk, it returns a single disk but not a list.
         # so convert the output to a list if it is not already a list
-        if not isinstance(output, List):
+        if not isinstance(output, list):
             output = [output]
         for disk in output:
             vm_disks.append(
