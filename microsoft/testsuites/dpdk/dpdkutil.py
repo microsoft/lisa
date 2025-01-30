@@ -294,7 +294,7 @@ def initialize_node_resources(
     pmd: str,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
-    extra_nics: Union[List[NicInfo], None] = None,
+    test_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
@@ -376,9 +376,10 @@ def initialize_node_resources(
     # ensure drivers are loaded even after mid-suite reboots
     testpmd.load_drivers_for_dpdk()
     # netvsc pmd requires uio_hv_generic to be loaded before use
-    test_nics = [test_nic]
-    if extra_nics is not None:
-        test_nics += extra_nics
+
+    # Allow user to pass in an explicit list of nics to use for the test.
+    if test_nics is None:
+        test_nics = [node.nics.get_secondary_nic()]
 
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
@@ -482,7 +483,9 @@ def init_nodes_concurrent(
     pmd: str,
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
+    test_nic_count: int = 1,
 ) -> List[DpdkTestResources]:
+    assert test_nic_count > 0, "Test Bug: test_nic_count must be > 0"
     # quick check when initializing, have each node ping the other nodes.
     # When binding DPDK directly to the VF this helps ensure l2/l3 routes
     # are established before handing all control over to testpmd.
@@ -500,6 +503,11 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
+                    test_nics=[
+                        nic
+                        for nic in node.nics.nics.values()
+                        if nic is not node.nics.get_primary_nic()
+                    ][:test_nic_count],
                 )
                 for node in environment.nodes.list()
             ],
@@ -911,7 +919,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             pmd,
             hugepage_size,
             sample_apps=["l3fwd"],
-            extra_nics=[subnet_b_nics[forwarder]],
+            test_nics=[subnet_b_nics[forwarder]],
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
