@@ -140,9 +140,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         # setup and unwrap the resources for this test
-        nics = [node.nics.get_nic("eth1"), node.nics.get_nic("eth2")]
-        test_nic = node.nics.get_secondary_nic()
-        extra_nics = [nic for nic in nics if nic.name != test_nic.name]
+        # get a list of the upper non-primary nics and select two of them
+        test_nics = [
+            nic
+            for nic in node.nics.nics.values()
+            if nic != node.nics.get_primary_nic() and nic.lower
+        ][:2]
+
         ping = node.tools[Ping]
         ping.install()
         try:
@@ -152,7 +156,7 @@ class Dpdk(TestSuite):
                 variables,
                 "netvsc",
                 HugePageSize.HUGE_2MB,
-                extra_nics=extra_nics,
+                test_nics=test_nics,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -165,72 +169,120 @@ class Dpdk(TestSuite):
                 " package manager installation."
             )
         symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
-        node.log.debug("\n".join([str(nic) for nic in nics]))
+        # setup the DPDK EAL arguments for netvsc
+        node.log.debug("\n".join([str(nic) for nic in test_nics]))
+        nic_0 = test_nics[0]
+        nic_1 = test_nics[1]
         if node.nics.is_mana_device_present():
             nic_args = (
-                f'--vdev="{test_nic.pci_slot},'
-                f"mac={test_nic.mac_addr},"
-                f'mac={extra_nics[0].mac_addr}"'
+                f'--vdev="{nic_0.pci_slot},'
+                f"mac={nic_0.mac_addr},"
+                f'mac={nic_1.mac_addr}"'
             )
         else:
             nic_args = f"-b {node.nics.get_primary_nic().pci_slot}"
-
+        # get the DPDK port IDs for the netvsc devices.
         output = node.execute(
             f"{str(testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
             sudo=True,
             shell=True,
         ).stdout
-        port_mask = 0x0
+
         port_regex = re.compile(
             r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
         )
         matches = port_regex.findall(output)
         if not matches:
             fail("could not find port ids")
+
+        # and create the port mask in hex from the port ids
+        port_mask = 0x0
+        port_ids = []
         for match in matches:
-            port_mask ^= 1 << (int(match))
+            port_id = int(match)
+            port_ids += [port_id]
+            port_mask ^= 1 << (port_id)
 
         node.log.debug(f"Port mask: {hex(port_mask)}")
-        # primary_nic = node.nics.get_primary_nic().pci_slot
+
+        # Port 2: RX - 0, TX - 100, Drop - 0
+        # wait for the process to exit
+        result_regex = re.compile(
+            r"Port (?P<port_id>[0-9]+): "
+            r"RX - (?P<rx_count>[0-9]+), "
+            r"TX - (?P<tx_count>[0-9]+), "
+            r"Drop - (?P<drop_count>[0-9]+)\n"
+        )
+
+        # create the shared section of the symmetric_mp commandline invocation
         symmetric_mp_args = (
-            f"{nic_args} --proc-type auto "
+            f"{nic_args} -n 2 --proc-type auto "
             "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
             f"-- -p {hex(port_mask)[2:]} --num-procs 2"
         )
+        # start the first process (id 0) on core 1
         primary = node.tools[Timeout].start_with_timeout(
             command=f"{str(symmetric_mp_path)} -l 1 {symmetric_mp_args} --proc-id 0",
-            timeout=150,
+            timeout=130,
             signal=SIGINT,
             kill_timeout=30,
         )
-        primary.wait_output("APP: Finished Process Init")
+        # wait for it to start
+        primary.wait_output("APP: Finished Process Init", timeout=20)
+
+        # create the second process (id 1) on core 2
         secondary = node.tools[Timeout].start_with_timeout(
             command=f"{str(symmetric_mp_path)} -l 2 {symmetric_mp_args} --proc-id 1",
             timeout=120,
             signal=SIGINT,
             kill_timeout=35,
         )
-        _ = ping.ping_async(
-            target=test_nic.ip_addr,
+        secondary.wait_output("APP: Finished Process Init", timeout=20)
+
+        # start some icmp traffic to the ports
+        # these packets won't arrive back at the sender
+        # so we ignore the exit code from ping.
+
+        ping.ping(
+            target=nic_0.ip_addr,
             nic_name=node.nics.get_primary_nic().name,
             count=100,
+            ignore_error=True,
         )
-        secondary_exit = secondary.wait_result()
-        assert_that(secondary_exit.exit_code).described_as(
-            f"Secondary process failure: {secondary_exit.stdout}"
+
+        secondary_result = secondary.wait_result(
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Secondary symmetric_mp process returned error code."
+            ),
+        )
+        assert_that(secondary_result.exit_code).described_as(
+            f"Secondary process failure: {secondary_result.stdout}"
         ).is_zero()
-        process_result = primary.wait_result(
+        primary_result = primary.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="Primary process failed to exit with 0",
         )
         node.log.debug(
-            f"Primary process:\n\n{process_result.stdout}\n"
-            f"\nprimary stderr:\n{process_result.stderr}"
+            f"Primary process:\n\n{primary_result.stdout}\n"
+            f"\nprimary stderr:\n{primary_result.stderr}"
         )
         node.log.debug(
-            f"Secondary system:\n\n{secondary_exit.stdout}\n"
-            f"secondary stderr:\n{secondary_exit.stderr}"
+            f"Secondary system:\n\n{secondary_result.stdout}\n"
+            f"secondary stderr:\n{secondary_result.stderr}"
         )
+        all_matches = [
+            result_regex.finditer(secondary_result.stdout),
+            result_regex.finditer(primary_result.stdout),
+            result_regex.search(secondary_result.stdout),
+            result_regex.search(primary_result.stdout),
+        ]
+        for matches in all_matches:
+            for match in matches:
+                port = match.group("port_id")
+                rx_count = match.group("rx_count")
+                tx_count = match.group("tx_count")
+                drop_count = match.group("drop_count")
 
     @TestCaseMetadata(
         description="""
