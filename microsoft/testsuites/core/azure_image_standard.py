@@ -262,10 +262,20 @@ class AzureImageStandard(TestSuite):
         # I/O error, dev sr0, sector 8 op 0x0:(READ) flags 0x80700 phys_seg 1 prio class 2
         # I/O error, dev sr0, sector 8 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
         re.compile(
-            r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F]+ phys_seg 1 prio class 2\r)$",
+                r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F] +"
+                r"phys_seg 1 prio class 2\r)$",
+                re.M
+        ),
+
+        re.compile(
+            r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F] +"
+            r"phys_seg 1 prio class 2\r)$",
             re.M
         ),
-        # audit: type=1103 audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295 subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t" exe="/usr/lib/systemd/systemd-executor" hostname=? addr=? terminal=? res=failed\'\r', '2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103 audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295 subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t" exe="/usr/lib/systemd/systemd-executor" hostname=? addr=? terminal=? res=failed\'\r'
+        # 2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103 
+        # audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295 
+        # subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t" 
+        # exe="/usr/lib/systemd/systemd-executor" hostname=? addr=? terminal=? res=failed\'\r
         re.compile(
             r'(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?'
             r'(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\]'
