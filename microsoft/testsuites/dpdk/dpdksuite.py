@@ -34,6 +34,7 @@ from lisa.tools import (
     Lsmod,
     Make,
     Modprobe,
+    Ping,
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
@@ -142,6 +143,8 @@ class Dpdk(TestSuite):
         nics = [node.nics.get_nic("eth1"), node.nics.get_nic("eth2")]
         test_nic = node.nics.get_secondary_nic()
         extra_nics = [nic for nic in nics if nic.name != test_nic.name]
+        ping = node.tools[Ping]
+        ping.install()
         try:
             test_kit = initialize_node_resources(
                 node,
@@ -158,17 +161,19 @@ class Dpdk(TestSuite):
             # The Testpmd tool doesn't get re-initialized
             # even if you invoke it with new arguments.
             raise SkippedException(
-                "DPDK ring_ping test is not implemented for "
+                "DPDK symmetric_mp test is not implemented for "
                 " package manager installation."
             )
         symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
         node.log.debug("\n".join([str(nic) for nic in nics]))
-
-        nic_args = (
-            f'--vdev="{test_nic.pci_slot},'
-            f"mac={test_nic.mac_addr},"
-            f'mac={extra_nics[0].mac_addr}"'
-        )
+        if node.nics.is_mana_device_present():
+            nic_args = (
+                f'--vdev="{test_nic.pci_slot},'
+                f"mac={test_nic.mac_addr},"
+                f'mac={extra_nics[0].mac_addr}"'
+            )
+        else:
+            nic_args = f"-b {node.nics.get_primary_nic().pci_slot}"
 
         output = node.execute(
             f"{str(testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
@@ -193,23 +198,28 @@ class Dpdk(TestSuite):
             f"-- -p {hex(port_mask)[2:]} --num-procs 2"
         )
         primary = node.tools[Timeout].start_with_timeout(
-            command=f"{str(symmetric_mp_path)} -l 1,2 {symmetric_mp_args} --proc-id 0",
-            timeout=30,
+            command=f"{str(symmetric_mp_path)} -l 1 {symmetric_mp_args} --proc-id 0",
+            timeout=150,
             signal=SIGINT,
             kill_timeout=30,
         )
         primary.wait_output("APP: Finished Process Init")
-        secondary = node.tools[Timeout].run_with_timeout(
-            command=f"{str(symmetric_mp_path)} -l 3,4 {symmetric_mp_args} --proc-id 1",
-            timeout=30,
+        secondary = node.tools[Timeout].start_with_timeout(
+            command=f"{str(symmetric_mp_path)} -l 2 {symmetric_mp_args} --proc-id 1",
+            timeout=120,
             signal=SIGINT,
             kill_timeout=35,
         )
-        assert_that(secondary.exit_code).described_as(
-            f"Secondary process failure: {secondary.stdout}"
+        _ = ping.ping_async(
+            target=test_nic.ip_addr,
+            nic_name=node.nics.get_primary_nic().name,
+            count=100,
+        )
+        secondary_exit = secondary.wait_result()
+        assert_that(secondary_exit.exit_code).described_as(
+            f"Secondary process failure: {secondary_exit.stdout}"
         ).is_zero()
         process_result = primary.wait_result(
-            timeout=30,
             expected_exit_code=0,
             expected_exit_code_failure_message="Primary process failed to exit with 0",
         )
@@ -218,8 +228,8 @@ class Dpdk(TestSuite):
             f"\nprimary stderr:\n{process_result.stderr}"
         )
         node.log.debug(
-            f"Secondary system:\n\n{secondary.stdout}\n"
-            f"secondary stderr:\n{secondary.stderr}"
+            f"Secondary system:\n\n{secondary_exit.stdout}\n"
+            f"secondary stderr:\n{secondary_exit.stderr}"
         )
 
     @TestCaseMetadata(

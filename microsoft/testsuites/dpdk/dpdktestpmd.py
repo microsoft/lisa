@@ -266,7 +266,7 @@ class DpdkSourceInstall(Installer):
 
     def _install(self) -> None:
         super()._install()
-        devname_path = self._node.tools[Git].clone(
+        _ = self._node.tools[Git].clone(
             url="https://github.com/mcgov/devname.git",
             cwd=self.asset_path.joinpath("examples"),
             dir_name="devname",
