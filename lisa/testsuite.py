@@ -330,6 +330,15 @@ class TestResult:
 
         # get information of default node, and send to notifier.
         if self.environment:
+            nodes = self.environment.nodes
+            for node in nodes.list():
+                dmesg_check_result = node.exec_check_dmesg_oops()
+                if dmesg_check_result:
+                    self.set_status(
+                        TestStatus.FAILED,
+                        f"failed. dmesg oops found: {dmesg_check_result}",
+                    )
+                    break
             # force refresh information, when test result status is changed. The
             # refreshed information is not used so far. But in case it's needed
             # in future, keep it up to date.

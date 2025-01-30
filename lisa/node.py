@@ -500,6 +500,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             final_information.update(current_information)
 
         return final_information
+    
+    def exec_check_dmesg_oops(self) -> bool:
+        return plugin_manager.hook.check_dmesg_oops(
+            node=self
+        )
 
     def expand_env_path(self, raw_path: str) -> str:
         echo = self.tools[Echo]
@@ -1186,6 +1191,10 @@ class NodeHookSpec:
     def get_node_information(self, node: Node) -> Dict[str, str]:
         ...
 
+    @hookspec
+    def check_dmesg_oops(self, node: Node) -> bool:
+        """Hook for checking dmesg logs after each test case execution."""
+
 
 class NodeHookImpl:
     @hookimpl
@@ -1208,6 +1217,22 @@ class NodeHookImpl:
                 )
 
         return information
+    
+    @hookimpl
+    def check_dmesg_oops(self, node: Node) -> bool:
+        node.log.debug("Checking dmesg logs for issues...")
+        # Capture dmesg logs
+        dmesg_output = node.execute("dmesg --level=err", shell=True).stdout
+
+        # Check for errors in dmesg logs
+        if dmesg_output:
+            node.log.error("Issues found in dmesg logs:")
+            node.log.error(dmesg_output)
+            # Raise an exception to fail the test case
+            return True
+        else:
+            node.log.debug("No issues found in dmesg logs.")
+            return False
 
 
 plugin_manager.add_hookspecs(NodeHookSpec)

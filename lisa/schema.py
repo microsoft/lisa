@@ -1447,6 +1447,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
     capture_vm_information: bool = True
+    check_dmesg_post_case: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
