@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
@@ -15,6 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.tools.windows_feature import WindowsFeatureManagement
+from lisa.tools import IpInfo
 from lisa.util import LisaException
 from lisa.util.process import Process
 
@@ -444,6 +445,53 @@ class HyperV(Tool):
 
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
+
+    def add_network_adapter(self, vm_name: str, nic_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-VMNetworkAdapter -VMName {vm_name} -Name {nic_name}",
+            force_run=True,
+        )
+
+    def remove_extra_network_adapters(self, vm_name: str) -> None:
+        adapters = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMNetworkAdapter -VMName {vm_name} "
+            "| Where-Object {{$_.Name -like '*-extra-*'}}",
+            force_run=True,
+            output_json=True,
+        )
+        for adapter in adapters:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-VMNetworkAdapter -VMName {vm_name} -Name {adapter['Name']}",
+                force_run=True,
+            )
+
+    def get_network_adapter_count(self, vm_name: str) -> int:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMNetworkAdapter -VMName {vm_name}",
+            force_run=True,
+            output_json=True,
+        )
+        return len(output)
+
+    def get_all_primary_nics_ip_info(self, vm_name: str) -> List[IpInfo]:
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMNetworkAdapter -VMName {vm_name} "
+            "| Select-Object Name, MacAddress, IPAddresses",
+            force_run=True,
+            output_json=True,
+        )
+        ip_info_list = []
+        for adapter in output:
+            for ip in adapter["IPAddresses"]:
+                if re.match(self.IP_REGEX, ip):
+                    ip_info_list.append(
+                        IpInfo(
+                            mac_addr=adapter["MacAddress"],
+                            ip_addr=ip,
+                            nic_name=adapter["Name"],
+                        )
+                    )
+        return ip_info_list
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
