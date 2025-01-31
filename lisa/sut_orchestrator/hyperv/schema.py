@@ -75,6 +75,8 @@ class HypervNodeSchema:
     osdisk_size_in_gb: int = 30
     # Configuration options for device-passthrough.
     device_passthrough: Optional[List[DevicePassthroughSchema]] = None
+    data_disk_count: int = 0
+    data_disk_size: int = 1
 
 
 @dataclass_json()
