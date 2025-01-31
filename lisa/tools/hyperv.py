@@ -1,24 +1,30 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import random
 import re
+import string
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Type
+from pathlib import WindowsPath
+import os
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
 from lisa.base_tools import Service
 from lisa.executable import Tool
+from lisa.feature import Feature
 from lisa.operating_system import Windows
+
 from lisa.tools.powershell import PowerShell
 from lisa.tools.rm import Rm
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
-
+# from lisa.sut_orchestrator.hyperv.context import get_node_context
 
 class HypervSwitchType(Enum):
     INTERNAL = "Internal"
@@ -64,6 +70,24 @@ class HyperV(Tool):
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
+    # Azure Premium Disk IOPS to size in GB mapping
+    _azure_premium_disk_size_to_iops = {
+        0 : 0,
+        4 : 120,
+        8 : 120,
+        16 : 120,
+        32 : 120,
+        64 : 240,
+        128 : 500,
+        256 : 1100,
+        512 : 2300,
+        1024 : 5000,
+        2048 : 7500,
+        4096 : 7500,
+        8192 : 16000,
+        16384 : 18000,
+        32767 : 20000,
+    }
 
     @property
     def command(self) -> str:
@@ -162,22 +186,28 @@ class HyperV(Tool):
     def create_vm(
         self,
         name: str,
+        node: "Node",
+        working_path: WindowsPath,
         guest_image_path: str,
         switch_name: str,
-        generation: int = 1,
-        cores: int = 2,
-        memory: int = 2048,
         attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
         stop_existing_vm: bool = True,
         extra_args: Optional[Dict[str, str]] = None,
     ) -> None:
-        if stop_existing_vm:
-            self.delete_vm(name)
+        self.delete_vm(name)
 
         powershell = self.node.tools[PowerShell]
 
+        cores = node.capability.core_count
+        memory = node.capability.memory_mb
+        # Default to generation 1 if not specified in the extended schema
+        generation = 1
+        if "hyperv" in node.runbook.extended_schemas and hasattr(
+            node.runbook.extended_schemas["hyperv"], "generation"
+        ):
+            generation = node.runbook.extended_schemas["hyperv"].generation
         # create a VM in hyperv
         self._run_hyperv_cmdlet(
             "New-VM",
@@ -187,6 +217,46 @@ class HyperV(Tool):
             extra_args=extra_args,
             force_run=True,
         )
+
+        self._run_hyperv_cmdlet(
+            "Add-VMScsiController",
+            f"-VMName {name} ",
+            force_run=True,
+        )
+
+        data_disk_count = 0
+        if (
+            node.capability.disk
+            and hasattr(node.capability.disk, "data_disk_count")
+            and isinstance(node.capability.disk.data_disk_count, int)
+        ):
+            data_disk_count = int(node.capability.disk.data_disk_count)
+            if node.capability.disk.data_disk_count is None:
+                data_disk_count = 0
+
+            if node.capability.disk and hasattr(node.capability.disk, "data_disk_size"):
+                # disk_size = int(node.capability.disk.data_disk_size)
+                disk_size = self._get_disk_size(node.capability.disk.data_disk_iops)
+                if disk_size is None:
+                    disk_size = 1
+
+        for i in range(data_disk_count):
+            self._log.debug(f"Adding data disk {i} to VM {name}")
+            random_str = "".join(
+                random.choices(string.ascii_lowercase + string.digits, k=2)
+            )
+
+            disk_name = f"{name}_data_disk_{i}_{random_str}"
+            self.create_disk( disk_name, disk_size)
+            self.attach_disk(name, disk_name)
+
+        if extra_args is not None and "set-vmprocessor" in extra_args:
+            self._run_hyperv_cmdlet(
+                "Set-VMProcessor",
+                f"-VMName {name}",
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         # set cores and memory type
         self._run_hyperv_cmdlet(
@@ -578,6 +648,48 @@ class HyperV(Tool):
 
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
+
+    def _get_disk_path(self, disk_name: str) -> str:
+        return os.path.join(self.node.working_path, f"{disk_name}.vhdx")
+
+    def _get_disk_size(self, iops: int) -> int:
+        sorted_azure_premium_disk_size_to_iops = dict(
+            sorted(self._azure_premium_disk_size_to_iops.items())
+        )
+        for size, iops_value in sorted_azure_premium_disk_size_to_iops.items():
+            if iops_value >= iops:
+                return size
+        return 0
+
+    def create_disk(
+        self, disk_name: str, size_in_gb: int
+    ) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"New-VHD -Path {self._get_disk_path(disk_name)} -SizeBytes {size_in_gb}GB"
+            " -Dynamic",
+            force_run=True,
+        )
+
+    def attach_disk(self, vm_name: str, disk_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-VMHardDiskDrive -VMName {vm_name} -Path "
+            f"{self._get_disk_path(disk_name)} -ControllerType SCSI",
+            force_run=True,
+        )
+
+    def detach_disk(self, vm_name: str, disk_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Remove-VMHardDiskDrive -VMName {vm_name} "
+            "-ControllerType SCSI -ControllerNumber 0 -ControllerLocation 1",
+            force_run=True,
+        )
+
+    def delete_disk(self, vm_name: str, disk_name: str) -> None:
+        self.detach_disk(self.node.name, disk_name)
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Remove-Item -Path {self._get_disk_path(disk_name)}",
+            force_run=True,
+        )
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)

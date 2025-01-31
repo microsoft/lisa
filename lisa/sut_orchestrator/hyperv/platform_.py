@@ -4,6 +4,7 @@ from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
 
+from . import features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
@@ -36,7 +37,7 @@ class HypervPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [SerialConsole]
+        return [SerialConsole, features.Disk]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
@@ -255,6 +256,8 @@ class HypervPlatform(Platform):
             assert self._source_vhd
 
             node.name = vm_name
+            if node.capability.disk is not None:
+                node.capability.disk.max_data_disk_count = 16
 
             node_context = get_node_context(node)
             node_context.vm_name = vm_name
@@ -288,15 +291,14 @@ class HypervPlatform(Platform):
                 name=vm_name,
                 guest_image_path=str(vhd_path),
                 switch_name=default_switch.name,
-                generation=node_runbook.hyperv_generation,
-                cores=node.capability.core_count,
-                memory=node.capability.memory_mb,
                 secure_boot=False,
                 com_ports={
                     1: com1_pipe_path,
                 },
                 extra_args=extra_args,
                 attach_offline_disks=False,
+                node=node,
+                working_path=node_context.working_path,
             )
             # perform device passthrough for the VM
             self.device_pool._set_device_passthrough_node_context(
