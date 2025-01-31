@@ -179,6 +179,7 @@ Usage
 
   transformer:
     - type: azure_deploy
+      name: custom_name
       resource_group_name: rg_name
       requirement:
         azure:
@@ -190,6 +191,16 @@ Usage
 
 Outputs
 ````````
+When the `name` parameter is specified, the outputs are prefixed with the given name:
+
+  - custom_name_address
+  - custom_name_port
+  - custom_name_username
+  - custom_name_password
+  - custom_name_private_key_file
+
+If the `name` parameter is omitted, the default prefix is `azure_deploy`:
+
   - azure_deploy_address
   - azure_deploy_port
   - azure_deploy_username
@@ -202,7 +213,7 @@ Reference
 resource_group_name
 ^^^^^^^^^^^^^^^^^^^
 
-type: string 
+type: string
 
 Name of the resource group in which VM should be deployed. Creates a new RG if not specified.
 
