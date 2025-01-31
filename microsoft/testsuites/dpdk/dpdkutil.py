@@ -1,4 +1,5 @@
 import itertools
+import re
 import time
 from collections import deque
 from decimal import Decimal
@@ -6,7 +7,7 @@ from enum import Enum
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from assertpy import assert_that
+from assertpy import assert_that, fail
 from semver import VersionInfo
 
 from lisa import (
@@ -1212,3 +1213,46 @@ def annotate_dpdk_test_result(
         log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")
+
+
+devname_port_regex = re.compile(
+    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+)
+
+
+class DpdkDevnameInfo:
+    def __init__(self, testpmd: DpdkTestpmd) -> None:
+        self._node = testpmd.node
+        self._testpmd = testpmd
+
+    def get_port_info(self, nics: List[NicInfo]) -> str:
+        if self._node.nics.is_mana_device_present():
+            nic_args = (
+                ",".join(
+                    [f'--vdev="{nics[0].pci_slot}']
+                    + [f"mac={nic.mac_addr}" for nic in nics],
+                )
+                + '"'
+            )
+        else:
+            nic_args = f"-b {self._node.nics.get_primary_nic().pci_slot}"
+        self.nic_args = nic_args
+        output = self._node.execute(
+            f"{str(self._testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
+            sudo=True,
+            shell=True,
+        ).stdout
+
+        matches = devname_port_regex.findall(output)
+        if not matches:
+            fail(f"dpdk-devname could not find port ids in: {output}")
+
+        # and create the port mask in hex from the port ids
+        port_mask = 0
+        self.port_ids = []
+        for match in matches:
+            port_id = int(match)
+            self.port_ids += [port_id]
+            port_mask ^= 1 << (port_id)
+        self.port_mask = hex(port_mask)[2:]
+        return self.port_mask
