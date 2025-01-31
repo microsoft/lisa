@@ -491,13 +491,18 @@ class HyperV(Tool):
 
         # Configure the DHCP server to use the internal NAT network
         powershell.run_cmdlet(
-            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" -StartRange {self.INTERNAL_NAT_DHCP_IP_START} -EndRange {self.INTERNAL_NAT_DHCP_IP_END} -SubnetMask 255.255.255.0',  # noqa: E501
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" '
+            f"-StartRange {self.INTERNAL_NAT_DHCP_IP_START} "
+            f"-EndRange {self.INTERNAL_NAT_DHCP_IP_END} "
+            f"-SubnetMask 255.255.255.0",
             force_run=True,
         )
 
         # Set the DHCP server options
         powershell.run_cmdlet(
-            f"Set-DhcpServerV4OptionValue -Router {self.INTERNAL_NAT_ROUTER} -DnsServer {self.AZURE_DNS_SERVER}",  # noqa: E501
+            f"Set-DhcpServerV4OptionValue "
+            f"-Router {self.INTERNAL_NAT_ROUTER} "
+            f"-DnsServer {self.AZURE_DNS_SERVER}",
             force_run=True,
         )
 
