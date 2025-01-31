@@ -575,6 +575,31 @@ class HyperV(Tool):
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
 
+    def create_disk(self, disk_name: str, size_in_gb: int) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"New-VHD -Path {disk_name}.vhdx -SizeBytes {size_in_gb}GB -Dynamic",
+            force_run=True,
+        )
+
+    def attach_disk(self, vm_name: str, disk_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-VMHardDiskDrive -VMName {vm_name} -Path {disk_name}.vhdx",
+            force_run=True,
+        )
+
+    def detach_disk(self, vm_name: str, disk_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Remove-VMHardDiskDrive -VMName {vm_name} "
+            "-ControllerType SCSI -ControllerNumber 0 -ControllerLocation 1",
+            force_run=True,
+        )
+
+    def delete_disk(self, disk_name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Remove-Item -Path {disk_name}.vhdx",
+            force_run=True,
+        )
+
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
 
