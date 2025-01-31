@@ -49,6 +49,7 @@ from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
+    DpdkDevnameInfo,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -169,41 +170,16 @@ class Dpdk(TestSuite):
                 " package manager installation."
             )
         symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
+
         # setup the DPDK EAL arguments for netvsc
-        node.log.debug("\n".join([str(nic) for nic in test_nics]))
-        nic_0 = test_nics[0]
-        nic_1 = test_nics[1]
-        if node.nics.is_mana_device_present():
-            nic_args = (
-                f'--vdev="{nic_0.pci_slot},'
-                f"mac={nic_0.mac_addr},"
-                f'mac={nic_1.mac_addr}"'
-            )
-        else:
-            nic_args = f"-b {node.nics.get_primary_nic().pci_slot}"
+        devname_info = DpdkDevnameInfo(testpmd=testpmd)
+        port_mask = devname_info.get_port_info(test_nics)
+        nic_args = devname_info.nic_args
+
         # get the DPDK port IDs for the netvsc devices.
-        output = node.execute(
-            f"{str(testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
-            sudo=True,
-            shell=True,
-        ).stdout
+        # Don't assume which port is which since there are more than one.
 
-        port_regex = re.compile(
-            r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
-        )
-        matches = port_regex.findall(output)
-        if not matches:
-            fail("could not find port ids")
-
-        # and create the port mask in hex from the port ids
-        port_mask = 0x0
-        port_ids = []
-        for match in matches:
-            port_id = int(match)
-            port_ids += [port_id]
-            port_mask ^= 1 << (port_id)
-
-        node.log.debug(f"Port mask: {hex(port_mask)}")
+        node.log.debug(f"Port mask: {port_mask}")
 
         # Port 2: RX - 0, TX - 100, Drop - 0
         # wait for the process to exit
@@ -211,14 +187,14 @@ class Dpdk(TestSuite):
             r"Port (?P<port_id>[0-9]+): "
             r"RX - (?P<rx_count>[0-9]+), "
             r"TX - (?P<tx_count>[0-9]+), "
-            r"Drop - (?P<drop_count>[0-9]+)\n"
+            r"Drop - (?P<drop_count>[0-9]+).*\n"
         )
 
         # create the shared section of the symmetric_mp commandline invocation
         symmetric_mp_args = (
             f"{nic_args} -n 2 --proc-type auto "
             "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
-            f"-- -p {hex(port_mask)[2:]} --num-procs 2"
+            f"-- -p {port_mask} --num-procs 2"
         )
         # start the first process (id 0) on core 1
         primary = node.tools[Timeout].start_with_timeout(
@@ -243,8 +219,13 @@ class Dpdk(TestSuite):
         # these packets won't arrive back at the sender
         # so we ignore the exit code from ping.
 
+        ping.ping_async(
+            target=test_nics[0].ip_addr,
+            nic_name=node.nics.get_primary_nic().name,
+            count=100,
+        )
         ping.ping(
-            target=nic_0.ip_addr,
+            target=test_nics[1].ip_addr,
             nic_name=node.nics.get_primary_nic().name,
             count=100,
             ignore_error=True,
@@ -277,12 +258,20 @@ class Dpdk(TestSuite):
             result_regex.search(secondary_result.stdout),
             result_regex.search(primary_result.stdout),
         ]
+        match_count = 0
         for matches in all_matches:
-            for match in matches:
-                port = match.group("port_id")
-                rx_count = match.group("rx_count")
-                tx_count = match.group("tx_count")
-                drop_count = match.group("drop_count")
+            match_count += 1
+            if matches:
+                node.log.debug(str(matches))
+                for match in matches:
+                    port = match.group("port_id")
+                    rx_count = match.group("rx_count")
+                    tx_count = match.group("tx_count")
+                    drop_count = match.group("drop_count")
+                    node.log.debug(
+                        f"(match {match_count}) {port} "
+                        f"r:{rx_count} t:{tx_count} d:{drop_count}"
+                    )
 
     @TestCaseMetadata(
         description="""
