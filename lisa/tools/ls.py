@@ -92,7 +92,7 @@ class WindowsLs(Ls):
 
     def path_exists(self, path: str, sudo: bool = False) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
-            f"Test-Path {path}",
+            f"Test-Path '{path}'",
             force_run=True,
             sudo=sudo,
         )
