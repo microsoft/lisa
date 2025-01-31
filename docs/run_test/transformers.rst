@@ -7,6 +7,70 @@ Transformer References
 How to
 ------
 
+
+Outputs of transformer
+~~~~~~~~~~~~~~~~~~~~~~
+
+Some transformers generate output variables that can be referenced in other transformers or processes. The output variable names follow these rules:
+
+- If ``prefix`` is specified, all output variables use it, and neither ``name`` nor ``type`` will take effect.
+- If ``prefix`` is not specified but ``name`` is, the output variables use ``name``.
+- If neither ``prefix`` nor ``name`` is specified, the output variables use ``type``.
+
+Usage
+`````
+
+If only ``type`` is provided (no ``name`` or ``prefix``):
+
+.. code-block:: yaml
+
+   transformer:
+     - type: azure_deploy
+
+The output variables will be:
+
+- ``azure_deploy_address``
+- ``azure_deploy_port``
+- ``azure_deploy_username``
+- ``azure_deploy_password``
+- ``azure_deploy_private_key_file``
+
+If ``name`` is provided but ``prefix`` is not:
+
+.. code-block:: yaml
+
+   transformer:
+     - type: azure_deploy
+       name: custom_name
+
+The output variables will be:
+
+- ``custom_name_address``
+- ``custom_name_port``
+- ``custom_name_username``
+- ``custom_name_password``
+- ``custom_name_private_key_file``
+
+If ``prefix`` is provided (regardless of whether ``name`` is set):
+
+.. code-block:: yaml
+
+   transformer:
+     - type: azure_deploy
+       name: custom_name
+       prefix: my_prefix
+
+The output variables will be:
+
+- ``my_prefix_address``
+- ``my_prefix_port``
+- ``my_prefix_username``
+- ``my_prefix_password``
+- ``my_prefix_private_key_file``
+
+Since ``prefix`` is set, the values of ``name`` and ``type`` will not affect the output variable names.
+
+
 Use Shared Image Gallery (SIG) transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -17,19 +81,19 @@ Usage
 .. code:: yaml
 
     transformer:
-        - type: azure_sig
-            vhd: "https://sc.blob.core.windows.net/vhds/pageblob.vhd"
-            gallery_resource_group_name: rg_name
-            gallery_name: galleryname
-            gallery_image_location:
-              - westus3
-              - westus2
-            gallery_image_hyperv_generation: 2
-            gallery_image_name: image_name
-            gallery_image_architecture: Arm64
-            gallery_image_fullname: Microsoft Linux arm64 0.0.1
-            rename:
-              azure_sig_url: shared_gallery
+      - type: azure_sig
+        vhd: "https://sc.blob.core.windows.net/vhds/pageblob.vhd"
+        gallery_resource_group_name: rg_name
+        gallery_name: galleryname
+        gallery_image_location:
+          - westus3
+          - westus2
+        gallery_image_hyperv_generation: 2
+        gallery_image_name: image_name
+        gallery_image_architecture: Arm64
+        gallery_image_fullname: Microsoft Linux arm64 0.0.1
+        rename:
+          azure_sig_url: shared_gallery
 
 Process
 ````````
@@ -202,7 +266,7 @@ Reference
 resource_group_name
 ^^^^^^^^^^^^^^^^^^^
 
-type: string 
+type: string
 
 Name of the resource group in which VM should be deployed. Creates a new RG if not specified.
 
