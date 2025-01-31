@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import base64
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from lisa import (
     Environment,
@@ -15,7 +15,6 @@ from lisa import (
 from lisa.features.security_profile import CvmEnabled
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.sut_orchestrator import AZURE, CLOUD_HYPERVISOR
-from lisa.sut_orchestrator.libvirt.context import NodeContext
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Ls, Lscpu
 from lisa.tools.lscpu import CpuType
@@ -25,6 +24,9 @@ from microsoft.testsuites.cvm.cvm_attestation_tool import (
     NestedCVMAttestationTests,
     SnpGuest,
 )
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.libvirt.context import NodeContext
 
 
 @TestSuiteMetadata(
@@ -136,7 +138,7 @@ class NestedCVMAttestationTestSuite(TestSuite):
             host_data,
         )
 
-    def _get_host_data(self, node_context: NodeContext) -> str:
+    def _get_host_data(self, node_context: "NodeContext") -> str:
         # Based on libvirt version our libvirt platform will set
         # either plain text or b64 encoded string as host data.
         # We need to decode it as this test would get host_data
