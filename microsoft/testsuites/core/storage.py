@@ -85,7 +85,7 @@ class Storage(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE, HYPERV],
             disk=DiskOptionSettings(disk_controller_type=DiskControllerType.SCSI),
         ),
     )
@@ -206,7 +206,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE, HYPERV],
             unsupported_os=[BSD, Windows],
             # This test is skipped as waagent does not support freebsd fully
         ),
