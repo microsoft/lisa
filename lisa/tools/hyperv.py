@@ -15,7 +15,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
 from lisa.tools.windows_feature import WindowsFeatureManagement
-from lisa.tools import IpInfo
+from lisa.tools.ip import IpInfo
 from lisa.util import LisaException
 from lisa.util.process import Process
 
