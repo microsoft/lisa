@@ -575,6 +575,76 @@ class HyperV(Tool):
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
 
+    # The default lisa working path is under 'C:/' which is not ideal for large data.
+    # This method initializes an attached disk, creates a partition, formats it,
+    # and mounts it to the lisa working directory
+    # This method expects an un-initialized (RAW) disk to be available on Hyper-V host.
+    def use_raw_disk_for_lisa_working_dir(self) -> None:
+        powershell = self.node.tools[PowerShell]
+
+        # Get the first disk that is not initialized
+        raw_disks = powershell.run_cmdlet(
+            "Get-Disk | Where-Object PartitionStyle -Eq 'RAW'",
+            force_run=True,
+            output_json=True,
+        )
+        # If no un-initialized disk is found, log a warning and return
+        if not raw_disks:
+            self._log.warning("No un-initialized disk found.")
+            self._log.warning("Skipping lisa working dir setup on additional disk.")
+            return
+        if isinstance(raw_disks, list):
+            disk_number = raw_disks[0]["Number"]
+        else:
+            disk_number = raw_disks["Number"]
+        # Initialize the disk
+        powershell.run_cmdlet(
+            f"Initialize-Disk -Number {disk_number}",
+            force_run=True,
+        )
+        # Create a new partition
+        powershell.run_cmdlet(
+            f"New-Partition -DiskNumber {disk_number}"
+            " -UseMaximumSize -AssignDriveLetter",
+            force_run=True,
+        )
+        # Get the drive letter
+        drive_letter = powershell.run_cmdlet(
+            f"(Get-Partition -DiskNumber {disk_number}"
+            " | Where-Object Type -Eq 'Basic').DriveLetter",
+            force_run=True,
+        )
+        # Format the partition
+        powershell.run_cmdlet(
+            f"Format-Volume -DriveLetter {drive_letter}"
+            " -FileSystem NTFS -NewFileSystemLabel 'DataDisk01'",
+            force_run=True,
+        )
+
+        # Get the partition number
+        partition_number = powershell.run_cmdlet(
+            f"(Get-Partition | Where-Object DriveLetter"
+            f" -Eq {drive_letter}).PartitionNumber",
+            force_run=True,
+        )
+
+        lisa_working_path = r"$([System.Environment]::GetFolderPath('UserProfile'))\AppData\Local\Temp\lisa_working"  # noqa: E501
+
+        # Create mount point if it doesn't exist
+        powershell.run_cmdlet(
+            f'if (-Not $(Test-Path -Path "{lisa_working_path}"))'
+            f' {{New-Item -ItemType Directory -Path "{lisa_working_path}"}}',
+            force_run=True,
+        )
+
+        # Mount the volume to the lisa working directory
+        powershell.run_cmdlet(
+            f"Add-PartitionAccessPath -DiskNumber {disk_number}"
+            f" -PartitionNumber {partition_number}"
+            f' -AccessPath "{lisa_working_path}"',
+            force_run=True,
+        )
+
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
 
