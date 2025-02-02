@@ -32,7 +32,9 @@ from lisa.util import LisaException, SkippedException
     It is responsible for ensuring the Hyper V drivers are all present,
     are included in initrd, and are all the same version.
     """,
-    requirement=simple_requirement(supported_platform_type=["azure", "ready"]),
+    requirement=simple_requirement(
+        supported_platform_type=["azure", "ready", "hyperv"]
+    ),
 )
 class HvModule(TestSuite):
     @TestCaseMetadata(
