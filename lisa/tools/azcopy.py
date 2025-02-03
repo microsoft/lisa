@@ -5,9 +5,9 @@ from typing import Optional, Type, Any
 from lisa.node import Node
 from lisa.sut_orchestrator.azure.common import (
     add_user_assign_identity,
-    get_compute_client,
-    get_managed_service_identity_client,
     get_node_context,
+    create_user_assign_identity,
+    delete_user_assign_identity,
 )
 from lisa.executable import Tool
 from lisa.tools.powershell import PowerShell
@@ -16,6 +16,10 @@ from lisa.tools.powershell import PowerShell
 class AzCopy(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command: str = ""
+        self.resource_group_name = get_node_context(self.node).resource_group_name
+        self.location = get_node_context(self.node).location
+        self.vm_name = get_node_context(self.node).vm_name
+        self.msi = ""
         self._auth()
 
     @property
@@ -27,27 +31,19 @@ class AzCopy(Tool):
         return True
 
     def cleanup(self) -> None:
-        msi_client.user_assigned_identities.delete(resource_group_name, identity_name)
+        delete_user_assign_identity("AzurePlatform", self.resource_group_name, self.node.log)
 
     def _auth(self) -> None:
-        msi_client = get_managed_service_identity_client("AzurePlatform")
-        node_context = get_node_context(self.node)
-        resource_group_name = node_context.resource_group_name
-        location = node_context.location
-        vm_name = node_context.vm_name
-        # Create a user assigned managed identity
-        msi_name = f"{resource_group_name}-msi"
-        msi = msi_client.user_assigned_identities.create_or_update(
-            resource_group_name=resource_group_name,
-            resource_name=msi_name,
-            parameters={"location": location},
+        msi = create_user_assign_identity(
+            resource_group_name=self.resource_group_name,
+            location = self.location,
+            self.node.log,
         )
-        self.node.log.info(f"{msi.id} is created successfully")
         # Assign the user assigned managed identity to the VM
         add_user_assign_identity(
-            "AzurePlatform", resource_group_name, vm_name, msi.id, self.node.log
+            "AzurePlatform", self.resource_group_name, self.vm_name, msi.id, self.node.log
         )
-        self.node.log.info(f"{msi.id} is assigned to {vm_name} successfully")
+        self.node.log.info(f"{self.msi} is assigned to {self.vm_name} successfully")
 
         # set the environment variables
         self.node.tools[PowerShell].run_cmdlet(
