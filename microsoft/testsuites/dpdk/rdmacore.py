@@ -193,3 +193,4 @@ class RdmaCoreSourceInstaller(Installer):
             sudo=True,
         )
         make.make_install(self.asset_path)
+        node.reboot()
