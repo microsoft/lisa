@@ -2832,16 +2832,21 @@ def get_resource_group_name() -> str:
     else:
         return ""
 
-
 def get_managed_identity_object_id(
     platform: "AzurePlatform", resource_group_name: str, vm_name: str
 ) -> str:
-    vm = get_vm(platform, resource_group_name, vm_name)
+    compute_client = get_compute_client(
+        platform, subscription_id=platform.subscription_id
+    )
+
+    vm_identity = compute_client.virtual_machines.get(
+        resource_group_name, vm_name
+    ).identity
 
     user_assigned_identity_resource_id = ""
     # Check if the VM has user-assigned managed identity
-    if vm.identity and vm.identity.type == "UserAssigned":
-        user_assigned_identity_id = vm.identity.user_assigned_identities
+    if vm_identity and vm_identity.type == "UserAssigned":
+        user_assigned_identity_id = vm_identity.user_assigned_identities
         if user_assigned_identity_id:
             # Iterate over user-assigned identities
             for _, identity_value in user_assigned_identity_id.items():
@@ -2850,10 +2855,9 @@ def get_managed_identity_object_id(
                 return user_assigned_identity_resource_id
 
     # Check if the VM has system-assigned managed identity
-    if vm.identity and vm.identity.type == "SystemAssigned":
-        return str(vm.identity.principal_id)
+    if vm_identity and vm_identity.type == "SystemAssigned":
+        return str(vm_identity.principal_id)
     return ""
-
 
 def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
