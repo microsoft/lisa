@@ -40,12 +40,21 @@ class WindowsAzCopy(AzCopy):
 
     def download_file(
         self,
-        sas_url: str,
-        localfile: PurePath,
+        blob_url: str,
+        download_path: PurePath,
         sudo: bool = False,
         timeout: int = 600,
     ) -> None:
-        self._azcopy_file(sas_url, str(localfile), sudo=sudo, timeout=timeout)
+        self._azcopy_file(source=blob_url, destination=str(download_path), sudo=sudo, timeout=timeout)
+
+    def upload_file(
+        self,
+        blob_url: str,
+        file_path: PurePath,
+        sudo: bool = False,
+        timeout: int = 600,
+    ) -> None:
+        self._azcopy_file(destination=blob_url, source=str(file_path), sudo=sudo, timeout=timeout)
 
     def _azcopy_file(
         self,
