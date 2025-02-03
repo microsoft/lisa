@@ -196,6 +196,7 @@ class Dpdk(TestSuite):
         symmetric_mp_args = (
             f"{nic_args} -n 2 "
             "--log-level netvsc,debug --log-level mana,debug "
+            "--log-level eal,debug "
             "--log-level vmbus,debug "
             f"-- -p {port_mask} --num-procs 2"
         )
@@ -225,14 +226,6 @@ class Dpdk(TestSuite):
         )
         secondary.wait_output("APP: Finished Process Init", timeout=20)
 
-        # start some icmp traffic to the ports
-        # these packets won't arrive back at the sender
-        # so we ignore the exit code from ping.
-        ping.ping_async(
-            target=test_nics[0].ip_addr,
-            nic_name=node.nics.get_primary_nic().name,
-            count=150,
-        )
         # turn SRIOV off
         node.features[NetworkInterface].switch_sriov(
             enable=False, wait=False, reset_connections=False
@@ -245,30 +238,40 @@ class Dpdk(TestSuite):
         )  # relying on compiler defaults here, not great.
 
         # turn SRIOV on
+
         node.features[NetworkInterface].switch_sriov(
             enable=True, wait=False, reset_connections=False
         )
+
         # wait for the RTE_DEV_EVENT_ADD message
         primary.wait_output(
-            "HN_DRIVER: netvsc_hotadd_callback(): "
-            "Device notification type=0"  # RTE_DEV_EVENT_ADD
+            (
+                "HN_DRIVER: netvsc_hotadd_callback(): "
+                "Device notification type=0"  # RTE_DEV_EVENT_ADD
+            ),
+            delta_only=True,
+        )  # relying on compiler defaults here, not great.
+        primary.wait_output(
+            (
+                "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
+                f"adding device {test_nics[0].pci_device_name} "
+                f"network name {test_nics[0].lower} args"
+            ),
+            delta_only=True,
         )  # relying on compiler defaults here, not great.
 
-        # ping.ping_async(
-        #     target=test_nics[0].ip_addr,
-        #     nic_name=node.nics.get_primary_nic().name,
-        #     count=150,
-        # )
-        # ping.ping(
-        #     target=test_nics[1].ip_addr,
-        #     nic_name=node.nics.get_primary_nic().name,
-        #     count=300,
-        #     ignore_error=True,
-        # )
-        # secondary.wait_output(
-        #     "HN_DRIVER: netvsc_hotadd_callback(): "
-        #     "Device notification type=0"  # RTE_DEV_EVENT_ADD
-        # )  # relying on compiler defaults here, not great.
+        ping.ping_async(
+            target=test_nics[0].ip_addr,
+            nic_name=node.nics.get_primary_nic().name,
+            count=100,
+        )
+        ping.ping(
+            target=test_nics[1].ip_addr,
+            nic_name=node.nics.get_primary_nic().name,
+            count=100,
+            ignore_error=True,
+        )
+
         # # check the exit codes
         secondary_result = secondary.wait_result(
             expected_exit_code=0,
