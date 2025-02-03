@@ -33,6 +33,9 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         # Enable Hyper-V
         hv = self._node.tools[HyperV]
 
+        # Configure lisa working path
+        hv.configure_lisa_working_dir()
+
         # Create an internal switch.
         hv.create_switch(name=switch_name)
 
