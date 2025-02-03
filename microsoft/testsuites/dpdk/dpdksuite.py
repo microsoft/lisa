@@ -21,7 +21,7 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.features import Gpu, Infiniband, IsolatedResource, NetworkInterface, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import (
@@ -150,6 +150,8 @@ class Dpdk(TestSuite):
 
         ping = node.tools[Ping]
         ping.install()
+        # initialize for netvsc, we rely on the debug messages in this test
+        # to identify the hotplug events.
         try:
             test_kit = initialize_node_resources(
                 node,
@@ -187,29 +189,37 @@ class Dpdk(TestSuite):
             r"Port (?P<port_id>[0-9]+): "
             r"RX - (?P<rx_count>[0-9]+), "
             r"TX - (?P<tx_count>[0-9]+), "
-            r"Drop - (?P<drop_count>[0-9]+).*\n"
+            r"Drop - (?P<drop_count>[0-9]+).*"
         )
 
         # create the shared section of the symmetric_mp commandline invocation
         symmetric_mp_args = (
-            f"{nic_args} -n 2 --proc-type auto "
-            "--log-level netvsc,debug --log-level mana,debug --log-level eal,debug "
+            f"{nic_args} -n 2 "
+            "--log-level netvsc,debug --log-level mana,debug "
+            "--log-level vmbus,debug "
             f"-- -p {port_mask} --num-procs 2"
         )
         # start the first process (id 0) on core 1
         primary = node.tools[Timeout].start_with_timeout(
-            command=f"{str(symmetric_mp_path)} -l 1 {symmetric_mp_args} --proc-id 0",
-            timeout=130,
+            command=(
+                f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
+                f"{symmetric_mp_args} --proc-id 0"
+            ),
+            timeout=630,
             signal=SIGINT,
             kill_timeout=30,
         )
+
         # wait for it to start
         primary.wait_output("APP: Finished Process Init", timeout=20)
 
         # create the second process (id 1) on core 2
         secondary = node.tools[Timeout].start_with_timeout(
-            command=f"{str(symmetric_mp_path)} -l 2 {symmetric_mp_args} --proc-id 1",
-            timeout=120,
+            command=(
+                f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
+                f"{symmetric_mp_args} --proc-id 1"
+            ),
+            timeout=600,
             signal=SIGINT,
             kill_timeout=35,
         )
@@ -218,19 +228,48 @@ class Dpdk(TestSuite):
         # start some icmp traffic to the ports
         # these packets won't arrive back at the sender
         # so we ignore the exit code from ping.
-
         ping.ping_async(
             target=test_nics[0].ip_addr,
             nic_name=node.nics.get_primary_nic().name,
-            count=100,
+            count=150,
         )
-        ping.ping(
-            target=test_nics[1].ip_addr,
-            nic_name=node.nics.get_primary_nic().name,
-            count=100,
-            ignore_error=True,
+        # turn SRIOV off
+        node.features[NetworkInterface].switch_sriov(
+            enable=False, wait=False, reset_connections=False
         )
 
+        # wait for the RTE_DEV_EVENT_REMOVE message
+        primary.wait_output(
+            "HN_DRIVER: netvsc_hotadd_callback(): "
+            "Device notification type=1"  # RTE_DEV_EVENT_REMOVE
+        )  # relying on compiler defaults here, not great.
+
+        # turn SRIOV on
+        node.features[NetworkInterface].switch_sriov(
+            enable=True, wait=False, reset_connections=False
+        )
+        # wait for the RTE_DEV_EVENT_ADD message
+        primary.wait_output(
+            "HN_DRIVER: netvsc_hotadd_callback(): "
+            "Device notification type=0"  # RTE_DEV_EVENT_ADD
+        )  # relying on compiler defaults here, not great.
+
+        # ping.ping_async(
+        #     target=test_nics[0].ip_addr,
+        #     nic_name=node.nics.get_primary_nic().name,
+        #     count=150,
+        # )
+        # ping.ping(
+        #     target=test_nics[1].ip_addr,
+        #     nic_name=node.nics.get_primary_nic().name,
+        #     count=300,
+        #     ignore_error=True,
+        # )
+        # secondary.wait_output(
+        #     "HN_DRIVER: netvsc_hotadd_callback(): "
+        #     "Device notification type=0"  # RTE_DEV_EVENT_ADD
+        # )  # relying on compiler defaults here, not great.
+        # # check the exit codes
         secondary_result = secondary.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -255,8 +294,8 @@ class Dpdk(TestSuite):
         all_matches = [
             result_regex.finditer(secondary_result.stdout),
             result_regex.finditer(primary_result.stdout),
-            result_regex.search(secondary_result.stdout),
-            result_regex.search(primary_result.stdout),
+            # result_regex.search(secondary_result.stdout),
+            # result_regex.search(primary_result.stdout),
         ]
         match_count = 0
         for matches in all_matches:
@@ -1140,4 +1179,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        do_parallel_cleanup(environment)
+        # do_parallel_cleanup(environment)
