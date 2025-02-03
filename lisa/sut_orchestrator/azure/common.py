@@ -1974,25 +1974,6 @@ def get_share_service_client(
     )
     return share_service_client
 
-def assign_managed_identity(self, resource_group_name, vm_name) -> None:
-    # Create the ComputeManagementClient
-    compute_client = self.get_compute_client("AzurePlatform")
-
-    # Get the VM
-    vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
-
-    # Assign the user-assigned managed identity to the VM
-    if not vm.identity:
-        vm.identity = VirtualMachineIdentity(type='UserAssigned')
-    if not vm.identity.user_assigned_identities:
-        vm.identity.user_assigned_identities = {}
-    vm.identity.user_assigned_identities[identity.id] = VirtualMachineIdentityUserAssignedIdentitiesValue()
-
-    # Update the VM with the new identity
-    compute_client.virtual_machines.create_or_update(resource_group_name, vm_name, vm)
-
-    print(f'Assigned identity {identity.name} to VM {vm_name}')
-
 
 def get_or_create_file_share(
     credential: Any,
@@ -2832,6 +2813,7 @@ def get_resource_group_name() -> str:
     else:
         return ""
 
+
 def get_managed_identity_object_id(
     platform: "AzurePlatform", resource_group_name: str, vm_name: str
 ) -> str:
@@ -2858,6 +2840,7 @@ def get_managed_identity_object_id(
     if vm_identity and vm_identity.type == "SystemAssigned":
         return str(vm_identity.principal_id)
     return ""
+
 
 def get_identity_id(
     platform: "AzurePlatform", application_id: Optional[str] = None
@@ -2935,6 +2918,34 @@ def add_system_assign_identity(
         )
 
     return object_id_vm
+
+
+def create_user_assign_identity(
+    resource_group_name: str,
+    location: str,
+    log: Logger,
+) -> Any:
+    msi_client = get_managed_service_identity_client(platform="AzurePlatform")
+    msi_name = f"{resource_group_name}-msi"
+    msi = msi_client.user_assigned_identities.create_or_update(
+        resource_group_name=resource_group_name,
+        resource_name=msi_name,
+        parameters={"location": location},
+    )
+    log.debug(
+        f"{msi_name} is created underresource group {resource_group_name} successfully"
+    )
+    return msi.id
+
+
+def delete_user_assign_identity(
+    resource_group_name: str,
+    identity_name: str,
+    log: Logger,
+) -> None:
+    msi_client = get_managed_service_identity_client(platform="AzurePlatform")
+    msi_client.user_assigned_identities.delete(resource_group_name, identity_name)
+    log.debug(f"{identity_name} is deleted successfully")
 
 
 def add_user_assign_identity(
