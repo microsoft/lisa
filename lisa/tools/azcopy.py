@@ -2,9 +2,13 @@
 # Licensed under the MIT license.
 from pathlib import PurePath
 from typing import Optional, Type, Any
-from lisa.node import NodeContext, Node
-from lisa.util import add_user_assign_identity
-
+from lisa.node import Node
+from lisa.sut_orchestrator.azure.common import (
+    add_user_assign_identity,
+    get_compute_client,
+    get_managed_service_identity_client,
+    get_node_context,
+)
 from lisa.executable import Tool
 from lisa.tools.powershell import PowerShell
 
@@ -22,15 +26,12 @@ class AzCopy(Tool):
     def can_install(self) -> bool:
         return True
 
-    def _auth(
-        self,
-        blob_url: str,
-        local_file_path: PurePath,
-        sudo: bool = False,
-        timeout: int = 600,
-    ) -> None:
-        msi_client = self._get_managed_service_identity_client()
-        node_context = self._get_node_context(self.node)
+    def cleanup(self) -> None:
+        msi_client.user_assigned_identities.delete(resource_group_name, identity_name)
+
+    def _auth(self) -> None:
+        msi_client = get_managed_service_identity_client("AzurePlatform")
+        node_context = get_node_context(self.node)
         resource_group_name = node_context.resource_group_name
         location = node_context.location
         vm_name = node_context.vm_name
@@ -43,12 +44,14 @@ class AzCopy(Tool):
         )
         self.node.log.info(f"{msi.id} is created successfully")
         # Assign the user assigned managed identity to the VM
-        add_user_assign_identity("AzurePlatform", resource_group_name, vm_name, msi.id, self.node.log)
+        add_user_assign_identity(
+            "AzurePlatform", resource_group_name, vm_name, msi.id, self.node.log
+        )
         self.node.log.info(f"{msi.id} is assigned to {vm_name} successfully")
 
         # set the environment variables
         self.node.tools[PowerShell].run_cmdlet(
-            'azcopy login --identity',
+            "azcopy login --identity",
             sudo=True,
             fail_on_error=True,
         )
@@ -74,9 +77,6 @@ class AzCopy(Tool):
     @classmethod
     def _windows_tool(cls) -> Optional[Type[Tool]]:
         return WindowsAzCopy
-
-    def _get_node_context(self, node: Node) -> NodeContext:
-        return node.get_context(NodeContext)
 
 
 class WindowsAzCopy(AzCopy):
