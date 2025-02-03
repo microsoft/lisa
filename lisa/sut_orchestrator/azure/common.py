@@ -35,6 +35,8 @@ from azure.keyvault.certificates import (
     KeyVaultCertificate,
 )
 from azure.keyvault.secrets import SecretClient
+from azure.mgmt.authorization import AuthorizationManagementClient
+from azure.mgmt.authorization.models import RoleAssignmentCreateParameters
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import (
     CommunityGalleryImage,
@@ -1530,6 +1532,15 @@ def get_storage_client(
     )
 
 
+def get_authorization_client(
+    credential: Any, subscription_id: str, cloud: Cloud
+) -> StorageManagementClient:
+    return AuthorizationManagementClient(
+        credential=credential,
+        subscription_id=subscription_id,
+    )
+
+
 def get_resource_management_client(
     credential: Any, subscription_id: str, cloud: Cloud
 ) -> ResourceManagementClient:
@@ -2921,11 +2932,12 @@ def add_system_assign_identity(
 
 
 def create_user_assign_identity(
+    platform:"AzurePlatform",
     resource_group_name: str,
     location: str,
     log: Logger,
 ) -> Any:
-    msi_client = get_managed_service_identity_client(platform="AzurePlatform")
+    msi_client = get_managed_service_identity_client(platform=platform)
     msi_name = f"{resource_group_name}-msi"
     msi = msi_client.user_assigned_identities.create_or_update(
         resource_group_name=resource_group_name,
@@ -2939,13 +2951,71 @@ def create_user_assign_identity(
 
 
 def delete_user_assign_identity(
+    platform: "AzurePlatform",
     resource_group_name: str,
     identity_name: str,
     log: Logger,
 ) -> None:
-    msi_client = get_managed_service_identity_client(platform="AzurePlatform")
+    msi_client = get_managed_service_identity_client(platform=platform)
     msi_client.user_assigned_identities.delete(resource_group_name, identity_name)
     log.debug(f"{identity_name} is deleted successfully")
+
+
+def assign_storage_blob_permissions_to_msi(
+    platform: "AzurePlatform", storage_account_name: str, managed_identity_object_id: str, log: Logger
+) -> None:
+    subscription_id = platform.subscription_id
+    resource_group_name = ""
+    # List all resource groups
+    resource_client = get_resource_management_client(
+        platform.credential, platform.subscription_id, platform.cloud
+    )
+    storage_client = get_storage_client(
+        credential=platform.credential,
+        subscription_id=platform.subscription_id,
+        cloud=platform.cloud,
+    )
+    # look for resource group that contain the storage account
+    resource_groups = resource_client.resource_groups.list()
+    for rg in resource_groups:
+        # List all storage accounts in the resource group
+        storage_accounts = storage_client.storage_accounts.list_by_resource_group(
+            rg.name
+        )
+        for account in storage_accounts:
+            if account.name == storage_account_name:
+                resource_group_name = rg.name
+                break
+
+    if not resource_group_name:
+        raise LisaException(f"Storage account {storage_account_name} not found.")
+
+    # Get the storage account resource ID
+    storage_account = storage_client.storage_accounts.get_properties(
+        resource_group_name, storage_account_name
+    )
+    storage_account_id = storage_account.id
+
+    # Define the role assignment parameters
+    role_assignment_params = RoleAssignmentCreateParameters(
+        role_definition_id='/subscriptions/{subscription_id}/providers/Microsoft.Authorization/roleDefinitions/{role_definition_id}'.format(  # noqa: E501
+            subscription_id=subscription_id,
+            role_definition_id='ba92f5b4-2d11-453d-a403-e96b0029c9fe'  # Role ID for "Storage Blob Data Contributor"  # noqa: E501
+        ),
+        principal_id=managed_identity_object_id
+    )
+    auth_client = get_authorization_client(
+        credential=platform.credential,
+        subscription_id=subscription_id
+    )
+    # Assign the role to the managed identity
+    role_assignment = auth_client.role_assignments.create(
+        scope=storage_account_id,
+        role_assignment_name='your-role-assignment-name',
+        parameters=role_assignment_params
+    )
+
+    log.info(f'Assigned role to managed identity: {role_assignment.name}')
 
 
 def add_user_assign_identity(
