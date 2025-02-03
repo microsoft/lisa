@@ -13,7 +13,7 @@ from lisa import (
     UnsupportedDistroException,
     simple_requirement,
 )
-from lisa.sut_orchestrator import AZURE, READY, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Dhclient
 
 

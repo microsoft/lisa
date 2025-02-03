@@ -12,7 +12,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.sut_orchestrator import AZURE, READY, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Cat, Echo, KernelConfig, Mount
 from lisa.tools.mkfs import FileSystem
 

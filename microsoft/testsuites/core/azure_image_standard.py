@@ -35,7 +35,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, READY, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (

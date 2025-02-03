@@ -14,7 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator import AZURE, READY, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
 from lisa.tools import Pgrep, Stat
 from lisa.util import get_matched_str
