@@ -949,12 +949,23 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_accelerated_networking = enable
-                network_client.network_interfaces.begin_create_or_update(
-                    self._resource_group_name, updated_nic.name, updated_nic
-                )
-                updated_nic = network_client.network_interfaces.get(
-                    self._resource_group_name, nic_name
-                )
+                # handle retry if retryable error occurs
+                tries = 10
+                while tries > 0:
+                    try:
+                        network_client.network_interfaces.begin_create_or_update(
+                            self._resource_group_name, updated_nic.name, updated_nic
+                        )
+                        updated_nic = network_client.network_interfaces.get(
+                            self._resource_group_name, nic_name
+                        )
+                        break
+                    except HttpResponseError as err:
+                        if err.error.code == "RetryableError":
+                            tries -= 1
+                            continue
+                        raise err
+
                 assert_that(updated_nic.enable_accelerated_networking).described_as(
                     f"fail to set network interface {nic_name}'s accelerated "
                     f"networking into status [{enable}]"
