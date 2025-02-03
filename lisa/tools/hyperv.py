@@ -559,4 +559,4 @@ class HyperV(Tool):
         if port in self._assigned_nat_ports:
             self._assigned_nat_ports.remove(port)
         else:
-            print(f"Port {port} was not assigned.")
+            self._log.debug(f"Port {port} was not assigned.")
