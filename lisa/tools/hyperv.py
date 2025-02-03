@@ -578,13 +578,13 @@ class HyperV(Tool):
     # The default lisa working path is under 'C:/' which is not ideal for large data.
     # This method initializes an attached disk, creates a partition, formats it,
     # and mounts it to the lisa working directory
-    # This method expects an un-initialized (RAW) disk to be available on Hyper-V.
-    def configure_lisa_working_dir(self) -> None:
+    # This method expects an un-initialized (RAW) disk to be available on Hyper-V host.
+    def use_raw_disk_for_lisa_working_dir(self) -> None:
         powershell = self.node.tools[PowerShell]
 
-        # Get the disk that is not initialized
+        # Get the first disk that is not initialized
         disk_number = powershell.run_cmdlet(
-            "(Get-Disk | Where-Object PartitionStyle -Eq 'RAW').Number",
+            "(Get-Disk | Where-Object PartitionStyle -Eq 'RAW').Number[0]",
             force_run=True,
         )
         # If no un-initialized disk is found, log a warning and return
