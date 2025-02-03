@@ -1974,6 +1974,25 @@ def get_share_service_client(
     )
     return share_service_client
 
+def assign_managed_identity(self, resource_group_name, vm_name) -> None:
+    # Create the ComputeManagementClient
+    compute_client = self.get_compute_client("AzurePlatform")
+
+    # Get the VM
+    vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
+
+    # Assign the user-assigned managed identity to the VM
+    if not vm.identity:
+        vm.identity = VirtualMachineIdentity(type='UserAssigned')
+    if not vm.identity.user_assigned_identities:
+        vm.identity.user_assigned_identities = {}
+    vm.identity.user_assigned_identities[identity.id] = VirtualMachineIdentityUserAssignedIdentitiesValue()
+
+    # Update the VM with the new identity
+    compute_client.virtual_machines.create_or_update(resource_group_name, vm_name, vm)
+
+    print(f'Assigned identity {identity.name} to VM {vm_name}')
+
 
 def get_or_create_file_share(
     credential: Any,
@@ -2817,18 +2836,12 @@ def get_resource_group_name() -> str:
 def get_managed_identity_object_id(
     platform: "AzurePlatform", resource_group_name: str, vm_name: str
 ) -> str:
-    compute_client = get_compute_client(
-        platform, subscription_id=platform.subscription_id
-    )
-
-    vm_identity = compute_client.virtual_machines.get(
-        resource_group_name, vm_name
-    ).identity
+    vm = get_vm(platform, resource_group_name, vm_name)
 
     user_assigned_identity_resource_id = ""
     # Check if the VM has user-assigned managed identity
-    if vm_identity and vm_identity.type == "UserAssigned":
-        user_assigned_identity_id = vm_identity.user_assigned_identities
+    if vm.identity and vm.identity.type == "UserAssigned":
+        user_assigned_identity_id = vm.identity.user_assigned_identities
         if user_assigned_identity_id:
             # Iterate over user-assigned identities
             for _, identity_value in user_assigned_identity_id.items():
@@ -2837,8 +2850,8 @@ def get_managed_identity_object_id(
                 return user_assigned_identity_resource_id
 
     # Check if the VM has system-assigned managed identity
-    if vm_identity and vm_identity.type == "SystemAssigned":
-        return str(vm_identity.principal_id)
+    if vm.identity and vm.identity.type == "SystemAssigned":
+        return str(vm.identity.principal_id)
     return ""
 
 
