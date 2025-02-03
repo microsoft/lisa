@@ -50,6 +50,7 @@ azure = [
     "azure-mgmt-resource ~= 21.0.0",
     "azure-mgmt-serialconsole ~= 1.0.0",
     "azure-mgmt-storage ~= 21.2.1",
+    "azure-mgmt-authorization ~= 4.0.0",
     "azure-storage-blob ~= 12.23.0",
     "azure-storage-file-share ~= 12.18.0",
     "azure-keyvault-secrets ~= 4.7.0",
