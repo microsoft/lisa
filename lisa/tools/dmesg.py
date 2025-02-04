@@ -20,13 +20,16 @@ class Dmesg(Tool):
         re.compile("BUG: soft lockup"),
         re.compile("Hibernate inconsistent memory map detected"),
         re.compile("check_flush_dependency"),
+        # Error messages related to memory corruption from fault.c for x86_64
         # https://github.com/torvalds/linux/blob/0de63bb7d91975e73338300a57c54b93d3cc151c/arch/x86/mm/fault.c#L543
         re.compile("BUG: kernel NULL pointer dereference"),
         re.compile("kernel tried to execute NX-protected page"),
         re.compile("unable to execute userspace code"),
         re.compile("BUG: unable to handle page fault for address:"),
+        # ex: PF: supervisor read access in kernel mode
         re.compile(
-            r"PF: (supervisor|user) (instruction fetch|read access|write access) "
+            r"PF: (supervisor|user) "
+            r"(instruction fetch|read access|write access) "
             r"in (user|kernel) mode"
         ),
     ]
