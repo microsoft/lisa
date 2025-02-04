@@ -55,12 +55,12 @@ from microsoft.testsuites.dpdk.common import (
     Downloader,
     GitDownloader,
     Installer,
+    PackageManagerInstall,
     TarDownloader,
     check_dpdk_support,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
-    PackageManagerInstall,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
@@ -1378,7 +1378,8 @@ def run_dpdk_symmetric_mp(
         (
             "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
             f"adding device {test_nics[0].pci_device_name} "
-            f"network name {test_nics[0].lower} args"
+            f"network name {test_nics[0].lower} "
+            f"args mac={test_nics[0].mac_addr},mac={test_nics[1].mac_addr}"
         ),
         delta_only=True,
     )  # relying on compiler defaults here, not great.

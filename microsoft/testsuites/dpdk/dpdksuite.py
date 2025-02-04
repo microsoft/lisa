@@ -24,17 +24,7 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import (
-    Echo,
-    Git,
-    Hugepages,
-    Ip,
-    Kill,
-    Lscpu,
-    Lsmod,
-    Make,
-    Modprobe,
-)
+from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
@@ -54,12 +44,12 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
+    run_dpdk_symmetric_mp,
     run_testpmd_concurrent,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
-    run_dpdk_symmetric_mp,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
 
@@ -1007,4 +997,4 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        # do_parallel_cleanup(environment)
+        do_parallel_cleanup(environment)
