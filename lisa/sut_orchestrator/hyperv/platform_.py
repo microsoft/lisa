@@ -10,6 +10,7 @@ from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
 from lisa.tools import Cp, HyperV, Mkdir, Mount, PowerShell
+from lisa.tools.hyperv import HypervSwitchType
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
@@ -309,10 +310,19 @@ class HypervPlatform(Platform):
             hv.start_vm(name=vm_name, extra_args=extra_args)
 
             ip_addr = hv.get_ip_address(vm_name)
+            port = 22
+            # If the switch type is internal, we need to add a NAT mapping to access the
+            # VM from the outside of HyperV host.
+            if default_switch.type == HypervSwitchType.INTERNAL:
+                port = hv.add_nat_mapping(
+                    nat_name=default_switch.name,
+                    internal_ip=ip_addr,
+                )
+                ip_addr = node_context.host.public_address
             username = self.runbook.admin_username
             password = self.runbook.admin_password
             node.set_connection_info(
-                address=ip_addr, username=username, password=password
+                address=ip_addr, username=username, password=password, public_port=port
             )
             # In some cases, we observe that resize vhd resizes the entire disk
             # but fails to expand the partition size.
