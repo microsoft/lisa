@@ -60,6 +60,7 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
+    PackageManagerInstall,
 )
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
@@ -1256,3 +1257,183 @@ class DpdkDevnameInfo:
             port_mask ^= 1 << (port_id)
         self.port_mask = hex(port_mask)[2:]
         return self.port_mask
+
+
+def run_dpdk_symmetric_mp(
+    node: Node, log: Logger, variables: Dict[str, Any], trigger_rescind: bool = False
+) -> None:
+    # setup and unwrap the resources for this test
+    # get a list of the upper non-primary nics and select two of them
+    test_nics = [
+        nic
+        for nic in node.nics.nics.values()
+        if nic != node.nics.get_primary_nic() and nic.lower
+    ][:2]
+
+    ping = node.tools[Ping]
+    ping.install()
+    # initialize for netvsc, we rely on the debug messages in this test
+    # to identify the hotplug events.
+    try:
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            "netvsc",
+            HugePageSize.HUGE_2MB,
+            test_nics=test_nics,
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
+    testpmd = test_kit.testpmd
+    if isinstance(testpmd.installer, PackageManagerInstall):
+        # The Testpmd tool doesn't get re-initialized
+        # even if you invoke it with new arguments.
+        raise SkippedException(
+            "DPDK symmetric_mp test is not implemented for "
+            " package manager installation."
+        )
+    symmetric_mp_path = testpmd.get_example_app_path("dpdk-symmetric_mp")
+
+    # setup the DPDK EAL arguments for netvsc
+    devname_info = DpdkDevnameInfo(testpmd=testpmd)
+    port_mask = devname_info.get_port_info(test_nics)
+    nic_args = devname_info.nic_args
+
+    # get the DPDK port IDs for the netvsc devices.
+    # Don't assume which port is which since there are more than one.
+
+    node.log.debug(f"Port mask: {port_mask}")
+
+    # Port 2: RX - 0, TX - 100, Drop - 0
+    # wait for the process to exit
+    result_regex = re.compile(
+        r"Port (?P<port_id>[0-9]+): "
+        r"RX - (?P<rx_count>[0-9]+), "
+        r"TX - (?P<tx_count>[0-9]+), "
+        r"Drop - (?P<drop_count>[0-9]+).*"
+    )
+
+    # create the shared section of the symmetric_mp commandline invocation
+    symmetric_mp_args = (
+        f"{nic_args} -n 2 "
+        "--log-level netvsc,debug --log-level mana,debug "
+        "--log-level eal,debug "
+        "--log-level vmbus,debug "
+        f"-- -p {port_mask} --num-procs 2"
+    )
+    # start the first process (id 0) on core 1
+    primary = node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
+            f"{symmetric_mp_args} --proc-id 0"
+        ),
+        timeout=630,
+        signal=SIGINT,
+        kill_timeout=30,
+    )
+
+    # wait for it to start
+    primary.wait_output("APP: Finished Process Init", timeout=20)
+
+    # create the second process (id 1) on core 2
+    secondary = node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
+            f"{symmetric_mp_args} --proc-id 1"
+        ),
+        timeout=600,
+        signal=SIGINT,
+        kill_timeout=35,
+    )
+    secondary.wait_output("APP: Finished Process Init", timeout=20)
+
+    if trigger_rescind:
+        # turn SRIOV off
+        node.features[NetworkInterface].switch_sriov(
+            enable=False, wait=False, reset_connections=False
+        )
+
+    # wait for the RTE_DEV_EVENT_REMOVE message
+    primary.wait_output(
+        "HN_DRIVER: netvsc_hotadd_callback(): "
+        "Device notification type=1"  # RTE_DEV_EVENT_REMOVE
+    )  # relying on compiler defaults here, not great.
+
+    if trigger_rescind:
+        # turn SRIOV on
+        node.features[NetworkInterface].switch_sriov(
+            enable=True, wait=False, reset_connections=False
+        )
+
+    # wait for the RTE_DEV_EVENT_ADD message
+    primary.wait_output(
+        (
+            "HN_DRIVER: netvsc_hotadd_callback(): "
+            "Device notification type=0"  # RTE_DEV_EVENT_ADD
+        ),
+        delta_only=True,
+    )  # relying on compiler defaults here, not great.
+    primary.wait_output(
+        (
+            "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
+            f"adding device {test_nics[0].pci_device_name} "
+            f"network name {test_nics[0].lower} args"
+        ),
+        delta_only=True,
+    )  # relying on compiler defaults here, not great.
+
+    ping.ping_async(
+        target=test_nics[0].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=100,
+    )
+    ping.ping(
+        target=test_nics[1].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=100,
+        ignore_error=True,
+    )
+
+    # # check the exit codes
+    secondary_result = secondary.wait_result(
+        expected_exit_code=0,
+        expected_exit_code_failure_message=(
+            "Secondary symmetric_mp process returned error code."
+        ),
+    )
+    assert_that(secondary_result.exit_code).described_as(
+        f"Secondary process failure: {secondary_result.stdout}"
+    ).is_zero()
+    primary_result = primary.wait_result(
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Primary process failed to exit with 0",
+    )
+    node.log.debug(
+        f"Primary process:\n\n{primary_result.stdout}\n"
+        f"\nprimary stderr:\n{primary_result.stderr}"
+    )
+    node.log.debug(
+        f"Secondary system:\n\n{secondary_result.stdout}\n"
+        f"secondary stderr:\n{secondary_result.stderr}"
+    )
+    all_matches = [
+        result_regex.finditer(secondary_result.stdout),
+        result_regex.finditer(primary_result.stdout),
+        # result_regex.search(secondary_result.stdout),
+        # result_regex.search(primary_result.stdout),
+    ]
+    match_count = 0
+    for matches in all_matches:
+        match_count += 1
+        if matches:
+            node.log.debug(str(matches))
+            for match in matches:
+                port = match.group("port_id")
+                rx_count = match.group("rx_count")
+                tx_count = match.group("tx_count")
+                drop_count = match.group("drop_count")
+                node.log.debug(
+                    f"(match {match_count}) {port} "
+                    f"r:{rx_count} t:{tx_count} d:{drop_count}"
+                )
