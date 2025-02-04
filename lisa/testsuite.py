@@ -334,10 +334,8 @@ class TestResult:
             for node in nodes.list():
                 dmesg_check_result = node.exec_check_dmesg_oops()
                 if dmesg_check_result:
-                    self.set_status(
-                        TestStatus.FAILED,
-                        f"failed. dmesg oops found: {dmesg_check_result}",
-                    )
+                    self.status = TestStatus.FAILED
+                    self.message = f"failed. dmesg oops found: {dmesg_check_result}"
                     break
             # force refresh information, when test result status is changed. The
             # refreshed information is not used so far. But in case it's needed

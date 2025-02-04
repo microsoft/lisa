@@ -764,14 +764,6 @@ class AzurePlatform(Platform):
         information["platform"] = self.type_name()
         return information
 
-    def _get_dmesg_log_and_check_errors(self, node: Node) -> Dict[str, str]:
-        platform_runbook = cast(schema.Platform, self.runbook)
-        node.log.debug("_get_dmesg_log_and_check_errors in execution")
-        if platform_runbook.check_dmesg_post_case:
-            self._check_dmesg_oops(node)
-        else:
-            node.log.debug("Skipping dmesg log check as capture_dmesg_logs is set to False.")
-
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
         try:
