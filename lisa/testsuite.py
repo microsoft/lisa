@@ -759,7 +759,7 @@ class TestSuite:
                 log=case_log,
             )
 
-            nodes = self.environment.nodes
+            nodes = environment.nodes
             for node in nodes.list():
                 dmesg_check_result = node.exec_check_dmesg_oops()
                 if dmesg_check_result:
