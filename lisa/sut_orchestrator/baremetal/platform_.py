@@ -80,7 +80,7 @@ class BareMetalPlatform(Platform):
 
         if self._cluster_runbook.ready_checker:
             ready_checker = self.ready_checker_factory.create_by_runbook(
-                self._cluster_runbook.ready_checker
+                self._cluster_runbook.ready_checker, parent_logger=log
             )
 
         for index, node in enumerate(environment.nodes.list()):
@@ -139,7 +139,8 @@ class BareMetalPlatform(Platform):
         # ready checker cleanup
         if self._cluster_runbook.ready_checker:
             ready_checker = self.ready_checker_factory.create_by_runbook(
-                self._cluster_runbook.ready_checker
+                self._cluster_runbook.ready_checker,
+                parent_logger=log,
             )
             ready_checker.clean_up()
 

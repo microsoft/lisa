@@ -3,7 +3,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Type, cast
+from typing import Any, Type, cast
 
 import requests
 from dataclasses_json import dataclass_json
@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node, RemoteNode
 from lisa.util import InitializableMixin, LisaException, check_till_timeout, subclasses
-from lisa.util.logger import get_logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.shell import try_connect
 
 from .context import get_node_context
@@ -22,10 +22,13 @@ class ReadyChecker(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def __init__(
         self,
         runbook: ReadyCheckerSchema,
+        parent_logger: Logger,
     ) -> None:
         super().__init__(runbook=runbook)
         self.ready_checker_runbook: ReadyCheckerSchema = self.runbook
-        self._log = get_logger("ready_checker", self.__class__.__name__)
+        self._log = get_logger(
+            "ready_checker", self.__class__.__name__, parent=parent_logger
+        )
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
@@ -48,10 +51,10 @@ class FileSingleChecker(ReadyChecker):
     def __init__(
         self,
         runbook: FileSingleSchema,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(runbook=runbook)
+        super().__init__(runbook=runbook, **kwargs)
         self.file_single_runbook: FileSingleSchema = self.runbook
-        self._log = get_logger("file_single", self.__class__.__name__)
 
     @classmethod
     def type_name(cls) -> str:
@@ -86,10 +89,10 @@ class SshChecker(ReadyChecker):
     def __init__(
         self,
         runbook: ReadyCheckerSchema,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(runbook=runbook)
+        super().__init__(runbook=runbook, **kwargs)
         self.ssh_runbook: ReadyCheckerSchema = self.runbook
-        self._log = get_logger("ssh", self.__class__.__name__)
 
     @classmethod
     def type_name(cls) -> str:
@@ -135,10 +138,10 @@ class HttpChecker(ReadyChecker):
     def __init__(
         self,
         runbook: HttpSchema,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(runbook=runbook)
+        super().__init__(runbook=runbook, **kwargs)
         self.http_check_runbook: HttpSchema = self.runbook
-        self._log = get_logger("http", self.__class__.__name__)
 
     @classmethod
     def type_name(cls) -> str:
