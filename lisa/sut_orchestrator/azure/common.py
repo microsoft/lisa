@@ -2961,6 +2961,34 @@ def delete_user_assign_identity(
     log.debug(f"{identity_name} is deleted successfully")
 
 
+def assign_sub_storage_blob_reader_permissions_to_msi(
+    platform: "AzurePlatform", storage_account_name: str, managed_identity_object_id: str, log: Logger
+) -> None:
+    subscription_id = platform.subscription_id
+    # Define the scope and role definition ID for "Storage Blob Data Reader"
+    scope = f'/subscriptions/{subscription_id}'
+    role_definition_id = f'/subscriptions/{subscription_id}/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'  # noqa: E501
+
+    # Create the role assignment
+    role_assignment_params = RoleAssignmentCreateParameters(
+        role_definition_id=role_definition_id,
+        principal_id=managed_identity_object_id
+    )
+    auth_client = get_authorization_client(
+        credential=platform.credential,
+        subscription_id=subscription_id
+    )
+    # As
+    role_assignment = auth_client.role_assignments.create(
+        scope=scope,
+        role_assignment_name='unique-role-assignment-id',
+        parameters=role_assignment_params
+    )
+
+    print(f"Role assignment created: {role_assignment.id}")
+
+
+
 def assign_storage_blob_permissions_to_msi(
     platform: "AzurePlatform", storage_account_name: str, managed_identity_object_id: str, log: Logger
 ) -> None:
