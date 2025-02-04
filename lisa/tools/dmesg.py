@@ -20,6 +20,15 @@ class Dmesg(Tool):
         re.compile("BUG: soft lockup"),
         re.compile("Hibernate inconsistent memory map detected"),
         re.compile("check_flush_dependency"),
+        # https://github.com/torvalds/linux/blob/0de63bb7d91975e73338300a57c54b93d3cc151c/arch/x86/mm/fault.c#L543
+        re.compile("BUG: kernel NULL pointer dereference"),
+        re.compile("kernel tried to execute NX-protected page"),
+        re.compile("unable to execute userspace code"),
+        re.compile("BUG: unable to handle page fault for address:"),
+        re.compile(
+            r"PF: (supervisor|user) (instruction fetch|read access|write access) "
+            r"in (user|kernel) mode"
+        ),
     ]
 
     # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
