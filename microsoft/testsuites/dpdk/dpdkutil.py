@@ -531,10 +531,10 @@ def verify_dpdk_build(
         f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
+    node.tools[Dmesg].check_kernel_errors(force_run=True)
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
-
     return test_kit
 
 
@@ -611,6 +611,8 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    sender.dmesg.check_kernel_errors(force_run=True)
+    receiver.dmesg.check_kernel_errors(force_run=True)
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
@@ -1056,6 +1058,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: only checking 0 and < 1 now. Once we have more data
     # there should be more stringest checks for each NIC type.
     throughput = ntttcp_results[receiver].throughput_in_gbps
+    forwarder.tools[Dmesg].check_kernel_errors(force_run=True)
     assert_that(throughput).described_as(
         "l3fwd test found 0Gbps througput. "
         "Either the test or DPDK forwarding is broken."
