@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
