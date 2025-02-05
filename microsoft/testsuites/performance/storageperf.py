@@ -23,7 +23,7 @@ from lisa.features import AvailabilityZoneEnabled, Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
-from lisa.operating_system import SLES, Debian, Redhat
+from lisa.operating_system import Debian, Redhat, Suse
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
@@ -473,11 +473,11 @@ class StoragePerformance(TestSuite):
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
 
-        # Run test only on Debian, SLES and Redhat distributions
+        # Run test only on Debian, Suse and Redhat distributions
         if (
             not isinstance(server_node.os, Redhat)
             and not isinstance(server_node.os, Debian)
-            and not isinstance(server_node.os, SLES)
+            and not isinstance(server_node.os, Suse)
         ):
             raise SkippedException(f"{server_node.os.name} not supported")
 

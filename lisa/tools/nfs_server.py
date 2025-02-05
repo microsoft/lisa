@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import SLES, CBLMariner, Debian, Redhat
+from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
 from lisa.tools import Echo, Firewall, Service
 from lisa.util import UnsupportedDistroException
 
@@ -49,7 +49,7 @@ class NFSServer(Tool):
             self.node.tools[Service].restart_service(
                 "nfs-kernel-server",
             )
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             self.node.tools[Service].restart_service(
                 "nfsserver",
             )
@@ -62,7 +62,7 @@ class NFSServer(Tool):
             return service.check_service_exists("nfs-server")
         elif isinstance(self.node.os, Debian):
             return service.check_service_exists("nfs-kernel-server")
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             return service.check_service_exists("nfsserver")
         else:
             raise UnsupportedDistroException(self.node.os)
@@ -73,7 +73,7 @@ class NFSServer(Tool):
             service.stop_service("nfs-server")
         elif isinstance(self.node.os, Debian):
             service.stop_service("nfs-kernel-server")
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             service.stop_service("nfsserver")
         else:
             raise UnsupportedDistroException(self.node.os)
@@ -83,7 +83,7 @@ class NFSServer(Tool):
             self.node.os.install_packages("nfs-utils")
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages("nfs-kernel-server")
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             self.node.os.install_packages("nfs-kernel-server")
         else:
             raise UnsupportedDistroException(self.node.os)
@@ -95,7 +95,7 @@ class NFSServer(Tool):
             return self.node.tools[Service].check_service_exists("nfs-utils")
         elif isinstance(self.node.os, Debian):
             return self.node.tools[Service].check_service_exists("nfs-kernel-server")
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             return self.node.tools[Service].check_service_exists("nfs-server")
         else:
             raise UnsupportedDistroException(self.node.os)
