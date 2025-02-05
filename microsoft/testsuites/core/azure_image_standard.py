@@ -276,7 +276,7 @@ class AzureImageStandard(TestSuite):
             r"msg=\'op=PAM:setcred\s+grantors=\?[\s\S]*?acct=\"(?P<acct>[a-zA-Z0-9\*\-]+)\""  # noqa: E501
             r"\s+exe=\"(?P<exe>[^\"]+)\"\s+hostname=\? addr=\? terminal=\? res="
             r"(?P<res>[a-zA-Z]+)\'\r"
-        ),# noqa: E501
+        ),
     ]
 
     @TestCaseMetadata(
