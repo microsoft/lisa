@@ -249,6 +249,34 @@ class AzureImageStandard(TestSuite):
             r"^(.*mlx5_core0: WARN: mlx5_fwdump_prep:92:\(pid 0\).*)$",
             re.M,
         ),
+        # ACPI failback to PDC
+        re.compile(
+            r"^(.* ACPI: _OSC evaluation for CPUs failed, trying _PDC\r)$",
+            re.M,
+        ),
+        # Buffer I/O error on dev sr0, logical block 1, async page read
+        # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x80700 phys_seg 1 prio class 2
+        # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+        re.compile(
+            r"^(.*Buffer I/O error on dev sr0, logical block 1, async page read\r|"
+            r".*I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F]* "
+            r"phys_seg 1 prio class 2\r)$",
+            re.M,
+        ),
+        # 2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103
+        # audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295
+        # subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t"
+        # exe="/usr/lib/systemd/systemd-executor" hostname=? addr=? terminal=?res=failed
+        re.compile(
+            r"(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?"
+            r"(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\]"  # noqa: E501
+            r"(?:\s*)?audit:\s+type=(?P<type>\d+)\s+audit\((?P<audit_time>\d+\.\d+):"
+            r"(?P<audit_id>\d+)\):\s+pid=(?P<pid>\d+)\s+uid=(?P<uid>\d+)\s+auid="
+            r"(?P<auid>\d+)\s+ses=(?P<ses>\d+)\s+subj=(?P<subj>[a-zA-Z0-9\-]+)\s+"
+            r"msg=\'op=PAM:setcred\s+grantors=\?[\s\S]*?acct=\"(?P<acct>[a-zA-Z0-9\*\-]+)\""  # noqa: E501
+            r"\s+exe=\"(?P<exe>[^\"]+)\"\s+hostname=\? addr=\? terminal=\? res="
+            r"(?P<res>[a-zA-Z]+)\'\r"
+        ),
     ]
 
     @TestCaseMetadata(
@@ -393,6 +421,13 @@ class AzureImageStandard(TestSuite):
                 network_file.upper(),
                 f"networking=yes should be present in {network_file_path}",
             ).contains("networking=yes".upper())
+        elif isinstance(node.os, CBLMariner):
+            network_file_path = "/etc/systemd/networkd.conf"
+            file_exists = node.shell.exists(PurePosixPath(network_file_path))
+            assert_that(
+                file_exists,
+                f"The network file should be present at {network_file_path}",
+            ).is_true()
         else:
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
@@ -449,7 +484,7 @@ class AzureImageStandard(TestSuite):
                 "/usr/lib64/udev/rules.d/75-persistent-net-generator.rules"
             )
             udev_file_path_70_rule = "/usr/lib64/udev/rules.d/70-persistent-net.rules"
-        elif isinstance(node.os, Fedora):
+        elif isinstance(node.os, Fedora) or isinstance(node.os, CBLMariner):
             udev_file_path_75_rule = (
                 "/lib/udev/rules.d/75-persistent-net-generator.rules"
             )
@@ -497,6 +532,25 @@ class AzureImageStandard(TestSuite):
                 'DHCLIENT_SET_HOSTNAME="no" should be present in '
                 f"file {dhcp_file_path}",
             ).contains('DHCLIENT_SET_HOSTNAME="no"')
+        elif isinstance(node.os, CBLMariner):
+            if node.os.information.version.major == 3:
+                dhcp_file_path = "/etc/dhcpcd.conf"
+                dhcp_file_content = "option host_name"
+            else:
+                dhcp_file_path = "/etc/dhcp/dhclient.conf"
+                dhcp_file_content = "host-name"
+            file_exists = node.shell.exists(PurePosixPath(dhcp_file_path))
+
+            assert_that(
+                file_exists,
+                f"The dhcp file should be present at {dhcp_file_path}",
+            ).is_true()
+
+            dhcp_file = node.tools[Cat].read(dhcp_file_path)
+            assert_that(
+                dhcp_file,
+                f"option host_name should be present in file {dhcp_file_path}",
+            ).contains(dhcp_file_content)
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
