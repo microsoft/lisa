@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from lisa.executable import Tool
-from lisa.operating_system import SLES, CBLMariner, Debian, Redhat
+from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
 from lisa.tools import Firewall, Mount
 from lisa.tools.mkfs import FileSystem
 from lisa.tools.rm import Rm
@@ -56,7 +56,7 @@ class NFSClient(Tool):
             self.node.os.install_packages("nfs-utils")
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages("nfs-common")
-        elif isinstance(self.node.os, SLES):
+        elif isinstance(self.node.os, Suse):
             pass
         else:
             raise UnsupportedDistroException(self.node.os)
