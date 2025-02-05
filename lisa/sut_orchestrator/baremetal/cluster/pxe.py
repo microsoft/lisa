@@ -38,6 +38,16 @@ class RemoteComSerialConsole(features.SerialConsole):
         self._process.input(f"{data}\n")
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
+        # To get complete log of serial console, it is required to flush
+        # the output buffer of serial console before accessing its serial
+        # log_buffer. Here empty string "" is passed in wait_output, which
+        # is used to just trigger the flush of the serial console buffer.
+        self._process.wait_output(
+            "",
+            timeout=1,
+            error_on_missing=False,
+            interval=0.1,
+        )
         return self._process.log_buffer.getvalue().encode("utf-8")
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
