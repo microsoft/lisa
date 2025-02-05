@@ -552,7 +552,7 @@ class AzureImageStandard(TestSuite):
             dhcp_file = node.tools[Cat].read(dhcp_file_path)
             assert_that(
                 dhcp_file,
-                'option host_name" should be present in '
+                "option host_name" should be present in "
                 f"file {dhcp_file_path}",
             ).contains(dhcp_file_content)
         else:
