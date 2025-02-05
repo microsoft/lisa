@@ -2176,6 +2176,12 @@ class SLES(Suse):
         return re.compile("^SLES|sles|sle-hpc|sle_hpc$")
 
 
+class SlMicro(Suse):
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile(r"^sl-micro$", re.IGNORECASE)
+
+
 class NixOS(Linux):
     pass
 
