@@ -538,10 +538,10 @@ class AzureImageStandard(TestSuite):
         elif isinstance(node.os, CBLMariner):
             if node.os.information.version.major == 3:
                 dhcp_file_path = "/etc/dhcpcd.conf"
-                dhcp_file_content = 'option host_name'
+                dhcp_file_content = "option host_name"
             else:
                 dhcp_file_path = "/etc/dhcp/dhclient.conf"
-                dhcp_file_content = 'host-name'
+                dhcp_file_content = "host-name"
             file_exists = node.shell.exists(PurePosixPath(dhcp_file_path))
 
             assert_that(
