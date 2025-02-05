@@ -13,7 +13,7 @@ from lisa import (
     UnsupportedDistroException,
     simple_requirement,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dhclient
 
 
@@ -33,7 +33,7 @@ class Dhcp(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
     )
     def verify_dhcp_client_timeout(self, node: Node) -> None:
         dhclient = node.tools[Dhclient]
