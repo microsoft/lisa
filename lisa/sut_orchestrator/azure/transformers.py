@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Type, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from azure.mgmt.compute.models import GrantAccessData
 from dataclasses_json import dataclass_json
@@ -102,12 +102,15 @@ class VhdTransformerSchema(schema.Transformer):
 class DeployTransformerSchema(schema.Transformer):
     requirement: schema.Capability = field(default_factory=schema.Capability)
     resource_group_name: str = ""
+    deploy: bool = True
 
 
 @dataclass_json
 @dataclass
 class DeleteTransformerSchema(schema.Transformer):
     resource_group_name: str = field(default="", metadata=field_metadata(required=True))
+    keep_environment: Optional[Union[str, bool]] = constants.ENVIRONMENT_KEEP_NO
+    wait_delete: bool = False
 
 
 class VhdTransformer(Transformer):
@@ -338,7 +341,7 @@ class DeployTransformer(Transformer):
         assert environment
 
         platform.prepare_environment(environment=environment)
-
+        platform._azure_runbook.deploy = runbook.deploy
         platform.deploy_environment(environment)
 
         resource_group_name = get_environment_context(environment).resource_group_name
@@ -385,6 +388,8 @@ class DeleteTransformer(Transformer):
         environment_context.resource_group_name = runbook.resource_group_name
         environment_context.resource_group_is_specified = True
 
+        platform.runbook.keep_environment = runbook.keep_environment
+        platform._azure_runbook.wait_delete = runbook.wait_delete
         platform.delete_environment(environment)
 
         return {}
