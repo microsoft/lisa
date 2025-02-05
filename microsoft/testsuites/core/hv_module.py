@@ -16,6 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, Redhat
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.util import LisaException, SkippedException
@@ -33,7 +34,7 @@ from lisa.util import LisaException, SkippedException
     are included in initrd, and are all the same version.
     """,
     requirement=simple_requirement(
-        supported_platform_type=["azure", "ready", "hyperv"]
+        supported_platform_type=[AZURE, HYPERV, READY]
     ),
 )
 class HvModule(TestSuite):
