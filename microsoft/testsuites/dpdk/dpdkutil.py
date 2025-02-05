@@ -1332,7 +1332,7 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=630,
+        timeout=330,
         signal=SIGINT,
         kill_timeout=30,
     )
@@ -1346,7 +1346,7 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
             f"{symmetric_mp_args} --proc-id 1"
         ),
-        timeout=600,
+        timeout=300,
         signal=SIGINT,
         kill_timeout=35,
     )
@@ -1358,35 +1358,34 @@ def run_dpdk_symmetric_mp(
             enable=False, wait=False, reset_connections=False
         )
 
-    # wait for the RTE_DEV_EVENT_REMOVE message
-    primary.wait_output(
-        "HN_DRIVER: netvsc_hotadd_callback(): "
-        "Device notification type=1"  # RTE_DEV_EVENT_REMOVE
-    )  # relying on compiler defaults here, not great.
+        # wait for the RTE_DEV_EVENT_REMOVE message
+        primary.wait_output(
+            "HN_DRIVER: netvsc_hotadd_callback(): "
+            "Device notification type=1"  # RTE_DEV_EVENT_REMOVE
+        )  # relying on compiler defaults here, not great.
 
-    if trigger_rescind:
         # turn SRIOV on
         node.features[NetworkInterface].switch_sriov(
             enable=True, wait=False, reset_connections=False
         )
 
-    # wait for the RTE_DEV_EVENT_ADD message
-    primary.wait_output(
-        (
-            "HN_DRIVER: netvsc_hotadd_callback(): "
-            "Device notification type=0"  # RTE_DEV_EVENT_ADD
-        ),
-        delta_only=True,
-    )  # relying on compiler defaults here, not great.
-    primary.wait_output(
-        (
-            "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
-            f"adding device {test_nics[0].pci_device_name} "
-            f"network name {test_nics[0].lower} "
-            f"args mac={test_nics[0].mac_addr},mac={test_nics[1].mac_addr}"
-        ),
-        delta_only=True,
-    )  # relying on compiler defaults here, not great.
+        # wait for the RTE_DEV_EVENT_ADD message
+        primary.wait_output(
+            (
+                "HN_DRIVER: netvsc_hotadd_callback(): "
+                "Device notification type=0"  # RTE_DEV_EVENT_ADD
+            ),
+            delta_only=True,
+        )  # relying on compiler defaults here, not great.
+        primary.wait_output(
+            (
+                "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
+                f"adding device {test_nics[0].pci_device_name} "
+                f"network name {test_nics[0].lower} "
+                f"args mac={test_nics[0].mac_addr},mac={test_nics[1].mac_addr}"
+            ),
+            delta_only=True,
+        )  # relying on compiler defaults here, not great.
 
     ping.ping_async(
         target=test_nics[0].ip_addr,
@@ -1399,8 +1398,8 @@ def run_dpdk_symmetric_mp(
         count=100,
         ignore_error=True,
     )
-
-    # # check the exit codes
+    test_kit.dmesg.check_kernel_errors(force_run=True)
+    # check the exit codes
     secondary_result = secondary.wait_result(
         expected_exit_code=0,
         expected_exit_code_failure_message=(
