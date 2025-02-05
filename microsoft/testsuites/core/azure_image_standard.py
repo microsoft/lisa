@@ -271,11 +271,11 @@ class AzureImageStandard(TestSuite):
         # subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t"
         # exe="/usr/lib/systemd/systemd-executor" hostname=? addr=?terminal=?res=failed
         re.compile(
-            r'(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?'
-            r'(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\]'  # noqa: E501
-            r'(?:\s*)?audit:\s+type=(?P<type>\d+)\s+audit\((?P<audit_time>\d+\.\d+):'
-            r'(?P<audit_id>\d+)\):\s+pid=(?P<pid>\d+)\s+uid=(?P<uid>\d+)\s+auid='
-            r'(?P<auid>\d+)\s+ses=(?P<ses>\d+)\s+subj=(?P<subj>[a-zA-Z0-9\-]+)\s+'
+            r"(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?"
+            r"(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\]"  # noqa: E501
+            r"(?:\s*)?audit:\s+type=(?P<type>\d+)\s+audit\((?P<audit_time>\d+\.\d+):"
+            r"(?P<audit_id>\d+)\):\s+pid=(?P<pid>\d+)\s+uid=(?P<uid>\d+)\s+auid="
+            r"(?P<auid>\d+)\s+ses=(?P<ses>\d+)\s+subj=(?P<subj>[a-zA-Z0-9\-]+)\s+"
             r"msg=\'op=PAM:setcred\s+grantors=\?[\s\S]*?acct=\"(?P<acct>[a-zA-Z0-9\*\-]+)\""  # noqa: E501
             r"\s+exe=\"(?P<exe>[^\"]+)\"\s+hostname=\? addr=\? terminal=\? res="
             r"(?P<res>[a-zA-Z]+)\'\r"
