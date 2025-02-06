@@ -764,7 +764,7 @@ class TestSuite:
                 suite_log.info(f"Value of check_dmesg_after_case {node.check_dmesg_after_case}")
                 if node.check_dmesg_after_case:
                     suite_log.info(f"Checking for Kernel Errors in DMesg logs after test case execution..")
-                    dmesg_check_result = node.exec_check_dmesg_oops()
+                    dmesg_check_result = node.exec_check_dmesg_oops()[0]
                     suite_log.info(f"Result of dmesg_check_result: {dmesg_check_result}")
                     if dmesg_check_result:
                         case_result.set_status(TestStatus.FAILED, f"failed. Kernel Errors found in the DMesg logs after test case execution. Please check the same!")
