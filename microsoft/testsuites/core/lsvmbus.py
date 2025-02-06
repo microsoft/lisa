@@ -134,9 +134,11 @@ class LsVmBus(TestSuite):
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
         core_count = lscpu_tool.get_core_count()
-        # Each netvsc device should have "the_number_of_vCPUs" channel(s)
-        #  with a cap value of 8.
-        expected_network_channel_count = min(core_count, 8)
+        # Each netvsc device should have channels based on the number of vCPUs
+        if core_count <= 16:
+            expected_network_channel_count = core_count
+        else:
+            expected_network_channel_count = min(64, max(16, core_count // 2))
         # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
         #  with a cap value of 64.
         if node.nics.is_mana_device_present():
