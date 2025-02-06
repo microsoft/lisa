@@ -7,7 +7,7 @@ variable:
   - name: keep_environment
     value: "no"
   - name: check_dmesg_after_case
-    value: false
+    value: true
   - name: resource_group_name
     value: ""
   - name: marketplace_image
