@@ -1223,7 +1223,8 @@ class NodeHookImpl:
     def check_dmesg_oops(self, node: Node) -> bool:
         try:
             dmesg = node.tools[Dmesg]
-            dmesg.check_kernel_errors(force_run=True, throw_error=True)
+            results = dmesg.check_kernel_errors(force_run=True, throw_error=True)
+            node.log.debug(f"check_dmesg_oops: {results}")
             return False
         except LisaException as ex:
             node.log.error(f"Error: {ex}")
