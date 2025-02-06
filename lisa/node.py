@@ -110,7 +110,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._support_sudo: Optional[bool] = None
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
-        self.check_dmesg_after_case: bool = False
+        self.check_dmesg_after_case: bool = True
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
         self.has_checked_bash_prompt: bool = False
