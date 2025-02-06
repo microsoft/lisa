@@ -758,14 +758,15 @@ class TestSuite:
                 test_kwargs=case_kwargs,
                 log=case_log,
             )
-
+        
             nodes = environment.nodes
             for node in nodes.list():
-                dmesg_check_result = node.exec_check_dmesg_oops()
-                if dmesg_check_result:
-                    case_result.set_status(TestStatus.FAILED, f"failed. dmesg oops found: {dmesg_check_result}")
-                    self.status = TestStatus.FAILED
-                    break
+                if node.check_dmesg_after_case:
+                    dmesg_check_result = node.exec_check_dmesg_oops()
+                    if dmesg_check_result:
+                        case_result.set_status(TestStatus.FAILED, f"failed. Kernel Errors found in the DMesg logs after test case execution. Please check the same!")
+                        self.status = TestStatus.FAILED
+                        break
 
             if case_result.status == TestStatus.FAILED:
                 try:

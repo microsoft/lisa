@@ -24,7 +24,7 @@ from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
 from lisa.operating_system import OperatingSystem
 from lisa.secret import add_secret
-from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
+from lisa.tools import Chmod, Df, Dmesg, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -110,6 +110,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._support_sudo: Optional[bool] = None
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
+        self.check_dmesg_after_case: bool = False
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
         self.has_checked_bash_prompt: bool = False
@@ -1220,20 +1221,13 @@ class NodeHookImpl:
     
     @hookimpl
     def check_dmesg_oops(self, node: Node) -> bool:
-        node.log.debug("Checking dmesg logs for issues...")
-        # Capture dmesg logs
-        dmesg_output = node.execute("dmesg --level=err", shell=True).stdout
-
-        # Check for errors in dmesg logs
-        if dmesg_output:
-            node.log.error("Issues found in dmesg logs:")
-            node.log.error(dmesg_output)
-            # Raise an exception to fail the test case
-            return True
-        else:
-            node.log.debug("No issues found in dmesg logs.")
+        try:
+            dmesg = node.tools[Dmesg]
+            dmesg.check_kernel_errors(force_run=True, throw_error=True)
             return False
-
+        except LisaException as ex:
+            node.log.error(f"Error: {ex}")
+            return True
 
 plugin_manager.add_hookspecs(NodeHookSpec)
 plugin_manager.register(NodeHookImpl())
