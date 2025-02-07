@@ -929,12 +929,13 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         status_changed = False
         # avoiding type checks on Any network interfaces object.
         # So instead of slicing, use a counter.
-        counter = -1
+        counter = 0
         for nic in vm.network_profile.network_interfaces:
             # if index was provided, only apply to nic that matches
-            counter += 1
             if index is not None:
-                if counter != index:
+                matched = counter == index
+                counter += 1
+                if not matched:
                     continue
 
             # get nic name from nic id
