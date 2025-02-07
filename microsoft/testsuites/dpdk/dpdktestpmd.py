@@ -280,7 +280,9 @@ class DpdkSourceInstall(Installer):
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=sample_apps,
+            build_dir="build",
+            cwd=self.asset_path,
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -580,7 +582,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
-            "--mbuf-size=2048,8096"
+            "--mbuf-size=2048,8096 --txonly-multi-flow"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
