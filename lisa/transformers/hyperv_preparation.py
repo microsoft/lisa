@@ -43,4 +43,6 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
         # Configure Internal DHCP
         hv.enable_internal_dhcp()
+
+        self._node.reboot()
         return {}
