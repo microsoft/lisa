@@ -920,13 +920,26 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 ).is_equal_to(enable)
 
     def switch_sriov(
-        self, enable: bool, wait: bool = True, reset_connections: bool = True
+        self,
+        enable: bool,
+        wait: bool = True,
+        reset_connections: bool = True,
+        index: Optional[int] = None,
     ) -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
         status_changed = False
+        # avoiding type checks on Any network interfaces object.
+        # So instead of slicing, use a counter.
+        counter = -1
         for nic in vm.network_profile.network_interfaces:
+            # if index was provided, only apply to nic that matches
+            counter += 1
+            if index is not None:
+                if counter != index:
+                    continue
+
             # get nic name from nic id
             # /subscriptions/[subid]/resourceGroups/[rgname]/providers
             # /Microsoft.Network/networkInterfaces/[nicname]
