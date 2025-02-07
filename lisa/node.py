@@ -1225,10 +1225,9 @@ class NodeHookImpl:
             dmesg = node.tools[Dmesg]
             results = dmesg.check_kernel_errors(force_run=True, throw_error=False)
             if results:
-                node.log.debug(f"check_dmesg_oops results True")
+                # If there are any results obtained from the Kernel Error Check, then return True
                 return True
             else:
-                node.log.debug(f"check_dmesg_oops results False")
                 return False
         except LisaException as ex:
             node.log.error(f"Error: {ex}")
