@@ -195,6 +195,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 node.features = Features(node, self)
             node.capture_azure_information = platform_runbook.capture_azure_information
             node.capture_boot_time = platform_runbook.capture_boot_time
+            node.check_dmesg_after_case = platform_runbook.check_dmesg_after_case
             node.capture_kernel_config = (
                 platform_runbook.capture_kernel_config_information
             )
