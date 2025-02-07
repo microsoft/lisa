@@ -752,13 +752,6 @@ class TestSuite:
                     log=case_log,
                 )
 
-            self.__after_case(
-                case_result=case_result,
-                timeout=case_timeout,
-                test_kwargs=case_kwargs,
-                log=case_log,
-            )
-        
             nodes = environment.nodes
             for node in nodes.list():
                 suite_log.info(f"Value of check_dmesg_after_case {node.check_dmesg_after_case}")
@@ -770,6 +763,13 @@ class TestSuite:
                         case_result.set_status(TestStatus.FAILED, f"failed. Kernel Errors found in the DMesg logs after test case execution. Please check the same!")
                         self.status = TestStatus.FAILED
                         break
+
+            self.__after_case(
+                case_result=case_result,
+                timeout=case_timeout,
+                test_kwargs=case_kwargs,
+                log=case_log,
+            )
 
             if case_result.status == TestStatus.FAILED:
                 try:
