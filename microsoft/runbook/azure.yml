@@ -6,8 +6,6 @@ variable:
     value: "westus3"
   - name: keep_environment
     value: "no"
-  - name: check_dmesg_after_case
-    value: true
   - name: resource_group_name
     value: ""
   - name: marketplace_image
@@ -44,7 +42,6 @@ platform:
     admin_private_key_file: $(admin_private_key_file)
     admin_password: $(admin_password)
     keep_environment: $(keep_environment)
-    check_dmesg_after_case: $(check_dmesg_after_case)
     azure:
       resource_group_name: $(resource_group_name)
       deploy: $(deploy)
