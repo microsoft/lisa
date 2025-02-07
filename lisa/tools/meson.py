@@ -42,58 +42,71 @@ class Meson(Tool):
         # packaged as 'meson' on older systems and 'python3-meson' on newer ones,
         # since it's actually just a python package.
         # But now we have a bunch of annoying cases.
-        # 'meson' is installed but the wrong version
-        # meson is installed but the right version
-        # meson is not installed and it's the wrong version
-        # meson is not installed and it's the right version
+        # 1.  meson is installed and it's the right version
+        # 2. 'meson' is installed but the wrong version
+        # 3. meson is not installed and the right version is in the repo
+        # 4. meson is not installed and the wrong version is in the repo
+
         for pkg in [
             "python3-meson",
             "meson",
         ]:
             if posix_os.package_exists(pkg):
                 package_installed = pkg
-                break
-            elif posix_os.is_package_in_repo(pkg):
+            if posix_os.is_package_in_repo(pkg):
                 package_available = pkg
+            if package_installed or package_available:
                 break
 
-        # install the available package, if one was available and not installed
-        if package_available:
-            posix_os.install_packages(package_available)
-            package_installed = package_available
-
-        # now, if either previoulsy or newly installed package, check the version
         if package_installed:
+            # check the installed version before touching anything
             if (
                 posix_os.get_package_information(package_installed, use_cached=False)
-                < self._minimum_version
+                >= self._minimum_version
             ):
-                # and uninstall if the version is not recent enough
-                posix_os.uninstall_packages(package_installed)
-                package_installed = ""
-            else:
-                # otherwise, we're done.
+                # meson is installed and it's the right version
                 return self._check_exists()
 
-        # If we get here, we couldn't find a good version from the package manager
-        # so we will install with pip. This is least desirable since it introduces
+        # otherwise, install the available package from the repo
+        if package_available:
+            posix_os.install_packages(package_available)
+            # and update the cached version info
+            posix_os.get_package_information(package_available, use_cached=False)
+            package_installed = package_available
+
+        # check the version, return if it's good, remove if not
+        if package_installed:
+            if (
+                posix_os.get_package_information(package_installed)
+                >= self._minimum_version
+            ):
+                # the right version was in the repo
+                return self._check_exists()
+            else:
+                # the wrong version was in the repo
+                # (or wrong version installed and no update available from repo)
+                posix_os.uninstall_packages(package_installed)
+                package_installed = ""
+
+        # If we get here, we couldn't find a good version from the package manager.
+        # So we will install with pip. This is least desirable since it introduces
         # unpredictable behavior when running meson or ninja with sudo.
         # Like sudo ninja install, for example.
-        if not package_installed:
-            username = self.node.tools[Whoami].get_username()
-            self.node.tools[Pip].install_packages("meson", install_to_user=True)
-            self.node.tools[Ln].create_link(
-                f"/home/{username}/.local/bin/meson", "/usr/bin/meson", force=True
-            )
-            # ensure sudo has access as well
-            self.node.execute(
-                "pip3 install meson",
-                sudo=True,
-                shell=True,
-                no_debug_log=True,
-                no_info_log=True,
-                no_error_log=True,
-            )
+
+        username = self.node.tools[Whoami].get_username()
+        self.node.tools[Pip].install_packages("meson", install_to_user=True)
+        self.node.tools[Ln].create_link(
+            f"/home/{username}/.local/bin/meson", "/usr/bin/meson", force=True
+        )
+        # ensure sudo has access as well
+        self.node.execute(
+            "pip3 install meson",
+            sudo=True,
+            shell=True,
+            no_debug_log=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
 
         return self._check_exists()
 
