@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, List, Type, Optional
 
 from lisa import schema
 from lisa.feature import Feature
@@ -23,7 +23,11 @@ class NetworkInterface(Feature):
         return True
 
     def switch_sriov(
-        self, enable: bool, wait: bool = True, reset_connections: bool = True
+        self,
+        enable: bool,
+        wait: bool = True,
+        reset_connections: bool = True,
+        index: Optional[int] = None,
     ) -> None:
         raise NotImplementedError
 
