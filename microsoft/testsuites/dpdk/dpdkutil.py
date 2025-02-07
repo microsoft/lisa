@@ -1226,12 +1226,28 @@ devname_port_regex = re.compile(
 
 
 class DpdkDevnameInfo:
+    """
+    dpdk-devname is a small example app written by github.com/mcgov
+    It just prints the DPDK eth_dev info for each device
+    detected by the DPDK EAL.
+    We need these port_ids when using the netvsc PMD; so
+    devname makes the choices visible and unambiguous.
+    """
+
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
 
-    def get_port_info(self, nics: List[NicInfo]) -> str:
+    def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
+        # since we only need this for netvsc, we'll only generate
+        # the device inclusion info for netvsc cases.
+        # This is needed because the port_ids will change
+        # depending on how many NICs are present _and_ enabled
+        # by the EAL.
         if self._node.nics.is_mana_device_present():
+            # mana needs a vdev argument of pci info
+            # followed by kv pairs for mac addresses.
+            # https://doc.dpdk.org/guides/nics/mana.html
             nic_args = (
                 ",".join(
                     [f'--vdev="{nics[0].pci_slot}']
@@ -1240,25 +1256,38 @@ class DpdkDevnameInfo:
                 + '"'
             )
         else:
+            # mlx nics; we get to cheat and just disallow the SSH interface.
+            # the driver and EAL handles the rest.
             nic_args = f"-b {self._node.nics.get_primary_nic().pci_slot}"
         self.nic_args = nic_args
+        # run the application with the device include arguments.
+
         output = self._node.execute(
             f"{str(self._testpmd.get_example_app_path('dpdk-devname'))} {nic_args}",
             sudo=True,
             shell=True,
         ).stdout
 
+        # find all the matches for devices bound to net_netvsc PMD
         matches = devname_port_regex.findall(output)
         if not matches:
             fail(f"dpdk-devname could not find port ids in: {output}")
 
-        # and create the port mask in hex from the port ids
+        # then create the port mask in hex from the port ids
         port_mask = 0
         self.port_ids = []
+        found_ports = 0
         for match in matches:
+            found_ports += 1
             port_id = int(match)
             self.port_ids += [port_id]
             port_mask ^= 1 << (port_id)
+        if found_ports != expect_ports:
+            self._node.execute("dmesg", sudo=True)
+            fail(
+                "Could not find expected number of DPDK ports! "
+                "Application will fail. Bailing..."
+            )
         self.port_mask = hex(port_mask)[2:]
         return self.port_mask
 
@@ -1273,7 +1302,6 @@ def run_dpdk_symmetric_mp(
         for nic in node.nics.nics.values()
         if nic != node.nics.get_primary_nic() and nic.lower
     ][:2]
-
     ping = node.tools[Ping]
     ping.install()
     # initialize for netvsc, we rely on the debug messages in this test
@@ -1322,7 +1350,9 @@ def run_dpdk_symmetric_mp(
     symmetric_mp_args = (
         f"{nic_args} -n 2 "
         "--log-level netvsc,debug --log-level mana,debug "
-        "--log-level eal,debug "
+        "--log-level eal,debug --log-level mbuf,debug "
+        "--log-level ethdev,debug --log-level pci,debug "
+        "--log-level port,debug "
         "--log-level vmbus,debug "
         f"-- -p {port_mask} --num-procs 2"
     )
@@ -1332,7 +1362,7 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=330,
+        timeout=660,
         signal=SIGINT,
         kill_timeout=30,
     )
@@ -1346,28 +1376,43 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
             f"{symmetric_mp_args} --proc-id 1"
         ),
-        timeout=300,
+        timeout=600,
         signal=SIGINT,
         kill_timeout=35,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
-
+    ping.ping_async(
+        target=test_nics[0].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=50,
+        interval=0.05,
+    )
+    ping.ping(
+        target=test_nics[1].ip_addr,
+        nic_name=node.nics.get_primary_nic().name,
+        count=50,
+        ignore_error=True,
+        interval=0.05,
+    )
     if trigger_rescind:
         # turn SRIOV off
-        node.features[NetworkInterface].switch_sriov(
-            enable=False, wait=False, reset_connections=False
-        )
+        for index in [1, 2]:
+            node.features[NetworkInterface].switch_sriov(
+                enable=False, wait=False, reset_connections=False, index=index
+            )
 
         # wait for the RTE_DEV_EVENT_REMOVE message
         primary.wait_output(
             "HN_DRIVER: netvsc_hotadd_callback(): "
-            "Device notification type=1"  # RTE_DEV_EVENT_REMOVE
+            "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
+            delta_only=True,
         )  # relying on compiler defaults here, not great.
 
         # turn SRIOV on
-        node.features[NetworkInterface].switch_sriov(
-            enable=True, wait=False, reset_connections=False
-        )
+        for index in [1, 2]:
+            node.features[NetworkInterface].switch_sriov(
+                enable=True, wait=False, reset_connections=False, index=index
+            )
 
         # wait for the RTE_DEV_EVENT_ADD message
         primary.wait_output(
@@ -1380,39 +1425,38 @@ def run_dpdk_symmetric_mp(
         primary.wait_output(
             (
                 "HN_DRIVER: netvsc_hotplug_retry(): Found matching MAC address, "
-                f"adding device {test_nics[0].pci_device_name} "
-                f"network name {test_nics[0].lower} "
-                f"args mac={test_nics[0].mac_addr},mac={test_nics[1].mac_addr}"
+                f"adding device {test_nics[0].pci_slot}"
             ),
             delta_only=True,
         )  # relying on compiler defaults here, not great.
-
+        primary.wait_output(
+            "mana_dev_start(): TX/RX queues have started", delta_only=True
+        )
     ping.ping_async(
         target=test_nics[0].ip_addr,
         nic_name=node.nics.get_primary_nic().name,
         count=100,
+        interval=0.05,
     )
     ping.ping(
         target=test_nics[1].ip_addr,
         nic_name=node.nics.get_primary_nic().name,
         count=100,
         ignore_error=True,
+        interval=0.05,
     )
     test_kit.dmesg.check_kernel_errors(force_run=True)
+
+    # kill the processes with SIGINT, there's a timeout if this fails
+    process_name = (
+        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
+    )
+    node.tools[Kill].by_name(f"{process_name}", signum=SIGINT, ignore_not_exist=True)
+
     # check the exit codes
-    secondary_result = secondary.wait_result(
-        expected_exit_code=0,
-        expected_exit_code_failure_message=(
-            "Secondary symmetric_mp process returned error code."
-        ),
-    )
-    assert_that(secondary_result.exit_code).described_as(
-        f"Secondary process failure: {secondary_result.stdout}"
-    ).is_zero()
-    primary_result = primary.wait_result(
-        expected_exit_code=0,
-        expected_exit_code_failure_message="Primary process failed to exit with 0",
-    )
+    primary_result = primary.wait_result()
+    secondary_result = secondary.wait_result()
+
     node.log.debug(
         f"Primary process:\n\n{primary_result.stdout}\n"
         f"\nprimary stderr:\n{primary_result.stderr}"
@@ -1421,6 +1465,14 @@ def run_dpdk_symmetric_mp(
         f"Secondary system:\n\n{secondary_result.stdout}\n"
         f"secondary stderr:\n{secondary_result.stderr}"
     )
+    assert_that(primary_result.exit_code).described_as(
+        f"Primary process failure: {primary_result.stdout}"
+    ).is_zero()
+    assert_that(secondary_result.exit_code).described_as(
+        f"Secondary process failure: {secondary_result.stdout}"
+    ).is_zero()
+
+    # check for the packets we sent
     all_matches = [
         result_regex.finditer(secondary_result.stdout),
         result_regex.finditer(primary_result.stdout),
