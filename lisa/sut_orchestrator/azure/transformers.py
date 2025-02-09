@@ -33,6 +33,8 @@ from .common import (
     check_or_create_gallery_image_version,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    copy_vhd_using_azcopy,
+    generate_user_delegation_sas_token,
     get_compute_client,
     get_deployable_vhd_path,
     get_environment_context,
@@ -95,6 +97,9 @@ class VhdTransformerSchema(schema.Transformer):
 
     # deprovision the VM or not
     deprovision: bool = True
+
+    # the AzCopy path can be specified if use this tool to copy blob
+    azcopy_path: str = ""
 
 
 @dataclass_json
@@ -245,9 +250,29 @@ class VhdTransformer(Transformer):
             vhd_path = _generate_vhd_path(container_client, runbook.file_name_part)
         vhd_url_path = f"{container_client.url}/{vhd_path}"
         vhd_blob_client = container_client.get_blob_client(vhd_path)
-        vhd_blob_client.start_copy_from_url(
-            sas_url, metadata=None, incremental_copy=False
-        )
+        if runbook.azcopy_path:
+            sas_token = generate_user_delegation_sas_token(
+                container_name=vhd_blob_client.container_name,
+                blob_name=vhd_blob_client.blob_name,
+                credential=platform.credential,
+                cloud=platform.cloud,
+                account_name=runbook.storage_account_name,
+                writable=True,
+                platform=platform,
+            )
+            dst_vhd_sas_url = f"{vhd_url_path}?{sas_token}"
+            self._log.info(f"Copying VHD using AzCopy: {vhd_path}")
+            copy_vhd_using_azcopy(
+                azcopy_path=runbook.azcopy_path,
+                src_vhd_sas_url=sas_url,
+                dst_vhd_sas_url=dst_vhd_sas_url,
+                blob_client=vhd_blob_client,
+                log=self._log,
+            )
+        else:
+            vhd_blob_client.start_copy_from_url(
+                sas_url, metadata=None, incremental_copy=False
+            )
 
         if vmgs_sas_url:
             vmgs_path = vhd_path.replace(".vhd", "_vmgs.vhd")
@@ -257,9 +282,29 @@ class VhdTransformer(Transformer):
             )
             vmgs_url_path = f"{container_client.url}/{vmgs_path}"
             vmgs_blob_client = container_client.get_blob_client(vmgs_path)
-            vmgs_blob_client.start_copy_from_url(
-                vmgs_sas_url, metadata=None, incremental_copy=False
-            )
+            if runbook.azcopy_path:
+                sas_token = generate_user_delegation_sas_token(
+                    container_name=vmgs_blob_client.container_name,
+                    blob_name=vmgs_blob_client.blob_name,
+                    credential=platform.credential,
+                    cloud=platform.cloud,
+                    account_name=runbook.storage_account_name,
+                    writable=True,
+                    platform=platform,
+                )
+                dst_vhd_sas_url = f"{vmgs_url_path}?{sas_token}"
+                self._log.info(f"Copying VHD using AzCopy: {vmgs_path}")
+                copy_vhd_using_azcopy(
+                    azcopy_path=runbook.azcopy_path,
+                    src_vhd_sas_url=vmgs_sas_url,
+                    dst_vhd_sas_url=dst_vhd_sas_url,
+                    blob_client=vmgs_blob_client,
+                    log=self._log,
+                )
+            else:
+                vmgs_blob_client.start_copy_from_url(
+                    vmgs_sas_url, metadata=None, incremental_copy=False
+                )
             wait_copy_blob(vmgs_blob_client, vmgs_url_path, self._log)
         else:
             vmgs_url_path = ""
