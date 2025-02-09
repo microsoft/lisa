@@ -1907,10 +1907,6 @@ def copy_vhd_to_storage(
         if not vhd_exists:
             azcopy_path = platform._azure_runbook.azcopy_path
             if azcopy_path:
-                log.info(f"AzCopy path: {azcopy_path}")
-                if not os.path.exists(azcopy_path):
-                    raise LisaException(f"{azcopy_path} does not exist")
-
                 sas_token = generate_user_delegation_sas_token(
                     container_name=blob_client.container_name,
                     blob_name=blob_client.blob_name,
@@ -1921,23 +1917,14 @@ def copy_vhd_to_storage(
                     platform=platform,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
-                log.info(f"copying vhd by azcopy {dst_vhd_name}")
-                try:
-                    local().execute(
-                        f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
-                        expected_exit_code=0,
-                        expected_exit_code_failure_message=(
-                            "Azcopy failed to copy the blob"
-                        ),
-                        timeout=60 * 60,
-                    )
-                except Exception as identifier:
-                    blob_client.delete_blob(delete_snapshots="include")
-                    raise LisaException(f"{identifier}")
-
-                # Set metadata to mark the blob copied by AzCopy successfully
-                metadata = {"AzCopyStatus": "Success"}
-                blob_client.set_blob_metadata(metadata)
+                log.info(f"Copying VHD using AzCopy: {dst_vhd_name}")
+                copy_vhd_using_azcopy(
+                    azcopy_path=azcopy_path,
+                    src_vhd_sas_url=src_vhd_sas_url,
+                    dst_vhd_sas_url=dst_vhd_sas_url,
+                    blob_client=blob_client,
+                    log=log,
+                )
             else:
                 blob_client.start_copy_from_url(
                     src_vhd_sas_url, metadata=None, incremental_copy=False
@@ -1946,6 +1933,36 @@ def copy_vhd_to_storage(
         wait_copy_blob(blob_client, dst_vhd_name, log)
 
     return full_vhd_path
+
+
+def copy_vhd_using_azcopy(
+    azcopy_path: str,
+    src_vhd_sas_url: str,
+    dst_vhd_sas_url: str,
+    blob_client: BlobClient,
+    log: Logger,
+) -> None:
+    """
+    Uses AzCopy to copy a VHD from source to destination.
+    """
+    log.info(f"AzCopy path: {azcopy_path}")
+    if not os.path.exists(azcopy_path):
+        raise LisaException(f"{azcopy_path} does not exist")
+
+    try:
+        local().execute(
+            f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("AzCopy failed to copy the blob"),
+            timeout=60 * 60,
+        )
+    except Exception as identifier:
+        blob_client.delete_blob(delete_snapshots="include")
+        raise LisaException(f"AzCopy error: {identifier}")
+
+    # Set metadata to mark the blob copied by AzCopy successfully
+    metadata = {"AzCopyStatus": "Success"}
+    blob_client.set_blob_metadata(metadata)
 
 
 def wait_copy_blob(
