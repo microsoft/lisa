@@ -70,7 +70,7 @@ class Meson(Tool):
         if package_available:
             posix_os.install_packages(package_available)
             # and update the cached version info
-            posix_os.get_package_information(package_installed, use_cached=False)
+            posix_os.get_package_information(package_available, use_cached=False)
             package_installed = package_available
 
         # check the version, return if it's good, remove if not
