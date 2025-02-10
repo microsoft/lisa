@@ -426,6 +426,21 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
+    def _check_available_testpmd_flags(self) -> None:
+        help_output = self.node.execute(
+            f"{self.command} --help", no_debug_log=True, no_info_log=True
+        )
+        check_output = help_output.stderr + help_output.stdout
+        allow_flag = "-a, --allow" in check_output
+        if allow_flag:
+            self._include_flag = "-a"
+        else:
+            self._include_flag = "-w"
+        if "--txonly-multi-flow" in check_output:
+            self._multi_flow_flag = "--txonly-multi-flow"
+        else:
+            self._multi_flow_flag = ""
+
     def generate_testpmd_include(
         self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
     ) -> str:
@@ -450,7 +465,7 @@ class DpdkTestpmd(Tool):
         else:
             include_flag = "-w"
 
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+        include_flag = f' {self._include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
@@ -582,7 +597,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
-            "--mbuf-size=2048,8096 --txonly-multi-flow"
+            f"--mbuf-size=2048,8096 {self._multi_flow_flag}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -766,6 +781,7 @@ class DpdkTestpmd(Tool):
                 self._dpdk_version_info = pkgconfig.get_package_version(
                     self._dpdk_lib_name
                 )
+            self._check_available_testpmd_flags()
 
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
@@ -823,6 +839,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info = self.installer.get_installed_version()
         self.load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)
+        self._check_available_testpmd_flags()
         return True
 
     def load_drivers_for_dpdk(self) -> None:
