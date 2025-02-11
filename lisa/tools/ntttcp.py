@@ -138,6 +138,8 @@ class Ntttcp(Tool):
         # and maximum sizes for TCP receive buffers to
         # optimize network performance based on available bandwidth and latency.
         {"net.ipv4.tcp_rmem": "4096 87380 16777216"},
+        {"net.ipv4.tcp_wmem": "4096 87380 16777216"},
+        {"net.core.netdev_max_backlog": "5000"},
     ]
     sys_list_udp = [
         {"net.core.rmem_max": "67108864"},
