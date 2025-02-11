@@ -20,7 +20,7 @@ from lisa.features.security_profile import (
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
+from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
 from lisa.tools.lsvmbus import VmBusDevice
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
@@ -134,24 +134,24 @@ class LsVmBus(TestSuite):
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
         core_count = lscpu_tool.get_core_count()
-        # Each netvsc device should have "the_number_of_vCPUs" channel(s)
-        #  with a cap value of 8.
-        expected_network_channel_count = min(core_count, 8)
-        # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
-        #  with a cap value of 64.
         if node.nics.is_mana_device_present():
             expected_scsi_channel_count = min(core_count, 64)
         else:
             expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
+        # With the new change, we get the expected channel count from Ethtool - since it refers to hyperv.h in the background
+        origin_device_channel = (
+            node.tools[Ethtool].get_device_channels_info("eth0", True)
+        ).current_channels
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 assert_that(vmbus_device.channel_vp_map).is_length(
-                    expected_network_channel_count
+                    origin_device_channel
                 )
             if vmbus_device.name == "Synthetic SCSI Controller":
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_scsi_channel_count
                 )
+        
 
     @TestCaseMetadata(
         description="""
