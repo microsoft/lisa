@@ -80,6 +80,11 @@ def _create_cloud_init_iso(
             },
         ],
         "ssh_pwauth": True,
+        "growpart": {
+            "mode": "auto",
+            "devices": ["/dev/sda"],
+            "fixup_filesystem": True,
+        },
     }
     meta_data = {
         "local-hostname": host_name,
