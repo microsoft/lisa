@@ -1345,6 +1345,12 @@ class Ubuntu(Debian):
         if not code_name:
             code_name = self.information.codename
         repo_url = "http://packages.microsoft.com/repos/azurecore/"
+
+        # Only certain code names are allowed for azurecore repo
+        allowed_code_names = ["bionic", "focal", "jammy", "trusty", "xenial"]
+        if code_name not in allowed_code_names:
+            code_name = "bionic"
+
         self.add_repository(
             repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
             keys_location=[
