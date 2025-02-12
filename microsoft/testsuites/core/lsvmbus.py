@@ -107,7 +107,7 @@ class LsVmBus(TestSuite):
             channels created and associated.
             2.1 Check expected channel count of each netvsc matches that obtained from the ethtool.
                 2.1.1 Get expected channel count of netvsc from ethtool.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/netvsc_drv.c#n2001
+                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/netvsc_drv.c#n2001 # noqa: E501
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
                 2.2.1 Caculate channel count of each storvsc SCSI device.
@@ -132,7 +132,7 @@ class LsVmBus(TestSuite):
         core_count = lscpu_tool.get_core_count()
 
         # 2.1 Get expected channel count of each netvsc is min (num of vcpu, 8).
-        expected_netsvc_channel_count = (
+        expected_network_channel_count = (
             node.tools[Ethtool].get_device_channels_info("eth0", True)
         ).current_channels
 
@@ -141,17 +141,15 @@ class LsVmBus(TestSuite):
             expected_scsi_channel_count = min(core_count, 64)
         else:
             expected_scsi_channel_count = math.ceil(min(core_count, 256) / 4)
-
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 assert_that(vmbus_device.channel_vp_map).is_length(
-                    expected_netsvc_channel_count
+                    expected_network_channel_count
                 )
             if vmbus_device.name == "Synthetic SCSI Controller":
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_scsi_channel_count
-                )
-        
+                )        
 
     @TestCaseMetadata(
         description="""
