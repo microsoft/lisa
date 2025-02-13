@@ -857,9 +857,18 @@ class TestSuite:
                 test_kwargs=test_kwargs,
             )
             case_result.set_status(TestStatus.PASSED, "")
+            if node.assert_kernel_error:
+                nodes = case_result.environment.nodes
+                for node in nodes.list():
+                    self.__node_kernel_error_check(node, log)
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
+
+    def __node_kernel_error_check(self, node: schema.NodeSpace, log: Logger) -> None:
+        dmesg_check_result = node.exec_check_dmesg_oops()[0]
+        if dmesg_check_result:
+            raise LisaException(f"failed. Kernel Errors found in the DMesg logs after test case execution. Please check the same!")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
