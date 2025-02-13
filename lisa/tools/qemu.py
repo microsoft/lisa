@@ -139,7 +139,7 @@ class Qemu(Tool):
         cmd = self._configure_qemu_command_for_cpu(cmd)
 
         # allow qemu to use 2 GB memory
-        cmd += "-m 2G "
+        cmd += "-m 4G "
 
         # -enable-kvm: enable kvm
         # -display: enable or disable display
