@@ -104,7 +104,11 @@ class Qemu(Tool):
                     f"-device {nic_model},netdev=nettap{self.interface_count},"
                     f"mac={random_mac_address} "
                 )
+                # vhost-net is a kernel module that accelerates virtio-net performance
+                # by offloading packet processing from QEMU's user space to the host
+                # kernel reducing latency and CPU overhead
                 if self.node.tools[KernelConfig].is_enabled("CONFIG_VHOST_NET"):
+                    # vhose-net depends on CONFIG_VHOST_NET kernel config
                     cmd += f"-netdev tap,id=nettap{self.interface_count},vhost=on,script=no "
                 else:
                     cmd += f"-netdev tap,id=nettap{self.interface_count},script=no "
