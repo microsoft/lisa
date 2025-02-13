@@ -149,7 +149,7 @@ class LsVmBus(TestSuite):
             if vmbus_device.name == "Synthetic SCSI Controller":
                 assert_that(vmbus_device.channel_vp_map).is_length(
                     expected_scsi_channel_count
-                )        
+                )
 
     @TestCaseMetadata(
         description="""
