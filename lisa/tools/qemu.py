@@ -10,7 +10,7 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
-from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
+from lisa.tools import Ip, KernelConfig, Kill, Lscpu, Lsmod, Pgrep
 from lisa.tools.lscpu import CpuType
 from lisa.util import LisaException, SkippedException, get_matched_str
 
@@ -104,9 +104,10 @@ class Qemu(Tool):
                     f"-device {nic_model},netdev=nettap{self.interface_count},"
                     f"mac={random_mac_address} "
                 )
-                cmd += (
-                    f"-netdev tap,id=nettap{self.interface_count},vhost=on,script=no "
-                )
+                base_cmd = f"-netdev tap,id=nettap{self.interface_count},script=no"
+                if self.node.tools[KernelConfig].is_enabled("CONFIG_VHOST_NET"):
+                    base_cmd += ",vhost=on"
+                cmd += base_cmd + " "
                 added_taps.append(f"tap{self.interface_count}")
                 self.interface_count += 1
 
