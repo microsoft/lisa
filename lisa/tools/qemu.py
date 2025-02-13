@@ -121,12 +121,18 @@ class Qemu(Tool):
 
         if cd_rom:
             cmd += f" -cdrom {cd_rom} "
+            self.node.execute(
+                f"qemu-img resize {guest_image_path} +1G", sudo=True, shell=True
+            )
 
         # kill any existing qemu process if stop_existing_vm is True
         if stop_existing_vm:
             self.delete_vm()
 
         cmd = self._configure_qemu_command_for_cpu(cmd)
+
+        # allow qemu to use 2 GB memory
+        cmd += "-m 2G "
 
         # -enable-kvm: enable kvm
         # -display: enable or disable display
