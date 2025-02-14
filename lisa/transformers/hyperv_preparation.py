@@ -33,6 +33,9 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         # Enable Hyper-V
         hv = self._node.tools[HyperV]
 
+        # Configure lisa working path to use free disk.
+        hv.use_raw_disk_for_lisa_working_dir()
+
         # Create an internal switch.
         hv.create_switch(name=switch_name)
 
@@ -40,4 +43,7 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
         # Configure Internal DHCP
         hv.enable_internal_dhcp()
+
+        # Reboot the node to apply all the changes.
+        self._node.reboot()
         return {}
