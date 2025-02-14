@@ -86,7 +86,7 @@ class Qemu(Tool):
             )
             if not get_matched_str(try_pcid_flag.stdout, self.NO_PCID_PATTERN):
                 cmd += ",pcid=no"
-        cmd += f" -smp {cores} -m {memory_in_gb} -hda {guest_image_path} "
+        cmd += f" -smp {cores} -m {memory_in_gb}G -hda {guest_image_path} "
 
         # Add qemu managed nic device
         # This will be used to communicate with ssh to the guest
