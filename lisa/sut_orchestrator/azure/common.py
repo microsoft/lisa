@@ -2480,7 +2480,7 @@ def check_or_create_gallery_image(
     gallery_image_osstate: str,
     gallery_image_hyperv_generation: int,
     gallery_image_architecture: str,
-    gallery_image_securitytype: str,
+    gallery_image_features: Dict[str, Any],
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
@@ -2512,12 +2512,13 @@ def check_or_create_gallery_image(
                 ],
             }
 
-            if gallery_image_securitytype:
+            if gallery_image_features:
                 image_post_body["features"] = [
                     {
-                        "name": "SecurityType",
-                        "value": gallery_image_securitytype,
+                        "name": key,
+                        "value": value,
                     }
+                    for (key, value) in gallery_image_features.items()
                 ]
             operation = compute_client.gallery_images.begin_create_or_update(
                 gallery_resource_group_name,
