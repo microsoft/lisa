@@ -14,7 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
 from lisa.tools import Pgrep, Stat
 from lisa.util import get_matched_str
@@ -27,7 +27,7 @@ from lisa.util import get_matched_str
     This test suite verify the KVP service runs well on Azure and Hyper-V
     platforms. The KVP is used to communicate between Windows host and guest VM.
     """,
-    requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+    requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
 )
 class Kvp(TestSuite):
     # lrwx------ 1 root root 64 Oct 18 19:05 9 -> /dev/vmbus/hv_kvp

@@ -34,7 +34,7 @@ from lisa.features.security_profile import (
 from lisa.node import Node
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
@@ -310,7 +310,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
@@ -600,7 +600,7 @@ class Storage(TestSuite):
         """,
         timeout=TIME_OUT,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
         ),
         use_new_environment=True,
         priority=5,

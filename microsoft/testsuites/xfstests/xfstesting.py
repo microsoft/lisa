@@ -19,7 +19,7 @@ from lisa import (
 )
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureFileShare
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
@@ -494,7 +494,7 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             min_core_count=16,
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE, HYPERV],
             unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
