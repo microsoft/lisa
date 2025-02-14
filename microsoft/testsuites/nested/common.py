@@ -302,7 +302,7 @@ def parse_nested_image_variables(
 
     if not nested_image_url:
         nested_image_url = (
-            "https://cloud-images.ubuntu.com/jammy/current/"
+            "https://cloud-images.ubuntu.com/jammy/20250207/"
             "jammy-server-cloudimg-amd64.img"
         )
 
