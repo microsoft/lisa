@@ -34,10 +34,24 @@ from lisa.features.security_profile import (
 from lisa.node import Node
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
+from lisa.search_space import SetSpace
 from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import AzureNodeSchema, VhdSchema
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings, AzureFileShare
+from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Blkid, Cat, Dmesg, Echo, Lsblk, Mount, NFSClient, Swap, Sysctl
+from lisa.tools import (
+    Blkid,
+    Cat,
+    Dmesg,
+    Echo,
+    Lsblk,
+    Lsinitrd,
+    Mount,
+    NFSClient,
+    Swap,
+    Sysctl,
+)
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
@@ -297,6 +311,57 @@ class Storage(TestSuite):
     )
     def verify_nvme_disk_controller_type(self, node: RemoteNode) -> None:
         self._verify_disk_controller_type(node, DiskControllerType.NVME)
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the nvme drivers are either built in or present in initramfs.
+        This test can be used to verify an image before it is tagged as NVMe capable.
+        """,
+        priority=1,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+        ),
+    )
+    def verify_supports_nvme(self, node: RemoteNode, environment: Environment) -> None:
+        has_nvme_core = node.tools[KernelConfig].is_built_in("CONFIG_NVME_CORE") or (
+            node.tools[KernelConfig].is_built_as_module("CONFIG_NVME_CORE")
+            and node.tools[Lsinitrd].has_module("nvme-core.ko")
+        )
+        has_nvme = node.tools[KernelConfig].is_built_in("CONFIG_BLK_DEV_NVME") or (
+            node.tools[KernelConfig].is_built_as_module("CONFIG_BLK_DEV_NVME")
+            and node.tools[Lsinitrd].has_module("nvme.ko")
+        )
+
+        # Pass condition
+        if has_nvme_core and has_nvme:
+            return
+
+        assert isinstance(environment.platform, AzurePlatform)
+        node_runbook: AzureNodeSchema = node.capability.get_extended_runbook(
+            AzureNodeSchema, AZURE
+        )
+        image = node_runbook.image
+        # Failure conditions
+        if image and not isinstance(image, VhdSchema):
+            image.load_from_platform(environment.platform)
+            if isinstance(image.disk_controller_type, DiskControllerType):
+                assert DiskControllerType.NVME != image.disk_controller_type, (
+                    "Image is tagged as NVMe capable, but NVMe drivers are missing."
+                    f"nvme-core: {has_nvme_core}, nvme: {has_nvme}"
+                )
+            elif isinstance(image.disk_controller_type, SetSpace):
+                assert (
+                    DiskControllerType.NVME not in image.disk_controller_type.items
+                ), (
+                    "Image is tagged as NVMe capable, but NVMe drivers are missing."
+                    f"nvme-core: {has_nvme_core}, nvme: {has_nvme}"
+                )
+
+        # Skip if image is not tagged as NVMe capable
+        raise SkippedException(
+            "NVME drivers are not present. "
+            f"nvme-core: {has_nvme_core}, nvme: {has_nvme}"
+        )
 
     @TestCaseMetadata(
         description="""
