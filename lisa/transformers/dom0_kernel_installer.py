@@ -10,7 +10,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner
-from lisa.tools import Cp, Echo, Ln, Ls, Sed, Tar, Uname
+from lisa.tools import Cat, Cp, Echo, Ln, Ls, Sed, Tar, Uname
 from lisa.util import field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -128,7 +128,9 @@ class BinaryInstaller(BaseInstaller):
             )
         else:
             # Mariner 3.0 initrd
-            target = f"/boot/initramfs-{current_kernel}.img"
+            initramfs = f"/boot/initramfs-{new_kernel}.img"
+            dracut_cmd = f"dracut --force {initramfs} {new_kernel}"
+            node.execute(dracut_cmd, sudo=True, shell=True)
             link = f"/boot/initramfs-{new_kernel}.img"
 
             if isinstance(node.os, CBLMariner) and mariner_version == 2:
@@ -136,11 +138,11 @@ class BinaryInstaller(BaseInstaller):
                 target = f"/boot/initrd.img-{current_kernel}"
                 link = f"/boot/initrd.img-{new_kernel}"
 
-            ln = node.tools[Ln]
-            ln.create_link(
-                target=target,
-                link=link,
-            )
+                ln = node.tools[Ln]
+                ln.create_link(
+                    target=target,
+                    link=link,
+                )
 
         if kernel_config_path:
             # Copy kernel config
@@ -243,6 +245,9 @@ def _update_mariner_config(
         initrd_regexp = f"mariner_initrd_mshv=initrd.img-{current_kernel}"
         initrd_replacement = f"mariner_initrd_mshv=initrd.img-{new_kernel}"
 
+    cat = node.tools[Cat]
+    cat.read(mariner_config, sudo=True, force_run=True)
+
     # Modify file to point new kernel binary
     sed.substitute(
         regexp=vmlinuz_regexp,
@@ -258,3 +263,26 @@ def _update_mariner_config(
         file=mariner_config,
         sudo=True,
     )
+
+    uuid = node.execute(
+        "lsblk -o MOUNTPOINT,UUID | grep '/ ' | awk '{print $2}'",
+        sudo=True,
+        shell=True,
+    ).stdout.strip()
+    partuuid = node.execute(
+        "lsblk -o MOUNTPOINT,PARTUUID | grep '/ ' | awk '{print $2}'",
+        sudo=True,
+        shell=True,
+    ).stdout.strip()
+
+    print(f"root partition UUID: {uuid}")
+    print(f"root partition PARTUUID: {partuuid}")
+
+    sed.substitute(
+        regexp=f"root=UUID={uuid}",
+        replacement=f"root=PARTUUID={partuuid}",
+        file=mariner_config,
+        sudo=True,
+    )
+
+    cat.read(mariner_config, sudo=True, force_run=True)
