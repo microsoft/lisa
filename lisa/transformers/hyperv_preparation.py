@@ -28,16 +28,4 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
-        switch_name = "InternalNAT"
-
-        # Enable Hyper-V
-        hv = self._node.tools[HyperV]
-
-        # Create an internal switch.
-        hv.create_switch(name=switch_name)
-
-        hv.setup_nat_networking(switch_name=switch_name, nat_name=switch_name)
-
-        # Configure Internal DHCP
-        hv.enable_internal_dhcp()
         return {}
