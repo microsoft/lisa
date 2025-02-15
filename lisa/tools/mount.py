@@ -94,6 +94,7 @@ class Mount(Tool):
         fs_type: Optional[FileSystem] = None,
         options: str = "",
         format_: bool = False,
+        ignore_error: bool = False,
     ) -> None:
         self.node.shell.mkdir(PurePosixPath(point), exist_ok=True)
         runline = [self.command]
@@ -106,7 +107,8 @@ class Mount(Tool):
             self.node.tools[Mkfs].format_disk(name, format_type)
         runline.append(f"{name} {point}")
         cmd_result = self.node.execute(" ".join(runline), shell=True, sudo=True)
-        cmd_result.assert_exit_code()
+        if not ignore_error:
+            cmd_result.assert_exit_code(0, f"fail to run command {runline}")
 
     @retry(tries=24, delay=5)
     def remount(

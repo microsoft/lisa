@@ -80,7 +80,11 @@ def set_hugepage(node: Node) -> None:
         huge_page_disks = _huge_page_disks.items()
     for point, options in huge_page_disks:
         mount.mount(
-            name="nodev", point=point, fs_type=FileSystem.hugetlbfs, options=options
+            name="nodev",
+            point=point,
+            fs_type=FileSystem.hugetlbfs,
+            options=options,
+            ignore_error=True,
         )
     echo = node.tools[Echo]
     echo.write_to_file(
