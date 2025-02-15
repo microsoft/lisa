@@ -24,7 +24,7 @@ from lisa.feature import Features
 from lisa.nic import Nics, NicsBSD
 from lisa.operating_system import OperatingSystem
 from lisa.secret import add_secret
-from lisa.tools import Chmod, Df, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
+from lisa.tools import Chmod, Df, Dmesg, Echo, Lsblk, Mkfs, Mount, Reboot, Uname, Wsl
 from lisa.tools.mkfs import FileSystem
 from lisa.util import (
     ContextMixin,
@@ -110,6 +110,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._support_sudo: Optional[bool] = None
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
+        self.check_dmesg_after_case: bool = False
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
         self.has_checked_bash_prompt: bool = False
@@ -500,6 +501,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             final_information.update(current_information)
 
         return final_information
+
+    def exec_check_dmesg_oops(self) -> bool:
+        return plugin_manager.hook.check_dmesg_oops(
+            node=self
+        )
 
     def expand_env_path(self, raw_path: str) -> str:
         echo = self.tools[Echo]
@@ -1186,6 +1192,9 @@ class NodeHookSpec:
     def get_node_information(self, node: Node) -> Dict[str, str]:
         ...
 
+    @hookspec
+    def check_dmesg_oops(self, node: Node) -> bool:
+        """Hook for checking dmesg logs after each test case execution."""
 
 class NodeHookImpl:
     @hookimpl
@@ -1208,6 +1217,20 @@ class NodeHookImpl:
                 )
 
         return information
+    
+    @hookimpl
+    def check_dmesg_oops(self, node: Node) -> bool:
+        try:
+            dmesg = node.tools[Dmesg]
+            results = dmesg.check_kernel_errors(force_run=True, throw_error=False)
+            if results:
+                # If there are any results obtained from the Kernel Error Check, then return True
+                return True
+            else:
+                return False
+        except LisaException as ex:
+            node.log.error(f"Error: {ex}")
+            return True
 
 
 plugin_manager.add_hookspecs(NodeHookSpec)
