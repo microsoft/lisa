@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from typing import Any, List, Optional, Type, Union
 
-from lisa.executable import Tool
+from lisa.executable import ExecutableResult, Tool
 from lisa.tools.kernel_config import KLDStat
 from lisa.util import UnsupportedOperationException
 
@@ -141,15 +141,18 @@ class Modprobe(Tool):
                         shell=True,
                     )
 
-    def load_by_file(self, file_name: str) -> None:
+    def load_by_file(
+        self, file_name: str, ignore_error: bool = False
+    ) -> ExecutableResult:
         # the insmod support to load from file.
-        self.node.execute(
+        result = self.node.execute(
             f"insmod {file_name}",
             sudo=True,
             shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=f"failed to load module {file_name}",
         )
+        if not ignore_error:
+            result.assert_exit_code(0, f"failed to load module {file_name}")
+        return result
 
 
 class ModprobeFreeBSD(Modprobe):
