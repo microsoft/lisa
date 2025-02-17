@@ -502,18 +502,10 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         return final_information
 
-    def exec_check_dmesg_oops(self) -> bool:
-        try:
-            dmesg = self.tools[Dmesg]
-            results = dmesg.check_kernel_errors(force_run=True, throw_error=False)
-            if results:
-                # If there are any results obtained from the Kernel Error Check, then return True
-                return True
-            else:
-                return False
-        except LisaException as ex:
-            self.log.error(f"Error: {ex}")
-            return True
+    def exec_check_dmesg_oops(self) -> None:
+        dmesg = self.tools[Dmesg]
+        dmesg.check_kernel_errors(force_run=True, throw_error=True)
+        self.check_kernel_panic()
 
     def expand_env_path(self, raw_path: str) -> str:
         echo = self.tools[Echo]

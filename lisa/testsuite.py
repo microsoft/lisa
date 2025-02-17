@@ -860,15 +860,10 @@ class TestSuite:
             nodes = case_result.environment.nodes
             for node in nodes.list():
                 if node.assert_kernel_error:
-                    self.__node_kernel_error_check(node, log)
+                    node.exec_check_dmesg_oops()
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")
-
-    def __node_kernel_error_check(self, node: schema.NodeSpace, log: Logger) -> None:
-        dmesg_check_result = node.exec_check_dmesg_oops()
-        if dmesg_check_result:
-            raise LisaException(f"failed. Kernel Errors found in the DMesg logs after test case execution. Please check the same!")
 
 
 def get_suites_metadata() -> Dict[str, TestSuiteMetadata]:
