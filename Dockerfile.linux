@@ -17,9 +17,16 @@ RUN tdnf update -y && \
         build-essential \
         cairo-gobject-devel \
         curl \
+        wget \
+        tar \
         ca-certificates && \
     tdnf clean all && \
     rm -rf /var/cache/tdnf /tmp/*
+
+RUN wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz && \
+    tar -xvf azcopy.tar.gz && \
+    mv azcopy*/azcopy /usr/local/bin/ && \
+    rm -rf azcopy*
 
 RUN git clone --depth 1 --branch $(curl --silent "https://api.github.com/repos/microsoft/lisa/releases/latest" \
     | grep '"tag_name":' \
