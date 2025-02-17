@@ -3,12 +3,11 @@
 
 import re
 from time import sleep
-from typing import List, Pattern
+from typing import Dict, List, Pattern
 
 from lisa import Logger, Node, SkippedException, UnsupportedDistroException
 from lisa.nic import NicInfo
-from lisa.operating_system import Redhat
-from lisa.tools import Echo, Ethtool, Mount
+from lisa.tools import Echo, Ethtool, Ls, Mount
 from lisa.tools.mkfs import FileSystem
 from microsoft.testsuites.xdp.xdpdump import XdpDump
 
@@ -28,8 +27,11 @@ _tx_forwarded_patterns = [
     # rx_xdp_tx_xmit
     re.compile(r"^rx_xdp_tx_xmit$"),
 ]
-_huge_page_disks = {"/mnt/huge": "", "/mnt/huge1g": "pagesize=1G"}
-_huge_page_disks_rhel_arm64 = {"/mnt/huge": "", "/mnt/huge512m": "pagesize=512M"}
+# /sys/devices/system/node/node0/hugepages/hugepages-1048576kB
+# /sys/devices/system/node/node0/hugepages/hugepages-32768kB
+# /sys/devices/system/node/node0/hugepages/hugepages-2048kB
+# /sys/devices/system/node/node0/hugepages/hugepages-64kB
+_huge_page_size_pattern = re.compile(r"hugepages-(?P<size>\d+)kB", re.I)
 _nic_not_found = re.compile(r"Couldn't get device .* statistics", re.M)
 
 
@@ -70,15 +72,7 @@ def get_dropped_count(
 
 def set_hugepage(node: Node) -> None:
     mount = node.tools[Mount]
-
-    if (
-        isinstance(node.os, Redhat)
-        and node.os.get_kernel_information().hardware_platform == "aarch64"
-    ):
-        huge_page_disks = _huge_page_disks_rhel_arm64.items()
-    else:
-        huge_page_disks = _huge_page_disks.items()
-    for point, options in huge_page_disks:
+    for point, options in _get_mount_options(node).items():
         mount.mount(
             name="nodev", point=point, fs_type=FileSystem.hugetlbfs, options=options
         )
@@ -109,13 +103,7 @@ def set_hugepage(node: Node) -> None:
 
 
 def remove_hugepage(node: Node) -> None:
-    if (
-        isinstance(node.os, Redhat)
-        and node.os.get_kernel_information().hardware_platform == "aarch64"
-    ):
-        huge_page_disks = _huge_page_disks_rhel_arm64
-    else:
-        huge_page_disks = _huge_page_disks
+    huge_page_disks = _get_mount_options(node)
     echo = node.tools[Echo]
     echo.write_to_file(
         "0",
@@ -191,3 +179,25 @@ def _aggregate_count(
 
     log.debug(f"{counter_name} count: {new_count}")
     return new_count
+
+
+def _get_mount_options(node: Node) -> Dict[str, str]:
+    folders = node.tools[Ls].list_dir("/sys/devices/system/node/node0/hugepages")
+    matches = [
+        match.group("size")
+        for match in re.finditer(_huge_page_size_pattern, "".join(folders))
+    ]
+    max_value_kb = max(list(map(int, matches)))
+    if max_value_kb >= 1024 * 1024:
+        max_value_gb = int(max_value_kb / (1024 * 1024))
+        huge_page_disks = {
+            "/mnt/huge": "",
+            f"/mnt/huge{max_value_gb}g": f"pagesize={max_value_gb}G",
+        }
+    else:
+        max_value_mb = int(max_value_kb / 1024)
+        huge_page_disks = {
+            "/mnt/huge": "",
+            f"/mnt/huge{max_value_mb}m": f"pagesize={max_value_mb}M",
+        }
+    return huge_page_disks
