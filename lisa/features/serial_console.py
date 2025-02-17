@@ -158,7 +158,7 @@ class SerialConsole(Feature):
             for x in sublist
             if x and x not in ignored_candidates
         ]
-
+        panics = ["This is a Major Panic"]
         if panics:
             raise KernelPanicException(stage, panics)
 
