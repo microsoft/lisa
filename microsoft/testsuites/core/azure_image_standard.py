@@ -35,7 +35,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
@@ -297,7 +297,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that `Defaults targetpw` should be disabled, if present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_default_targetpw(self, node: Node) -> None:
         sudoers_out = (
@@ -319,7 +319,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY], unsupported_os=[BSD]
+            supported_platform_type=[AZURE, READY, HYPERV], unsupported_os=[BSD]
         ),
     )
     def verify_grub(self, node: Node) -> None:
@@ -378,7 +378,7 @@ class AzureImageStandard(TestSuite):
         network manager is not installed.
         """,
         priority=3,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -406,7 +406,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that networking is enabled in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -442,7 +442,7 @@ class AzureImageStandard(TestSuite):
         "ONBOOT=yes" is present in network file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -478,7 +478,7 @@ class AzureImageStandard(TestSuite):
         files are not present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
         if isinstance(node.os, CoreOs):
@@ -514,7 +514,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that DHCLIENT_SET_HOSTNAME="no" is present in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Suse):
@@ -566,7 +566,7 @@ class AzureImageStandard(TestSuite):
         present in the file.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -589,7 +589,7 @@ class AzureImageStandard(TestSuite):
         2. Reboot the VM and see if the VM is still in good state.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
@@ -608,7 +608,7 @@ class AzureImageStandard(TestSuite):
         has length greater than zero.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
         if isinstance(node.os, Debian):
@@ -632,7 +632,7 @@ class AzureImageStandard(TestSuite):
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
         assert isinstance(node.os, Posix)
@@ -866,7 +866,7 @@ class AzureImageStandard(TestSuite):
             2.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
@@ -941,7 +941,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
         path_bash_history = "/root/.bash_history"
@@ -965,7 +965,7 @@ class AzureImageStandard(TestSuite):
          existing, fail the case.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_boot_error_fail_warnings(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
@@ -1014,7 +1014,7 @@ class AzureImageStandard(TestSuite):
          fail the case.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
@@ -1062,7 +1062,7 @@ class AzureImageStandard(TestSuite):
         3. Pass with warning if the value is not between 0 and 180.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
         ssh = node.tools[Ssh]
@@ -1083,7 +1083,7 @@ class AzureImageStandard(TestSuite):
         3. Fail the case if the key of any user existing.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
         key_pattern = re.compile(
