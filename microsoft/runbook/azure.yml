@@ -33,6 +33,8 @@ variable:
   - name: azure_arm_access_token
     value: ""
     is_secret: true
+  - name: azcopy_path
+    value: ""
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -48,6 +50,7 @@ platform:
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
       azure_arm_access_token: $(azure_arm_access_token)
+      azcopy_path: $(azcopy_path)
     requirement:
       core_count:
         min: 2

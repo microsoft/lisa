@@ -30,6 +30,8 @@ RUN Invoke-WebRequest -Uri "https://aka.ms/downloadazcopy-v10-windows" -OutFile 
     Remove-Item -Path 'AzCopy.zip' -Force; \
     Remove-Item -Path 'AzCopy' -Recurse -Force
 
+ENV LISA_azcopy_path="C:\\azcopy.exe"
+
 WORKDIR C:\\app\\lisa
 
 RUN python -m pip install --no-cache-dir --upgrade pip; \
