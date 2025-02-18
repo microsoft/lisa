@@ -398,8 +398,6 @@ class XdpPerformance(TestSuite):
             self._wait_packets_proceeded(
                 log, receiver, receiver_nic, original_dropped_count
             )
-        except UnsupportedKernelException as identifier:
-            raise SkippedException(identifier)
         finally:
             receiver_kill = receiver.tools[Kill]
             receiver_kill.by_name("xdpdump")
@@ -590,6 +588,8 @@ class XdpPerformance(TestSuite):
                 nic_name=sender_nic.name,
                 thread_count=thread_count,
             )
+        except UnsupportedKernelException as identifier:
+            raise SkippedException(identifier)
         finally:
             remove_hugepage(sender)
         return result
