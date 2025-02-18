@@ -126,7 +126,7 @@ be specified in the runbook.
 
 .. code:: bash
 
-   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>
+   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>"
 
 Set other Azure parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
