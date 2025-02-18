@@ -85,6 +85,23 @@ def _create_cloud_init_iso(
             "devices": ["/dev/sda"],
             "fixup_filesystem": True,
         },
+        # Disable automatic updates
+        "package_update": False,
+        "package_upgrade": False,
+        "package_reboot_if_required": False,
+        "runcmd": [
+            # Disable the unattended-upgrades service
+            "systemctl stop unattended-upgrades.service",
+            "systemctl disable unattended-upgrades.service",
+            # Disable automatic apt updates by setting APT::Periodic::Update-Package-Lists to 0  # noqa: E501
+            "echo 'APT::Periodic::Update-Package-Lists \"0\";' > /etc/apt/apt.conf.d/20auto-upgrades",  # noqa: E501
+            "echo 'APT::Periodic::Unattended-Upgrade \"0\";' >> /etc/apt/apt.conf.d/20auto-upgrades",  # noqa: E501
+            # Optionally, disable the apt-daily service if it's running
+            "systemctl stop apt-daily.timer",
+            "systemctl disable apt-daily.timer",
+            "systemctl stop apt-daily-upgrade.timer",
+            "systemctl disable apt-daily-upgrade.timer",
+        ],
     }
     meta_data = {
         "local-hostname": host_name,
