@@ -42,6 +42,8 @@ from lisa.util import (
     MissingPackagesException,
     ReleaseEndOfLifeException,
     RepoNotExistException,
+    SkippedException,
+    UnsupportedDistroException,
     filter_ansi_escape,
     get_matched_str,
     parse_version,
@@ -2183,9 +2185,137 @@ class SLES(Suse):
 
 
 class SlMicro(Suse):
+    """
+    SlMicro repos/packages are not supported in LISA
+    """
+
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
         return re.compile(r"^sl-micro$", re.IGNORECASE)
+
+    def add_azure_core_repo(
+        self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
+    ) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Installing azure core repo for this distro not implemented in LISA",
+            )
+        )
+
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+    ) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Repository addition for this distro is not implemented in LISA.",
+            )
+        )
+
+    def clean_package_cache(self) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Package cache operations for this distro is not implemented in LISA.",
+            )
+        )
+
+    def _get_package_information(self, package_name: str) -> VersionInfo:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Getting package information for this distro not implemented in LISA.",
+            )
+        )
+
+    def _get_package_list(
+        self,
+        packages: Union[
+            str,
+            Tool,
+            Type[Tool],
+            Sequence[Union[str, Tool, Type[Tool]]],
+        ],
+    ) -> List[str]:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Getting package list for this distro not implemented in LISA.",
+            )
+        )
+
+    def get_repositories(self) -> List[RepositoryInfo]:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Getting repositories for this distro not implemented in LISA.",
+            )
+        )
+
+    def _initialize_package_installation(self) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Installing packages for this distro not implemented in LISA.",
+            )
+        )
+
+    def _install_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Installing packages for this distro not implemented in LISA.",
+            )
+        )
+
+    def _is_package_in_repo(self, package: str) -> bool:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Checking if package in repo for this distro not implemented in LISA.",
+            )
+        )
+
+    def _package_exists(self, package: str) -> bool:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Checking package existence for this distro not implemented in LISA.",
+            )
+        )
+
+    def _uninstall_packages(
+        self,
+        packages: List[str],
+        signed: bool = True,
+        timeout: int = 600,
+        extra_args: Optional[List[str]] = None,
+    ) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Uninstalling packages for this distro not supported in LISA.",
+            )
+        )
+
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Updating packages for this distro not supported in LISA.",
+            )
+        )
 
 
 class NixOS(Linux):
