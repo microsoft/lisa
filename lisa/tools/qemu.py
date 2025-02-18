@@ -123,7 +123,7 @@ class Qemu(Tool):
         if cd_rom:
             cmd += f" -cdrom {cd_rom} "
             self.node.execute(
-                f"qemu-img resize {guest_image_path} +1G", sudo=True, shell=True
+                f"qemu-img resize {guest_image_path} +2G", sudo=True, shell=True
             )
 
         # kill any existing qemu process if stop_existing_vm is True
