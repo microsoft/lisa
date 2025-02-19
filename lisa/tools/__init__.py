@@ -18,6 +18,7 @@ from lisa.base_tools import (
 from .aria import Aria
 from .b4 import B4
 from .blkid import Blkid
+from .bootctl import BootCtl
 from .bzip2 import Bzip2
 from .cargo import Cargo
 from .chmod import Chmod
@@ -134,6 +135,7 @@ __all__ = [
     "Aria",
     "B4",
     "Blkid",
+    "BootCtl",
     "Bzip2",
     "Cargo",
     "Cat",
