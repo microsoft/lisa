@@ -39,6 +39,7 @@ from lisa.util import (
     BaseClassMixin,
     LisaException,
     LisaTimeoutException,
+    LisaVersionInfo,
     MissingPackagesException,
     ReleaseEndOfLifeException,
     RepoNotExistException,
@@ -152,7 +153,7 @@ class OperatingSystem:
         self._is_posix = is_posix
         self._log = get_logger(name="os", parent=self._node.log)
         self._information: Optional[OsInformation] = None
-        self._packages: Dict[str, VersionInfo] = dict()
+        self._packages: Dict[str, LisaVersionInfo] = dict()
 
     @classmethod
     def create(cls, node: "Node") -> Any:
@@ -494,7 +495,7 @@ class Posix(OperatingSystem, BaseClassMixin):
 
     def get_package_information(
         self, package_name: str, use_cached: bool = True
-    ) -> VersionInfo:
+    ) -> LisaVersionInfo:
         found = self._packages.get(package_name, None)
         if found and use_cached:
             return found
@@ -549,12 +550,24 @@ class Posix(OperatingSystem, BaseClassMixin):
         # sub os can override it, but it's optional
         pass
 
-    def _get_package_information(self, package_name: str) -> VersionInfo:
+    def _get_package_information(self, package_name: str) -> LisaVersionInfo:
         raise NotImplementedError()
 
-    def _get_version_info_from_named_regex_match(
-        self, package_name: str, named_matches: Match[str]
-    ) -> VersionInfo:
+    def _get_version_info_from_regex(
+        self, version_str: str, regex: Pattern[str]
+    ) -> LisaVersionInfo:
+        self._node.log.debug(f"Attempting to parse version string ({version_str})")
+        matches = regex.search(version_str)
+        if not matches:
+            self._node.log.debug(
+                f"Could not find regex match for ({version_str}) using regex"
+            )
+            return LisaVersionInfo(version_str, 0)
+        return self._get_version_info_from_named_matches(version_str, matches)
+
+    def _get_version_info_from_named_matches(
+        self, version_str: str, named_matches: Match[str]
+    ) -> LisaVersionInfo:
         essential_matches = ["major", "minor"]
 
         # verify all essential keys are in our match dict
@@ -576,16 +589,16 @@ class Posix(OperatingSystem, BaseClassMixin):
         )
         build_match = named_matches.group("build")
         log_message = (
-            f"Found {package_name} version "
+            f"Found version from ({version_str}) "
             f"major:{major_match} minor:{minor_match} "
             f"patch:{patch_match} build:{build_match}"
         )
         self._node.log.debug(log_message)
-        return VersionInfo(major, minor, patch, build=build_match)
+        return LisaVersionInfo(version_str, major, minor, patch, build=build_match)
 
     def _cache_and_return_version_info(
-        self, package_name: str, info: VersionInfo
-    ) -> VersionInfo:
+        self, package_name: str, info: LisaVersionInfo
+    ) -> LisaVersionInfo:
         self._packages[package_name] = info
         return info
 
@@ -838,32 +851,17 @@ class Debian(Linux):
                 error_lines.append(line)
         return error_lines
 
-    def _get_package_information(self, package_name: str) -> VersionInfo:
-        # run update of package info
-        apt_info = self._node.execute(
-            f"apt show {package_name}",
+    def _get_package_information(self, package_name: str) -> LisaVersionInfo:
+        query_result = self._node.execute(
+            f"dpkg-query -f '${{Version}}' -W {package_name}",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Could not find package information for package {package_name}"
             ),
         )
-        match = self._debian_package_information_regex.search(apt_info.stdout)
-        if not match:
-            raise LisaException(
-                "Package information parsing could not find regex match "
-                f" for {package_name} using regex "
-                f"{self._debian_package_information_regex.pattern}"
-            )
-        version_str = match.group(2)
-        match = self._debian_version_splitter_regex.search(version_str)
-        if not match:
-            raise LisaException(
-                f"Could not parse version info: {version_str} "
-                f"for package {package_name}"
-            )
-        self._node.log.debug(f"Attempting to parse version string: {version_str}")
-        version_info = self._get_version_info_from_named_regex_match(
-            package_name, match
+        version_str = query_result.stdout.strip()
+        version_info = self._get_version_info_from_regex(
+            version_str, self._debian_version_splitter_regex
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
@@ -1537,23 +1535,17 @@ class RPMDistro(Linux):
     def clean_package_cache(self) -> None:
         self._node.execute(f"{self._dnf_tool()} clean all", sudo=True, shell=True)
 
-    def _get_package_information(self, package_name: str) -> VersionInfo:
-        rpm_info = self._node.execute(
-            f"rpm -q {package_name}",
+    def _get_package_information(self, package_name: str) -> LisaVersionInfo:
+        query_result = self._node.execute(
+            f"rpm --queryformat '%{{VERSION}}-%{{RELEASE}}' -q {package_name}",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Could not find package information for package {package_name}"
             ),
         )
-        # rpm package should be of format (package_name)-(version)
-        matches = self._rpm_version_splitter_regex.search(rpm_info.stdout)
-        if not matches:
-            raise LisaException(
-                f"Could not parse package version {rpm_info} for {package_name}"
-            )
-        self._node.log.debug(f"Attempting to parse version string: {rpm_info.stdout}")
-        version_info = self._get_version_info_from_named_regex_match(
-            package_name, matches
+        version_str = query_result.stdout.strip()
+        version_info = self._get_version_info_from_regex(
+            version_str, self._rpm_version_splitter_regex
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
@@ -2139,33 +2131,17 @@ class Suse(Linux):
         result = self._node.execute(command, sudo=True, shell=True)
         return 0 == result.exit_code
 
-    def _get_package_information(self, package_name: str) -> VersionInfo:
-        # run update of package info
-        zypper_info = self._node.execute(
-            f"zypper info {package_name}",
+    def _get_package_information(self, package_name: str) -> LisaVersionInfo:
+        query_result = self._node.execute(
+            f"rpm --queryformat '%{{VERSION}}-%{{RELEASE}}' -q {package_name}",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Could not find package information for package {package_name}"
             ),
         )
-        output = self._ansi_escape.sub("", zypper_info.stdout)
-        match = self._suse_package_information_regex.search(output)
-        if not match:
-            raise LisaException(
-                "Package information parsing could not find regex match "
-                f" for {package_name} using regex "
-                f"{self._suse_package_information_regex.pattern}"
-            )
-        version_str = match.group("package_version")
-        match = self._suse_version_splitter_regex.search(version_str)
-        if not match:
-            raise LisaException(
-                f"Could not parse version info: {version_str} "
-                f"for package {package_name}"
-            )
-        self._node.log.debug(f"Attempting to parse version string: {version_str}")
-        version_info = self._get_version_info_from_named_regex_match(
-            package_name, match
+        version_str = query_result.stdout.strip()
+        version_info = self._get_version_info_from_regex(
+            version_str, self._suse_version_splitter_regex
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
