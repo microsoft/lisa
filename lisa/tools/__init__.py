@@ -118,6 +118,7 @@ from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
+from .tpm2 import Tpm2
 from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
@@ -251,6 +252,7 @@ __all__ = [
     "TcpDump",
     "Timedatectl",
     "Timeout",
+    "Tpm2",
     "Uname",
     "Unzip",
     "Uptime",
