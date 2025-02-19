@@ -62,7 +62,7 @@ from lisa.features import (
 from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
-from lisa.secret import PATTERN_GUID, add_secret
+from lisa.secret import add_secret
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -348,10 +348,6 @@ class AzurePlatformSchema:
             ],
         )
 
-        if self.service_principal_tenant_id:
-            add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
-        if self.subscription_id:
-            add_secret(self.subscription_id, mask=PATTERN_GUID)
         if self.service_principal_key:
             add_secret(self.service_principal_key)
         if self.azure_arm_access_token:
@@ -362,8 +358,6 @@ class AzurePlatformSchema:
             add_secret(self.azure_keyvault_access_token)
         if self.azure_graph_access_token:
             add_secret(self.azure_graph_access_token)
-        if self.service_principal_client_id:
-            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
 
     @property
     def cloud(self) -> Cloud:
