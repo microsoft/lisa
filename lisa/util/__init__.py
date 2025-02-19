@@ -418,6 +418,17 @@ class SwitchableMixin:
         self._switch(True)
 
 
+class LisaVersionInfo(VersionInfo):
+    def __init__(self, version_str: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.version_str = version_str
+
+    @classmethod
+    def parse(cls, version: str) -> "LisaVersionInfo":
+        version_info = VersionInfo.parse(version)
+        return LisaVersionInfo(version, *version_info.to_tuple())
+
+
 def get_date_str(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
@@ -654,7 +665,7 @@ def dump_file(file_name: Path, content: Any) -> None:
         f.write(secret.mask(content))
 
 
-def parse_version(version: str) -> VersionInfo:
+def parse_version(version: str) -> LisaVersionInfo:
     """
     Convert an incomplete version string into a semver-compatible Version
     object
@@ -672,8 +683,8 @@ def parse_version(version: str) -> VersionInfo:
         belong to a basic version.
     :rtype: tuple(:class:`Version` | None, str)
     """
-    if VersionInfo.isvalid(version):
-        return VersionInfo.parse(version)
+    if LisaVersionInfo.isvalid(version):
+        return LisaVersionInfo.parse(version)
 
     match = __version_info_pattern.search(version)
     if not match:
@@ -685,9 +696,9 @@ def parse_version(version: str) -> VersionInfo:
         if key != "prerelease"
     }
     ver["prerelease"] = match["prerelease"]
-    rest = match.string[match.end() :]  # noqa:E203
+    rest = match.string[match.end() :]
     ver["build"] = rest
-    release_version = VersionInfo(**ver)
+    release_version = LisaVersionInfo(version, **ver)
 
     return release_version
 
