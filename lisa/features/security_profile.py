@@ -131,3 +131,11 @@ CvmDisabled = partial(
         True, [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
     ),
 )
+
+EncryptDiskEnabled = partial(
+    SecurityProfileSettings,
+    security_profile=search_space.SetSpace(
+        True, [SecurityProfileType.CVM, SecurityProfileType.SecureBoot]
+    ),
+    encrypt_disk=True,
+)
