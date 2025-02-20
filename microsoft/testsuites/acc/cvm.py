@@ -6,7 +6,7 @@ import re
 from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.features.security_profile import EncryptDiskEnabled
+from lisa.features.security_profile import EncryptDiskEnabled, CvmEnabled
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg, Lsvmbus
 from lisa.util import LisaException
