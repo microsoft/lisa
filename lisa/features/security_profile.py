@@ -91,6 +91,10 @@ class SecurityProfileSettings(schema.FeatureSettings):
             ),
             "security_profile",
         )
+        result.merge(
+            search_space.check_value(self.encrypt_disk, capability.encrypt_disk),
+            "encrypt_disk",
+        )
         return result
 
 
