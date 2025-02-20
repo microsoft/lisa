@@ -18,7 +18,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.operating_system import BSD, Windows
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
 from lisa.tools.lsvmbus import VmBusDevice
@@ -83,7 +83,7 @@ class LsVmBus(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE], supported_os=[BSD]
+            supported_platform_type=[AZURE, HYPERV], supported_os=[BSD]
         ),
     )
     def verify_vmbus_devices_channels_bsd(self, node: Node) -> None:
@@ -123,7 +123,7 @@ class LsVmBus(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_vmbus_devices_channels(self, node: Node) -> None:
@@ -165,7 +165,7 @@ class LsVmBus(TestSuite):
         """,
         priority=4,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_vmbus_heartbeat_properties(self, node: Node) -> None:

@@ -588,6 +588,8 @@ class XdpPerformance(TestSuite):
                 nic_name=sender_nic.name,
                 thread_count=thread_count,
             )
+        except UnsupportedKernelException as identifier:
+            raise SkippedException(identifier)
         finally:
             remove_hugepage(sender)
         return result

@@ -19,7 +19,7 @@ from lisa import (
 )
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import AzureFileShare
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
@@ -168,13 +168,14 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
+        suffix = self._get_partition_suffix(data_disks[0])
         self._execute_xfstests(
             log_path,
             xfstests,
             result,
             data_disks[0],
-            f"{data_disks[0]}1",
-            f"{data_disks[0]}2",
+            f"{data_disks[0]}{suffix}1",
+            f"{data_disks[0]}{suffix}2",
             excluded_tests=self.excluded_tests,
         )
 
@@ -205,13 +206,14 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
+        suffix = self._get_partition_suffix(data_disks[0])
         self._execute_xfstests(
             log_path,
             xfstests,
             result,
             data_disks[0],
-            f"{data_disks[0]}1",
-            f"{data_disks[0]}2",
+            f"{data_disks[0]}{suffix}1",
+            f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.ext4,
             excluded_tests=self.excluded_tests,
         )
@@ -241,13 +243,14 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
+        suffix = self._get_partition_suffix(data_disks[0])
         self._execute_xfstests(
             log_path,
             xfstests,
             result,
             data_disks[0],
-            f"{data_disks[0]}1",
-            f"{data_disks[0]}2",
+            f"{data_disks[0]}{suffix}1",
+            f"{data_disks[0]}{suffix}2",
             test_type=FileSystem.xfs.name,
             excluded_tests=self.excluded_tests,
         )
@@ -277,13 +280,14 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
+        suffix = self._get_partition_suffix(data_disks[0])
         self._execute_xfstests(
             log_path,
             xfstests,
             result,
             data_disks[0],
-            f"{data_disks[0]}1",
-            f"{data_disks[0]}2",
+            f"{data_disks[0]}{suffix}1",
+            f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.ext4,
             test_type=FileSystem.ext4.name,
             excluded_tests=self.excluded_tests,
@@ -317,13 +321,14 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
         disk = node.features[Disk]
         data_disks = disk.get_raw_data_disks()
+        suffix = self._get_partition_suffix(data_disks[0])
         self._execute_xfstests(
             log_path,
             xfstests,
             result,
             data_disks[0],
-            f"{data_disks[0]}1",
-            f"{data_disks[0]}2",
+            f"{data_disks[0]}{suffix}1",
+            f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.btrfs,
             test_type=FileSystem.btrfs.name,
             excluded_tests=self.excluded_tests,
@@ -494,7 +499,7 @@ class Xfstesting(TestSuite):
         """,
         requirement=simple_requirement(
             min_core_count=16,
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE, HYPERV],
             unsupported_os=[BSD, Windows],
         ),
         timeout=TIME_OUT,
@@ -635,3 +640,16 @@ class Xfstesting(TestSuite):
     def _check_btrfs_supported(self, node: Node) -> None:
         if not node.tools[KernelConfig].is_enabled("CONFIG_BTRFS_FS"):
             raise SkippedException("Current distro doesn't support btrfs file system.")
+
+    def _get_partition_suffix(self, disk: str) -> str:
+        """
+        Returns the partition suffix based on the disk type.
+        (for partitions like /dev/nvme0n2p1, /dev/nvme0n2p2).
+        If it's an NVMe disk, it returns "p"
+        (for partitions like /dev/sda1, /dev/sda2)
+        If it's a SCSI disk, it returns ""
+        """
+        if "nvme" in disk:
+            return "p"
+        else:
+            return ""
