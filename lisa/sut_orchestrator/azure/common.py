@@ -253,17 +253,17 @@ class AzureImageSchema(schema.ImageSchema):
             )
         ),
     )
-    hyperv_generation: Optional[
-        Union[search_space.SetSpace[int], int]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            is_allow_set=True,
-            items=[1, 2],
-        ),
-        metadata=field_metadata(
-            decoder=partial(search_space.decode_set_space_by_type, base_type=int)
-        ),
+    hyperv_generation: Optional[Union[search_space.SetSpace[int], int]] = (
+        field(  # type:ignore
+            default_factory=partial(
+                search_space.SetSpace,
+                is_allow_set=True,
+                items=[1, 2],
+            ),
+            metadata=field_metadata(
+                decoder=partial(search_space.decode_set_space_by_type, base_type=int)
+            ),
+        )
     )
     network_data_path: Optional[
         Union[search_space.SetSpace[schema.NetworkDataPath], schema.NetworkDataPath]

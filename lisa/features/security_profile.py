@@ -58,7 +58,14 @@ class SecurityProfileSettings(schema.FeatureSettings):
             )
         ),
     )
-    encrypt_disk: bool = field(default=False)
+    encrypt_disk: Union[search_space.SetSpace[bool], bool] = field(
+        default_factory=partial(
+            search_space.SetSpace[bool], is_allow_set=True, items=[True, False]
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=bool)
+        ),
+    )
 
     def __hash__(self) -> int:
         return hash(self._get_key())
