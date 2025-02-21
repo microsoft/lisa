@@ -780,14 +780,6 @@ class Debian(Linux):
         r"\s+(?P<metadata>.*)\s*"
     )
 
-    """ Package: dpdk
-        Version: 20.11.3-0ubuntu1~backport20.04-202111041420~ubuntu20.04.1
-        Version: 1:2.25.1-1ubuntu3.2
-    """
-    _debian_package_information_regex = re.compile(
-        r"Package: ([a-zA-Z0-9:_\-\.]+)\r?\n"  # package name group
-        r"Version: ([a-zA-Z0-9:_\-\.~+]+)\r?\n"  # version number group
-    )
     # ex: 3.10
     # ex: 3.10.5-git
     # ex: 3.10-5git3
@@ -1491,9 +1483,8 @@ class RPMDistro(Linux):
     # microsoft-azure-rhel8-eus  Microsoft Azure RPMs for RHEL8 Extended Update Support
     _rpm_repository_info_pattern = re.compile(r"(?P<id>\S+)\s+(?P<name>\S.*\S)\s*")
 
-    # ex: dpdk-20.11-3.el8.x86_64 or dpdk-18.11.8-1.el7_8.x86_64
+    # ex: 20.11-3.el8 or 18.11.8-1.el7_8
     _rpm_version_splitter_regex = re.compile(
-        r"(?P<package_name>[a-zA-Z0-9\-_]+)-"
         r"(?P<major>[0-9]+)\."
         r"(?P<minor>[0-9]+)\.?"
         r"(?P<patch>[0-9]+)?"
@@ -1993,12 +1984,8 @@ class Suse(Linux):
     )
     # Warning: There are no enabled repositories defined.
     _no_repo_defined = re.compile("There are no enabled repositories defined.", re.M)
-    # Name           : dpdk
-    # Version        : 19.11.10-150400.4.7.1
-    _suse_package_information_regex = re.compile(
-        r"Name\s+: (?P<package_name>[a-zA-Z0-9:_\-\.]+)\r?\n"
-        r"Version\s+: (?P<package_version>[a-zA-Z0-9:_\-\.~+]+)\r?\n"
-    )
+
+    # 22.11.1-150600.3.9.1
     _suse_version_splitter_regex = re.compile(
         r"([0-9]+:)?"  # some examples have a mystery number followed by a ':' (git)
         r"(?P<major>[0-9]+)\."  # major
