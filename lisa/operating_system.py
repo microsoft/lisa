@@ -2201,7 +2201,7 @@ class SlMicro(Suse):
             )
         )
 
-    def _get_package_information(self, package_name: str) -> VersionInfo:
+    def _get_package_information(self, package_name: str) -> LisaVersionInfo:
         raise SkippedException(
             UnsupportedDistroException(
                 self._node.os,
