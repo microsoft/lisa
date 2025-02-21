@@ -62,10 +62,10 @@ class LtpTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         # parse variables
-        ltp_source_file = variables.get("ltp_source_file", "")
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
         ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
+        ltp_prebuilt_file = variables.get("ltp_prebuilt_file", "")
 
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
@@ -94,7 +94,9 @@ class LtpTestsuite(TestSuite):
 
         # run ltp lite tests
         ltp: Ltp = node.tools.get(
-            Ltp, git_tag=ltp_tests_git_tag, source_file=ltp_source_file
+            Ltp,
+            prebuilt_file=ltp_prebuilt_file,
+            git_tag=ltp_tests_git_tag,
         )
         ltp.run_test(
             result,
