@@ -856,12 +856,12 @@ class TestSuite:
                 timeout=timeout,
                 test_kwargs=test_kwargs,
             )
-            case_result.set_status(TestStatus.PASSED, "")
             if case_result.environment is not None:
                 nodes = case_result.environment.nodes
                 for node in nodes.list():
-                    if node.assert_kernel_error:
-                        node.exec_check_dmesg_oops()
+                    if node.assert_kernel_error_after_test:
+                        node.check_kernel_error()
+            case_result.set_status(TestStatus.PASSED, "")
         except Exception as identifier:
             case_result.handle_exception(exception=identifier, log=log)
         log.debug(f"case end in {timer}")

@@ -1445,7 +1445,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     # capture boot time info or not
     capture_boot_time: bool = False
     # to check if dmesg logs need to be analyzed after each test case
-    assert_kernel_error: bool = False
+    assert_kernel_error_after_test: bool = False
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
     capture_vm_information: bool = True

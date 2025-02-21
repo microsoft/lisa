@@ -110,7 +110,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self._support_sudo: Optional[bool] = None
         self._is_dirty: bool = False
         self.capture_boot_time: bool = False
-        self.assert_kernel_error: bool = False
+        self.assert_kernel_error_after_test: bool = False
         self.capture_azure_information: bool = False
         self.capture_kernel_config: bool = False
         self.has_checked_bash_prompt: bool = False
@@ -502,7 +502,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
         return final_information
 
-    def exec_check_dmesg_oops(self) -> None:
+    def check_kernel_error(self) -> None:
+        # Check if the kernel is in a healthy state without errors or panics.
         dmesg = self.tools[Dmesg]
         dmesg.check_kernel_errors(force_run=True, throw_error=True)
         self.check_kernel_panic()
