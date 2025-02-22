@@ -108,7 +108,11 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         assert runbook, "azure_credential shouldn't be empty"
         if runbook.tenant_id:
             self._tenant_id = runbook.tenant_id
+            self._log.debug(f"Use defined tenant id: {self._tenant_id}")
+            os.environ["AZURE_TENANT_ID"] = self._tenant_id
         if runbook.client_id:
+            self._client_id = runbook.client_id
+            self._log.debug(f"Use defined client id: {self._client_id}")
             os.environ["AZURE_CLIENT_ID"] = self._client_id
 
     def __hash__(self) -> int:
@@ -176,6 +180,8 @@ class AzureCertificateCredential(AzureCredential):
         self._credential_type = AzureCredentialType.CertificateCredential
         if runbook.cert_path:
             self._cert_path = runbook.cert_path
+            self._log.debug(f"Use defined cert path: {self._cert_path}")
+            os.environ["AZURE_CLIENT_CERTIFICATE_PATH"] = self._cert_path
         if runbook.client_send_cert_chain:
             self._client_send_cert_chain = runbook.client_send_cert_chain
 
@@ -282,12 +288,12 @@ class AzureClientSecretCredential(AzureCredential):
         self._client_secret = os.environ.get("AZURE_CLIENT_SECRET", "")
 
         runbook = cast(ClientSecretCredentialSchema, self.runbook)
-        if runbook.client_id:
-            self._client_id = runbook.client_id
-        if runbook.tenant_id:
-            self._tenant_id = runbook.tenant_id
         if runbook.client_secret:
             self._client_secret = runbook.client_secret
+            self._log.debug(
+                f"Use defined client secret: ({len(self._client_secret)} bytes)"
+            )
+            os.environ["AZURE_CLIENT_SECRET"] = self._client_secret
 
     def get_client_secret_credential(
         self, tenant_id: str, client_id: str, client_secret: str
