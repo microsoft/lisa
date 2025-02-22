@@ -27,9 +27,9 @@ class AzureCredentialType(str, Enum):
 @dataclass_json()
 @dataclass
 class AzureCredentialSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    type: str = AzureCredentialType.DefaultAzureCredential
     tenant_id: str = ""
     client_id: str = ""
-    type: str = AzureCredentialType.DefaultAzureCredential
 
 
 @dataclass_json()
@@ -37,7 +37,6 @@ class AzureCredentialSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class CertCredentialSchema(AzureCredentialSchema):
     cert_path: str = ""
     client_send_cert_chain = "false"
-    type: str = AzureCredentialType.CertificateCredential
 
 
 @dataclass_json()
@@ -45,7 +44,6 @@ class CertCredentialSchema(AzureCredentialSchema):
 class ClientAssertionCredentialSchema(AzureCredentialSchema):
     msi_client_id: str = ""
     enterprise_app_client_id: str = ""
-    type: str = AzureCredentialType.ClientAssertionCredential
 
 
 @dataclass_json()
@@ -53,7 +51,6 @@ class ClientAssertionCredentialSchema(AzureCredentialSchema):
 class ClientSecretCredentialSchema(AzureCredentialSchema):
     # for ClientSecretCredential, will be deprecated due to Security WAVE
     client_secret: str = ""
-    type: str = AzureCredentialType.ClientSecretCredential
 
 
 class AzureCredential(subclasses.BaseClassWithRunbookMixin):
