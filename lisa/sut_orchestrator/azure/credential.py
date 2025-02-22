@@ -17,12 +17,15 @@ from lisa import schema, secret
 from lisa.util import subclasses
 from lisa.util.logger import Logger
 
+from .common import get_static_access_token
+
 
 class AzureCredentialType(str, Enum):
     DefaultAzureCredential = "default"
     CertificateCredential = "certificate"
     ClientAssertionCredential = "assertion"
     ClientSecretCredential = "secret"
+    TokenCredential = "token"
 
 
 @dataclass_json()
@@ -56,6 +59,16 @@ class ClientSecretCredentialSchema(AzureCredentialSchema):
     def __post_init__(self) -> None:
         assert self.client_secret, "client_secret shouldn't be empty"
         secret.add_secret(self.client_secret)
+
+
+@dataclass_json()
+@dataclass
+class TokenCredentialSchema(AzureCredentialSchema):
+    token: str = ""
+
+    def __post_init__(self) -> None:
+        assert self.token, "token shouldn't be empty"
+        secret.add_secret(self.token)
 
 
 class AzureCredential(subclasses.BaseClassWithRunbookMixin):
@@ -292,8 +305,34 @@ class AzureClientSecretCredential(AzureCredential):
             tenant_id=tenant_id, client_id=client_id, client_secret=client_secret
         )
 
-    def get_credential(self, log: Logger) -> Any:
-        log.info("Authenticating using ClientSecretCredential")
+    def get_credential(self) -> Any:
+        self._log.info("Authenticating using ClientSecretCredential")
         return self.get_client_secret_credential(
             self._tenant_id, self._client_id, self._client_secret
         )
+
+
+class AzureTokenCredential(AzureCredential):
+    """
+    Class to create azure credential based on preappled tokens
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.TokenCredential
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return TokenCredentialSchema
+
+    def __init__(
+        self,
+        runbook: TokenCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, cloud=cloud, logger=logger)
+        self._token = runbook.token
+
+    def get_credential(self) -> Any:
+        return get_static_access_token(self._token)
