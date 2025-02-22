@@ -35,6 +35,8 @@ variable:
     is_secret: true
   - name: azcopy_path
     value: ""
+  - name: auth_type
+    value: "default"
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -45,11 +47,13 @@ platform:
     admin_password: $(admin_password)
     keep_environment: $(keep_environment)
     azure:
+      credential:
+        type: $(auth_type)
+        token: $(azure_arm_access_token)
       resource_group_name: $(resource_group_name)
       deploy: $(deploy)
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
-      azure_arm_access_token: $(azure_arm_access_token)
       azcopy_path: $(azcopy_path)
     requirement:
       core_count:
