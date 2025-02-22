@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
-from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -86,6 +85,7 @@ from lisa.util import (
     plugin_manager,
     set_filtered_fields,
     strip_strs,
+    subclasses,
     truncate_keep_prefix,
 )
 from lisa.util.logger import Logger, get_logger
@@ -132,6 +132,7 @@ from .common import (
     save_console_log,
     wait_operation,
 )
+from .credential import AzureCredential, AzureCredentialSchema
 from .tools import Uname, VmGeneration, Waagent
 
 # used by azure
@@ -241,6 +242,8 @@ class CloudSchema:
 @dataclass_json()
 @dataclass
 class AzurePlatformSchema:
+    credential: Optional[AzureCredentialSchema] = None
+
     service_principal_tenant_id: str = field(
         default="",
         metadata=field_metadata(
@@ -425,14 +428,14 @@ class AzurePlatform(Platform):
     )
     _arm_template: Any = None
 
-    _credentials: Dict[str, Union[DefaultAzureCredential, TokenCredential]] = {}
+    _credentials: Dict[str, Any] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
         # for type detection
-        self.credential: Union[DefaultAzureCredential, TokenCredential]
+        self.credential: Any
         self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
@@ -947,35 +950,50 @@ class AzurePlatform(Platform):
 
     def _initialize_credential(self) -> None:
         azure_runbook = self._azure_runbook
-
-        credential_key = (
-            f"{azure_runbook.service_principal_tenant_id}_"
-            f"{azure_runbook.service_principal_client_id}"
-        )
-        credential = self._credentials.get(credential_key, None)
-        if not credential:
-            # set azure log to warn level only
-            logging.getLogger("azure").setLevel(azure_runbook.log_level)
-
-            if azure_runbook.service_principal_tenant_id:
-                os.environ[
-                    "AZURE_TENANT_ID"
-                ] = azure_runbook.service_principal_tenant_id
-            if azure_runbook.service_principal_client_id:
-                os.environ[
-                    "AZURE_CLIENT_ID"
-                ] = azure_runbook.service_principal_client_id
-            if azure_runbook.service_principal_key:
-                os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-
-            credential = get_static_access_token(
-                azure_runbook.azure_arm_access_token
-            ) or DefaultAzureCredential(
-                authority=self.cloud.endpoints.active_directory,
+        if azure_runbook.credential:
+            credential_factory = subclasses.Factory[AzureCredential](AzureCredential)
+            azure_credential: Optional[
+                AzureCredential
+            ] = credential_factory.create_by_runbook(
+                azure_runbook.credential, cloud=self.cloud, logger=self._log
             )
+            cached_key = f"{hash(azure_credential)}"
+        else:
+            cached_key = (
+                f"{azure_runbook.service_principal_tenant_id}_"
+                f"{azure_runbook.service_principal_client_id}"
+            )
+            azure_credential = None
+
+        # Use Any to support all types of credentials.
+        cached_credential: Any = self._credentials.get(cached_key, None)
+        if not cached_credential:
+            if azure_credential:
+                cached_credential = azure_credential.get_credential()
+            else:
+                # set azure log to warn level only
+                logging.getLogger("azure").setLevel(azure_runbook.log_level)
+                if azure_runbook.service_principal_tenant_id:
+                    os.environ[
+                        "AZURE_TENANT_ID"
+                    ] = azure_runbook.service_principal_tenant_id
+                if azure_runbook.service_principal_client_id:
+                    os.environ[
+                        "AZURE_CLIENT_ID"
+                    ] = azure_runbook.service_principal_client_id
+                if azure_runbook.service_principal_key:
+                    os.environ[
+                        "AZURE_CLIENT_SECRET"
+                    ] = azure_runbook.service_principal_key
+
+                cached_credential = get_static_access_token(
+                    azure_runbook.azure_arm_access_token
+                ) or DefaultAzureCredential(
+                    authority=self.cloud.endpoints.active_directory,
+                )
 
             with SubscriptionClient(
-                credential,
+                cached_credential,
                 base_url=self.cloud.endpoints.resource_manager,
                 credential_scopes=[self.cloud.endpoints.resource_manager + "/.default"],
             ) as self._sub_client:
@@ -998,9 +1016,9 @@ class AzurePlatform(Platform):
                 f"{subscription.id}, '{subscription.display_name}'"
             )
 
-            self._credentials[credential_key] = credential
+            self._credentials[cached_key] = cached_credential
 
-        self.credential = credential
+        self.credential = cached_credential
 
     def _load_template(self) -> Any:
         if self._arm_template is None:

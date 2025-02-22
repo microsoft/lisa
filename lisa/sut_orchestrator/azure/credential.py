@@ -63,27 +63,56 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.DEFAULT_AZURE_CREDENTIAL
+        raise NotImplementedError()
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        raise NotImplementedError()
+
+    def __init__(self, runbook: AzureCredentialSchema) -> None:
+        super().__init__(runbook=runbook)
+        if runbook.type:
+            self._credential_type = runbook.type
+        else:
+            self._credential_type = AzureCredentialType.DefaultAzureCredential
+
+        # parameters overwrite seq: env var <- runbook <- cmd
+        self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
+        self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
+
+        assert runbook, "azure_credential shouldn't be empty"
+        if runbook.tenant_id:
+            self._tenant_id = runbook.tenant_id
+        if runbook.client_id:
+            os.environ["AZURE_CLIENT_ID"] = self._client_id
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    def get_credential(self, log: Logger) -> Any:
+        raise NotImplementedError()
+
+    def _get_key(self) -> str:
+        return f"{self._credential_type}_{self._client_id}_{self._tenant_id}"
+
+
+class AzureDefaultCredential(AzureCredential):
+    """
+    Class to create DefaultAzureCredential based on runbook Schema. Because the
+    subclass factory doesn't instance the base class, so create a subclass to be
+    instanced.
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.DefaultAzureCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return AzureCredentialSchema
 
-    def __init__(self, runbook: AzureCredentialSchema) -> None:
-        super().__init__(runbook=runbook)
-        # parameters overwrite seq: env var <- runbook <- cmd
-        self._credential_type: str = AzureCredentialType.DefaultAzureCredential
-        self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
-        self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
-
-        assert runbook, "azure_credential shouldn't be empty"
-        self._azure_credential = runbook
-        if runbook.type:
-            self._credential_type = runbook.type
-        if runbook.client_id:
-            self._client_id = runbook.client_id
-        if runbook.tenant_id:
-            self._tenant_id = runbook.tenant_id
+    def __hash__(self) -> int:
+        return hash(self._get_key())
 
     def get_credential(self, log: Logger) -> Any:
         """
@@ -91,6 +120,9 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         """
         log.info("Authenticating using DefaultAzureCredential")
         return DefaultAzureCredential()
+
+    def _get_key(self) -> str:
+        return f"{self._credential_type}_{self._client_id}_{self._tenant_id}"
 
 
 class AzureCertificateCredential(AzureCredential):
