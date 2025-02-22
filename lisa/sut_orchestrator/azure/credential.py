@@ -14,15 +14,15 @@ from dataclasses_json import dataclass_json
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 
 from lisa import schema, secret
-from lisa.util import constants, subclasses
+from lisa.util import subclasses
 from lisa.util.logger import Logger
 
 
 class AzureCredentialType(str, Enum):
-    DefaultAzureCredential = constants.DEFAULT_AZURE_CREDENTIAL
-    CertificateCredential = constants.CERTIFICATE_CREDENTIAL
-    ClientAssertionCredential = constants.CLIENT_ASSERTION_CREDENTIAL
-    ClientSecretCredential = constants.CLIENT_SECRET_CREDENTIAL
+    DefaultAzureCredential = "default"
+    CertificateCredential = "certificate"
+    ClientAssertionCredential = "assertion"
+    ClientSecretCredential = "secret"
 
 
 @dataclass_json()
@@ -188,7 +188,7 @@ class AzureClientAssertionCredential(AzureCredential):
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.CLIENT_ASSERTION_CREDENTIAL
+        return AzureCredentialType.ClientAssertionCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
@@ -252,7 +252,7 @@ class AzureClientSecretCredential(AzureCredential):
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.CLIENT_SECRET_CREDENTIAL
+        return AzureCredentialType.ClientSecretCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
