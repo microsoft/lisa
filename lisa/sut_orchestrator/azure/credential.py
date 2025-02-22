@@ -12,7 +12,7 @@ from azure.identity import (
 )
 from dataclasses_json import dataclass_json
 
-from lisa import schema
+from lisa import schema, secret
 from lisa.util import constants, subclasses
 from lisa.util.logger import Logger
 
@@ -52,6 +52,9 @@ class ClientSecretCredentialSchema(AzureCredentialSchema):
     # for ClientSecretCredential, will be deprecated due to Security WAVE
     client_secret: str = ""
 
+    def __post_init__(self) -> None:
+        assert self.client_secret, "client_secret shouldn't be empty"
+        secret.add_secret(self.client_secret)
 
 class AzureCredential(subclasses.BaseClassWithRunbookMixin):
     """
