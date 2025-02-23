@@ -667,6 +667,7 @@ def parse_version(version: str) -> VersionInfo:
         belong to a basic version.
     :rtype: tuple(:class:`Version` | None, str)
     """
+    version = '13.0'
     if VersionInfo.isvalid(version):
         return VersionInfo.parse(version)
 
