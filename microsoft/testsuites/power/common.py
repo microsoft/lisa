@@ -10,7 +10,7 @@ from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.base_tools.cat import Cat
 from lisa.features import StartStop
 from lisa.features.startstop import VMStatus
-from lisa.operating_system import SLES, Debian, Redhat, Ubuntu
+from lisa.operating_system import SLES, AlmaLinux, Debian, Redhat, Ubuntu
 from lisa.tools import (
     Dmesg,
     Fio,
@@ -60,6 +60,8 @@ def verify_hibernation(
         # partition size.
         _expand_os_partition(node, log)
     hibernation_setup_tool = node.tools[HibernationSetup]
+    if isinstance(node.os, Redhat) or isinstance(node.os, AlmaLinux):
+        node.os.install_packages("openssh-server")
     startstop = node.features[StartStop]
     cat = node.tools[Cat]
 
