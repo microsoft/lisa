@@ -207,13 +207,16 @@ class Provisioning(TestSuite):
     def verify_reboot_in_platform(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(
-            log,
-            node,
-            log_path,
-            reboot_in_platform=True,
-            case_name="verify_reboot_in_platform",
-        )
+        for iteration in range(100):
+            log.info(f"rebooting '{node.name}' iteration {iteration + 1} of 100")
+            self._smoke_test(
+                log,
+                node,
+                log_path,
+                reboot_in_platform=True,
+                case_name="verify_reboot_in_platform",
+            )
+        assert_that(iteration).described_as("reboot in platform").is_equal_to(99)
 
     @TestCaseMetadata(
         description="""
