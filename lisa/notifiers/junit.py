@@ -296,7 +296,7 @@ class JUnit(Notifier):
             raise LisaException("Test suite not started.")
 
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
-        testcase.attrib["name"] = message.name
+        testcase.attrib["name"] = f"{message.name} ({message.id_})"
         testcase.attrib["classname"] = class_name
         testcase.attrib["time"] = self._get_elapsed_str(elapsed)
 
