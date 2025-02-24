@@ -657,6 +657,7 @@ class AzurePlatform(Platform):
             )
             if not az_rg_exists:
                 return
+            return
             log.info(
                 f"deleting resource group: {resource_group_name}, "
                 f"wait: {self._azure_runbook.wait_delete}"
