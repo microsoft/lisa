@@ -461,9 +461,9 @@ class Ntttcp(Tool):
         if numa_node_count > 1 and not isinstance(self.node.os, BSD):
             taskset = self.node.tools[TaskSet]
             start_cpu_index, end_cpu_index = lscpu.get_cpu_range_in_numa_node()
-            self.pre_command = (
-                f"{taskset.command} -c {start_cpu_index}-{end_cpu_index} "
-            )
+            # self.pre_command = (
+            #     f"{taskset.command} -c {start_cpu_index}-{end_cpu_index} "
+            # )
         self._log.debug(f"Numa Node Count: {numa_node_count}")
         self._log.debug(f"ntttcp command: {self.pre_command}{self.command}")
 
