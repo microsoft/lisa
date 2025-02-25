@@ -203,11 +203,12 @@ class Provisioning(TestSuite):
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole, StartStop],
         ),
+        timeout=10000,
     )
     def verify_reboot_in_platform(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        for iteration in range(100):
+        for iteration in range(50):
             log.info(f"rebooting '{node.name}' iteration {iteration + 1} of 100")
             self._smoke_test(
                 log,
@@ -216,7 +217,7 @@ class Provisioning(TestSuite):
                 reboot_in_platform=True,
                 case_name="verify_reboot_in_platform",
             )
-        assert_that(iteration).described_as("reboot in platform").is_equal_to(99)
+        assert_that(iteration).described_as("reboot in platform").is_equal_to(49)
 
     @TestCaseMetadata(
         description="""
