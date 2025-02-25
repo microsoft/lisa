@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Git, Make
-from lisa.util import find_patterns_in_lines
+from lisa.util import LisaException, find_patterns_in_lines
 from lisa.util.process import ExecutableResult
 
 
@@ -107,7 +107,20 @@ class Nvmecli(Tool):
         return namespaces_cli
 
     def get_devices(self, force_run: bool = False) -> Any:
-        nvme_list = self.run("list -o json", shell=True, sudo=True, force_run=force_run)
+        # get nvme devices information ignoring stderror
+        nvme_list = self.run(
+            "list -o json 2>/dev/null",
+            shell=True,
+            sudo=True,
+            force_run=force_run,
+            no_error_log=True,
+        )
+        # NVMe list command returns empty string when no NVMe devices are found.
+        if not nvme_list.stdout:
+            raise LisaException(
+                "No NVMe devices found. "
+                "The 'nvme list' command returned an empty string."
+            )
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
 
@@ -161,6 +174,16 @@ class Nvmecli(Tool):
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         nvme_devices = self.get_devices(force_run=force_run)
+        # Older versions of nvme-cli do not have the NameSpace key in the output
+        # skip the test if NameSpace key is not available
+        if not nvme_devices:
+            raise LisaException("No NVMe devices found. Unable to get namespace ids.")
+        if "NameSpace" not in nvme_devices[0]:
+            raise LisaException(
+                "The version of nvme-cli is too old,"
+                " it doesn't support to get namespace ids."
+            )
+
         return [
             {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
         ]
