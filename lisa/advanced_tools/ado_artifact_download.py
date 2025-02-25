@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from time import time
-from typing import List
+from typing import Any, List
 
 import requests
 from assertpy import assert_that
@@ -36,50 +36,49 @@ class ADOArtifactsDownloader(Tool):
         artifacts: List[str],
         pipeline_name: str = "",
         build_id: int = 0,
+        build_name: str = "",
         timeout: int = 600,
     ) -> List[Path]:
         working_path = constants.RUN_LOCAL_WORKING_PATH
         credentials = BasicAuthentication("", personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
 
-        if build_id == 0:
-            assert_that(pipeline_name).described_as(
-                "pipeline_name should not be empty when build_id is not provided"
-            ).is_not_empty()
+        if build_id == 0 and build_name == "":
+            pipeline_runs = self._get_pipeline_runs(
+                connection, pipeline_name, project_name
+            )
+            pipeline_run = [
+                run
+                for run in pipeline_runs
+                if run.result == "succeeded" and run.state == "completed"
+            ]
+            assert_that(len(pipeline_run)).described_as(
+                f"no succeeded and completed run found for pipeline {pipeline_name}"
+            ).is_not_zero()
+            build_id = pipeline_run[0].id
 
-            pipeline_client = connection.clients_v6_0.get_pipelines_client()
-            pipelines = pipeline_client.list_pipelines(project_name)
-
-            if pipeline_name:
-                found_pipeline = False
-                pipeline = None
-                for pipeline in pipelines:
-                    if pipeline.name == pipeline_name:
-                        found_pipeline = True
-                        break
-                assert_that(found_pipeline).described_as(
-                    (
-                        f"cannot found pipeline {pipeline_name} in project "
-                        f"{project_name}, please double check the names"
-                    )
-                ).is_true()
-                assert pipeline is not None, "pipeline cannot be None"
-                pipeline_runs = pipeline_client.list_runs(
-                    pipeline_id=pipeline.id, project=project_name
+        if build_id == 0 and build_name:
+            pipeline_runs = self._get_pipeline_runs(
+                connection, pipeline_name, project_name
+            )
+            pipeline_run = [run for run in pipeline_runs if run.name == build_name]
+            assert_that(len(pipeline_run)).described_as(
+                f"no succeeded and completed run found for pipeline {pipeline_name}"
+            ).is_not_zero()
+            if (
+                pipeline_run[0].result == "succeeded"
+                and pipeline_run[0].state == "completed"
+            ):
+                self._log.debug(
+                    f"the job with name {build_name} exists, and it is succeeded"
+                    " and completed"
                 )
-                assert_that(len(pipeline_runs)).described_as(
-                    f"no runs found for pipeline {pipeline_name}"
-                ).is_not_zero()
-
-                pipeline_run = [
-                    run
-                    for run in pipeline_runs
-                    if run.result == "succeeded" and run.state == "completed"
-                ]
-                assert_that(len(pipeline_run)).described_as(
-                    f"no succeeded and completed run found for pipeline {pipeline_name}"
-                ).is_not_zero()
-                build_id = pipeline_run[0].id
+            else:
+                self._log.debug(
+                    f"the job with name {build_name} exists, but it is not succeeded"
+                    " or completed"
+                )
+            build_id = pipeline_run[0].id
 
         build_client = connection.clients_v6_0.get_build_client()
         artifacts_path: List[Path] = []
@@ -130,3 +129,35 @@ class ADOArtifactsDownloader(Tool):
                         f"{response.status_code}"
                     )
         return artifacts_path
+
+    def _get_pipeline_runs(
+        self, connection: Any, pipeline_name: str, project_name: str
+    ) -> Any:
+        assert_that(pipeline_name).described_as(
+            "pipeline_name should not be empty when build_id is not provided"
+        ).is_not_empty()
+
+        pipeline_client = connection.clients_v6_0.get_pipelines_client()
+        pipelines = pipeline_client.list_pipelines(project_name)
+
+        if pipeline_name:
+            found_pipeline = False
+            pipeline = None
+            for pipeline in pipelines:
+                if pipeline.name == pipeline_name:
+                    found_pipeline = True
+                    break
+            assert_that(found_pipeline).described_as(
+                (
+                    f"cannot found pipeline {pipeline_name} in project "
+                    f"{project_name}, please double check the names"
+                )
+            ).is_true()
+            assert pipeline is not None, "pipeline cannot be None"
+            pipeline_runs = pipeline_client.list_runs(
+                pipeline_id=pipeline.id, project=project_name
+            )
+            assert_that(len(pipeline_runs)).described_as(
+                f"no runs found for pipeline {pipeline_name}"
+            ).is_not_zero()
+            return pipeline_runs
