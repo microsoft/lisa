@@ -64,10 +64,10 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise identifier
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 3000) -> None:
         who = self.node.tools[Who]
         timer = create_timer()
-
+        self._log.debug(f"waiting time_out for VM to reboot is '{time_out}' seconds")
         # who -b doesn't return correct content in Ubuntu 14.04, but uptime works.
         # uptime has no -s parameter in some distros, so not use is as default.
         try:
