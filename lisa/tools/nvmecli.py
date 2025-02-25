@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Type, cast
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.tools import Git, Make
-from lisa.util import find_patterns_in_lines
 from lisa.util.process import ExecutableResult
+from lisa.util import find_patterns_in_lines, SkippedException
 
 
 class Nvmecli(Tool):
@@ -161,6 +161,13 @@ class Nvmecli(Tool):
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         nvme_devices = self.get_devices(force_run=force_run)
+        # Older versions of nvme-cli do not have the NameSpace key in the output
+        # skip the test if NameSpace key is not available
+        if not nvme_devices or "NameSpace" not in nvme_devices[0]:
+            raise SkippedException(
+                "'NameSpace' key is not available in 'nvme -list -o json' output"
+            )
+
         return [
             {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
         ]
