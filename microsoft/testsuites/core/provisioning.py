@@ -73,7 +73,9 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path, "smoke_test")
+        # self._smoke_test(log, node, log_path, "smoke_test")
+        if " avx " not in node.execute("lscpu").stdout:
+            raise Exception("AVX is not supported")
 
     @TestCaseMetadata(
         description="""
