@@ -27,6 +27,7 @@ from lisa.util import (
 
 from .common import (
     AZURE_SHARED_RG_NAME,
+    AzureNodeSchema,
     check_blob_exist,
     check_or_create_gallery,
     check_or_create_gallery_image,
@@ -565,6 +566,10 @@ class SigTransformerSchema(schema.Transformer):
             ),
         ),
     )
+    # Marketplace image to take features from.
+    # Will override gallery_image_architecture,
+    # gallery_image_hyperv_generation, and gallery_image_securitytype
+    marketplace_source: str = field(default="")
 
 
 class SharedGalleryImageTransformer(Transformer):
@@ -607,6 +612,18 @@ class SharedGalleryImageTransformer(Transformer):
             raise_error=True,
         )
 
+        # Get features from marketplace image if specified
+        features = self._get_image_features(platform, runbook.marketplace_source)
+        if features:
+            runbook.gallery_image_hyperv_generation = features.pop(
+                "hyper_v_generation", runbook.gallery_image_hyperv_generation
+            )
+            runbook.gallery_image_architecture = features.pop(
+                "architecture", runbook.gallery_image_architecture
+            )
+        elif runbook.gallery_image_securitytype:
+            features = {"SecurityType": runbook.gallery_image_securitytype}
+
         (
             gallery_image_publisher,
             gallery_image_offer,
@@ -643,7 +660,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_image_osstate,
             runbook.gallery_image_hyperv_generation,
             runbook.gallery_image_architecture,
-            runbook.gallery_image_securitytype,
+            features,
         )
 
         check_or_create_gallery_image_version(
@@ -670,3 +687,26 @@ class SharedGalleryImageTransformer(Transformer):
 
         self._log.info(f"SIG Url: {sig_url}")
         return {self.__sig_name: sig_url}
+
+    def _get_image_features(
+        self, platform: AzurePlatform, marketplace: str
+    ) -> Dict[str, Any]:
+        if not marketplace:
+            return {}
+        node_schema = AzureNodeSchema(marketplace_raw=marketplace)
+        if not node_schema.marketplace:
+            return {}
+        features = node_schema.marketplace._get_info(platform)
+
+        # Convert hyper_v_generation to int from form "V1", "V2"
+        if (
+            features.get("hyper_v_generation", None)
+            and features["hyper_v_generation"].strip("V").isdigit()
+        ):
+            features["hyper_v_generation"] = int(
+                features["hyper_v_generation"].strip("V")
+            )
+        else:
+            features.pop("hyper_v_generation", None)
+
+        return features
