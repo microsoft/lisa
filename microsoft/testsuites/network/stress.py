@@ -147,6 +147,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -175,6 +176,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -204,6 +206,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -234,6 +237,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=features.Sriov(),
@@ -260,6 +264,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=features.Sriov(),
@@ -289,6 +294,7 @@ class Stress(TestSuite):
         5. Repeat step 3 and 4 for 10 times.
         """,
         priority=2,
+        timeout=9500,
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=features.Sriov(),
