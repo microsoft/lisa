@@ -125,7 +125,7 @@ class Stress(TestSuite):
         5. Do step 2 ~ step 4 for 25 times.
         """,
         priority=3,
-        timeout=4500,
+        timeout=600,
         requirement=simple_requirement(
             min_core_count=4,
             network_interface=features.Sriov(),
@@ -133,7 +133,7 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
-        sriov_disable_enable(environment, times=50)
+        sriov_disable_enable(environment, times=250)
 
     @TestCaseMetadata(
         description="""
