@@ -385,6 +385,7 @@ class AzureImageSchema(schema.ImageSchema):
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
+            "ConfidentialVM",
         ):
             capabilities.append(SecurityProfileType.CVM)
             capabilities.append(SecurityProfileType.Stateless)
