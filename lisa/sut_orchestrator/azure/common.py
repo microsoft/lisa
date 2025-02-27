@@ -2300,7 +2300,7 @@ def find_storage_account(
 
 def get_token(platform: "AzurePlatform") -> str:
     token = platform.credential.get_token(platform.cloud.endpoints.resource_manager)
-    return token.token
+    return str(token.token)
 
 
 def _generate_sas_token_for_vhd(
@@ -2782,12 +2782,17 @@ class StaticAccessTokenCredential(TokenCredential):
         return AccessToken(self._token, self._expires_on)
 
     def _get_exp(self) -> Any:
-        # The second part of the JWT is the payload
-        payload = self._token.split(".")[1]
-        # Add padding to ensure Base64 decoding works properly
-        padded_payload = payload + "=" * (4 - len(payload) % 4)
-        # Decode the Base64 URL-safe encoded payload
-        decoded_payload = base64.urlsafe_b64decode(padded_payload)
+        try:
+            # The second part of the JWT is the payload
+            payload = self._token.split(".")[1]
+            # Add padding to ensure Base64 decoding works properly
+            padded_payload = payload + "=" * (4 - len(payload) % 4)
+            # Decode the Base64 URL-safe encoded payload
+            decoded_payload = base64.urlsafe_b64decode(padded_payload)
+        except Exception as e:
+            raise LisaException(
+                f"Failed to decode JWT payload, maybe invalid token: {e}"
+            )
         # Convert the payload into a dictionary and get the expiration time
         # 'exp' is the UNIX timestamp for expiration
         return json.loads(decoded_payload).get("exp")

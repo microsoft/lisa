@@ -433,7 +433,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             "https://management.core.windows.net/.default"
         ).token
 
-        return access_token
+        return str(access_token)
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
