@@ -238,7 +238,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
         return node
 
-    def reboot(self, time_out: int = 600) -> None:
+    def reboot(self, time_out: int = 900) -> None:
         self.tools[Reboot].reboot(time_out)
 
     def execute(
