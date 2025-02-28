@@ -16,7 +16,7 @@ class NvidiaSmi(Tool):
         ("H100", "44453233", 0),
         ("A10-4Q", "56475055", 0),
         ("A10-8Q", "3e810200", 0),
-        ("NVIDIA Graphics Device", "423331303142", 0),
+        ("NVIDIA Graphics Device", "42333130", 0), # GB100 GPUs
     )
 
     @property
