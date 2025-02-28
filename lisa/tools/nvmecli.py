@@ -108,6 +108,7 @@ class Nvmecli(Tool):
         return namespaces_cli
 
     def get_devices(self, force_run: bool = False) -> Any:
+        # get nvme devices information ignoring stderror
         nvme_list = self.run(
             "list -o json 2>/dev/null",
             shell=True,
@@ -115,6 +116,7 @@ class Nvmecli(Tool):
             force_run=force_run,
             no_error_log=True,
         )
+        # NVMe list command returns empty string when no NVMe devices are found.
         if not nvme_list.stdout:
             raise LisaException(
                 "No NVMe devices found. "
