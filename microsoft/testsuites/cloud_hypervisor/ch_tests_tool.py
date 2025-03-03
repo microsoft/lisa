@@ -12,9 +12,10 @@ from lisa import Node
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Cat,
     Chmod,
     Chown,
     Dmesg,
@@ -25,9 +26,10 @@ from lisa.tools import (
     Lsblk,
     Mkdir,
     Modprobe,
+    Sed,
     Whoami,
 )
-from lisa.util import LisaException, find_groups_in_lines
+from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
 
 
 @dataclass
@@ -63,7 +65,17 @@ class CloudHypervisorTests(Tool):
 
     # Block perf related env var
     use_datadisk = ""
-    disable_datadisk_cache = ""
+    use_pmem = ""
+    """
+    Following is the last usable entry in e820 table and is safest to use for
+    pmem since its most likely to be free. 0x0000001000000000 is 64G.
+    So, set it as default.
+
+    [    0.000000] BIOS-e820: [mem 0x0000001000000000-0x00000040ffffffff] usable
+
+    """
+    pmem_config = "memmap=8G!64G"
+    disable_disk_cache = ""
     block_size_kb = ""
 
     cmd_path: PurePath
@@ -164,8 +176,16 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
-        if self.use_datadisk:
-            self._set_data_disk()
+        disk_name = ""
+        if self.use_pmem:
+            disk_name = self._get_pmem_for_block_tests()
+        elif self.use_datadisk:
+            disk_name = self._get_data_disk_for_block_tests()
+
+        if disk_name:
+            self._log.debug(f"Using disk: {disk_name}, for block tests")
+            self.env_vars["DATADISK_NAME"] = disk_name
+            self._save_kernel_logs(log_path)
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
@@ -265,10 +285,12 @@ class CloudHypervisorTests(Tool):
             if self.use_ms_bz_image:
                 self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
 
-            if self.use_datadisk:
+            if self.use_pmem:
+                self.env_vars["USE_DATADISK"] = self.use_pmem
+            elif self.use_datadisk:
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
-            if self.disable_datadisk_cache:
-                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
+            if self.disable_disk_cache:
+                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_disk_cache
             if self.block_size_kb:
                 self.env_vars["PERF_BLOCK_SIZE_KB"] = self.block_size_kb
         else:
@@ -497,7 +519,58 @@ class CloudHypervisorTests(Tool):
             node.tools[Chown].change_owner(file=PurePath(device_path), user=user)
             node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
 
-    def _set_data_disk(self) -> None:
+    def _get_pmem_for_block_tests(self) -> str:
+        lsblk = self.node.tools[Lsblk]
+        sed = self.node.tools[Sed]
+        cat = self.node.tools[Cat]
+
+        os_major_version = int(self.node.os.information.version.major)
+        if isinstance(self.node.os, CBLMariner) and os_major_version == 2:
+            grub_file = "/boot/mariner-mshv.cfg"
+            match_line = "mariner_cmdline_mshv="
+            regexp = "$"
+            replacement = f" {self.pmem_config} "
+        else:
+            grub_file = "/etc/default/grub"
+            match_line = "GRUB_CMDLINE_LINUX="
+            regexp = '"$'
+            replacement = f' {self.pmem_config} "'
+        cat.read(file=grub_file, sudo=True, force_run=True)
+        grub_cmdline = cat.read_with_filter(
+            file=grub_file,
+            grep_string=match_line,
+            sudo=True,
+        )
+        if self.pmem_config not in grub_cmdline:
+            sed.substitute(
+                file=grub_file,
+                match_lines=f"^{match_line}",
+                regexp=regexp,
+                replacement=replacement,
+                sudo=True,
+            )
+            cat.read(file=grub_file, sudo=True, force_run=True)
+
+        if isinstance(self.node.os, CBLMariner):
+            if os_major_version != 2:
+                self.node.execute(
+                    "grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True, shell=True
+                )
+        elif isinstance(self.node.os, Ubuntu):
+            self.node.execute("update-grub", sudo=True, shell=True)
+        else:
+            raise UnsupportedDistroException(
+                self.node.os,
+                "pmem for CH tests is supported only on Ubuntu and CBLMariner",
+            )
+
+        lsblk.run(force_run=True)
+        self.node.reboot(time_out=900)
+        lsblk.run(force_run=True)
+
+        return "/dev/pmem0"
+
+    def _get_data_disk_for_block_tests(self) -> str:
         datadisk_name = ""
         lsblk = self.node.tools[Lsblk]
         disks = lsblk.get_disks()
@@ -512,8 +585,7 @@ class CloudHypervisorTests(Tool):
         lsblk.run()
         if not datadisk_name:
             raise LisaException("No unmounted data disk (/dev/sdX) found")
-        self._log.debug(f"Using data disk: {datadisk_name}")
-        self.env_vars["DATADISK_NAME"] = datadisk_name
+        return datadisk_name
 
 
 def extract_jsons(input_string: str) -> List[Any]:
