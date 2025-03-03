@@ -58,8 +58,8 @@ class ComputeSDK(str, Enum):
 
 class Gpu(Feature):
     _redhat_gpu_dependencies = [
-        "kernel-devel-$(uname -r)",
-        "kernel-headers-$(uname -r)",
+        "kernel-devel",
+        "kernel-headers",
         "mesa-libGL",
         "mesa-libEGL",
         "libglvnd-devel",
