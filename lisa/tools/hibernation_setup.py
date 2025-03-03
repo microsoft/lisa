@@ -8,6 +8,7 @@ from typing import List, Pattern, Type
 from lisa.base_tools import Cat, Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
+from lisa.tools.journalctl import Journalctl
 from lisa.util import find_patterns_in_lines, get_matched_str
 
 from .git import Git
@@ -107,8 +108,11 @@ class HibernationSetup(Tool):
         ls = self.node.tools[Ls]
         if ls.path_exists("/var/log/syslog", sudo=True):
             log_output = cat.read("/var/log/syslog", force_run=True, sudo=True)
-        if ls.path_exists("/var/log/messages", sudo=True):
+        elif ls.path_exists("/var/log/messages", sudo=True):
             log_output = cat.read("/var/log/messages", force_run=True, sudo=True)
+        else:
+            journalctl = self.node.tools[Journalctl]
+            log_output = journalctl.first_n_logs_from_boot(no_of_lines=0)
         matched_lines = find_patterns_in_lines(log_output, [pattern])
         if not matched_lines:
             return 0
