@@ -224,15 +224,6 @@ class SourceInstaller(BaseInstaller):
             arguments="INSTALL_MOD_STRIP=1 modules_install", cwd=code_path, sudo=True
         )
 
-        # Copy the system.map file from the kernel source to /boot/system.map folder.
-        # Adjust the destination filename if you want to include the kernel release.
-        result = node.execute(
-            f"cp 'System.map' /boot/System.map-{build_kernel_release}",
-            cwd=code_path,
-            sudo=True,
-        )
-        result.assert_exit_code("failed copying system.map")
-
         if isinstance(node.os, CBLMariner) and node.os.information.version >= "3.0.0":
             cp = node.tools[Cp]
             arch = node.tools[Lscpu].get_architecture()
@@ -262,6 +253,16 @@ class SourceInstaller(BaseInstaller):
             )
             result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
             result.assert_exit_code()
+
+            # Copy the system.map file from the kernel source to /boot/system.map folder.
+            # Adjust the destination filename if you want to include the kernel release.
+            result = node.execute(
+                f"cp System.map /boot/System.map-{build_kernel_release}",
+                cwd=code_path,
+                sudo=True,
+            )
+            result.assert_exit_code("failed copying system.map")
+
         else:
             make.make(arguments="install", cwd=code_path, sudo=True)
 
