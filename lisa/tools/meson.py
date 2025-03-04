@@ -33,7 +33,7 @@ class Meson(Tool):
 
         package_installed = ""
         package_available = ""
-        for pkg in ["meson", "python3-meson"]:
+        for pkg in ["python3-meson", "meson"]:
             if (
                 posix_os.package_exists(pkg)
                 and posix_os.get_package_information(pkg, use_cached=False) >= "0.52.0"
