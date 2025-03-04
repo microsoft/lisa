@@ -220,12 +220,10 @@ class Kselftest(Tool):
 
         # Initialize run_tests and skip_tests from kwargs if provided
         run_tests = kwargs.get("run_tests", [])
-        skip_tests = kwargs.get("skip_tests", [])
 
-        if run_tests or skip_tests:
-            run_tests_str = " ".join(run_tests)
-            skip_tests_str = " ".join(skip_tests)
-            command = f" TARGETS='{run_tests_str}' SKIP_TARGETS='{skip_tests_str}' 2>&1 | tee {result_file}"
+        if run_tests:
+            run_tests_str = " ".join(f"-n {test}" for test in run_tests)
+            command = f" {run_tests_str} 2>&1 | tee {result_file}"
         else:
             command = f" 2>&1 | tee {result_file}"
 
