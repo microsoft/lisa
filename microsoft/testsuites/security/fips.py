@@ -439,6 +439,10 @@ class Fips(TestSuite):
 
         log.info("Successfully enabled FIPS.")
 
+        # Re-disable FIPS to make sure the test can be run multiple times.
+        azl_fips.disable_fips()
+        node.reboot()
+
     @TestCaseMetadata(
         description="""
             This test case will
@@ -467,6 +471,10 @@ class Fips(TestSuite):
         azl_fips.assert_fips_disabled()
 
         log.info("Successfully disabled FIPS.")
+
+        # Re-enable FIPS to make sure the test can be run multiple times.
+        azl_fips.enable_fips()
+        node.reboot()
 
     @TestCaseMetadata(
         description="""
