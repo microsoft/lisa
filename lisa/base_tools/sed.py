@@ -90,12 +90,8 @@ class Sed(Tool):
         Returns:
             None
         """
-        self._log.debug(f"Applying raw sed expression '{expression}' to file '{file}' with sudo={sudo}")
-
         # Escape special characters in the expression.
         expression = expression.replace('"', r"\"").replace("$", r"\$")
-        self._log.debug(f"Escaped expression: '{expression}'")
-
         cmd = f'-i.bak "{expression}" {file}'
         result = self.run(
             cmd,
