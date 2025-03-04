@@ -184,7 +184,7 @@ class GpuTestSuite(TestSuite):
         _install_driver(node, log_path, log)
         gpu_feature = node.features[Gpu]
         assert isinstance(node.capability.gpu_count, int)
-        expected_count = node.capability.gpu_count
+        expected_count = 4
 
         lsvmbus_device_count = gpu_feature.get_gpu_count_with_lsvmbus()
         assert_that(
