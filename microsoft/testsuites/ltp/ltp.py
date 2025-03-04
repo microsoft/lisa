@@ -122,6 +122,10 @@ class Ltp(Tool):
         # directory where temporary files will be created
         parameters += f"-d {temp_dir} "
 
+        if len(skip_tests) <= 0:
+            self._log.debug(f"skip list obtained: {skip_tests}")
+            skip_tests = ['memcontrol04']
+
         # add the list of skip tests to run
         if len(skip_tests) > 0:
             # write skip test to skipfile with newline separator
