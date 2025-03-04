@@ -126,6 +126,7 @@ class Ltp(Tool):
         if len(skip_tests) > 0:
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
+            self._log.debug(f"Writing to skipfile: {skip_file_value}")
             self.node.tools[Echo].write_to_file(
                 skip_file_value, PurePosixPath(self.LTP_SKIP_FILE), sudo=True
             )
