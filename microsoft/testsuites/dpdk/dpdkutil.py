@@ -128,6 +128,7 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = variables.get(
             "dpdk_source", DPDK_MANA_DEFAULT_SOURCE
         )
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "mcgov/rss-port")
         variables["rdma_source"] = variables.get(
             "rdma_source", RDMA_CORE_MANA_DEFAULT_SOURCE
         )
@@ -208,7 +209,7 @@ def generate_send_receive_run_info(
         snd_nic,
         0,
         "txonly",
-        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
+        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr} --txonly-multi-flow",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
     )
@@ -216,6 +217,7 @@ def generate_send_receive_run_info(
         rcv_nic,
         0,
         "rxonly",
+        extra_args="--rss-udp --rss-ip",
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
     )
@@ -951,13 +953,17 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     server_app_path = fwd_kit.testpmd.get_example_app_path(l3fwd_app_name)
     # generate the dpdk include arguments to add to our commandline
     include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
-        ),
+        "--vdev=7870:00:00.0",
+        f"mac={subnet_a_nics[forwarder].mac_addr}",
+        f"mac={ subnet_b_nics[forwarder].mac_addr}",
     ]
+    #     fwd_kit.testpmd.generate_testpmd_include(
+    #         subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
+    #     ),
+    #     fwd_kit.testpmd.generate_testpmd_include(
+    #         subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
+    #     ),
+    # ]
 
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
@@ -998,7 +1004,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 
     # join all our options into strings for use in the commmand
     joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
-    joined_include = " ".join(include_devices)
+    joined_include = ",".join(include_devices)
     # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
@@ -1028,7 +1034,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receiver_proc = ntttcp[receiver].run_as_server_async(
         subnet_b_nics[receiver].name,
         run_time_seconds=30,
-        buffer_size=1024,
+        # buffer_size=1024,
         server_ip=subnet_b_nics[receiver].ip_addr,
     )
 

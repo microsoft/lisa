@@ -69,7 +69,7 @@ class Hugepages(Tool):
         nics_count = len(self.node.nics.get_nic_names())
         numa_nodes = self.node.tools[Lscpu].get_numa_node_count()
 
-        request_space_kb = (nics_count - 1) * 1024 * 1024 * numa_nodes * 2
+        request_space_kb = (nics_count - 1) * 1024 * 1024 * numa_nodes * 4
         free_memory_kb = meminfo.get_free_memory_kb()
 
         if free_memory_kb < request_space_kb:
