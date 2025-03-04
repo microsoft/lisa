@@ -466,7 +466,7 @@ class Fips(TestSuite):
         node.reboot()
         azl_fips.assert_fips_disabled()
 
-        log.debug("Successfully disabled FIPS.")
+        log.info("Successfully disabled FIPS.")
 
     @TestCaseMetadata(
         description="""
