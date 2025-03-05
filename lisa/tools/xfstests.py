@@ -799,8 +799,9 @@ class Xfstests(Tool):
         test_status: str,
     ) -> str:
         """
-        About:This method is used to look up the xfstests results directory and
-        extract the dmesg and full//fail diff output for the given test case.
+        About:This method is used to look up the xfstests results directory and extract
+        dmesg and full/fail diff output for the given test case.
+
         Parameters:
         case: The test case name for which the stack info is needed
         test_section: The test group name used for testing
@@ -811,14 +812,14 @@ class Xfstests(Tool):
         xfstest.create_xfstest_stack_info(
             case="generic/001",
             test_section="xfs",
-            test_status="FAILED
+            test_status="FAILED"
         )
-        Note: When running LISA in debug mode, you should expect to see a lot of verbose
-        messages from 'ls' tool. This is because the method is checking for the existence
-        of files "per case basis" in the results directory. This is normal behavior and
-        should be ignored.We are working on a fix to reduce the verbosity of 'ls' calls
-        and speed up the process.
+        Note: When running LISA in debug mode, expect verbose messages from 'ls' tool.
+        This is because the method checks for file existence per case in the results dir.
+        This is normal behavior and can be ignored. We are working on reducing verbosity
+        of 'ls' calls to improve performance.
         """
+
         # Get XFSTest current path. we are looking at results/{test_type} directory here
         xfstests_path = self.get_xfstests_path()
         test_class = case.split("/")[0]
@@ -848,10 +849,9 @@ class Xfstests(Tool):
                 fail_out = result_path / f"{test_id}.out.bad"
                 # check of "full_out" and "fail_out" file exists
                 # Only then call diff tool.
-                if (
-                    (self.node.tools[Ls].path_exists(str(full_out), sudo=True))
-                    and (self.node.tools[Ls].path_exists(str(fail_out), sudo=True))
-                ):
+                if self.node.tools[Ls].path_exists(
+                    str(full_out), sudo=True
+                ) and self.node.tools[Ls].path_exists(str(fail_out), sudo=True):
                     diff_result = self.node.tools[Diff].comparefiles(
                         src=full_out,
                         dest=fail_out,
