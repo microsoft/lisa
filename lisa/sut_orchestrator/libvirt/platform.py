@@ -1209,6 +1209,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 return addr
 
             if time.time() > timeout:
+                # avoid stale VMs
+                self._delete_node(node, log)
                 raise LisaException(
                     f"no IP addresses found for {node_context.vm_name}."
                     " Guest OS might have failed to boot"
