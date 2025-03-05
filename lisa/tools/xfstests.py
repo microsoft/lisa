@@ -207,7 +207,6 @@ class Xfstests(Tool):
         exclude.txt entries are run.Runtime is set to 4 hours by default,
         but can be overridden by the user.This method after running xfstest
         will parse the output and sends subtest results to the test result object.
-
         Parameters:
         log_path: The path where the xfstests logs will be saved
         result: The LISA test result object to which the subtest results will be sent
@@ -219,10 +218,7 @@ class Xfstests(Tool):
             barring exclude.txt entries are run
         timeout: The time in seconds after which the test will be timed out.
             Defaults to 4 hours.
-
-
         Example:
-
         xfstest.run_test(
             log_path=Path("/tmp/xfstests"),
             result=test_result,
@@ -369,10 +365,8 @@ class Xfstests(Tool):
         Supported OS are Redhat, Debian, Suse, Ubuntu and CBLMariner3.
         Dependencies are installed based on the OS type from _install_dep method.
         The test users are added to the node using _add_test_users method.
-        
         This method allows you to specify custom repo and branch for xfstest.
         Else this defaults to https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git:master
-        
         Example:
         xfstest._install(branch="master", repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git")
         """
@@ -415,14 +409,13 @@ class Xfstests(Tool):
         """
         About: This method will create // append a local.config file in the install dir
         local.config is used by XFStest to set global as well as testgroup options
-        
         Note:You can call this method multiple times to create multiple sections.
-        The code does not checks for duplicate section names, so that is the users responsibility.
-        Also take note of how options are carried between sectoins, that include the sections which 
-        not going to be run.
+        The code does not checks for duplicate section names, so that is the users
+        responsibility.
+        Also take note of how options are carried between sectoins, that include the
+        sections which are not going to be run.
         Recommend going through : https://github.com/kdave/xfstests/blob/master/README.config-sections
         for more details on how to use local.config
-
         Parameters:
             scratch_dev (str)   : (M)The scratch device to be used for testing
             scratch_mnt (str)   : (M)The scratch mount point to be used for testing
@@ -439,7 +432,6 @@ class Xfstests(Tool):
                 testing
             overwrite_config (bool): (O)If True, the existing local.config file will be
                 overwritten
-
         Example:
         xfstest.set_local_config(
             scratch_dev="/dev/sdb",
@@ -495,13 +487,12 @@ class Xfstests(Tool):
     def set_excluded_tests(self, exclude_tests: str) -> None:
         """
         About:This method will create an exclude.txt file with the provided test cases.
-        The exclude.txt file is used by XFStest to exclude specific test cases from running.
+        The exclude.txt file is used by XFStest to exclude specific test cases from 
+        running.
         The method takes in the following parameters:
         exclude_tests: The test cases to be excluded from testing
-        
         Parameters:
         exclude_tests (str): The test cases to be excluded from testing
-
         Example Usage:
         xfstest.set_excluded_tests(exclude_tests="generic/001 generic/002")
         """
@@ -525,14 +516,11 @@ class Xfstests(Tool):
         """
         About:This method is internal to LISA and is not intended for direct calls.
         This method will create and send subtest results to the test result object.
-        
         Parmaeters:
         test_result: The test result object to which the subtest results will be sent
         raw_message: The raw message from the xfstests output
         test_section: The test group name used for testing
         data_disk: The data disk used for testing. ( method is partially implemented )
-
-
         """
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         assert all_cases_match, "fail to find run cases from xfstests output"
@@ -607,13 +595,11 @@ class Xfstests(Tool):
         to the test result object.
         This method depends on create_send_subtest_msg method to send
         subtest results.
-        
         Parameters:
         log_path: The path where the xfstests logs will be saved
         test_section: The test group name used for testing
         result: The test result object to which the subtest results will be sent
         data_disk: The data disk used for testing ( Method partially implemented )
-        
         """
         xfstests_path = self.get_xfstests_path()
         console_log_results_path = xfstests_path / "xfstest.log"
@@ -753,7 +739,6 @@ class Xfstests(Tool):
         case: The test case name for which the content is needed
         raw_message: The raw message from the xfstests output
         The method returns the content of the specific test case
-        
         Example:
         xfstest.extract_case_content(case="generic/001", raw_message=raw_message)
         """
@@ -782,11 +767,9 @@ class Xfstests(Tool):
         This method is called by the create_xfstest_stack_info method.
         Its purpose is to read the ASCII content of the file for further 
         tasks such as diff in case of failed cases.
-
         Parameters:
         file_path: The file path for which the content is needed
         The method returns the content of the specific file
-        
         Example:
         xfstest.extract_file_content(file_path="/path/to/file")
         """
@@ -807,22 +790,18 @@ class Xfstests(Tool):
         """
         About:This method is used to look up the xfstests results directory and
         extract the dmesg and full//fail diff output for the given test case.
-        
         Parameters:
         case: The test case name for which the stack info is needed
         test_section: The test group name used for testing
         test_status: The test status for the given test case
-        
         Returns:
         The method returns the stack info message for the given test case
-
         Example:
         xfstest.create_xfstest_stack_info(
             case="generic/001",
             test_section="xfs",
             test_status="FAILED
         )
-
         Note: When running LISA in debug mode, you should expect to see a lot of verbose
         messages from 'ls' tool. This is because the method is checking for the existence
         of files "per case basis" in the results directory. This is normal behavior and
