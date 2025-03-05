@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, cast, Dict, List, Optional, Type, TYPE_CHECKING
 
 from assertpy import assert_that
 
@@ -18,14 +18,16 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
-from lisa.testsuite import TestResult
+
+if TYPE_CHECKING:
+    from lisa.testsuite import TestResult
+
 from lisa.tools import Cat, Chmod, Diff, Echo, Git, Ls, Make, Pgrep, Rm, Sed
 from lisa.util import (
-    PassedException,
     LisaException,
+    PassedException,
     UnsupportedDistroException,
     find_patterns_in_lines,
-    SkippedException,
 )
 
 
@@ -37,8 +39,18 @@ class XfstestsResult:
 
 
 class Xfstests(Tool):
+    """
+    Xfstests - Filesystem testing tool.
+    installed (default) from https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git
+    Mirrored daily from kernel.org repository.
+    For details, refer to https://github.com/kdave/xfstests/blob/master/README
+    """
+
+    # This is the default repo and branch for xfstests.
+    # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
     branch = "master"
+    # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
         "acl",
         "attr",
@@ -131,25 +143,31 @@ class Xfstests(Tool):
         "psmisc",
         "perl-CPAN",
     ]
+    # Regular expression for parsing xfstests output
+    # Example:
     # Passed all 35 tests
     __all_pass_pattern = re.compile(
         r"([\w\W]*?)Passed all (?P<pass_count>\d+) tests", re.MULTILINE
     )
+    # Example:
     # Failed 22 of 514 tests
     __fail_pattern = re.compile(
         r"([\w\W]*?)Failed (?P<fail_count>\d+) of (?P<total_count>\d+) tests",
         re.MULTILINE,
     )
+    # Example:
     # Failures: generic/079 generic/193 generic/230 generic/256 generic/314 generic/317 generic/318 generic/355 generic/382 generic/523 generic/536 generic/553 generic/554 generic/565 generic/566 generic/587 generic/594 generic/597 generic/598 generic/600 generic/603 generic/646 # noqa: E501
     __fail_cases_pattern = re.compile(
         r"([\w\W]*?)Failures: (?P<fail_cases>.*)",
         re.MULTILINE,
     )
+    # Example:
     # Ran: generic/001 generic/002 generic/003 ...
     __all_cases_pattern = re.compile(
         r"([\w\W]*?)Ran: (?P<all_cases>.*)",
         re.MULTILINE,
     )
+    # Example:
     # Not run: generic/110 generic/111 generic/115 ...
     __not_run_cases_pattern = re.compile(
         r"([\w\W]*?)Not run: (?P<not_run_cases>.*)",
@@ -174,13 +192,13 @@ class Xfstests(Tool):
         self,
         # test_type: str,
         log_path: Path,
-        result: TestResult,
-        test_section: str = "",
+        result: "TestResult",
+        test_section: str,
         data_disk: str = "",
         test_cases: str = "",
         timeout: int = 14400,
     ) -> None:
-        '''About: This method runs XFSTest on a given node with the specified
+        """About: This method runs XFSTest on a given node with the specified
         test group and test cases.If test_section is not specified , test is
         run with "generic/quick" classification and XFS environment variables.
         If test_section is specified, test is run with the specified test group
@@ -197,13 +215,13 @@ class Xfstests(Tool):
             Defaults to "generic/quick"
             note: if specified, test_section must exist in local.config
         data_disk: The data disk used for testing
-        test_cases: The test cases to be run. If empty, all test cases barring
-            exclude.txt entries are run
+        test_cases: The test cases to be run. If empty, all installed test cases 
+            barring exclude.txt entries are run
         timeout: The time in seconds after which the test will be timed out.
-            Defaults to 4 hours
+            Defaults to 4 hours.
 
 
-        usage example:
+        Example:
 
         xfstest.run_test(
             log_path=Path("/tmp/xfstests"),
@@ -213,7 +231,7 @@ class Xfstests(Tool):
             test_cases="generic/001 generic/002",
             timeout=14400,
         )
-        '''
+        """
         # if Test group is specified, and exists in local.config, run tests.
         if test_section:
             self.run_async(
@@ -223,7 +241,7 @@ class Xfstests(Tool):
                 force_run=True,
                 cwd=self.get_xfstests_path(),
             )
-        # Else run generic quick test
+        # Else run generic quick test. This is not recommended.
         else:
             self.run_async(
                 f"-g generic/quick -E exclude.txt {test_cases} > xfstest.log 2>&1",
@@ -251,9 +269,12 @@ class Xfstests(Tool):
         self._code_path = self.get_tool_path(use_global=True) / "xfstests-dev"
 
     def _install_dep(self) -> None:
-        '''
-        This method will install dependencies based on OS.
-        Dependencies are fetched from '''
+        """
+        About: This method will install dependencies based on OS.
+        Dependencies are fetched from the common arrays such as 
+        common_dep, debian_dep, fedora_dep, suse_dep, mariner_dep.
+        If the OS is not supported, a LisaException is raised.
+        """
         posix_os: Posix = cast(Posix, self.node.os)
         # install dependency packages
         package_list = []
@@ -343,16 +364,18 @@ class Xfstests(Tool):
         self.node.execute("useradd fsgqa2", sudo=True)
 
     def _install(self, branch: Optional[str] = None, repo: Optional[str] = None) -> bool:
-        '''
-        This method will download and install XFSTest on a given node.
+        """
+        About:This method will download and install XFSTest on a given node.
         Supported OS are Redhat, Debian, Suse, Ubuntu and CBLMariner3.
         Dependencies are installed based on the OS type from _install_dep method.
         The test users are added to the node using _add_test_users method.
+        
         This method allows you to specify custom repo and branch for xfstest.
         Else this defaults to https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git:master
-        Example Usage:
+        
+        Example:
         xfstest._install(branch="master", repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git")
-        '''
+        """
         branch = branch or self.branch
         repo = repo or self.repo
         self._install_dep()
@@ -389,8 +412,17 @@ class Xfstests(Tool):
         additional_parameters: Optional[Dict[str, str]] = None,
         overwrite_config: bool = False,
     ) -> None:
-        '''This method will create // append a local.config file in the install dir
+        """
+        About: This method will create // append a local.config file in the install dir
         local.config is used by XFStest to set global as well as testgroup options
+        
+        Note:You can call this method multiple times to create multiple sections.
+        The code does not checks for duplicate section names, so that is the users responsibility.
+        Also take note of how options are carried between sectoins, that include the sections which 
+        not going to be run.
+        Recommend going through : https://github.com/kdave/xfstests/blob/master/README.config-sections
+        for more details on how to use local.config
+
         Parameters:
             scratch_dev (str)   : (M)The scratch device to be used for testing
             scratch_mnt (str)   : (M)The scratch mount point to be used for testing
@@ -408,7 +440,7 @@ class Xfstests(Tool):
             overwrite_config (bool): (O)If True, the existing local.config file will be
                 overwritten
 
-        Example Usage:
+        Example:
         xfstest.set_local_config(
             scratch_dev="/dev/sdb",
             scratch_mnt="/mnt/scratch",
@@ -423,7 +455,7 @@ class Xfstests(Tool):
             )
             Note: This method will by default enforce dmesg logging. 
             All tests will have a corresponding dmesg log file in output folder.
-        '''
+        """
         xfstests_path = self.get_xfstests_path()
         config_path = xfstests_path.joinpath("local.config")
         # If overwrite is specified, remove the existing config file and start afresh
@@ -461,14 +493,18 @@ class Xfstests(Tool):
         echo.write_to_file(content, config_path, append=True)
 
     def set_excluded_tests(self, exclude_tests: str) -> None:
-        '''
-        This method will create an exclude.txt file with the provided test cases.
+        """
+        About:This method will create an exclude.txt file with the provided test cases.
         The exclude.txt file is used by XFStest to exclude specific test cases from running.
         The method takes in the following parameters:
         exclude_tests: The test cases to be excluded from testing
+        
+        Parameters:
+        exclude_tests (str): The test cases to be excluded from testing
+
         Example Usage:
         xfstest.set_excluded_tests(exclude_tests="generic/001 generic/002")
-        '''
+        """
         if exclude_tests:
             xfstests_path = self.get_xfstests_path()
             exclude_file_path = xfstests_path.joinpath("exclude.txt")
@@ -481,20 +517,23 @@ class Xfstests(Tool):
     # <TODO> add more usable details in subtest additional information field
     def create_send_subtest_msg(
         self,
-        test_result: TestResult,
+        test_result: "TestResult",
         raw_message: str,
         test_section: str,
         data_disk: str,
     ) -> None:
-        '''
-        This method is internal to LISA and is not intended for direct calls.
+        """
+        About:This method is internal to LISA and is not intended for direct calls.
         This method will create and send subtest results to the test result object.
-        The method takes in the following parameters:
+        
+        Parmaeters:
         test_result: The test result object to which the subtest results will be sent
         raw_message: The raw message from the xfstests output
         test_section: The test group name used for testing
-        data_disk: The data disk used for testing
-        '''
+        data_disk: The data disk used for testing. ( method is partially implemented )
+
+
+        """
         all_cases_match = self.__all_cases_pattern.match(raw_message)
         assert all_cases_match, "fail to find run cases from xfstests output"
         all_cases = (all_cases_match.group("all_cases")).split()
@@ -559,21 +598,23 @@ class Xfstests(Tool):
         self,
         log_path: Path,
         test_section: str,
-        result: TestResult,
+        result: "TestResult",
         data_disk: str = "",
     ) -> None:
-        '''
-        This method is intended to be called by run_test method only.
+        """
+        About: This method is intended to be called by run_test method only.
         This method will check the xfstests output and send subtest results
         to the test result object.
         This method depends on create_send_subtest_msg method to send
         subtest results.
-        The method takes in the following parameters:
+        
+        Parameters:
         log_path: The path where the xfstests logs will be saved
         test_section: The test group name used for testing
         result: The test result object to which the subtest results will be sent
-        data_disk: The data disk used for testing
-        '''
+        data_disk: The data disk used for testing ( Method partially implemented )
+        
+        """
         xfstests_path = self.get_xfstests_path()
         console_log_results_path = xfstests_path / "xfstest.log"
         results_path = xfstests_path / "results/check.log"
@@ -663,10 +704,12 @@ class Xfstests(Tool):
     def save_xfstests_log(
         self, fail_cases_list: List[str], log_path: Path, test_section: str
     ) -> None:
-        '''
-        This method is intended to be called by check_test_results method only.
-        This method will copy the output of XFSTest results to the host calling LISA
-        '''
+        """
+        About:This method is intended to be called by check_test_results method only.
+        This method will copy the output of XFSTest results to the Log folder of host
+        calling LISA. Files copied are xfsresult.log, check.log and all failed cases files
+        if they exist.
+        """
         # if "generic" == test_section:
         #     test_type = "xfs"
         xfstests_path = self.get_xfstests_path()
@@ -703,17 +746,17 @@ class Xfstests(Tool):
                 self._log.debug(f"{file_name} doesn't exist.")
 
     def extract_case_content(self, case: str, raw_message: str) -> str:
-        '''
-        Support method to extract the content of a specific test case
+        """
+        About:Support method to extract the content of a specific test case
         from the xfstests output. Its intended for LISA use only.
         The method takes in the following parameters:
         case: The test case name for which the content is needed
         raw_message: The raw message from the xfstests output
         The method returns the content of the specific test case
         
-        Example Usage:
+        Example:
         xfstest.extract_case_content(case="generic/001", raw_message=raw_message)
-        '''
+        """
         # Define the pattern to match the specific case and capture all
         # content until the next <string>/<number> line
         pattern = re.compile(
@@ -734,15 +777,19 @@ class Xfstests(Tool):
             return ""
 
     def extract_file_content(self, file_path: str) -> str:
-        '''
-        Support method to use the Cat command to extract file content.
+        """
+        About: Support method to use the Cat command to extract file content.
         This method is called by the create_xfstest_stack_info method.
-        The method takes in the following parameters:
+        Its purpose is to read the ASCII content of the file for further 
+        tasks such as diff in case of failed cases.
+
+        Parameters:
         file_path: The file path for which the content is needed
         The method returns the content of the specific file
-        Example Usage:
+        
+        Example:
         xfstest.extract_file_content(file_path="/path/to/file")
-        '''
+        """
         # Use the cat tool to read the file content
         if not Path(file_path).exists():
             self._log.debug(f"{file_path} doesn't exist.")
@@ -757,28 +804,31 @@ class Xfstests(Tool):
         test_section: str,
         test_status: str,
     ) -> str:
-        '''
-        This method is used to look up the xfstests results directory and
-        extract the dmesg and diff output for the given test case.
-        The method takes in the following parameters:
+        """
+        About:This method is used to look up the xfstests results directory and
+        extract the dmesg and full//fail diff output for the given test case.
+        
+        Parameters:
         case: The test case name for which the stack info is needed
         test_section: The test group name used for testing
         test_status: The test status for the given test case
+        
+        Returns:
         The method returns the stack info message for the given test case
 
-        Example Usage:
+        Example:
         xfstest.create_xfstest_stack_info(
             case="generic/001",
             test_section="xfs",
             test_status="FAILED
         )
 
-        Note: When running LISA in debug mode, you should expect to see a lot of messages
-        from 'ls' tool. This is because the method is checking for the existence of files
-        in the results directory. This is normal behavior and should be ignored.
-        This happens since we are looking for files for each test case rather than entire test run.
-        We are working on a fix to reduce the number of 'ls' calls and speed up the process.
-        '''
+        Note: When running LISA in debug mode, you should expect to see a lot of verbose
+        messages from 'ls' tool. This is because the method is checking for the existence
+        of files "per case basis" in the results directory. This is normal behavior and
+        should be ignored.We are working on a fix to reduce the verbosity of 'ls' calls
+        and speed up the process.
+        """
         # Get XFSTest current path. we are looking at results/{test_type} directory here
         xfstests_path = self.get_xfstests_path()
         test_class = case.split("/")[0]
@@ -787,7 +837,6 @@ class Xfstests(Tool):
         return_message: str = ""
         # <TODO> this needs to be fixed as it's spilling over to console output.
         if self.node.tools[Ls].path_exists(str(result_path), sudo=True):
-            
             # Note. This will dump a lot of output on debug console screen. 
             # Only un-comment for debugging.
             # self._log.debug(
@@ -817,7 +866,7 @@ class Xfstests(Tool):
                     )
                 # else if full_out is null, return the fail_out file content.
                 # In some test cases, full_out is not generated due to permissions
-                # of other issues. However a fail file will always exists in such cases.
+                # or other issues. However a fail file will always exists in such cases.
                 elif self.node.tools[Ls].path_exists(str(fail_out), sudo=True):
                     diff_result = self.node.tools[Cat].run(
                         f"{result_path}/{test_id}.out.bad", force_run=True, sudo=True
