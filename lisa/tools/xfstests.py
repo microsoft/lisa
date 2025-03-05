@@ -861,10 +861,13 @@ class Xfstests(Tool):
                 # In some test cases, full_out is not generated due to permissions
                 # or other issues. However a fail file will always exists in such cases.
                 elif self.node.tools[Ls].path_exists(str(fail_out), sudo=True):
-                    diff_result = self.node.tools[Cat].run(
-                        f"{result_path}/{test_id}.out.bad", force_run=True, sudo=True
+                    fail_result = self.node.tools[Cat].run(
+                        f"{result_path}/{test_id}.out.bad",
+                        force_run=True,
+                        sudo=True,
                     )
-                return_message = f"DIFF: {diff_result}\n\nDMESG: {dmesg_result.stdout}"
+                    diff_result = fail_result.stdout
+                return_message = f"DIFF: {diff_result}\n\nDMESG: {dmesg_result}"
                 # return_message = f"DMESG: {dmesg_result.stdout}"
             # No output is needed. Although we can add Dmesg in the future
             elif test_status == "SKIPPED":
