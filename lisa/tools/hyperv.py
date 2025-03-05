@@ -131,9 +131,13 @@ class HyperV(Tool):
         if not self.exists_vm(name):
             return None
 
-        # delete port mapping for internal IP address of the VM
-        internal_ip = self.get_ip_address(name)
-        self.delete_nat_mapping(internal_ip=internal_ip)
+        if (
+            self._default_switch
+            and self._default_switch.type == HypervSwitchType.INTERNAL
+        ):
+            # delete port mapping for internal IP address of the VM
+            internal_ip = self.get_ip_address(name)
+            self.delete_nat_mapping(internal_ip=internal_ip)
 
         # stop and delete vm
         self.stop_vm(name=name)
