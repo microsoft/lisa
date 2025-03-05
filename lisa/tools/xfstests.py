@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, cast, Dict, List, Optional, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
 
 from assertpy import assert_that
 
@@ -214,7 +214,7 @@ class Xfstests(Tool):
             Defaults to "generic/quick"
             note: if specified, test_section must exist in local.config
         data_disk: The data disk used for testing
-        test_cases: The test cases to be run. If empty, all installed test cases 
+        test_cases: The test cases to be run. If empty, all installed test cases
             barring exclude.txt entries are run
         timeout: The time in seconds after which the test will be timed out.
             Defaults to 4 hours.
@@ -267,7 +267,7 @@ class Xfstests(Tool):
     def _install_dep(self) -> None:
         """
         About: This method will install dependencies based on OS.
-        Dependencies are fetched from the common arrays such as 
+        Dependencies are fetched from the common arrays such as
         common_dep, debian_dep, fedora_dep, suse_dep, mariner_dep.
         If the OS is not supported, a LisaException is raised.
         """
@@ -359,7 +359,11 @@ class Xfstests(Tool):
         self.node.execute("useradd 123456-fsgqa", sudo=True)
         self.node.execute("useradd fsgqa2", sudo=True)
 
-    def _install(self, branch: Optional[str] = None, repo: Optional[str] = None) -> bool:
+    def _install(
+        self,
+        branch: Optional[str] = None,
+        repo: Optional[str] = None,
+    ) -> bool:
         """
         About:This method will download and install XFSTest on a given node.
         Supported OS are Redhat, Debian, Suse, Ubuntu and CBLMariner3.
@@ -445,7 +449,7 @@ class Xfstests(Tool):
             additional_parameters={"TEST_DEV2": "/dev/sdd"},
             overwrite_config=True
             )
-            Note: This method will by default enforce dmesg logging. 
+            Note: This method will by default enforce dmesg logging.
             All tests will have a corresponding dmesg log file in output folder.
         """
         xfstests_path = self.get_xfstests_path()
@@ -454,7 +458,8 @@ class Xfstests(Tool):
         if overwrite_config and self.node.shell.exists(config_path):
             self.node.shell.remove(config_path)
         # If groupname is not provided, use Filesystem name.
-        # Warning !!!: if you create multiple sections, specify unique group names for each
+        # Warning !!!: if you create multiple sections,
+        # you must specify unique group names for each
         if not test_section:
             test_section = file_system
         echo = self.node.tools[Echo]
@@ -837,8 +842,10 @@ class Xfstests(Tool):
                 fail_out = result_path / f"{test_id}.out.bad"
                 # check of "full_out" and "fail_out" file exists
                 # Only then call diff tool.
-                if ((self.node.tools[Ls].path_exists(str(full_out), sudo=True)) and
-                        (self.node.tools[Ls].path_exists(str(fail_out), sudo=True))):
+                if (
+                    (self.node.tools[Ls].path_exists(str(full_out), sudo=True))
+                    and (self.node.tools[Ls].path_exists(str(fail_out), sudo=True))
+                ):
                     diff_result = self.node.tools[Diff].comparefiles(
                         src=full_out,
                         dest=fail_out,
