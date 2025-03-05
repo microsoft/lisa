@@ -666,7 +666,6 @@ class Xfstests(Tool):
                         f"No Failed cases found in xfstests.\n"
                         f"XFSTestLog: {raw_message}"
                     )
-                    return
 
                 fail_match = self.__fail_pattern.match(results.stdout)
                 if fail_match:
