@@ -815,7 +815,8 @@ class Xfstests(Tool):
             test_status="FAILED"
         )
         Note: When running LISA in debug mode, expect verbose messages from 'ls' tool.
-        This is because the method checks for file existence per case in the results dir.
+        This is because the method checks for file existence per case in the results
+        dir.
         This is normal behavior and can be ignored. We are working on reducing verbosity
         of 'ls' calls to improve performance.
         """
