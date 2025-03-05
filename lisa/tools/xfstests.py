@@ -370,9 +370,13 @@ class Xfstests(Tool):
         Dependencies are installed based on the OS type from _install_dep method.
         The test users are added to the node using _add_test_users method.
         This method allows you to specify custom repo and branch for xfstest.
-        Else this defaults to https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git:master
+        Else this defaults to:
+        https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git:master
         Example:
-        xfstest._install(branch="master", repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git")
+        xfstest._install(
+                         branch="master",
+                         repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+        )
         """
         branch = branch or self.branch
         repo = repo or self.repo
@@ -418,7 +422,8 @@ class Xfstests(Tool):
         responsibility.
         Also take note of how options are carried between sectoins, that include the
         sections which are not going to be run.
-        Recommend going through : https://github.com/kdave/xfstests/blob/master/README.config-sections
+        Recommend going through link:
+        https://github.com/kdave/xfstests/blob/master/README.config-sections
         for more details on how to use local.config
         Parameters:
             scratch_dev (str)   : (M)The scratch device to be used for testing
@@ -492,7 +497,7 @@ class Xfstests(Tool):
     def set_excluded_tests(self, exclude_tests: str) -> None:
         """
         About:This method will create an exclude.txt file with the provided test cases.
-        The exclude.txt file is used by XFStest to exclude specific test cases from 
+        The exclude.txt file is used by XFStest to exclude specific test cases from
         running.
         The method takes in the following parameters:
         exclude_tests: The test cases to be excluded from testing
@@ -631,7 +636,7 @@ class Xfstests(Tool):
                     test_result=result,
                     raw_message=raw_message,
                     test_section=test_section,
-                    data_disk=data_disk
+                    data_disk=data_disk,
                 )
 
             if not self.node.shell.exists(results_path):
@@ -698,8 +703,8 @@ class Xfstests(Tool):
         """
         About:This method is intended to be called by check_test_results method only.
         This method will copy the output of XFSTest results to the Log folder of host
-        calling LISA. Files copied are xfsresult.log, check.log and all failed cases files
-        if they exist.
+        calling LISA. Files copied are xfsresult.log, check.log and all failed cases
+        files if they exist.
         """
         # if "generic" == test_section:
         #     test_type = "xfs"
@@ -750,7 +755,8 @@ class Xfstests(Tool):
         # Define the pattern to match the specific case and capture all
         # content until the next <string>/<number> line
         pattern = re.compile(
-            rf"({case}.*?)(?=\n[a-zA-Z]+/\d+|\nRan: |\nNot run: |\nFailures: |\nSECTION|\Z)",
+            rf"({case}.*?)(?="
+            r"\n[a-zA-Z]+/\d+|\nRan: |\nNot run: |\nFailures: |\nSECTION|\Z)",
             re.DOTALL,
         )
         # Search for the pattern in the raw_message
@@ -770,7 +776,7 @@ class Xfstests(Tool):
         """
         About: Support method to use the Cat command to extract file content.
         This method is called by the create_xfstest_stack_info method.
-        Its purpose is to read the ASCII content of the file for further 
+        Its purpose is to read the ASCII content of the file for further
         tasks such as diff in case of failed cases.
         Parameters:
         file_path: The file path for which the content is needed
@@ -821,7 +827,7 @@ class Xfstests(Tool):
         return_message: str = ""
         # <TODO> this needs to be fixed as it's spilling over to console output.
         if self.node.tools[Ls].path_exists(str(result_path), sudo=True):
-            # Note. This will dump a lot of output on debug console screen. 
+            # Note. This will dump a lot of output on debug console screen.
             # Only un-comment for debugging.
             # self._log.debug(
             #     f"Found files in path {result_path} : "
