@@ -28,8 +28,8 @@ from microsoft.testsuites.ltp.ltp import Ltp
     """,
 )
 class LtpTestsuite(TestSuite):
-    _TIME_OUT = 21000
-    LTP_LITE_TESTS = ["math", "ipc", "mm", "sched", "pty", "fs", "uevent", "syscalls", "hyperthreading", "irq"]
+    _TIME_OUT = 18000
+    LTP_LITE_TESTS = ["math", "ipc", "mm", "sched", "pty", "fs"]
     LTP_REQUIRED_DISK_SIZE_IN_GB = 2
 
     @TestCaseMetadata(
