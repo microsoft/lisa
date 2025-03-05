@@ -244,7 +244,7 @@ class Infiniband(Feature):
             "dkms",
             "python3-setuptools",
             "g++",
-            "libc6-i386",
+            "libc6-armhf-cross",
             "cloud-init",
             "walinuxagent",
             "net-tools",
@@ -322,9 +322,9 @@ class Infiniband(Feature):
                     node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
             for package in [
-                "lib32gcc-9-dev",
+                "libgcc-9-dev",
                 "python3-dev",
-                "lib32gcc-8-dev",
+                "libgcc-8-dev",
                 "python-dev",
             ]:
                 if node.os.is_package_in_repo(package):
