@@ -129,6 +129,7 @@ from .who import Who
 from .whoami import Whoami
 from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
+from .xfstests import Xfstests
 
 __all__ = [
     "AptAddRepository",
@@ -269,4 +270,5 @@ __all__ = [
     "Whoami",
     "WindowsFeatureManagement",
     "Wsl",
+    "Xfstests",
 ]
