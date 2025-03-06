@@ -289,16 +289,14 @@ class HypervPlatform(Platform):
                 name=vm_name,
                 guest_image_path=str(vhd_path),
                 switch_name=default_switch.name,
-                generation=node_runbook.hyperv_generation,
-                cores=node.capability.core_count,
-                memory=node.capability.memory_mb,
                 secure_boot=False,
                 com_ports={
                     1: com1_pipe_path,
                 },
                 extra_args=extra_args,
                 attach_offline_disks=False,
-                runbook=node_runbook,
+                node=node,
+                working_path=node_context.working_path,
             )
             # perform device passthrough for the VM
             self.device_pool._set_device_passthrough_node_context(
