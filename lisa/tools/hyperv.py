@@ -7,13 +7,15 @@ import string
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Type
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
+from lisa.sut_orchestrator.hyperv import features
 from lisa.base_tools import Service
 from lisa.executable import Tool
+from lisa.feature import Feature
 from lisa.operating_system import Windows
 
 from lisa.tools.powershell import PowerShell
@@ -73,6 +75,12 @@ class HyperV(Tool):
     @property
     def command(self) -> str:
         return ""
+
+    @classmethod
+    def supported_features(cls) -> List[Type[Feature]]:
+        return [
+            features.Disk,
+        ]
 
     @property
     def can_install(self) -> bool:

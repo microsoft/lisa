@@ -1,16 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 from functools import partial
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa import schema
 from lisa.feature import Feature
 from lisa.operating_system import BSD
-from lisa.tools import Ls, Mount
 from lisa.tools.mount import PartitionInfo
-from lisa.util import LisaException, get_matched_str
 
 
 class Disk(Feature):
@@ -28,19 +25,21 @@ class Disk(Feature):
     def get_partition_with_mount_point(
         self, mount_point: str
     ) -> Union[PartitionInfo, None]:
-        partition_info = self._node.tools[Mount].get_partition_info()
-        matched_partitions = [
-            partition
-            for partition in partition_info
-            if partition.mount_point == mount_point
-        ]
+        pass
 
-        if matched_partitions:
-            partition = matched_partitions[0]
-            self._log.debug(f"disk: {partition}, mount_point: {mount_point}")
-            return partition
-        else:
-            return None
+    #partition_info = self._node.tools[Mount].get_partition_info()
+    #matched_partitions = [
+    #    partition
+    #    for partition in partition_info
+    #    if partition.mount_point == mount_point
+    #]
+#
+    #if matched_partitions:
+    #    partition = matched_partitions[0]
+    #    self._log.debug(f"disk: {partition}, mount_point: {mount_point}")
+    #    return partition
+    #else:
+    #    return None
 
     def check_resource_disk_mounted(self) -> bool:
         return False
@@ -84,33 +83,34 @@ class Disk(Feature):
 
     # Get boot partition of VM by looking for "/boot", "/boot/efi", and "/efi"
     def get_os_boot_partition(self) -> Optional[PartitionInfo]:
+        return None
         # We need to access /efi to force systemd to
         # mount the boot partition on some distros.
-        self._node.tools[Ls].path_exists("/efi", sudo=True)
-
-        partition_info = self._node.tools[Mount].get_partition_info()
-        boot_partition: Optional[PartitionInfo] = None
-        for partition in partition_info:
-            if partition.mount_point.startswith(
-                "/boot"
-            ) or partition.mount_point.startswith("/efi"):
-                boot_partition = partition
-                if isinstance(self._node.os, BSD):
-                    # Get the device name from the GPT since they are abstracted
-                    # Ex. /boot is mounted on /gpt/efiesp
-                    # This is the output of gpart show.
-                    # Name           Status  Components
-                    # gpt/efiesp     N/A     da0p1
-                    # gpt/rootfs     N/A     da0p2
-                    _get_device_from_gpt_bsd_regex = re.compile(
-                        r"\n?" + re.escape(boot_partition.disk) + r"\s*\S*\s*(\S*)"
-                    )
-                    cmd = "glabel status"
-                    output = self._node.execute(cmd).stdout
-                    dev = get_matched_str(output, _get_device_from_gpt_bsd_regex)
-                    boot_partition.disk = dev
-                break
-        return boot_partition
+        #self._node.tools[Ls].path_exists("/efi", sudo=True)
+#
+        #partition_info = self._node.tools[Mount].get_partition_info()
+        #boot_partition: Optional[PartitionInfo] = None
+        #for partition in partition_info:
+        #    if partition.mount_point.startswith(
+        #        "/boot"
+        #    ) or partition.mount_point.startswith("/efi"):
+        #        boot_partition = partition
+        #        if isinstance(self._node.os, BSD):
+        #            # Get the device name from the GPT since they are abstracted
+        #            # Ex. /boot is mounted on /gpt/efiesp
+        #            # This is the output of gpart show.
+        #            # Name           Status  Components
+        #            # gpt/efiesp     N/A     da0p1
+        #            # gpt/rootfs     N/A     da0p2
+        #            _get_device_from_gpt_bsd_regex = re.compile(
+        #                r"\n?" + re.escape(boot_partition.disk) + r"\s*\S*\s*(\S*)"
+        #            )
+        #            cmd = "glabel status"
+        #            output = self._node.execute(cmd).stdout
+        #            dev = get_matched_str(output, _get_device_from_gpt_bsd_regex)
+        #            boot_partition.disk = dev
+        #        break
+        #return boot_partition
 
     def get_disk_type(self, disk: str) -> schema.StorageInterfaceType:
         if isinstance(self._node.os, BSD):

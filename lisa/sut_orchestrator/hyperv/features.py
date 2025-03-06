@@ -1,36 +1,41 @@
-from lisa import schema
-from lisa.feature import Feature
-from lisa.tools import HyperV, Lsblk
-from lisa.util import LisaException
-from lisa.util.logger import get_logger
-from typing import Type, Any, List, Optional, Dict
-from lisa.schema import PartitionInfo
-class Disk(Feature):
-class Disk(Feature):
-    @classmethod
-    def settings_type(cls) -> Type[schema.FeatureSettings]:
-        return schema.DiskOptionSettings
+from typing import Any, Dict, List, Optional, Type
 
+from lisa import features, schema
+from lisa.node import Node
+from lisa.sut_orchestrator.hyperv.context import get_node_context
+from lisa.util import LisaException
+
+
+class HypervFeatureMixin:
+    def _initialize_information(self, node: Node) -> None:
+        node_context = get_node_context(node)
+        self._vm_name = node_context.vm_name
+
+
+class Disk(HypervFeatureMixin, features.Disk):
     @classmethod
     def name(cls) -> str:
         return "Disk"
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._log = get_logger("disk")
-        self._hyperv = self._node.tools[HyperV]
+        super()._initialize(*args, **kwargs)
+        self._initialize_information(self._node)
+        node_context = get_node_context(self._node)
+        self._hyperv = node_context.hyperv
 
     def add_data_disk(
         self,
         count: int,
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
-        lun: int = -1,
-    ) -> List[str]:
         disk_names = []
         for i in range(count):
+            disk_name = f"data_disk_{i}"
             self._hyperv.create_data_disk(disk_name, size_in_gb)
             self._hyperv.attach_data_disk(self._node.name, disk_name)
             self._hyperv.attach_disk(self._node.name, disk_name)
+            disk_names.append(disk_name)
+        return disk_names
             disk_names.append(disk_name)
         return disk_names
 

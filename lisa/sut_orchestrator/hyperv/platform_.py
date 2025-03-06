@@ -5,6 +5,7 @@ from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
 
+from . import features
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
@@ -37,7 +38,7 @@ class HypervPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [SerialConsole]
+        return [SerialConsole, features.Disk]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._hyperv_runbook = self._get_hyperv_runbook()
