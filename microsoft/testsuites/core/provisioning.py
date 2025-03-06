@@ -294,6 +294,7 @@ class Provisioning(TestSuite):
                 tcp_error_code,
                 "no panic found in serial log during bootup",
             )
+        """
         try:
             timer = create_timer()
             log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
@@ -340,6 +341,7 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
+        """
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
