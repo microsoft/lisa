@@ -76,7 +76,8 @@ class CloudHypervisorTests(Tool):
     """
     pmem_config = "memmap=8G!64G"
     disable_disk_cache = ""
-    block_size_kb = ""
+    mibps_block_size_kb = ""
+    iops_block_size_kb = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -205,10 +206,11 @@ class CloudHypervisorTests(Tool):
 
         for testcase in subtests:
             testcase_log_file = log_path.joinpath(f"{testcase}.log")
-
             status: TestStatus = TestStatus.QUEUED
             metrics: str = ""
             trace: str = ""
+
+            self._set_block_size_env_var(testcase)
             cmd_args: str = (
                 f"tests --hypervisor {hypervisor} --metrics -- --"
                 f" --test-filter {testcase}"
@@ -291,8 +293,6 @@ class CloudHypervisorTests(Tool):
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
             if self.disable_disk_cache:
                 self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_disk_cache
-            if self.block_size_kb:
-                self.env_vars["PERF_BLOCK_SIZE_KB"] = self.block_size_kb
         else:
             git.clone(self.upstream_repo, clone_path)
 
@@ -586,6 +586,20 @@ class CloudHypervisorTests(Tool):
         if not datadisk_name:
             raise LisaException("No unmounted data disk (/dev/sdX) found")
         return datadisk_name
+
+    def _set_block_size_env_var(self, testcase: str) -> None:
+        block_size_env_var = "PERF_BLOCK_SIZE_KB"
+        if block_size_env_var in self.env_vars:
+            del self.env_vars[block_size_env_var]
+        if "block" in testcase:
+            block_size = ""
+            if "MiBps" in testcase:
+                block_size = self.mibps_block_size_kb
+            elif "IOPS" in testcase:
+                block_size = self.iops_block_size_kb
+
+            if block_size:
+                self.env_vars[block_size_env_var] = block_size
 
 
 def extract_jsons(input_string: str) -> List[Any]:
