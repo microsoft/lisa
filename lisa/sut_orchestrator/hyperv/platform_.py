@@ -306,8 +306,14 @@ class HypervPlatform(Platform):
                 hv=hv,
                 vm_name=vm_name,
             )
-            # Start the VM
-            hv.start_vm(name=vm_name, extra_args=extra_args)
+
+            try:
+                # Start the VM
+                hv.start_vm(name=vm_name, extra_args=extra_args)
+            except Exception as ex:
+                # avoid stale VMs; delete the VM before raising exception
+                self._delete_node(node_context, wait_delete=False, log=log)
+                raise ex
 
             ip_addr = hv.get_ip_address(vm_name)
             port = 22
@@ -367,34 +373,37 @@ class HypervPlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
 
+    def _delete_node(
+        self, node_ctx: NodeContext, wait_delete: bool, log: Logger
+    ) -> None:
+        hv = self._server.tools[HyperV]
+        vm_name = node_ctx.vm_name
+
+        # Reassign passthrough devices to host before VM is deleted
+        # This will be hot-unplug of device
+        if len(node_ctx.passthrough_devices) > 0:
+            self.device_pool.release_devices(node_ctx)
+
+        if wait_delete:
+            hv.delete_vm(vm_name)
+        else:
+            hv.delete_vm_async(vm_name)
+
+        assert node_ctx.serial_log_process
+        result = node_ctx.serial_log_process.wait_result()
+        log.debug(
+            f"{vm_name} serial log process exited with {result.exit_code}. "
+            f"stdout: {result.stdout}"
+        )
+
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
-        def _delete_node(node_ctx: NodeContext, wait_delete: bool) -> None:
-            hv = self._server.tools[HyperV]
-            vm_name = node_ctx.vm_name
-
-            # Reassign passthrough devices to host before VM is deleted
-            # This will be hot-unplug of device
-            if len(node_ctx.passthrough_devices) > 0:
-                self.device_pool.release_devices(node_ctx)
-
-            if wait_delete:
-                hv.delete_vm(vm_name)
-            else:
-                hv.delete_vm_async(vm_name)
-
-            assert node_ctx.serial_log_process
-            result = node_ctx.serial_log_process.wait_result()
-            log.debug(
-                f"{vm_name} serial log process exited with {result.exit_code}. "
-                f"stdout: {result.stdout}"
-            )
-
         run_in_parallel(
             [
                 partial(
-                    _delete_node,
+                    self._delete_node,
                     get_node_context(node),
                     self._hyperv_runbook.wait_delete,
+                    log,
                 )
                 for node in environment.nodes.list()
             ]
