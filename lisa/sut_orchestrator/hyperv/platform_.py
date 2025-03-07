@@ -296,6 +296,8 @@ class HypervPlatform(Platform):
                 },
                 extra_args=extra_args,
                 attach_offline_disks=False,
+                node=node,
+                working_path=node_context.working_path,
             )
             # perform device passthrough for the VM
             self.device_pool._set_device_passthrough_node_context(
