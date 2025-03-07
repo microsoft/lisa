@@ -25,7 +25,7 @@ from lisa.sut_orchestrator.azure.features import AzureFileShare, Nfs
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import BadEnvironmentStateException, generate_random_chars, LisaException
+from lisa.util import BadEnvironmentStateException, LisaException, generate_random_chars
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
 # Global variables
@@ -108,7 +108,8 @@ def _prepare_data_disk(
 
 # DEPRECATED !!!
 # This does not works on newer kernels.
-# We recommend SMB 3.11 when possible, and only use 3.0 for really older kernels 
+# Pls see:
+# https://lists.samba.org/archive/samba-technical/2018-June/128806.html 
 # def _get_smb_version(node: Node) -> str:
 #     if node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
 #         version = "3.1.1"
@@ -143,15 +144,15 @@ def _deploy_azure_file_share(
     else:
         raise LisaException("Unsupported file share protocol")
     if file_share_protocol == "SMB":
-        fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
-                file_share_names=[file_share_name, scratch_name],
-                environment=environment,
-                sku=storage_account_sku,
-                kind=storage_account_kind,
-                allow_shared_key_access=allow_shared_key_access,
-                enable_private_endpoint=enable_private_endpoint,
-                quota_in_gb=file_share_quota_in_gb,
-            )
+        fs_url_dict: Dict[str, str] = azure_file_sharoe.create_file_share(
+            file_share_names=[file_share_name, scratcwh_name],
+            environment=environment,
+            sku=storage_account_sku,
+            kind=storage_account_kind,
+            allow_shared_key_access=allow_shared_key_access,
+            enable_private_endpoint=enable_private_endpoint,
+            quota_in_gb=file_share_quota_in_gb,
+        )
         test_folders_share_dict = {
             _test_folder: fs_url_dict[file_share_name],
             _scratch_folder: fs_url_dict[scratch_name],
@@ -163,7 +164,7 @@ def _deploy_azure_file_share(
 
 
 # DEPRECATED !!!!
-# This instead exists in features.py
+# This n exists in features.py
 # def _prepare_azure_file_share_smb(
 #     node: Node,
 #     account_credential: Dict[str, str],
