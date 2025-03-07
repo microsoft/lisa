@@ -219,15 +219,30 @@ class Kselftest(Tool):
         result_file = f"{result_directory}/{result_file_name}"
 
         # Initialize run_tests and skip_tests from kwargs if provided
-        run_tests = kwargs.get("run_tests", [])
+        run_collections = kwargs.get("run_collections", [])
+        skip_tests = kwargs.get("skip_tests", [])
 
-        if run_tests:
-            run_tests_str = " ".join(f"-n {test}" for test in run_tests)
-            command = f" {run_tests_str} 2>&1 | tee {result_file}"
-        else:
-            command = f" 2>&1 | tee {result_file}"
+        # List all available tests
+        list_result = self.run(" -l", shell=True)
+        list_result.assert_exit_code()
+        all_tests = list_result.stdout.splitlines()
 
-        self.run(
+        # Filter tests to run based on run_collections and skip_tests
+        tests_to_run = [
+            test for test in all_tests
+            if any(collection in test for collection in run_collections) and test not in skip_tests
+        ]
+
+        # Save the list of tests to a file
+        tests_file = f"{result_directory}/tests.txt"
+        with open(tests_file, "w") as f:
+            for test in tests_to_run:
+                f.write(f"{test}\n")
+
+        # Construct the command to run specific tests from the file
+        command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
+
+        self.node.execute(
             command,
             sudo=run_test_as_root,
             force_run=True,
