@@ -40,4 +40,9 @@ class HyperVPreparationTransformer(DeploymentTransformer):
 
         # Configure Internal DHCP
         hv.enable_internal_dhcp()
+
+        # Configure lisa working path to use free disk.
+        hv.use_raw_disk_for_lisa_working_dir()
+    
+        self._node.reboot()
         return {}
