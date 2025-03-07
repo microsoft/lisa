@@ -109,7 +109,7 @@ def _prepare_data_disk(
 # DEPRECATED !!!
 # This does not works on newer kernels.
 # Pls see:
-# https://lists.samba.org/archive/samba-technical/2018-June/128806.html 
+# https://lists.samba.org/archive/samba-technical/2018-June/128806.html
 # def _get_smb_version(node: Node) -> str:
 #     if node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
 #         version = "3.1.1"
@@ -144,8 +144,8 @@ def _deploy_azure_file_share(
     else:
         raise LisaException("Unsupported file share protocol")
     if file_share_protocol == "SMB":
-        fs_url_dict: Dict[str, str] = azure_file_sharoe.create_file_share(
-            file_share_names=[file_share_name, scratcwh_name],
+        fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
+            file_share_names=[file_share_name, scratch_name],
             environment=environment,
             sku=storage_account_sku,
             kind=storage_account_kind,
