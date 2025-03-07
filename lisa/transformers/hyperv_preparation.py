@@ -28,10 +28,20 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
+
+        self._prepare_environment()
+
+        return {}
+
+    def _prepare_environment(self) -> None:
+        # This transformer is not intended to be used in a test case.
         switch_name = "InternalNAT"
 
         # Enable Hyper-V
         hv = self._node.tools[HyperV]
+
+        # Configure lisa working path to use free disk.
+        hv.use_raw_disk_for_lisa_working_dir()
 
         # Create an internal switch.
         hv.create_switch(name=switch_name)
@@ -41,8 +51,4 @@ class HyperVPreparationTransformer(DeploymentTransformer):
         # Configure Internal DHCP
         hv.enable_internal_dhcp()
 
-        # Configure lisa working path to use free disk.
-        hv.use_raw_disk_for_lisa_working_dir()
-    
         self._node.reboot()
-        return {}
