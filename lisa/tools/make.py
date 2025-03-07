@@ -74,6 +74,8 @@ class Make(Tool):
         thread_count: int = 0,
         update_envs: Optional[Dict[str, str]] = None,
         ignore_error: bool = False,
+        shell: bool = True,
+        sendYesCmd: bool = True
     ) -> ExecutableResult:
         expected_exit_code: Optional[int] = 0
         if thread_count == 0:
@@ -95,13 +97,17 @@ class Make(Tool):
 
         if ignore_error:
             expected_exit_code = None
-        # yes '' answers all questions with default value.
+        command = ""
+        if sendYesCmd:
+            # yes '' answers all questions with default value.
+            command = "yes '' | "
+
         result = self.node.execute(
-            f"yes '' | make -j{thread_count} {arguments}",
+            f"{command} make -j{thread_count} {arguments}",
             cwd=cwd,
             timeout=timeout,
             sudo=sudo,
-            shell=True,
+            shell=shell,
             update_envs=update_envs,
             expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message="Failed to make",
