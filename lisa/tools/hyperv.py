@@ -70,6 +70,7 @@ class HyperV(Tool):
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
+    # Azure Premium Disk IOPS to size in GB mapping
     _azure_premium_disk_size_to_iops = {
         0 : 0,
         4 : 120,
