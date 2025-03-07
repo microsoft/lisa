@@ -180,10 +180,6 @@ class HyperV(Tool):
 
         powershell = self.node.tools[PowerShell]
 
-        if "hyperv" in self.node.runbook.extended_schemas and hasattr(
-            self.node.runbook.extended_schemas["hyperv"], "generation"
-        ):
-            generation = self.node.runbook.extended_schemas["hyperv"].generation
         # create a VM in hyperv
         self._run_hyperv_cmdlet(
             "New-VM",
