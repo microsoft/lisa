@@ -70,6 +70,22 @@ class HyperV(Tool):
     _default_switch: Optional[VMSwitch] = None
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
+    _azure_premium_disk_size_to_iops = {
+        4 : 120,
+        8 : 120,
+        16 : 120,
+        32 : 120,
+        64 : 240,
+        128 : 500,
+        256 : 1100,
+        512 : 2300,
+        1024 : 5000,
+        2048 : 7500,
+        4096 : 7500,
+        8192 : 16000,
+        16384 : 18000,
+        32767 : 20000,
+    }
 
     @property
     def command(self) -> str:
@@ -209,7 +225,8 @@ class HyperV(Tool):
                 data_disk_count = 0
 
             if node.capability.disk and hasattr(node.capability.disk, "data_disk_size"):
-                disk_size = int(node.capability.disk.data_disk_size)
+                # disk_size = int(node.capability.disk.data_disk_size)
+                disk_size = self._get_disk_size(node.capability.disk.data_disk_iops)
                 if disk_size is None:
                     disk_size = 1
 
@@ -616,6 +633,15 @@ class HyperV(Tool):
 
     def _get_disk_path(self, disk_name: str) -> str:
         return os.path.join(self.node.working_path, f"{disk_name}.vhdx")
+
+    def _get_disk_size(self, iops: int) -> int:
+        sorted_azure_premium_disk_size_to_iops = dict(
+            sorted(self._azure_premium_disk_size_to_iops.items())
+        )
+        for size, iops_value in sorted_azure_premium_disk_size_to_iops.items():
+            if iops_value >= iops:
+                return size
+        return 0
 
     def create_disk(
         self, disk_name: str, size_in_gb: int

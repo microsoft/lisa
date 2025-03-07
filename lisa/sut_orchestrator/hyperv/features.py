@@ -135,12 +135,6 @@ class Disk(HypervFeatureMixin, features.Disk):
         # lrwxrwxrwx 1 root root  9 Mar  7 08:05 /dev/disk/by-path/acpi-VMBUS:01-vmbus-4c90db37b55b40c6af19473e1cd96cc6-lun-0 -> ../../sda  # noqa: E501
         # lrwxrwxrwx 1 root root  9 Mar  7 08:05 /dev/disk/by-path/acpi-VMBUS:01-vmbus-4c90db37b55b40c6af19473e1cd96cc6-lun-1 -> ../../sdb  # noqa: E501
         all_disks = ls_tools.list("/dev/disk/by-path", sudo=True)
-        print(all_disks)  # debug
-        assert self._node.capability.disk
-        if len(all_disks) == 0:
-            raise LisaException(
-                "Attached SCSI data disks are not found on the VM"
-            )
 
         os_disk = self._get_os_disk()
         scsi_disks = []
