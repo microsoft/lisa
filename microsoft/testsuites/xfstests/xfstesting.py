@@ -17,18 +17,69 @@ from lisa import (
     search_space,
     simple_requirement,
 )
+from lisa.environment import Environment
 from lisa.features import Disk, Nvme
 from lisa.operating_system import BSD, CBLMariner, Oracle, Redhat, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
-from lisa.sut_orchestrator.azure.features import AzureFileShare
+from lisa.sut_orchestrator.azure.features import AzureFileShare, Nfs
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import Echo, FileSystem, KernelConfig, Mkfs, Mount, Parted
-from lisa.util import BadEnvironmentStateException, generate_random_chars
+from lisa.util import BadEnvironmentStateException, generate_random_chars, LisaException
 from microsoft.testsuites.xfstests.xfstests import Xfstests
 
+# Global variables
+# Section : NFS options. <TODO>
+_default_nfs_mount = "vers=4,minorversion=1,_netdev,nofail,sec=sys 0 0"
+_default_nfs_excluded_tests: str = ""
+_default_nfs_testcases: str = ""
+# Section : SMB options.
+_default_smb_mount = (
+    "vers=3.11,dir_mode=0755,file_mode=0755,serverino,nosharesock"
+    ",mfsymlinks,max_channels=4,actimeo=30"
+)
+_default_smb_excluded_tests: str = (
+    "generic/015 generic/019 generic/027 generic/034 generic/039 generic/040 "
+    "generic/041 generic/050 generic/056 generic/057 generic/059 generic/065 "
+    "generic/066 generic/067 generic/073 generic/076 generic/081 generic/083 "
+    "generic/090 generic/096 generic/101 generic/102 generic/104 generic/106 "
+    "generic/107 generic/108 generic/114 generic/204 generic/218 generic/223 "
+    "generic/224 generic/226 generic/250 generic/252 generic/269 generic/273 "
+    "generic/274 generic/275 generic/299 generic/300 generic/311 generic/312 "
+    "generic/320 generic/321 generic/322 generic/325 generic/335 generic/336 "
+    "generic/338 generic/341 generic/342 generic/343 generic/347 generic/348 "
+    "generic/361 generic/371 generic/376 generic/388 generic/405 generic/409 "
+    "generic/410 generic/411 generic/416 generic/418 generic/427 generic/441 "
+    "generic/442 generic/455 generic/456 generic/459 generic/466 generic/470 "
+    "generic/475 generic/481 generic/482 generic/483 generic/484 generic/487 "
+    "generic/488 generic/489 generic/500 generic/510 generic/512 generic/520 "
+    "generic/534 generic/535 generic/536 generic/547 generic/552 generic/557 "
+    "generic/558 generic/559 generic/560 generic/561 generic/562 generic/570 "
+    "generic/589 generic/619 generic/620 generic/640"
+)
+_default_smb_testcases: str = (
+    "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
+    "generic/013 generic/014 generic/024 generic/028 generic/029 generic/030 "
+    "generic/036 generic/069 generic/070 generic/071 generic/074 generic/080 "
+    "generic/084 generic/086 generic/091 generic/095 generic/098 generic/100 "
+    "generic/109 generic/113 generic/117 generic/124 generic/125 generic/129 "
+    "generic/130 generic/132 generic/133 generic/135 generic/141 generic/169 "
+    "generic/184 generic/198 generic/207 generic/208 generic/210 generic/211 "
+    "generic/212 generic/214 generic/215 generic/221 generic/228 generic/239 "
+    "generic/240 generic/241 generic/246 generic/247 generic/248 generic/249 "
+    "generic/257 generic/258 generic/286 generic/306 generic/308 generic/310 "
+    "generic/313 generic/315 generic/339 generic/340 generic/344 generic/345 "
+    "generic/346 generic/354 generic/360 generic/391 generic/393 generic/394 "
+    "generic/406 generic/412 generic/422 generic/428 generic/432 generic/433 "
+    "generic/437 generic/443 generic/450 generic/451 generic/452 generic/460 "
+    "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
+    "generic/565 generic/567 generic/568"
+)
+# Section : Global options
 _scratch_folder = "/mnt/scratch"
 _test_folder = "/mnt/test"
+_xfstests_repp = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+_xfstests_branch = "master"
 
 
 def _prepare_data_disk(
@@ -55,39 +106,89 @@ def _prepare_data_disk(
         node.execute(f"mkdir {mount_point}", sudo=True)
 
 
-def _get_smb_version(node: Node) -> str:
-    if node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
-        version = "3.1.1"
+# DEPRECATED !!!
+# This does not works on newer kernels.
+# We recommend SMB 3.11 when possible, and only use 3.0 for really older kernels 
+# def _get_smb_version(node: Node) -> str:
+#     if node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
+#         version = "3.1.1"
+#     else:
+#         version = "3.0"
+#     return version
+
+
+def _deploy_azure_file_share(
+        node: Node,
+        environment: Environment,
+        file_share_name: str,
+        scratch_name: str,
+        azure_file_share: Any,
+        allow_shared_key_access: bool = True,
+        enable_private_endpoint: bool = True,
+        storage_account_sku: str = "Standard_LRS",
+        storage_account_kind: str = "StorageV2",
+        file_share_protocol: str = "SMB",
+        file_share_quota_in_gb: int = 500,
+) -> Dict[str, str]:
+    """
+    About: This method will provision azure file shares on a new // existing
+    storage account.
+    Returns: Dict[str, str] - A dictionary containing the file share names
+    and their respective URLs.
+    """
+    if isinstance(azure_file_share, AzureFileShare):
+        file_share_protocol = "SMB"
+    elif isinstance(azure_file_share, Nfs):
+        file_share_protocol = "NFS"
     else:
-        version = "3.0"
-    return version
+        raise LisaException("Unsupported file share protocol")
+    if file_share_protocol == "SMB":
+        fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
+                file_share_names=[file_share_name, scratch_name],
+                environment=environment,
+                sku=storage_account_sku,
+                kind=storage_account_kind,
+                allow_shared_key_access=allow_shared_key_access,
+                enable_private_endpoint=enable_private_endpoint,
+                quota_in_gb=file_share_quota_in_gb,
+            )
+        test_folders_share_dict = {
+            _test_folder: fs_url_dict[file_share_name],
+            _scratch_folder: fs_url_dict[scratch_name],
+        }
+        azure_file_share.create_fileshare_folders(test_folders_share_dict)
+    # else:
+        # NFS yet to be implemented
+    return fs_url_dict
 
 
-def _prepare_azure_file_share(
-    node: Node,
-    account_credential: Dict[str, str],
-    test_folders_share_dict: Dict[str, str],
-    fstab_info: str,
-) -> None:
-    folder_path = node.get_pure_path("/etc/smbcredentials")
-    if node.shell.exists(folder_path):
-        node.execute(f"rm -rf {folder_path}", sudo=True)
-    node.shell.mkdir(folder_path)
-    file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
-    echo = node.tools[Echo]
-    username = account_credential["account_name"]
-    password = account_credential["account_key"]
-    echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
-    echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
-    node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
-    for folder_name, share in test_folders_share_dict.items():
-        node.execute(f"mkdir {folder_name}", sudo=True)
-        echo.write_to_file(
-            f"{share} {folder_name} cifs {fstab_info}",
-            node.get_pure_path("/etc/fstab"),
-            sudo=True,
-            append=True,
-        )
+# DEPRECATED !!!!
+# This instead exists in features.py
+# def _prepare_azure_file_share_smb(
+#     node: Node,
+#     account_credential: Dict[str, str],
+#     test_folders_share_dict: Dict[str, str],
+#     fstab_info: str,
+# ) -> None:
+#     folder_path = node.get_pure_path("/etc/smbcredentials")
+#     if node.shell.exists(folder_path):
+#         node.execute(f"rm -rf {folder_path}", sudo=True)
+#     node.shell.mkdir(folder_path)
+#     file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
+#     echo = node.tools[Echo]
+#     username = account_credential["account_name"]
+#     password = account_credential["account_key"]
+#     echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
+#     echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
+#     node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
+#     for folder_name, share in test_folders_share_dict.items():
+#         node.execute(f"mkdir {folder_name}", sudo=True)
+#         echo.write_to_file(
+#             f"{share} {folder_name} cifs {fstab_info}",
+#             node.get_pure_path("/etc/fstab"),
+#             sudo=True,
+#             append=True,
+#         )
 
 
 @TestSuiteMetadata(
@@ -101,7 +202,7 @@ def _prepare_azure_file_share(
 class Xfstesting(TestSuite):
     # Use xfstests benchmark to test the different types of data disk,
     #  it will run many cases, so the runtime is longer than usual case.
-    TIME_OUT = 14400
+    TIME_OUT = 21600
     # TODO: will include btrfs/244 once the kernel contains below fix.
     # exclude btrfs/244 temporarily for below commit not picked up by distro vendor.
     # https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/fs/btrfs/volumes.c?id=e4571b8c5e9ffa1e85c0c671995bd4dcc5c75091 # noqa: E501
@@ -126,8 +227,9 @@ class Xfstesting(TestSuite):
     # generic/738 case might cause hang more than 4 hours on old kernel
     # TODO: will figure out the detailed reason of every excluded case.
     # exclude generic/680 for security reason.
+    # include generic/211 for testing
     excluded_tests = (
-        "generic/211 generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
+        "generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"
@@ -258,7 +360,7 @@ class Xfstesting(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run ext4 xfstests testing against
-         standard data disk with ext4 type system.
+        standard data disk with ext4 type system.
         """,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
@@ -492,10 +594,12 @@ class Xfstesting(TestSuite):
         description="""
         This test case will run cifs xfstests testing against
          azure file share.
-
-        Downgrading priority from 3 to 5. The file share relies on the
-         storage account key, which we cannot use currently.
-        Will change it back once file share works with MSI.
+        The case will provision storage account with private endpoint
+        and use access key // ntlmv2 for authentication.
+        This will change to MSI in the near future
+        Update the mount options via _default_smb_mount
+        Update the excluded cases via _default_smb_excluded_tests
+        Update the test cases via _default_smb_testcases
         """,
         requirement=simple_requirement(
             min_core_count=16,
@@ -504,11 +608,17 @@ class Xfstesting(TestSuite):
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
-        priority=5,
+        priority=3,
     )
     def verify_azure_file_share(
         self, log: Logger, log_path: Path, result: TestResult
     ) -> None:
+        """
+        About: This test case will run cifs xfstests testing against
+        azure file share - premium .
+        The test will create a VM, and storage account with private endpoint.
+        The authentication currently uses the storage account key and NTLMv2.
+        """
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         assert isinstance(environment.platform, AzurePlatform)
@@ -520,40 +630,41 @@ class Xfstesting(TestSuite):
         xfstests = self._install_xfstests(node)
 
         azure_file_share = node.features[AzureFileShare]
-        version = azure_file_share.get_smb_version()
-        mount_opts = (
-            f"-o vers={version},credentials=/etc/smbcredentials/lisa.cred"
-            ",dir_mode=0777,file_mode=0777,serverino"
-        )
-
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
-
-        # fs_url_dict: Dict[str, str] = {file_share_name: "", scratch_name: ""}
-        try:
-            fs_url_dict = azure_file_share.create_file_share(
-                file_share_names=[file_share_name, scratch_name],
-                environment=environment,
-            )
-            test_folders_share_dict = {
-                _test_folder: fs_url_dict[file_share_name],
-                _scratch_folder: fs_url_dict[scratch_name],
-            }
-            azure_file_share.create_fileshare_folders(test_folders_share_dict)
-
-            self._execute_xfstests(
-                log_path,
-                xfstests,
-                result,
-                test_dev=fs_url_dict[file_share_name],
-                scratch_dev=fs_url_dict[scratch_name],
-                excluded_tests=self.excluded_tests,
-                mount_opts=mount_opts,
-            )
-        finally:
-            # clean up resources after testing.
-            azure_file_share.delete_azure_fileshare([file_share_name, scratch_name])
+        mount_opts = (
+            f"-o {_default_smb_mount},credentials=/etc/smbcredentials/lisa.cred"
+        )
+        fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
+            node,
+            environment,
+            file_share_name,
+            scratch_name,
+            azure_file_share,
+        )
+        # Create Xfstest config
+        xfstests.set_local_config(
+            scratch_dev=fs_url_dict[scratch_name],
+            scratch_mnt=_scratch_folder,
+            test_dev=fs_url_dict[file_share_name],
+            test_folder=_test_folder,
+            file_system="cifs",
+            test_section="cifs",
+            mount_opts=mount_opts,
+            testfs_mount_opts=mount_opts,
+            overwrite_config=True,
+        )
+        # Create excluded test file
+        xfstests.set_excluded_tests(_default_smb_excluded_tests)
+        # run the test
+        xfstests.run_test(
+            test_section="cifs",
+            log_path=log_path,
+            result=result,
+            test_cases=_default_smb_testcases,
+            timeout=self.TIME_OUT - 30,
+        )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         try:
@@ -580,8 +691,10 @@ class Xfstesting(TestSuite):
         scratch_dev: str = "",
         file_system: FileSystem = FileSystem.xfs,
         test_type: str = "generic",
+        test_cases: str = "",
         excluded_tests: str = "",
         mount_opts: str = "",
+        testfs_mount_opts: str = "",
     ) -> None:
         environment = result.environment
         assert environment, "fail to get environment from testresult"
@@ -617,18 +730,27 @@ class Xfstesting(TestSuite):
             )
 
         xfstests.set_local_config(
-            scratch_dev,
-            _scratch_folder,
-            test_dev,
-            _test_folder,
-            test_type,
-            file_system.name,
-            mount_opts,
+            scratch_dev=scratch_dev,
+            scratch_mnt=_scratch_folder,
+            test_dev=test_dev,
+            test_folder=_test_folder,
+            file_system=file_system.name,
+            test_section=test_type,
+            mount_opts=mount_opts,
+            testfs_mount_opts=testfs_mount_opts,
+            overwrite_config=True,
         )
         xfstests.set_excluded_tests(excluded_tests)
         # Reduce run_test timeout by 30s to let it complete before case Timeout
         # wait_processes interval in run_test is 10s, set to 30 for safety check
-        xfstests.run_test(test_type, log_path, result, data_disk, self.TIME_OUT - 30)
+        xfstests.run_test(
+            test_section=test_type,
+            log_path=log_path,
+            result=result,
+            data_disk=data_disk,
+            test_cases=test_cases,
+            timeout=self.TIME_OUT - 30,
+        )
 
     def _install_xfstests(self, node: Node) -> Xfstests:
         try:
