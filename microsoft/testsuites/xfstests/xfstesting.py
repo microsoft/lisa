@@ -119,7 +119,6 @@ def _prepare_data_disk(
 
 
 def _deploy_azure_file_share(
-        # node: Node,
         environment: Environment,
         file_share_name: str,
         scratch_name: str,
