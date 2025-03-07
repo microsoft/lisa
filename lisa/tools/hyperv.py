@@ -24,7 +24,7 @@ from lisa.tools.rm import Rm
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
-# from lisa.sut_orchestrator.hyperv.context import get_node_context
+
 
 class HypervSwitchType(Enum):
     INTERNAL = "Internal"
