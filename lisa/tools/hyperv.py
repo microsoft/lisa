@@ -71,6 +71,7 @@ class HyperV(Tool):
     _external_forwarding_port_start = 50000
     _assigned_nat_ports: Set[int] = set()
     _azure_premium_disk_size_to_iops = {
+        0 : 0,
         4 : 120,
         8 : 120,
         16 : 120,
