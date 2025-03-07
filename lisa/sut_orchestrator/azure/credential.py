@@ -9,6 +9,7 @@ from azure.identity import (
     ClientSecretCredential,
     DefaultAzureCredential,
     ManagedIdentityCredential,
+    WorkloadIdentityCredential,
 )
 from dataclasses_json import dataclass_json
 from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
@@ -25,6 +26,7 @@ class AzureCredentialType(str, Enum):
     CertificateCredential = "certificate"
     ClientAssertionCredential = "assertion"
     ClientSecretCredential = "secret"
+    WorkloadIdentityCredential = "workloadidentity"
     TokenCredential = "token"
 
 
@@ -34,6 +36,7 @@ class AzureCredentialSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
     type: str = AzureCredentialType.DefaultAzureCredential
     tenant_id: str = ""
     client_id: str = ""
+    allow_all_tenants: bool = True
 
 
 @dataclass_json()
@@ -104,6 +107,7 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         # parameters overwrite seq: env var <- runbook <- cmd
         self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
         self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
+        self._allow_all_tenants = False
 
         assert runbook, "azure_credential shouldn't be empty"
         if runbook.tenant_id:
@@ -114,6 +118,8 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
             self._client_id = runbook.client_id
             self._log.debug(f"Use defined client id: {self._client_id}")
             os.environ["AZURE_CLIENT_ID"] = self._client_id
+
+        self._allow_all_tenants = runbook.allow_all_tenants
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -147,10 +153,37 @@ class AzureDefaultCredential(AzureCredential):
         """
         return AzureCredential with related schema
         """
-        return DefaultAzureCredential(cloud=self._cloud)
+        additional_tenants = ["*"] if self._allow_all_tenants else None
+        return DefaultAzureCredential(
+            cloud=self._cloud,
+            additionally_allowed_tenants=additional_tenants,
+        )
 
     def _get_key(self) -> str:
         return f"{self._credential_type}_{self._client_id}_{self._tenant_id}"
+
+
+class AzureWorkloadIdentityCredential(AzureCredential):
+    """
+    Class to create azure WorkloadIdentityCredential
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.WorkloadIdentityCredential
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return AzureCredentialSchema
+
+    def get_credential(self) -> Any:
+        self._log.info("Authenticating Using WorkloadIdentityCredential")
+        additional_tenants = ["*"] if self._allow_all_tenants else None
+        return WorkloadIdentityCredential(
+            tenant_id=self._tenant_id,
+            client_id=self._client_id,
+            additionally_allowed_tenants=additional_tenants,
+        )
 
 
 class AzureCertificateCredential(AzureCredential):
