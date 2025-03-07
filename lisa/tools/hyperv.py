@@ -219,7 +219,11 @@ class HyperV(Tool):
         )
 
         data_disk_count = 0
-        if node.capability.disk and hasattr(node.capability.disk, "data_disk_count"):
+        if (
+            node.capability.disk
+            and hasattr(node.capability.disk, "data_disk_count")
+            and isinstance(node.capability.disk.data_disk_count, int)
+        ):
             data_disk_count = int(node.capability.disk.data_disk_count)
             if node.capability.disk.data_disk_count is None:
                 data_disk_count = 0
