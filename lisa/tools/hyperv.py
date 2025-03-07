@@ -8,11 +8,12 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Type
+from pathlib import WindowsPath
+import os
 
 from assertpy import assert_that
 from dataclasses_json import dataclass_json
 
-from lisa.sut_orchestrator.hyperv import features
 from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.feature import Feature
@@ -23,9 +24,7 @@ from lisa.tools.rm import Rm
 from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
-from pathlib import WindowsPath
-import os
-
+# from lisa.sut_orchestrator.hyperv.context import get_node_context
 
 class HypervSwitchType(Enum):
     INTERNAL = "Internal"
@@ -75,12 +74,6 @@ class HyperV(Tool):
     @property
     def command(self) -> str:
         return ""
-
-    @classmethod
-    def supported_features(cls) -> List[Type[Feature]]:
-        return [
-            features.Disk,
-        ]
 
     @property
     def can_install(self) -> bool:
@@ -181,8 +174,6 @@ class HyperV(Tool):
         stop_existing_vm: bool = True,
         extra_args: Optional[Dict[str, str]] = None,
     ) -> None:
-        from lisa.node import Node
-
         self.delete_vm(name)
 
         powershell = self.node.tools[PowerShell]
@@ -221,15 +212,6 @@ class HyperV(Tool):
                 disk_size = int(node.capability.disk.data_disk_size)
                 if disk_size is None:
                     disk_size = 1
-        # if node.capability.disk and hasattr(node.capability.disk, 'data_disk_count'):
-        #    if node.capability.disk.data_disk_count is not None:
-        #        data_disk_count = node.capability.disk.data_disk_count
-
-        ## Default disk size if not specified
-        # disk_size = 1  # Default size in GB
-        # if node.capability.disk and hasattr(node.capability.disk, 'data_disk_size'):
-        #    if node.capability.disk.data_disk_size is not None:
-        #        disk_size = node.capability.disk.data_disk_size
 
         for i in range(data_disk_count):
             self._log.debug(f"Adding data disk {i} to VM {name}")
@@ -237,12 +219,9 @@ class HyperV(Tool):
                 random.choices(string.ascii_lowercase + string.digits, k=2)
             )
 
-            disk_path = self.create_disk(
-                f"{name}_data_disk_{i}_{random_str}",
-                disk_size,
-                working_path,
-            )
-            self.attach_disk(name, disk_path)
+            disk_name = f"{name}_data_disk_{i}_{random_str}"
+            self.create_disk( disk_name, disk_size)
+            self.attach_disk(name, disk_name)
 
         if extra_args is not None and "set-vmprocessor" in extra_args:
             self._run_hyperv_cmdlet(
@@ -635,20 +614,22 @@ class HyperV(Tool):
         # Restart the DHCP server to apply the changes
         service.restart_service("dhcpserver")
 
+    def _get_disk_path(self, disk_name: str) -> str:
+        return os.path.join(self.node.working_path, f"{disk_name}.vhdx")
+
     def create_disk(
-        self, disk_name: str, size_in_gb: int, working_path: WindowsPath
-    ) -> str:
-        disk_path = os.path.join(working_path, f"{disk_name}.vhdx")
+        self, disk_name: str, size_in_gb: int
+    ) -> None:
         self.node.tools[PowerShell].run_cmdlet(
-            f"New-VHD -Path {disk_path} -SizeBytes {size_in_gb}GB -Dynamic",
+            f"New-VHD -Path {self._get_disk_path(disk_name)} -SizeBytes {size_in_gb}GB"
+            " -Dynamic",
             force_run=True,
         )
-        return disk_path
 
-    def attach_disk(self, vm_name: str, disk_path: str) -> None:
+    def attach_disk(self, vm_name: str, disk_name: str) -> None:
         self.node.tools[PowerShell].run_cmdlet(
-            f"Add-VMHardDiskDrive -VMName {vm_name} -Path {disk_path}"
-            "  -ControllerType SCSI",
+            f"Add-VMHardDiskDrive -VMName {vm_name} -Path "
+            f"{self._get_disk_path(disk_name)} -ControllerType SCSI",
             force_run=True,
         )
 
@@ -659,7 +640,8 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def delete_disk(self, disk_name: str) -> None:
+    def delete_disk(self, vm_name: str, disk_name: str) -> None:
+        self.detach_disk(self.node.name, disk_name)
         self.node.tools[PowerShell].run_cmdlet(
             f"Remove-Item -Path {self._get_disk_path(disk_name)}",
             force_run=True,
