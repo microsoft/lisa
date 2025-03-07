@@ -257,6 +257,8 @@ class HypervPlatform(Platform):
             assert self._source_vhd
 
             node.name = vm_name
+            if node.capability.disk is not None:
+                node.capability.disk.max_data_disk_count = 16
 
             node_context = get_node_context(node)
             node_context.vm_name = vm_name

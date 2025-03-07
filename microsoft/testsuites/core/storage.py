@@ -310,7 +310,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE], unsupported_os=[BSD, Windows]
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
