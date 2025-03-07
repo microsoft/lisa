@@ -166,20 +166,20 @@ class HyperV(Tool):
         name: str,
         guest_image_path: str,
         switch_name: str,
+        generation: int = 1,
+        cores: int = 2,
+        memory: int = 2048,
         attach_offline_disks: bool = True,
         com_ports: Optional[Dict[int, str]] = None,
         secure_boot: bool = True,
         stop_existing_vm: bool = True,
         extra_args: Optional[Dict[str, str]] = None,
     ) -> None:
-        self.delete_vm(name)
+        if stop_existing_vm:
+            self.delete_vm(name)
 
         powershell = self.node.tools[PowerShell]
 
-        cores = self.node.capability.core_count
-        memory = self.node.capability.memory_mb
-        # Default to generation 1 if not specified in the extended schema
-        generation = 1
         if "hyperv" in self.node.runbook.extended_schemas and hasattr(
             self.node.runbook.extended_schemas["hyperv"], "generation"
         ):
