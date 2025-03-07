@@ -164,8 +164,6 @@ class HyperV(Tool):
     def create_vm(
         self,
         name: str,
-        node: "Node",
-        working_path: WindowsPath,
         guest_image_path: str,
         switch_name: str,
         attach_offline_disks: bool = True,
@@ -178,14 +176,14 @@ class HyperV(Tool):
 
         powershell = self.node.tools[PowerShell]
 
-        cores = node.capability.core_count
-        memory = node.capability.memory_mb
+        cores = self.node.capability.core_count
+        memory = self.node.capability.memory_mb
         # Default to generation 1 if not specified in the extended schema
         generation = 1
-        if "hyperv" in node.runbook.extended_schemas and hasattr(
-            node.runbook.extended_schemas["hyperv"], "generation"
+        if "hyperv" in self.node.runbook.extended_schemas and hasattr(
+            self.node.runbook.extended_schemas["hyperv"], "generation"
         ):
-            generation = node.runbook.extended_schemas["hyperv"].generation
+            generation = self.node.runbook.extended_schemas["hyperv"].generation
         # create a VM in hyperv
         self._run_hyperv_cmdlet(
             "New-VM",
@@ -203,13 +201,17 @@ class HyperV(Tool):
         )
 
         data_disk_count = 0
-        if node.capability.disk and hasattr(node.capability.disk, "data_disk_count"):
-            data_disk_count = int(node.capability.disk.data_disk_count)
-            if node.capability.disk.data_disk_count is None:
+        if self.node.capability.disk and hasattr(
+            self.node.capability.disk, "data_disk_count"
+        ):
+            data_disk_count = int(str(self.node.capability.disk.data_disk_count))
+            if self.node.capability.disk.data_disk_count is None:
                 data_disk_count = 0
 
-            if node.capability.disk and hasattr(node.capability.disk, "data_disk_size"):
-                disk_size = int(node.capability.disk.data_disk_size)
+            if self.node.capability.disk and hasattr(
+                self.node.capability.disk, "data_disk_size"
+            ):
+                disk_size = int(str(self.node.capability.disk.data_disk_size))
                 if disk_size is None:
                     disk_size = 1
 
@@ -220,7 +222,7 @@ class HyperV(Tool):
             )
 
             disk_name = f"{name}_data_disk_{i}_{random_str}"
-            self.create_disk( disk_name, disk_size)
+            self.create_disk(disk_name, disk_size)
             self.attach_disk(name, disk_name)
 
         if extra_args is not None and "set-vmprocessor" in extra_args:
