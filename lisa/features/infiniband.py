@@ -55,7 +55,7 @@ class Infiniband(Feature):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
-        self.is_hpc_image = False
+        self.is_hpc_image = True
         self.resource_disk_path = self._node.features[
             Disk
         ].get_resource_disk_mount_point()
