@@ -2881,6 +2881,11 @@ class AzurePlatform(Platform):
                 schema.DiskControllerType
             ](is_allow_set=True, items=[azure_runbook.image.disk_controller_type])
 
+        if azure_runbook.vhd.vhd_path:
+            node_space.disk.disk_controller_type = search_space.SetSpace[
+                schema.DiskControllerType
+            ](is_allow_set=True, items=[schema.DiskControllerType.SCSI])
+
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:
             allowed_types = search_space.intersect_setspace_by_priority(
