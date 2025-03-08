@@ -119,17 +119,17 @@ def _prepare_data_disk(
 
 
 def _deploy_azure_file_share(
-        node: Node,
-        environment: Environment,
-        file_share_name: str,
-        scratch_name: str,
-        azure_file_share: Any,
-        allow_shared_key_access: bool = True,
-        enable_private_endpoint: bool = True,
-        storage_account_sku: str = "Standard_LRS",
-        storage_account_kind: str = "StorageV2",
-        file_share_protocol: str = "SMB",
-        file_share_quota_in_gb: int = 500,
+    node: Node,
+    environment: Environment,
+    file_share_name: str,
+    scratch_name: str,
+    azure_file_share: Any,
+    allow_shared_key_access: bool = True,
+    enable_private_endpoint: bool = True,
+    storage_account_sku: str = "Standard_LRS",
+    storage_account_kind: str = "StorageV2",
+    file_share_protocol: str = "SMB",
+    file_share_quota_in_gb: int = 500,
 ) -> Dict[str, str]:
     """
     About: This method will provision azure file shares on a new // existing
@@ -159,7 +159,7 @@ def _deploy_azure_file_share(
         }
         azure_file_share.create_fileshare_folders(test_folders_share_dict)
     # else:
-        # NFS yet to be implemented
+    # NFS yet to be implemented
     return fs_url_dict
 
 
