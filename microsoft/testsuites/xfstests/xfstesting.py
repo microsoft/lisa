@@ -119,6 +119,7 @@ def _prepare_data_disk(
 
 
 def _deploy_azure_file_share(
+        node: Node,
         environment: Environment,
         file_share_name: str,
         scratch_name: str,
@@ -637,11 +638,11 @@ class Xfstesting(TestSuite):
             f"-o {_default_smb_mount},credentials=/etc/smbcredentials/lisa.cred"
         )
         fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
-            node,
-            environment,
-            file_share_name,
-            scratch_name,
-            azure_file_share,
+            node=node,
+            environment=environment,
+            file_share_name=file_share_name,
+            scratch_name=scratch_name,
+            azure_file_share=azure_file_share,
         )
         # Create Xfstest config
         xfstests.set_local_config(
