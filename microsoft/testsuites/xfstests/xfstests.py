@@ -472,7 +472,7 @@ class Xfstests(Tool):
         content = "\n".join(
             [
                 f"[{test_section}]",
-                f"FSTYPE={file_system}",
+                f"FSTYP={file_system}",
                 f"SCRATCH_DEV={scratch_dev}",
                 f"SCRATCH_MNT={scratch_mnt}",
                 f"TEST_DEV={test_dev}",
