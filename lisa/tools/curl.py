@@ -42,6 +42,7 @@ class Curl(Tool):
         sudo: bool = False,
         shell: bool = False,
         cwd: Optional[PurePath] = None,
+        expected_exit_code: Optional[int] = 0,
     ) -> ExecutableResult:
         err_msg = "curl fetch failed"
         cmd_arg = f" {arg} {url}"
@@ -49,7 +50,7 @@ class Curl(Tool):
             cmd_arg = f"{cmd_arg} | sh {execute_arg}"
         result = self.run(
             cmd_arg,
-            expected_exit_code=0,
+            expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message=err_msg,
             sudo=sudo,
             cwd=cwd,
