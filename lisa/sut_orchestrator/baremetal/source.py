@@ -38,7 +38,7 @@ def _extract_artifacts(
                     source_path = _extract(artifact_path)
                     artifact_local_path.append(Path(source_path))
                 else:
-                    artifact_local_path.append(artifact_path)
+                    artifact_local_path.append(artifact_path.parent)
 
     return artifact_local_path
 
@@ -111,6 +111,7 @@ class LocalSource(Source):
         local_artifacts_path: List[Path] = []
 
         for artifact in self.local_runbook.artifacts:
+            self._log.debug(f"artifact_debug: {artifact}")
             local_artifacts_path.append(Path(artifact.artifact_name))
 
         return _extract_artifacts(
