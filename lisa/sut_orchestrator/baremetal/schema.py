@@ -87,7 +87,7 @@ class IPPowerSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 @dataclass
 class Ip9285(IPPowerSchema):
     type: str = "Ip9285"
-    ctrl_port: str = ""
+    port_id: str = ""
 
 
 @dataclass_json()
