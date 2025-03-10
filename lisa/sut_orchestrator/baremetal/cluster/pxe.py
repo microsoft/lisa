@@ -142,7 +142,7 @@ class Ip9285StartStop(features.StartStop):
             f"http://{ip_power_runbook.host}/set.cmd?"
             f"user={ip_power_runbook.username}+pass="
             f"{ip_power_runbook.password}+cmd="
-            f"setpower+P6{ip_power_runbook.ctrl_port}"
+            f"setpower+{ip_power_runbook.port_id}"
         )
 
     def _set_ip_power(self, power_cmd: str) -> None:
