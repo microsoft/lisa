@@ -29,7 +29,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     UnsupportedPackageVersionException,
     do_parallel_cleanup,
     verify_dpdk_build,
-    verify_dpdk_l3fwd_ntttcp_tcp,
+    verify_dpdk_l3fwd,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -257,7 +257,7 @@ class DpdkPerformance(TestSuite):
         self, environment: Environment, log: Logger, variables: Dict[str, Any]
     ) -> None:
         force_dpdk_default_source(variables)
-        verify_dpdk_l3fwd_ntttcp_tcp(
+        verify_dpdk_l3fwd(
             environment,
             log,
             variables,

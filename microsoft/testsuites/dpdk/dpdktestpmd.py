@@ -445,9 +445,12 @@ class DpdkTestpmd(Tool):
         # NOTE: I keep running into weird special cases of this.
         # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
         help_output = self.node.execute(
-            f"{self.command} --help", no_debug_log=True, no_info_log=True
+            cmd=f"{self.command} --help",
+            sudo=True,
+            shell=True,
         )
-        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
+        self._help_output = help_output.stdout + help_output.stderr
+        allow_flag = "-a, --allow" in self._help_output
         if allow_flag:
             include_flag = "-a"
         else:
@@ -569,14 +572,14 @@ class DpdkTestpmd(Tool):
         # our tests use equal amounts for rx and tx
         if multiple_queues:
             if self.is_mana:
-                queues = 8
+                queues = 16
             else:
                 queues = 4
         else:
             queues = 1
 
         # MANA needs a file descriptor argument, mlnx doesn't.
-        txd = 128
+        txd = 256
         port_mask = ""
         # generate the flags for which devices to include in the tests
         nic_include_info = self.generate_testpmd_include(nic_to_include, vdev_id)
@@ -604,12 +607,12 @@ class DpdkTestpmd(Tool):
             "DPDK tests need more than 4 cores, recommended more than 8 cores"
         ).is_greater_than(4)
 
-        queues_and_servicing_core = queues + service_cores
+        queues_and_servicing_core = (2 * queues) + service_cores
 
         while queues_and_servicing_core > (cores_available - 2):
             # if less, split the number of queues
             queues = queues // 2
-            queues_and_servicing_core = queues + service_cores
+            queues_and_servicing_core = (2 * queues) + service_cores
             txd = 64  # txd has to be >= 64 for MANA.
             assert_that(queues).described_as(
                 "txq value must be greater than 1"
@@ -620,9 +623,13 @@ class DpdkTestpmd(Tool):
 
         # service cores excluded from forwarding cores count
         forwarding_cores = max_core_index - service_cores
-
+        #
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        first_core = 2
+        last_core = first_core + max_core_index
+
+        service_core_mask = hex(1 << first_core)
+        core_list = f"-l {first_core}-{last_core}"
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -643,11 +650,20 @@ class DpdkTestpmd(Tool):
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
+        # self.node.execute(
+        #     f"echo 1 | sudo tee /sys/class/net/{nic_to_include.lower}/device/numa_node",
+        #     shell=True,
+        # )
+        # self.node.execute(
+        #     f"cat /sys/class/net/{nic_to_include.lower}/numa_node", sudo=True
+        # )
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_include_info} -- --forward-mode={mode} "
+            f"{nic_include_info} -s {service_core_mask} -- "
+            f"--forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} "
-            f"{port_mask} {extra_args} "
+            f"{port_mask} {extra_args} --mbcache=512 "
+            # f'--port-numa-config="(1,1)" --ring-numa-config="(1,3,1)"'
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:

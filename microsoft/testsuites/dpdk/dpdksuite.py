@@ -24,7 +24,18 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
+from lisa.tools import (
+    Echo,
+    Git,
+    Hugepages,
+    Ip,
+    Kill,
+    Lscpu,
+    Lsmod,
+    Make,
+    Modprobe,
+    Sockperf,
+)
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
@@ -46,7 +57,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     initialize_node_resources,
     run_testpmd_concurrent,
     verify_dpdk_build,
-    verify_dpdk_l3fwd_ntttcp_tcp,
+    verify_dpdk_l3fwd,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -849,6 +860,47 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
         ),
     )
+    def verify_dpdk_l3fwd_sockperf(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        force_dpdk_default_source(variables)
+        pmd = "netvsc"
+        verify_dpdk_l3fwd(
+            environment,
+            log,
+            variables,
+            HugePageSize.HUGE_2MB,
+            pmd=pmd,
+            result=result,
+            tool="sockperf",
+        )
+
+    @TestCaseMetadata(
+        description=(
+            """
+                Run the L3 forwarding test for DPDK.
+                This test creates a DPDK port forwarding setup between
+                two NICs on the same VM. It forwards packets from a sender on
+                subnet_a to a receiver on subnet_b. Without l3fwd,
+                packets will not be able to jump the subnets.  This imitates
+                a network virtual appliance setup, firewall, or other data plane
+                tool for managing network traffic with DPDK.
+        """
+        ),
+        priority=3,
+        requirement=simple_requirement(
+            supported_os=[Ubuntu],
+            min_core_count=8,
+            min_count=3,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
     def verify_dpdk_l3fwd_ntttcp_tcp(
         self,
         environment: Environment,
@@ -858,7 +910,7 @@ class Dpdk(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
-        verify_dpdk_l3fwd_ntttcp_tcp(
+        verify_dpdk_l3fwd(
             environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
         )
 
@@ -891,7 +943,7 @@ class Dpdk(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = "netvsc"
-        verify_dpdk_l3fwd_ntttcp_tcp(
+        verify_dpdk_l3fwd(
             environment,
             log,
             variables,

@@ -4,7 +4,7 @@ from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -31,6 +31,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     Dmesg,
     Echo,
+    Ethtool,
     Firewall,
     Hugepages,
     Ip,
@@ -42,10 +43,13 @@ from lisa.tools import (
     Modprobe,
     Ntttcp,
     Ping,
+    Sockperf,
+    Sysctl,
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.tools.sockperf import SOCKPERF_UDP
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -204,7 +208,10 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
 ) -> Dict[DpdkTestResources, str]:
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
-
+    if receiver.node.nics.is_mana_device_present():
+        receiver_args = "--rss-udp"
+    else:
+        receiver_args = ""
     snd_cmd = sender.testpmd.generate_testpmd_command(
         snd_nic,
         0,
@@ -217,7 +224,7 @@ def generate_send_receive_run_info(
         rcv_nic,
         0,
         "rxonly",
-        extra_args="--rss-udp --rss-ip",
+        extra_args=receiver_args,
         multiple_queues=multiple_queues,
         service_cores=use_service_cores,
     )
@@ -365,6 +372,7 @@ def initialize_node_resources(
     ).is_greater_than_or_equal_to(1)
 
     test_nic = node.nics.get_secondary_nic()
+    # node.tools[Ethtool].get_device_statistics(test_nic.lower)
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
@@ -628,7 +636,7 @@ def verify_dpdk_send_receive(
     assert_that(snd_tx_pps).described_as(
         "Throughput for SEND was below the correct order of magnitude"
     ).is_greater_than(2**20)
-
+    # sender.node.tools[Ethtool].get_all_device_statistics()
     return sender, receiver
 
 
@@ -757,7 +765,114 @@ def get_l3fwd_queue_count(
     return queue_count
 
 
-def verify_dpdk_l3fwd_ntttcp_tcp(
+def run_sockperf(client: Node, server: Node, set_busy_poll: bool = True) -> None:
+    sysctls: List[Sysctl] = []
+    mode = SOCKPERF_UDP
+    if isinstance(client.os, Ubuntu) and (client.os.information.version < "18.4.0"):
+        raise SkippedException(
+            f"Sockperf tests don't support EOL Ubuntu {client.os.information.release}"
+        )
+    if set_busy_poll:
+        sysctls = run_in_parallel(
+            [lambda: client.tools[Sysctl], lambda: server.tools[Sysctl]]
+        )
+        for sysctl in sysctls:
+            sysctl.enable_busy_polling("50")
+
+    run_in_parallel([lambda: client.tools[Sockperf], lambda: server.tools[Sockperf]])
+
+    server_proc = server.tools[Sockperf].start_server_async(mode)
+    # wait for sockperf to start, fail if it doesn't.
+    try:
+        server_proc.wait_output(
+            "sockperf: Warmup stage",
+            timeout=30,
+        )
+        _ = client.tools[Sockperf].run_client(
+            mode, server.nics.get_primary_nic().ip_addr
+        )
+
+    finally:
+        if server_proc.is_running():
+            server_proc.kill()
+
+        for sysctl in sysctls:
+            sysctl.reset()
+
+
+def run_ntttcp(
+    l3fwd_app_name: str,
+    forwarder: Node,
+    sender: Node,
+    receiver: Node,
+    subnet_a_nics: Dict[Node, NicInfo],
+    subnet_b_nics: Dict[Node, NicInfo],
+    ntttcp: Dict[Node, Ntttcp],
+    fwd_cmd: str,
+    log: Logger,
+    test_result: Optional[TestResult],
+    is_perf_test: bool = False,
+) -> None:
+    # start ntttcp client and server
+    ntttcp_threads_count = 64
+    # start the receiver
+    receiver_proc = ntttcp[receiver].run_as_server_async(
+        subnet_b_nics[receiver].name,
+        run_time_seconds=30,
+        # buffer_size=1024,
+        server_ip=subnet_b_nics[receiver].ip_addr,
+    )
+
+    # start the sender
+
+    sender_result = ntttcp[sender].run_as_client(
+        nic_name=subnet_a_nics[sender].name,
+        server_ip=subnet_b_nics[receiver].ip_addr,
+        threads_count=ntttcp_threads_count,
+        run_time_seconds=10,
+    )
+
+    # collect, log, and process results
+    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
+    log.debug(f"result: {receiver_result.stdout}")
+    log.debug(f"result: {sender_result.stdout}")
+    # kill l3fwd on forwarder
+    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
+    forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
+    forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
+    ntttcp_results = {
+        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
+        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
+    }
+    # send result to notifier if we found a test result to report with
+    if test_result and is_perf_test:
+        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
+            server_result=ntttcp_results[receiver],
+            client_result=ntttcp_results[sender],
+            latency=Decimal(0),
+            connections_num="64",
+            buffer_size=64,
+            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
+            test_result=test_result,
+        )
+        notifier.notify(msg)
+
+    # check the throughput and fail if it was unexpectedly low.
+    # NOTE: only checking 0 and < 1 now. Once we have more data
+    # there should be more stringest checks for each NIC type.
+    throughput = ntttcp_results[receiver].throughput_in_gbps
+    assert_that(throughput).described_as(
+        "l3fwd test found 0Gbps througput. "
+        "Either the test or DPDK forwarding is broken."
+    ).is_greater_than(0)
+    assert_that(throughput).described_as(
+        f"l3fwd has very low throughput: {throughput}Gbps! "
+        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "and the DPDK port IDs were correct."
+    ).is_greater_than(1)
+
+
+def verify_dpdk_l3fwd(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
@@ -765,6 +880,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     pmd: str = "netvsc",
     force_single_queue: bool = False,
     is_perf_test: bool = False,
+    tool: str = "ntttcp",
     result: Optional[TestResult] = None,
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
@@ -931,8 +1047,14 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dpdk_port_b = 3
 
     # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
+    test_tools = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+
+    sender.tools[Sockperf].install()
+    receiver.tools[Sockperf].install()
+
+    # else:
+    #     raise AssertionError("unrecognized test tool requested")
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
     # see https://doc.dpdk.org/guides/sample_app_ug/
@@ -1027,64 +1149,27 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
-
-    # start ntttcp client and server
-    ntttcp_threads_count = 64
-    # start the receiver
-    receiver_proc = ntttcp[receiver].run_as_server_async(
-        subnet_b_nics[receiver].name,
-        run_time_seconds=30,
-        # buffer_size=1024,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-    )
-
-    # start the sender
-
-    sender_result = ntttcp[sender].run_as_client(
-        nic_name=subnet_a_nics[sender].name,
-        server_ip=subnet_b_nics[receiver].ip_addr,
-        threads_count=ntttcp_threads_count,
-        run_time_seconds=10,
-    )
-
-    # collect, log, and process results
-    receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
-    log.debug(f"result: {receiver_result.stdout}")
-    log.debug(f"result: {sender_result.stdout}")
-    # kill l3fwd on forwarder
-    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
-    forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
-    forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
-    ntttcp_results = {
-        receiver: ntttcp[receiver].create_ntttcp_result(receiver_result),
-        sender: ntttcp[sender].create_ntttcp_result(sender_result, "client"),
-    }
-    # send result to notifier if we found a test result to report with
-    if test_result and is_perf_test:
-        msg = ntttcp[sender].create_ntttcp_tcp_performance_message(
-            server_result=ntttcp_results[receiver],
-            client_result=ntttcp_results[sender],
-            latency=Decimal(0),
-            connections_num="64",
-            buffer_size=64,
-            test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
-            test_result=test_result,
+    if tool == "ntttcp":
+        run_ntttcp(
+            l3fwd_app_name,
+            forwarder,
+            sender,
+            receiver,
+            subnet_a_nics,
+            subnet_b_nics,
+            test_tools,  # type: ignore
+            fwd_cmd,
+            log,
+            test_result,
+            is_perf_test,
         )
-        notifier.notify(msg)
-
-    # check the throughput and fail if it was unexpectedly low.
-    # NOTE: only checking 0 and < 1 now. Once we have more data
-    # there should be more stringest checks for each NIC type.
-    throughput = ntttcp_results[receiver].throughput_in_gbps
-    assert_that(throughput).described_as(
-        "l3fwd test found 0Gbps througput. "
-        "Either the test or DPDK forwarding is broken."
-    ).is_greater_than(0)
-    assert_that(throughput).described_as(
-        f"l3fwd has very low throughput: {throughput}Gbps! "
-        "Verify netvsc was used over failsafe, check netvsc init was succesful "
-        "and the DPDK port IDs were correct."
-    ).is_greater_than(1)
+    elif tool == "sockperf":
+        run_sockperf(client=sender, server=receiver)
+        forwarder.tools[Kill].by_name(
+            l3fwd_app_name, signum=SIGINT, ignore_not_exist=True
+        )
+        forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
+        forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
 
 
 def create_l3fwd_rules_files(
