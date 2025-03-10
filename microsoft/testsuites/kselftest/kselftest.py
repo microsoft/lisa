@@ -246,13 +246,14 @@ class Kselftest(Tool):
         command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
 
         self.node.execute(
-            command,
+            cmd = command,
             sudo=run_test_as_root,
-            force_run=True,
             shell=True,
             timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to run the kself tests",
         )
-
+        
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
