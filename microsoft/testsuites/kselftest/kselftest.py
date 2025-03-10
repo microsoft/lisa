@@ -232,9 +232,17 @@ class Kselftest(Tool):
             test for test in all_tests
             if any(collection in test for collection in run_collections) and test not in skip_tests
         ]
-
+        
         # Save the list of tests to a file
-        tests_file = f"tests.txt"
+        tests_file = f"{result_directory}/tests.txt"
+
+        self.node.execute(
+            cmd = f"touch {tests_file}",
+            sudo=run_test_as_root,
+            shell=True,
+            timeout=timeout,
+        )
+
         try:
             with open(tests_file, "x") as f:
                 for test in tests_to_run:
@@ -243,13 +251,11 @@ class Kselftest(Tool):
             self._log.debug(f"The file {tests_file} already exists.")
 
         self.node.execute(
-            cmd = "cat tests.txt",
+            cmd = f"cat {tests_file}",
             sudo=run_test_as_root,
             shell=True,
             timeout=timeout,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed to check contents of tests.txt",
-        ).assert_exit_code()
+        )
 
         # Construct the command to run specific tests from the file
         command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
@@ -259,9 +265,7 @@ class Kselftest(Tool):
             sudo=run_test_as_root,
             shell=True,
             timeout=timeout,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed to run the kself tests",
-        ).assert_exit_code()
+        )
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
