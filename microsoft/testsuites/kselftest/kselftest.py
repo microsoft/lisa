@@ -234,13 +234,22 @@ class Kselftest(Tool):
         ]
 
         # Save the list of tests to a file
-        tests_file = f"/tmp/tests.txt"
+        tests_file = f"tests.txt"
         try:
             with open(tests_file, "x") as f:
                 for test in tests_to_run:
                     f.write(f"{test}\n")
         except FileExistsError:
             self._log.debug(f"The file {tests_file} already exists.")
+
+        self.node.execute(
+            cmd = "cat tests.txt",
+            sudo=run_test_as_root,
+            shell=True,
+            timeout=timeout,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to check contents of tests.txt",
+        ).assert_exit_code()
 
         # Construct the command to run specific tests from the file
         command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
@@ -252,7 +261,7 @@ class Kselftest(Tool):
             timeout=timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message="failed to run the kself tests",
-        )
+        ).assert_exit_code()
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
