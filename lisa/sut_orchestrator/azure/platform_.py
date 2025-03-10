@@ -2098,6 +2098,47 @@ class AzurePlatform(Platform):
 
         return plan
 
+    def _generate_sku_capability(
+        self,
+        vm_size: str,
+        location: str,
+        cap_file: str,
+    ) -> AzureCapability:
+        # some vm size cannot be queried from API, and the capability
+        # may be queried from capability files through hooks.
+        capability_dict = plugin_manager.hook.azure_add_sku_capability(
+            vm_size,
+            cap_file,
+        )
+
+        node_space = schema.NodeSpace(
+            node_count=1,
+            core_count=search_space.IntRange(min=1),
+            memory_mb=search_space.IntRange(min=0),
+            gpu_count=search_space.IntRange(min=0),
+        )
+
+        azure_capability = AzureCapability(
+            location=location,
+            vm_size=vm_size,
+            capability=node_space,
+            resource_sku={},
+        )
+
+        node_space.name = f"{location}_{vm_size}"
+        node_space.features = search_space.SetSpace[schema.FeatureSettings](
+            is_allow_set=True
+        )
+
+        # all nodes support following features
+        all_features = self.supported_features()
+        node_space.features.update(
+            [schema.FeatureSettings.create(x.name()) for x in all_features]
+        )
+        convert_to_azure_node_space(node_space)
+
+        return azure_capability
+
     def _generate_max_capability(self, vm_size: str, location: str) -> AzureCapability:
         # some vm size cannot be queried from API, so use default capability to
         # run with best guess on capability.
@@ -2462,12 +2503,24 @@ class AzurePlatform(Platform):
         return matched_name
 
     def _get_capabilities(
-        self, vm_sizes: List[str], location: str, use_max_capability: bool, log: Logger
+        self,
+        vm_sizes: List[str],
+        location: str,
+        use_max_capability: bool,
+        cap_file: str,
+        log: Logger,
     ) -> List[AzureCapability]:
         candidate_caps: List[AzureCapability] = []
         caps = self.get_location_info(location, log).capabilities
 
         for vm_size in vm_sizes:
+            # force to read SKU capability from capability file if it is provided.
+            if cap_file:
+                candidate_caps.append(self._generate_sku_capability(vm_size,
+                                                                    location,
+                                                                    cap_file))
+                continue
+
             # force to use max capability to run test cases as much as possible,
             # or force to support non-exists vm size.
             if use_max_capability:
@@ -2599,6 +2652,7 @@ class AzurePlatform(Platform):
         self, req: schema.NodeSpace, location: str, log: Logger
     ) -> Tuple[List[AzureCapability], str]:
         node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+        cap_file: str = ""
         error: str = ""
         if node_runbook.vm_size:
             # find the vm_size
@@ -2613,7 +2667,18 @@ class AzurePlatform(Platform):
                     f"no vm size matched '{node_runbook.vm_size}' on location "
                     f"'{location}', using the raw string as vm size name."
                 )
-                allowed_vm_sizes = [node_runbook.vm_size]
+                # First check if capability file is appended to the vm_sizes
+                vm_sizes = node_runbook.vm_size
+                split_vm_sizes = [x.strip() for x in node_runbook.vm_size.split("|")]
+                if len(split_vm_sizes) > 1:
+                    if split_vm_sizes[0].startswith("Compute"):
+                        cap_file = split_vm_sizes[0]
+                        vm_sizes = split_vm_sizes[1]
+                    else:
+                        cap_file = split_vm_sizes[1]
+                        vm_sizes = split_vm_sizes[0]
+
+                allowed_vm_sizes = [x.strip() for x in vm_sizes.split(",")]
         else:
             location_info = self.get_location_info(location, log)
             allowed_vm_sizes = [key for key, _ in location_info.capabilities.items()]
@@ -2624,6 +2689,7 @@ class AzurePlatform(Platform):
             vm_sizes=allowed_vm_sizes,
             location=location,
             use_max_capability=node_runbook.maximize_capability,
+            cap_file=cap_file,
             log=log,
         )
 

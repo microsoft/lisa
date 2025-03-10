@@ -99,6 +99,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         return {}
+    
+    def _get_runbook_information(self, runbook: schema.TypedSchema) -> Dict[str, str]:
+        return {}
 
     def _cleanup(self) -> None:
         """
@@ -136,6 +139,18 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         except Exception as identifier:
             self._log.exception(
                 "failed to get node information on platform", exc_info=identifier
+            )
+
+        return information
+
+    @hookimpl
+    def get_runbook_information(self, runbook: Any) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        try:
+            information.update(self._get_runbook_information(runbook=self.runbook))
+        except Exception as identifier:
+            self._log.exception(
+                "failed to get runbook information on platform", exc_info=identifier
             )
 
         return information
