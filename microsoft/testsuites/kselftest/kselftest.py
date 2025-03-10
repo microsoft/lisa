@@ -234,7 +234,7 @@ class Kselftest(Tool):
         ]
 
         # Save the list of tests to a file
-        tests_file = f"tests.txt"
+        tests_file = f"/tmp/tests.txt"
         try:
             with open(tests_file, "x") as f:
                 for test in tests_to_run:
@@ -253,7 +253,7 @@ class Kselftest(Tool):
             expected_exit_code=0,
             expected_exit_code_failure_message="failed to run the kself tests",
         )
-        
+
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
