@@ -235,9 +235,12 @@ class Kselftest(Tool):
 
         # Save the list of tests to a file
         tests_file = f"{result_directory}/tests.txt"
-        with open(tests_file, "w") as f:
-            for test in tests_to_run:
-                f.write(f"{test}\n")
+        try:
+            with open(tests_file, "x") as f:
+                for test in tests_to_run:
+                    f.write(f"{test}\n")
+        except FileExistsError:
+            self._log.debug(f"The file {tests_file} already exists.")
 
         # Construct the command to run specific tests from the file
         command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
