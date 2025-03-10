@@ -39,6 +39,18 @@ _get_jump_box_logger = partial(get_logger, name="jump_box")
 _spawn_initialization_error_pattern = re.compile(
     r"(Failed to parse line \'b[\'\"](?P<linux_profile_error>.*?)[\'\"]\' as integer)"
 )
+_ip_v6_pattern = re.compile(
+    r"^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|"
+    f"([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}"
+    r"(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}"
+    r"|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}"
+    r"(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:"
+    r"((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}"
+    r"|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.)"
+    r"{3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:"
+    r"((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9])"
+    r"{0,1}[0-9]))$"
+)
 
 
 def _minimal_escape_sh(value: str) -> str:
@@ -77,10 +89,12 @@ def wait_tcp_port_ready(
         # If it's True, it means the direct connection doesn't work. Return a
         # mock value for test purpose.
         return True, 0
-
+    address_family = socket.AF_INET
+    if _ip_v6_pattern.match(address):
+        address_family = socket.AF_INET6
     timeout_timer = create_timer()
     while timeout_timer.elapsed(False) < timeout:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
+        with socket.socket(address_family, socket.SOCK_STREAM) as tcp_socket:
             try:
                 result = tcp_socket.connect_ex((address, port))
                 if result == 0:
