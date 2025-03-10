@@ -678,6 +678,7 @@ class AzurePlatform(Platform):
         environment: Environment,
         log: Logger,
         check_serial_console: bool = False,
+        capture_vm_log_in_test_dir: bool = False,
     ) -> None:
         compute_client = get_compute_client(self)
         vms = compute_client.virtual_machines.list(resource_group_name)
@@ -694,6 +695,9 @@ class AzurePlatform(Platform):
             )
             log_file_name = saved_path / f"{vm.name}_serial_console.log"
             log_file_name.write_bytes(log_response_content)
+            # Write serial console logs to testcase folder.
+            if capture_vm_log_in_test_dir:
+                self._capture_vm_log_in_test_dir(environment, vm, log_response_content)
             if check_serial_console is True:
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
 
@@ -1614,7 +1618,7 @@ class AzurePlatform(Platform):
             else:
                 try:
                     self._save_console_log_and_check_panic(
-                        resource_group_name, environment, log, True
+                        resource_group_name, environment, log, True, True
                     )
                 except KernelPanicException as ex:
                     if (
@@ -2935,6 +2939,22 @@ class AzurePlatform(Platform):
         convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
+
+    def _capture_vm_log_in_test_dir(
+        self, environment: Environment, vm: VirtualMachine, log_response_content: bytes
+    ) -> None:
+        if not environment.source_test_result:
+            self._log.debug(
+                "Source test result is not available, skip saving log in test dir"
+            )
+            return
+        source_test_result = environment.source_test_result
+        log_dir = source_test_result.get_case_log_path() / Path(
+            f"serial_console_{vm.name}"
+        )
+        log_dir.mkdir(parents=True)
+        log_file_name = log_dir / "serial_console.log"
+        log_file_name.write_bytes(log_response_content)
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
