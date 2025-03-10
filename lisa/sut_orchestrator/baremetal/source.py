@@ -38,7 +38,7 @@ def _extract_artifacts(
                     source_path = _extract(artifact_path)
                     artifact_local_path.append(Path(source_path))
                 else:
-                    artifact_local_path.append(artifact_path)
+                    artifact_local_path.append(artifact_path.parent)
 
     return artifact_local_path
 
