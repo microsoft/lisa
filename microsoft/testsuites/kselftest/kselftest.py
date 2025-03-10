@@ -234,35 +234,44 @@ class Kselftest(Tool):
         ]
         
         # Save the list of tests to a file
-        tests_file = f"{result_directory}/tests.txt"
+        # tests_file = f"{result_directory}/tests.txt"
 
-        self.node.execute(
-            cmd = f"touch {tests_file}",
-            sudo=run_test_as_root,
-            shell=True,
-            timeout=timeout,
-        )
+        # self.node.execute(
+        #     cmd = f"touch {tests_file}",
+        #     sudo=run_test_as_root,
+        #     shell=True,
+        #     timeout=timeout,
+        # )
 
-        try:
-            with open(tests_file, "x") as f:
-                for test in tests_to_run:
-                    f.write(f"{test}\n")
-        except FileExistsError:
-            self._log.debug(f"The file {tests_file} already exists.")
+        # try:
+        #     with open(tests_file, "x") as f:
+        #         for test in tests_to_run:
+        #             f.write(f"{test}\n")
+        # except FileExistsError:
+        #     self._log.debug(f"The file {tests_file} already exists.")
 
-        self.node.execute(
-            cmd = f"cat {tests_file}",
-            sudo=run_test_as_root,
-            shell=True,
-            timeout=timeout,
-        )
+        # self.node.execute(
+        #     cmd = f"cat {tests_file}",
+        #     sudo=run_test_as_root,
+        #     shell=True,
+        #     timeout=timeout,
+        # )
 
         # Construct the command to run specific tests from the file
-        command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
+        # command = f"while IFS= read -r test; do {self._command} -t \"$test\" 2>&1 | tee -a {result_file}; done < {tests_file}"
 
-        self.node.execute(
-            cmd = command,
+        # self.node.execute(
+        #     cmd = command,
+        #     sudo=run_test_as_root,
+        #     shell=True,
+        #     timeout=timeout,
+        # )
+
+        for test in tests_to_run:
+            self.run(
+            f" -t {test} 2>&1 | tee -a {result_file}",
             sudo=run_test_as_root,
+            force_run=True,
             shell=True,
             timeout=timeout,
         )
