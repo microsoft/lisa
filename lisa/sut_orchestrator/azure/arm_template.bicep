@@ -49,6 +49,9 @@ param is_ultradisk bool = false
 @description('IP Service Tags')
 param ip_service_tags object
 
+@description('whether to use ipv6')
+param use_ipv6 bool = false
+
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -220,9 +223,11 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     existing_subnet_ref: existing_subnet_ref
     enable_sriov: nodes[i].enable_sriov
     tags: tags
+    use_ipv6: use_ipv6
   }
   dependsOn: [
     nodes_public_ip[i]
+    nodes_public_ip_ipv6[i]
   ]
 }]
 
@@ -232,14 +237,18 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
   location: location
   properties: {
     addressSpace: {
-      addressPrefixes: [
-        '10.0.0.0/16'
-      ]
+      addressPrefixes: concat(
+        ['10.0.0.0/16'],
+        use_ipv6 ? ['2001:db8::/32'] : []
+      )
     }
     subnets: [for j in range(0, subnet_count): {
       name: '${subnet_prefix}${j}'
       properties: {
-        addressPrefix: '10.0.${j}.0/24'
+        addressPrefixes: concat(
+          ['10.0.${j}.0/24'],
+          use_ipv6 ? ['2001:db8:${j}::/64'] : []
+        )
       }
     }]
   }
@@ -260,11 +269,26 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   tags: tags
   name: '${nodes[i].name}-public-ip'
   properties: {
-    publicIPAllocationMethod: ((is_ultradisk || use_availability_zones) ? 'Static' : 'Dynamic')
+    publicIPAllocationMethod: 'Static'
     ipTags: (empty(ip_tags) ? null : ip_tags)
   }
   sku: {
-    name: ((is_ultradisk || use_availability_zones) ? 'Standard' : 'Basic')
+    name: 'Standard'
+  }
+  zones: (use_availability_zones ? availability_zones : null)
+}]
+
+resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if (use_ipv6) {
+  name: '${nodes[i].name}-public-ipv6'
+  location: location
+  tags: tags
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    ipTags: (empty(ip_tags) ? null : ip_tags)
+    publicIPAddressVersion: 'IPv6'
+  }
+  sku: {
+    name: 'Standard'
   }
   zones: (use_availability_zones ? availability_zones : null)
 }]

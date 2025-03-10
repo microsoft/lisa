@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "2979317352285162842"
+      "templateHash": "9899340922005457447"
     }
   },
   "functions": [
@@ -517,6 +517,13 @@
       "metadata": {
         "description": "IP Service Tags"
       }
+    },
+    "use_ipv6": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "whether to use ipv6"
+      }
     }
   },
   "variables": {
@@ -560,15 +567,13 @@
             "input": {
               "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
               "properties": {
-                "addressPrefix": "[format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])]"
+                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]"
               }
             }
           }
         ],
         "addressSpace": {
-          "addressPrefixes": [
-            "10.0.0.0/16"
-          ]
+          "addressPrefixes": "[concat(createArray('10.0.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
         }
       }
     },
@@ -595,11 +600,32 @@
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
-        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]",
+        "publicIPAllocationMethod": "Static",
         "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]"
       },
       "sku": {
-        "name": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Standard', 'Basic')]"
+        "name": "Standard"
+      },
+      "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
+    },
+    "nodes_public_ip_ipv6": {
+      "copy": {
+        "name": "nodes_public_ip_ipv6",
+        "count": "[length(range(0, variables('node_count')))]"
+      },
+      "condition": "[parameters('use_ipv6')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2020-05-01",
+      "name": "[format('{0}-public-ipv6', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]",
+        "publicIPAddressVersion": "IPv6"
+      },
+      "sku": {
+        "name": "Standard"
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
     },
@@ -778,6 +804,9 @@
           },
           "tags": {
             "value": "[parameters('tags')]"
+          },
+          "use_ipv6": {
+            "value": "[parameters('use_ipv6')]"
           }
         },
         "template": {
@@ -788,7 +817,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "15295141792345348269"
+              "templateHash": "2335646842987786457"
             }
           },
           "functions": [
@@ -800,12 +829,16 @@
                     {
                       "type": "string",
                       "name": "vmName"
+                    },
+                    {
+                      "type": "string",
+                      "name": "publicIpName"
                     }
                   ],
                   "output": {
                     "type": "object",
                     "value": {
-                      "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-public-ip', parameters('vmName')))]"
+                      "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('publicIpName'))]"
                     }
                   }
                 }
@@ -836,10 +869,14 @@
             },
             "tags": {
               "type": "object"
+            },
+            "use_ipv6": {
+              "type": "bool"
             }
           },
           "variables": {
-            "publicIpAddress": "[__bicep.getPublicIpAddress(parameters('vmName'))]"
+            "publicIpAddress": "[__bicep.getPublicIpAddress(parameters('vmName'), format('{0}-public-ip', parameters('vmName')))]",
+            "publicIpAddressV6": "[__bicep.getPublicIpAddress(parameters('vmName'), format('{0}-public-ipv6', parameters('vmName')))]"
           },
           "resources": {
             "vm_nics": {
@@ -853,19 +890,7 @@
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
               "properties": {
-                "ipConfigurations": [
-                  {
-                    "name": "IPv4Config",
-                    "properties": {
-                      "privateIPAddressVersion": "IPv4",
-                      "publicIPAddress": "[if(equals(0, range(0, parameters('nic_count'))[copyIndex()]), variables('publicIpAddress'), null())]",
-                      "subnet": {
-                        "id": "[if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))]"
-                      },
-                      "privateIPAllocationMethod": "Dynamic"
-                    }
-                  }
-                ],
+                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(equals(0, range(0, parameters('nic_count'))[copyIndex()]), variables('publicIpAddress'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(equals(0, range(0, parameters('nic_count'))[copyIndex()]), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
                 "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
               }
             }
@@ -874,6 +899,7 @@
       },
       "dependsOn": [
         "[format('nodes_public_ip[{0}]', range(0, variables('node_count'))[copyIndex()])]",
+        "[format('nodes_public_ip_ipv6[{0}]', range(0, variables('node_count'))[copyIndex()])]",
         "virtual_network_name_resource"
       ]
     }
