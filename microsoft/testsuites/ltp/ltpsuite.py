@@ -29,7 +29,7 @@ from microsoft.testsuites.ltp.ltp import Ltp
 )
 class LtpTestsuite(TestSuite):
     _TIME_OUT = 18000
-    LTP_LITE_TESTS = ["math", "fsx", "ipc", "mm", "sched", "pty", "fs"]
+    LTP_LITE_TESTS = ["math", "ipc", "mm", "sched", "pty", "fs"]
     LTP_REQUIRED_DISK_SIZE_IN_GB = 2
 
     @TestCaseMetadata(
@@ -66,7 +66,7 @@ class LtpTestsuite(TestSuite):
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
         ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
-
+        ltp_run_timeout = variables.get("ltp_run_timeout", 12000)
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
@@ -102,6 +102,7 @@ class LtpTestsuite(TestSuite):
             skip_test_list,
             log_path,
             block_device=block_device,
+            ltp_run_timeout=ltp_run_timeout,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:

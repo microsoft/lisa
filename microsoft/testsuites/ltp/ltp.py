@@ -59,7 +59,6 @@ class Ltp(Tool):
     LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
     LTP_SKIP_FILE = "/opt/ltp/skipfile"
     COMPILE_TIMEOUT = 1800
-    RUN_TIMEOUT = 12000
 
     @property
     def command(self) -> str:
@@ -87,6 +86,7 @@ class Ltp(Tool):
         log_path: str,
         block_device: Optional[str] = None,
         temp_dir: str = "/tmp/",
+        ltp_run_timeout: int = 12000,
     ) -> List[LtpResult]:
         # tests cannot be empty
         assert_that(ltp_tests, "ltp_tests cannot be empty").is_not_empty()
@@ -144,7 +144,7 @@ class Ltp(Tool):
         )
 
         pgrep = self.node.tools[Pgrep]
-        pgrep.wait_processes("runltp", timeout=self.RUN_TIMEOUT)
+        pgrep.wait_processes("runltp", timeout=ltp_run_timeout)
 
         # to avoid no permission issue when copying back files
         self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
