@@ -234,7 +234,7 @@ class Kselftest(Tool):
         ]
 
         # Save the list of tests to a file
-        tests_file = f"{result_directory}/tests.txt"
+        tests_file = f"tests.txt"
         try:
             with open(tests_file, "x") as f:
                 for test in tests_to_run:
