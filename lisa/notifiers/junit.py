@@ -300,6 +300,18 @@ class JUnit(Notifier):
         testcase.attrib["classname"] = class_name
         testcase.attrib["time"] = self._get_elapsed_str(elapsed)
 
+        # Add a standard system-properties element for all test cases
+        if hasattr(message, 'information') and isinstance(message.information, dict):
+            # Create a system-properties element
+            system_props = ET.SubElement(testcase, "system-properties")
+            
+            # Add VM size and encrypt_disk if they exist
+            for key in ['vmsize', 'encrypt_disk']:
+                if key in message.information:
+                    prop = ET.SubElement(system_props, "property")
+                    prop.attrib["name"] = key
+                    prop.attrib["value"] = str(message.information[key])
+
         if message.status == TestStatus.FAILED:
             failure = ET.SubElement(testcase, "failure")
             failure.attrib["message"] = message.message
