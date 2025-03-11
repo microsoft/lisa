@@ -203,6 +203,7 @@ class Kselftest(Tool):
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
+        **kwargs: Any,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
@@ -216,13 +217,29 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
-        self.run(
-            f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
-            force_run=True,
-            shell=True,
-            timeout=timeout,
-        )
+        # Initialize run_tests and skip_tests from kwargs if provided
+        run_collections = kwargs.get("run_collections", [])
+        skip_tests = kwargs.get("skip_tests", [])
+
+        # List all available tests
+        list_result = self.run(" -l", shell=True)
+        list_result.assert_exit_code()
+        all_tests = list_result.stdout.splitlines()
+
+        tests_to_run = [
+            test for test in all_tests
+            if any(collection in test for collection in run_collections) and test not in skip_tests
+        ]
+
+        for test in tests_to_run:
+            self._log.debug(f"Running test: {test}")
+            self.run(
+                f" -t {test} 2>&1 | tee -a {result_file}",
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+            )
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
