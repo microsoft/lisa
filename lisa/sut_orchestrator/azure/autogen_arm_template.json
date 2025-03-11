@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.32.4.45862",
-      "templateHash": "16398577375970436728"
+      "version": "0.33.93.31351",
+      "templateHash": "2979317352285162842"
     }
   },
   "functions": [
@@ -548,7 +548,7 @@
     "virtual_network_name_resource": {
       "condition": "[empty(parameters('virtual_network_resource_group'))]",
       "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2020-05-01",
+      "apiVersion": "2024-05-01",
       "name": "[parameters('virtual_network_name')]",
       "tags": "[parameters('tags')]",
       "location": "[parameters('location')]",
@@ -787,8 +787,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.32.4.45862",
-              "templateHash": "7856159159103188049"
+              "version": "0.33.93.31351",
+              "templateHash": "15295141792345348269"
             }
           },
           "functions": [
