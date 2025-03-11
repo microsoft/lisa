@@ -79,6 +79,29 @@ class Sed(Tool):
         )
         result.assert_exit_code(message=result.stdout)
 
+    def raw(self, expression: str, file: str, sudo: bool = False) -> None:
+        """
+        Apply a raw sed expression to a file, as opposed to separating the expression into a pattern and replacement.
+        This allows for more advanced `sed` usage.
+        Args:
+            expression (str): The sed expression to apply.
+            file (str): The path to the file to modify.
+            sudo (bool, optional): Whether to execute the command with sudo. Defaults to False.
+        Returns:
+            None
+        """
+        # Escape special characters in the expression.
+        expression = expression.replace('"', r"\"").replace("$", r"\$")
+        cmd = f'-i.bak "{expression}" {file}'
+        result = self.run(
+            cmd,
+            force_run=True,
+            no_error_log=True,
+            no_info_log=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
 
 class SedBSD(Sed):
     @property
