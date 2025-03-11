@@ -176,14 +176,34 @@ class AzureWorkloadIdentityCredential(AzureCredential):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return AzureCredentialSchema
 
+    def __init__(
+        self,
+        runbook: AzureCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, logger=logger, cloud=cloud)
+        self._credential_type = AzureCredentialType.WorkloadIdentityCredential
+
     def get_credential(self) -> Any:
         self._log.info("Authenticating Using WorkloadIdentityCredential")
-        additional_tenants = ["*"] if self._allow_all_tenants else None
-        return WorkloadIdentityCredential(
-            tenant_id=self._tenant_id,
-            client_id=self._client_id,
-            additionally_allowed_tenants=additional_tenants,
-        )
+        # additional_tenants = ["*"] if self._allow_all_tenants else None
+        self._log.info("--- paxue debug: AzureWorkloadIdentityCredential Class---")
+        self._log.info(f"---tenant_id: {self._tenant_id}")
+        self._log.info(f"---client_id: {self._client_id}")
+        if self._allow_all_tenants:
+            self._log.info("---allow_all_tenants: true")
+            return WorkloadIdentityCredential(
+                tenant_id=self._tenant_id,
+                client_id=self._client_id,
+                additionally_allowed_tenants=["*"],
+            )
+        else:
+            self._log.info("---allow_all_tenants: false")
+            return WorkloadIdentityCredential(
+                tenant_id=self._tenant_id,
+                client_id=self._client_id,
+            )
 
 
 class AzureCertificateCredential(AzureCredential):
