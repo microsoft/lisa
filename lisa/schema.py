@@ -505,7 +505,7 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     data_disk_count: search_space.CountSpace = field(
-        default_factory=partial(search_space.IntRange, min=0),
+        default_factory=partial(search_space.IntRange, min=64),
         metadata=field_metadata(decoder=search_space.decode_count_space),
     )
     data_disk_caching_type: str = field(
@@ -539,7 +539,7 @@ class DiskOptionSettings(FeatureSettings):
         ),
     )
     max_data_disk_count: search_space.CountSpace = field(
-        default_factory=partial(search_space.IntRange, min=0),
+        default_factory=partial(search_space.IntRange, min=64),
         metadata=field_metadata(
             allow_none=True, decoder=search_space.decode_count_space
         ),
