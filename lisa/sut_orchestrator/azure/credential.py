@@ -176,6 +176,15 @@ class AzureWorkloadIdentityCredential(AzureCredential):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return AzureCredentialSchema
 
+    def __init__(
+        self,
+        runbook: CertCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, cloud=cloud, logger=logger)
+        self._credential_type = AzureCredentialType.WorkloadIdentityCredential
+
     def get_credential(self) -> Any:
         self._log.info("Authenticating Using WorkloadIdentityCredential")
         additional_tenants = ["*"] if self._allow_all_tenants else None
