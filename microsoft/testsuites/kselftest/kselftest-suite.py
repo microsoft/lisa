@@ -92,6 +92,6 @@ class KselftestTestsuite(TestSuite):
                 Kselftest,
                 kselftest_file_path=file_path,
             )
-            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT, run_collections=self._KSELF_LITE_TESTS, skip_tests=['drivers'])
+            kselftest.run_all(test_result=result, log_path=log_path, timeout=self._KSELF_TIMEOUT, run_collections=self._KSELF_LITE_TESTS, skip_tests=['drivers'])
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
