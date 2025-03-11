@@ -226,6 +226,10 @@ class Kselftest(Tool):
         list_result.assert_exit_code()
         all_tests = list_result.stdout.splitlines()
 
+        self._log.debug(f"All tests: {str(all_tests)}")
+        self._log.debug(f"Run Collections: {str(run_collections)}")
+        self._log.debug(f"Skip tests: {str(skip_tests)}")
+
         tests_to_run = [
             test for test in all_tests
             if any(collection in test for collection in run_collections) and test not in skip_tests
