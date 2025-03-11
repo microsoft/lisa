@@ -294,6 +294,7 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
@@ -348,6 +349,7 @@ class AzurePlatformSchema:
                 "virtual_network_name",
                 "subnet_prefix",
                 "use_public_address",
+                "use_ipv6",
             ],
         )
 
@@ -1130,6 +1132,7 @@ class AzurePlatform(Platform):
         )
         arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
         arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+        arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
@@ -1696,9 +1699,10 @@ class AzurePlatform(Platform):
                 vm = vms_map[vm_name]
             node.name = vm_name
             public_address, private_address = get_primary_ip_addresses(
-                self, resource_group_name, vm
+                self, resource_group_name, vm, use_ipv6=self._azure_runbook.use_ipv6
             )
             node_context.use_public_address = self._azure_runbook.use_public_address
+            node_context.use_ipv6 = self._azure_runbook.use_ipv6
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
