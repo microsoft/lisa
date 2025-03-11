@@ -178,11 +178,11 @@ class AzureWorkloadIdentityCredential(AzureCredential):
 
     def __init__(
         self,
-        runbook: CertCredentialSchema,
+        runbook: AzureCredentialSchema,
         logger: Logger,
         cloud: Cloud = AZURE_PUBLIC_CLOUD,
     ) -> None:
-        super().__init__(runbook, cloud=cloud, logger=logger)
+        super().__init__(runbook, logger=logger, cloud=cloud)
         self._credential_type = AzureCredentialType.WorkloadIdentityCredential
 
     def get_credential(self) -> Any:
