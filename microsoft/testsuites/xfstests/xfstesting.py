@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, Dict, Union, cast
 
 from lisa import (
     Logger,
@@ -75,13 +75,11 @@ _default_smb_testcases: str = (
     "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
     "generic/565 generic/567 generic/568 generic/586 generic/590 generic/591 "
     "generic/598 generic/599 generic/604 generic/609 generic/615 generic/632 "
-    "generic/634 generic/635 generic/637 generic/638 generic/639 "
+    "generic/634 generic/635 generic/637 generic/638 generic/639"
 )
 # Section : Global options
 _scratch_folder = "/mnt/scratch"
 _test_folder = "/mnt/test"
-_xfstests_repp = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
-_xfstests_branch = "master"
 
 
 def _prepare_data_disk(
@@ -108,24 +106,12 @@ def _prepare_data_disk(
         node.execute(f"mkdir {mount_point}", sudo=True)
 
 
-# DEPRECATED !!!
-# This does not works on newer kernels.
-# Pls see:
-# https://lists.samba.org/archive/samba-technical/2018-June/128806.html
-# def _get_smb_version(node: Node) -> str:
-#     if node.tools[KernelConfig].is_enabled("CONFIG_CIFS_SMB311"):
-#         version = "3.1.1"
-#     else:
-#         version = "3.0"
-#     return version
-
-
 def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
     file_share_name: str,
     scratch_name: str,
-    azure_file_share: Any,
+    azure_file_share: Union[AzureFileShare, Nfs],
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
     storage_account_sku: str = "Standard_LRS",
@@ -139,14 +125,14 @@ def _deploy_azure_file_share(
     Returns: Dict[str, str] - A dictionary containing the file share names
     and their respective URLs.
     """
-    if isinstance(azure_file_share, AzureFileShare):
-        file_share_protocol = "SMB"
-    elif isinstance(azure_file_share, Nfs):
-        file_share_protocol = "NFS"
-    else:
-        raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
+    # if isinstance(azure_file_share, AzureFileShare):
+    #     file_share_protocol = "SMB"
+    # elif isinstance(azure_file_share, Nfs):
+    #     file_share_protocol = "NFS"
+    # else:
+    #     raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
 
-    if file_share_protocol == "SMB":
+    if isinstance(azure_file_share, AzureFileShare):
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
             file_share_names=[file_share_name, scratch_name],
             environment=environment,
@@ -161,7 +147,7 @@ def _deploy_azure_file_share(
             _scratch_folder: fs_url_dict[scratch_name],
         }
         azure_file_share.create_fileshare_folders(test_folders_share_dict)
-    else:
+    elif isinstance(azure_file_share, Nfs):
         # NFS yet to be implemented
         raise LisaException("Skipping NFS deployment. Pending implementation.")
     return fs_url_dict
@@ -205,7 +191,7 @@ class Xfstesting(TestSuite):
     # exclude generic/680 for security reason.
     # include generic/211 for testing
     excluded_tests = (
-        "generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
+        "generic/211 generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
         + " xfs/030 xfs/032 xfs/050 xfs/052 xfs/106 xfs/107 xfs/122 xfs/132 xfs/138"
         + " xfs/144 xfs/148 xfs/175 xfs/191-input-validation xfs/289 xfs/293 xfs/424"

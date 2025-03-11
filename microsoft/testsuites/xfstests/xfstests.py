@@ -190,12 +190,11 @@ class Xfstests(Tool):
 
     def run_test(
         self,
-        # test_type: str,
         log_path: Path,
         result: "TestResult",
         test_section: str,
         data_disk: str = "",
-        test_cases: str = "",
+        test_cases: str = " ",
         timeout: int = 14400,
     ) -> None:
         """About: This method runs XFSTest on a given node with the specified
@@ -229,23 +228,19 @@ class Xfstests(Tool):
         )
         """
         # if Test group is specified, and exists in local.config, run tests.
+        cmd = ""
         if test_section:
-            self.run_async(
-                f"-s {test_section} -E exclude.txt {test_cases} > xfstest.log 2>&1",
-                sudo=True,
-                shell=True,
-                force_run=True,
-                cwd=self.get_xfstests_path(),
-            )
-        # Else run generic quick test. This is not recommended.
+            cmd += f"-s {test_section}"
         else:
-            self.run_async(
-                f"-g generic/quick -E exclude.txt {test_cases} > xfstest.log 2>&1",
-                sudo=True,
-                shell=True,
-                force_run=True,
-                cwd=self.get_xfstests_path(),
-            )
+            cmd += "-g generic/quick"
+        cmd += f" -E exclude.txt {test_cases} > xfstest.log 2>&1"
+        self.run_async(
+            cmd,
+            sudo=True,
+            shell=True,
+            force_run=True,
+            cwd=self.get_xfstests_path(),
+        )
 
         pgrep = self.node.tools[Pgrep]
         # this is the actual process name, when xfstests runs.
@@ -640,10 +635,6 @@ class Xfstests(Tool):
                 )
 
             if not self.node.shell.exists(results_path):
-                self._log.error(
-                    f"Result path {results_path} doesn't exist, please check testing"
-                    " runs well or not."
-                )
                 raise LisaException(
                     f"Result path {results_path} doesn't exist, please check testing"
                     " runs well or not."
@@ -659,14 +650,6 @@ class Xfstests(Tool):
                     self._log.debug(
                         f"All pass in xfstests, total pass case count is {pass_count}."
                     )
-                    # Xperimental : Passedexception with message/content of XFSTestLog.
-                    # Intent is to display XFSReport on HTML pager.
-                    # TODO: Fix this not displaying output
-                    raise PassedException(
-                        f"No Failed cases found in xfstests.\n"
-                        f"XFSTestLog: {raw_message}"
-                    )
-
                 fail_match = self.__fail_pattern.match(results.stdout)
                 if fail_match:
                     assert fail_match
@@ -705,8 +688,6 @@ class Xfstests(Tool):
         calling LISA. Files copied are xfsresult.log, check.log and all failed cases
         files if they exist.
         """
-        # if "generic" == test_section:
-        #     test_type = "xfs"
         xfstests_path = self.get_xfstests_path()
         self.node.tools[Chmod].update_folder(str(xfstests_path), "a+rwx", sudo=True)
         if self.node.shell.exists(xfstests_path / "results/check.log"):
@@ -828,13 +809,6 @@ class Xfstests(Tool):
         return_message: str = ""
         # <TODO> this needs to be fixed as it's spilling over to console output.
         if self.node.tools[Ls].path_exists(str(result_path), sudo=True):
-            # Note. This will dump a lot of output on debug console screen.
-            # Only un-comment for debugging.
-            # self._log.debug(
-            #     f"Found files in path {result_path} : "
-            #     f"{self.node.tools[Ls].list(str(result_path), sudo=True)}"
-            # )
-            # If passed, we only need DMESG output
             if test_status == "PASSED":
                 dmesg_result = self.node.tools[Cat].run(
                     f"{result_path}/{test_id}.dmesg", force_run=True, sudo=True
@@ -857,15 +831,20 @@ class Xfstests(Tool):
                         dest=fail_out,
                     )
                 # else if full_out is null, return the fail_out file content.
-                # In some test cases, full_out is not generated due to permissions
-                # or other issues. However a fail file will always exists in such cases.
                 elif self.node.tools[Ls].path_exists(str(fail_out), sudo=True):
                     fail_result = self.node.tools[Cat].run(
                         f"{result_path}/{test_id}.out.bad",
                         force_run=True,
                         sudo=True,
                     )
-                    diff_result = fail_result.stdout
+                # else if fail_out is null, return the full_out file content.
+                elif self.node.tools[Ls].path_exists(str(full_out), sudo=True):
+                    fail_result = self.node.tools[Cat].run(
+                        f"{result_path}/{test_id}.full",
+                        force_run=True,
+                        sudo=True,
+                    )
+                diff_result = fail_result.stdout
                 return_message = f"DIFF: {diff_result}\n\nDMESG: {dmesg_result}"
                 # return_message = f"DMESG: {dmesg_result.stdout}"
             # No output is needed. Although we can add Dmesg in the future
