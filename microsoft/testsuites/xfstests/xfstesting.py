@@ -73,7 +73,9 @@ _default_smb_testcases: str = (
     "generic/406 generic/412 generic/422 generic/428 generic/432 generic/433 "
     "generic/437 generic/443 generic/450 generic/451 generic/452 generic/460 "
     "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
-    "generic/565 generic/567 generic/568"
+    "generic/565 generic/567 generic/568 generic/586 generic/590 generic/591 "
+    "generic/598 generic/599 generic/604 generic/609 generic/615 generic/632 "
+    "generic/634 generic/635 generic/637 generic/638 generic/639 "
 )
 # Section : Global options
 _scratch_folder = "/mnt/scratch"
@@ -142,7 +144,8 @@ def _deploy_azure_file_share(
     elif isinstance(azure_file_share, Nfs):
         file_share_protocol = "NFS"
     else:
-        raise LisaException("Unsupported file share protocol")
+        raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
+
     if file_share_protocol == "SMB":
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
             file_share_names=[file_share_name, scratch_name],
@@ -158,38 +161,10 @@ def _deploy_azure_file_share(
             _scratch_folder: fs_url_dict[scratch_name],
         }
         azure_file_share.create_fileshare_folders(test_folders_share_dict)
-    # else:
-    # NFS yet to be implemented
+    else:
+        # NFS yet to be implemented
+        raise LisaException("Skipping NFS deployment. Pending implementation.")
     return fs_url_dict
-
-
-# DEPRECATED !!!!
-# This n exists in features.py
-# def _prepare_azure_file_share_smb(
-#     node: Node,
-#     account_credential: Dict[str, str],
-#     test_folders_share_dict: Dict[str, str],
-#     fstab_info: str,
-# ) -> None:
-#     folder_path = node.get_pure_path("/etc/smbcredentials")
-#     if node.shell.exists(folder_path):
-#         node.execute(f"rm -rf {folder_path}", sudo=True)
-#     node.shell.mkdir(folder_path)
-#     file_path = node.get_pure_path("/etc/smbcredentials/lisa.cred")
-#     echo = node.tools[Echo]
-#     username = account_credential["account_name"]
-#     password = account_credential["account_key"]
-#     echo.write_to_file(f"username={username}", file_path, sudo=True, append=True)
-#     echo.write_to_file(f"password={password}", file_path, sudo=True, append=True)
-#     node.execute("cp -f /etc/fstab /etc/fstab_cifs", sudo=True)
-#     for folder_name, share in test_folders_share_dict.items():
-#         node.execute(f"mkdir {folder_name}", sudo=True)
-#         echo.write_to_file(
-#             f"{share} {folder_name} cifs {fstab_info}",
-#             node.get_pure_path("/etc/fstab"),
-#             sudo=True,
-#             append=True,
-#         )
 
 
 @TestSuiteMetadata(
@@ -594,13 +569,14 @@ class Xfstesting(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run cifs xfstests testing against
-         azure file share.
+        azure file share.
         The case will provision storage account with private endpoint
         and use access key // ntlmv2 for authentication.
-        This will change to MSI in the near future
-        Update the mount options via _default_smb_mount
-        Update the excluded cases via _default_smb_excluded_tests
-        Update the test cases via _default_smb_testcases
+        This will be changed to MSI in the near future
+        To modify the test case parameters, 
+        Update the mount options via '_default_smb_mount'
+        Update the excluded cases via '_default_smb_excluded_tests'
+        Update the test cases via '_default_smb_testcases'
         """,
         requirement=simple_requirement(
             min_core_count=16,
@@ -614,12 +590,6 @@ class Xfstesting(TestSuite):
     def verify_azure_file_share(
         self, log: Logger, log_path: Path, result: TestResult
     ) -> None:
-        """
-        About: This test case will run cifs xfstests testing against
-        azure file share - premium .
-        The test will create a VM, and storage account with private endpoint.
-        The authentication currently uses the storage account key and NTLMv2.
-        """
         environment = result.environment
         assert environment, "fail to get environment from testresult"
         assert isinstance(environment.platform, AzurePlatform)
@@ -659,6 +629,7 @@ class Xfstesting(TestSuite):
         # Create excluded test file
         xfstests.set_excluded_tests(_default_smb_excluded_tests)
         # run the test
+        log.info("Running xfstests against azure file share")
         xfstests.run_test(
             test_section="cifs",
             log_path=log_path,
