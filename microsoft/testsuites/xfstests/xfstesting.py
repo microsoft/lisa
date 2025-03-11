@@ -573,7 +573,7 @@ class Xfstesting(TestSuite):
         The case will provision storage account with private endpoint
         and use access key // ntlmv2 for authentication.
         This will be changed to MSI in the near future
-        To modify the test case parameters, 
+        To modify the test case parameters:
         Update the mount options via '_default_smb_mount'
         Update the excluded cases via '_default_smb_excluded_tests'
         Update the test cases via '_default_smb_testcases'
