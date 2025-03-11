@@ -1315,6 +1315,7 @@ class RemoteNode(Node):
     username: str = constants.DEFAULT_USER_NAME
     password: str = ""
     private_key_file: str = ""
+    use_ipv6: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
