@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 
 import copy
+import os
+import shutil
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Set, cast
 
@@ -602,7 +604,7 @@ class LisaRunner(BaseRunner):
         # so deployment failure can be tracked.
         environment.platform = self.platform
         result.environment = environment
-
+        self._copy_env_log(environment, result)
         result.handle_exception(
             exception=exception, log=environment.log, phase="deployment"
         )
@@ -898,3 +900,20 @@ class LisaRunner(BaseRunner):
             )
 
         return platform_requirement
+
+    def _copy_env_log(self, environment: Environment, test_result: TestResult) -> None:
+        # Skip this function for Unit test since it does not have environment log dir.
+        # The value of environment_log_path is ".", so this code would attempt to copy
+        # entire lisa code to the test log folder for unittest.
+        if is_unittest():
+            return
+        assert environment.source_test_result
+        environment_log_path = environment.log_path
+        destination_path = os.path.join(
+            test_result.get_case_log_path(), os.path.basename(environment_log_path)
+        )
+
+        try:
+            shutil.copytree(environment_log_path, destination_path, dirs_exist_ok=True)
+        except Exception as e:
+            self._log.debug(f"Failed to copy environment log to case log: {e}")
