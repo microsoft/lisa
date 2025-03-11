@@ -226,7 +226,7 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
   ]
 }]
 
-resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2020-05-01' = if (empty(virtual_network_resource_group)) {
+resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-05-01' = if (empty(virtual_network_resource_group)) {
   name: virtual_network_name
   tags: tags
   location: location
