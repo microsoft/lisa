@@ -113,13 +113,17 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.tenant_id:
             self._tenant_id = runbook.tenant_id
             self._log.debug(f"Use defined tenant id: {self._tenant_id}")
-            os.environ["AZURE_TENANT_ID"] = self._tenant_id
         if runbook.client_id:
             self._client_id = runbook.client_id
             self._log.debug(f"Use defined client id: {self._client_id}")
-            os.environ["AZURE_CLIENT_ID"] = self._client_id
 
         self._allow_all_tenants = runbook.allow_all_tenants
+
+    def _set_auth_env_variables(self) -> None:
+        if self._tenant_id:
+            os.environ["AZURE_TENANT_ID"] = self._tenant_id
+        if self._client_id:
+            os.environ["AZURE_CLIENT_ID"] = self._client_id
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -145,6 +149,15 @@ class AzureDefaultCredential(AzureCredential):
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return AzureCredentialSchema
+
+    def __init__(
+        self,
+        runbook: AzureCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, logger=logger, cloud=cloud)
+        self._set_auth_env_variables()
 
     def __hash__(self) -> int:
         return hash(self._get_key())
@@ -206,11 +219,11 @@ class AzureCertificateCredential(AzureCredential):
         cloud: Cloud = AZURE_PUBLIC_CLOUD,
     ) -> None:
         super().__init__(runbook, cloud=cloud, logger=logger)
+        self._set_auth_env_variables()
         self._cert_path = os.environ.get("AZURE_CLIENT_CERTIFICATE_PATH", "")
         self._client_send_cert_chain = "false"
 
         runbook = cast(CertCredentialSchema, self.runbook)
-        self._credential_type = AzureCredentialType.CertificateCredential
         if runbook.cert_path:
             self._cert_path = runbook.cert_path
             self._log.debug(f"Use defined cert path: {self._cert_path}")
@@ -256,7 +269,6 @@ class AzureClientAssertionCredential(AzureCredential):
             super().__init__(runbook, cloud=cloud, logger=logger)
         self._msi_client_id = ""
         self._enterprise_app_client_id = ""
-        self._credential_type = AzureCredentialType.ClientAssertionCredential
 
         runbook = cast(ClientAssertionCredentialSchema, self.runbook)
         if runbook.msi_client_id:
@@ -317,7 +329,7 @@ class AzureClientSecretCredential(AzureCredential):
         cloud: Cloud = AZURE_PUBLIC_CLOUD,
     ) -> None:
         super().__init__(runbook, cloud=cloud, logger=logger)
-        self._credential_type = AzureCredentialType.ClientSecretCredential
+        self._set_auth_env_variables()
         self._client_secret = os.environ.get("AZURE_CLIENT_SECRET", "")
 
         runbook = cast(ClientSecretCredentialSchema, self.runbook)
