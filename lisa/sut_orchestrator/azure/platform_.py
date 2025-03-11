@@ -699,6 +699,34 @@ class AzurePlatform(Platform):
             if check_serial_console is True:
                 check_panic(log_response_content.decode("utf-8"), "provision", log)
 
+    def _get_features_settings(self, node: Node) -> Dict[str, str]:
+        platform_runbook = cast(schema.Platform, self.runbook)
+        information: Dict[str, Any] = {}
+        if platform_runbook.capture_features_settings is False:
+            return information
+        if node.is_connected and node.is_posix:
+            security_profile = node.features[SecurityProfile].get_settings()
+            if (
+                security_profile
+                and isinstance(security_profile, SecurityProfileSettings)
+                and isinstance(security_profile.security_profile, SecurityProfileType)
+            ):
+                information[
+                    "security_profile"
+                ] = security_profile.security_profile.value
+                if security_profile.security_profile == SecurityProfileType.CVM:
+                    information["encrypt_disk"] = security_profile.encrypt_disk
+        else:
+            platform_requirement = platform_runbook.requirement
+            if platform_requirement:
+                information["security_profile"] = self._get_item_fields(
+                    platform_requirement, ["features"], "security_profile"
+                )
+                information["encrypt_disk"] = self._get_item_fields(
+                    platform_requirement, ["features"], "encrypt_disk"
+                )
+        return information
+
     def _get_node_information(self, node: Node) -> Dict[str, str]:
         platform_runbook = cast(schema.Platform, self.runbook)
         information: Dict[str, Any] = {}
@@ -721,18 +749,6 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
-
-            security_profile = node.features[SecurityProfile].get_settings()
-            if (
-                security_profile
-                and isinstance(security_profile, SecurityProfileSettings)
-                and isinstance(security_profile.security_profile, SecurityProfileType)
-            ):
-                information[
-                    "security_profile"
-                ] = security_profile.security_profile.value
-                if security_profile.security_profile == SecurityProfileType.CVM:
-                    information["encrypt_disk"] = security_profile.encrypt_disk
 
             if node.capture_kernel_config:
                 node.log.debug("detecting mana driver enabled...")
@@ -763,6 +779,20 @@ class AzurePlatform(Platform):
             information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
         return information
+
+    def _get_item_fields(
+        self, data: Dict[str, Any], path: List[str], field: str
+    ) -> str:
+        value = data
+        for key in path:
+            value = value.get(key, {})
+
+        items = value.get("items", [])
+        for item in items:
+            if isinstance(item, dict) and field in item:
+                return str(item[field])
+
+        return ""
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
@@ -909,6 +939,7 @@ class AzurePlatform(Platform):
 
         if node:
             information.update(self._get_node_information(node))
+            information.update(self._get_features_settings(node))
         elif environment.capability and environment.capability.nodes:
             # get deployment information, if failed on preparing phase
             node_space = environment.capability.nodes[0]
