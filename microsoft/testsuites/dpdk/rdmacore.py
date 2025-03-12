@@ -149,7 +149,8 @@ class RdmaCoreSourceInstaller(Installer):
 
     def _setup_node(self) -> None:
         if isinstance(self._os, (Debian, Fedora, Suse)):
-            self._os.uninstall_packages("rdma-core")
+            if self._os.package_exists("rdma-core"):
+                self._os.uninstall_packages("rdma-core")
         if isinstance(self._os, Fedora):
             self._os.group_install_packages("Development Tools")
         super()._setup_node()
