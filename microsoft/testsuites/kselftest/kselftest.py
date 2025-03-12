@@ -237,8 +237,11 @@ class Kselftest(Tool):
             self._log.debug(f"run root: {str(run_test_as_root)}")
             self._log.debug(f"kwargs: {str(kwargs)}")
 
-            # Filter tests based on run_collections
-            filtered_tests = [test for test in all_tests if any(collection in test for collection in run_collections)]
+            # Filter tests based on run_collections if it exists
+            if not run_collections:
+                filtered_tests = all_tests
+            else:
+                filtered_tests = [test for test in all_tests if any(collection in test for collection in run_collections)]
 
             # Exclude tests based on skip_tests
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
