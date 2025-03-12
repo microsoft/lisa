@@ -309,7 +309,7 @@ class Xfstesting(TestSuite):
             data_disks[0],
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
-            test_type="quick",
+            test_type=f"{FileSystem.xfs.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -347,7 +347,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.ext4,
-            test_type="quick",
+            test_type=f"{FileSystem.ext4.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -388,7 +388,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.btrfs,
-            test_type="quick",
+            test_type=f"{FileSystem.btrfs.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -479,7 +479,7 @@ class Xfstesting(TestSuite):
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
-            test_type="quick",
+            test_type=f"{FileSystem.xfs.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -510,7 +510,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.ext4,
-            test_type="quick",
+            test_type=f"{FileSystem.ext4.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -542,7 +542,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.btrfs,
-            test_type="quick",
+            test_type=f"{FileSystem.btrfs.name}/quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -580,7 +580,8 @@ class Xfstesting(TestSuite):
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
         mount_opts = (
-            f"-o {_default_smb_mount}, credentials=/etc/smbcredentials/lisa.cred"
+            f"-o {_default_smb_mount},"  # noqa: E231
+            f"credentials=/etc/smbcredentials/lisa.cred"  # noqa: E231
         )
         fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
             node=node,
@@ -607,6 +608,7 @@ class Xfstesting(TestSuite):
         log.info("Running xfstests against azure file share")
         xfstests.run_test(
             test_section="cifs",
+            test_group="cifs/quick",
             log_path=log_path,
             result=result,
             test_cases=_default_smb_testcases,
@@ -637,7 +639,7 @@ class Xfstesting(TestSuite):
         test_dev: str = "",
         scratch_dev: str = "",
         file_system: FileSystem = FileSystem.xfs,
-        test_type: str = "quick",
+        test_type: str = "generic/quick",
         test_cases: str = "",
         excluded_tests: str = "",
         mount_opts: str = "",
@@ -654,8 +656,12 @@ class Xfstesting(TestSuite):
         # test_group
         # a test group for XFS will fail for a config for ext or btrfs
         test_group: str = ""
-        if test_type:
+        if not test_type:
             test_group = f"{file_system.name}/{test_type}"
+        if test_type == "generic":
+            test_group = "generic/quick"
+        else:
+            test_group = test_type
         # Fix Mariner umask for xfstests
         if isinstance(node.os, CBLMariner):
             echo = node.tools[Echo]
