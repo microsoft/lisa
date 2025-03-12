@@ -656,9 +656,9 @@ class Xfstesting(TestSuite):
         # test_group
         # a test group for XFS will fail for a config for ext or btrfs
         test_group: str = ""
-        if not test_type:
-            test_group = f"{file_system.name}/{test_type}"
-        if test_type == "generic":
+        if not test_type or test_type == file_system.name:
+            test_group = f"{file_system.name}/quick"
+        elif test_type == "generic":
             test_group = "generic/quick"
         else:
             test_group = test_type
