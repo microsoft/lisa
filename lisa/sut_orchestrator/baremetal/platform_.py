@@ -119,6 +119,7 @@ class BareMetalPlatform(Platform):
 
     def _predeploy_environment(self, environment: Environment, log: Logger) -> None:
         # download source (shared, check if it's copied)
+        self._log.debug("check components of platform")
         if self._baremetal_runbook.source:
             if not self.local_artifacts_path:
                 source = self.source_factory.create_by_runbook(
