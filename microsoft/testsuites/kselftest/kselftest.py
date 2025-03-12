@@ -221,30 +221,40 @@ class Kselftest(Tool):
         run_collections = kwargs.get("run_collections", [])
         skip_tests = kwargs.get("skip_tests", [])
 
-        # List all available tests
-        list_result = self.run(" -l", shell=True)
-        list_result.assert_exit_code()
-        all_tests = list_result.stdout.splitlines()
+        if run_collections or skip_tests:
+            # List all available tests
+            list_result = self.run(" -l", shell=True)
+            list_result.assert_exit_code()
+            all_tests = list_result.stdout.splitlines()
 
-        self._log.debug(f"All tests: {str(all_tests)}")
-        self._log.debug(f"Run Collections: {str(run_collections)}")
-        self._log.debug(f"Skip tests: {str(skip_tests)}")
+            self._log.debug(f"All tests: {str(all_tests)}")
+            self._log.debug(f"Run Collections: {str(run_collections)}")
+            self._log.debug(f"Skip tests: {str(skip_tests)}")
 
-        self._log.debug(f"Test Result: {str(test_result)}")
-        self._log.debug(f"Log Path: {str(log_path)}")
-        self._log.debug(f"Timeout: {str(timeout)}")
-        self._log.debug(f"run root: {str(run_test_as_root)}")
-        self._log.debug(f"kwargs: {str(kwargs)}")
+            self._log.debug(f"Test Result: {str(test_result)}")
+            self._log.debug(f"Log Path: {str(log_path)}")
+            self._log.debug(f"Timeout: {str(timeout)}")
+            self._log.debug(f"run root: {str(run_test_as_root)}")
+            self._log.debug(f"kwargs: {str(kwargs)}")
 
-        tests_to_run = [
-            test for test in all_tests
-            if any(collection in test for collection in run_collections) and test not in skip_tests
-        ]
+            tests_to_run = [
+                test for test in all_tests
+                if any(collection in test for collection in run_collections) and test not in skip_tests
+            ]
 
-        for test in tests_to_run:
-            self._log.debug(f"Running test: {test}")
+            for test in tests_to_run:
+                self._log.debug(f"Running test: {test}")
+                self.run(
+                    f" -t {test} 2>&1 | tee -a {result_file}",
+                    sudo=run_test_as_root,
+                    force_run=True,
+                    shell=True,
+                    timeout=timeout,
+                )
+        else:
+            # run all tests
             self.run(
-                f" -t {test} 2>&1 | tee -a {result_file}",
+                f"2>&1 | tee {result_file}",
                 sudo=run_test_as_root,
                 force_run=True,
                 shell=True,
