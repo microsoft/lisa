@@ -241,7 +241,10 @@ class Kselftest(Tool):
             if not run_collections:
                 filtered_tests = all_tests
             else:
-                filtered_tests = [test for test in all_tests if any(collection in test for collection in run_collections)]
+                filtered_tests = [
+                    test for test in all_tests
+                    if any(collection == test.split(':')[0] for collection in run_collections)
+                ]
 
             # Exclude tests based on skip_tests
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
