@@ -230,6 +230,12 @@ class Kselftest(Tool):
         self._log.debug(f"Run Collections: {str(run_collections)}")
         self._log.debug(f"Skip tests: {str(skip_tests)}")
 
+        self._log.debug(f"Test Result: {str(test_result)}")
+        self._log.debug(f"Log Path: {str(log_path)}")
+        self._log.debug(f"Timeout: {str(timeout)}")
+        self._log.debug(f"run root: {str(run_test_as_root)}")
+        self._log.debug(f"kwargs: {str(kwargs)}")
+
         tests_to_run = [
             test for test in all_tests
             if any(collection in test for collection in run_collections) and test not in skip_tests

@@ -87,11 +87,18 @@ class KselftestTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         file_path = variables.get("kselftest_file_path", "")
+        skip_tests = variables.get("kself_skip_tests", "")
+        test_collection = variables.get("kself_test_collection", "")
+        # get comma separated list of tests
+        if test_collection:
+            test_collection_list = test_collection.split(",")
+        else:
+            test_collection_list = self._KSELF_LITE_TESTS
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
                 kselftest_file_path=file_path,
             )
-            kselftest.run_all(test_result=result, log_path=log_path, timeout=self._KSELF_TIMEOUT, run_collections=self._KSELF_LITE_TESTS, skip_tests=['drivers'])
+            kselftest.run_all(test_result=result, log_path=log_path, timeout=self._KSELF_TIMEOUT, run_collections=test_collection_list, skip_tests=skip_tests)
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
