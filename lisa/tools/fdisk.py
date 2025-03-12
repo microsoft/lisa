@@ -120,6 +120,13 @@ class Fdisk(Tool):
 class BSDFdisk(Fdisk):
     LIST_PARTITION_COMMAND = "sync; ls -lt /dev/da*; ls -lt /dev/nvd*"
 
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    def _check_exists(self) -> bool:
+        return True
+
     def _get_partition_pattern(self, disk_name: str) -> Pattern[str]:
         return re.compile(rf"({disk_name}p[0-9]+)")
 
