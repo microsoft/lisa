@@ -55,7 +55,7 @@ _default_smb_excluded_tests: str = (
     "generic/488 generic/489 generic/500 generic/510 generic/512 generic/520 "
     "generic/534 generic/535 generic/536 generic/547 generic/552 generic/557 "
     "generic/558 generic/559 generic/560 generic/561 generic/562 generic/570 "
-    "generic/589 generic/619 generic/620 generic/640"
+    "generic/589 generic/619 generic/620 generic/640 cifs/001"
 )
 _default_smb_testcases: str = (
     "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
@@ -125,13 +125,6 @@ def _deploy_azure_file_share(
     Returns: Dict[str, str] - A dictionary containing the file share names
     and their respective URLs.
     """
-    # if isinstance(azure_file_share, AzureFileShare):
-    #     file_share_protocol = "SMB"
-    # elif isinstance(azure_file_share, Nfs):
-    #     file_share_protocol = "NFS"
-    # else:
-    #     raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
-
     if isinstance(azure_file_share, AzureFileShare):
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
             file_share_names=[file_share_name, scratch_name],
@@ -150,6 +143,8 @@ def _deploy_azure_file_share(
     elif isinstance(azure_file_share, Nfs):
         # NFS yet to be implemented
         raise LisaException("Skipping NFS deployment. Pending implementation.")
+    else:
+        raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
     return fs_url_dict
 
 
@@ -189,7 +184,6 @@ class Xfstesting(TestSuite):
     # generic/738 case might cause hang more than 4 hours on old kernel
     # TODO: will figure out the detailed reason of every excluded case.
     # exclude generic/680 for security reason.
-    # include generic/211 for testing
     excluded_tests = (
         "generic/211 generic/430 generic/431 generic/434 generic/738 xfs/438 xfs/490"
         + " btrfs/007 btrfs/178 btrfs/244 btrfs/262"
@@ -315,7 +309,7 @@ class Xfstesting(TestSuite):
             data_disks[0],
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
-            test_type=FileSystem.xfs.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -353,7 +347,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.ext4,
-            test_type=FileSystem.ext4.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -394,7 +388,7 @@ class Xfstesting(TestSuite):
             f"{data_disks[0]}{suffix}1",
             f"{data_disks[0]}{suffix}2",
             file_system=FileSystem.btrfs,
-            test_type=FileSystem.btrfs.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -485,7 +479,7 @@ class Xfstesting(TestSuite):
             nvme_data_disks[0],
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
-            test_type=FileSystem.xfs.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -516,7 +510,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.ext4,
-            test_type=FileSystem.ext4.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -548,7 +542,7 @@ class Xfstesting(TestSuite):
             f"{nvme_data_disks[0]}p1",
             f"{nvme_data_disks[0]}p2",
             file_system=FileSystem.btrfs,
-            test_type=FileSystem.btrfs.name,
+            test_type="quick",
             excluded_tests=self.excluded_tests,
         )
 
@@ -558,11 +552,6 @@ class Xfstesting(TestSuite):
         azure file share.
         The case will provision storage account with private endpoint
         and use access key // ntlmv2 for authentication.
-        This will be changed to MSI in the near future
-        To modify the test case parameters:
-        Update the mount options via '_default_smb_mount'
-        Update the excluded cases via '_default_smb_excluded_tests'
-        Update the test cases via '_default_smb_testcases'
         """,
         requirement=simple_requirement(
             min_core_count=16,
@@ -591,7 +580,7 @@ class Xfstesting(TestSuite):
         file_share_name = f"lisa{random_str}fs"
         scratch_name = f"lisa{random_str}scratch"
         mount_opts = (
-            f"-o {_default_smb_mount},credentials=/etc/smbcredentials/lisa.cred"
+            f"-o {_default_smb_mount}, credentials=/etc/smbcredentials/lisa.cred"
         )
         fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
             node=node,
@@ -648,7 +637,7 @@ class Xfstesting(TestSuite):
         test_dev: str = "",
         scratch_dev: str = "",
         file_system: FileSystem = FileSystem.xfs,
-        test_type: str = "generic",
+        test_type: str = "quick",
         test_cases: str = "",
         excluded_tests: str = "",
         mount_opts: str = "",
@@ -658,7 +647,15 @@ class Xfstesting(TestSuite):
         assert environment, "fail to get environment from testresult"
 
         node = cast(RemoteNode, environment.nodes[0])
-
+        # test_group is a combination of <file_system>/<test_type>.
+        # supported values for test_type are quick, auto, db and more.
+        # check tests/*/group.list in xfstests-dev directory after 'make install'
+        # Note: you must use correct section name from local.config when using
+        # test_group
+        # a test group for XFS will fail for a config for ext or btrfs
+        test_group: str = ""
+        if test_type:
+            test_group = f"{file_system.name}/{test_type}"
         # Fix Mariner umask for xfstests
         if isinstance(node.os, CBLMariner):
             echo = node.tools[Echo]
@@ -671,11 +668,7 @@ class Xfstesting(TestSuite):
         # exclude this case generic/641 temporarily
         # it will trigger oops on RHEL8.3/8.4, VM will reboot
         # lack of commit 5808fecc572391867fcd929662b29c12e6d08d81
-        if (
-            test_type == "generic"
-            and isinstance(node.os, Redhat)
-            and node.os.information.version >= "8.3.0"
-        ):
+        if isinstance(node.os, Redhat) and node.os.information.version >= "8.3.0":
             excluded_tests += " generic/641"
 
         # prepare data disk when xfstesting target is data disk
@@ -686,14 +679,14 @@ class Xfstesting(TestSuite):
                 {test_dev: _test_folder, scratch_dev: _scratch_folder},
                 file_system=file_system,
             )
-
+        # We mark test_section as the name of the file system.
         xfstests.set_local_config(
+            file_system=file_system.name,
             scratch_dev=scratch_dev,
             scratch_mnt=_scratch_folder,
             test_dev=test_dev,
             test_folder=_test_folder,
-            file_system=file_system.name,
-            test_section=test_type,
+            test_section=file_system.name,
             mount_opts=mount_opts,
             testfs_mount_opts=testfs_mount_opts,
             overwrite_config=True,
@@ -701,8 +694,14 @@ class Xfstesting(TestSuite):
         xfstests.set_excluded_tests(excluded_tests)
         # Reduce run_test timeout by 30s to let it complete before case Timeout
         # wait_processes interval in run_test is 10s, set to 30 for safety check
+        # We mark test_section as the name of the file system.
+        # Test group is a combination of <file_system>/<test_type> generated previously
+        # test_cases is a string of test cases separated by space, can be empty.
+        # If specified, it will add additional cases to the ones from test_group minus
+        # exclusion list.
         xfstests.run_test(
-            test_section=test_type,
+            test_section=file_system.name,
+            test_group=test_group,
             log_path=log_path,
             result=result,
             data_disk=data_disk,
