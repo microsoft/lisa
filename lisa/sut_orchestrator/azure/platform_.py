@@ -712,7 +712,14 @@ class AzurePlatform(Platform):
                     information[key] = value
             except Exception as identifier:
                 node.log.exception(f"error on get {key}.", exc_info=identifier)
-
+        platform_requirement = platform_runbook.requirement
+        if platform_requirement:
+            information["security_profile"] = self._get_item_fields(
+                platform_requirement, ["features"], "security_profile"
+            )
+            information["encrypt_disk"] = self._get_item_fields(
+                platform_requirement, ["features"], "encrypt_disk"
+            )
         if node.is_connected and node.is_posix:
             node.log.debug("detecting lis version...")
             modinfo = node.tools[Modinfo]
@@ -763,6 +770,20 @@ class AzurePlatform(Platform):
             information["image"] = node_runbook.get_image_name()
         information["platform"] = self.type_name()
         return information
+
+    def _get_item_fields(
+        self, data: Dict[str, Any], path: List[str], field: str
+    ) -> str:
+        value = data
+        for key in path:
+            value = value.get(key, {})
+
+        items = value.get("items", [])
+        for item in items:
+            if isinstance(item, dict) and field in item:
+                return str(item[field])
+
+        return ""
 
     def _get_disk_controller_type(self, node: Node) -> str:
         result: str = ""
