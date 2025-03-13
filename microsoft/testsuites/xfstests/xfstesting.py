@@ -116,7 +116,6 @@ def _deploy_azure_file_share(
     enable_private_endpoint: bool = True,
     storage_account_sku: str = "Standard_LRS",
     storage_account_kind: str = "StorageV2",
-    file_share_protocol: str = "SMB",
     file_share_quota_in_gb: int = 500,
 ) -> Dict[str, str]:
     """
@@ -658,8 +657,6 @@ class Xfstesting(TestSuite):
         test_group: str = ""
         if not test_type or test_type == file_system.name:
             test_group = f"{file_system.name}/quick"
-        elif test_type == "generic":
-            test_group = "generic/quick"
         else:
             test_group = test_type
         # Fix Mariner umask for xfstests

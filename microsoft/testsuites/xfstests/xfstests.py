@@ -22,7 +22,7 @@ from lisa.operating_system import (
 if TYPE_CHECKING:
     from lisa.testsuite import TestResult
 
-from lisa.tools import Cat, Chmod, Diff, Echo, Git, Ls, Make, Pgrep, Rm, Sed
+from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
 
@@ -625,10 +625,6 @@ class Xfstests(Tool):
         fail_cases_list: List[str] = []
         try:
             if not self.node.shell.exists(console_log_results_path):
-                self._log.error(
-                    f"Console log path {console_log_results_path} doesn't exist, please"
-                    " check testing runs well or not."
-                )
                 raise LisaException(
                     f"Console log path {console_log_results_path} doesn't exist, "
                     "please check testing runs well or not."
@@ -665,7 +661,6 @@ class Xfstests(Tool):
                     )
                 fail_match = self.__fail_pattern.match(results.stdout)
                 if fail_match:
-                    assert fail_match
                     fail_count = fail_match.group("fail_count")
                     total_count = fail_match.group("total_count")
                     fail_cases_match = self.__fail_cases_pattern.match(results.stdout)
@@ -678,8 +673,9 @@ class Xfstests(Tool):
                         )[0][0]
                     fail_cases_list = fail_cases.split()
                     raise LisaException(
-                        f"Fail {fail_count} cases of total {total_count}, \n fail cases"
-                        f" {fail_cases}, \n details: \n{fail_info}, please investigate."
+                        f"Fail {fail_count} cases of total {total_count}, "
+                        f"\n\nfail cases: {fail_cases}, "
+                        f"\n\ndetails: \n\n{fail_info}, \n\nplease investigate."
                     )
                 else:
                     # Mark the fail count as zero, else code will fail since we never
@@ -820,65 +816,71 @@ class Xfstests(Tool):
         test_id = case.split("/")[1]
         result_path = xfstests_path / f"results/{test_section}/{test_class}"
         # <TODO> this needs to be fixed as it's spilling over to console output.
-        ls_tool = self.node.tools[Ls]
+        # ls_tool = self.node.tools[Ls]
         cat_tool = self.node.tools[Cat]
 
-        if not ls_tool.path_exists(str(result_path), sudo=True):
+        if not self.node.shell.exists(result_path):
             self._log.debug(f"No files found in path {result_path}")
             return f"No files found in path {result_path}"
 
         # Prepare file paths
         # dmesg is always generated.
-        dmesg_file = f"{result_path}/{test_id}.dmesg"
+        dmesg_file = result_path / f"{test_id}.dmesg"
         # ideally this file is also generated on each run. but under specific cases
         # it may not if the test even failed to execute
-        full_file = f"{result_path}/{test_id}.full"
+        full_file = result_path / f"{test_id}.full"
         # this file is generated only when the test fails, but not necessarily always
-        fail_file = f"{result_path}/{test_id}.out.bad"
+        fail_file = result_path / f"{test_id}.out.bad"
         # this file is generated only when the test fails, but not necessarily always
-        hint_file = f"{result_path}/{test_id}.hints"
+        hint_file = result_path / f"{test_id}.hints"
         # this file is generated only when the test is skipped
-        notrun_file = f"{result_path}/{test_id}.notrun"
+        notrun_file = result_path / f"{test_id}.notrun"
 
         # Process based on test status
         if test_status == "PASSED":
             dmesg_output = ""
-            if ls_tool.path_exists(dmesg_file, sudo=True):
+            if self.node.shell.exists(dmesg_file):
                 dmesg_output = cat_tool.run(
-                    dmesg_file, force_run=True, sudo=True
+                    str(dmesg_file), force_run=True, sudo=True
                 ).stdout
                 return f"DMESG: {dmesg_output}"
             return "No diagnostic information available for passed test"
         elif test_status == "FAILED":
             # Collect dmesg info if available
             dmesg_output = ""
-            if ls_tool.path_exists(dmesg_file, sudo=True):
+            if self.node.shell.exists(dmesg_file):
                 dmesg_output = cat_tool.run(
-                    dmesg_file, force_run=True, sudo=True
+                    str(dmesg_file), force_run=True, sudo=True
                 ).stdout
 
             # Collect diff or file content
             diff_output = ""
-            full_exists = ls_tool.path_exists(full_file, sudo=True)
-            fail_exists = ls_tool.path_exists(fail_file, sudo=True)
-            hint_exists = ls_tool.path_exists(hint_file, sudo=True)
+            full_exists = self.node.shell.exists(full_file)
+            fail_exists = self.node.shell.exists(fail_file)
+            hint_exists = self.node.shell.exists(hint_file)
             if full_exists and fail_exists:
                 # Both files exist - get diff
                 diff_output = self.node.tools[Diff].comparefiles(
-                    src=PurePath(full_file), dest=PurePath(fail_file)
+                    src=full_file, dest=fail_file
                 )
             elif fail_exists:
                 # Only failure output exists
-                diff_output = cat_tool.run(fail_file, force_run=True, sudo=True).stdout
+                diff_output = cat_tool.run(
+                    str(fail_file), force_run=True, sudo=True
+                ).stdout
             elif full_exists:
                 # Only full log exists
-                diff_output = cat_tool.run(full_file, force_run=True, sudo=True).stdout
+                diff_output = cat_tool.run(
+                    str(full_file), force_run=True, sudo=True
+                ).stdout
             else:
                 diff_output = "No diff or failure output available"
 
             hint_output = ""
             if hint_exists:
-                hint_output = cat_tool.run(hint_file, force_run=True, sudo=True).stdout
+                hint_output = cat_tool.run(
+                    str(hint_file), force_run=True, sudo=True
+                ).stdout
 
             # Construct return message with available information
             parts = []
@@ -894,9 +896,9 @@ class Xfstests(Tool):
             )
 
         elif test_status == "SKIPPED":
-            if ls_tool.path_exists(notrun_file, sudo=True):
+            if self.node.shell.exists(notrun_file):
                 notrun_output = cat_tool.run(
-                    notrun_file, force_run=True, sudo=True
+                    str(notrun_file), force_run=True, sudo=True
                 ).stdout
                 return f"NOTRUN: {notrun_output}"
             return "No notrun information available"
