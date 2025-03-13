@@ -821,6 +821,7 @@ class Xfstests(Tool):
 
         if not self.node.shell.exists(result_path):
             self._log.debug(f"No files found in path {result_path}")
+            # non terminating error !!!
             return f"No files found in path {result_path}"
 
         # Prepare file paths

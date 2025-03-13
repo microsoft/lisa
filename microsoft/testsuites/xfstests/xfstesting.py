@@ -55,7 +55,7 @@ _default_smb_excluded_tests: str = (
     "generic/488 generic/489 generic/500 generic/510 generic/512 generic/520 "
     "generic/534 generic/535 generic/536 generic/547 generic/552 generic/557 "
     "generic/558 generic/559 generic/560 generic/561 generic/562 generic/570 "
-    "generic/589 generic/619 generic/620 generic/640 cifs/001"
+    "generic/586 generic/589 generic/619 generic/620 generic/640 cifs/001"
 )
 _default_smb_testcases: str = (
     "generic/001 generic/005 generic/006 generic/007 generic/010 generic/011 "
@@ -73,9 +73,9 @@ _default_smb_testcases: str = (
     "generic/406 generic/412 generic/422 generic/428 generic/432 generic/433 "
     "generic/437 generic/443 generic/450 generic/451 generic/452 generic/460 "
     "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
-    "generic/565 generic/567 generic/568 generic/586 generic/590 generic/591 "
-    "generic/598 generic/599 generic/604 generic/609 generic/615 generic/632 "
-    "generic/634 generic/635 generic/637 generic/638 generic/639"
+    "generic/565 generic/567 generic/568 generic/590 generic/591 generic/598"
+    "generic/599 generic/604 generic/609 generic/615 generic/632 generic/634"
+    "generic/635 generic/637 generic/638 generic/639"
 )
 # Section : Global options
 _scratch_folder = "/mnt/scratch"
