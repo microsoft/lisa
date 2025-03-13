@@ -1120,3 +1120,30 @@ class EthtoolFreebsd(Ethtool):
         device_features = DeviceFeatures(interface, features)
 
         return device_features
+
+    def get_device_statistics(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceStatistics:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_statistics:
+            return device.device_statistics
+
+        result = self.run(f"FREEBSD COMMAND to acquire stats for {interface}", force_run=True, shell=True)
+        if (result.exit_code != 0) and (
+            "Operation not supported" in result.stdout
+            or "no stats available" in result.stdout
+        ):
+            raise UnsupportedOperationException(
+                f"Stats retrieval for {interface} operation not supported."
+            )
+        result.assert_exit_code(message=f"Couldn't get device {interface} statistics.")
+
+        device.device_statistics = DeviceStatistics(interface, result.stdout)
+        return device.device_statistics
+
+    def _get_or_create_device_setting(self, interface: str) -> DeviceSettings:
+        settings = self._device_settings_map.get(interface, None)
+        if settings is None:
+            settings = DeviceSettings(interface)
+            self._device_settings_map[interface] = settings
+        return settings
