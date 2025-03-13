@@ -121,7 +121,7 @@ class Kselftest(Tool):
                 self._tar_file_path
             )
 
-        self._command = self._kself_installed_dir / "run_kselftest.sh"
+        self._command = f"bash {self._kself_installed_dir}/run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
