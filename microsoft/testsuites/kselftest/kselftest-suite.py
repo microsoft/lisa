@@ -48,7 +48,7 @@ class KselftestTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         file_path = variables.get("kselftest_file_path", "")
-        working_dir = variables.get("kselftest_working_dir", "")
+        working_dir = variables.get("kselftest_working_path", "")
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
