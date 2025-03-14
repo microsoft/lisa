@@ -92,33 +92,50 @@ class Kselftest(Tool):
         )
 
     def __init__(
-        self, node: Node, kselftest_file_path: str, *args: Any, **kwargs: Any
+        self,
+        node: Node,
+        kselftest_working_path: str,
+        kselftest_file_path: str,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(node, *args, **kwargs)
 
         # tar file path specified in yml
+        self._kselftest_working_path = kselftest_working_path
         self._tar_file_path = kselftest_file_path
-        if self._tar_file_path:
-            self._remote_tar_path = self.get_tool_path(
-                use_global=True
-            ) / os.path.basename(self._tar_file_path)
+        kselftest_packages = "kselftest-packages"
+        if self._kselftest_working_path:
+            self._kselftest_working_dir = self.node.get_pure_path(
+                self._kselftest_working_path,
+            ) / (kselftest_packages)
+        else:
+            self._kselftest_working_dir = (
+                self.get_tool_path(use_global=True) / kselftest_packages
+            )
 
-        # command to run kselftests
-        self._kself_installed_dir = (
-            self.get_tool_path(use_global=True) / "kselftest-packages"
-        )
+        self._kself_installed_dir = self._kselftest_working_dir / (kselftest_packages)
+
+        if self._tar_file_path:
+            self._remote_tar_path = self._kselftest_working_dir / os.path.basename(
+                self._tar_file_path
+            )
 
         self._command = self._kself_installed_dir / "run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
-        if not (
+        is_support = False
+        if (
             (
                 isinstance(self.node.os, Ubuntu)
                 and self.node.os.information.version >= "18.4.0"
             )
             or isinstance(self.node.os, CBLMariner)
+            or (self._tar_file_path and self._kselftest_working_path)
         ):
+            is_support = True
+        if not is_support:
             raise UnsupportedDistroException(
                 self.node.os, "kselftests in LISA does not support this os"
             )
@@ -210,6 +227,8 @@ class Kselftest(Tool):
         # get username
         username = self.node.tools[Whoami].get_username()
         result_directory = f"/home/{username}"
+        if self._kselftest_working_path:
+            result_directory = self._kselftest_working_path
         if os.path.exists(result_directory) is False:
             mkdir = self.node.tools[Mkdir]
             mkdir.create_directory(result_directory)
@@ -218,7 +237,7 @@ class Kselftest(Tool):
         result_file = f"{result_directory}/{result_file_name}"
         self.run(
             f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
+            sudo=run_test_as_root if not self._kselftest_working_path else True,
             force_run=True,
             shell=True,
             timeout=timeout,
