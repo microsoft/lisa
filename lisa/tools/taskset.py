@@ -30,4 +30,4 @@ class BSDTaskSet(TaskSet):
         return "cpuset"
 
     def run_on_specific_cpu(self, cpu_id: int) -> Process:
-        return self.run_async(f"-c {cpu_id} yes > /dev/null", shell=True)
+        return self.run_async(f"-l {cpu_id} yes > /dev/null", shell=True)
