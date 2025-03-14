@@ -158,7 +158,7 @@ def _deploy_azure_file_share(
 class Xfstesting(TestSuite):
     # Use xfstests benchmark to test the different types of data disk,
     #  it will run many cases, so the runtime is longer than usual case.
-    TIME_OUT = 21600
+    TIME_OUT = 14400  # 4 hours
     # TODO: will include btrfs/244 once the kernel contains below fix.
     # exclude btrfs/244 temporarily for below commit not picked up by distro vendor.
     # https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/fs/btrfs/volumes.c?id=e4571b8c5e9ffa1e85c0c671995bd4dcc5c75091 # noqa: E501
