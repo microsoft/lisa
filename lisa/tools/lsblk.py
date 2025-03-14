@@ -136,11 +136,13 @@ class DiskInfo(object):
 
 class Lsblk(Tool):
     _INVAILD_JSON_OPTION_PATTERN = re.compile(r"lsblk: invalid option -- 'J'", re.M)
-    # NAME="loop2" SIZE="34017280" TYPE="loop" MOUNTPOINT="/snap/snapd/13640"
+    # NAME="sdb1" SIZE="15030288384" TYPE="part" MOUNTPOINT="/mnt" FSTYPE="ext4"
+    # UUID="ec9b6d68-0376-4284-b758-67aa37c47da5" PARTUUID=""
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
         r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
-        r'\s+FSTYPE="(?P<fstype>\S*)"'
+        r'\s+FSTYPE="(?P<fstype>\S*)"\s+UUID="(?P<uuid>\S*)"\s+PARTUUID='
+        r'"(?P<partuuid>\S*)"'
     )
 
     # sda
