@@ -139,6 +139,7 @@ deployment.
    platform:
    - type: azure
       ...
+      admin_private_key_file: "<path of private key file>"
       azure:
          virtual_network_resource_group: $(vnet_resource_group)
          virtual_network_name: $(vnet_name)
@@ -156,6 +157,17 @@ deployment.
             maximize_capability: "<true or false>"
             osdisk_size_in_gb: <disk size in gb>
 
+* **admin_private_key_file**: This step is optional. If not provided, LISA will generate a new key pair for you,
+  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair 
+  (both public and private keys). If you already have one, you can skip this step. Otherwise, generate a new key pair using the command below:
+
+  .. code:: bash
+
+     ssh-keygen
+
+.. warning::
+
+   Do not use a passphrase to protect your key, as LISA does not support it.
 * **virtual_network_resource_group**. Specify if an existing virtual network
   should be used. If `virtual_network_resource_group` is not provided, a virtual
   network will be created in the default resource group. If
