@@ -22,6 +22,8 @@ Installation
 
 Follow the installation guide below to install **LISA** on your OS.
 
+-  :doc:`Use docker image on Linux <docker_linux>`
+-  :doc:`Use docker image on Windows <docker_windows>`
 -  :doc:`Installation on Linux <installation_linux>`
 -  :doc:`Installation on Windows <installation_windows>`
 
