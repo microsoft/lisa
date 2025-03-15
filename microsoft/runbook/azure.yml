@@ -37,6 +37,8 @@ variable:
     value: ""
   - name: auth_type
     value: "default"
+  - name: use_ipv6
+    value: false
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -55,6 +57,7 @@ platform:
       subscription_id: $(subscription_id)
       wait_delete: $(wait_delete)
       azcopy_path: $(azcopy_path)
+      use_ipv6: $(use_ipv6)
     requirement:
       core_count:
         min: 2
