@@ -818,94 +818,101 @@ class Xfstests(Tool):
         # <TODO> this needs to be fixed as it's spilling over to console output.
         # ls_tool = self.node.tools[Ls]
         cat_tool = self.node.tools[Cat]
-
+        result = ""
         if not self.node.shell.exists(result_path):
             self._log.debug(f"No files found in path {result_path}")
             # non terminating error !!!
-            return f"No files found in path {result_path}"
+            result = f"No files found in path {result_path}"
+        else:
+            # Prepare file paths
+            # dmesg is always generated.
+            dmesg_file = result_path / f"{test_id}.dmesg"
+            # ideally this file is also generated on each run. but under specific cases
+            # it may not if the test even failed to execute
+            full_file = result_path / f"{test_id}.full"
+            # this file is generated only when the test fails, but not necessarily
+            # always
+            fail_file = result_path / f"{test_id}.out.bad"
+            # this file is generated only when the test fails, but not necessarily
+            # always
+            hint_file = result_path / f"{test_id}.hints"
+            # this file is generated only when the test is skipped
+            notrun_file = result_path / f"{test_id}.notrun"
 
-        # Prepare file paths
-        # dmesg is always generated.
-        dmesg_file = result_path / f"{test_id}.dmesg"
-        # ideally this file is also generated on each run. but under specific cases
-        # it may not if the test even failed to execute
-        full_file = result_path / f"{test_id}.full"
-        # this file is generated only when the test fails, but not necessarily always
-        fail_file = result_path / f"{test_id}.out.bad"
-        # this file is generated only when the test fails, but not necessarily always
-        hint_file = result_path / f"{test_id}.hints"
-        # this file is generated only when the test is skipped
-        notrun_file = result_path / f"{test_id}.notrun"
+            # Process based on test status
+            if test_status == "PASSED":
+                dmesg_output = ""
+                if self.node.shell.exists(dmesg_file):
+                    dmesg_output = cat_tool.run(
+                        str(dmesg_file), force_run=True, sudo=True
+                    ).stdout
+                    result = f"DMESG: {dmesg_output}"
+                else:
+                    result = "No diagnostic information available for passed test"
+            elif test_status == "FAILED":
+                # Collect dmesg info if available
+                dmesg_output = ""
+                if self.node.shell.exists(dmesg_file):
+                    dmesg_output = cat_tool.run(
+                        str(dmesg_file), force_run=True, sudo=True
+                    ).stdout
 
-        # Process based on test status
-        if test_status == "PASSED":
-            dmesg_output = ""
-            if self.node.shell.exists(dmesg_file):
-                dmesg_output = cat_tool.run(
-                    str(dmesg_file), force_run=True, sudo=True
-                ).stdout
-                return f"DMESG: {dmesg_output}"
-            return "No diagnostic information available for passed test"
-        elif test_status == "FAILED":
-            # Collect dmesg info if available
-            dmesg_output = ""
-            if self.node.shell.exists(dmesg_file):
-                dmesg_output = cat_tool.run(
-                    str(dmesg_file), force_run=True, sudo=True
-                ).stdout
+                # Collect diff or file content
+                diff_output = ""
+                full_exists = self.node.shell.exists(full_file)
+                fail_exists = self.node.shell.exists(fail_file)
+                hint_exists = self.node.shell.exists(hint_file)
+                if full_exists and fail_exists:
+                    # Both files exist - get diff
+                    diff_output = self.node.tools[Diff].comparefiles(
+                        src=full_file, dest=fail_file
+                    )
+                elif fail_exists:
+                    # Only failure output exists
+                    diff_output = cat_tool.run(
+                        str(fail_file), force_run=True, sudo=True
+                    ).stdout
+                elif full_exists:
+                    # Only full log exists
+                    diff_output = cat_tool.run(
+                        str(full_file), force_run=True, sudo=True
+                    ).stdout
+                else:
+                    diff_output = "No diff or failure output available"
 
-            # Collect diff or file content
-            diff_output = ""
-            full_exists = self.node.shell.exists(full_file)
-            fail_exists = self.node.shell.exists(fail_file)
-            hint_exists = self.node.shell.exists(hint_file)
-            if full_exists and fail_exists:
-                # Both files exist - get diff
-                diff_output = self.node.tools[Diff].comparefiles(
-                    src=full_file, dest=fail_file
+                hint_output = ""
+                if hint_exists:
+                    hint_output = cat_tool.run(
+                        str(hint_file), force_run=True, sudo=True
+                    ).stdout
+
+                # Construct return message with available information
+                parts = []
+                if diff_output:
+                    parts.append(f"DIFF: {diff_output}")
+                if dmesg_output:
+                    parts.append(f"DMESG: {dmesg_output}")
+                if hint_output:
+                    parts.append(f"HINT: {hint_output}")
+
+                result = (
+                    "\n\n".join(parts)
+                    if parts
+                    else "No diagnostic information available"
                 )
-            elif fail_exists:
-                # Only failure output exists
-                diff_output = cat_tool.run(
-                    str(fail_file), force_run=True, sudo=True
-                ).stdout
-            elif full_exists:
-                # Only full log exists
-                diff_output = cat_tool.run(
-                    str(full_file), force_run=True, sudo=True
-                ).stdout
+
+            elif test_status == "SKIPPED":
+                if self.node.shell.exists(notrun_file):
+                    notrun_output = cat_tool.run(
+                        str(notrun_file), force_run=True, sudo=True
+                    ).stdout
+                    result = f"NOTRUN: {notrun_output}"
+                else:
+                    result = "No notrun information available"
             else:
-                diff_output = "No diff or failure output available"
-
-            hint_output = ""
-            if hint_exists:
-                hint_output = cat_tool.run(
-                    str(hint_file), force_run=True, sudo=True
-                ).stdout
-
-            # Construct return message with available information
-            parts = []
-            if diff_output:
-                parts.append(f"DIFF: {diff_output}")
-            if dmesg_output:
-                parts.append(f"DMESG: {dmesg_output}")
-            if hint_output:
-                parts.append(f"HINT: {hint_output}")
-
-            return (
-                "\n\n".join(parts) if parts else "No diagnostic information available"
-            )
-
-        elif test_status == "SKIPPED":
-            if self.node.shell.exists(notrun_file):
-                notrun_output = cat_tool.run(
-                    str(notrun_file), force_run=True, sudo=True
-                ).stdout
-                return f"NOTRUN: {notrun_output}"
-            return "No notrun information available"
-
-        # If we get here, no relevant files were found for the given test status
-        return (
-            f"No relevant output files found for test case {case} "
-            f"with status {test_status}"
-        )
+                # If we get here, no relevant files were found for the given test status
+                result = (
+                    f"No relevant output files found for test case {case} "
+                    f"with status {test_status}"
+                )
+        return result
