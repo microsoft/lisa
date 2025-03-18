@@ -152,7 +152,7 @@ class Synthetic(TestSuite):
             for node in environment.nodes.list():
                 network_interface_feature = node.features[NetworkInterface]
                 network_interface_feature.attach_nics(
-                    extra_nic_count=7, enable_accelerated_networking=False
+                    extra_nic_count=15, enable_accelerated_networking=False
                 )
             initialize_nic_info(environment, is_sriov=False)
         finally:
