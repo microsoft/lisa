@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from assertpy import assert_that
 
@@ -18,10 +18,7 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
-
-if TYPE_CHECKING:
-    from lisa.testsuite import TestResult
-
+from lisa.testsuite import TestResult
 from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
 from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
 
