@@ -332,7 +332,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                max_nic_count=8,
+                max_nic_count=16,
             ),
         ),
     )
