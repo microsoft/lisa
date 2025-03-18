@@ -105,6 +105,7 @@ class Kselftest(Tool):
         self._kselftest_working_path = kselftest_working_path
         self._tar_file_path = kselftest_file_path
         kselftest_packages = "kselftest-packages"
+        self._log.debug(f"kselftest_file:{self._tar_file_path}, kselftest_working_path:{self._kselftest_working_path}")
         if self._kselftest_working_path:
             self._kselftest_working_dir = self.node.get_pure_path(
                 self._kselftest_working_path,
