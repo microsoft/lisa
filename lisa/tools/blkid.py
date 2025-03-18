@@ -44,7 +44,7 @@ class Blkid(Tool):
     def command(self) -> str:
         return "blkid"
 
-    def get_partition_information(self) -> List[PartitionInfo]:
+    def get_partition_information(self, force_run: bool = False) -> List[PartitionInfo]:
         """
         Get partition information from blkid output.
         Sample output :
@@ -54,7 +54,7 @@ class Blkid(Tool):
         /dev/loop0: TYPE="squashfs"
         /dev/sda3: UUID="5d1cdcfe-a342-4ce6-aec1-d6985fb9ceba" BLOCK_SIZE="4096" TYPE="ext4" PARTLABEL="primary" PARTUUID="3cdca255-3270-4cfb-84d4-e80a71677c7c" # noqa: E501
         """
-        output = self.run(sudo=True).stdout
+        output = self.run(sudo=True, force_run=force_run).stdout
         partition_info: List[PartitionInfo] = []
         for line in output.splitlines():
             # get partition info
@@ -75,11 +75,13 @@ class Blkid(Tool):
 
         return partition_info
 
-    def get_partition_info_by_name(self, partition_name: str) -> PartitionInfo:
+    def get_partition_info_by_name(
+        self, partition_name: str, force_run: bool = False
+    ) -> PartitionInfo:
         """
         Get partition information for partition name.
         """
-        partition_info = self.get_partition_information()
+        partition_info = self.get_partition_information(force_run=force_run)
         for partition in partition_info:
             if partition.name == partition_name:
                 return partition

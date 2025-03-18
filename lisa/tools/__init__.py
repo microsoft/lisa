@@ -40,6 +40,7 @@ from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult, IoEngine
+from .fips import Fips, Grub
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
@@ -161,11 +162,13 @@ __all__ = [
     "FIOMODES",
     "Fio",
     "FIOResult",
+    "Fips",
     "Firewall",
     "Free",
     "Gcc",
     "Gdb",
     "Git",
+    "Grub",
     "Ip",
     "IpInfo",
     "Iperf3",
