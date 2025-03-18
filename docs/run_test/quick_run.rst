@@ -59,33 +59,53 @@ Linux VM on Azure.
    attribute ``isDefault`` as true, it's not necessary to do so as long
    as you provide the correct ``<subscription id>``.
 
-#. Prepare SSH key pair
-
-   LISA connects to the Azure test VM by SSH with key authentication;
-   please have your key pair (public key and private key) ready before
-   running the test.
-
-   You can skip this step if you already have a key pair. However, if
-   you don't have a key pair, run below command to create a new one.
-
-   .. code:: bash
-
-      ssh-keygen
-
-.. warning::
-
-   Don't use passphrase to protect your key. LISA doesn't
-   support that.
-
 #. Run LISA
 
-   Use above ``<subscription id>`` and ``<private key file>`` to run
-   LISA with the default :doc:`runbook <runbook>`. It might take
+   Use above ``<subscription id>`` to run LISA with the default :doc:`runbook <runbook>`. It might take
    several minutes to complete.
 
    .. code:: bash
 
-      lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id> -v "admin_private_key_file:<private key file>"
+      lisa -r ./microsoft/runbook/azure.yml -v subscription_id:<subscription id>
+
+   If you use the docker on Linux, use below command to run LISA.
+
+   - ``-v ~/.azure:/root/.azure`` is to mount the azure credential file to the docker container.
+   - ``-v ./runtime/log:/app/lisa/runtime`` is to mount the log folder to the docker container. You can get the test result from the log folder ``./runtime/log``.
+
+   .. code:: bash
+
+      docker run --rm -v ~/.azure:/root/.azure -v ./runtime/log:/app/lisa/runtime -i mcr.microsoft.com/lisa/runtime:latest lisa -r microsoft/runbook/azure.yml -v subscription_id:<subscription id>
+
+   If you use Windows Docker Desktop. It needs to generate tokens to authenticate with Azure.
+   First, generate the token using the below command on Linux.
+
+   .. code:: bash
+
+      LISA_azure_arm_access_token=$(az account get-access-token --query accessToken -o tsv)
+
+   Or generate the token using the below command on Windows.
+
+   .. code:: bash
+
+      $LISA_azure_arm_access_token=$(az account get-access-token --query accessToken -o tsv)
+
+   Then, specify the auth type as token and pass the token to the Docker container.
+
+   - ``-e LISA_auth_type=token`` is to specify the auth type as token.
+   - ``-e S_LISA_azure_arm_access_token=$LISA_azure_arm_access_token`` is to pass the token to the Docker container.
+
+   This is for the Linux docker image on Windows. The container log path is ``/app/lisa/runtime``.
+
+   .. code:: bash
+
+      docker run -it --rm -e LISA_auth_type=token -e S_LISA_azure_arm_access_token=$LISA_azure_arm_access_token -v ./runtime/log:/app/lisa/runtime -i mcr.microsoft.com/lisa/runtime:latest lisa -r microsoft/runbook/azure.yml -v subscription_id:<subscription id>
+
+   This is for the Windows docker image on Windows. The container log path is ``C:/app/lisa/runtime``.
+
+   .. code:: bash
+
+      docker run -it --rm -e LISA_auth_type=token -e S_LISA_azure_arm_access_token=$LISA_azure_arm_access_token -v ./runtime/log:C:/app/lisa/runtime -i mcr.microsoft.com/lisa/runtime:latest lisa -r microsoft/runbook/azure.yml -v subscription_id:<subscription id>
 
 #. Verify test result
 
