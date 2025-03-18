@@ -460,6 +460,11 @@ class Xfstests(Tool):
             overwrite_config=True
             )
             Note: This method will by default enforce dmesg logging.
+            Note2: Its imperitive that disk labels are set correctly for the tests 
+            to run.
+            We highly advise to fetch the labels at runtime and not hardcode them.
+            _prepare_data_disk() method in xfstesting.py is a good example of this.
+            Note3: The test folder should be created before running the tests.
             All tests will have a corresponding dmesg log file in output folder.
         """
         xfstests_path = self.get_xfstests_path()
