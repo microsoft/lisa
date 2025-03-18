@@ -31,6 +31,21 @@ After installing Docker, you can start the Docker service with the following com
 
    sudo systemctl start docker
 
+Managing Docker Permissions
+--------------------
+
+Add the current user to the "docker" group to run Docker without sudo.
+
+.. code:: bash
+
+   sudo usermod -aG docker $USER
+
+Apply the group change immediately wihout logging out and logging back in.
+
+.. code:: bash
+
+   newgrp docker
+
 Launch LISA container
 -----------------------
 
@@ -38,4 +53,4 @@ Use below command to launch the LISA container.
 
 .. code:: bash
 
-   sudo docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r ./examples/runbook/hello_world.yml
+   docker run --rm -i mcr.microsoft.com/lisa/runtime:latest lisa -r ./examples/runbook/hello_world.yml
