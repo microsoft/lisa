@@ -1191,6 +1191,7 @@ class Debian(Linux):
         )
         if packages:
             command += " ".join(packages)
+        self.wait_running_package_process()
         self._node.execute(command, sudo=True, timeout=3600)
 
 
