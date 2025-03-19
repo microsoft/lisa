@@ -26,7 +26,7 @@ class Dhclient(Tool):
 
     def _check_exists(self) -> bool:
         original_command = self._command
-        commands_to_check = ["dhclient"]
+        commands_to_check = ["dhclient", "dhcpcd"]
         for command in commands_to_check:
             self._command = command
             if super()._check_exists():
@@ -88,7 +88,13 @@ class Dhclient(Tool):
     def renew(self, interface: str = "") -> None:
         if interface:
             result = self.run(
-                f"-r {interface} && dhclient {interface}",
+                f" {interface}",
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
+            result = self.run(
+                f"-k {interface} && dhcpcd {interface}",
                 shell=True,
                 sudo=True,
                 force_run=True,
