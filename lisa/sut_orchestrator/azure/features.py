@@ -1158,9 +1158,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # assume the rule is to be applied to all traffic on the subnet.
         # Otherwise allow an arbitrary 'first hop' address
         if not em_first_hop:
-            address_prefix = subnet_mask
+            address_prefixes = [subnet_mask]
         else:
-            address_prefix = em_first_hop
+            address_prefixes = [em_first_hop]
 
         # NOTE: Next Hop Types
         # 'None' is for dropping all traffic
@@ -1182,7 +1182,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         {
                             "name": route_table_name,
                             "properties": {
-                                "addressPrefix": address_prefix,
+                                "address_prefixes": address_prefixes,
                                 "nextHopType": next_hop_type,
                                 "nextHopIpAddress": dest_hop,
                             },
