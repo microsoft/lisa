@@ -188,6 +188,7 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         )
         upgradable_before = [package.strip() for package in result.stdout.split("\n")]
 
+        node.os.wait_running_package_process()
         node.execute(
             "unattended-upgrade -d -v",
             sudo=True,
@@ -264,6 +265,7 @@ class FullUpgradeInstaller(UpgradeInstaller):
         node: Node = self._node
         assert isinstance(node.os, Debian)
 
+        node.os.wait_running_package_process()
         node.execute(
             "apt update",
             sudo=True,
