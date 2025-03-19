@@ -559,7 +559,7 @@ class Xfstesting(TestSuite):
         ),
         timeout=TIME_OUT,
         use_new_environment=True,
-        priority=3,
+        priority=5,
     )
     def verify_azure_file_share(
         self, log: Logger, log_path: Path, result: TestResult
