@@ -1182,7 +1182,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                         {
                             "name": route_table_name,
                             "properties": {
-                                "address_prefixes": address_prefixes,
+                                "addressPrefix": address_prefixes,
                                 "nextHopType": next_hop_type,
                                 "nextHopIpAddress": dest_hop,
                             },
