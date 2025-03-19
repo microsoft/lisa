@@ -115,14 +115,14 @@ class Kselftest(Tool):
                 self.get_tool_path(use_global=True) / kselftest_packages
             )
 
-        self._kself_installed_dir = self._kselftest_working_dir / (kselftest_packages)
+        self._kself_installed_dir = self._kselftest_working_dir
 
         if self._tar_file_path:
             self._remote_tar_path = self._kselftest_working_dir / os.path.basename(
                 self._tar_file_path
             )
 
-        self._command = f"bash {self._kself_installed_dir}/run_kselftest.sh"
+        self._command = f"bash {self._kself_installed_dir}" + "/run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
