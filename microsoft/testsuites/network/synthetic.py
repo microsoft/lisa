@@ -33,7 +33,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -56,7 +56,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -82,7 +82,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -109,7 +109,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -140,7 +140,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=16,
+                max_nic_count=15,
             ),
         ),
     )
@@ -173,7 +173,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=16,
+                max_nic_count=15,
             ),
         ),
     )
