@@ -26,7 +26,7 @@ class Dhclient(Tool):
 
     def _check_exists(self) -> bool:
         original_command = self._command
-        commands_to_check = ["dhclient", "dhcpcd"]
+        commands_to_check = ["dhclient"]
         for command in commands_to_check:
             self._command = command
             if super()._check_exists():
