@@ -37,7 +37,7 @@ class FipsTests(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def verify_fips_is_enabled_azl(
+    def verify_azl_fips_is_enabled(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         # Skip the test if the image is not FIPS enabled.
@@ -57,7 +57,7 @@ class FipsTests(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def verify_fips_is_disabled_azl(
+    def verify_azl_fips_is_disabled(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         # Skip the test if the image is FIPS enabled.
@@ -80,7 +80,7 @@ class FipsTests(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def verify_fips_enable_azl(
+    def verify_azl_fips_enable(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         # Skip the test if the image is already FIPS enabled.
@@ -110,7 +110,7 @@ class FipsTests(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def verify_fips_disable_azl(
+    def verify_azl_fips_disable(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         # Skip the test if the image is already not FIPS enabled.
