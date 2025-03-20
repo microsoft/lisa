@@ -59,7 +59,7 @@ class Ls(Tool):
         cmd_result = self.run(
             f"-al {path_str}",
             force_run=True,
-            sudo=sudo,
+            sudo=True,
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Failed to check if {path_str} "

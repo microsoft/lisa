@@ -68,7 +68,7 @@ class FileUploaderTransformer(DeploymentTransformer):
 
         self._log.debug(f"checking destination {runbook.destination}")
         ls = self._node.tools[Ls]
-        if not ls.path_exists(runbook.destination, sudo=True):
+        if not ls.path_exists(runbook.destination):
             self._log.debug(f"creating directory {runbook.destination}")
             mkdir = self._node.tools[Mkdir]
             mkdir.create_directory(runbook.destination)
