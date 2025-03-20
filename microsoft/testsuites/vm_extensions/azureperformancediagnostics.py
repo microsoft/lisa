@@ -60,7 +60,7 @@ class AzurePerformanceDiagnostics(TestSuite):
          storage account key, which we cannot use currently.
         Will change it back once the extension works with MSI.
         """,
-        priority=5,
+        priority=3,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
