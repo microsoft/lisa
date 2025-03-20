@@ -8,24 +8,13 @@ from typing import TYPE_CHECKING, Any
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, OperatingSystem
+from lisa.operating_system import CBLMariner
 from lisa.tools import Blkid, Cat, Sed
 from lisa.util import UnsupportedDistroException, get_matched_str
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
     from lisa.node import Node
-
-
-def assert_package_existance(
-    os: OperatingSystem, package: str, should_exist: bool
-) -> None:
-    """
-    Assert that a package/tool is installed on the node.
-    """
-    assert_that(os.package_exists(package)).described_as(
-        f"Package {package} is installed."
-    ).is_equal_to(should_exist)
 
 
 class Grub(Tool):
@@ -238,7 +227,7 @@ class Fips(Tool):
         FIPS is enabled or disabled on the system.
         """
         # We rely on the dracut-fips package for bootloader FIPS support.
-        assert_package_existance(self.node.os, "dracut-fips", expect_fips_mode)
+        self.node.os.package_exists("dracut-fips", assert_existance=expect_fips_mode)
 
         # Kernel needs to be in the correct FIPS mode.
         self._assert_kernel_fips_mode(expect_fips_mode)
@@ -369,7 +358,7 @@ class AzlV3Fips(Fips):
         # when FIPS is disabled.
         if expect_fips_mode:
             for package in self._SYMCRYPT_PACKAGES:
-                assert_package_existance(self.node.os, package, True)
+                self.node.os.package_exists(package, assert_existance=True)
 
     def enable_fips(self) -> None:
         super().enable_fips()
