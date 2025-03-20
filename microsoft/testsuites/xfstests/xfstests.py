@@ -184,38 +184,45 @@ class Xfstests(Tool):
         self,
         log_path: Path,
         result: "TestResult",
-        test_section: str,
+        test_section: str = "",
         test_group: str = "generic/quick",
         data_disk: str = "",
         test_cases: str = "",
         timeout: int = 14400,
     ) -> None:
         """About: This method runs XFSTest on a given node with the specified
-        test group and test cases.If test_section is not specified , test is
-        run with "generic/quick" classification and XFS environment variables.
-        If test_section is specified, test is run with the specified test group
-        and XFS environment variables from local.config.If test_cases is specified,
-        only the specified test cases are run.If empty, all test cases barring
-        exclude.txt entries are run.Runtime is set to 4 hours by default,
-        but can be overridden by the user.This method after running xfstest
-        will parse the output and sends subtest results to the test result object.
+        test group and test cases
         Parameters:
-        log_path: The path where the xfstests logs will be saved
-        result: The LISA test result object to which the subtest results will be sent
-        test_section: The test group name to be used for testing.
-            Defaults to "generic/quick"
-            note: if specified, test_section must exist in local.config
-        data_disk: The data disk used for testing
-        test_cases: The test cases to be run. If empty, all installed test cases
-            barring exclude.txt entries are run
-        timeout: The time in seconds after which the test will be timed out.
+        log_path (Path): (Mandatory)The path where the xfstests logs will be saved
+        result (TestResult): (Mandatory The LISA test result object to which the
+            subtest results will be sent
+        test_section (Str): (Optional)The test section name to be used for testing.
+            Defaults to empty string. If not specified, xfstests will use environment
+            variables and any first entries in local.config to run tests
+            note: if specified, test_section must exist in local.config. There is no
+            local checks in code
+        test_group (str): The test group to be used for testing. Defaults to
+            generic/quick. test_group signifies the basic mandatory tests to run.
+            Normally this is <Filesystem>/quick but can be any one of the values from
+            groups.list in tests/<filesystem> directory.
+            If passed as "", it will be ignored and xfstests will run all tests.
+        data_disk(st): The data disk device ID used for testing as scratch and mount
+            space
+        test_cases(str): Intended to be used in conjunction with test_group.
+            This is a space separated list of test cases to be run. If passed as "",
+            it will be ignored. test_cases signifies additional cases to be run apart
+            from the group tests and exclusion list from exclude.txt previously 
+            generated and put in the tool path. Its usefull for mixing and matching 
+            test cases from different file systems, example xfs tests and generic tests.
+        timeout(int): The time in seconds after which the test run will be timed out.
             Defaults to 4 hours.
         Example:
         xfstest.run_test(
             log_path=Path("/tmp/xfstests"),
             result=test_result,
-            test_section="generic/quick",
-            data_disk="/dev/sdb",
+            test_section="ext4"
+            test_group="generic/quick",
+            data_disk="/dev/sdd",
             test_cases="generic/001 generic/002",
             timeout=14400,
         )

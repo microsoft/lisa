@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, List, Union, cast
 
 from lisa import (
     Logger,
@@ -106,17 +106,19 @@ def _prepare_data_disk(
         node.execute(f"mkdir {mount_point}", sudo=True)
 
 
+# Updates as of march 2025.
+# Default premium SKU will be used for file share creation.
+# This will ensure SMB multi channel is enabled by default
 def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
-    file_share_name: str,
-    scratch_name: str,
+    names: List[str],
     azure_file_share: Union[AzureFileShare, Nfs],
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
-    storage_account_sku: str = "Standard_LRS",
-    storage_account_kind: str = "StorageV2",
-    file_share_quota_in_gb: int = 500,
+    storage_account_sku: str = "Premium_LRS",
+    storage_account_kind: str = "FileStorage",
+    file_share_quota_in_gb: int = 100,
 ) -> Dict[str, str]:
     """
     About: This method will provision azure file shares on a new // existing
@@ -126,7 +128,7 @@ def _deploy_azure_file_share(
     """
     if isinstance(azure_file_share, AzureFileShare):
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
-            file_share_names=[file_share_name, scratch_name],
+            file_share_names=names,
             environment=environment,
             sku=storage_account_sku,
             kind=storage_account_kind,
@@ -135,13 +137,13 @@ def _deploy_azure_file_share(
             quota_in_gb=file_share_quota_in_gb,
         )
         test_folders_share_dict = {
-            _test_folder: fs_url_dict[file_share_name],
-            _scratch_folder: fs_url_dict[scratch_name],
+            _test_folder: fs_url_dict[names[0]],
+            _scratch_folder: fs_url_dict[names[1]],
         }
         azure_file_share.create_fileshare_folders(test_folders_share_dict)
     elif isinstance(azure_file_share, Nfs):
         # NFS yet to be implemented
-        raise LisaException("Skipping NFS deployment. Pending implementation.")
+        raise SkippedException("Skipping NFS deployment. Pending implementation.")
     else:
         raise LisaException(f"Unsupported file share type: {type(azure_file_share)}")
     return fs_url_dict
@@ -585,8 +587,9 @@ class Xfstesting(TestSuite):
         fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
             node=node,
             environment=environment,
-            file_share_name=file_share_name,
-            scratch_name=scratch_name,
+            # file_share_name=file_share_name,
+            # scratch_name=scratch_name,
+            names=[file_share_name, scratch_name],
             azure_file_share=azure_file_share,
         )
         # Create Xfstest config
