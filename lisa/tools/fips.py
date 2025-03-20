@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import re
-from abc import ABC, abstractmethod
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -29,7 +28,7 @@ def assert_package_existance(
     ).is_equal_to(should_exist)
 
 
-class Grub(Tool, ABC):
+class Grub(Tool):
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         """
@@ -60,11 +59,11 @@ class Grub(Tool, ABC):
     def can_install(self) -> bool:
         return True
 
-    @abstractmethod
     def set_fips_mode(self, fips_mode: bool) -> None:
         """
         Set the FIPS mode to the specified value.
         """
+        raise NotImplementedError("set_fips_mode is not implemented.")
 
     def set_boot_uuid(self, uuid: str, same_as_root: bool) -> None:
         """
@@ -75,29 +74,29 @@ class Grub(Tool, ABC):
         else:
             self.set_kernel_cmdline_arg(f"boot=UUID={uuid}")
 
-    @abstractmethod
     def unset_boot_uuid(self, same_as_root: bool) -> None:
         """
         Unset the boot UUID.
         """
+        raise NotImplementedError("unset_boot_uuid is not implemented.")
 
-    @abstractmethod
     def remove_kernel_cmdline_arg(self, arg: str) -> None:
         """
         Remove the specified kernel command line argument from the grub configuration.
         """
+        raise NotImplementedError("remove_kernel_cmdline_arg is not implemented.")
 
-    @abstractmethod
     def set_kernel_cmdline_arg(self, arg: str) -> None:
         """
         Append the specified kernel command line argument to the grub configuration.
         """
+        raise NotImplementedError("set_kernel_cmdline_arg is not implemented.")
 
-    @abstractmethod
     def apply(self) -> None:
         """
         Reconfigure grub to apply the changes made to the kernel command line arguments.
         """
+        raise NotImplementedError("apply is not implemented.")
 
     def _install(self) -> bool:
         posix_os: Posix = self.node.os  # type: ignore
@@ -187,7 +186,7 @@ class GrubAzl3(Grub):
         )
 
 
-class Fips(Tool, ABC):
+class Fips(Tool):
     """
     Base class for AZL FIPS tests. This class provides methods to check if
     FIPS is enabled or disabled, and to enable or disable FIPS.
