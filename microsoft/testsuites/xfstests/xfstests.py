@@ -211,8 +211,8 @@ class Xfstests(Tool):
         test_cases(str): Intended to be used in conjunction with test_group.
             This is a space separated list of test cases to be run. If passed as "",
             it will be ignored. test_cases signifies additional cases to be run apart
-            from the group tests and exclusion list from exclude.txt previously 
-            generated and put in the tool path. Its usefull for mixing and matching 
+            from the group tests and exclusion list from exclude.txt previously
+            generated and put in the tool path. Its usefull for mixing and matching
             test cases from different file systems, example xfs tests and generic tests.
         timeout(int): The time in seconds after which the test run will be timed out.
             Defaults to 4 hours.
