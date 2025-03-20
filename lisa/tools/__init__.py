@@ -40,12 +40,13 @@ from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult, IoEngine
-from .fips import Fips, Grub
+from .fips import Fips
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
+from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hugepages import Hugepages
@@ -168,7 +169,7 @@ __all__ = [
     "Gcc",
     "Gdb",
     "Git",
-    "Grub",
+    "GrubConfig",
     "Ip",
     "IpInfo",
     "Iperf3",
