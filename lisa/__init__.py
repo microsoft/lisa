@@ -9,6 +9,7 @@ from lisa.feature import Feature
 from lisa.node import Node, RemoteNode
 from lisa.testsuite import (
     TestCaseMetadata,
+    TestResult,
     TestSuite,
     TestSuiteMetadata,
     node_requirement,
@@ -49,6 +50,7 @@ __all__ = [
     "TcpConnectionException",
     "TestSuiteMetadata",
     "TestCaseMetadata",
+    "TestResult",
     "TestSuite",
     "UnsupportedCpuArchitectureException",
     "UnsupportedDistroException",
