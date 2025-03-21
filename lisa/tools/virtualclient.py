@@ -251,7 +251,6 @@ class VirtualClientTool(Tool):
     def send_metrics_message(self, metrics_file: Path) -> None:
         with open(metrics_file, mode="r", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
-            metric_messages: List[VCMetrics] = []
             for row in reader:
                 metric = VCMetrics(
                     time_stamp=self._parse_timestamp(row["Timestamp"]),
@@ -259,7 +258,7 @@ class VirtualClientTool(Tool):
                     client_id=row["ClientId"],
                     profile=row["Profile"],
                     profile_name=row["ProfileName"],
-                    tool_name=row["ToolName"],
+                    tool=row["ToolName"],
                     scenario_name=row["ScenarioName"],
                     scenario_start_time=self._parse_timestamp(row["ScenarioStartTime"]),
                     scenario_end_time=self._parse_timestamp(row["ScenarioEndTime"]),
@@ -279,9 +278,7 @@ class VirtualClientTool(Tool):
                     app_telemetry_version=row["AppTelemetryVersion"],
                     tags=row["Tags"],
                 )
-                metric_messages.append(metric)
-        for metri_messages in metric_messages:
-            notifier.notify(metri_messages)
+                notifier.notify(metric)
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
         # Strip 'Z' and limit microseconds to 6 digits
