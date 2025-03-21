@@ -237,8 +237,8 @@ class VirtualClientTool(Tool):
 
         return "".join(cmd_parts)
 
-    def download_raw_data_file(self) -> Path:
-        local_path = self.node.local_log_path / "metrics.csv"
+    def download_raw_data_file(self, local_log_path: Path) -> Path:
+        local_path = local_log_path / "metrics.csv"
         remote_path = self.node.get_pure_path(f"{self._vc_log_path}/metrics.csv")
         current_user = self.node.tools[Whoami].get_username()
         self.node.tools[Chown].change_owner(remote_path, current_user)
@@ -314,6 +314,7 @@ class VcRunner:
     def run(
         self,
         profile_name: str,
+        log_path: Path,
         experiment_id: str = "",
         system: str = "Azure",
         timeout: int = 10,
@@ -331,7 +332,7 @@ class VcRunner:
 
         results = self._execute_commands(client_params)
         self._wait_for_client_result(results, timeout)
-        self._process_results()
+        self._process_results(log_path=log_path)
 
     def _generate_layout_file(
         self,
@@ -392,7 +393,9 @@ class VcRunner:
         for node_info in self._targets:
             node_info.node.close()
 
-    def _process_results(self) -> None:
+    def _process_results(self, log_path: Path) -> None:
         for target in self._targets:
-            local_path = target.virtual_client.download_raw_data_file()
+            local_path = target.virtual_client.download_raw_data_file(
+                local_log_path=log_path
+            )
             target.virtual_client.send_metrics_message(local_path)
