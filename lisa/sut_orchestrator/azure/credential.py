@@ -187,11 +187,11 @@ class AzureWorkloadIdentityCredential(AzureCredential):
 
     def get_credential(self) -> Any:
         self._log.info("Authenticating Using WorkloadIdentityCredential")
-        additional_tenants = ["*"] if self._allow_all_tenants else None
+        # additional_tenants = ["*"] if self._allow_all_tenants else None
         return WorkloadIdentityCredential(
             tenant_id=self._tenant_id,
             client_id=self._client_id,
-            additionally_allowed_tenants=additional_tenants,
+            # additionally_allowed_tenants=additional_tenants,
         )
 
 
