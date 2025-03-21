@@ -78,12 +78,6 @@ class GrubConfig(Tool):
         """
         raise NotImplementedError("set_kernel_cmdline_arg is not implemented.")
 
-    def apply(self) -> None:
-        """
-        Reconfigure grub to apply the changes made to the kernel command line arguments.
-        """
-        raise NotImplementedError("apply is not implemented.")
-
     def _install(self) -> bool:
         posix_os: Posix = self.node.os  # type: ignore
         posix_os.install_packages(self._package)
@@ -121,9 +115,6 @@ class GrubConfigAzl2(GrubConfig):
             expected_exit_code=0,
         )
 
-    def apply(self) -> None:
-        pass
-
 
 class GrubConfigAzl3(GrubConfig):
     _GRUB_CMDLINE_LINE_REGEX = r"^GRUB_CMDLINE_LINUX="
@@ -147,6 +138,7 @@ class GrubConfigAzl3(GrubConfig):
             file=PurePosixPath(self._GRUB_DEFAULT_FILE),
             sudo=True,
         )
+        self._apply()
 
     def set_kernel_cmdline_arg(self, arg: str) -> None:
         """
@@ -159,8 +151,9 @@ class GrubConfigAzl3(GrubConfig):
             file=self._GRUB_DEFAULT_FILE,
             sudo=True,
         )
+        self._apply()
 
-    def apply(self) -> None:
+    def _apply(self) -> None:
         """
         Reconfigure grub to apply the changes made to the kernel command line arguments.
         """

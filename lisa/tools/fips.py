@@ -88,9 +88,6 @@ class Fips(Tool):
             boot_disk_part_uuid, boot_and_root_same
         )
 
-        # Update the grub configuration.
-        self.node.tools[GrubConfig].apply()
-
     def disable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.uninstall_packages("dracut-fips")
@@ -103,9 +100,6 @@ class Fips(Tool):
         # Set the boot flag to the kernel command line.
         (boot_and_root_same, _) = self._get_boot_uuid()
         self.node.tools[GrubConfig].unset_boot_uuid(boot_and_root_same)
-
-        # Update the grub configuration.
-        self.node.tools[GrubConfig].apply()
 
     def _assert_kernel_fips_mode(self, expected: bool) -> None:
         """
