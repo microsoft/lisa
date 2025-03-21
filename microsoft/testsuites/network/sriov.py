@@ -377,7 +377,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=features.Sriov(),
         ),
     )
