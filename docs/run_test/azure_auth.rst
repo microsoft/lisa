@@ -28,6 +28,12 @@ Default Credentials
 -------------------
 Default authentication uses credentials from environment variables, Azure CLI, or managed identities. This method is useful when your environment is already authenticated through Azure CLI or managed identities.
 
+Fields for Default Authentication:
+- `type`: Must be set to `default` to indicate default credential authentication.
+- `azure.credential.type`: Specifies the authentication method. Set this field to `default` to use Azure's default credentials.
+- `azure.credential.client_id`: (Optional) If you're using a specific client ID (e.g., when using a managed identity), specify it here.
+- `azure.credential.tenant_id`: (Optional) The tenant ID associated with the client.
+
 Example:
 .. code:: yaml
 
@@ -36,6 +42,8 @@ Example:
        azure:
          credential:
            type: default
+           client_id: <client id>  # Optional
+           tenant_id: <tenant id>  # Optional
 
 Certificate Authentication
 ---------------------------
@@ -50,7 +58,7 @@ Example:
          credential:
            type: certificate
            certificate_file: <certificate file>
-           client_send_cert_chain: false  # Set to true to send certificate chain
+           client_send_cert_chain: false
 
 Assertion Authentication
 ------------------------
@@ -110,7 +118,6 @@ Example:
 
 Schema Description
 ------------------
-
 The configuration follows this schema:
 
 - `platform`: Defines the platform type. In this case, it is `azure`.
