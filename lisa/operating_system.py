@@ -407,13 +407,26 @@ class Posix(OperatingSystem, BaseClassMixin):
         package_names = self._get_package_list(packages)
         self._uninstall_packages(package_names, signed, timeout, extra_args)
 
-    def package_exists(self, package: Union[str, Tool, Type[Tool]]) -> bool:
+    def package_exists(
+        self,
+        package: Union[str, Tool, Type[Tool]],
+        assert_existance: Union[bool, None] = None,
+    ) -> bool:
         """
         Query if a package/tool is installed on the node.
+        If assert_existance is not None, it will be used to check the package
+        installation status, asserting that it is the same as the expected value.
         Return Value - bool
         """
         package_name = self.__resolve_package_name(package)
-        return self._package_exists(package_name)
+        exists = self._package_exists(package_name)
+
+        if assert_existance is not None:
+            assert_that(exists).described_as(
+                f"Package {package} installation status is unexpected."
+            ).is_equal_to(assert_existance)
+
+        return exists
 
     def is_package_in_repo(self, package: Union[str, Tool, Type[Tool]]) -> bool:
         """
