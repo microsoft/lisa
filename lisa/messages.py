@@ -274,7 +274,7 @@ class KernelBuildMessage(MessageBase):
 
 
 @dataclass
-class VCMetrics(MessageBase):
+class VCMetrics(PerfMessage):
     time_stamp: datetime = datetime.now(timezone.utc)
     experiment_id: str = ""
     client_id: str = ""
