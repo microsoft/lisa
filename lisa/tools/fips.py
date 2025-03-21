@@ -9,6 +9,7 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools import Blkid, Cat
+from .grub_config import GrubConfig
 from lisa.util import UnsupportedDistroException, get_matched_str
 
 if TYPE_CHECKING:
@@ -76,8 +77,6 @@ class Fips(Tool):
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.install_packages("dracut-fips")
 
-        from lisa.tools import GrubConfig
-
         # Set the fips flag to the kernel command line.
         self.node.tools[GrubConfig].set_fips_mode(True)
 
@@ -91,8 +90,6 @@ class Fips(Tool):
     def disable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.uninstall_packages("dracut-fips")
-
-        from lisa.tools import GrubConfig
 
         # Set the fips flag to the kernel command line.
         self.node.tools[GrubConfig].set_fips_mode(False)
