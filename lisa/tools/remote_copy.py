@@ -24,6 +24,9 @@ class RemoteCopy(Tool):
     def can_install(self) -> bool:
         return False
 
+    def _check_exists(self) -> bool:
+        return True
+
     def copy_to_local(
         self,
         src: PurePath,
