@@ -156,6 +156,7 @@ class JUnit(Notifier):
             testsuite_info.xml.attrib["name"] = message.suite_full_name
 
             # Timestamp must not contain timezone information.
+            assert message.time is not None, "Message time should not be None"
             timestamp = message.time.replace(tzinfo=None).isoformat(timespec="seconds")
             testsuite_info.xml.attrib["timestamp"] = timestamp
 

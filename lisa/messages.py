@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 @dataclass
 class MessageBase:
     type: str = "Base"
-    time: datetime = datetime.min
+    time: Optional[datetime] = None
     elapsed: float = 0
 
 
@@ -274,13 +274,11 @@ class KernelBuildMessage(MessageBase):
 
 
 @dataclass
-class VCMetrics(PerfMessage):
-    time_stamp: datetime = datetime.now(timezone.utc)
+class VCMetricsMessage(PerfMessage):
     experiment_id: str = ""
     client_id: str = ""
     profile: str = ""
     profile_name: str = ""
-    tool_name: str = ""
     scenario_name: str = ""
     scenario_start_time: datetime = datetime.now(timezone.utc)
     scenario_end_time: datetime = datetime.now(timezone.utc)
