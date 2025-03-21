@@ -1450,6 +1450,8 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
     capture_vm_information: bool = True
+    # capture features settings
+    capture_features_settings: bool = True
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
