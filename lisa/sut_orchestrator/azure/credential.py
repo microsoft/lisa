@@ -188,6 +188,9 @@ class AzureWorkloadIdentityCredential(AzureCredential):
     def get_credential(self) -> Any:
         self._log.info("Authenticating Using WorkloadIdentityCredential")
         # additional_tenants = ["*"] if self._allow_all_tenants else None
+        self._log.info("--- paxue debug: AzureWorkloadIdentityCredential Class---")
+        self._log.info(f"---tenant_id: {self._tenant_id}")
+        self._log.info(f"---client_id: {self._client_id}")
         return WorkloadIdentityCredential(
             tenant_id=self._tenant_id,
             client_id=self._client_id,
