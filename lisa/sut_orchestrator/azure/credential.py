@@ -196,13 +196,13 @@ class AzureWorkloadIdentityCredential(AzureCredential):
             return WorkloadIdentityCredential(
                 tenant_id=self._tenant_id,
                 client_id=self._client_id,
+                additionally_allowed_tenants=["*"],
             )
         else:
             self._log.info("---allow_all_tenants: false")
             return WorkloadIdentityCredential(
                 tenant_id=self._tenant_id,
                 client_id=self._client_id,
-                additionally_allowed_tenants=["*"],
             )
 
 
