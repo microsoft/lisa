@@ -191,11 +191,19 @@ class AzureWorkloadIdentityCredential(AzureCredential):
         self._log.info("--- paxue debug: AzureWorkloadIdentityCredential Class---")
         self._log.info(f"---tenant_id: {self._tenant_id}")
         self._log.info(f"---client_id: {self._client_id}")
-        return WorkloadIdentityCredential(
-            tenant_id=self._tenant_id,
-            client_id=self._client_id,
-            # additionally_allowed_tenants=additional_tenants,
-        )
+        if self._allow_all_tenants:
+            self._log.info("---allow_all_tenants: true")
+            return WorkloadIdentityCredential(
+                tenant_id=self._tenant_id,
+                client_id=self._client_id,
+            )
+        else:
+            self._log.info("---allow_all_tenants: false")
+            return WorkloadIdentityCredential(
+                tenant_id=self._tenant_id,
+                client_id=self._client_id,
+                additionally_allowed_tenants=["*"],
+            )
 
 
 class AzureCertificateCredential(AzureCredential):
