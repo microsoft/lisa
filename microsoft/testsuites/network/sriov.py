@@ -332,7 +332,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                max_nic_count=16,
+                min_nic_count=15,
             ),
         ),
     )
@@ -397,7 +397,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=features.Sriov(),
         ),
     )
@@ -423,7 +423,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=features.Sriov(),
         ),
     )
@@ -450,7 +450,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=16,
+            min_nic_count=15,
             network_interface=features.Sriov(),
         ),
     )
