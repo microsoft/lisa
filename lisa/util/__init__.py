@@ -908,3 +908,21 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
     if panics:
         raise KernelPanicException(stage, panics)
+
+
+def str_to_bool(value: str) -> Union[bool, None]:
+    """
+    Convert a string to a boolean value.
+    returns True for "true", False for "false", and None for any other value.
+    Allows for casing and leading/trailing whitespace.
+    """
+    str_to_bool_map = {
+        "true": True,
+        "false": False,
+    }
+
+    value = value.lower().strip()
+    bool_value = str_to_bool_map.get(value)
+    if bool_value is None:
+        raise ValueError(f"Invalid boolean string: {value}")
+    return bool_value

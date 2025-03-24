@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa.util import get_first_combination
+from lisa.util import get_first_combination, str_to_bool
 
 
 class UtilsTestCase(TestCase):
@@ -48,6 +48,36 @@ class UtilsTestCase(TestCase):
             False
         )
         assert_that(results).described_as("unexpected results").is_equal_to([])
+
+    def test_str_to_bool_positive(self):
+        test_cases = [
+            # Basic tests.
+            ("True", True),
+            ("False", False),
+            # Should also work with different casing and whitepace.
+            # Rather than doing this exhaustively, we just test
+            # some random cases.
+            ("true", True),
+            ("FALSE", False),
+            ("TrUe", True),
+            ("faLse", False),
+            ("  True  ", True),
+            ("  false", False),
+            ("faLsE ", False),
+        ]
+
+        for input_str, expected in test_cases:
+            result = str_to_bool(input_str)
+            assert_that(result).described_as(
+                f"Failed for input: {input_str}"
+            ).is_equal_to(expected)
+
+    def test_str_to_bool_negative(self):
+        test_cases = ["invalid", "1", "0", "yes", "no"]
+
+        for input_str in test_cases:
+            result = str_to_bool(input_str)
+            assert_that(result).described_as(f"Failed for input: {input_str}").is_none()
 
     def _check(self, values: List[Any]) -> Any:
         print(f"checked results: {values}")

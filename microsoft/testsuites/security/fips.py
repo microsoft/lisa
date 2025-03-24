@@ -17,7 +17,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator.azure.common import METADATA_ENDPOINT
 from lisa.tools import Curl, Fips
-from lisa.util import SkippedException
+from lisa.util import SkippedException, str_to_bool
 
 
 @TestSuiteMetadata(
@@ -188,16 +188,15 @@ class FipsTests(TestSuite):
         log.debug(f"ensure_fips_expectations: variables is '{variables}'")
 
         # First, try to deduce the FIPS image type from the variables dictionary.
-        fips_image_map = {"yes": True, "no": False}
         testing_fips_image = variables.get("testing_fips_image", None)
-        is_fips_image = fips_image_map.get(testing_fips_image, None)
+        is_fips_image = str_to_bool(testing_fips_image) if testing_fips_image else None
 
         # If the variable is not set or not in the expected format, fall back to
         # checking the image SKU from the azure metadata endpoint.
         if is_fips_image is None:
             log.debug(
-                f"ensure_fips_expectations: testing_fips_image not in '{list(fips_image_map.keys())}'"
-                "falling back to marketplace image sku"
+                f"ensure_fips_expectations: testing_fips_image '{testing_fips_image}' "
+                "is not a bool; falling back to marketplace image sku"
             )
             response = node.tools[Curl].fetch(
                 arg="--max-time 2 --header Metadata:true --silent",
