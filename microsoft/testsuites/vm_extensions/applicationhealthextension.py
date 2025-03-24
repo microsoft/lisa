@@ -50,22 +50,12 @@ class ApplicationHealthExtension(TestSuite):
     def verify_application_health_extension(self, log: Logger, node: Node) -> None:
         extension = node.features[AzureExtension]
 
-        settings = {
-            "protocol": "http",
-            "port": 8080,
-            "requestPath": "/health",
-            "intervalInSeconds": 5,
-            "numberOfProbes": 1,
-            "gracePeriod": 10,
-        }
-
         extension_result = extension.create_or_update(
             name="HealthExtension",
             publisher="Microsoft.ManagedServices.Edp",
             type_="ApplicationHealthLinux",
             type_handler_version="2.0",
             auto_upgrade_minor_version=True,
-            settings=settings,
         )
 
         assert_that(extension_result["provisioning_state"]).described_as(
@@ -75,7 +65,7 @@ class ApplicationHealthExtension(TestSuite):
         self._check_extension_logs(
             node=node,
             log_file="/var/log/azure/applicationhealth-extension/handler.log",
-            expected_app_health_message="AppHealthExtension is running",
+            expected_app_health_message="Committed health state is healthy",
         )
 
         extension.delete("HealthExtension")
