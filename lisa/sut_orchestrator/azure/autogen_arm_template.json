@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.1.11899",
-      "templateHash": "3180323640814036703"
+      "templateHash": "13761993183944386189"
     }
   },
   "functions": [
@@ -524,6 +524,12 @@
       "metadata": {
         "description": "whether to use ipv6"
       }
+    },
+    "enable_vm_nat": {
+      "type": "bool",
+      "metadata": {
+        "description": "whether to enable network outbound access"
+      }
     }
   },
   "variables": {
@@ -567,7 +573,8 @@
             "input": {
               "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]"
+                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "defaultOutboundAccess": "[not(parameters('enable_vm_nat'))]"
               }
             }
           }

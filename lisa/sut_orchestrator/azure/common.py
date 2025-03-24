@@ -1208,6 +1208,7 @@ class AzureArmParameter:
     subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
     use_ipv6: bool = False
+    enable_vm_nat: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)

@@ -52,6 +52,9 @@ param ip_service_tags object
 @description('whether to use ipv6')
 param use_ipv6 bool = false
 
+@description('whether to enable network outbound access')
+param enable_vm_nat bool
+
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -249,6 +252,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
           ['10.0.${j}.0/24'],
           use_ipv6 ? ['2001:db8:${j}::/64'] : []
         )
+        defaultOutboundAccess: !enable_vm_nat
       }
     }]
   }
