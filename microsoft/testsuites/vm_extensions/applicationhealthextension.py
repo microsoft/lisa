@@ -34,7 +34,9 @@ class ApplicationHealthExtension(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
         if not self._is_supported_linux_distro(node):
-            raise SkippedException(f"{str(node.os.information.full_version)} is not supported.")
+            raise SkippedException(
+                f"{str(node.os.information.full_version)} is not supported."
+            )
 
     @TestCaseMetadata(
         description="""
@@ -89,15 +91,22 @@ class ApplicationHealthExtension(TestSuite):
         for distro in supported_major_versions:
             if type(node.os) == distro:
                 version_list = supported_major_versions.get(distro)
-                if version_list is not None and node.os.information.version.major in version_list:
+                if (
+                    version_list is not None
+                    and node.os.information.version.major in version_list
+                ):
                     return True
                 else:
                     return False
         return False
 
     @retry(tries=5, delay=60)
-    def _check_extension_logs(self, node: Node, log_file: str, expected_app_health_message: str):
-        result = node.execute(f"grep '{expected_app_health_message}' {log_file}", sudo=True)
+    def _check_extension_logs(
+        self, node: Node, log_file: str, expected_app_health_message: str
+    ):
+        result = node.execute(
+            f"grep '{expected_app_health_message}' {log_file}", sudo=True
+        )
         assert_that(result.exit_code).described_as(
             f"Expected to find '{expected_app_health_message}' in {log_file}"
         ).is_equal_to(0)
