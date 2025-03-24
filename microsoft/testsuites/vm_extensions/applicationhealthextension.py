@@ -97,7 +97,7 @@ class ApplicationHealthExtension(TestSuite):
         }
 
         for distro in supported_major_versions:
-            if isinstance(node.os, distro):
+            if type(node.os) == distro:
                 version_list = supported_major_versions.get(distro)
                 if version_list is not None and node.os.information.version.major in version_list:
                     return True
