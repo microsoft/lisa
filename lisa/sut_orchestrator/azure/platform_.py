@@ -296,6 +296,11 @@ class AzurePlatformSchema:
     use_public_address: bool = field(default=True)
     use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
+    # Default outbound access is disabled for better security and control.
+    # As of September 30, 2025, default outbound access for new deployments
+    # will be retired. It's recommended to disable outbound access to
+    # enforce explicit connectivity rules.
+    enable_vm_nat: bool = field(default=False)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -350,6 +355,7 @@ class AzurePlatformSchema:
                 "subnet_prefix",
                 "use_public_address",
                 "use_ipv6",
+                "enable_vm_nat",
             ],
         )
 
@@ -1247,7 +1253,7 @@ class AzurePlatform(Platform):
         arm_parameters.shared_resource_group_name = (
             self._azure_runbook.shared_resource_group_name
         )
-
+        arm_parameters.enable_vm_nat = self._azure_runbook.enable_vm_nat
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
         template = deepcopy(self._load_template())
