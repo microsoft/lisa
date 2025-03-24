@@ -249,6 +249,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
           ['10.0.${j}.0/24'],
           use_ipv6 ? ['2001:db8:${j}::/64'] : []
         )
+        defaultOutboundAccess: false
       }
     }]
   }
