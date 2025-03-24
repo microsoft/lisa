@@ -103,7 +103,7 @@ class ApplicationHealthExtension(TestSuite):
     @retry(tries=5, delay=60)
     def _check_extension_logs(
         self, node: Node, log_file: str, expected_app_health_message: str
-    ):
+    ) -> None:
         result = node.execute(
             f"grep '{expected_app_health_message}' {log_file}", sudo=True
         )
