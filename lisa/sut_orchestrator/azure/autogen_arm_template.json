@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.33.93.31351",
-      "templateHash": "9899340922005457447"
+      "version": "0.34.1.11899",
+      "templateHash": "3180323640814036703"
     }
   },
   "functions": [
@@ -600,11 +600,11 @@
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
-        "publicIPAllocationMethod": "Static",
+        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]",
         "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]"
       },
       "sku": {
-        "name": "Standard"
+        "name": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Standard', 'Basic')]"
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
     },
@@ -816,8 +816,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.33.93.31351",
-              "templateHash": "2335646842987786457"
+              "version": "0.34.1.11899",
+              "templateHash": "12853422832965079706"
             }
           },
           "functions": [

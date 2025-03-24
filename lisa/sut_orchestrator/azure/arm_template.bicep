@@ -269,11 +269,11 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   tags: tags
   name: '${nodes[i].name}-public-ip'
   properties: {
-    publicIPAllocationMethod: 'Static'
+    publicIPAllocationMethod: ((is_ultradisk || use_availability_zones) ? 'Static' : 'Dynamic')
     ipTags: (empty(ip_tags) ? null : ip_tags)
   }
   sku: {
-    name: 'Standard'
+    name: ((is_ultradisk || use_availability_zones) ? 'Standard' : 'Basic')
   }
   zones: (use_availability_zones ? availability_zones : null)
 }]
