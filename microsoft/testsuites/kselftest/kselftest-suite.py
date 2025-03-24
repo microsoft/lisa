@@ -24,10 +24,11 @@ class KselftestTestsuite(TestSuite):
         "core",
         "futex",
         "ipc",
-        "kvm",
+        "kexec",
         "mm",
         "net",
         "timers",
+        "x86"
     ]
 
     @TestCaseMetadata(
