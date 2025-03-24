@@ -343,7 +343,7 @@ class Sriov(TestSuite):
         try:
             node = cast(RemoteNode, environment.nodes[0])
             network_interface_feature = node.features[NetworkInterface]
-            network_interface_feature.attach_nics(extra_nic_count=15)
+            network_interface_feature.attach_nics(extra_nic_count=14)
             is_ready, tcp_error_code = wait_tcp_port_ready(
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
