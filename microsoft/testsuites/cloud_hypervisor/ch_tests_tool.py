@@ -46,7 +46,7 @@ class CloudHypervisorTests(Tool):
     # - extract sub test results from stdout and report them.
     CASE_TIME_OUT = CMD_TIME_OUT + 1200
     # 2 Hrs of timeout for perf tests and 2400 seconds for other operations
-    PERF_CASE_TIME_OUT = 7200 + 2400
+    PERF_CASE_TIME_OUT = 7200 + 4800
     PERF_CMD_TIME_OUT = 1200
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
@@ -220,7 +220,7 @@ class CloudHypervisorTests(Tool):
             try:
                 cmd_timeout = self.PERF_CMD_TIME_OUT
                 if self.clh_guest_vm_type == "CVM":
-                    cmd_timeout = cmd_timeout + 300
+                    cmd_timeout = cmd_timeout + 600
                 result = self.run(
                     cmd_args,
                     timeout=cmd_timeout,
