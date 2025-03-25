@@ -577,8 +577,7 @@ class Xfstesting(TestSuite):
         # These local variables are needed to track resource retention
         # on demand / test failure.
         # This is to ensure that the storage account is not deleted
-        # if the test fails and the keep_environment is set to "always" or "failed".
-
+        # if the test fails and the keep_environment is set to "always" or "failed"
         keep_environment = environment.platform.runbook.keep_environment
         test_failed: bool = False
 
@@ -624,12 +623,11 @@ class Xfstesting(TestSuite):
                 test_cases=_default_smb_testcases,
                 timeout=self.TIME_OUT - 30,
             )
-        except Exception as e:
-            log.error(f"Error running xfstests against azure file share: {str(e)}")
-            test_failed = True
         finally:
             # If test_failed is true and keep_environment is Always / Failed, we keep
             # the storage account, else we delete it.
+            if result.status == "FAILED":
+                test_failed = True
             if keep_environment in ["failed", "always"]:
                 if test_failed is True:
                     log.info("Keeping Azure file share for manual testing.")
