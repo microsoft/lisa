@@ -1517,7 +1517,6 @@ class AzurePlatform(Platform):
         self, deployment_parameters: Dict[str, Any], log: Logger
     ) -> None:
         log.debug("validating deployment")
-
         validate_operation: Any = None
         try:
             with global_credential_access_lock:

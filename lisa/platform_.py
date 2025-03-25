@@ -181,6 +181,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
         environment.platform = self
+        # raise LisaException
         self._deploy_environment(environment, log)
         environment.status = EnvironmentStatus.Deployed
 

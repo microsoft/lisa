@@ -867,6 +867,8 @@ class LisaRunner(BaseRunner):
                     # if env prepare or deploy failed and the test result is not
                     # run, the failure will attach to this test result.
                     env.source_test_result = test_result
+                    print("HERE: test result", test_result)
+                    print("HERE: src test result", env.source_test_result)
                     self._log.debug(
                         f"created environment '{env.name}' for {test_result.id_}"
                     )
