@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import string
 from pathlib import Path
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, Union, cast
 
 from lisa import (
     Logger,
@@ -112,7 +112,7 @@ def _prepare_data_disk(
 def _deploy_azure_file_share(
     node: Node,
     environment: Environment,
-    names: List[str],
+    names: Dict[str, str],
     azure_file_share: Union[AzureFileShare, Nfs],
     allow_shared_key_access: bool = True,
     enable_private_endpoint: bool = True,
@@ -128,7 +128,7 @@ def _deploy_azure_file_share(
     """
     if isinstance(azure_file_share, AzureFileShare):
         fs_url_dict: Dict[str, str] = azure_file_share.create_file_share(
-            file_share_names=names,
+            file_share_names=list(names.values()),
             environment=environment,
             sku=storage_account_sku,
             kind=storage_account_kind,
@@ -136,10 +136,9 @@ def _deploy_azure_file_share(
             enable_private_endpoint=enable_private_endpoint,
             quota_in_gb=file_share_quota_in_gb,
         )
-        test_folders_share_dict = {
-            _test_folder: fs_url_dict[names[0]],
-            _scratch_folder: fs_url_dict[names[1]],
-        }
+        test_folders_share_dict: Dict[str, str] = {}
+        for key, value in names.items():
+            test_folders_share_dict[key] = fs_url_dict[value]
         azure_file_share.create_fileshare_folders(test_folders_share_dict)
     elif isinstance(azure_file_share, Nfs):
         # NFS yet to be implemented
@@ -575,6 +574,13 @@ class Xfstesting(TestSuite):
                 node.os, "current distro not enable cifs module."
             )
         xfstests = self._install_xfstests(node)
+        # These local variables are needed to track resource retention
+        # on demand / test failure.
+        # This is to ensure that the storage account is not deleted
+        # if the test fails and the keep_environment is set to "always" or "failed".
+
+        keep_environment = environment.platform.runbook.keep_environment
+        test_failed: bool = False
 
         azure_file_share = node.features[AzureFileShare]
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
@@ -587,35 +593,58 @@ class Xfstesting(TestSuite):
         fs_url_dict: Dict[str, str] = _deploy_azure_file_share(
             node=node,
             environment=environment,
-            # file_share_name=file_share_name,
-            # scratch_name=scratch_name,
-            names=[file_share_name, scratch_name],
+            names={
+                _test_folder: file_share_name,
+                _scratch_folder: scratch_name,
+            },
             azure_file_share=azure_file_share,
         )
-        # Create Xfstest config
-        xfstests.set_local_config(
-            scratch_dev=fs_url_dict[scratch_name],
-            scratch_mnt=_scratch_folder,
-            test_dev=fs_url_dict[file_share_name],
-            test_folder=_test_folder,
-            file_system="cifs",
-            test_section="cifs",
-            mount_opts=mount_opts,
-            testfs_mount_opts=mount_opts,
-            overwrite_config=True,
-        )
-        # Create excluded test file
-        xfstests.set_excluded_tests(_default_smb_excluded_tests)
-        # run the test
-        log.info("Running xfstests against azure file share")
-        xfstests.run_test(
-            test_section="cifs",
-            test_group="cifs/quick",
-            log_path=log_path,
-            result=result,
-            test_cases=_default_smb_testcases,
-            timeout=self.TIME_OUT - 30,
-        )
+        try:
+            # Create Xfstest config
+            xfstests.set_local_config(
+                scratch_dev=fs_url_dict[scratch_name],
+                scratch_mnt=_scratch_folder,
+                test_dev=fs_url_dict[file_share_name],
+                test_folder=_test_folder,
+                file_system="cifs",
+                test_section="cifs",
+                mount_opts=mount_opts,
+                testfs_mount_opts=mount_opts,
+                overwrite_config=True,
+            )
+            # Create excluded test file
+            xfstests.set_excluded_tests(_default_smb_excluded_tests)
+            # run the test
+            log.info("Running xfstests against azure file share")
+            xfstests.run_test(
+                test_section="cifs",
+                test_group="cifs/quick",
+                log_path=log_path,
+                result=result,
+                test_cases=_default_smb_testcases,
+                timeout=self.TIME_OUT - 30,
+            )
+        except Exception as e:
+            log.error(f"Error running xfstests against azure file share: {str(e)}")
+            test_failed = True
+        finally:
+            # If test_failed is true and keep_environment is Always / Failed, we keep
+            # the storage account, else we delete it.
+            if keep_environment in ["failed", "always"]:
+                if test_failed is True:
+                    log.info("Keeping Azure file share for manual testing.")
+                else:
+                    log.info(
+                        "Keeping Azure file share as keep_environment is set to 'True'."
+                    )
+            else:
+                log.info(
+                    "Deleting Azure file share as keep_environment is set to 'False'."
+                )
+                # this will ensure that the expensive storage resources are decom
+                # before the test case ends.
+                # This is important to avoid incurring unnecessary costs.
+                azure_file_share.delete_azure_fileshare([file_share_name, scratch_name])
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         try:
