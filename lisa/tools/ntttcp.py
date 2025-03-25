@@ -127,7 +127,14 @@ class Ntttcp(Tool):
         r"([\w\W]*?)tx_packets.*:(?P<tx_packets>.+)"
         r"([\w\W]*?)rx_packets.*:(?P<rx_packets>.+)"
         r"(([\w\W]*?)pkts/interrupt.*:(?P<pkts_interrupt>.+))?"
-        r"([\w\W]*?)cycles/byte.*:(?P<cycles_per_byte>.+)",
+        r"([\w\W]*?)cycles/byte.*:(?P<cycles_per_byte>.+)"
+        r"([\w\W]*?)cpu_cores.*:(?P<cpu_cores>.+)"
+        r"([\w\W]*?)cpu_user.*:(?P<cpu_user>.+)"
+        r"([\w\W]*?)cpu_system.*:(?P<cpu_system>.+)"
+        r"([\w\W]*?)cpu_idle.*:(?P<cpu_idle>.+)"
+        r"([\w\W]*?)cpu_iowait.*:(?P<cpu_iowait>.+)"
+        r"([\w\W]*?)cpu_softirq.*:(?P<cpu_softirq>.+)"
+        r"([\w\W]*?)cpu busy (all).*:(?P<cpu busy_all>.+)",
         re.MULTILINE,
     )
     sys_list_tcp = [

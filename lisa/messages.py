@@ -219,6 +219,23 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
+    rx_cpu_cores: Decimal = Decimal(0)
+    rx_cpu_user: Decimal = Decimal(0)
+    rx_cpu_system: Decimal = Decimal(0)
+    rx_cpu_idle: Decimal = Decimal(0)
+    rx_cpu_iowait: Decimal = Decimal(0)
+    rx_cpu_softirq: Decimal = Decimal(0)
+    rx_cpu_busy: Decimal = Decimal(0)
+    rx_memory_usage: Decimal = Decimal(0)
+    tx_memory_usage: Decimal = Decimal(0)
+    tx_cpu_cores: Decimal = Decimal(0)
+    tx_cpu_user: Decimal = Decimal(0)
+    tx_cpu_system: Decimal = Decimal(0)
+    tx_cpu_idle: Decimal = Decimal(0)
+    tx_cpu_iowait: Decimal = Decimal(0)
+    tx_cpu_softirq: Decimal = Decimal(0)
+    tx_cpu_busy: Decimal = Decimal(0)
+
 
 
 @dataclass
