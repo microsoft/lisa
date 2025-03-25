@@ -2189,7 +2189,7 @@ class AzurePlatform(Platform):
         node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
         node_space.network_interface.nic_count = search_space.IntRange(min=1)
         # till now, the max nic number supported in Azure is 8
-        node_space.network_interface.max_nic_count = 8
+        node_space.network_interface.max_nic_count = 16
 
         azure_capability = AzureCapability(
             location=location,
