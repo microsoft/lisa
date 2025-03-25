@@ -532,7 +532,6 @@ class Xfstests(Tool):
             for exclude_test in exclude_tests.split():
                 echo.write_to_file(exclude_test, exclude_file_path, append=True)
 
-    # <TODO> add more usable details in subtest additional information field
     def create_send_subtest_msg(
         self,
         test_result: "TestResult",
@@ -824,10 +823,9 @@ class Xfstests(Tool):
         test_class = case.split("/")[0]
         test_id = case.split("/")[1]
         result_path = xfstests_path / f"results/{test_section}/{test_class}"
-        # <TODO> this needs to be fixed as it's spilling over to console output.
-        # ls_tool = self.node.tools[Ls]
         cat_tool = self.node.tools[Cat]
         result = ""
+        # note: ls tool is not used here due to performance issues.
         if not self.node.shell.exists(result_path):
             self._log.debug(f"No files found in path {result_path}")
             # non terminating error !!!
