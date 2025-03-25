@@ -28,7 +28,7 @@ class KselftestTestsuite(TestSuite):
         "mm",
         "net",
         "timers",
-        "x86"
+        "x86",
     ]
 
     @TestCaseMetadata(
