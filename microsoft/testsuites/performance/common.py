@@ -28,6 +28,7 @@ from lisa.operating_system import BSD, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Ethtool,
     FIOMODES,
     Fdisk,
     Fio,
@@ -263,6 +264,10 @@ def perf_ntttcp(  # noqa: C901
     # from the environment. We never combine the two options. We need to specify
     # server and client explicitly for nested VM's which are not part of the
     # `environment` and are created during the test.
+
+    ethtool = node.tools[Ethtool]
+    ethtool.change_device_ring_buffer_settings("eth1", 1024, 512)
+
     if server is not None or client is not None:
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
