@@ -78,25 +78,23 @@ class Fips(Tool):
         self.node.os.install_packages("dracut-fips")
 
         # Set the fips flag to the kernel command line.
-        self.node.tools[GrubConfig].set_fips_mode(True)
+        self.node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "1")
 
         # If the boot and root devices are different, add the boot uuid to the
         # kernel command line.
-        (boot_and_root_same, boot_disk_part_uuid) = self._get_boot_uuid()
-        self.node.tools[GrubConfig].set_boot_uuid(
-            boot_disk_part_uuid, boot_and_root_same
-        )
+        boot_disk_part_uuid = self._get_boot_uuid()
+        boot_arg_value = f"UUID={boot_disk_part_uuid}" if boot_disk_part_uuid else ""
+        self.node.tools[GrubConfig].set_kernel_cmdline_arg("boot", boot_arg_value)
 
     def disable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.uninstall_packages("dracut-fips")
 
         # Set the fips flag to the kernel command line.
-        self.node.tools[GrubConfig].set_fips_mode(False)
+        self.node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "0")
 
         # Set the boot flag to the kernel command line.
-        (boot_and_root_same, _) = self._get_boot_uuid()
-        self.node.tools[GrubConfig].unset_boot_uuid(boot_and_root_same)
+        self.node.tools[GrubConfig].set_kernel_cmdline_arg("boot", "")
 
     def _assert_kernel_fips_mode(self, expected: bool) -> None:
         """
@@ -111,7 +109,7 @@ class Fips(Tool):
             expected_kernel_mode_value
         )
 
-    def _get_boot_uuid(self) -> tuple[bool, str]:
+    def _get_boot_uuid(self) -> str:
         """
         Get the UUID of the boot disk partition.
         This method checks if the boot and root devices are different.
@@ -144,7 +142,7 @@ class Fips(Tool):
             f"_get_boot_uuid: boot_and_root_same={boot_and_root_same}, "
             f"boot_disk_part_uuid='{boot_disk_part_uuid}'"
         )
-        return (boot_and_root_same, boot_disk_part_uuid)
+        return boot_disk_part_uuid
 
 
 class AzlV2Fips(Fips):

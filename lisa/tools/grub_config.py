@@ -45,34 +45,7 @@ class GrubConfig(Tool):
     def can_install(self) -> bool:
         return True
 
-    def set_fips_mode(self, fips_mode: bool) -> None:
-        """
-        Set the FIPS mode to the specified value.
-        """
-        raise NotImplementedError("set_fips_mode is not implemented.")
-
-    def set_boot_uuid(self, uuid: str, same_as_root: bool) -> None:
-        """
-        Set the boot UUID to the specified value.
-        """
-        if same_as_root:
-            self.remove_kernel_cmdline_arg(r"boot")
-        else:
-            self.set_kernel_cmdline_arg(f"boot=UUID={uuid}")
-
-    def unset_boot_uuid(self, same_as_root: bool) -> None:
-        """
-        Unset the boot UUID.
-        """
-        raise NotImplementedError("unset_boot_uuid is not implemented.")
-
-    def remove_kernel_cmdline_arg(self, arg: str) -> None:
-        """
-        Remove the specified kernel command line argument from the grub configuration.
-        """
-        raise NotImplementedError("remove_kernel_cmdline_arg is not implemented.")
-
-    def set_kernel_cmdline_arg(self, arg: str) -> None:
+    def set_kernel_cmdline_arg(self, arg: str, value: str) -> None:
         """
         Append the specified kernel command line argument to the grub configuration.
         """
@@ -88,21 +61,8 @@ class GrubConfigAzl2(GrubConfig):
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
         super().__init__("grubby", "grubby", node, *args, **kwargs)
 
-    def set_fips_mode(self, fips_mode: bool) -> None:
-        fips_flag = "fips=1" if fips_mode else "fips=0"
-        self.set_kernel_cmdline_arg(fips_flag)
-
-    def unset_boot_uuid(self, same_as_root: bool) -> None:
-        if same_as_root:
-            self.remove_kernel_cmdline_arg(r"boot")
-        else:
-            self.set_kernel_cmdline_arg("boot=")
-
-    def remove_kernel_cmdline_arg(self, arg: str) -> None:
-        self._run(f"--remove-args='{arg}'")
-
-    def set_kernel_cmdline_arg(self, arg: str) -> None:
-        self._run(f"--args='{arg}'")
+    def set_kernel_cmdline_arg(self, arg: str, value: str) -> None:
+        self._run(f"--args='{arg}={value}'")
 
     def _run(self, added_arg: str) -> None:
         """
@@ -123,40 +83,28 @@ class GrubConfigAzl3(GrubConfig):
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
         super().__init__("grub2-mkconfig", "grub2-tools-minimal", node, *args, **kwargs)
 
-    def set_fips_mode(self, fips_mode: bool) -> None:
-        self.remove_kernel_cmdline_arg("fips")
-        if fips_mode:
-            self.set_kernel_cmdline_arg("fips=1")
-
-    def unset_boot_uuid(self, same_as_root: bool) -> None:
-        self.remove_kernel_cmdline_arg(r"boot")
-
-    def remove_kernel_cmdline_arg(self, arg: str) -> None:
+    def set_kernel_cmdline_arg(self, arg: str, value: str) -> None:
+        """
+        Append the specified kernel command line argument to the grub configuration.
+        """
+        # For simplicity, first remove the existing argument.
         self.node.tools[Sed].delete_line_substring(
             match_line=self._GRUB_CMDLINE_LINE_REGEX,
             regex_to_delete=(r"\s" + arg + r"[^\"\s]*"),
             file=PurePosixPath(self._GRUB_DEFAULT_FILE),
             sudo=True,
         )
-        self._apply()
 
-    def set_kernel_cmdline_arg(self, arg: str) -> None:
-        """
-        Append the specified kernel command line argument to the grub configuration.
-        """
+        # Add the new argument.
         self.node.tools[Sed].substitute(
             match_lines=self._GRUB_CMDLINE_LINE_REGEX,
             regexp='"$',
-            replacement=f' {arg}"',
+            replacement=f' {arg}={value}"',
             file=self._GRUB_DEFAULT_FILE,
             sudo=True,
         )
-        self._apply()
 
-    def _apply(self) -> None:
-        """
-        Reconfigure grub to apply the changes made to the kernel command line arguments.
-        """
+        # Apply the changes.
         self.run(
             "--output=/boot/grub2/grub.cfg",
             sudo=True,
