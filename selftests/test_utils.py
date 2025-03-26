@@ -54,16 +54,23 @@ class UtilsTestCase(TestCase):
             # Basic tests.
             ("True", True),
             ("False", False),
+            ("yes", True),
+            ("no", False),
+            ("1", True),
+            ("0", False),
             # Should also work with different casing and whitepace.
             # Rather than doing this exhaustively, we just test
             # some random cases.
             ("true", True),
             ("FALSE", False),
-            ("TrUe", True),
+            (" 1", True),
             ("faLse", False),
-            ("  True  ", True),
+            ("  yes  ", True),
             ("  false", False),
             ("faLsE ", False),
+            # Bools are the identity function.
+            (True, True),
+            (False, False),
         ]
 
         for input_str, expected in test_cases:
@@ -73,11 +80,25 @@ class UtilsTestCase(TestCase):
             ).is_equal_to(expected)
 
     def test_str_to_bool_negative(self):
-        test_cases = ["invalid", "1", "0", "yes", "no"]
+        test_cases = [
+            "invalid",
+            "10",
+            "2",
+            "yesyes",
+            "no no",
+            "yes no",
+            "no yes",
+            "one",
+        ]
 
         for input_str in test_cases:
-            result = str_to_bool(input_str)
-            assert_that(result).described_as(f"Failed for input: {input_str}").is_none()
+            try:
+                str_to_bool(input_str)
+                assert_that(False).described_as(
+                    f"Input '{input_str}' should raise an error"
+                ).is_true()
+            except ValueError:
+                continue
 
     def _check(self, values: List[Any]) -> Any:
         print(f"checked results: {values}")
