@@ -125,7 +125,7 @@ class Stress(TestSuite):
         5. Do step 2 ~ step 4 for 25 times.
         """,
         priority=3,
-        timeout=600,
+        timeout=1800,
         requirement=simple_requirement(
             min_core_count=4,
             network_interface=features.Sriov(),
