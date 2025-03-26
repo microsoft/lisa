@@ -236,7 +236,7 @@ class Kselftest(Tool):
 
         if self._tar_file_path:
             self.run(
-                f" 2>&1 | tee {result_file}",
+                f" -s 2>&1 | tee {result_file}",
                 cwd=PurePosixPath(self._kself_installed_dir),
                 sudo=run_test_as_root,
                 force_run=True,
@@ -245,7 +245,7 @@ class Kselftest(Tool):
             )
         else:
             self.run(
-                f" 2>&1 | tee {result_file}",
+                f" -s 2>&1 | tee {result_file}",
                 sudo=run_test_as_root,
                 force_run=True,
                 shell=True,
