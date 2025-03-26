@@ -17,18 +17,19 @@ To run LISA tests on Azure with different authentication methods, configure the 
 
 Available Authentication Methods
 -------------------------------
-1. `Default Credentials <#default-credentials>`
-2. `Certificate Authentication <#certificate-authentication>`
-3. `Assertion Authentication <#assertion-authentication>`
-4. `Workload Identity Authentication <#workload-identity-authentication>`
-5. `Token Authentication <#token-authentication>`
-6. `Client Secret Authentication <#client-secret-authentication>`
+1. `Default Credentials <#default-credentials>`__
+2. `Certificate Authentication <#certificate-authentication>`__
+3. `Assertion Authentication <#assertion-authentication>`__
+4. `Workload Identity Authentication <#workload-identity-authentication>`__
+5. `Token Authentication <#token-authentication>`__
+6. `Client Secret Authentication <#client-secret-authentication>`__
 
 Default Credentials
 -------------------
 Default authentication uses credentials from environment variables, Azure CLI, or managed identities. This method is useful when your environment is already authenticated through Azure CLI, Azure PowerShell, or managed identities.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -50,6 +51,7 @@ Certificate Authentication
 Authenticates as a service principal using a certificate. You will need to provide the certificate file path and optionally specify whether to send the certificate chain.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -73,6 +75,7 @@ Assertion Authentication
 ClientAssertionCredential allows authentication using a pre-obtained JWT (Json Web Token) assertion instead of a client secret or certificate. It is primarily used for Service Principal authentication but can also work with other identities if a valid JWT is provided.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -94,6 +97,7 @@ Workload Identity Authentication
 Azure Workload Identity authentication allows applications on VMs or Azure Kubernetes to access resources without service principals or managed identities. It uses Service Account Credentials (SACs), which are automatically created and managed by Azure, eliminating the need for credential storage and rotation.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -115,6 +119,7 @@ Token Authentication
 Token authentication requires an Azure token for authentication. You need to provide a valid Azure token in your configuration.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -129,6 +134,7 @@ Client Secret Authentication
 Client secret authentication requires the use of a client secret for authentication. You need to provide the client secret in your configuration.
 
 Example:
+
 .. code:: yaml
 
    platform:
@@ -141,15 +147,16 @@ Example:
            client_secret: <client secret> # Required
 
 Schema Description
-------------------
+--------------------
+
 The configuration follows this schema:
 
-- `azure.credential.type`: Specifies the authentication method to use. Possible values:
-  - `default`: Uses default credentials (e.g., environment variables, Azure CLI, or managed identities).
-  - `certificate`: Uses certificate-based authentication. Requires `cert_path` and optionally `client_send_cert_chain`.
-  - `assertion`: Uses client assertion authentication. Requires `msi_client_id` and `enterprise_app_client_id`.
-  - `secret`: Uses client secret authentication. Requires `client_secret`.
-  - `workloadidentity`: Uses workload identity authentication.
-  - `token`: Uses token-based authentication. Requires a valid `token`.
+-  **azure.credential.type**: Specifies the authentication method to use. Possible values:
+  -  **default**: Uses default credentials (e.g., environment variables, Azure CLI, or managed identities).
+  -  **certificate**: Uses certificate-based authentication. Requires `cert_path` and optionally `client_send_cert_chain`.
+  -  **assertion**: Uses client assertion authentication. Requires `msi_client_id` and `enterprise_app_client_id`.
+  -  **secret**: Uses client secret authentication. Requires `client_secret`.
+  -  **workloadidentity**: Uses workload identity authentication.
+  -  **token**: Uses token-based authentication. Requires a valid `token`.
 
 **Schema Inheritance:** The `default` authentication method defines a base schema that all other authentication types inherit from. Fields such as `allow_all_tenants` are applicable to all authentication methods.
