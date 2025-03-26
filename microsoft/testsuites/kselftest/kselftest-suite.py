@@ -72,6 +72,8 @@ class KselftestTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run kself lite tests - a subset of kselftests.
+        A predefined value is provided in the list _KSELF_LITE_TESTS,
+        though a custom value can be passed to the test case as well.
         Cases:
         1. When a tarball is specified in .yml file, extract the tar and run kselftests.
         Example:
@@ -105,11 +107,8 @@ class KselftestTestsuite(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        skip_tests = variables.get("kself_skip_tests", "")
-        test_collection = variables.get("kself_test_collection", "")
-        # get comma separated list of tests
-        test_collection_list = test_collection.split(",") if test_collection else self._KSELF_LITE_TESTS
-        skip_tests_list = skip_tests.split(",") if skip_tests else []
+        test_collection_list = variables.get("kself_test_collection", "").split(",") if variables.get("kself_test_collection", "") else self._KSELF_LITE_TESTS
+        skip_tests_list = variables.get("kself_skip_tests", "").split(",") if variables.get("kself_skip_tests", "") else []
         try:
             self._run_kselftest(
                 node,
