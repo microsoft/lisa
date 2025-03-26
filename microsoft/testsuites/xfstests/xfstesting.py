@@ -571,16 +571,9 @@ class Xfstesting(TestSuite):
         node = cast(RemoteNode, environment.nodes[0])
         if not node.tools[KernelConfig].is_enabled("CONFIG_CIFS"):
             raise UnsupportedDistroException(
-                node.os, "current distro not enable cifs module."
+                node.os, "current distro is not enabled with cifs module."
             )
         xfstests = self._install_xfstests(node)
-        # These local variables are needed to track resource retention
-        # on demand / test failure.
-        # This is to ensure that the storage account is not deleted
-        # if the test fails and the keep_environment is set to "always" or "failed"
-        keep_environment = environment.platform.runbook.keep_environment
-        test_failed: bool = False
-
         azure_file_share = node.features[AzureFileShare]
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         file_share_name = f"lisa{random_str}fs"
@@ -598,51 +591,30 @@ class Xfstesting(TestSuite):
             },
             azure_file_share=azure_file_share,
         )
-        try:
-            # Create Xfstest config
-            xfstests.set_local_config(
-                scratch_dev=fs_url_dict[scratch_name],
-                scratch_mnt=_scratch_folder,
-                test_dev=fs_url_dict[file_share_name],
-                test_folder=_test_folder,
-                file_system="cifs",
-                test_section="cifs",
-                mount_opts=mount_opts,
-                testfs_mount_opts=mount_opts,
-                overwrite_config=True,
-            )
-            # Create excluded test file
-            xfstests.set_excluded_tests(_default_smb_excluded_tests)
-            # run the test
-            log.info("Running xfstests against azure file share")
-            xfstests.run_test(
-                test_section="cifs",
-                test_group="cifs/quick",
-                log_path=log_path,
-                result=result,
-                test_cases=_default_smb_testcases,
-                timeout=self.TIME_OUT - 30,
-            )
-        finally:
-            # If test_failed is true and keep_environment is Always / Failed, we keep
-            # the storage account, else we delete it.
-            if result.status == "FAILED":
-                test_failed = True
-            if keep_environment in ["failed", "always"]:
-                if test_failed is True:
-                    log.info("Keeping Azure file share for manual testing.")
-                else:
-                    log.info(
-                        "Keeping Azure file share as keep_environment is set to 'True'."
-                    )
-            else:
-                log.info(
-                    "Deleting Azure file share as keep_environment is set to 'False'."
-                )
-                # this will ensure that the expensive storage resources are decom
-                # before the test case ends.
-                # This is important to avoid incurring unnecessary costs.
-                azure_file_share.delete_azure_fileshare([file_share_name, scratch_name])
+        # Create Xfstest config
+        xfstests.set_local_config(
+            scratch_dev=fs_url_dict[scratch_name],
+            scratch_mnt=_scratch_folder,
+            test_dev=fs_url_dict[file_share_name],
+            test_folder=_test_folder,
+            file_system="cifs",
+            test_section="cifs",
+            mount_opts=mount_opts,
+            testfs_mount_opts=mount_opts,
+            overwrite_config=True,
+        )
+        # Create excluded test file
+        xfstests.set_excluded_tests(_default_smb_excluded_tests)
+        # run the test
+        log.info("Running xfstests against azure file share")
+        xfstests.run_test(
+            test_section="cifs",
+            test_group="cifs/quick",
+            log_path=log_path,
+            result=result,
+            test_cases=_default_smb_testcases,
+            timeout=self.TIME_OUT - 30,
+        )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         try:
