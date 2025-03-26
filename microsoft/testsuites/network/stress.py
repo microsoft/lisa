@@ -127,7 +127,7 @@ class Stress(TestSuite):
         priority=3,
         timeout=4500,
         requirement=simple_requirement(
-            min_core_count=4,
+            min_core_count=15,
             network_interface=features.Sriov(),
             supported_platform_type=[AZURE],
         ),
