@@ -282,7 +282,15 @@ class RepoInstaller(BaseInstaller):
             self._log.info("Removing repo: https://esm.ubuntu.com/fips/ubuntu")
             ubuntu.remove_repository("https://esm.ubuntu.com/fips/ubuntu")
         self._log.info(f"installing kernel package: {full_package_name}")
-        ubuntu.install_packages(full_package_name)
+        # ubuntu.install_packages(full_package_name)
+        packages = [
+            "linux-azure-fips=5.4.0.1147.85",
+            "linux-image-azure-fips=5.4.0.1147.85",
+            "linux-headers-azure-fips=5.4.0.1147.85",
+            "linux-tools-azure-fips=5.4.0.1147.85",
+            "linux-cloud-tools-azure-fips=5.4.0.1147.85",
+        ]
+        ubuntu.install_packages(packages)
 
         kernel_version = self._get_kernel_version(runbook.source, node)
 
