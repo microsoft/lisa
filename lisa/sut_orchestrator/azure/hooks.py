@@ -34,6 +34,19 @@ class AzureHookSpec:
         """
         ...
 
+    @hookspec
+    def azure_update_sku_capability(
+        self, vmsize: str, environment: Environment
+    ) -> None:
+        """
+        Implement it to update SKU capability.
+
+        Args:
+            vmsize: the vm sku whose capability is to be updated.
+            environment: the deploying environment.
+        """
+        ...
+
 
 class AzureHookSpecDefaultImpl:
     __error_maps: List[Tuple[str, Pattern[str], Any]] = [
