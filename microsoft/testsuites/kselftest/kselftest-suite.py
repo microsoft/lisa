@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
@@ -59,22 +59,21 @@ class KselftestTestsuite(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        file_path = variables.get("kselftest_file_path", "")
-        working_path = variables.get("kselftest_working_path", "")
-        run_as_root = variables.get("kselftest_run_as_root", False)
         try:
-            kselftest: Kselftest = node.tools.get(
-                Kselftest,
-                working_path=working_path,
-                file_path=file_path,
+            self._run_kselftest(
+                node,
+                log_path,
+                variables,
+                result,
             )
-            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT, run_as_root)
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
 
     @TestCaseMetadata(
         description="""
         This test case will run kself lite tests - a subset of kselftests.
+        A predefined list of tests is provided in _KSELF_LITE_TESTS,
+        though a custom value can be passed to the test case as well.
         Cases:
         1. When a tarball is specified in .yml file, extract the tar and run kselftests.
         Example:
@@ -108,29 +107,52 @@ class KselftestTestsuite(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        file_path = variables.get("kselftest_file_path", "")
-        skip_tests = variables.get("kself_skip_tests", "")
-        test_collection = variables.get("kself_test_collection", "")
-        # get comma separated list of tests
-        if test_collection:
-            test_collection_list = test_collection.split(",")
-        else:
-            test_collection_list = self._KSELF_LITE_TESTS
-        if skip_tests:
-            skip_tests_list = skip_tests.split(",")
-        else:
-            skip_tests_list = []
+        test_collection_list = (
+            variables.get("kself_test_collection", "").split(",")
+            if variables.get("kself_test_collection", "")
+            else self._KSELF_LITE_TESTS
+        )
+        skip_tests_list = (
+            variables.get("kself_skip_tests", "").split(",")
+            if variables.get("kself_skip_tests", "")
+            else []
+        )
         try:
-            kselftest: Kselftest = node.tools.get(
-                Kselftest,
-                kselftest_file_path=file_path,
-            )
-            kselftest.run_all(
-                test_result=result,
-                log_path=log_path,
-                timeout=self._KSELF_TIMEOUT,
-                run_collections=test_collection_list,
-                skip_tests=skip_tests_list,
+            self._run_kselftest(
+                node,
+                log_path,
+                variables,
+                result,
+                test_collection_list,
+                skip_tests_list,
             )
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
+
+    def _run_kselftest(
+        self,
+        node: Node,
+        log_path: str,
+        variables: Dict[str, Any],
+        result: TestResult,
+        run_collections: Optional[List[str]] = None,
+        skip_tests: Optional[List[str]] = None,
+    ) -> None:
+        run_collections = run_collections or []
+        skip_tests = skip_tests or []
+        file_path = variables.get("kselftest_file_path", "")
+        working_path = variables.get("kselftest_working_path", "")
+        run_as_root = variables.get("kselftest_run_as_root", False)
+        kselftest: Kselftest = node.tools.get(
+            Kselftest,
+            working_path=working_path,
+            file_path=file_path,
+        )
+        kselftest.run_all(
+            test_result=result,
+            log_path=log_path,
+            timeout=self._KSELF_TIMEOUT,
+            run_test_as_root=run_as_root,
+            run_collections=run_collections,
+            skip_tests=skip_tests,
+        )
