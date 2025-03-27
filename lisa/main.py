@@ -5,7 +5,7 @@
 import subprocess
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import DEBUG, INFO, FileHandler
 from pathlib import Path, PurePath
 from typing import Optional
@@ -60,7 +60,7 @@ def test_path(
         logic_path = PurePath(run_id)
     else:
         # Get current time and generate a Run ID.
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         date_of_today = current_time.strftime("%Y%m%d")
         time_of_today = get_datetime_path(current_time)
         logic_path = PurePath(f"{date_of_today}/{time_of_today}")

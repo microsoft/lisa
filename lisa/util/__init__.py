@@ -5,7 +5,7 @@ import re
 import string
 import sys
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from threading import Lock
@@ -432,14 +432,14 @@ class LisaVersionInfo(VersionInfo):
 def get_date_str(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
-    return current.utcnow().strftime("%Y%m%d")
+    return current.now(timezone.utc).strftime("%Y%m%d")
 
 
 def get_datetime_path(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
     date = get_date_str(current)
-    time = current.utcnow().strftime("%H%M%S-%f")[:-3]
+    time = current.now(timezone.utc).strftime("%H%M%S-%f")[:-3]
     return f"{date}-{time}"
 
 

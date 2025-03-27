@@ -121,7 +121,7 @@ class PerfMessage(MessageBase):
     ip_version: str = NetworkProtocol.IPv4
     protocol_type: str = TransportProtocol.Tcp
     data_path: str = ""
-    test_date: datetime = datetime.utcnow()
+    test_date: datetime = datetime.now(timezone.utc)
     role: str = ""
     test_result_id: str = ""
 

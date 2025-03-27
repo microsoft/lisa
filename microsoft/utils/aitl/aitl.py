@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 _fmt = "%(asctime)s.%(msecs)03d[%(thread)d][%(levelname)s] %(name)s %(message)s"
@@ -263,7 +263,7 @@ def _call_rest_api(method: str, **kwargs: Any) -> Any:
 def _process_create_job(**kwargs: Any) -> Any:
     name: str = kwargs.get("name", "")
     if not name:
-        name = datetime.utcnow().strftime("aitl_%Y%m%d_%H%M%S_%f")[:-3]
+        name = datetime.now(timezone.utc).strftime("aitl_%Y%m%d_%H%M%S_%f")[:-3]
         logging.info(f"job name is not specified, generated job name: '{name}'.")
         kwargs["name"] = name
 
