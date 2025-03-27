@@ -126,6 +126,22 @@ class PerfMessage(MessageBase):
     test_result_id: str = ""
 
 
+class MetricRelativity(str, Enum):
+    NA = ""
+    HigherIsBetter = "HigherIsBetter"
+    LowerIsBetter = "LowerIsBetter"
+
+
+@dataclass
+class UnifiedPerfMessage(PerfMessage):
+    type: str = "UnifiedPerformance"
+    metric_name: str = ""
+    metric_value: Decimal = Decimal(0)
+    metric_unit: str = ""
+    metric_description: str = ""
+    metric_relativity: str = ""
+
+
 T = TypeVar("T", bound=PerfMessage)
 
 DiskSetupType = Enum(
@@ -356,6 +372,46 @@ def send_sub_test_result_message(
         other_fields = {}
     other_fields.update({"parent_test": test_result.runtime_data.name})
     dict_to_fields(other_fields, message)
+
+    notifier.notify(message)
+
+    return message
+
+
+__decimal_zero = Decimal(0)
+
+
+def send_unified_perf_message(
+    node: "Node",
+    test_result: "TestResult",
+    test_case_name: str = "",
+    metric_name: str = "",
+    metric_value: Decimal = __decimal_zero,
+    metric_unit: str = "",
+    metric_description: str = "",
+    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
+) -> UnifiedPerfMessage:
+    message = create_perf_message(
+        message_type=UnifiedPerfMessage,
+        node=node,
+        test_result=test_result,
+        test_case_name=test_case_name,
+    )
+
+    message.metric_name = metric_name
+    message.metric_value = metric_value
+    message.metric_unit = metric_unit
+
+    message.metric_description = metric_description
+
+    if isinstance(metric_relativity, str):
+        metric_relativity = MetricRelativity(metric_relativity)
+    elif not isinstance(metric_relativity, MetricRelativity):
+        raise TypeError(
+            f"metric_relativity should be of type MetricRelativity, "
+            f"but got {type(metric_relativity)}"
+        )
+    message.metric_relativity = metric_relativity
 
     notifier.notify(message)
 
