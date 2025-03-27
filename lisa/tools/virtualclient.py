@@ -14,7 +14,12 @@ from assertpy import assert_that
 from lisa import notifier
 from lisa.base_tools import Uname, Wget
 from lisa.executable import Tool
-from lisa.messages import VCMetricsMessage, create_perf_message
+from lisa.messages import (
+    MetricRelativity,
+    VCMetricsMessage,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import Posix
 from lisa.util import LisaException
 from lisa.util.process import Process
@@ -293,6 +298,18 @@ class VirtualClientTool(Tool):
                     other_fields=fields,
                 )
                 notifier.notify(message)
+
+                # send by unified perf messages
+                send_unified_perf_message(
+                    node=node,
+                    test_result=test_result,
+                    test_case_name=test_result.name,
+                    metric_name=row["MetricName"],
+                    metric_value=Decimal(row["MetricValue"]),
+                    metric_unit=row["MetricUnit"],
+                    metric_description=row["MetricDescription"],
+                    metric_relativity=MetricRelativity.parse(row["MetricRelativity"]),
+                )
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
         # Strip 'Z' and limit microseconds to 6 digits
