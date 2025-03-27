@@ -100,7 +100,7 @@ class KselftestTestsuite(TestSuite):
             min_core_count=16,
         ),
     )
-    def verify_kself_lite(
+    def verify_kselftest_lite(
         self,
         node: Node,
         log_path: str,
