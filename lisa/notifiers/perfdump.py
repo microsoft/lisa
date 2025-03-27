@@ -18,6 +18,8 @@ from lisa import constants, messages, notifier, schema
 @dataclass
 class PerfDumpSchema(schema.Notifier):
     path: str = "perf_results.json"
+    # dump unified or original messages.
+    unified: bool = False
 
 
 class PerfDump(notifier.Notifier):
@@ -37,6 +39,10 @@ class PerfDump(notifier.Notifier):
 
     def _received_message(self, message: messages.MessageBase) -> None:
         if isinstance(message, messages.PerfMessage):
+            if isinstance(message, messages.UnifiedPerfMessage) != self.runbook.unified:
+                # If the message is not of the expected type, skip it.
+                return
+
             message_dict = {}
             for key, value in message.__dict__.items():
                 if isinstance(value, Enum):
