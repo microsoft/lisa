@@ -131,6 +131,15 @@ class MetricRelativity(str, Enum):
     HigherIsBetter = "HigherIsBetter"
     LowerIsBetter = "LowerIsBetter"
 
+    @classmethod
+    def parse(cls, str_value: str) -> "MetricRelativity":
+        if str_value.upper() == cls.HigherIsBetter.upper():
+            return MetricRelativity.HigherIsBetter
+        elif str_value.upper() == cls.LowerIsBetter.upper():
+            return MetricRelativity.LowerIsBetter
+        else:
+            return MetricRelativity.NA
+
 
 @dataclass
 class UnifiedPerfMessage(PerfMessage):
@@ -139,7 +148,7 @@ class UnifiedPerfMessage(PerfMessage):
     metric_value: Decimal = Decimal(0)
     metric_unit: str = ""
     metric_description: str = ""
-    metric_relativity: str = ""
+    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
 
 
 T = TypeVar("T", bound=PerfMessage)
@@ -401,16 +410,7 @@ def send_unified_perf_message(
     message.metric_name = metric_name
     message.metric_value = metric_value
     message.metric_unit = metric_unit
-
     message.metric_description = metric_description
-
-    if isinstance(metric_relativity, str):
-        metric_relativity = MetricRelativity(metric_relativity)
-    elif not isinstance(metric_relativity, MetricRelativity):
-        raise TypeError(
-            f"metric_relativity should be of type MetricRelativity, "
-            f"but got {type(metric_relativity)}"
-        )
     message.metric_relativity = metric_relativity
 
     notifier.notify(message)
