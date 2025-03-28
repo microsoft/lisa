@@ -2,9 +2,12 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-
+import time
 from assertpy import assert_that
-
+from lisa.features import Disk
+from lisa.tools import Lsblk
+from lisa.schema import DiskType
+from typing import List
 from lisa import (
     BadEnvironmentStateException,
     Logger,
@@ -172,6 +175,125 @@ class Provisioning(TestSuite):
         self._smoke_test(
             log, node, log_path, "verify_deployment_provision_premiumv2_disk"
         )
+        i=0
+        while i<1000:
+            i+=1
+            time.sleep(1)
+            disk = node.features[Disk]
+            disks_added = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
+            log.info(f"disk added {i}th time: {disks_added}")
+            assert_that(disks_added).is_length(8)
+            all_disks = disk.get_all_disks()
+            log.info(f"all disks post adding {i}th time: {all_disks}")
+            assert_that(all_disks).is_length(10)
+
+            self.remove_data_disk(log, node, disks_added)
+            all_disks = disk.get_all_disks()
+            log.info(f"all disks after removing {i}th time: {all_disks}")
+            assert_that(all_disks).is_length(2)
+
+        # disks_added = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
+        # log.info(f"disk added second time: {disks_added}")
+        # all_disks = disk.get_all_disks()
+        # log.info(f"all disks post adding second time: {all_disks}")
+
+
+    def remove_data_disk(self, log, node, disks_added):
+        disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
+        # remove data disks
+        log.debug(f"Removing managed disks: {disks_added}")
+        disk.remove_data_disk(disks_added)
+
+
+        # partition_after_removing_disk = lsblk.get_disks(force_run=True)
+        # added_partitions = [
+        #     item
+        #     for item in partitions_before_adding_disks
+        #     if item not in partition_after_removing_disk
+        # ]
+        # assert_that(added_partitions, "data disks should not be present").is_length(0)
+
+
+    def hot_add_disk_parallel(
+        self, log: Logger, node: RemoteNode, disk_type: DiskType, size: int
+    ) -> List[str]:
+        disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
+
+        # get max data disk count for the node
+        # assert node.capability.disk
+        # assert isinstance(
+        #     node.capability.disk.max_data_disk_count, int
+        # ), f"actual type: {node.capability.disk.max_data_disk_count}"
+        # max_data_disk_count = node.capability.disk.max_data_disk_count
+        # log.debug(f"max_data_disk_count: {max_data_disk_count}")
+
+        # get the number of data disks already added to the vm
+        # assert isinstance(node.capability.disk.data_disk_count, int)
+        # current_data_disk_count = node.capability.disk.data_disk_count
+        # log.debug(f"current_data_disk_count: {current_data_disk_count}")
+
+        # # disks to be added to the vm
+        # disks_to_add = max_data_disk_count - current_data_disk_count
+
+        # if disks_to_add < 1:
+        #     raise SkippedException(
+        #         "No data disks can be added. "
+        #         "Consider manually setting max_data_disk_count in the runbook."
+        #     )
+
+        # get partition info before adding data disks
+        partitions_before_adding_disks = lsblk.get_disks(force_run=True)
+
+        # # add data disks
+        # log.debug(f"Adding {disks_to_add} managed disks")
+        disks_added = disk.add_data_disk(8, disk_type, size)
+
+        # verify that partition count is increased by disks_to_add
+        # and the size of partition is correct
+        timeout = 30
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+            added_partitions = [
+                item
+                for item in partitons_after_adding_disks
+                if item not in partitions_before_adding_disks
+            ]
+            if len(added_partitions) == 8:
+                break
+            else:
+                log.debug(f"added disks count: {len(added_partitions)}")
+                time.sleep(1)
+        assert_that(
+            added_partitions, f"8 disks should be added"
+        ).is_length(8)
+        for partition in added_partitions:
+            assert_that(
+                partition.size_in_gb,
+                f"data disk {partition.name} size should be equal to {size} GB",
+            ).is_equal_to(size)
+
+        # # remove data disks
+        # log.debug(f"Removing managed disks: {disks_added}")
+        # disk.remove_data_disk(disks_added)
+
+        # verify that partition count is decreased by disks_to_add
+
+
+        # partition_after_removing_disk = lsblk.get_disks(force_run=True)
+        # added_partitions = [
+        #     item
+        #     for item in partitions_before_adding_disks
+        #     if item not in partition_after_removing_disk
+        # ]
+        # assert_that(added_partitions, "data disks should not be present").is_length(0)
+
+        return disks_added
+
+
+
 
     @TestCaseMetadata(
         description="""

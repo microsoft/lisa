@@ -1942,6 +1942,7 @@ class Disk(AzureFeatureMixin, features.Disk):
                     "disk_size_gb": size_in_gb,
                     "sku": {"name": disk_sku},
                     "creation_data": {"create_option": DiskCreateOption.empty},
+                    "zones":["1"]
                 },
             )
             managed_disks.append(async_disk_update.result())
