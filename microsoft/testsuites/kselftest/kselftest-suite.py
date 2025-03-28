@@ -71,28 +71,33 @@ class KselftestTestsuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case will run a lighter version of kselftests, focusing on specific test suites
-        and skipping less critical and noisy tests. The default list of tests to run
-        is defined in the `_KSELF_LITE_TESTS` list, which includes collections such as "bpf",
-        "core", "futex", "ipc", "mm", "net", "timers", and "x86". These tests were
-        selected to cover critical kernel functionalities, such as memory management, inter-process
-        communication, and synchronization primitives, while reducing execution time and resource usage.
+        This test case will run a lighter version of kselftests, focusing on specific
+        test suites and skipping less critical or resource-intensive tests. The default
+        list of tests to run is defined in the `_KSELF_LITE_TESTS` list, which includes
+        collections such as "bpf", "core", "futex", "ipc", "mm", "net", "timers", and
+        "x86". These tests were selected to cover critical kernel functionalities, such
+        as networking, timer management, and architecture-specific features, while
+        reducing execution time and resource usage.
 
         Purpose:
-        This "lite" version is designed for scenarios where running the full kselftest suite is
-        not feasible, such as environments with limited resources or during iterative development
-        where faster feedback is required. It ensures that critical kernel features are tested
-        without the overhead of running the entire suite. Also, ensuring that the user can avoid tests/
-        suites that are known to fail or are not relevant to their use case.
-        
+        This "lite" version is designed for scenarios where running the full kselftest
+        suite is not feasible, such as environments with limited resources or during
+        iterative development where faster feedback is required. It ensures that
+        critical kernel features are tested without the overhead of running the entire
+        suite.
+
         Customization:
-        Users can customize the test by specifying the `kself_test_collection` and `kself_skip_tests`
-        variables in the runbook. For example:
-        - `kself_test_collection`: A comma-separated list of collections to run (e.g., "bpf,core,futex").
-        - `kself_skip_tests`: A comma-separated list of tests to skip (e.g., "cgroup:test_cpu,cgroup:test_freezer").
-        For both cases, the test extracts the tarball (if provided), runs the `run_kselftest.sh` script,
-        and redirects the test results to a file named `kselftest-results.txt`.
-        
+        Users can customize the test by specifying the `kself_test_collection` and
+        `kself_skip_tests` variables in the runbook. For example:
+        - `kself_test_collection`: A comma-separated list of collections to run
+        (e.g., "bpf,net,timers").
+        - `kself_skip_tests`: A comma-separated list of tests to skip
+        (e.g., "net:test_tcp,test_udp").
+
+        For both cases, the test extracts the tarball (if provided), runs the
+        `run_kselftest.sh` script, and redirects the test results to a file named
+        `kselftest-results.txt`.
+
         Default Test Suites:
         The `_KSELF_LITE_TESTS` list includes the following test suites:
         - `bpf`: Tests related to the Berkeley Packet Filter (BPF) subsystem.
@@ -100,7 +105,8 @@ class KselftestTestsuite(TestSuite):
         - `futex`: Tests for fast user-space mutexes.
         - `ipc`: Inter-process communication tests.
         - `mm`: Memory management tests.
-        - `net`: Networking-related tests, including TCP, UDP, and other network protocols.
+        - `net`: Networking-related tests, including TCP, UDP, and other network
+        protocols.
         - `timers`: Tests for kernel timer functionality and timekeeping.
         - `x86`: Architecture-specific tests for the x86 platform.
         """,
