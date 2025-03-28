@@ -1,0 +1,25 @@
+name: superbench default
+include:
+  - path: ./ready.yml
+variable:
+  - name: gpu
+    value: "V100"
+  - name: validation_type
+    value: "release"
+  - name: repo_url
+    value: "https://github.com/microsoft/superbenchmark"
+  - name: sb_branch
+    value: "v0.11.0"
+  - name: sb_image_tag
+    value: "v0.11.0-cuda12.4"
+  - name: notification
+    value: "console"
+  - name: vm_name
+    value: "hpc_v100_vm"
+  - name: vm_ip
+    value: ""
+  - name: user_name
+    value: "azl_user"
+testcase:
+  - criteria:
+      name: verify_superbench
