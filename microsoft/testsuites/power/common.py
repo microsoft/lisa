@@ -42,7 +42,7 @@ def is_distro_supported(node: Node) -> None:
         (type(node.os) == Ubuntu and node.os.information.version >= "18.4.0")
         or (type(node.os) == Redhat and node.os.information.version >= "8.3.0")
         or (type(node.os) == Debian and node.os.information.version >= "10.0.0")
-        or (type(node.os) == SLES and node.os.information.version >= "15.6.0")
+        or (type(node.os) == SLES )
         or (type(node.os) == AlmaLinux and node.os.information.version >= "9.5.0")
     ):
         raise SkippedException(
