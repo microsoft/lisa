@@ -828,7 +828,27 @@ class Xfstests(Tool):
         # note: ls tool is not used here due to performance issues.
         if not self.node.shell.exists(result_path):
             self._log.debug(f"No files found in path {result_path}")
-            # non terminating error !!!
+            # Note: This is a non terminating error.
+            # Do not force an exception for this definition in the future !!!
+            # Reason : XFStest in certain conditions will not generate any output
+            # for specific tests. these output include *.full, *.out and *.out.fail
+            # This also holds true for optional output files such as *.dmesg
+            # and *.notrun
+            # This however does not means that the subtest has failed. We can and
+            # still use xfstests.log output to parse subtest count and extract
+            # failed test status and messages in regular case.
+            # Conditions for failure :
+            # 1. XFStests.log is not found
+            # 2. XFStests.log is empty
+            # 3. XFStests.log EOF does not contains test summary ( implies proc fail )
+            # 4. Loss of SSH connection that cannot be re-established
+            # Conditions not for test failure :
+            # 1. No files found in results directory
+            # 2. No files found for specific test case status, i.e notrun or dmesg
+            # 3. No files found for specific test case status, i.e full or out.bad
+            # 4. Any other file output when xfstests.log states test status with message
+            # 5. Any other file output when xfstests.log states test status without
+            # 6. XFStests.log footer contains test summary ( implies proc success )
             result = f"No files found in path {result_path}"
         else:
             # Prepare file paths
