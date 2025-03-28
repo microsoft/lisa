@@ -244,10 +244,11 @@ class Kselftest(Tool):
             # Exclude tests based on skip_tests
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
 
-            for test in tests_to_run:
-                self._log.debug(f"Running test: {test}")
+            if tests_to_run:
+                tests_to_run_str = " ".join(f"-t {test}" for test in tests_to_run)
+                self._log.debug(f"Running tests: {tests_to_run}")
                 self.run(
-                    f" -t {test} 2>&1 | tee -a {result_file}",
+                    f" {tests_to_run_str} 2>&1 | tee -a {result_file}",
                     sudo=run_test_as_root,
                     force_run=True,
                     shell=True,
