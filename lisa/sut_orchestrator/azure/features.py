@@ -2752,13 +2752,13 @@ class Availability(AzureFeatureMixin, features.Availability):
             params.availability_zones = [
                 zone
                 for zone in params.availability_zones
-                if zone in settings.availability_zones
+                if str(zone) in settings.availability_zones.items
             ]
             if not params.availability_zones:
                 raise SkippedException(
-                    "Invalid zones provided. "
+                    f"Invalid zones provided. {params.availability_zones}"
                     "This SKU in this location supports zones: "
-                    f"{settings.availability_zones}. "
+                    f"{settings.availability_zones.items}. "
                 )
         elif settings.availability_zones:
             params.availability_zones = [settings.availability_zones.items[0]]
