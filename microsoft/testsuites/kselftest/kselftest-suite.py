@@ -72,7 +72,7 @@ class KselftestTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run a lighter version of kselftests, focusing on specific
-        test suites and skipping less critical or resource-intensive tests. The default
+        test suites and skipping less critical and noisy tests. The default
         list of tests to run is defined in the `_KSELF_LITE_TESTS` list, which includes
         collections such as "bpf", "core", "futex", "ipc", "mm", "net", "timers", and
         "x86". These tests were selected to cover critical kernel functionalities, such
@@ -81,10 +81,10 @@ class KselftestTestsuite(TestSuite):
 
         Purpose:
         This "lite" version is designed for scenarios where running the full kselftest
-        suite is not feasible, such as environments with limited resources or during
-        iterative development where faster feedback is required. It ensures that
+        suite is not feasible or not required. It ensures that
         critical kernel features are tested without the overhead of running the entire
-        suite.
+        suite. Also, ensuring that the user can avoid tests/
+        suites that are known to fail or are not relevant to their use case.
 
         Customization:
         Users can customize the test by specifying the `kself_test_collection` and
