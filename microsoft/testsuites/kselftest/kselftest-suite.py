@@ -71,28 +71,38 @@ class KselftestTestsuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case will run kself lite tests - a subset of kselftests.
-        A predefined list of tests is provided in _KSELF_LITE_TESTS,
-        though a custom value can be passed to the test case as well.
-        Cases:
-        1. When a tarball is specified in .yml file, extract the tar and run kselftests.
-        Example:
-        - name: kselftest_file_path
-          value: <path_to_kselftests.tar.xz>
-          is_case_visible: true
-        2. When a tarball is not specified in .yml file, clone Mariner kernel,
-        copy current config to .config, build kselftests and generate a tar.
-        For both cases, verify that the kselftest tool extracts the tar, runs the script
-        run_kselftest.sh and redirects test results to a file kselftest-results.txt.
-        3. For this lite version, the list of collections to run and the list
-        of tests to skip can be specified in the .yml file.
-        Example:
-        - name: kself_skip_tests
-          value: <comma_separated_list_of_tests_to_skip - format: collection:test_name>
-          is_case_visible: true
-        - name: kself_test_collection
-          value: <comma_separated_list_of_collections_to_run - format: collection_name>
-          is_case_visible: true
+        This test case will run a lighter version of kselftests, focusing on specific test suites
+        and skipping less critical and noisy tests. The default list of tests to run
+        is defined in the `_KSELF_LITE_TESTS` list, which includes collections such as "bpf",
+        "core", "futex", "ipc", "mm", "net", "timers", and "x86". These tests were
+        selected to cover critical kernel functionalities, such as memory management, inter-process
+        communication, and synchronization primitives, while reducing execution time and resource usage.
+
+        Purpose:
+        This "lite" version is designed for scenarios where running the full kselftest suite is
+        not feasible, such as environments with limited resources or during iterative development
+        where faster feedback is required. It ensures that critical kernel features are tested
+        without the overhead of running the entire suite. Also, ensuring that the user can avoid tests/
+        suites that are known to fail or are not relevant to their use case.
+        
+        Customization:
+        Users can customize the test by specifying the `kself_test_collection` and `kself_skip_tests`
+        variables in the runbook. For example:
+        - `kself_test_collection`: A comma-separated list of collections to run (e.g., "bpf,core,futex").
+        - `kself_skip_tests`: A comma-separated list of tests to skip (e.g., "cgroup:test_cpu,cgroup:test_freezer").
+        For both cases, the test extracts the tarball (if provided), runs the `run_kselftest.sh` script,
+        and redirects the test results to a file named `kselftest-results.txt`.
+        
+        Default Test Suites:
+        The `_KSELF_LITE_TESTS` list includes the following test suites:
+        - `bpf`: Tests related to the Berkeley Packet Filter (BPF) subsystem.
+        - `core`: Core kernel functionality tests.
+        - `futex`: Tests for fast user-space mutexes.
+        - `ipc`: Inter-process communication tests.
+        - `mm`: Memory management tests.
+        - `net`: Networking-related tests, including TCP, UDP, and other network protocols.
+        - `timers`: Tests for kernel timer functionality and timekeeping.
+        - `x86`: Architecture-specific tests for the x86 platform.
         """,
         priority=3,
         timeout=_CASE_TIME_OUT,
@@ -100,7 +110,7 @@ class KselftestTestsuite(TestSuite):
             min_core_count=16,
         ),
     )
-    def verify_kself_lite(
+    def verify_kselftest_lite(
         self,
         node: Node,
         log_path: str,
