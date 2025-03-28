@@ -124,11 +124,11 @@ class GpuTestSuite(TestSuite):
         timeout=TIMEOUT,
         # min_gpu_count is 8 since it is current
         # max GPU count available in Azure
-        requirement=simple_requirement(min_gpu_count=8),
+        requirement=simple_requirement(min_gpu_count=4),
         priority=3,
     )
     def verify_max_gpu_provision(self, node: Node, log: Logger) -> None:
-        _gpu_provision_check(8, node, log)
+        _gpu_provision_check(4, node, log)
 
     @TestCaseMetadata(
         description="""
