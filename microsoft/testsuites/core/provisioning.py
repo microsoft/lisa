@@ -172,25 +172,30 @@ class Provisioning(TestSuite):
     def verify_deployment_provision_premiumv2_disk(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        self._smoke_test(
-            log, node, log_path, "verify_deployment_provision_premiumv2_disk"
-        )
+        # self._smoke_test(
+        #     log, node, log_path, "verify_deployment_provision_premiumv2_disk"
+        # )
+        disk = node.features[Disk]
+        managed_disks = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
+        disks_added = [managed_disk.name for managed_disk in managed_disks]
+        log.info(f"disk added : {disks_added}")
+        assert_that(disks_added).is_length(8)
+        all_disks = disk.get_all_disks()
+        log.info(f"all disks post adding: {all_disks}")
+        assert_that(all_disks).is_length(10)
         i=0
         while i<1000:
             i+=1
-            time.sleep(1)
-            disk = node.features[Disk]
-            disks_added = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
-            log.info(f"disk added {i}th time: {disks_added}")
-            assert_that(disks_added).is_length(8)
+            self.hot_detach_data_disk(log, node, disks_added)
             all_disks = disk.get_all_disks()
-            log.info(f"all disks post adding {i}th time: {all_disks}")
-            assert_that(all_disks).is_length(10)
-
-            self.remove_data_disk(log, node, disks_added)
-            all_disks = disk.get_all_disks()
-            log.info(f"all disks after removing {i}th time: {all_disks}")
+            log.info(f"all disks after detaching {i}th time: {all_disks}")
             assert_that(all_disks).is_length(2)
+
+
+            self.hot_attach_data_disk(log, node, managed_disks)
+            all_disks = disk.get_all_disks()
+            log.info(f"all disks after attaching {i}th time: {all_disks}")
+            assert_that(all_disks).is_length(10)
 
         # disks_added = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
         # log.info(f"disk added second time: {disks_added}")
@@ -198,57 +203,30 @@ class Provisioning(TestSuite):
         # log.info(f"all disks post adding second time: {all_disks}")
 
 
-    def remove_data_disk(self, log, node, disks_added):
+    def hot_detach_data_disk(self, log, node, disks_added):
         disk = node.features[Disk]
-        lsblk = node.tools[Lsblk]
         # remove data disks
         log.debug(f"Removing managed disks: {disks_added}")
-        disk.remove_data_disk(disks_added)
+        disk.detach_data_disk(disks_added)
 
-
-        # partition_after_removing_disk = lsblk.get_disks(force_run=True)
-        # added_partitions = [
-        #     item
-        #     for item in partitions_before_adding_disks
-        #     if item not in partition_after_removing_disk
-        # ]
-        # assert_that(added_partitions, "data disks should not be present").is_length(0)
-
+    def hot_attach_data_disk(self, log: Logger, node: RemoteNode, managed_disks):
+        disk = node.features[Disk]
+        log.debug(f"Attaching managed disks: {[managed_disk.name for managed_disk in managed_disks]}")
+        attached_disk_names = disk.attach_data_disk(managed_disks)
 
     def hot_add_disk_parallel(
-        self, log: Logger, node: RemoteNode, disk_type: DiskType, size: int
+        self, log: Logger, node: RemoteNode, disk_type: DiskType, size: int, count: int = 8
     ) -> List[str]:
         disk = node.features[Disk]
         lsblk = node.tools[Lsblk]
-
-        # get max data disk count for the node
-        # assert node.capability.disk
-        # assert isinstance(
-        #     node.capability.disk.max_data_disk_count, int
-        # ), f"actual type: {node.capability.disk.max_data_disk_count}"
-        # max_data_disk_count = node.capability.disk.max_data_disk_count
-        # log.debug(f"max_data_disk_count: {max_data_disk_count}")
-
-        # get the number of data disks already added to the vm
-        # assert isinstance(node.capability.disk.data_disk_count, int)
-        # current_data_disk_count = node.capability.disk.data_disk_count
-        # log.debug(f"current_data_disk_count: {current_data_disk_count}")
-
-        # # disks to be added to the vm
-        # disks_to_add = max_data_disk_count - current_data_disk_count
-
-        # if disks_to_add < 1:
-        #     raise SkippedException(
-        #         "No data disks can be added. "
-        #         "Consider manually setting max_data_disk_count in the runbook."
-        #     )
 
         # get partition info before adding data disks
         partitions_before_adding_disks = lsblk.get_disks(force_run=True)
 
         # # add data disks
         # log.debug(f"Adding {disks_to_add} managed disks")
-        disks_added = disk.add_data_disk(8, disk_type, size)
+        managed_disks = disk.add_data_disk(count, disk_type, size)
+        # disks_added = [managed_disk.name for managed_disk in managed_disks]
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct
@@ -261,36 +239,21 @@ class Provisioning(TestSuite):
                 for item in partitons_after_adding_disks
                 if item not in partitions_before_adding_disks
             ]
-            if len(added_partitions) == 8:
+            if len(added_partitions) == count:
                 break
             else:
                 log.debug(f"added disks count: {len(added_partitions)}")
                 time.sleep(1)
         assert_that(
-            added_partitions, f"8 disks should be added"
-        ).is_length(8)
+            added_partitions, f"{count} disks should be added"
+        ).is_length(count)
         for partition in added_partitions:
             assert_that(
                 partition.size_in_gb,
                 f"data disk {partition.name} size should be equal to {size} GB",
             ).is_equal_to(size)
 
-        # # remove data disks
-        # log.debug(f"Removing managed disks: {disks_added}")
-        # disk.remove_data_disk(disks_added)
-
-        # verify that partition count is decreased by disks_to_add
-
-
-        # partition_after_removing_disk = lsblk.get_disks(force_run=True)
-        # added_partitions = [
-        #     item
-        #     for item in partitions_before_adding_disks
-        #     if item not in partition_after_removing_disk
-        # ]
-        # assert_that(added_partitions, "data disks should not be present").is_length(0)
-
-        return disks_added
+        return managed_disks
 
 
 

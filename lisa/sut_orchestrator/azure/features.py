@@ -1914,7 +1914,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         disk_type: schema.DiskType = schema.DiskType.StandardHDDLRS,
         size_in_gb: int = 20,
         lun: int = -1,
-    ) -> List[str]:
+    ) -> List[Any]:
         if lun != -1:
             assert_that(
                 count,
@@ -1955,7 +1955,7 @@ class Disk(AzureFeatureMixin, features.Disk):
                 lun_temp = lun
             else:
                 lun_temp = i + current_disk_count
-            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")
+            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")   #attach begins here
             vm.storage_profile.data_disks.append(
                 {
                     "lun": lun_temp,
@@ -1966,7 +1966,41 @@ class Disk(AzureFeatureMixin, features.Disk):
             )
 
         # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(   #attach disk part
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()
+
+        # update data disk count
+        add_disk_names = [managed_disk.name for managed_disk in managed_disks]
+        self.disks += add_disk_names
+        self._node.capability.disk.data_disk_count += len(managed_disks)
+
+        return managed_disks
+
+
+    def attach_data_disk(self, managed_disks):
+        # attach managed disk
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+        for i, managed_disk in enumerate(managed_disks):
+            lun_temp = i + 1
+            self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")   #attach begins here
+            vm.storage_profile.data_disks.append(
+                {
+                    "lun": lun_temp,
+                    "name": managed_disk.name,
+                    "create_option": DiskCreateOptionTypes.attach,
+                    "managed_disk": {"id": managed_disk.id},
+                }
+            )
+
+        # update vm
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(   #attach disk part
             self._resource_group_name,
             vm.name,
             vm,
@@ -1979,6 +2013,31 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.capability.disk.data_disk_count += len(managed_disks)
 
         return add_disk_names
+
+    def detach_data_disk(self, names: Optional[List[str]] = None) -> None:
+        assert self._node.capability.disk
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+
+        # if names is None, remove all data disks
+        if names is None:
+            names = self.disks
+
+        # detach managed disk
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+
+        # remove managed disk
+        data_disks = vm.storage_profile.data_disks
+        data_disks[:] = [disk for disk in data_disks if disk.name not in names]
+
+        # update vm
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            self._resource_group_name,
+            vm.name,
+            vm,
+        )
+        async_vm_update.wait()              #till this step is detach step
 
     def remove_data_disk(self, names: Optional[List[str]] = None) -> None:
         assert self._node.capability.disk
@@ -2003,7 +2062,7 @@ class Disk(AzureFeatureMixin, features.Disk):
             vm.name,
             vm,
         )
-        async_vm_update.wait()
+        async_vm_update.wait()              #till this step is detach step
 
         # delete managed disk
         for name in names:
