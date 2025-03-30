@@ -184,30 +184,32 @@ class Provisioning(TestSuite):
         log.info(f"all disks post adding: {all_disks}")
         assert_that(all_disks).is_length(10)
         i=0
-        while i<1000:
+        while i<2000:
             i+=1
             self.hot_detach_data_disk(log, node, disks_added)
             all_disks = disk.get_all_disks()
             log.info(f"all disks after detaching {i}th time: {all_disks}")
             assert_that(all_disks).is_length(2)
 
+            self.hot_resize_data_disk(log, node, managed_disks,20+i)
+            log.info(f"resized for the {i}th time")
 
             self.hot_attach_data_disk(log, node, managed_disks)
             all_disks = disk.get_all_disks()
             log.info(f"all disks after attaching {i}th time: {all_disks}")
             assert_that(all_disks).is_length(10)
 
-        # disks_added = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
-        # log.info(f"disk added second time: {disks_added}")
-        # all_disks = disk.get_all_disks()
-        # log.info(f"all disks post adding second time: {all_disks}")
-
 
     def hot_detach_data_disk(self, log, node, disks_added):
         disk = node.features[Disk]
         # remove data disks
-        log.debug(f"Removing managed disks: {disks_added}")
+        log.debug(f"Detaching managed disks: {disks_added}")
         disk.detach_data_disk(disks_added)
+
+    def hot_resize_data_disk(self, log: Logger, node: RemoteNode, managed_disks, new_size: int):
+        disk = node.features[Disk]
+        log.debug(f"Resizing managed disks: {[managed_disk.name for managed_disk in managed_disks]}")
+        disk.resize_data_disk(managed_disks, new_size)
 
     def hot_attach_data_disk(self, log: Logger, node: RemoteNode, managed_disks):
         disk = node.features[Disk]

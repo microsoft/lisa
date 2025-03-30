@@ -24,6 +24,7 @@ from azure.core.exceptions import (
 from azure.mgmt.compute.models import (
     DiskCreateOption,
     DiskCreateOptionTypes,
+    DiskUpdate,
     HardwareProfile,
     NetworkInterfaceReference,
     VirtualMachineExtension,
@@ -1979,7 +1980,61 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.capability.disk.data_disk_count += len(managed_disks)
 
         return managed_disks
+    
 
+    def resize_data_disk(self, managed_disks, new_size):
+        names = [managed_disk.name for managed_disk in managed_disks]
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        vm = get_vm(platform, self._node)
+
+
+        disk_update = DiskUpdate(disk_size_gb=new_size)
+        # resize managed disk
+        for name in names:
+            async_disk_resize = compute_client.disks.begin_update(
+                self._resource_group_name, name, disk=disk_update
+            )
+            async_disk_resize.wait()
+
+
+        # update data disk count
+        assert isinstance(self._node.capability.disk.data_disk_count, int)
+        self.disks = [name for name in self.disks if name not in names]
+        self._node.capability.disk.data_disk_count -= len(names)
+        self._node.close()
+
+        # azure_platform: AzurePlatform = self._platform  # type: ignore
+        # vm = get_vm(azure_platform, self._node)
+        # for i, managed_disk in enumerate(managed_disks):
+        #     lun_temp = i + 1
+        #     self._log.debug(f"resizing disk {managed_disk.name} at lun #{lun_temp}")   #attach begins here
+        #     vm.storage_profile.data_disks.append(
+        #         {
+        #             "lun": lun_temp,
+        #             "name": managed_disk.name,
+        #             "create_option": DiskCreateOptionTypes.attach,
+        #             "disk_size_gb": new_size,
+        #             "managed_disk": {"id": managed_disk.id},
+        #         }
+        #     )
+
+        # # update vm
+        # platform: AzurePlatform = self._platform  # type: ignore
+        # compute_client = get_compute_client(platform)
+        # async_vm_update = compute_client.virtual_machines.begin_create_or_update(   #attach disk part
+        #     self._resource_group_name,
+        #     vm.name,
+        #     vm,
+        # )
+        # async_vm_update.wait()
+
+        # # update data disk count
+        # add_disk_names = [managed_disk.name for managed_disk in managed_disks]
+        # self.disks += add_disk_names
+        # self._node.capability.disk.data_disk_count += len(managed_disks)
+
+        # return add_disk_names
 
     def attach_data_disk(self, managed_disks):
         # attach managed disk
