@@ -238,13 +238,21 @@ class Kselftest(Tool):
         if run_collections or skip_tests:
             # List all available tests
             list_result = self.run(" -l", shell=True)
-            list_result.assert_exit_code()
+            list_result.assert_exit_code(
+                message="failed to retrieve the list of available kself tests"
+            )
             all_tests = list_result.stdout.splitlines()
 
             # Filter tests based on run_collections if it exists
-            if not run_collections:
-                filtered_tests = all_tests
-            else:
+            # Example: if run_collections = ['uevent']
+            # all_tests will already have all tests in the format:
+            #   ['core:close_range_test', 'core:unshare_test',
+            #    'tty:tty_tstamp_update', 'uevent:uevent_filtering']
+            # The filtered_tests will then have the value:
+            #   ['uevent:uevent_filtering']
+            # This means all the tests that belong to the 'uevent'
+            #   collection are selected.
+            if run_collections:
                 filtered_tests = [
                     test
                     for test in all_tests
@@ -253,6 +261,8 @@ class Kselftest(Tool):
                         for collection in run_collections
                     )
                 ]
+            else:
+                filtered_tests = all_tests
 
             # Exclude tests based on skip_tests
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
