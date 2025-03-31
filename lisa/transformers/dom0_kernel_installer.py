@@ -117,6 +117,16 @@ class BinaryInstaller(BaseInstaller):
             sudo=True,
         )
 
+        # if current kernel contains "lvbs" then copy vmlinux.bin
+        # to /usr/lib/firmware/vmlinux
+        if "lvbs" in current_kernel:
+            # Copy the kernel binary to /usr/lib/firmware/vmlinux
+            _copy_kernel_binary(
+                node,
+                node.get_pure_path(f"/lib/modules/{new_kernel}/vmlinux.bin"),
+                node.get_pure_path("/usr/lib/firmware/vmlinux"),
+            )
+
         if initrd_image_path:
             err = f"Can not find initrd image path: {initrd_image_path}"
             assert os.path.exists(initrd_image_path), err
