@@ -257,7 +257,7 @@ class Kselftest(Tool):
                     test
                     for test in all_tests
                     if any(
-                        collection == test.split(":")[0].split("/")[0]
+                        collection == re.match(r"^[^:/]+", test).group(0)
                         for collection in run_collections
                     )
                 ]
