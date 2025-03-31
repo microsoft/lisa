@@ -70,6 +70,7 @@ from .lspci import Lspci
 from .lsvmbus import Lsvmbus
 from .make import Make
 from .mdadm import Mdadm
+from .mde import MDE
 from .meson import Meson
 from .mkdir import Mkdir
 from .mkfs import FileSystem, Mkfs, Mkfsext, Mkfsxfs
@@ -197,6 +198,7 @@ __all__ = [
     "Make",
     "Meson",
     "Mdadm",
+    "MDE",
     "Mkdir",
     "Mkfs",
     "Mkfsext",
