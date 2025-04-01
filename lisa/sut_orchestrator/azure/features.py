@@ -919,6 +919,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
+        print("In switch sriov")
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
         vm = get_vm(azure_platform, self._node)
@@ -931,6 +932,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             updated_nic = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
             )
+            print("Debug:sleeping 5 secs 1")
+            time.sleep(5)
             if updated_nic.enable_accelerated_networking == enable:
                 self._log.debug(
                     f"network interface {nic_name}'s accelerated networking default "
@@ -943,6 +946,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"status [{updated_nic.enable_accelerated_networking}], "
                     f"now set its status into [{enable}]."
                 )
+                print("Debug:sleeping 5 secs 2")
+                time.sleep(5)
                 updated_nic.enable_accelerated_networking = enable
                 network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
@@ -959,7 +964,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # wait settings effective
         if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
-            print("Debug:sleeping 5 secs")
+            print("Debug:sleeping 5 secs 3")
             time.sleep(5)
 
     def is_enabled_sriov(self) -> bool:
@@ -1196,6 +1201,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     def _check_sriov_enabled(
         self, enabled: bool, reset_connections: bool = True
     ) -> None:
+        print("Debug:check sriov enabled function")
         if reset_connections:
             self._node.close()
         self._node.nics.check_pci_enabled(enabled)
