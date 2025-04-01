@@ -115,7 +115,7 @@ class Kselftest(Tool):
         if self._tar_file_path:
             self._remote_tar_path = package_path / os.path.basename(self._tar_file_path)
 
-        self._command = self._installed_path / "run_kselftest.sh"
+        self._command = self._installed_path / "run_kselftest.sh -o 150"
 
     # install common dependencies
     def _install(self) -> bool:
