@@ -932,8 +932,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             updated_nic = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
             )
-            print("Debug:sleeping 5 secs 1")
-            time.sleep(5)
+            #print("Debug:sleeping 5 secs 1")
+            #time.sleep(5)
             if updated_nic.enable_accelerated_networking == enable:
                 self._log.debug(
                     f"network interface {nic_name}'s accelerated networking default "
@@ -946,7 +946,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"status [{updated_nic.enable_accelerated_networking}], "
                     f"now set its status into [{enable}]."
                 )
-                print("Debug:sleeping 5 secs 2")
+                print("Debug:sleeping 5 secs ")
                 time.sleep(5)
                 updated_nic.enable_accelerated_networking = enable
                 network_client.network_interfaces.begin_create_or_update(
@@ -964,8 +964,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # wait settings effective
         if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
-            print("Debug:sleeping 5 secs 3")
-            time.sleep(5)
+            #print("Debug:sleeping 5 secs 3")
+            #time.sleep(5)
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
