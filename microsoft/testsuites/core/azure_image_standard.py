@@ -950,7 +950,10 @@ class AzureImageStandard(TestSuite):
             cat = node.tools[Cat]
             bash_history = cat.read(path_bash_history, sudo=True)
             assert_that(bash_history).described_as(
-                "/root/.bash_history is not empty, this image is not prepared well."
+                "/root/.bash_history is not empty. This could include private "
+                "information or plain-text credentials for other systems. It might be "
+                "vulnerable and exposing sensitive data. Please remove the bash "
+                "history completely using command 'sudo rm -f ~/.bash_history'."
             ).is_empty()
 
     @TestCaseMetadata(
@@ -1071,7 +1074,11 @@ class AzureImageStandard(TestSuite):
         if not value:
             raise LisaException(f"not find {setting} in sshd_config")
         if not (int(value) > 0 and int(value) < 181):
-            raise LisaException(f"{setting} should be set between 0 and 180")
+            raise LisaException(
+                f"The {setting} configuration of OpenSSH is set to {int(value)} "
+                "seconds in this image. Please keep the client alive interval between "
+                "0 seconds and 180 seconds."
+            )
 
     @TestCaseMetadata(
         description="""
