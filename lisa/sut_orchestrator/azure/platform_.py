@@ -50,7 +50,7 @@ from msrestazure.azure_cloud import (  # type: ignore
 from packaging.version import parse
 from retry import retry
 
-from lisa import feature, schema, search_space
+from lisa import feature, notifier, schema, search_space
 from lisa.environment import Environment
 from lisa.features import (
     Disk,
@@ -59,6 +59,7 @@ from lisa.features import (
     SecurityProfileType,
 )
 from lisa.features.availability import AvailabilityType
+from lisa.messages import DeploymentMessage
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import add_secret
@@ -602,7 +603,11 @@ class AzurePlatform(Platform):
                 location, deployment_parameters = self._create_deployment_parameters(
                     resource_group_name, environment, log
                 )
-
+                deployment_parameters_message = DeploymentMessage()
+                deployment_parameters_message.parameters = deployment_parameters[
+                    "parameters"
+                ].properties.parameters
+                notifier.notify(deployment_parameters_message)
                 if self._azure_runbook.deploy:
                     log.info(
                         f"creating or updating resource group: [{resource_group_name}]"

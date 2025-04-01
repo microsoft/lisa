@@ -325,6 +325,11 @@ class VCMetricsMessage(PerfMessage):
     custom_dimensions: str = ""
 
 
+@dataclass
+class DeploymentMessage(MessageBase):
+    parameters: Dict[str, Any] = field(default_factory=dict)
+
+
 def _is_completed_status(status: TestStatus) -> bool:
     return status in [
         TestStatus.FAILED,

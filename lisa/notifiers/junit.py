@@ -10,6 +10,7 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.messages import (
+    DeploymentMessage,
     MessageBase,
     SubTestMessage,
     TestResultMessage,
@@ -65,6 +66,7 @@ class JUnit(Notifier):
         self._testsuites: ET.Element
         self._testsuites_info: Dict[str, _TestSuiteInfo]
         self._testcases_info: Dict[str, _TestCaseInfo]
+        self._testsecurity_info: Dict[str, Any]
         self._xml_tree: ET.ElementTree
 
     # Test runner is initializing.
@@ -81,6 +83,7 @@ class JUnit(Notifier):
 
         self._testsuites_info = {}
         self._testcases_info = {}
+        self._testsecurity_info = {}
 
     # Test runner is closing.
     def finalize(self) -> None:
@@ -100,7 +103,7 @@ class JUnit(Notifier):
 
     # The types of messages that this class supports.
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
-        subscribed_types = [TestResultMessage, TestRunMessage]
+        subscribed_types = [TestResultMessage, TestRunMessage, DeploymentMessage]
 
         runbook: JUnitSchema = cast(JUnitSchema, self.runbook)
         if runbook.include_subtest:
@@ -115,6 +118,9 @@ class JUnit(Notifier):
 
         elif isinstance(message, TestResultMessage):
             self._received_test_result(message)
+
+        elif isinstance(message, DeploymentMessage):
+            self._received_deployment(message)
 
         elif isinstance(message, SubTestMessage):
             self._received_sub_test(message)
@@ -145,6 +151,9 @@ class JUnit(Notifier):
 
         elif message.is_completed:
             self._sub_test_case_completed(message)
+
+    def _received_deployment(self, message: DeploymentMessage) -> None:
+        self._testsecurity_info = message.parameters
 
     def _set_test_suite_info(self, message: TestResultMessage) -> None:
         # Check if the test suite for this test case has been seen yet.
@@ -300,6 +309,24 @@ class JUnit(Notifier):
         testcase.attrib["name"] = f"{message.name} ({message.id_})"
         testcase.attrib["classname"] = class_name
         testcase.attrib["time"] = self._get_elapsed_str(elapsed)
+
+        # Add a standard system-properties element for all test cases
+        if self._testsecurity_info:
+            # Create a system-properties element
+            system_props = ET.SubElement(testcase, "system-properties")
+
+            node_info = self._testsecurity_info.get("nodes", {}).get("value", [{}])[0]
+
+            # Add VM size
+            vm_size = node_info.get("vm_size")
+            if vm_size:
+                ET.SubElement(system_props, "property", name="vm_size", value=vm_size)
+
+            # Add security_profile properties
+            security_profile = node_info.get("security_profile", {})
+            for key, value in security_profile.items():
+                if value:
+                    ET.SubElement(system_props, "property", name=key, value=str(value))
 
         if message.status == TestStatus.FAILED:
             failure = ET.SubElement(testcase, "failure")
