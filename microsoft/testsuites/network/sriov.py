@@ -24,7 +24,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Systemctl
-from lisa.features import NetworkInterface, SerialConsole, StartStop
+from lisa.features import NetworkInterface, SerialConsole, StartStop, AvailabilitySetEnabled, Infiniband, Sriov
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
@@ -481,6 +481,7 @@ class Sriov(TestSuite):
             min_count=2,
             min_nic_count=8,
             network_interface=features.Sriov(),
+            supported_features=[Infiniband, AvailabilitySetEnabled()],
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:

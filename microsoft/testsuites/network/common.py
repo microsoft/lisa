@@ -114,16 +114,16 @@ def sriov_vf_connection_test(
         source_node.log.debug(
             f"NIC Details: {_}:{str(source_nic_info)} on {source_node.name}"
         )
-        if source_nic_info.name is None:
-            source_node.log.debug(
-                f"no nic name found {_}:{str(source_nic_info)} on {source_node.name}"
-            )
-            continue
-        if source_nic_info.ip_addr is None:
-            source_node.log.debug(
-                f"no ip address for nic {source_nic_info.name} on {source_node.name}"
-            )
-            continue
+        # if source_nic_info.name is None:
+        #     source_node.log.debug(
+        #         f"no nic name found {_}:{str(source_nic_info)} on {source_node.name}"
+        #     )
+        #     continue
+        # if source_nic_info.ip_addr is None:
+        #     source_node.log.debug(
+        #         f"no ip address for nic {source_nic_info.name} on {source_node.name}"
+        #     )
+        #     continue
         # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
             # only when IPs are in the same subnet, IP1 of machine A can connect to
