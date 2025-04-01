@@ -47,9 +47,9 @@ class VmbusDeviceNames:
                 "Hyper-V Network Interface",
                 "Hyper-V SCSI",
             ]
-        elif (
-            isinstance(settings, SecurityProfileSettings)
-            and SecurityProfileType.CVM == settings.security_profile
+        elif isinstance(settings, SecurityProfileSettings) and (
+            SecurityProfileType.CVM == settings.security_profile
+            or SecurityProfileType.Stateless == settings.security_profile
         ):
             self.names = lcvmbus_device_names
         else:
