@@ -959,6 +959,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         # wait settings effective
         if wait and status_changed:
             self._check_sriov_enabled(enable, reset_connections)
+            print("Debug:sleeping 5 secs")
+            time.sleep(5)
 
     def is_enabled_sriov(self) -> bool:
         azure_platform: AzurePlatform = self._platform  # type: ignore
