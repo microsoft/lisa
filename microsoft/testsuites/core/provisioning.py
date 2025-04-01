@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from typing import cast
 import time
 from assertpy import assert_that
 from lisa.features import Disk
@@ -10,6 +11,7 @@ from lisa.schema import DiskType
 from typing import List
 from lisa import (
     BadEnvironmentStateException,
+    Environment,
     Logger,
     PassedException,
     RemoteNode,
@@ -161,6 +163,7 @@ class Provisioning(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
+            min_count=3,
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumV2SSDLRS,
                 data_disk_count=search_space.IntRange(min=1),
@@ -170,34 +173,60 @@ class Provisioning(TestSuite):
         ),
     )
     def verify_deployment_provision_premiumv2_disk(
-        self, log: Logger, node: RemoteNode, log_path: Path
+        self, log: Logger, environment: Environment, log_path: Path
     ) -> None:
         # self._smoke_test(
         #     log, node, log_path, "verify_deployment_provision_premiumv2_disk"
         # )
-        disk = node.features[Disk]
-        managed_disks = self.hot_add_disk_parallel(log, node, DiskType.PremiumV2SSDLRS, 20)
+
+        # node1, node2, node3 = list(map(lambda x: cast(RemoteNode, x),environment.nodes.list()))
+        node1, node2, node3 = environment.nodes.list()
+        disk1 = node1.features[Disk]
+        disk2 = node2.features[Disk]
+        disk3 = node3.features[Disk]
+        # log.info(f"disk1: {disk1.get_all_disks()}")
+        # log.info(f"disk2: {disk2.get_all_disks()}")
+        # log.info(f"disk3: {disk3.get_all_disks()}")
+
+        managed_disks = self.hot_add_disk_parallel(log, node1, DiskType.PremiumV2SSDLRS, 20)
         disks_added = [managed_disk.name for managed_disk in managed_disks]
         log.info(f"disk added : {disks_added}")
         assert_that(disks_added).is_length(8)
-        all_disks = disk.get_all_disks()
+        all_disks = disk1.get_all_disks()
         log.info(f"all disks post adding: {all_disks}")
         assert_that(all_disks).is_length(10)
+
+        
+        self.hot_attach_data_disk(log, node2, managed_disks)
+        all_disks = disk2.get_all_disks()
+        log.info(f"all disks after attaching initially: {all_disks}")
+        assert_that(all_disks).is_length(10)
+        
+
+        self.hot_attach_data_disk(log, node3, managed_disks)
+        disk3 = node3.features[Disk]
+        all_disks = disk3.get_all_disks()
+        log.info(f"all disks after attaching initially: {all_disks}")
+        assert_that(all_disks).is_length(10)
+
+
         i=0
         while i<2000:
             i+=1
-            self.hot_detach_data_disk(log, node, disks_added)
-            all_disks = disk.get_all_disks()
-            log.info(f"all disks after detaching {i}th time: {all_disks}")
-            assert_that(all_disks).is_length(2)
+            for disk in [disk1, disk2, disk3]:
+                
+                self.hot_detach_data_disk(log, node, disks_added)
+                all_disks = disk.get_all_disks()
+                log.info(f"all disks after detaching {i}th time on node: {node.index}--{node.name}: {all_disks}")
+                assert_that(all_disks).is_length(2)
 
-            self.hot_resize_data_disk(log, node, managed_disks,20+i)
-            log.info(f"resized for the {i}th time")
+                self.hot_resize_data_disk(log, node, managed_disks,20+i)
+                log.info(f"resized for the {i}th time on node: {node.index}--{node.name}")
 
-            self.hot_attach_data_disk(log, node, managed_disks)
-            all_disks = disk.get_all_disks()
-            log.info(f"all disks after attaching {i}th time: {all_disks}")
-            assert_that(all_disks).is_length(10)
+                self.hot_attach_data_disk(log, node, managed_disks)
+                all_disks = disk.get_all_disks()
+                log.info(f"all disks after attaching {i}th time on node: {node.index}--{node.name}: {all_disks}")
+                assert_that(all_disks).is_length(10)
 
 
     def hot_detach_data_disk(self, log, node, disks_added):

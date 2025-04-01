@@ -1943,7 +1943,8 @@ class Disk(AzureFeatureMixin, features.Disk):
                     "disk_size_gb": size_in_gb,
                     "sku": {"name": disk_sku},
                     "creation_data": {"create_option": DiskCreateOption.empty},
-                    "zones":["1"]
+                    "zones":["1"],
+                    "max_shares": 15
                 },
             )
             managed_disks.append(async_disk_update.result())
@@ -2035,6 +2036,38 @@ class Disk(AzureFeatureMixin, features.Disk):
         # self._node.capability.disk.data_disk_count += len(managed_disks)
 
         # return add_disk_names
+
+    def create_data_disk(
+        self,
+        count: int,
+        disk_type: schema.DiskType = schema.DiskType.PremiumV2SSDLRS,
+        size_in_gb: int = 20,
+    ) -> List[Any]:
+        disk_sku = _disk_type_mapping.get(disk_type, None)
+        assert disk_sku
+        assert self._node.capability.disk
+        assert isinstance(self._node.capability.disk.data_disk_count, int)
+        current_disk_count = self._node.capability.disk.data_disk_count
+        platform: AzurePlatform = self._platform  # type: ignore
+        compute_client = get_compute_client(platform)
+        node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
+
+        # create managed disk
+        managed_disks = []
+        for i in range(count):
+            name = f"lisa_data_disk_{i+current_disk_count}_{self._node.name}"
+            async_disk_update = compute_client.disks.begin_create_or_update(
+                self._resource_group_name,
+                name,
+                {
+                    "location": node_context.location,
+                    "disk_size_gb": size_in_gb,
+                    "sku": {"name": disk_sku},
+                    "creation_data": {"create_option": DiskCreateOption.empty},
+                    "zones":["1"]
+                },
+            )
+            managed_disks.append(async_disk_update.result())
 
     def attach_data_disk(self, managed_disks):
         # attach managed disk

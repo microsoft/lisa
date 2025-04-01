@@ -62,6 +62,10 @@ class Disk(Feature):
         lun: int = -1,
     ) -> List[str]:
         raise NotImplementedError
+    
+    def attach_data_disk(self, managed_disks):
+        """Attach managed disks to the VM."""
+        raise NotImplementedError
 
     def remove_data_disk(self, names: Optional[List[str]] = None) -> None:
         raise NotImplementedError
