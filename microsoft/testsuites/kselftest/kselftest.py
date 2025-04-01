@@ -12,7 +12,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Git, Ls, Make, RemoteCopy, Tar
+from lisa.tools import Cp, Git, Ls, Make, Mv, RemoteCopy, Tar
 from lisa.tools.chmod import Chmod
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.whoami import Whoami
@@ -140,6 +140,12 @@ class Kselftest(Tool):
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
             self.node.tools[Tar].extract(
                 str(self._remote_tar_path), str(self._installed_path)
+            )
+            self.node.tools[Mv].move(
+                f"{self._installed_path.as_posix()}/net/unicast_extension.sh",
+                f"{self._installed_path.as_posix()}/net/unicast_extension-bak.sh",
+                overwrite=True,
+                sudo=True,
             )
             self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
         else:
