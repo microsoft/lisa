@@ -215,13 +215,13 @@ def sriov_disable_enable(environment: Environment, times: int = 4) -> None:
     for _ in range(times):
         sriov_is_enabled = network_interface_feature.is_enabled_sriov()
         network_interface_feature.switch_sriov(enable=not sriov_is_enabled)
-        print("Debug:sleeping 5 secs")
-        time.sleep(5)
+        #print("Debug:sleeping 5 secs")
+        #time.sleep(5)
     sriov_is_enabled = network_interface_feature.is_enabled_sriov()
     if not sriov_is_enabled:
         network_interface_feature.switch_sriov(enable=True)
-        print("Debug:sleeping 5 secs")
-        time.sleep(5)
+        #print("Debug:sleeping 5 secs")
+        #time.sleep(5)
     sriov_basic_test(environment)
 
 
