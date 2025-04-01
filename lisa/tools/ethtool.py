@@ -1128,7 +1128,8 @@ class EthtoolFreebsd(Ethtool):
         if not force_run and device.device_statistics:
             return device.device_statistics
 
-        result = self.run(f"netstat -i | grep {interface}", force_run=True, shell=True)
+        result = self.run(f"ifconfig {interface}", force_run=True, shell=True)
+        self.node.log.info(f"ifconfig {interface} result: {result.stdout}")
         if (result.exit_code != 0) and (
             "Operation not supported" in result.stdout
             or "no stats available" in result.stdout
