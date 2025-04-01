@@ -1934,9 +1934,26 @@ def copy_vhd_to_storage(
                     log=log,
                 )
             else:
-                blob_client.start_copy_from_url(
-                    src_vhd_sas_url, metadata=None, incremental_copy=False
-                )
+                # When multiple LISA runs use the same VHD URL concurrently, Azure may
+                # throw the following error during start_copy_from_url:
+                #
+                # ResourceExistsError: There is currently a pending copy operation.
+                #
+                # This happens because multiple runs attempt to copy the VHD to the same
+                # destination. Although a lock prevents this within a single LISA run,
+                # it can still occur across multiple runs. To handle this, catch the
+                # exception and gracefully continue with wait_copy_blob.
+                try:
+                    blob_client.start_copy_from_url(
+                        src_vhd_sas_url, metadata=None, incremental_copy=False
+                    )
+                except ResourceExistsError as e:
+                    if "PendingCopyOperation" in str(e):
+                        log.warning(
+                            "Pending copy operation detected. Avoid copying again"
+                        )
+                    else:
+                        raise e
 
         wait_copy_blob(blob_client, dst_vhd_name, log)
 
@@ -1979,7 +1996,7 @@ def wait_copy_blob(
     log: Logger,
     timeout: int = 60 * 60,
 ) -> None:
-    log.info(f"copying vhd: {vhd_path}")
+    log.info(f"Waiting for copying vhd: {vhd_path}")
     if blob_client.get_blob_properties().copy.status:
         check_till_timeout(
             lambda: blob_client.get_blob_properties().copy.status == "success",
