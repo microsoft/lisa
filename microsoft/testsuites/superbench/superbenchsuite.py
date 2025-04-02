@@ -24,8 +24,8 @@ from microsoft.testsuites.superbench.superbench import Superbench
     description="This test suite is used to run Superbench tests.",
 )
 class SuperbenchSuite(TestSuite):
-    TIME_OUT_SEC = { "feature" : 10 * 60,
-                     "release" : 30 * 60,
+    TIME_OUT_SEC = { "feature" : 30 * 60,
+                     "release" : 60 * 60,
                      "performamce" : 300 * 60 }
     _TIME_OUT = 1800
     _SUPERBENCH_CONFIG = ""
@@ -54,18 +54,16 @@ class SuperbenchSuite(TestSuite):
         result: TestResult,
     ) -> None:
 
-        print(variables)
-        print(node)
-        print(result)
-        
         # parse variables
-        gpu = variables["gpu"].upper()
-        validation = variables["validation_type"]
-        sb_repo = variables["repo_url"]
+        gpu = variables.get("gpu","V100").upper()
+        validation = variables.get("validation_type","feature")
+        sb_repo = variables.get("repo_url", "https://github.com/microsoft/superbenchmark")
         sb_config = f"superbench_{validation}_{gpu}.yaml"
-        sb_branch = validation["sb_branch"]
-        sb_image_tag = validation["sb_image_tag"]
+        sb_branch = variables.get("sb_branch", "v0.11.0")
+        sb_image_tag = variables.get("sb_image_tag", "v0.11.0-cuda12.4")
 
+        print(f"gpu: {gpu}\n validation: {validation}\n sb_repo: {sb_repo}\n sb_config: {sb_config}\n sb_branch: {sb_branch}\n sb_image_tag: {sb_image_tag}\n")
+        
         # run superbench tests
         superbench: Superbench = node.tools.get(
             Superbench,
@@ -75,5 +73,5 @@ class SuperbenchSuite(TestSuite):
         superbench.run_test(
             result,
             log_path,
-            superbench_run_timeout=self.TIME_OUT_SEC[validation]
+            sb_run_timeout=self.TIME_OUT_SEC[validation]
         )
