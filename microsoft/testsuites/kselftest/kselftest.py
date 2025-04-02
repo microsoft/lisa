@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from assertpy import assert_that
 
+from lisa.base_tools.sed import Sed
 from lisa.base_tools.uname import Uname
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -68,6 +69,18 @@ class Kselftest(Tool):
         "git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
     )
 
+    _KSELF_LITE_TESTS = [
+        "bpf",
+        "core",
+        "futex",
+        "ipc",
+        "kexec",
+        "mm",
+        "net",
+        "timers",
+        "x86",
+    ]
+
     # kselftest result log has "ok" and "not ok" prefixes, use regex to filter them
     # example skip test log: "ok 6 selftests: cgroup: test_stress.sh # SKIP"
     # example failed test log: "not ok 52 selftests: net: veth.sh # exit=1"
@@ -94,6 +107,8 @@ class Kselftest(Tool):
         node: Node,
         working_path: str,
         file_path: str,
+        test_collections: str,
+        skip_tests: str,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -102,6 +117,10 @@ class Kselftest(Tool):
         # tar file path specified in yml
         self._working_path = working_path
         self._tar_file_path = file_path
+        self._test_collections = (
+            test_collections.split(",") if test_collections else self._KSELF_LITE_TESTS
+        )
+        self._skip_tests = skip_tests.split(",")
         kselftest_packages = "kselftest-packages"
         if self._working_path:
             package_path = self.node.get_pure_path(
@@ -218,6 +237,9 @@ class Kselftest(Tool):
         # Executing kselftest as root may cause
         # VM to hang
 
+        # Generate run test cases
+        self._generate_run_tests(self._test_collections, self._skip_tests)
+
         # get username
         username = self.node.tools[Whoami].get_username()
         result_directory = f"/home/{username}"
@@ -330,3 +352,39 @@ class Kselftest(Tool):
         # tests that passed, skipped or timed out
         else:
             return 0
+
+    def _generate_run_tests(
+        self,
+        test_collections: List[str],
+        skip_tests: List[str],
+    ) -> None:
+        test_list_file = self._installed_path / "kselftest-list.txt"
+        ls = self.node.tools[Ls]
+        if not ls.path_exists(test_list_file.as_posix()):
+            raise LisaException("kselftest-list.txt doesn't exist")
+
+        # Update the kselftest-list.txt
+        if len(test_collections) > 0:
+            cur_test_list_file = self._installed_path / "kselftest-list-temp.txt"
+            for test_collection in test_collections:
+                command = f'grep -E "^{test_collection}:" {test_list_file}'
+                self.node.execute(
+                    f"{command} >> {cur_test_list_file}",
+                    shell=True,
+                    sudo=True,
+                )
+            # replace the old kselftest-list.txt
+            cp = self.node.tools[Cp]
+            cp.copy(
+                src=cur_test_list_file,
+                dest=test_list_file,
+                sudo=True,
+            )
+
+        if len(skip_tests) > 0:
+            sed = self.node.tools[Sed]
+            for skip_test in skip_tests:
+                sed.delete_lines(
+                    skip_test,
+                    test_list_file,
+                )
