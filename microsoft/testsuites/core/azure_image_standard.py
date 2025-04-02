@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 from typing import List, Pattern, cast
 
 from assertpy.assertpy import assert_that
+from packaging.version import Version
 
 from lisa import (
     Node,
@@ -37,6 +38,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
     LisaException,
@@ -1256,3 +1258,43 @@ class AzureImageStandard(TestSuite):
                 partition.fstype,
                 "Resource disk file system type should not equal to ntfs",
             ).is_not_equal_to("ntfs")
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of the Microsoft Azure Linux Agent (waagent).
+
+        Steps:
+        1. Retrieve the version of waagent.
+        2. Check if the version is lower than the minimum supported version.
+           The minimum supported version can be found at:
+           https://learn.microsoft.com/en-us/troubleshoot/azure/virtual-machines/
+           windows/support-extensions-agent-version
+        3. Check if auto update is enabled.
+        4. Fail the test if the version is lower than the minimum supported version
+           and auto update is not enabled, otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_waagent_version(self, node: Node) -> None:
+        minimum_version = Version("2.2.53.1")
+        waagent = node.tools[Waagent]
+        waagent_version = waagent.get_version()
+        try:
+            current_version = Version(waagent_version)
+        except Exception as e:
+            raise LisaException(
+                f"Failed to parse waagent version '{waagent_version}'. Error: {str(e)}"
+            )
+
+        if current_version < minimum_version:
+            waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
+            if not waagent_auto_update_enabled:
+                raise LisaException(
+                    f"The waagent version {waagent_version} is lower than the required "
+                    f"version {minimum_version} and auto update is not enabled. Please "
+                    f"update the waagent to a version >= {minimum_version}. Please "
+                    "refer to https://learn.microsoft.com/en-us/azure/virtual-machines/"
+                    "extensions/update-linux-agent?tabs=ubuntu for more details to "
+                    "update."
+                )
