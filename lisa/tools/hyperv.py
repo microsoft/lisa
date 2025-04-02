@@ -188,14 +188,6 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        if extra_args is not None and "set-vmprocessor" in extra_args:
-            self._run_hyperv_cmdlet(
-                "Set-VMProcessor",
-                f"-VMName {name}",
-                extra_args=extra_args,
-                force_run=True,
-            )
-
         # set cores and memory type
         self._run_hyperv_cmdlet(
             "Set-VM",
@@ -204,6 +196,14 @@ class HyperV(Tool):
             extra_args=extra_args,
             force_run=True,
         )
+
+        if extra_args is not None and "set-vmprocessor" in extra_args:
+            self._run_hyperv_cmdlet(
+                "Set-VMProcessor",
+                f"-VMName {name}",
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         # disable secure boot if requested
         # secure boot is only supported for generation 2 VMs
