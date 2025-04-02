@@ -252,7 +252,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_info_log: bool = True,
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
-        timeout: int = 600,
+        timeout: int = 800,
         update_envs: Optional[Dict[str, str]] = None,
         encoding: str = "",
         expected_exit_code: Optional[int] = None,
