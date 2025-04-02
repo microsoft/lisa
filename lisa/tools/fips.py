@@ -10,7 +10,7 @@ from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools import Blkid, Cat
 from .grub_config import GrubConfig
-from lisa.util import UnsupportedDistroException, get_matched_str
+from lisa.util import UnsupportedDistroException, get_matched_str, str_to_bool
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -71,9 +71,33 @@ class Fips(Tool):
         self.node.os.package_exists("dracut-fips", assert_existance=expect_fips_mode)
 
         # Kernel needs to be in the correct FIPS mode.
-        self._assert_kernel_fips_mode(expect_fips_mode)
+        assert_that(self.is_kernel_fips_mode()).described_as(
+            "kernel fips mode"
+        ).is_equal_to(expect_fips_mode)
 
-    def enable_fips(self) -> None:
+    def set_fips_mode(self, fips_mode: bool) -> None:
+        """
+        Set the FIPS mode on the system.
+        This method should be called to enable or disable FIPS mode.
+        """
+        if fips_mode:
+            self._enable_fips()
+        else:
+            self._disable_fips()
+
+    def is_kernel_fips_mode(self) -> bool:
+        """
+        Get the current FIPS mode.
+        This method checks if the dracut-fips package is installed and if the
+        kernel FIPS mode is enabled.
+        """
+        fips_enabled = self.node.tools[Cat].read(
+            "/proc/sys/crypto/fips_enabled", force_run=True
+        )
+
+        return str_to_bool(fips_enabled)
+
+    def _enable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.install_packages("dracut-fips")
 
@@ -86,7 +110,7 @@ class Fips(Tool):
         boot_arg_value = f"UUID={boot_disk_part_uuid}" if boot_disk_part_uuid else ""
         self.node.tools[GrubConfig].set_kernel_cmdline_arg("boot", boot_arg_value)
 
-    def disable_fips(self) -> None:
+    def _disable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
         self.node.os.uninstall_packages("dracut-fips")
 
@@ -95,19 +119,6 @@ class Fips(Tool):
 
         # Set the boot flag to the kernel command line.
         self.node.tools[GrubConfig].set_kernel_cmdline_arg("boot", "")
-
-    def _assert_kernel_fips_mode(self, expected: bool) -> None:
-        """
-        Assert that the kernel FIPS mode is set to the expected value.
-        """
-        fips_enabled = self.node.tools[Cat].read(
-            "/proc/sys/crypto/fips_enabled", force_run=True
-        )
-
-        expected_kernel_mode_value = "1" if expected else "0"
-        assert_that(fips_enabled).described_as("kernel fips mode").is_equal_to(
-            expected_kernel_mode_value
-        )
 
     def _get_boot_uuid(self) -> str:
         """
@@ -195,8 +206,8 @@ class AzlV3Fips(Fips):
             for package in self._SYMCRYPT_PACKAGES:
                 self.node.os.package_exists(package, assert_existance=True)
 
-    def enable_fips(self) -> None:
-        super().enable_fips()
+    def _enable_fips(self) -> None:
+        super()._enable_fips()
 
         # AZL3 requres the SymCrypt provider for FIPS-compliant openssl.
         self.node.os.install_packages(self._SYMCRYPT_PACKAGES)

@@ -90,7 +90,7 @@ class GrubConfigAzl3(GrubConfig):
         # For simplicity, first remove the existing argument.
         self.node.tools[Sed].delete_line_substring(
             match_line=self._GRUB_CMDLINE_LINE_REGEX,
-            regex_to_delete=(r"\s" + arg + r"[^\"\s]*"),
+            regex_to_delete=(r"\s" + arg + r"[^\"[:space:]]*"),
             file=PurePosixPath(self._GRUB_DEFAULT_FILE),
             sudo=True,
         )
