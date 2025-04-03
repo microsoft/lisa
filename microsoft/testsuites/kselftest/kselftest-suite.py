@@ -87,11 +87,12 @@ class KselftestTestsuite(TestSuite):
         suites that are known to fail or are not relevant to their use case.
 
         Customization:
-        Users can customize the test by specifying the `kself_test_collection` and
-        `kself_skip_tests` variables in the runbook. For example:
-        - `kself_test_collection`: A comma-separated list of collections to run
-        (e.g., "bpf,net,timers").
-        - `kself_skip_tests`: A comma-separated list of tests to skip
+        Users can customize the test by specifying the
+        `kselftest_include_test_collections` and `kselftest_skip_tests` variables
+        in the runbook. For example:
+        - `kselftest_include_test_collections`: A comma-separated list of collections
+        to run (e.g., "bpf,net,timers").
+        - `kselftest_skip_tests`: A comma-separated list of tests to skip
         (e.g., "net:test_tcp,test_udp").
 
         For both cases, the test extracts the tarball (if provided), runs the
@@ -124,13 +125,13 @@ class KselftestTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         test_collection_list = (
-            variables.get("kself_test_collection", "").split(",")
-            if variables.get("kself_test_collection", "")
+            variables.get("kselftest_include_test_collections", "").split(",")
+            if variables.get("kselftest_include_test_collections", "")
             else self._KSELF_LITE_TESTS
         )
         skip_tests_list = (
-            variables.get("kself_skip_tests", "").split(",")
-            if variables.get("kself_skip_tests", "")
+            variables.get("kselftest_skip_tests", "").split(",")
+            if variables.get("kselftest_skip_tests", "")
             else []
         )
         try:
