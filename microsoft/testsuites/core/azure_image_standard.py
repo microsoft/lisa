@@ -283,6 +283,12 @@ class AzureImageStandard(TestSuite):
         ),
     ]
 
+    # Python 3.8.10
+    # Python 2.6
+    # 3.8.10
+    # 2.6
+    _python_version_pattern = re.compile(r"(?:Python\s*)?(\d+\.\d+(?:\.\d+)?)")
+
     @TestCaseMetadata(
         description="""
         This test will verify that `Defaults targetpw` is not enabled in the
@@ -1298,3 +1304,46 @@ class AzureImageStandard(TestSuite):
                     "extensions/update-linux-agent?tabs=ubuntu for more details to "
                     "update."
                 )
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of Python installed on the system.
+
+        Steps:
+        1. Retrieve the Python version.
+        2. Check if the version is lower than the minimum supported version.
+           The minimum supported version can be found at:
+           https://devguide.python.org/versions/
+        3. Fail the test if the version is lower than the minimum supported version,
+           otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_python_version(self, node: Node) -> None:
+        minimum_version = Version("3.8.0")
+        python_command = "python3 --version"
+        python_version_output = None
+
+        result = node.execute(python_command, shell=True)
+        if result.exit_code == 0:
+            python_version_output = result.stdout.strip()
+
+        if not python_version_output:
+            raise LisaException(
+                "Failed to retrieve Python version. Ensure Python is installed on the "
+                "system."
+            )
+
+        match = self._python_version_pattern.search(python_version_output)
+        if not match:
+            raise LisaException(
+                f"Failed to parse Python version from output: {python_version_output}"
+            )
+        python_version = Version(match.group(1))
+        if python_version < minimum_version:
+            raise LisaException(
+                f"The Python version {python_version} is lower than the required "
+                f"version {minimum_version}. Please update Python to a version "
+                f">= {minimum_version}."
+            )
