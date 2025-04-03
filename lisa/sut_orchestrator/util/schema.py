@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Union, cast
 
 from dataclasses_json import dataclass_json
 
@@ -12,9 +12,16 @@ class HostDevicePoolType(Enum):
 
 @dataclass_json()
 @dataclass
-class DeviceIdentifier:
+class VendorDeviceIdIdentifier:
     vendor_id: str = ""
     device_id: str = ""
+
+
+@dataclass_json()
+@dataclass
+class PciAddressIdentifier:
+    # list of bdf like 0000:3b:00.0 - <domain>:<bus>:<slot>.<fn>
+    pci_bdf: List[str] = field(default_factory=list)
 
 
 # Configuration options for device-passthrough for the VM.
@@ -22,7 +29,9 @@ class DeviceIdentifier:
 @dataclass
 class HostDevicePoolSchema:
     type: HostDevicePoolType = HostDevicePoolType.PCI_NIC
-    devices: List[DeviceIdentifier] = field(default_factory=list)
+    devices: Union[List[VendorDeviceIdIdentifier], PciAddressIdentifier] = field(
+        default_factory=lambda: cast(List[VendorDeviceIdIdentifier], [])
+    )
 
 
 @dataclass_json()
