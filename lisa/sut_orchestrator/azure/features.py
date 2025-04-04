@@ -64,7 +64,6 @@ from lisa.tools import (
     Lsblk,
     Lspci,
     Modprobe,
-    Nvmecli,
     Rm,
     Sed,
 )
@@ -98,7 +97,6 @@ from .common import (
     AzureCapability,
     AzureImageSchema,
     AzureNodeSchema,
-    DiskPlacementType,
     check_or_create_storage_account,
     create_update_private_dns_zone_groups,
     create_update_private_endpoints,
@@ -114,7 +112,6 @@ from .common import (
     delete_virtual_network_links,
     find_by_name,
     get_compute_client,
-    get_disk_placement_priority,
     get_network_client,
     get_node_context,
     get_or_create_file_share,
@@ -433,7 +430,7 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             "https://management.core.windows.net/.default"
         ).token
 
-        return str(access_token)
+        return access_token
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         platform: AzurePlatform = self._platform  # type: ignore
@@ -949,8 +946,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"status [{updated_nic.enable_accelerated_networking}], "
                     f"now set its status into [{enable}]."
                 )
-                print("Debug:sleeping 5 secs ")
-                time.sleep(5)
+                #print("Debug:sleeping 5 secs ")
+                #time.sleep(5)
                 updated_nic.enable_accelerated_networking = enable
                 network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
@@ -1207,6 +1204,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         print("Debug:check sriov enabled function")
         if reset_connections:
             self._node.close()
+        print("Debug:sleep 5 seconds after node close")
+        time.sleep(5)
         self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
@@ -1318,31 +1317,6 @@ _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = 
 @dataclass()
 class AzureDiskOptionSettings(schema.DiskOptionSettings):
     has_resource_disk: Optional[bool] = None
-    ephemeral_disk_placement_type: Optional[
-        Union[search_space.SetSpace[DiskPlacementType], DiskPlacementType]
-    ] = field(  # type:ignore
-        default_factory=partial(
-            search_space.SetSpace,
-            items=[
-                DiskPlacementType.NONE,
-                DiskPlacementType.RESOURCE,
-                DiskPlacementType.CACHE,
-                DiskPlacementType.NVME,
-            ],
-        ),
-        metadata=field_metadata(
-            decoder=partial(
-                search_space.decode_nullable_set_space,
-                base_type=DiskPlacementType,
-                default_values=[
-                    DiskPlacementType.NONE,
-                    DiskPlacementType.RESOURCE,
-                    DiskPlacementType.CACHE,
-                    DiskPlacementType.NVME,
-                ],
-            )
-        ),
-    )
 
     def __hash__(self) -> int:
         return super().__hash__()
@@ -1351,11 +1325,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         return self.__repr__()
 
     def __repr__(self) -> str:
-        return (
-            f"has_resource_disk: {self.has_resource_disk},"
-            f"ephemeral_disk_placement_type: {self.ephemeral_disk_placement_type},"
-            f"{super().__repr__()}"
-        )
+        return f"has_resource_disk: {self.has_resource_disk},{super().__repr__()}"
 
     def __eq__(self, o: object) -> bool:
         if not super().__eq__(o):
@@ -1414,13 +1384,6 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             "has_resource_disk",
         )
         result.merge(
-            search_space.check_setspace(
-                self.ephemeral_disk_placement_type,
-                capability.ephemeral_disk_placement_type,
-            ),
-            "ephemeral_disk_placement_type",
-        )
-        result.merge(
             search_space.check_countspace(
                 self.max_data_disk_count, capability.max_data_disk_count
             ),
@@ -1435,7 +1398,7 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
 
         return result
 
-    def _call_requirement_method(  # noqa: C901
+    def _call_requirement_method(
         self, method: RequirementMethod, capability: Any
     ) -> Any:
         assert isinstance(
@@ -1521,38 +1484,6 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             capability.disk_controller_type,
             schema.disk_controller_type_priority,
         )
-
-        # refer
-        # https://learn.microsoft.com/en-us/powershell/module/az.compute/set-azvmssstorageprofile?view=azps-13.0.0             # noqa: E501
-        # https://github.com/MicrosoftDocs/azure-compute-docs/blob/main/articles/virtual-machines/ephemeral-os-disks-faq.md    # noqa: E501
-        # Currently, the supported ephemeral disk placement types are - Resource(or Temp), Cache and NVMe.                     # noqa: E501
-        # The Ephemeral Disk Placement type is set in the "DiffDiskPlacement" property of the VM's storage profile.            # noqa: E501
-        if value.os_disk_type == schema.DiskType.Ephemeral:
-            cap_ephemeral_disk_placement_type = capability.ephemeral_disk_placement_type
-            if isinstance(cap_ephemeral_disk_placement_type, search_space.SetSpace):
-                assert len(cap_ephemeral_disk_placement_type) > 0, (
-                    "capability should have at least one ephemeral disk placement type,"
-                    " but it's empty"
-                )
-            elif isinstance(cap_ephemeral_disk_placement_type, DiskPlacementType):
-                cap_ephemeral_disk_placement_type = search_space.SetSpace[
-                    DiskPlacementType
-                ](is_allow_set=True, items=[cap_ephemeral_disk_placement_type])
-            else:
-                raise LisaException(
-                    "unknown ephemeral disk placement type "
-                    f"on capability, type: {cap_ephemeral_disk_placement_type}"
-                )
-
-            value.ephemeral_disk_placement_type = getattr(
-                search_space, f"{method.value}_setspace_by_priority"
-            )(
-                self.ephemeral_disk_placement_type,
-                capability.ephemeral_disk_placement_type,
-                get_disk_placement_priority(),
-            )
-        else:
-            value.ephemeral_disk_placement_type = DiskPlacementType.NONE
 
         # below values affect data disk only.
         if self.data_disk_count is not None or capability.data_disk_count is not None:
@@ -1711,19 +1642,11 @@ class Disk(AzureFeatureMixin, features.Disk):
         r"^(?!\s*#)\s*mounts:\s+-\s*\[\s*ephemeral[0-9]+,\s*([^,\s]+)\s*\]", re.M
     )
 
-    # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 0 (pass0,da0)
-    # <Msft Virtual Disk 1.0>            at scbus0 target 0 lun 1 (pass1,da1)
-    # <Msft Virtual DVD-ROM 1.0>         at scbus0 target 0 lun 2 (pass2,cd0)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 0 (da6,pass7)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 1 (da9,pass10)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 2 (da7,pass8)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 3 (da8,pass9)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 4 (da5,pass6)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 6 (da4,pass5)
-    # <Msft Virtual Disk 1.0>            at scbus1 target 0 lun 7 (da3,pass4)
-    LUN_PATTERN_BSD = re.compile(
-        r"at\s+scbus\d+\s+target\s+\d+\s+lun\s+(\d+)\s+\(.*(da\d+)", re.M
-    )
+    # /dev/nvme0n1p15 -> /dev/nvme0n1
+    NVME_NAMESPACE_PATTERN = re.compile(r"/dev/nvme[0-9]+n[0-9]+", re.M)
+
+    # /dev/nvme0n1p15 -> /dev/nvme0
+    NVME_CONTROLLER_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -1792,78 +1715,20 @@ class Disk(AzureFeatureMixin, features.Disk):
         return azure_scsi_disks
 
     def get_luns(self) -> Dict[str, int]:
+        # disk_controller_type == SCSI
         # get azure scsi attached disks
+        azure_scsi_disks = self._get_scsi_data_disks()
         device_luns = {}
-        # If disk_controller_type == NVME
-        #
-        # LUN numbers is a concept of SCSI and not applicable for NVME.
-        # But in Azure, remote data disks attached with NVME disk controller show LUN
-        # numbers in "Namespace" field of nvme-cli output with an off set of +2.
-        # If we reduce the Namespace id by 2 we can get the LUN id of any attached
-        # azure data disks.
-        # Example:
-        # root@lisa--170-e0-n0:/home/lisa# nvme -list
-        # Node                  SN                   Model                                    Namespace Usage                      Format           FW Rev   # noqa: E501
-        # --------------------- -------------------- ---------------------------------------- --------- -------------------------- ---------------- -------  # noqa: E501
-        # /dev/nvme0n1          SN: 000001           MSFT NVMe Accelerator v1.0               1          29.87  GB /  29.87  GB    512   B +  0 B   v1.0000  # noqa: E501
-        # /dev/nvme0n2          SN: 000001           MSFT NVMe Accelerator v1.0               2           4.29  GB /   4.29  GB    512   B +  0 B   v1.0000  # noqa: E501
-        # /dev/nvme0n3          SN: 000001           MSFT NVMe Accelerator v1.0               15         44.02  GB /  44.02  GB    512   B +  0 B   v1.0000  # noqa: E501
-        # /dev/nvme0n4          SN: 000001           MSFT NVMe Accelerator v1.0               14          6.44  GB /   6.44  GB    512   B +  0 B   v1.0000  # noqa: E501
-        # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
-        # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
-        #
-        # In the above output all devices starting with /dev/nvme0 are
-        # Azure remote data disks.
-        # /dev/nvme0n1 is the OS disk and
-        # /dev/nvme0n2, /dev/nvme0n3, /dev/nvme0n4 are azure remote data disks.
-        # They are connected at LUN 0, 13 and 12 respectively and their Namespace ids
-        # are 2, 15 and 14.
-        node_disk = self._node.features[Disk]
-        if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            data_disks = self.get_raw_data_disks()
-            nvme_device_ids = self._node.tools[Nvmecli].get_namespace_ids(
-                force_run=True
+        lun_number_pattern = re.compile(r"[0-9]+$", re.M)
+        for disk in azure_scsi_disks:
+            # /dev/disk/azure/scsi1/lun20 -> 20
+            device_lun = int(get_matched_str(disk, lun_number_pattern))
+            # readlink -f /dev/disk/azure/scsi1/lun0
+            # /dev/sdc
+            cmd_result = self._node.execute(
+                f"readlink -f {disk}", shell=True, sudo=True
             )
-
-            for nvme_device_id in nvme_device_ids:
-                nvme_device_file = list(nvme_device_id.keys())[0]
-                if self._is_remote_data_disk(nvme_device_file):
-                    # Reduce 2 from Namespace to get the actual LUN number.
-                    device_lun = int(list(nvme_device_id.values())[0]) - 2
-                    if nvme_device_file in data_disks:
-                        device_luns.update(
-                            {
-                                nvme_device_file: device_lun,
-                            }
-                        )
-            return device_luns
-        # If disk_controller_type == SCSI
-        elif node_disk.get_os_disk_controller_type() == schema.DiskControllerType.SCSI:
-            if isinstance(self._node.os, BSD):
-                cmd_result = self._node.execute(
-                    "camcontrol devlist",
-                    shell=True,
-                    sudo=True,
-                )
-                for line in cmd_result.stdout.splitlines():
-                    match = self.LUN_PATTERN_BSD.search(line)
-                    if match:
-                        lun_number = int(match.group(1))
-                        device_name = match.group(2)
-                        device_luns.update({device_name: lun_number})
-            else:
-                azure_scsi_disks = self._get_scsi_data_disks()
-                device_luns = {}
-                lun_number_pattern = re.compile(r"[0-9]+$", re.M)
-                for disk in azure_scsi_disks:
-                    # /dev/disk/azure/scsi1/lun20 -> 20
-                    device_lun = int(get_matched_str(disk, lun_number_pattern))
-                    # readlink -f /dev/disk/azure/scsi1/lun0
-                    # /dev/sdc
-                    cmd_result = self._node.execute(
-                        f"readlink -f {disk}", shell=True, sudo=True
-                    )
-                    device_luns.update({cmd_result.stdout: device_lun})
+            device_luns.update({cmd_result.stdout: device_lun})
         return device_luns
 
     def get_raw_data_disks(self) -> List[str]:
@@ -1874,15 +1739,32 @@ class Disk(AzureFeatureMixin, features.Disk):
         # disk_controller_type == NVME
         node_disk = self._node.features[Disk]
         if node_disk.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
+            # Getting OS disk nvme namespace and disk controller used by OS disk.
+            # Sample os_boot_partition:
+            # name: /dev/nvme0n1p15, disk: nvme, mount_point: /boot/efi, type: vfat
+            os_boot_partition = node_disk.get_os_boot_partition()
+            if os_boot_partition:
+                os_disk_namespace = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_NAMESPACE_PATTERN,
+                )
+                os_disk_controller = get_matched_str(
+                    os_boot_partition.name,
+                    self.NVME_CONTROLLER_PATTERN,
+                )
+
             # With NVMe disk controller type, all remote SCSI disks are connected to
             # same NVMe controller. The same controller is used by OS disk.
             # This loop collects all the SCSI remote disks except OS disk.
-            nvme_cli = self._node.tools[Nvmecli]
-            nvme_disks = nvme_cli.get_disks(force_run=True)
+            nvme = self._node.features[Nvme]
+            nvme_namespaces = nvme.get_namespaces()
             disk_array = []
-            for nvme_disk in nvme_disks:
-                if self._is_remote_data_disk(nvme_disk):
-                    disk_array.append(nvme_disk)
+            for name_space in nvme_namespaces:
+                if (
+                    name_space.startswith(os_disk_controller)
+                    and name_space != os_disk_namespace
+                ):
+                    disk_array.append(name_space)
             return disk_array
 
         # disk_controller_type == SCSI
@@ -2025,42 +1907,6 @@ class Disk(AzureFeatureMixin, features.Disk):
         self._node.capability.disk.data_disk_count -= len(names)
         self._node.close()
 
-    # verify that resource disk is mounted
-    # function returns successfully if disk matching mount point is present.
-    # raises exception if the resource disk is not mounted
-    # in Azure only SCSI disks are mounted but not NVMe disks
-    def check_resource_disk_mounted(self) -> bool:
-        resource_disk_mount_point = self.get_resource_disk_mount_point()
-        resourcedisk = self.get_partition_with_mount_point(resource_disk_mount_point)
-        if not resourcedisk:
-            raise LisaException(
-                f"Resource disk is not mounted at {resource_disk_mount_point}"
-            )
-        return True
-
-    # get resource disk type
-    # function returns the type of resource disk/disks available on the VM
-    # raises exception if no resource disk is available
-    def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        resource_disks = self.get_resource_disks()
-        if not resource_disks:
-            raise LisaException("No Resource disks are available on VM")
-        return schema.ResourceDiskType(
-            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
-        )
-
-    def get_resource_disks(self) -> List[str]:
-        resource_disk_list = []
-        resource_disk_mount_point = self.get_resource_disk_mount_point()
-        resourcedisk = self._node.features[Disk].get_partition_with_mount_point(
-            resource_disk_mount_point
-        )
-        if resourcedisk:
-            resource_disk_list = [resourcedisk.name]
-        else:
-            resource_disk_list = self._node.features[Nvme].get_raw_nvme_disks()
-        return resource_disk_list
-
     def get_resource_disk_mount_point(self) -> str:
         # get customize mount point from cloud-init configuration file from /etc/cloud/
         # if not found, use default mount point /mnt for cloud-init
@@ -2107,22 +1953,6 @@ class Disk(AzureFeatureMixin, features.Disk):
             partition.mountpoint == "/mnt/resource" for partition in disk.partitions
         )
 
-    def _is_remote_data_disk(self, disk: str) -> bool:
-        # If disk_controller_type == NVME
-        nvme = self._node.features[Nvme]
-        if self.get_os_disk_controller_type() == schema.DiskControllerType.NVME:
-            os_disk_namespace = nvme.get_nvme_os_disk_namespace()
-            os_disk_controller = nvme.get_nvme_os_disk_controller()
-            # When disk_controller_type is NVME, all remote disks are connected to
-            # same NVMe controller. The same controller is used by OS disk.
-            if disk.startswith(os_disk_controller) and disk != os_disk_namespace:
-                return True
-            return False
-
-        # If disk_controller_type == SCSI
-        azure_scsi_disks = self._get_scsi_data_disks()
-        return disk in azure_scsi_disks
-
     def _get_raw_data_disks_bsd(self) -> List[str]:
         disks = self._node.tools[Lsblk].get_disks()
 
@@ -2134,11 +1964,6 @@ class Disk(AzureFeatureMixin, features.Disk):
         ]
 
         return data_disks
-
-    def get_ephemeral_disk_placement_type(self) -> Any:
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        vm = get_vm(azure_platform, self._node)
-        return vm.storage_profile.os_disk.diff_disk_settings.placement
 
 
 def get_azure_disk_type(disk_type: schema.DiskType) -> str:
@@ -2197,143 +2022,6 @@ class Resize(AzureFeatureMixin, features.Resize):
         self._node.capability = cast(schema.Capability, new_capability)
         return new_capability, origin_vm_size, new_vm_size_info.vm_size
 
-    def _compare_disk_property(
-        self,
-        candidate_size: AzureCapability,
-        current_vm_size: AzureCapability,
-        property_name: str,
-    ) -> bool:
-        assert candidate_size.capability
-        assert current_vm_size.capability
-        assert candidate_size.capability.disk
-        assert current_vm_size.capability.disk
-        candidate_value = getattr(candidate_size.capability.disk, property_name, None)
-        current_value = getattr(current_vm_size.capability.disk, property_name, None)
-        if candidate_value is None or current_value is None:
-            return False
-        # If both values are iterable (list or set), check if there's any match
-        if isinstance(candidate_value, (list, set)):
-            return any(dc_type in candidate_value for dc_type in current_value)
-        # Otherwise, do a simple direct comparison
-        if isinstance(candidate_value, AzureDiskOptionSettings) and isinstance(
-            current_value, AzureDiskOptionSettings
-        ):
-            return candidate_value == current_value
-        return False
-
-    def _compare_architecture(
-        self,
-        candidate_size: AzureCapability,
-        current_vm_size: AzureCapability,
-    ) -> bool:
-        assert candidate_size.capability
-        assert current_vm_size.capability
-        assert current_vm_size.capability.features
-        assert candidate_size.capability.features
-        current_arch = next(
-            (
-                feature
-                for feature in current_vm_size.capability.features
-                if feature.type == ArchitectureSettings.type
-            ),
-            None,
-        )
-        candidate_arch = next(
-            (
-                feature
-                for feature in candidate_size.capability.features
-                if feature.type == ArchitectureSettings.type
-            ),
-            None,
-        )
-        if isinstance(current_arch, ArchitectureSettings) and isinstance(
-            candidate_arch, ArchitectureSettings
-        ):
-            return current_arch.arch == candidate_arch.arch
-        return False
-
-    def _compare_size_generation(
-        self,
-        candidate_size: AzureCapability,
-        current_vm_size: AzureCapability,
-    ) -> bool:
-        assert candidate_size.capability
-        assert current_vm_size.capability
-        assert current_vm_size.capability.features
-        assert candidate_size.capability.features
-        current_gen = next(
-            (
-                feature
-                for feature in current_vm_size.capability.features
-                if feature.type == VhdGenerationSettings.type
-            ),
-            None,
-        )
-        candidate_gen = next(
-            (
-                feature
-                for feature in candidate_size.capability.features
-                if feature.type == VhdGenerationSettings.type
-            ),
-            None,
-        )
-
-        if isinstance(current_gen, VhdGenerationSettings) and isinstance(
-            candidate_gen, VhdGenerationSettings
-        ):
-            result = search_space.check_setspace(current_gen.gen, candidate_gen.gen)
-            return result.result
-        return False
-
-    def _compare_network_interface(
-        self, candidate_size: AzureCapability, current_vm_size: AzureCapability
-    ) -> bool:
-        assert candidate_size.capability
-        assert current_vm_size.capability
-        assert current_vm_size.capability.network_interface
-        assert candidate_size.capability.network_interface
-        current_network_interface = current_vm_size.capability.network_interface
-        assert_that(current_network_interface).described_as(
-            "current_network_interface is not of type NetworkInterfaceOptionSettings."
-        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
-        current_data_path = current_network_interface.data_path
-        candidate_network_interface = candidate_size.capability.network_interface
-        assert_that(candidate_network_interface).described_as(
-            "candidate_network_interface is not of type NetworkInterfaceOptionSettings."
-        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
-        candidate_data_path = candidate_network_interface.data_path
-
-        # If current VM has accelerated networking enabled
-        # check that the candidate also has it enabled
-        if schema.NetworkDataPath.Sriov in current_data_path:  # type: ignore
-            return schema.NetworkDataPath.Sriov in candidate_data_path  # type: ignore
-        return True
-
-    def _compare_core_count(
-        self,
-        candidate_size: AzureCapability,
-        current_vm_size: AzureCapability,
-        resize_action: ResizeAction,
-    ) -> bool:
-        assert candidate_size.capability
-        assert current_vm_size.capability
-        assert current_vm_size.capability.core_count
-        assert candidate_size.capability.core_count
-
-        candidate_core_count = candidate_size.capability.core_count
-        current_core_count = current_vm_size.capability.core_count
-        if (
-            resize_action == ResizeAction.IncreaseCoreCount
-            and candidate_core_count < current_core_count  # type: ignore
-        ):
-            return False
-        if (
-            resize_action == ResizeAction.DecreaseCoreCount
-            and candidate_core_count > current_core_count  # type: ignore
-        ):
-            return False
-        return True
-
     def _select_vm_size(
         self, resize_action: ResizeAction = ResizeAction.IncreaseCoreCount
     ) -> Tuple[str, "AzureCapability"]:
@@ -2382,58 +2070,91 @@ class Resize(AzureFeatureMixin, features.Resize):
 
                 avail_eligible_intersect.append(new_vm_size)
 
+        current_network_interface = current_vm_size.capability.network_interface
+        assert_that(current_network_interface).described_as(
+            "current_network_interface is not of type NetworkInterfaceOptionSettings."
+        ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+        current_data_path = current_network_interface.data_path  # type: ignore
         current_core_count = current_vm_size.capability.core_count
         assert_that(current_core_count).described_as(
             "Didn't return an integer to represent the current VM size core count."
         ).is_instance_of(int)
         assert current_vm_size.capability.features
-
+        current_arch = [
+            feature
+            for feature in current_vm_size.capability.features
+            if feature.type == ArchitectureSettings.type
+        ]
+        current_gen = [
+            feature
+            for feature in current_vm_size.capability.features
+            if feature.type == VhdGenerationSettings.type
+        ]
         # Loop removes candidate vm sizes if they can't be resized to or if the
         # change in cores resulting from the resize is undesired
         for candidate_size in avail_eligible_intersect[:]:
-            if not self._compare_architecture(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            # List of disk properties to compare
-            disk_properties_to_compare = [
-                "disk_controller_type",
-                "os_disk_type",
-                "data_disk_type",
+            assert candidate_size.capability.features
+            candidate_arch = [
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == ArchitectureSettings.type
             ]
-            # Flag to track whether the candidate passed all disk property checks
-            candidate_passed_all_checks = True
-            for prop in disk_properties_to_compare:
-                # compare the current property between the candidate size
-                # and the current VM size
-                if not self._compare_disk_property(
-                    candidate_size, current_vm_size, prop
-                ):
-                    # If the comparison fails (returns False)
-                    # mark the candidate as failing all checks
-                    candidate_passed_all_checks = False
-                    break
-            # If the candidate failed any of the checks (disk properties did not match)
-            if not candidate_passed_all_checks:
-                # Remove the candidate size from the list of available eligible sizes
+            # Removing vm size from candidate list if the candidate architecture is
+            # different with current vm size
+            if isinstance(current_arch[0], ArchitectureSettings) and isinstance(
+                candidate_arch[0], ArchitectureSettings
+            ):
+                if candidate_arch[0].arch != current_arch[0].arch:
+                    avail_eligible_intersect.remove(candidate_size)
+                    continue
+
+            candidate_gen = [
+                feature
+                for feature in candidate_size.capability.features
+                if feature.type == VhdGenerationSettings.type
+            ]
+            if isinstance(current_gen[0], VhdGenerationSettings) and isinstance(
+                candidate_gen[0], VhdGenerationSettings
+            ):
+                result = search_space.check_setspace(
+                    current_gen[0].gen, candidate_gen[0].gen
+                )
+                # Removing vm size from candidate list if the candidate vhd gen type is
+                # different with current vm size gen type
+                if not result.result:
+                    avail_eligible_intersect.remove(candidate_size)
+                    continue
+            candidate_network_interface = candidate_size.capability.network_interface
+            assert_that(candidate_network_interface).described_as(
+                "candidate_network_interface is not of type "
+                "NetworkInterfaceOptionSettings."
+            ).is_instance_of(schema.NetworkInterfaceOptionSettings)
+            candidate_data_path = candidate_network_interface.data_path  # type: ignore
+            # Can't resize from an accelerated networking enabled size to a size where
+            # accelerated networking isn't enabled
+            if (
+                schema.NetworkDataPath.Sriov in current_data_path  # type: ignore
+                and schema.NetworkDataPath.Sriov not in candidate_data_path  # type: ignore # noqa: E501
+            ):
+                # Removing sizes without accelerated networking capabilities
+                # if original size has it enabled
                 avail_eligible_intersect.remove(candidate_size)
-                # Continue to the next candidate size in the loop
-                # without checking further
                 continue
 
-            if not self._compare_size_generation(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_network_interface(candidate_size, current_vm_size):
-                avail_eligible_intersect.remove(candidate_size)
-                continue
-
-            if not self._compare_core_count(
-                candidate_size, current_vm_size, resize_action
+            candidate_core_count = candidate_size.capability.core_count
+            assert_that(candidate_core_count).described_as(
+                "Didn't return an integer to represent the "
+                "candidate VM size core count."
+            ).is_instance_of(int)
+            # Removing vm size from candidate list if the change in core count
+            # doesn't align with the ResizeAction passed into this function
+            if (
+                resize_action == ResizeAction.IncreaseCoreCount
+                and candidate_core_count < current_core_count  # type: ignore
+                or resize_action == ResizeAction.DecreaseCoreCount
+                and candidate_core_count > current_core_count  # type: ignore
             ):
                 avail_eligible_intersect.remove(candidate_size)
-                continue
 
         if not avail_eligible_intersect:
             raise LisaException(
@@ -2720,75 +2441,6 @@ class Availability(AzureFeatureMixin, features.Availability):
         return availability_settings
 
     @classmethod
-    def _resolve_configuration(
-        cls,
-        environment: Environment,
-        settings: AvailabilitySettings,
-        params: AvailabilityArmParameter,
-    ) -> None:
-        """
-        Resolve Availability configuration based on the current environment
-        1. Remove unsupported availability types when using ultra disk
-        2. Automatically resolve the availability type based on priority
-        3. Select and validate an availability zone if applicable
-        """
-        assert isinstance(settings.availability_type, search_space.SetSpace)
-
-        # Ultra Disk does not support Availability Sets
-        assert environment.capability.nodes
-        assert environment.capability.nodes[0].disk
-        is_ultra_disk = (
-            environment.capability.nodes[0].disk.data_disk_type
-            == schema.DiskType.UltraSSDLRS
-        )
-        if is_ultra_disk:
-            settings.availability_type.discard(AvailabilityType.AvailabilitySet)
-            # If a region supports Ultra Disk in availability zones,
-            # then availability zones must be used
-            if AvailabilityType.AvailabilityZone in settings.availability_type:
-                settings.availability_type.discard(AvailabilityType.NoRedundancy)
-
-        # Set ARM parameters based on min capability
-        if params.availability_type == AvailabilityType.Default:
-            params.availability_type = settings._resolve_availability_type_by_priority(
-                params
-            ).value
-        if (
-            params.availability_zones
-            and params.availability_type == AvailabilityType.AvailabilityZone
-        ):
-            params.availability_zones = [
-                zone
-                for zone in params.availability_zones
-                if zone in settings.availability_zones
-            ]
-            if not params.availability_zones:
-                raise SkippedException(
-                    "Invalid zones provided. "
-                    "This SKU in this location supports zones: "
-                    f"{settings.availability_zones}. "
-                )
-        elif settings.availability_zones:
-            params.availability_zones = [settings.availability_zones.items[0]]
-
-        assert params.availability_type in [type.value for type in AvailabilityType], (
-            "Not a valid Availability Type: " f"{params.availability_type}"
-        )
-
-        if not (
-            AvailabilityType(params.availability_type) in settings.availability_type
-        ):
-            raise SkippedException(
-                f"Availability Type "
-                f"'{params.availability_type}' "
-                "is not supported in the current configuration. "
-                "Please select one of "
-                f"{[type.value for type in settings.availability_type.items]}. "
-                "The supported availability types is affected by disk type, "
-                "location, and test case requirements."
-            )
-
-    @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         environment = cast(Environment, kwargs.get("environment"))
         arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
@@ -2805,7 +2457,57 @@ class Availability(AzureFeatureMixin, features.Availability):
             is_maximize_capability = False
 
         if not is_maximize_capability:
-            cls._resolve_configuration(environment, settings, params)
+            assert isinstance(settings.availability_type, search_space.SetSpace)
+
+            # Ultra Disk does not support Availability Sets
+            assert environment.capability.nodes
+            assert environment.capability.nodes[0].disk
+            is_ultra_disk = (
+                environment.capability.nodes[0].disk.data_disk_type
+                == schema.DiskType.UltraSSDLRS
+            )
+            if is_ultra_disk:
+                settings.availability_type.discard(AvailabilityType.AvailabilitySet)
+                # If a region supports Ultra Disk in availability zones,
+                # then availability zones must be used
+                if AvailabilityType.AvailabilityZone in settings.availability_type:
+                    settings.availability_type.discard(AvailabilityType.NoRedundancy)
+
+            # Set ARM parameters based on min capability
+            if params.availability_type == AvailabilityType.Default:
+                params.availability_type = (
+                    settings._resolve_availability_type_by_priority(params).value
+                )
+            if (
+                params.availability_zones
+                and params.availability_type == AvailabilityType.AvailabilityZone
+            ):
+                params.availability_zones = [
+                    zone
+                    for zone in params.availability_zones
+                    if zone in settings.availability_zones
+                ]
+                assert params.availability_zones, (
+                    "Invalid zones provided. "
+                    "This SKU in this location supports zones: "
+                    f"{settings.availability_zones}. "
+                )
+            elif settings.availability_zones:
+                params.availability_zones = [settings.availability_zones.items[0]]
+
+            assert params.availability_type in [
+                type.value for type in AvailabilityType
+            ], ("Not a valid Availability Type: " f"{params.availability_type}")
+
+            assert (
+                AvailabilityType(params.availability_type) in settings.availability_type
+            ), (
+                f"Availability Type "
+                f"'{params.availability_type}' "
+                "is not supported in the current configuration. Please select one of "
+                f"{[type.value for type in settings.availability_type.items]}. "
+                "Or consider changing the disk type or location."
+            )
 
         # If the availability_type is still set to Default, then
         # resolve the default without considering capabilities
@@ -2825,15 +2527,9 @@ class Availability(AzureFeatureMixin, features.Availability):
             if "platformUpdateDomainCount" not in params.availability_set_properties:
                 params.availability_set_properties["platformUpdateDomainCount"] = 1
         elif params.availability_type == AvailabilityType.AvailabilityZone:
-            if not params.availability_zones:
-                raise SkippedException(
-                    "Availability Zone is selected, but no zone was provided. "
-                    "Please consider one of the following\n"
-                    "1. Providing availability_zones in the runbook\n"
-                    "2. Selecting a different availability_type in the runbook\n"
-                    "3. Setting maximize_capability to false "
-                    "so the zone can be selected automatically."
-                )
+            assert (
+                params.availability_zones
+            ), "Availability Zone is selected, but no zone was provided."
             params.availability_zones = [params.availability_zones[0]]
             params.availability_set_tags.clear()
             params.availability_set_properties.clear()
@@ -2999,10 +2695,7 @@ class Nfs(AzureFeatureMixin, features.Nfs):
         self.storage_account_name: str = ""
         self.file_share_name: str = ""
 
-    def create_share(
-        self,
-        quota_in_gb: int = 100,
-    ) -> None:
+    def create_share(self) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
         location = node_context.location
@@ -3033,7 +2726,6 @@ class Nfs(AzureFeatureMixin, features.Nfs):
             resource_group_name=resource_group_name,
             protocols="NFS",
             log=self._log,
-            quota_in_gb=quota_in_gb,
         )
 
         storage_account_resource_id = (
@@ -3216,38 +2908,18 @@ class AzureExtension(AzureFeatureMixin, Feature):
         self,
         name: str = "",
         timeout: int = 60 * 25,
-        ignore_not_found: bool = False,
-    ) -> bool:
+    ) -> None:
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
         self._log.debug(f"uninstall extension: {name}")
-        try:
-            operation = compute_client.virtual_machine_extensions.begin_delete(
-                resource_group_name=self._resource_group_name,
-                vm_name=self._vm_name,
-                vm_extension_name=name,
-            )
-            # no return for this operation
-            wait_operation(operation, timeout)
-            return True
-        except HttpResponseError as identifier:
-            error_message = str(identifier)
-            if "was not found" in error_message:
-                if ignore_not_found:
-                    self._log.info(
-                        f"Extension '{name}' not installed, ignoring deletion."
-                    )
-                    return False
-                else:
-                    raise LisaException(
-                        f"Extension '{name}' not found. Cannot delete "
-                        "non-existent extension."
-                    ) from identifier
-            else:
-                raise LisaException(
-                    "Unexpected error occurred while deleting extension "
-                    f"'{name}': {error_message}"
-                ) from identifier
+
+        operation = compute_client.virtual_machine_extensions.begin_delete(
+            resource_group_name=self._resource_group_name,
+            vm_name=self._vm_name,
+            vm_extension_name=name,
+        )
+        # no return for this operation
+        wait_operation(operation, timeout)
 
     def list_all(self) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore
@@ -3567,7 +3239,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         kind: str = "StorageV2",
         enable_https_traffic_only: bool = True,
         enable_private_endpoint: bool = False,
-        quota_in_gb: int = 100,
     ) -> Dict[str, str]:
         platform: AzurePlatform = self._platform  # type: ignore
         information = environment.get_information()
@@ -3593,8 +3264,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         # If enable_private_endpoint is true, SMB share endpoint
         # will dns resolve to <share>.privatelink.file.core.windows.net
         # No changes need to be done in code calling function
-        # For Quota, currently all volumes will share same quota number.
-        # Ensure that you use the highest value applicable for your shares
         for share_name in file_share_names:
             fs_url_dict[share_name] = get_or_create_file_share(
                 credential=platform.credential,
@@ -3604,7 +3273,6 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 file_share_name=share_name,
                 resource_group_name=resource_group_name,
                 log=self._log,
-                quota_in_gb=quota_in_gb,
             )
         # Create file private endpoint, always after all shares have been created
         # There is a known issue in API preventing access to data plane
