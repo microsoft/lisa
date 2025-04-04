@@ -50,11 +50,15 @@ class KselftestTestsuite(TestSuite):
         file_path = variables.get("kselftest_file_path", "")
         working_path = variables.get("kselftest_working_path", "")
         run_as_root = variables.get("kselftest_run_as_root", False)
+        test_collections = variables.get("kselftest_test_collections", "")
+        skip_tests = variables.get("kselftest_skip_tests", "")
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
                 working_path=working_path,
                 file_path=file_path,
+                test_collections=test_collections,
+                skip_tests=skip_tests,
             )
             kselftest.run_all(result, log_path, self._KSELF_TIMEOUT, run_as_root)
         except UnsupportedDistroException as identifier:
