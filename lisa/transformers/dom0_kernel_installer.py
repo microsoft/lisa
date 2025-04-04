@@ -9,8 +9,9 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.node import Node
-from lisa.tools import Cp, Echo, Ln, Ls, Sed, Tar, Uname
-from lisa.util import field_metadata
+from lisa.operating_system import CBLMariner
+from lisa.tools import Cat, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
+from lisa.util import UnsupportedDistroException, field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
 from .kernel_source_installer import SourceInstaller, SourceInstallerSchema
@@ -66,8 +67,11 @@ class BinaryInstaller(BaseInstaller):
         return []
 
     def validate(self) -> None:
-        # nothing to validate before source installer started.
-        ...
+        if not isinstance(self._node.os, CBLMariner):
+            raise UnsupportedDistroException(
+                self._node.os,
+                f"The '{self.type_name()}' installer only support Mariner distro",
+            )
 
     def install(self) -> str:
         node = self._node
@@ -79,6 +83,8 @@ class BinaryInstaller(BaseInstaller):
 
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
+
+        mariner_version = int(node.os.information.version.major)
 
         # Kernel absolute path: /home/user/vmlinuz-5.15.57.1+
         # Naming convention : vmlinuz-<version>
@@ -124,11 +130,21 @@ class BinaryInstaller(BaseInstaller):
                 node.get_pure_path(f"/boot/initrd.img-{new_kernel}"),
             )
         else:
-            ln = node.tools[Ln]
-            ln.create_link(
-                target=f"/boot/initrd.img-{current_kernel}",
-                link=f"/boot/initrd.img-{new_kernel}",
-            )
+            if mariner_version == 2:
+                # Mariner 2.0 initrd
+                target = f"/boot/initrd.img-{current_kernel}"
+                link = f"/boot/initrd.img-{new_kernel}"
+
+                ln = node.tools[Ln]
+                ln.create_link(
+                    target=target,
+                    link=link,
+                )
+            else:
+                # Mariner 3.0 and above
+                initramfs = f"/boot/initramfs-{new_kernel}.img"
+                dracut_cmd = f"dracut --force {initramfs} {new_kernel}"
+                node.execute(dracut_cmd, sudo=True, shell=True)
 
         if kernel_config_path:
             # Copy kernel config
@@ -148,6 +164,7 @@ class BinaryInstaller(BaseInstaller):
             node,
             current_kernel,
             new_kernel,
+            mariner_version,
         )
 
         return new_kernel
@@ -185,10 +202,12 @@ class Dom0Installer(SourceInstaller):
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
 
+        mariner_version = int(node.os.information.version.major)
         _update_mariner_config(
             node,
             current_kernel,
             new_kernel,
+            mariner_version,
         )
 
         return new_kernel
@@ -211,22 +230,50 @@ def _update_mariner_config(
     node: Node,
     current_kernel: str,
     new_kernel: str,
+    mariner_version: int,
 ) -> None:
-    mariner_config: str = "/boot/mariner-mshv.cfg"
+    cat = node.tools[Cat]
     sed = node.tools[Sed]
 
-    # Modify the /boot/mariner-mshv.cfg to point new kernel binary
+    # Param for Dom0 3.0 kernel installation
+    mariner_config = "/boot/grub2/grub.cfg"
+    vmlinuz_regexp = f"vmlinuz-{current_kernel}"
+    vmlinuz_replacement = f"vmlinuz-{new_kernel}"
+    initrd_regexp = f"initramfs-{current_kernel}.img"
+    initrd_replacement = f"initramfs-{new_kernel}.img"
+
+    if isinstance(node.os, CBLMariner) and mariner_version == 2:
+        # Change param for Dom0 2.0 kernel installation
+        mariner_config = "/boot/mariner-mshv.cfg"
+        initrd_regexp = f"mariner_initrd_mshv=initrd.img-{current_kernel}"
+        initrd_replacement = f"mariner_initrd_mshv=initrd.img-{new_kernel}"
+
+    cat.read(mariner_config, sudo=True, force_run=True)
+
+    # Modify file to point new kernel binary
     sed.substitute(
-        regexp=f"mariner_linux_mshv=vmlinuz-{current_kernel}",
-        replacement=f"mariner_linux_mshv=vmlinuz-{new_kernel}",
+        regexp=vmlinuz_regexp,
+        replacement=vmlinuz_replacement,
         file=mariner_config,
         sudo=True,
     )
 
-    # Modify the /boot/mariner-mshv.cfg to point new initrd binary
+    # Modify file to point new initrd binary
     sed.substitute(
-        regexp=f"mariner_initrd_mshv=initrd.img-{current_kernel}",
-        replacement=f"mariner_initrd_mshv=initrd.img-{new_kernel}",
+        regexp=initrd_regexp,
+        replacement=initrd_replacement,
         file=mariner_config,
         sudo=True,
     )
+
+    lsblk = node.tools[Lsblk]
+    root_partition = lsblk.find_partition_by_mountpoint("/", force_run=True)
+
+    # initramfs can only understand PARTUUID
+    sed.substitute(
+        regexp=f"root=UUID={root_partition.uuid}",
+        replacement=f"root=PARTUUID={root_partition.part_uuid}",
+        file=mariner_config,
+        sudo=True,
+    )
+    cat.read(mariner_config, sudo=True, force_run=True)

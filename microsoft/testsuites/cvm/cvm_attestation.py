@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import base64
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from lisa import (
     Environment,
@@ -10,18 +11,22 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
-    features,
 )
 from lisa.features.security_profile import CvmEnabled
-from lisa.operating_system import Ubuntu
-from lisa.sut_orchestrator import AZURE
+from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.sut_orchestrator import AZURE, CLOUD_HYPERVISOR
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Ls
+from lisa.tools import Ls, Lscpu
+from lisa.tools.lscpu import CpuType
 from lisa.util import SkippedException, UnsupportedDistroException
 from microsoft.testsuites.cvm.cvm_attestation_tool import (
     AzureCVMAttestationTests,
     NestedCVMAttestationTests,
+    SnpGuest,
 )
+
+if TYPE_CHECKING:
+    from lisa.sut_orchestrator.libvirt.context import NodeContext
 
 
 @TestSuiteMetadata(
@@ -34,11 +39,17 @@ from microsoft.testsuites.cvm.cvm_attestation_tool import (
 class AzureCVMAttestationTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
-        if not isinstance(node.os, Ubuntu):
+        if not isinstance(node.os, Ubuntu) and not isinstance(node.os, CBLMariner):
             raise SkippedException(
                 UnsupportedDistroException(
-                    node.os, "CVM attestation report supports only Ubuntu."
+                    node.os,
+                    "CVM attestation report supports only Ubuntu and Azure Linux.",
                 )
+            )
+
+        if node.tools[Lscpu].get_cpu_type() != CpuType.AMD:
+            raise SkippedException(
+                "CVM attestation report supports only SEV-SNP (AMD) CPU."
             )
 
     @TestCaseMetadata(
@@ -61,11 +72,14 @@ class AzureCVMAttestationTestSuite(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
-        node.tools[AzureCVMAttestationTests].run_cvm_attestation(
-            result,
-            environment,
-            log_path,
-        )
+        if isinstance(node.os, Ubuntu):
+            node.tools[AzureCVMAttestationTests].run_cvm_attestation(
+                result,
+                environment,
+                log_path,
+            )
+        elif isinstance(node.os, CBLMariner):
+            node.tools[SnpGuest].run_cvm_attestation()
 
 
 @TestSuiteMetadata(
@@ -86,6 +100,11 @@ class NestedCVMAttestationTestSuite(TestSuite):
         if not sev_guest_exists:
             raise SkippedException("/dev/sev-guest: Device Not Found")
 
+        if node.tools[Lscpu].get_cpu_type() != CpuType.AMD:
+            raise SkippedException(
+                "CVM attestation report supports only SEV-SNP (AMD) CPU."
+            )
+
     @TestCaseMetadata(
         description="""
             Runs get-snp-report tool to generate
@@ -93,7 +112,8 @@ class NestedCVMAttestationTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[features.CVMNestedVirtualization],
+            supported_features=[CvmEnabled()],
+            supported_platform_type=[CLOUD_HYPERVISOR],
         ),
     )
     def verify_nested_cvm_attestation_report(
@@ -105,7 +125,10 @@ class NestedCVMAttestationTestSuite(TestSuite):
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
-        host_data = variables.get("host_data", "")
+        from lisa.sut_orchestrator.libvirt.context import get_node_context
+
+        node_context = get_node_context(node)
+        host_data = self._get_host_data(node_context)
         if not host_data:
             raise SkippedException("host_data is empty")
         node.tools[NestedCVMAttestationTests].run_cvm_attestation(
@@ -114,3 +137,15 @@ class NestedCVMAttestationTestSuite(TestSuite):
             log_path,
             host_data,
         )
+
+    def _get_host_data(self, node_context: "NodeContext") -> str:
+        # Based on libvirt version our libvirt platform will set
+        # either plain text or b64 encoded string as host data.
+        # We need to decode it as this test would get host_data
+        # from attestation tool as plain text
+        # or
+        # Return original data if not set as base64 encoded string
+        host_data = node_context.host_data
+        if node_context.is_host_data_base64:
+            host_data = base64.b64decode(host_data).hex()
+        return host_data

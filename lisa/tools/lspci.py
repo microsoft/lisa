@@ -76,14 +76,18 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "1016",  # Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function]
         "1018",  # Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
         "101a",  # Mellanox Technologies MT28800 Family [ConnectX-5 Ex Virtual Function]
-        "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
         "00ba",  # Microsft Azure Network Adapter VF (MANA VF)
     ],
+    constants.DEVICE_TYPE_INFINIBAND: [
+        "1018",  # Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
+        "101a",  # Mellanox Technologies MT28800 Family [ConnectX-5 Ex Virtual Function]
+        "101e",  # Mellanox Technologies [ConnectX Family mlx5Gen Virtual Function]
+    ],
     constants.DEVICE_TYPE_NVME: [
-        "b111"  # Microsoft Corporation Device, Local NVMe discs
+        "b111"  # Microsoft Corporation Device, Local NVMe disks
     ],
     constants.DEVICE_TYPE_ASAP: [
-        "00a9"  # Remote discs connected using NVMe disc controller
+        "00a9"  # Remote disks connected using NVMe disk controller
     ],
     constants.DEVICE_TYPE_GPU: [
         "1db4",  # NVIDIA Corporation GV100GL [Tesla V100 PCIe 16GB]
@@ -99,6 +103,9 @@ VENDOR_ID_DICT: Dict[str, List[str]] = {
         VENDOR_ID_MICROSOFT,
         VENDOR_ID_MELLANOX,
     ],
+    constants.DEVICE_TYPE_INFINIBAND: [
+        VENDOR_ID_MELLANOX,
+    ],
     constants.DEVICE_TYPE_NVME: [VENDOR_ID_MICROSOFT],
     constants.DEVICE_TYPE_GPU: [VENDOR_ID_NVIDIA],
     constants.DEVICE_TYPE_AMD_GPU: [VENDOR_ID_AMD],
@@ -107,6 +114,8 @@ VENDOR_ID_DICT: Dict[str, List[str]] = {
 CONTROLLER_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
         "0200",  # Ethernet controller
+    ],
+    constants.DEVICE_TYPE_INFINIBAND: [
         "0207",  # Infiniband controller
     ],
     constants.DEVICE_TYPE_NVME: [

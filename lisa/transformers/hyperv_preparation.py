@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Type
 
 from lisa import schema
-from lisa.tools import PowerShell
+from lisa.tools import HyperV
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -28,23 +28,16 @@ class HyperVPreparationTransformer(DeploymentTransformer):
     def _internal_run(self) -> Dict[str, Any]:
         runbook: DeploymentTransformerSchema = self.runbook
         assert isinstance(runbook, DeploymentTransformerSchema)
-        node = self._node
-        powershell = node.tools[PowerShell]
-        powershell.run_cmdlet(
-            "Install-WindowsFeature -Name DHCP,Hyper-V  -IncludeManagementTools",
-            force_run=True,
-        )
-        node.reboot()
-        powershell.run_cmdlet(
-            "New-VMSwitch -Name 'InternalNAT' -SwitchType Internal",
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            "New-NetNat -Name 'InternalNAT' -InternalIPInterfaceAddressPrefix '192.168.0.0/24'",  # noqa: E501
-            force_run=True,
-        )
-        powershell.run_cmdlet(
-            'New-NetIPAddress -IPAddress 192.168.0.1 -InterfaceIndex (Get-NetAdapter | Where-Object { $_.Name -like "*InternalNAT)" } | Select-Object -ExpandProperty ifIndex) -PrefixLength 24',  # noqa: E501
-            force_run=True,
-        )
+        switch_name = "InternalNAT"
+
+        # Enable Hyper-V
+        hv = self._node.tools[HyperV]
+
+        # Create an internal switch.
+        hv.create_switch(name=switch_name)
+
+        hv.setup_nat_networking(switch_name=switch_name, nat_name=switch_name)
+
+        # Configure Internal DHCP
+        hv.enable_internal_dhcp()
         return {}

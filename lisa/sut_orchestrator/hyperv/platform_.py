@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from functools import partial
 from pathlib import PurePath
 from typing import Any, List, Optional, Type, cast
@@ -8,7 +9,8 @@ from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.node import RemoteNode
 from lisa.platform_ import Platform
-from lisa.tools import Cp, HyperV, Mkdir, PowerShell
+from lisa.tools import Cp, HyperV, Mkdir, Mount, PowerShell
+from lisa.tools.hyperv import HypervSwitchType
 from lisa.util import LisaException, constants
 from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
@@ -230,8 +232,7 @@ class HypervPlatform(Platform):
         vm_name_prefix = f"{normalized_name}-e{environment.id}"
 
         hv = self._server.tools[HyperV]
-        default_switch = hv.get_default_external_switch()
-        assert default_switch, "No external switch found"
+        default_switch = hv.get_default_switch()
 
         extra_args = {
             x.command.lower(): x.args for x in self._hyperv_runbook.extra_args
@@ -305,15 +306,33 @@ class HypervPlatform(Platform):
                 hv=hv,
                 vm_name=vm_name,
             )
-            # Start the VM
-            hv.start_vm(name=vm_name, extra_args=extra_args)
+
+            try:
+                # Start the VM
+                hv.start_vm(name=vm_name, extra_args=extra_args)
+            except Exception as ex:
+                # avoid stale VMs; delete the VM before raising exception
+                self._delete_node(node_context, wait_delete=False, log=log)
+                raise ex
 
             ip_addr = hv.get_ip_address(vm_name)
+            port = 22
+            # If the switch type is internal, we need to add a NAT mapping to access the
+            # VM from the outside of HyperV host.
+            if default_switch.type == HypervSwitchType.INTERNAL:
+                port = hv.add_nat_mapping(
+                    nat_name=default_switch.name,
+                    internal_ip=ip_addr,
+                )
+                ip_addr = node_context.host.public_address
             username = self.runbook.admin_username
             password = self.runbook.admin_password
             node.set_connection_info(
-                address=ip_addr, username=username, password=password
+                address=ip_addr, username=username, password=password, public_port=port
             )
+            # In some cases, we observe that resize vhd resizes the entire disk
+            # but fails to expand the partition size.
+            self._expand_root_partition(node)
 
     def _resize_vhd_if_needed(
         self, vhd_path: PurePath, node_runbook: HypervNodeSchema
@@ -326,37 +345,65 @@ class HypervPlatform(Platform):
                 f"-SizeBytes {node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024}"
             )
 
+    def _expand_root_partition(self, node: RemoteNode) -> None:
+        # Get the root partition info
+        # The root partition is the one that has the mount point "/"
+        # sample root partition info: name: /dev/sda2, disk: sda,
+        # mount_point: /, type: ext4, options: ('rw', 'relatime')
+        root_partition = node.tools[Mount].get_partition_info("/")[0]
+        device_name = root_partition.name
+        partition = root_partition.disk
+        # for root partition name: /dev/sda2, partition is "sda" and
+        # we need to extract the partition number i.e. 2
+        root_part_num = re.findall(r"\d+", device_name)[0]
+        # Grow the partition and resize the filesystem
+        cmd_result = node.execute(
+            f"growpart /dev/{partition} {root_part_num}", sudo=True
+        )
+
+        # In case the partition is already expanded to full disk size, the
+        # command will print "NOCHANGE: partition 2 is size <size>. it cannot
+        # be grown". In this case, it returns exit code 1 which we can ignore
+        if cmd_result.exit_code != 0:
+            if "NOCHANGE" in cmd_result.stdout:
+                return
+            raise LisaException(f"Failed to grow partition: {cmd_result.stdout}")
+        node.execute(f"resize2fs {device_name}", sudo=True, expected_exit_code=0)
+
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)
 
+    def _delete_node(
+        self, node_ctx: NodeContext, wait_delete: bool, log: Logger
+    ) -> None:
+        hv = self._server.tools[HyperV]
+        vm_name = node_ctx.vm_name
+
+        # Reassign passthrough devices to host before VM is deleted
+        # This will be hot-unplug of device
+        if len(node_ctx.passthrough_devices) > 0:
+            self.device_pool.release_devices(node_ctx)
+
+        if wait_delete:
+            hv.delete_vm(vm_name)
+        else:
+            hv.delete_vm_async(vm_name)
+
+        assert node_ctx.serial_log_process
+        result = node_ctx.serial_log_process.wait_result()
+        log.debug(
+            f"{vm_name} serial log process exited with {result.exit_code}. "
+            f"stdout: {result.stdout}"
+        )
+
     def _delete_nodes(self, environment: Environment, log: Logger) -> None:
-        def _delete_node(node_ctx: NodeContext, wait_delete: bool) -> None:
-            hv = self._server.tools[HyperV]
-            vm_name = node_ctx.vm_name
-
-            # Reassign passthrough devices to host before VM is deleted
-            # This will be hot-unplug of device
-            if len(node_ctx.passthrough_devices) > 0:
-                self.device_pool.release_devices(node_ctx)
-
-            if wait_delete:
-                hv.delete_vm(vm_name)
-            else:
-                hv.delete_vm_async(vm_name)
-
-            assert node_ctx.serial_log_process
-            result = node_ctx.serial_log_process.wait_result()
-            log.debug(
-                f"{vm_name} serial log process exited with {result.exit_code}. "
-                f"stdout: {result.stdout}"
-            )
-
         run_in_parallel(
             [
                 partial(
-                    _delete_node,
+                    self._delete_node,
                     get_node_context(node),
                     self._hyperv_runbook.wait_delete,
+                    log,
                 )
                 for node in environment.nodes.list()
             ]

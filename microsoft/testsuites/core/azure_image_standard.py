@@ -6,6 +6,7 @@ from pathlib import PurePosixPath
 from typing import List, Pattern, cast
 
 from assertpy.assertpy import assert_that
+from packaging.version import Version
 
 from lisa import (
     Node,
@@ -13,6 +14,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    schema,
     simple_requirement,
 )
 from lisa.features import Disk
@@ -34,8 +36,9 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
     LisaException,
@@ -243,6 +246,41 @@ class AzureImageStandard(TestSuite):
         ),
         # pam_unix,pam_faillock
         re.compile(r"^(.*pam_unix,pam_faillock.*)$", re.M),
+        # hamless mellanox warning that does not affect functionality of the system
+        re.compile(
+            r"^(.*mlx5_core0: WARN: mlx5_fwdump_prep:92:\(pid 0\).*)$",
+            re.M,
+        ),
+        # ACPI failback to PDC
+        re.compile(
+            r"^(.* ACPI: _OSC evaluation for CPUs failed, trying _PDC\r)$",
+            re.M,
+        ),
+        # Buffer I/O error on dev sr0, logical block 1, async page read
+        re.compile(
+            r"^(.*Buffer I/O error on dev sr0, logical block 1, async page read\r)$",
+            re.M,
+        ),
+        # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x80700 phys_seg 1 prio class 2
+        # I/O error,dev sr0,sector 8 op 0x0:(READ) flags 0x0 phys_seg 1 prio class 2
+        re.compile(
+            r"^(.* I/O error, dev sr0, sector 8 op 0x0:\(READ\) flags 0x[0-9a-fA-F]+ phys_seg 1 prio class 2\r)$",  # noqa: E501
+            re.M,
+        ),
+        # 2025-01-16T08:51:16.449922+00:00 azurelinux kernel: audit: type=1103
+        # audit(1737017476.442:257): pid=1296 uid=0 auid=4294967295 ses=4294967295
+        # subj=unconfined msg=\'op=PAM:setcred grantors=? acct="l****t"
+        # exe="/usr/lib/systemd/systemd-executor" hostname=? addr=?terminal=?res=failed
+        re.compile(
+            r"(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+00:00\s)?"
+            r"(?P<hostname>[a-zA-Z0-9\-]+)\s(kernel:\s)?\[\s*(?P<kernel_time>\d+\.\d+)\s*\]"  # noqa: E501
+            r"(?:\s*)?audit:\s+type=(?P<type>\d+)\s+audit\((?P<audit_time>\d+\.\d+):"
+            r"(?P<audit_id>\d+)\):\s+pid=(?P<pid>\d+)\s+uid=(?P<uid>\d+)\s+auid="
+            r"(?P<auid>\d+)\s+ses=(?P<ses>\d+)\s+subj=(?P<subj>[a-zA-Z0-9\-]+)\s+"
+            r"msg=\'op=PAM:setcred\s+grantors=\?[\s\S]*?acct=\"(?P<acct>[a-zA-Z0-9\*\-]+)\""  # noqa: E501
+            r"\s+exe=\"(?P<exe>[^\"]+)\"\s+hostname=\? addr=\? terminal=\? res="
+            r"(?P<res>[a-zA-Z]+)\'\r"
+        ),
     ]
 
     @TestCaseMetadata(
@@ -261,7 +299,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that `Defaults targetpw` should be disabled, if present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_default_targetpw(self, node: Node) -> None:
         sudoers_out = (
@@ -283,7 +321,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY], unsupported_os=[BSD]
+            supported_platform_type=[AZURE, READY, HYPERV], unsupported_os=[BSD]
         ),
     )
     def verify_grub(self, node: Node) -> None:
@@ -342,7 +380,7 @@ class AzureImageStandard(TestSuite):
         network manager is not installed.
         """,
         priority=3,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_network_manager_not_installed(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -370,7 +408,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that networking is enabled in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -387,6 +425,13 @@ class AzureImageStandard(TestSuite):
                 network_file.upper(),
                 f"networking=yes should be present in {network_file_path}",
             ).contains("networking=yes".upper())
+        elif isinstance(node.os, CBLMariner):
+            network_file_path = "/etc/systemd/networkd.conf"
+            file_exists = node.shell.exists(PurePosixPath(network_file_path))
+            assert_that(
+                file_exists,
+                f"The network file should be present at {network_file_path}",
+            ).is_true()
         else:
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
@@ -399,7 +444,7 @@ class AzureImageStandard(TestSuite):
         "ONBOOT=yes" is present in network file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -435,7 +480,7 @@ class AzureImageStandard(TestSuite):
         files are not present.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_udev_rules_moved(self, node: Node) -> None:
         if isinstance(node.os, CoreOs):
@@ -443,7 +488,7 @@ class AzureImageStandard(TestSuite):
                 "/usr/lib64/udev/rules.d/75-persistent-net-generator.rules"
             )
             udev_file_path_70_rule = "/usr/lib64/udev/rules.d/70-persistent-net.rules"
-        elif isinstance(node.os, Fedora):
+        elif isinstance(node.os, Fedora) or isinstance(node.os, CBLMariner):
             udev_file_path_75_rule = (
                 "/lib/udev/rules.d/75-persistent-net-generator.rules"
             )
@@ -471,7 +516,7 @@ class AzureImageStandard(TestSuite):
         2. Verify that DHCLIENT_SET_HOSTNAME="no" is present in the file.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_dhcp_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Suse):
@@ -491,6 +536,25 @@ class AzureImageStandard(TestSuite):
                 'DHCLIENT_SET_HOSTNAME="no" should be present in '
                 f"file {dhcp_file_path}",
             ).contains('DHCLIENT_SET_HOSTNAME="no"')
+        elif isinstance(node.os, CBLMariner):
+            if node.os.information.version.major == 3:
+                dhcp_file_path = "/etc/dhcpcd.conf"
+                dhcp_file_content = "option host_name"
+            else:
+                dhcp_file_path = "/etc/dhcp/dhclient.conf"
+                dhcp_file_content = "host-name"
+            file_exists = node.shell.exists(PurePosixPath(dhcp_file_path))
+
+            assert_that(
+                file_exists,
+                f"The dhcp file should be present at {dhcp_file_path}",
+            ).is_true()
+
+            dhcp_file = node.tools[Cat].read(dhcp_file_path)
+            assert_that(
+                dhcp_file,
+                f"option host_name should be present in file {dhcp_file_path}",
+            ).contains(dhcp_file_content)
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
@@ -504,7 +568,7 @@ class AzureImageStandard(TestSuite):
         present in the file.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_yum_conf(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
@@ -527,7 +591,7 @@ class AzureImageStandard(TestSuite):
         2. Reboot the VM and see if the VM is still in good state.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
@@ -546,7 +610,7 @@ class AzureImageStandard(TestSuite):
         has length greater than zero.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_hv_kvp_daemon_installed(self, node: Node) -> None:
         if isinstance(node.os, Debian):
@@ -570,7 +634,7 @@ class AzureImageStandard(TestSuite):
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
         assert isinstance(node.os, Posix)
@@ -793,52 +857,29 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check the serial console is enabled from kernel command line
-         in dmesg.
+        This test will check the serial console is enabled from kernel command line.
 
         Steps:
-        1. Get the kernel command line from /var/log/messages or
-            /var/log/syslog output.
+        1. Get the kernel command line from /var/log/messages, /var/log/syslog,
+            dmesg, or journalctl output.
         2. Check expected setting from kernel command line.
             2.1. Expected to see 'console=ttyAMA0' for aarch64.
             2.2. Expected to see 'console=ttyS0' for x86_64.
+            2.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
-        console_device = {
-            CpuArchitecture.X64: "ttyS0",
-            CpuArchitecture.ARM64: "ttyAMA0",
-        }
         if isinstance(node.os, CBLMariner):
             if node.os.information.version < "2.0.0":
                 raise SkippedException(
                     "CBLMariner 1.0 has a known 'wont fix' issue with this test"
                 )
-        if isinstance(node.os, CBLMariner) or (
-            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
-        ):
-            log_output = node.tools[Dmesg].get_output()
-            log_file = "dmesg"
-        else:
-            cat = node.tools[Cat]
-            if node.shell.exists(node.get_pure_path("/var/log/messages")):
-                log_file = "/var/log/messages"
-                log_output = cat.read(log_file, force_run=True, sudo=True)
-            elif node.shell.exists(node.get_pure_path("/var/log/syslog")):
-                log_file = "/var/log/syslog"
-                log_output = cat.read(log_file, force_run=True, sudo=True)
-            else:
-                log_file = "journalctl"
-                journalctl = node.tools[Journalctl]
-                log_output = journalctl.first_n_logs_from_boot()
-            if not log_output:
-                raise LisaException(
-                    "Neither /var/log/messages nor /var/log/syslog found."
-                    "and journal ctl log is empty."
-                )
-
+        console_device = {
+            CpuArchitecture.X64: "ttyS0",
+            CpuArchitecture.ARM64: "ttyAMA0",
+        }
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[arch]
@@ -846,15 +887,49 @@ class AzureImageStandard(TestSuite):
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
         freebsd_pattern = re.compile(r"^(.*uart0: console \(115200,n,8,1\).*)$", re.M)
-        result = find_patterns_in_lines(
-            log_output, [console_enabled_pattern, freebsd_pattern]
-        )
-        if not (result[0] or result[1]):
+        patterns = [console_enabled_pattern, freebsd_pattern]
+        logs_checked = []
+        pattern_found = False
+        # Check dmesg output for the patterns if certain OS detected
+        if isinstance(node.os, CBLMariner) or (
+            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
+        ):
+            dmesg_tool = node.tools[Dmesg]
+            log_output = dmesg_tool.get_output()
+            logs_checked.append(f"{dmesg_tool.command}")
+            if any(find_patterns_in_lines(log_output, patterns)):
+                pattern_found = True
+        else:
+            # Check each log source, if it is accessible, for the defined patterns
+            # If log files can be read, add to list of logs checked
+            # If pattern detected, break out of loop and pass test
+            log_sources = [
+                ("/var/log/syslog", node.tools[Cat]),
+                ("/var/log/messages", node.tools[Cat]),
+            ]
+            for log_file, tool in log_sources:
+                if node.shell.exists(node.get_pure_path(log_file)):
+                    current_log_output = tool.read(log_file, force_run=True, sudo=True)
+                    if current_log_output:
+                        logs_checked.append(log_file)
+                        if any(find_patterns_in_lines(current_log_output, patterns)):
+                            pattern_found = True
+                            break
+            # Check journalctl logs if patterns were not found in other log sources
+            journalctl_tool = node.tools[Journalctl]
+            if not pattern_found and journalctl_tool.exists:
+                current_log_output = journalctl_tool.first_n_logs_from_boot()
+                if current_log_output:
+                    logs_checked.append(f"{journalctl_tool.command}")
+                    if any(find_patterns_in_lines(current_log_output, patterns)):
+                        pattern_found = True
+        # Raise an exception if the patterns were not found in any of the checked logs
+        if not pattern_found:
             raise LisaException(
                 "Fail to find console enabled line "
                 f"'console [{current_console_device}] enabled' "
                 "or 'uart0: console (115200,n,8,1)' "
-                f"from {log_file} output",
+                f"from {', '.join(logs_checked)} output"
             )
 
     @TestCaseMetadata(
@@ -868,7 +943,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
         path_bash_history = "/root/.bash_history"
@@ -877,7 +952,10 @@ class AzureImageStandard(TestSuite):
             cat = node.tools[Cat]
             bash_history = cat.read(path_bash_history, sudo=True)
             assert_that(bash_history).described_as(
-                "/root/.bash_history is not empty, this image is not prepared well."
+                "/root/.bash_history is not empty. This could include private "
+                "information or plain-text credentials for other systems. It might be "
+                "vulnerable and exposing sensitive data. Please remove the bash "
+                "history completely using command 'sudo rm -f ~/.bash_history'."
             ).is_empty()
 
     @TestCaseMetadata(
@@ -892,7 +970,7 @@ class AzureImageStandard(TestSuite):
          existing, fail the case.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_boot_error_fail_warnings(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
@@ -941,7 +1019,7 @@ class AzureImageStandard(TestSuite):
          fail the case.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_cloud_init_error_status(self, node: Node) -> None:
         cat = node.tools[Cat]
@@ -989,7 +1067,7 @@ class AzureImageStandard(TestSuite):
         3. Pass with warning if the value is not between 0 and 180.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
         ssh = node.tools[Ssh]
@@ -998,7 +1076,11 @@ class AzureImageStandard(TestSuite):
         if not value:
             raise LisaException(f"not find {setting} in sshd_config")
         if not (int(value) > 0 and int(value) < 181):
-            raise LisaException(f"{setting} should be set between 0 and 180")
+            raise LisaException(
+                f"The {setting} configuration of OpenSSH is set to {int(value)} "
+                "seconds in this image. Please keep the client alive interval between "
+                "0 seconds and 180 seconds."
+            )
 
     @TestCaseMetadata(
         description="""
@@ -1010,7 +1092,7 @@ class AzureImageStandard(TestSuite):
         3. Fail the case if the key of any user existing.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
         key_pattern = re.compile(
@@ -1110,11 +1192,16 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_readme_file(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe disks are not formatted or mounted by"
+                " default and readme file wont be available"
+            )
 
-        # verify that resource disk is mounted
-        # function returns successfully if disk matching mount point is present
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        # verify that resource disk is mounted. raise exception if not
+        node.features[Disk].check_resource_disk_mounted()
+
+        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
 
         # Verify lost+found folder exists
         # Skip this step for BSD as it does not have lost+found folder
@@ -1154,14 +1241,60 @@ class AzureImageStandard(TestSuite):
         ),
     )
     def verify_resource_disk_file_system(self, node: RemoteNode) -> None:
-        resource_disk_mount_point = node.features[Disk].get_resource_disk_mount_point()
-        node.features[Disk].get_partition_with_mount_point(resource_disk_mount_point)
+        node_disc = node.features[Disk]
+        if schema.ResourceDiskType.NVME == node.features[Disk].get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe disks are not formatted or mounted by default"  # noqa: E501
+            )
+        # verify that resource disk is mounted. raise exception if not
+        node_disc.check_resource_disk_mounted()
+        resource_disk_mount_point = node_disc.get_resource_disk_mount_point()
         disk_info = node.tools[Lsblk].find_disk_by_mountpoint(resource_disk_mount_point)
         for partition in disk_info.partitions:
             # by default, resource disk comes with ntfs type
-            # waagent or cloud-init will format it unless there are some commands hung
-            # or interrupt
+            # waagent or cloud-init will format it unless there are some commands
+            # hung or interrupt
             assert_that(
                 partition.fstype,
                 "Resource disk file system type should not equal to ntfs",
             ).is_not_equal_to("ntfs")
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of the Microsoft Azure Linux Agent (waagent).
+
+        Steps:
+        1. Retrieve the version of waagent.
+        2. Check if the version is lower than the minimum supported version.
+           The minimum supported version can be found at:
+           https://learn.microsoft.com/en-us/troubleshoot/azure/virtual-machines/
+           windows/support-extensions-agent-version
+        3. Check if auto update is enabled.
+        4. Fail the test if the version is lower than the minimum supported version
+           and auto update is not enabled, otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_waagent_version(self, node: Node) -> None:
+        minimum_version = Version("2.2.53.1")
+        waagent = node.tools[Waagent]
+        waagent_version = waagent.get_version()
+        try:
+            current_version = Version(waagent_version)
+        except Exception as e:
+            raise LisaException(
+                f"Failed to parse waagent version '{waagent_version}'. Error: {str(e)}"
+            )
+
+        if current_version < minimum_version:
+            waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
+            if not waagent_auto_update_enabled:
+                raise LisaException(
+                    f"The waagent version {waagent_version} is lower than the required "
+                    f"version {minimum_version} and auto update is not enabled. Please "
+                    f"update the waagent to a version >= {minimum_version}. Please "
+                    "refer to https://learn.microsoft.com/en-us/azure/virtual-machines/"
+                    "extensions/update-linux-agent?tabs=ubuntu for more details to "
+                    "update."
+                )

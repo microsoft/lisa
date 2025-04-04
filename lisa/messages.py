@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 @dataclass
 class MessageBase:
     type: str = "Base"
-    time: datetime = datetime.min
+    time: Optional[datetime] = None
     elapsed: float = 0
 
 
@@ -121,9 +121,34 @@ class PerfMessage(MessageBase):
     ip_version: str = NetworkProtocol.IPv4
     protocol_type: str = TransportProtocol.Tcp
     data_path: str = ""
-    test_date: datetime = datetime.utcnow()
+    test_date: datetime = datetime.now(timezone.utc)
     role: str = ""
     test_result_id: str = ""
+
+
+class MetricRelativity(str, Enum):
+    NA = ""
+    HigherIsBetter = "HigherIsBetter"
+    LowerIsBetter = "LowerIsBetter"
+
+    @classmethod
+    def parse(cls, str_value: str) -> "MetricRelativity":
+        if str_value.upper() == cls.HigherIsBetter.upper():
+            return MetricRelativity.HigherIsBetter
+        elif str_value.upper() == cls.LowerIsBetter.upper():
+            return MetricRelativity.LowerIsBetter
+        else:
+            return MetricRelativity.NA
+
+
+@dataclass
+class UnifiedPerfMessage(PerfMessage):
+    type: str = "UnifiedPerformance"
+    metric_name: str = ""
+    metric_value: Decimal = Decimal(0)
+    metric_unit: str = ""
+    metric_description: str = ""
+    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
 
 
 T = TypeVar("T", bound=PerfMessage)
@@ -274,13 +299,11 @@ class KernelBuildMessage(MessageBase):
 
 
 @dataclass
-class VCMetrics(MessageBase):
-    time_stamp: datetime = datetime.now(timezone.utc)
+class VCMetricsMessage(PerfMessage):
     experiment_id: str = ""
     client_id: str = ""
     profile: str = ""
     profile_name: str = ""
-    tool_name: str = ""
     scenario_name: str = ""
     scenario_start_time: datetime = datetime.now(timezone.utc)
     scenario_end_time: datetime = datetime.now(timezone.utc)
@@ -358,6 +381,37 @@ def send_sub_test_result_message(
         other_fields = {}
     other_fields.update({"parent_test": test_result.runtime_data.name})
     dict_to_fields(other_fields, message)
+
+    notifier.notify(message)
+
+    return message
+
+
+__decimal_zero = Decimal(0)
+
+
+def send_unified_perf_message(
+    node: "Node",
+    test_result: "TestResult",
+    test_case_name: str = "",
+    metric_name: str = "",
+    metric_value: Decimal = __decimal_zero,
+    metric_unit: str = "",
+    metric_description: str = "",
+    metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
+) -> UnifiedPerfMessage:
+    message = create_perf_message(
+        message_type=UnifiedPerfMessage,
+        node=node,
+        test_result=test_result,
+        test_case_name=test_case_name,
+    )
+
+    message.metric_name = metric_name
+    message.metric_value = metric_value
+    message.metric_unit = metric_unit
+    message.metric_description = metric_description
+    message.metric_relativity = metric_relativity
 
     notifier.notify(message)
 

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Type, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from azure.mgmt.compute.models import GrantAccessData
 from dataclasses_json import dataclass_json
@@ -33,6 +33,8 @@ from .common import (
     check_or_create_gallery_image_version,
     check_or_create_resource_group,
     check_or_create_storage_account,
+    copy_vhd_using_azcopy,
+    generate_user_delegation_sas_token,
     get_compute_client,
     get_deployable_vhd_path,
     get_environment_context,
@@ -96,18 +98,24 @@ class VhdTransformerSchema(schema.Transformer):
     # deprovision the VM or not
     deprovision: bool = True
 
+    # the AzCopy path can be specified if use this tool to copy blob
+    azcopy_path: str = ""
+
 
 @dataclass_json
 @dataclass
 class DeployTransformerSchema(schema.Transformer):
     requirement: schema.Capability = field(default_factory=schema.Capability)
     resource_group_name: str = ""
+    deploy: bool = True
 
 
 @dataclass_json
 @dataclass
 class DeleteTransformerSchema(schema.Transformer):
     resource_group_name: str = field(default="", metadata=field_metadata(required=True))
+    keep_environment: Optional[Union[str, bool]] = constants.ENVIRONMENT_KEEP_NO
+    wait_delete: bool = False
 
 
 class VhdTransformer(Transformer):
@@ -116,6 +124,7 @@ class VhdTransformer(Transformer):
     """
 
     __url_name = "url"
+    __vmgs_url_name = "vmgs_url"
 
     @classmethod
     def type_name(cls) -> str:
@@ -127,7 +136,7 @@ class VhdTransformer(Transformer):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.__url_name]
+        return [self.__url_name, self.__vmgs_url_name]
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook: VhdTransformerSchema = self.runbook
@@ -157,11 +166,11 @@ class VhdTransformer(Transformer):
 
         virtual_machine = get_vm(platform, node)
 
-        vhd_location = self._export_vhd(platform, virtual_machine)
+        outputs = self._export_vhd(platform, virtual_machine)
 
         self._restore_vm(platform, virtual_machine, node)
 
-        return {self.__url_name: vhd_location}
+        return outputs
 
     def _prepare_virtual_machine(self, node: RemoteNode) -> None:
         runbook: VhdTransformerSchema = self.runbook
@@ -178,7 +187,9 @@ class VhdTransformer(Transformer):
         startstop = node.features[StartStop]
         startstop.stop()
 
-    def _export_vhd(self, platform: AzurePlatform, virtual_machine: Any) -> str:
+    def _export_vhd(
+        self, platform: AzurePlatform, virtual_machine: Any
+    ) -> Dict[str, str]:
         runbook: VhdTransformerSchema = self.runbook
         compute_client = get_compute_client(platform)
 
@@ -186,14 +197,28 @@ class VhdTransformer(Transformer):
         self._log.debug("generating sas url...")
         location = virtual_machine.location
         os_disk_name = virtual_machine.storage_profile.os_disk.name
+
+        has_vmgs = (
+            virtual_machine.storage_profile.os_disk.managed_disk.security_profile
+            is not None
+        )
+
         operation = compute_client.disks.begin_grant_access(
             resource_group_name=runbook.resource_group_name,
             disk_name=os_disk_name,
-            grant_access_data=GrantAccessData(access="Read", duration_in_seconds=86400),
+            grant_access_data=GrantAccessData(
+                access="Read",
+                duration_in_seconds=86400,
+                get_secure_vm_guest_state_sas=has_vmgs,
+            ),
         )
         wait_operation(operation)
-        sas_url = operation.result().access_sas
+        result = operation.result()
+        sas_url = result.access_sas
+        vmgs_sas_url = result.security_data_access_sas or ""
         assert sas_url, "cannot get sas_url from os disk"
+        assert isinstance(sas_url, str), "sas_url is not a string"
+        assert isinstance(vmgs_sas_url, str), "vmgs_sas_url is not a string"
 
         self._log.debug("getting or creating storage account and container...")
         # get vhd container
@@ -216,19 +241,79 @@ class VhdTransformer(Transformer):
             cloud=platform.cloud,
             account_name=runbook.storage_account_name,
             container_name=runbook.container_name,
+            platform=platform,
         )
 
         if runbook.custom_blob_name:
-            path = runbook.custom_blob_name
+            vhd_path = runbook.custom_blob_name
         else:
-            path = _generate_vhd_path(container_client, runbook.file_name_part)
-        vhd_path = f"{container_client.url}/{path}"
-        blob_client = container_client.get_blob_client(path)
-        blob_client.start_copy_from_url(sas_url, metadata=None, incremental_copy=False)
+            vhd_path = _generate_vhd_path(container_client, runbook.file_name_part)
+        vhd_url_path = f"{container_client.url}/{vhd_path}"
+        vhd_blob_client = container_client.get_blob_client(vhd_path)
+        if runbook.azcopy_path:
+            sas_token = generate_user_delegation_sas_token(
+                container_name=vhd_blob_client.container_name,
+                blob_name=vhd_blob_client.blob_name,
+                credential=platform.credential,
+                cloud=platform.cloud,
+                account_name=runbook.storage_account_name,
+                writable=True,
+                platform=platform,
+            )
+            dst_vhd_sas_url = f"{vhd_url_path}?{sas_token}"
+            self._log.info(f"Copying VHD using AzCopy: {vhd_path}")
+            copy_vhd_using_azcopy(
+                azcopy_path=runbook.azcopy_path,
+                src_vhd_sas_url=sas_url,
+                dst_vhd_sas_url=dst_vhd_sas_url,
+                blob_client=vhd_blob_client,
+                log=self._log,
+            )
+        else:
+            vhd_blob_client.start_copy_from_url(
+                sas_url, metadata=None, incremental_copy=False
+            )
 
-        wait_copy_blob(blob_client, vhd_path, self._log)
+        if vmgs_sas_url:
+            vmgs_path = vhd_path.replace(".vhd", "_vmgs.vhd")
+            assert vmgs_path != vhd_path, (
+                "vmgs url path is the same as vhd url path. "
+                "Make sure the custom_blob_name ends in .vhd"
+            )
+            vmgs_url_path = f"{container_client.url}/{vmgs_path}"
+            vmgs_blob_client = container_client.get_blob_client(vmgs_path)
+            if runbook.azcopy_path:
+                sas_token = generate_user_delegation_sas_token(
+                    container_name=vmgs_blob_client.container_name,
+                    blob_name=vmgs_blob_client.blob_name,
+                    credential=platform.credential,
+                    cloud=platform.cloud,
+                    account_name=runbook.storage_account_name,
+                    writable=True,
+                    platform=platform,
+                )
+                dst_vhd_sas_url = f"{vmgs_url_path}?{sas_token}"
+                self._log.info(f"Copying VHD using AzCopy: {vmgs_path}")
+                copy_vhd_using_azcopy(
+                    azcopy_path=runbook.azcopy_path,
+                    src_vhd_sas_url=vmgs_sas_url,
+                    dst_vhd_sas_url=dst_vhd_sas_url,
+                    blob_client=vmgs_blob_client,
+                    log=self._log,
+                )
+            else:
+                vmgs_blob_client.start_copy_from_url(
+                    vmgs_sas_url, metadata=None, incremental_copy=False
+                )
+            wait_copy_blob(vmgs_blob_client, vmgs_url_path, self._log)
+        else:
+            vmgs_url_path = ""
 
-        return vhd_path
+        # Wait for VHD to copy after copying VMGS
+        # so they can copy in parallel
+        wait_copy_blob(vhd_blob_client, vhd_url_path, self._log)
+
+        return {self.__url_name: vhd_url_path, self.__vmgs_url_name: vmgs_url_path}
 
     def _restore_vm(
         self, platform: AzurePlatform, virtual_machine: Any, node: Node
@@ -301,7 +386,7 @@ class DeployTransformer(Transformer):
         assert environment
 
         platform.prepare_environment(environment=environment)
-
+        platform._azure_runbook.deploy = runbook.deploy
         platform.deploy_environment(environment)
 
         resource_group_name = get_environment_context(environment).resource_group_name
@@ -348,6 +433,8 @@ class DeleteTransformer(Transformer):
         environment_context.resource_group_name = runbook.resource_group_name
         environment_context.resource_group_is_specified = True
 
+        platform.runbook.keep_environment = runbook.keep_environment
+        platform._azure_runbook.wait_delete = runbook.wait_delete
         platform.delete_environment(environment)
 
         return {}

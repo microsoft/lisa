@@ -3,6 +3,7 @@
 
 import base64
 import gzip
+import random
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -38,10 +39,12 @@ def _create_and_verify_extension_run(
     assert_exception: Any = None,
 ) -> None:
     extension = node.features[AzureExtension]
+    extension_name = "CustomScript"
+    extension.delete(name=extension_name, ignore_not_found=True)
 
     def enable_extension() -> Any:
         result = extension.create_or_update(
-            name="CustomScript",
+            name=extension_name,
             publisher="Microsoft.Azure.Extensions",
             type_="CustomScript",
             type_handler_version="2.1",
@@ -383,7 +386,8 @@ class CustomScriptTests(TestSuite):
     ) -> None:
         container_name = "cselisa"
         blob_name = "no-sas.sh"
-        test_file = "/tmp/cse-no-sas.txt"
+        random_str = "".join(random.sample("0123456789", 10))
+        test_file = f"/tmp/cse-no-sas-{random_str}.txt"
 
         blob_url = retrieve_storage_blob_url(
             node=node,

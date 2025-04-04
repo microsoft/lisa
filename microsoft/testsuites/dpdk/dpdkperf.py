@@ -286,6 +286,7 @@ class DpdkPerformance(TestSuite):
                     log,
                     variables,
                     pmd,
+                    result=test_result,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -294,6 +295,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     HugePageSize.HUGE_2MB,
+                    result=test_result,
                 )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

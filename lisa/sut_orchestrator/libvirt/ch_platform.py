@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import os
 import re
 import secrets
@@ -18,7 +19,8 @@ from lisa.sut_orchestrator.libvirt.context import (
     get_node_context,
 )
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
-from lisa.tools import QemuImg
+from lisa.tools import Ls, QemuImg
+from lisa.util import LisaException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import CLOUD_HYPERVISOR
@@ -70,6 +72,16 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
         else:
             node_context.kernel_path = node_runbook.kernel.path
+        libvirt_version = self._get_libvirt_version()
+        assert libvirt_version, "Can not get libvirt version"
+
+        if parse_version(libvirt_version) >= "10.5.0":
+            en = "utf-8"
+            token = secrets.token_hex(16)
+            node_context.host_data = base64.b64encode(token.encode(en)).decode(en)
+            node_context.is_host_data_base64 = True
+        else:
+            node_context.host_data = secrets.token_hex(32)
 
     def _create_node(
         self,
@@ -100,7 +112,21 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         node_context = get_node_context(node)
 
         domain = ET.Element("domain")
-        domain.attrib["type"] = "ch"
+
+        libvirt_version = self._get_libvirt_version()
+        if parse_version(libvirt_version) > "10.0.2":
+            if self.host_node.tools[Ls].path_exists("/dev/mshv", sudo=True):
+                domain.attrib["type"] = "hyperv"
+            elif self.host_node.tools[Ls].path_exists("/dev/kvm", sudo=True):
+                domain.attrib["type"] = "kvm"
+            else:
+                raise LisaException(
+                    "kvm, mshv are the only supported \
+                                    hypervsiors. Both are missing on the host"
+                )
+
+        else:
+            domain.attrib["type"] = "ch"
 
         name = ET.SubElement(domain, "name")
         name.text = node_context.vm_name
@@ -122,16 +148,22 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         os_kernel = ET.SubElement(os, "kernel")
         os_kernel.text = node_context.kernel_path
         if node_context.guest_vm_type is GuestVmType.ConfidentialVM:
+            attrb_type = "sev"
+            attrb_host_data = "host_data"
+            if parse_version(libvirt_version) >= "10.5.0":
+                attrb_type = "sev-snp"
+                attrb_host_data = "hostData"
+
             launch_sec = ET.SubElement(domain, "launchSecurity")
-            launch_sec.attrib["type"] = "sev"
+            launch_sec.attrib["type"] = attrb_type
             cbitpos = ET.SubElement(launch_sec, "cbitpos")
             cbitpos.text = "0"
             reducedphysbits = ET.SubElement(launch_sec, "reducedPhysBits")
             reducedphysbits.text = "0"
             policy = ET.SubElement(launch_sec, "policy")
             policy.text = "0"
-            host_data = ET.SubElement(launch_sec, "host_data")
-            host_data.text = secrets.token_hex(32)
+            host_data = ET.SubElement(launch_sec, attrb_host_data)
+            host_data.text = node_context.host_data
 
         devices = ET.SubElement(domain, "devices")
         if len(node_context.passthrough_devices) > 0:

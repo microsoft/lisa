@@ -1,7 +1,6 @@
 from typing import Any
 
 from assertpy import assert_that
-from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Logger,
@@ -23,7 +22,7 @@ from lisa.operating_system import (
     Ubuntu,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.util import LisaException, SkippedException
+from lisa.util import SkippedException
 
 
 @TestSuiteMetadata(
@@ -53,18 +52,10 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         # Run VM Extension
         extension = node.features[AzureExtension]
         extension_name = "Microsoft.Azure.Monitor.AzureMonitorLinuxAgent"
-        try:
-            # Delete VM Extension if already present
-            extension.delete(extension_name)
-            is_extension_present = True
-        except HttpResponseError as identifier:
-            if any(s in str(identifier) for s in ["was not found"]):
-                log.info("AzureMonitorLinuxAgent is not already installed")
-            else:
-                raise LisaException(
-                    f"unexpected exception happened {identifier} during delete"
-                    f" extension {extension_name}"
-                ) from identifier
+        is_extension_present = False
+        is_extension_present = extension.delete(
+            name=extension_name, ignore_not_found=True
+        )
 
         extension_result = extension.create_or_update(
             name=extension_name,
@@ -96,7 +87,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             Ubuntu: [16, 18, 20],
             Suse: [12, 15],
             SLES: [12, 15],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         supported_major_versions_arm64 = {
@@ -105,7 +96,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             Debian: [11],
             Ubuntu: [18, 20],
             SLES: [15],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         for distro in supported_major_versions_x86_64:

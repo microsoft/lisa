@@ -45,6 +45,7 @@ from lisa.tools import (
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
 from microsoft.testsuites.dpdk.common import (
@@ -135,7 +136,7 @@ def get_rdma_core_installer(
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
             downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
-        elif is_url_for_tarball(rdma_branch):
+        elif is_url_for_tarball(rdma_source):
             downloader = TarDownloader(node, rdma_source)
         else:
             # throw on unrecognized rdma core source type
@@ -288,8 +289,7 @@ def initialize_node_resources(
     extra_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
-    if pmd == "failsafe" and node.nics.is_mana_device_present():
-        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+    check_pmd_support(node, pmd)
 
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
@@ -346,7 +346,11 @@ def initialize_node_resources(
 
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
-    hugepages.init_hugepages(hugepage_size)
+    numa_nodes = node.tools[Lscpu].get_numa_node_count()
+    try:
+        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
+    except NotEnoughMemoryException as err:
+        raise SkippedException(err)
 
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
@@ -369,6 +373,18 @@ def initialize_node_resources(
             do_pmd_driver_setup(node=node, test_nic=extra_nic, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
+
+
+def check_pmd_support(node: Node, pmd: str) -> None:
+    # Check environment (kernel, drivers, etc) supports selected PMD.
+    if pmd == "failsafe" and node.nics.is_mana_device_present():
+        raise SkippedException("Failsafe PMD test on MANA is not supported.")
+    if pmd == "netvsc" and not (
+        node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
+    ):
+        raise SkippedException(
+            "Netvsc pmd test not supported if uio_hv_generic missing"
+        )
 
 
 def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
@@ -501,7 +517,9 @@ def verify_dpdk_build(
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
     testpmd = test_kit.testpmd
-
+    # annotate testpmd result
+    if result is not None:
+        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
     # grab a nic and run testpmd
     test_nic = node.nics.get_secondary_nic()
 
@@ -514,11 +532,10 @@ def verify_dpdk_build(
         f"TX-PPS:{tx_pps} from {test_nic.name}/{test_nic.lower}:"
         + f"{test_nic.pci_slot}"
     )
+    node.tools[Dmesg].check_kernel_errors(force_run=True)
     assert_that(tx_pps).described_as(
         f"TX-PPS ({tx_pps}) should have been greater than 2^20 (~1m) PPS."
     ).is_greater_than(2**20)
-    if result is not None:
-        annotate_dpdk_test_result(test_kit, test_result=result, log=log)
     return test_kit
 
 
@@ -595,6 +612,8 @@ def verify_dpdk_send_receive(
     log.info(f"receiver rx-pps: {rcv_rx_pps}")
     log.info(f"sender tx-pps: {snd_tx_pps}")
 
+    sender.dmesg.check_kernel_errors(force_run=True)
+    receiver.dmesg.check_kernel_errors(force_run=True)
     # differences in NIC type throughput can lead to different snd/rcv counts
     assert_that(rcv_rx_pps).described_as(
         "Throughput for RECEIVE was below the correct order-of-magnitude"
@@ -780,11 +799,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     receive_side = 2
     # arbitrarily pick fwd/snd/recv nodes.
     forwarder, sender, receiver = environment.nodes.list()
-    if (
-        not isinstance(forwarder.os, Ubuntu)
-        or forwarder.os.information.version < "22.4.0"
+    if not (
+        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+        and isinstance(forwarder.os, Ubuntu)
+        and forwarder.os.information.version >= "22.4.0"
     ):
-        raise SkippedException("l3fwd test not compatible, use Ubuntu >= 22.04")
+        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
     available_cores = forwarder.tools[Lscpu].get_core_count()
@@ -1039,6 +1059,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: only checking 0 and < 1 now. Once we have more data
     # there should be more stringest checks for each NIC type.
     throughput = ntttcp_results[receiver].throughput_in_gbps
+    forwarder.tools[Dmesg].check_kernel_errors(force_run=True)
     assert_that(throughput).described_as(
         "l3fwd test found 0Gbps througput. "
         "Either the test or DPDK forwarding is broken."
@@ -1122,15 +1143,15 @@ def get_node_nic_short_name(node: Node) -> str:
     devices = node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV)
     if node.nics.is_mana_device_present():
         return NIC_SHORT_NAMES[NicType.MANA]
-    for nic_name in [NicType.CX3, NicType.CX4, NicType.CX5]:
-        if any([str(nic_name) in x.device_id for x in devices]):
+    non_mana_nics = [NicType.CX3, NicType.CX4, NicType.CX5]
+    for nic_name in non_mana_nics:
+        if any([nic_name.value in x.device_info for x in devices]):
             return NIC_SHORT_NAMES[nic_name]
     # We assert much earlier to enforce that SRIOV is enabled,
     # so we should never hit this unless someone is testing a new platform.
     # Instead of asserting, just log that the short name was not found.
-    known_nic_types = ",".join(
-        map(str, [NicType.CX3, NicType.CX4, NicType.CX5, NicType.MANA])
-    )
+    short_names = map(lambda x: x.value, non_mana_nics)
+    known_nic_types = ",".join(short_names)
     found_nic_types = ",".join(map(str, [x.device_id for x in devices]))
     node.log.debug(
         "Unknown NIC hardware was detected during DPDK test case. "
@@ -1139,6 +1160,12 @@ def get_node_nic_short_name(node: Node) -> str:
     # this is just a function for annotating a result, so don't assert
     # if there's
     return found_nic_types
+
+
+def _format_version_str(version: VersionInfo) -> str:
+    # get a smaller version string, we don't really care about build
+    major_minor_patch = [version.major, version.minor, version.patch]
+    return ".".join([str(x) for x in major_minor_patch if x is not None])
 
 
 # Add dpdk/rdma/nic info to dpdk test result
@@ -1151,16 +1178,19 @@ def annotate_dpdk_test_result(
     nic_hw = None
     try:
         dpdk_version = test_kit.testpmd.get_dpdk_version()
-        test_result.information["dpdk_version"] = str(dpdk_version)
+        test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
+        log.debug(f"Adding dpdk version: {dpdk_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
-        test_result.information["rdma_version"] = str(rdma_version)
+        test_result.information["rdma_version"] = _format_version_str(rdma_version)
+        log.debug(f"Adding rdma version: {rdma_version}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
+        log.debug(f"Adding nic version: {nic_hw}")
     except AssertionError as err:
         test_kit.node.log.debug(f"Could not fetch NIC short name: {str(err)}")

@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 import base64
+import json
 from typing import Any
 from xml.etree import ElementTree
 
 from lisa.executable import Tool
 from lisa.util import LisaException
-from lisa.util.process import Process
+from lisa.util.process import ExecutableResult, Process
 
 
 class PowerShell(Tool):
@@ -25,6 +25,9 @@ class PowerShell(Tool):
         cmdlet: str,
         force_run: bool = False,
         sudo: bool = False,
+        # Powershell error log is the xml format, it needs extra decoding. But
+        # for long running script, it needs to look real time results.
+        no_debug_log: bool = True,
     ) -> Process:
         # encoding command for any special characters
         self._log.debug(f"encoding command: {cmdlet}")
@@ -39,37 +42,63 @@ class PowerShell(Tool):
             shell=True,
             no_error_log=True,
             no_info_log=True,
-            no_debug_log=True,
+            no_debug_log=no_debug_log,
         )
 
     def run_cmdlet(
         self,
         cmdlet: str,
+        output_json: bool = False,
         force_run: bool = False,
         sudo: bool = False,
         fail_on_error: bool = True,
         timeout: int = 600,
-    ) -> str:
+        # Powershell error log is the xml format, it needs extra decoding. But
+        # for long running script, it needs to look real time results.
+        no_debug_log: bool = True,
+    ) -> Any:
+        if output_json:
+            cmdlet = f"{cmdlet} | ConvertTo-Json"
         process = self.run_cmdlet_async(
-            cmdlet=cmdlet,
-            force_run=force_run,
-            sudo=sudo,
+            cmdlet=cmdlet, force_run=force_run, sudo=sudo, no_debug_log=no_debug_log
         )
 
+        result = self.wait_result(
+            process=process,
+            cmdlet=cmdlet,
+            fail_on_error=fail_on_error,
+            timeout=timeout,
+            # if stdout is output already, it doesn't need to output again.
+            no_debug_log=not no_debug_log,
+        )
+        if output_json and result.stdout:
+            return json.loads(result.stdout)
+        return result.stdout
+
+    def wait_result(
+        self,
+        process: Process,
+        cmdlet: str = "",
+        fail_on_error: bool = True,
+        timeout: int = 600,
+        no_debug_log: bool = True,
+    ) -> ExecutableResult:
         result = process.wait_result(timeout=timeout)
-        if result.exit_code == 0:
-            self._log.debug(f"stdout:\n{result.stdout}")
-        else:
-            stderr = self._parse_error_message(result.stderr)
-            self._log.debug(f"stderr:\n{stderr}")
+        stderr = self._parse_error_message(result.stderr)
+        if result.exit_code != 0 or stderr:
             if fail_on_error:
                 raise LisaException(
-                    f"non-zero exit code {result.exit_code} from cmdlet '{cmdlet}'. "
+                    f"non-zero exit code {result.exit_code} or error found "
+                    f"from cmdlet '{cmdlet}'. "
                     f"output:\n{result.stdout}"
                     f"error:\n{stderr}"
                 )
+            else:
+                self._log.debug(f"stderr:\n{stderr}")
+        elif no_debug_log is False:
+            self._log.debug(f"stdout:\n{result.stdout}")
 
-        return result.stdout
+        return result
 
     def install_module(self, name: str) -> None:
         self.run_cmdlet(

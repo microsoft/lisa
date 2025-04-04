@@ -267,17 +267,17 @@ class DpdkSourceInstall(Installer):
         self.dpdk_build_path = node.tools[Meson].setup(
             args=sample_apps, build_dir="build", cwd=self.asset_path
         )
-        node.tools[Ninja].run(
+        install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
             shell=True,
             timeout=1800,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ninja build for dpdk failed. check build spew for missing headers "
-                "or dependencies. Also check that this ninja version requirement "
-                "has not changed for dpdk."
-            ),
         )
+        # there are enough known installation failures to make
+        # raising each as a seperate useful message annoying.
+        # Also enough to make raising a single generic message useless.
+        # Use this function to parse and raise them.
+        _check_for_dpdk_build_errors(result=install_result)
+
         # using sudo and pip modules can get weird on some distros,
         # whether you install with pip3 --user or not.
         # to work around, add the user python path to sudo one
@@ -360,52 +360,6 @@ class DpdkTestpmd(Tool):
             return "testpmd"
         return self._testpmd_install_path
 
-    _ubuntu_packages_1804 = [
-        "build-essential",
-        "libmnl-dev",
-        "libelf-dev",
-        "meson",
-        "libnuma-dev",
-        "dpkg-dev",
-        "pkg-config",
-        "python3-pip",
-        "python3-pyelftools",
-        "python-pyelftools",
-        # 18.04 doesn't need linux-modules-extra-azure
-        # since it will never have MANA support
-    ]
-
-    _ubuntu_packages_2004 = [
-        "build-essential",
-        "libnuma-dev",
-        "libmnl-dev",
-        "meson",
-        "ninja-build",
-        "python3-pyelftools",
-        "libelf-dev",
-        "pkg-config",
-    ]
-
-    # these are the same at the moment but might need tweaking later
-    _debian_packages = _ubuntu_packages_2004
-
-    _fedora_packages = [
-        "psmisc",
-        "numactl-devel",
-        "pkgconfig",
-        "elfutils-libelf-devel",
-        "python3-pip",
-        "kernel-modules-extra",
-        "kernel-headers",
-        "gcc-c++",
-    ]
-    _suse_packages = [
-        "psmisc",
-        "libnuma-devel",
-        "numactl",
-        "libmnl-devel meson",
-        "gcc-c++",
-    ]
     _rte_target = "x86_64-native-linuxapp-gcc"
 
     _tx_pps_key = "transmit-packets-per-second"
@@ -611,6 +565,7 @@ class DpdkTestpmd(Tool):
             f"{self._testpmd_install_path} {core_list} "
             f"{nic_include_info} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            "--mbuf-size=2048,8096"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -1052,3 +1007,25 @@ def _discard_first_and_last_sample(data: List[int]) -> List[int]:
 
 def _mean(data: List[int]) -> int:
     return sum(data) // len(data)
+
+
+def _check_for_dpdk_build_errors(result: ExecutableResult) -> None:
+    # check for common build errors and raise specific error messages for them
+    errors = [
+        # build unexpectedly ran out of space
+        "final link failed: No space left on device",
+        # elftools module not found (new OS version or package name change)
+        "Exception: elftools module not found",
+    ]
+    if result.exit_code == 0:
+        return
+    # check for known common issues
+    for error in errors:
+        if error in result.stdout:
+            fail(f"DPDK source build issue: {error}")
+    # otherwise, raise a generic error asking for triage
+    fail(
+        "ninja build for dpdk failed. check build spew for missing headers "
+        "or dependencies. Also check that this ninja version requirement "
+        "has not changed for dpdk."
+    )

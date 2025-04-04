@@ -35,6 +35,8 @@ class PartitionInfo(object):
     total_blocks: int = 0
     percentage_blocks_used: int = 0
     fstype: str = ""
+    uuid: str = ""
+    part_uuid: str = ""
 
     @property
     def is_mounted(self) -> bool:
@@ -59,6 +61,8 @@ class PartitionInfo(object):
         total_blocks: int = 0,
         percentage_blocks_used: int = 0,
         fstype: str = "",
+        uuid: str = "",
+        part_uuid: str = "",
     ):
         self.name = name
         self.mountpoint = mountpoint
@@ -69,6 +73,8 @@ class PartitionInfo(object):
         self.total_blocks = total_blocks
         self.percentage_blocks_used = percentage_blocks_used
         self.fstype = fstype
+        self.uuid = uuid
+        self.part_uuid = part_uuid
 
 
 @dataclass
@@ -79,6 +85,7 @@ class DiskInfo(object):
     type: str = ""
     fstype: str = ""
     partitions: List[PartitionInfo] = field(default_factory=list)
+    uuid: str = ""
 
     @property
     def is_os_disk(self) -> bool:
@@ -116,6 +123,7 @@ class DiskInfo(object):
         dev_type: str = "",
         fstype: str = "",
         partitions: Optional[List[PartitionInfo]] = None,
+        uuid: str = "",
     ):
         self.name = name
         self.mountpoint = mountpoint
@@ -123,15 +131,18 @@ class DiskInfo(object):
         self.type = dev_type
         self.fstype = fstype
         self.partitions = partitions if partitions else []
+        self.uuid = uuid
 
 
 class Lsblk(Tool):
     _INVAILD_JSON_OPTION_PATTERN = re.compile(r"lsblk: invalid option -- 'J'", re.M)
-    # NAME="loop2" SIZE="34017280" TYPE="loop" MOUNTPOINT="/snap/snapd/13640"
+    # NAME="sdb1" SIZE="15030288384" TYPE="part" MOUNTPOINT="/mnt" FSTYPE="ext4"
+    # UUID="ec9b6d68-0376-4284-b758-67aa37c47da5" PARTUUID=""
     _LSBLK_ENTRY_REGEX = re.compile(
         r'NAME="(?P<name>\S+)"\s+SIZE="(?P<size>\d+)"\s+'
         r'TYPE="(?P<type>\S+)"\s+MOUNTPOINT="(?P<mountpoint>\S*)"'
-        r'\s+FSTYPE="(?P<fstype>\S*)"'
+        r'\s+FSTYPE="(?P<fstype>\S*)"\s+UUID="(?P<uuid>\S*)"\s+PARTUUID='
+        r'"(?P<partuuid>\S*)"'
     )
 
     # sda
@@ -175,6 +186,7 @@ class Lsblk(Tool):
                 size=int(lsblk_entry["size"]),
                 dev_type=lsblk_entry["type"],
                 fstype=lsblk_entry["fstype"],
+                uuid=lsblk_entry["uuid"],
             )
 
             for child in lsblk_entry.get("children", []):
@@ -185,6 +197,8 @@ class Lsblk(Tool):
                         size=int(child["size"]),
                         dev_type=child["type"],
                         fstype=child["fstype"],
+                        uuid=child["uuid"],
+                        part_uuid=child["partuuid"],
                     )
                 )
             # add disk to list of disks
@@ -222,6 +236,8 @@ class Lsblk(Tool):
                     dev_type=lsblk_entry["type"],
                     mountpoint=lsblk_entry["mountpoint"],
                     fstype=lsblk_entry["fstype"],
+                    uuid=lsblk_entry["uuid"],
+                    part_uuid=lsblk_entry["partuuid"],
                 )
             )
 
@@ -239,6 +255,7 @@ class Lsblk(Tool):
                     size=int(lsblk_entry["size"]),
                     dev_type=lsblk_entry["type"],
                     partitions=disk_partition_map.get(lsblk_entry["name"], []),
+                    uuid=lsblk_entry["uuid"],
                 )
             )
         return disks
@@ -250,15 +267,18 @@ class Lsblk(Tool):
         # -b print SIZE in bytes rather than in human readable format
         # -J output in JSON format
         # -o list of columns to output
+        # -e exclude devices by major number, '-e 7' excludes loop devices
         cmd_result = self.run(
-            "-b -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE", sudo=True, force_run=force_run
+            "-e 7 -b -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID,PARTUUID",
+            sudo=True,
+            force_run=force_run,
         )
         output = cmd_result.stdout
         if cmd_result.exit_code != 0 and re.match(
             self._INVAILD_JSON_OPTION_PATTERN, output
         ):
             output = self.run(
-                "-b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE",
+                "-e 7 -b -P -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID,PARTUUID",
                 sudo=True,
                 force_run=force_run,
             ).stdout
@@ -286,6 +306,17 @@ class Lsblk(Tool):
                     return disk
 
         raise LisaException(f"Could not find disk with mountpoint {mountpoint}")
+
+    def find_partition_by_mountpoint(
+        self, mountpoint: str, force_run: bool = False
+    ) -> PartitionInfo:
+        disk = self.find_disk_by_mountpoint(mountpoint, force_run=force_run)
+
+        for partition in disk.partitions:
+            if partition.mountpoint == mountpoint:
+                return partition
+
+        raise LisaException(f"Could not find partition with mountpoint {mountpoint}")
 
     def find_mountpoint_by_volume_name(
         self, volume_name: str, force_run: bool = False

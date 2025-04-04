@@ -28,6 +28,7 @@ from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator.libvirt.libvirt_device_pool import LibvirtDevicePool
 from lisa.tools import (
+    Cat,
     Chmod,
     Chown,
     Cp,
@@ -405,6 +406,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 == constants.ENVIRONMENT_KEEP_NO
             ):
                 self._delete_nodes(environment, log)
+
+            self._log.debug("Capturing libvirtd log from host...")
+            journalctl = self.host_node.tools[Journalctl]
+            journalctl.logs_for_unit(unit_name="libvirtd", sudo=True)
+            cat = self.host_node.tools[Cat]
+            cat.read(file="/var/log/libvirt/libvirtd.log", sudo=True)
 
             raise ex
 
@@ -1369,6 +1376,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if self.host_node:
             result = self.host_node.execute("libvirtd --version", shell=True).stdout
             result = filter_ansi_escape(result)
+            # Libvirtd returns version info as "libvirtd (libvirt) 10.8.0"
+            # From the return value, only return the version info
+            result = result.split()[-1]
         return result
 
     def _get_vmm_version(self) -> str:

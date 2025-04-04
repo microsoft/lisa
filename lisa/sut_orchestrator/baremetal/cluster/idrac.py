@@ -13,11 +13,10 @@ from assertpy import assert_that
 from lisa import features, schema
 from lisa.environment import Environment
 from lisa.util import LisaException, check_till_timeout
-from lisa.util.logger import get_logger
 from lisa.util.perf_timer import create_timer
 
 from ..platform_ import BareMetalPlatform
-from ..schema import ClientCapabilities, ClientSchema, ClusterSchema, IdracSchema
+from ..schema import ClientSchema, ClusterSchema, IdracClientSchema, IdracSchema
 from .cluster import Cluster
 
 
@@ -86,15 +85,13 @@ class Idrac(Cluster):
         "ForceOff": "Off",
     }
 
-    def __init__(self, runbook: ClusterSchema) -> None:
-        super().__init__(runbook)
+    def __init__(self, runbook: ClusterSchema, **kwargs: Any) -> None:
+        super().__init__(runbook, **kwargs)
         self.idrac_runbook: IdracSchema = self.runbook
-        self._log = get_logger("idrac", self.__class__.__name__)
         assert_that(len(self.idrac_runbook.client)).described_as(
             "only one client is supported for idrac, don't specify more than one client"
         ).is_equal_to(1)
 
-        self.client = self.idrac_runbook.client[0]
         self._enable_serial_console()
 
     @classmethod
@@ -114,10 +111,13 @@ class Idrac(Cluster):
     def deploy(self, environment: Environment) -> Any:
         self.login()
         self._eject_virtual_media()
-        assert self.client.iso_http_url, "iso_http_url is required for idrac client"
+        client_runbook: IdracClientSchema = self.client.get_extended_runbook(
+            IdracClientSchema, "idrac"
+        )
+        assert client_runbook.iso_http_url, "iso_http_url is required for idrac client"
         self._change_boot_order_once("VCD-DVD")
         self.reset("ForceOff")
-        self._insert_virtual_media(self.client.iso_http_url)
+        self._insert_virtual_media(client_runbook.iso_http_url)
         self.reset("On", force_run=True)
         self.logout()
 
@@ -126,22 +126,23 @@ class Idrac(Cluster):
         self._clear_serial_console_log()
         self.logout()
 
-    def get_client_capabilities(self, client: ClientSchema) -> ClientCapabilities:
-        if client.capabilities:
-            return client.capabilities
+    def get_client_capability(self, client: ClientSchema) -> schema.Capability:
+        if client.capability:
+            return client.capability
         self.login()
         response = self.redfish_instance.get(
             "/redfish/v1/Systems/System.Embedded.1/",
         )
-        cluster_capabilities = ClientCapabilities()
-        cluster_capabilities.core_count = int(
+        capability = schema.Capability()
+        capability.core_count = int(
             response.dict["ProcessorSummary"]["LogicalProcessorCount"]
         )
-        cluster_capabilities.free_memory_mb = (
+        capability.memory_mb = (
             int(response.dict["MemorySummary"]["TotalSystemMemoryGiB"]) * 1024
         )
         self.logout()
-        return cluster_capabilities
+
+        return capability
 
     def get_serial_console_log(self) -> str:
         response = self.redfish_instance.post(

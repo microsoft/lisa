@@ -5,12 +5,12 @@ from enum import Enum
 from typing import Any, Set
 
 from lisa.executable import Tool
-from lisa.tools.echo import Echo
 from lisa.tools.free import Free
 from lisa.tools.ls import Ls
 from lisa.tools.lscpu import Lscpu
 from lisa.tools.mkfs import FileSystem
 from lisa.tools.mount import Mount
+from lisa.tools.tee import Tee
 from lisa.util import NotEnoughMemoryException, UnsupportedOperationException
 
 PATTERN_HUGEPAGE = re.compile(
@@ -63,13 +63,14 @@ class Hugepages(Tool):
             hugepage_sizes.add(int(matched_hugepage.group("hugepage_size_in_kb")))
         return hugepage_sizes
 
-    def _enable_hugepages(self, hugepage_size_kb: HugePageSize) -> None:
-        echo = self.node.tools[Echo]
+    def _enable_hugepages(
+        self, hugepage_size_kb: HugePageSize, request_space_kb: int
+    ) -> None:
+        tee = self.node.tools[Tee]
         meminfo = self.node.tools[Free]
-        nics_count = len(self.node.nics.get_nic_names())
         numa_nodes = self.node.tools[Lscpu].get_numa_node_count()
+        # ask for enough space, note that we enable pages per numa node
 
-        request_space_kb = (nics_count - 1) * 1024 * 1024 * numa_nodes * 2
         free_memory_kb = meminfo.get_free_memory_kb()
 
         if free_memory_kb < request_space_kb:
@@ -79,14 +80,20 @@ class Hugepages(Tool):
                 f"Requesting {request_space_kb} KB found {free_memory_kb} "
                 "KB free."
             )
+        total_request_pages = request_space_kb // hugepage_size_kb.value
+        pages_per_numa_node = total_request_pages // numa_nodes
+        if pages_per_numa_node <= 0:
+            raise NotEnoughMemoryException(
+                "Must request huge page count > 0. Verify this system has enough "
+                "free memory to allocate ~2GB of hugepages"
+            )
 
-        request_pages = request_space_kb // hugepage_size_kb.value
         for i in range(numa_nodes):
             # nr_hugepages will be written with the number calculated
             # based on 2MB hugepages if not specified, subject to change
             # this based on further discussion
-            echo.write_to_file(
-                f"{request_pages}",
+            tee.write_to_file(
+                f"{pages_per_numa_node}",
                 self.node.get_pure_path(
                     f"/sys/devices/system/node/node{i}/hugepages/"
                     f"hugepages-{hugepage_size_kb.value}kB/nr_hugepages"
@@ -94,9 +101,10 @@ class Hugepages(Tool):
                 sudo=True,
             )
 
-    def init_hugepages(self, hugepage_size: HugePageSize) -> None:
+    def init_hugepages(self, hugepage_size: HugePageSize, minimum_gb: int = 2) -> None:
         mount = self.node.tools[Mount]
         hugepage_sizes = self.get_hugepage_sizes_in_kb()
+        minimum_kb = minimum_gb * 1024 * 1024
         if hugepage_size.value not in hugepage_sizes:
             raise UnsupportedOperationException(
                 f"Supported hugepage sizes in kB are: {hugepage_sizes}."
@@ -109,4 +117,6 @@ class Hugepages(Tool):
                 fs_type=FileSystem.hugetlbfs,
                 options=f"pagesize={hugepage_size.value}KB",
             )
-        self._enable_hugepages(hugepage_size_kb=hugepage_size)
+        self._enable_hugepages(
+            hugepage_size_kb=hugepage_size, request_space_kb=minimum_kb
+        )

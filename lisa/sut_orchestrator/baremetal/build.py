@@ -24,12 +24,20 @@ def _find_matched_files(
     all_files = []
     match_files: Dict[str, FileSchema] = {}
     for source_path in sources_path:
-        for root, _, files in os.walk(source_path):
-            for file in files:
-                all_files.append(os.path.join(root, file))
+        is_source_dir = os.path.isdir(source_path)
+        if is_source_dir:
+            for root, _, files in os.walk(source_path):
+                for file in files:
+                    all_files.append(os.path.join(root, file))
+        else:
+            all_files.append(os.path.abspath(source_path))
 
         for file_map in files_map:
-            file_path = rf"{source_path}\{file_map.source}".replace("\\", "\\\\")
+            if is_source_dir:
+                file_path = rf"{source_path}\{file_map.source}".replace("\\", "\\\\")
+            else:
+                file_path = rf"{source_path}".replace("\\", "\\\\")
+
             pattern = re.compile(
                 file_path,
                 re.I | re.M,

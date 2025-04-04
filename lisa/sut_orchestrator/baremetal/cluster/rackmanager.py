@@ -5,10 +5,9 @@ from typing import Any, Type
 from lisa import features, schema
 from lisa.environment import Environment
 from lisa.node import quick_connect
-from lisa.util.logger import get_logger
 
 from ..platform_ import BareMetalPlatform
-from ..schema import ClientCapabilities, ClientSchema, RackManagerSchema
+from ..schema import RackManagerSchema
 from .cluster import Cluster
 
 
@@ -37,10 +36,9 @@ class RackManagerStartStop(features.StartStop):
 
 
 class RackManager(Cluster):
-    def __init__(self, runbook: RackManagerSchema) -> None:
-        super().__init__(runbook)
+    def __init__(self, runbook: RackManagerSchema, **kwargs: Any) -> None:
+        super().__init__(runbook, **kwargs)
         self.rm_runbook: RackManagerSchema = self.runbook
-        self._log = get_logger("rackmanager", self.__class__.__name__)
 
     @classmethod
     def type_name(cls) -> str:
@@ -73,14 +71,3 @@ class RackManager(Cluster):
             ), "management_port is required for rackmanager client"
             self.rm_node.execute(f"set system {operation} -i {client.management_port}")
         self._log.debug(f"client has been {operation} successfully")
-
-    def get_client_capabilities(self, client: ClientSchema) -> ClientCapabilities:
-        if client.capabilities:
-            return client.capabilities
-        cluster_capabilities = ClientCapabilities()
-        cluster_capabilities.core_count = 0
-        cluster_capabilities.free_memory_mb = 0
-        return cluster_capabilities
-
-    def cleanup(self) -> None:
-        pass

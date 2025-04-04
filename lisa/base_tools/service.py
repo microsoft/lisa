@@ -1,11 +1,16 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Type
+from enum import Enum
+from time import sleep
+from typing import Optional, Type
 
 from lisa.executable import ExecutableResult, Tool
+from lisa.tools.powershell import PowerShell
 from lisa.util import (
+    LisaException,
     UnsupportedDistroException,
+    create_timer,
     filter_ansi_escape,
     find_group_in_lines,
 )
@@ -24,6 +29,10 @@ class Service(Tool):
     @property
     def can_install(self) -> bool:
         return False
+
+    @classmethod
+    def _windows_tool(cls) -> Optional[Type[Tool]]:
+        return WindowsService
 
     def _check_exists(self) -> bool:
         cmd_result = self.node.execute(
@@ -57,6 +66,9 @@ class Service(Tool):
 
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
+
+    def wait_for_service_start(self, name: str) -> None:
+        raise NotImplementedError("'wait_for_service_start' is not implemented")
 
 
 class ServiceInternal(Tool):
@@ -200,3 +212,92 @@ class Systemctl(Tool):
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
     cmd_result.assert_exit_code(expected_exit_code=[0, error_code])
+
+
+class WindowsServiceStatus(int, Enum):
+    CONTINUE_PENDING = 5
+    PAUSE_PENDING = 6
+    PAUSED = 7
+    RUNNING = 4
+    START_PENDING = 2
+    STOP_PENDING = 3
+    STOPPED = 1
+    NOT_FOUND = 0
+
+
+class WindowsService(Tool):
+    @property
+    def can_install(self) -> bool:
+        return False
+
+    @property
+    def command(self) -> str:
+        return ""
+
+    def enable_service(self, name: str) -> None:
+        pass
+
+    def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Restart-service {name}",
+            force_run=True,
+        )
+        self.wait_for_service_start(name)
+
+    def stop_service(self, name: str) -> None:
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Stop-Service {name} -Force",
+            force_run=True,
+        )
+        self.wait_for_service_stop(name)
+
+    def wait_for_service_start(self, name: str) -> None:
+        self._wait_for_service(name, WindowsServiceStatus.RUNNING)
+
+    def wait_for_service_stop(self, name: str) -> None:
+        self._wait_for_service(name, WindowsServiceStatus.STOPPED)
+
+    def check_service_exists(self, name: str) -> bool:
+        if (
+            self._get_status(name, fail_on_error=False)
+            == WindowsServiceStatus.NOT_FOUND
+        ):
+            return False
+        return True
+
+    def _check_exists(self) -> bool:
+        return True
+
+    def _get_status(
+        self, name: str = "", fail_on_error: bool = True
+    ) -> WindowsServiceStatus:
+        try:
+            service_status = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-Service {name}",
+                force_run=True,
+                output_json=True,
+            )
+        except LisaException as identifier:
+            if "Cannot find any service with service name" in str(identifier):
+                if fail_on_error:
+                    raise LisaException(f"service '{name}' does not exist")
+                return WindowsServiceStatus.NOT_FOUND
+            raise identifier
+        return WindowsServiceStatus(int(service_status["Status"]))
+
+    def _wait_for_service(
+        self, name: str, status: WindowsServiceStatus, timeout: int = 30
+    ) -> None:
+        timer = create_timer()
+        self._log.debug(f"waiting for service '{name}' to be in '{status}' state")
+        while timeout > timer.elapsed(False):
+            current_service_status = self._get_status(name)
+            if status == current_service_status:
+                return
+            sleep(0.5)
+
+        if timeout < timer.elapsed():
+            raise LisaException(
+                f"service '{name}' still in '{current_service_status}' state"
+                f"after '{timeout}' seconds"
+            )

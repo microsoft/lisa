@@ -87,38 +87,49 @@ class Kselftest(Tool):
         return True
 
     def _check_exists(self) -> bool:
-        return (
-            len(self.node.tools[Ls].list(str(self._kself_installed_dir), sudo=True)) > 0
-        )
+        return len(self.node.tools[Ls].list(str(self._installed_path), sudo=True)) > 0
 
     def __init__(
-        self, node: Node, kselftest_file_path: str, *args: Any, **kwargs: Any
+        self,
+        node: Node,
+        working_path: str,
+        file_path: str,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(node, *args, **kwargs)
 
         # tar file path specified in yml
-        self._tar_file_path = kselftest_file_path
+        self._working_path = working_path
+        self._tar_file_path = file_path
+        kselftest_packages = "kselftest-packages"
+        if self._working_path:
+            package_path = self.node.get_pure_path(
+                self._working_path,
+            ) / (kselftest_packages)
+        else:
+            package_path = self.get_tool_path(use_global=True) / kselftest_packages
+
+        self._installed_path = package_path
+
         if self._tar_file_path:
-            self._remote_tar_path = self.get_tool_path(
-                use_global=True
-            ) / os.path.basename(self._tar_file_path)
+            self._remote_tar_path = package_path / os.path.basename(self._tar_file_path)
 
-        # command to run kselftests
-        self._kself_installed_dir = (
-            self.get_tool_path(use_global=True) / "kselftest-packages"
-        )
-
-        self._command = self._kself_installed_dir / "run_kselftest.sh"
+        self._command = self._installed_path / "run_kselftest.sh"
 
     # install common dependencies
     def _install(self) -> bool:
-        if not (
+        is_support = False
+        if (
             (
                 isinstance(self.node.os, Ubuntu)
                 and self.node.os.information.version >= "18.4.0"
             )
             or isinstance(self.node.os, CBLMariner)
+            or (self._tar_file_path and self._working_path)
         ):
+            is_support = True
+        if not is_support:
             raise UnsupportedDistroException(
                 self.node.os, "kselftests in LISA does not support this os"
             )
@@ -128,12 +139,12 @@ class Kselftest(Tool):
             mkdir.create_directory(self._remote_tar_path.parent.as_posix())
             self.node.shell.copy(PurePath(self._tar_file_path), self._remote_tar_path)
             self.node.tools[Tar].extract(
-                str(self._remote_tar_path), str(self._kself_installed_dir), sudo=True
+                str(self._remote_tar_path), str(self._installed_path)
             )
             self._log.debug(f"Extracted tar from path {self._remote_tar_path}!")
         else:
             mkdir = self.node.tools[Mkdir]
-            mkdir.create_directory(self._kself_installed_dir.as_posix())
+            mkdir.create_directory(self._installed_path.as_posix())
             if isinstance(self.node.os, Ubuntu):
                 arch = self.node.os.get_kernel_information().hardware_platform
                 if arch == "aarch64":
@@ -183,7 +194,7 @@ class Kselftest(Tool):
 
             # build and install kselftests
             self.node.execute(
-                cmd=f"./kselftest_install.sh {self._kself_installed_dir}",
+                cmd=f"./kselftest_install.sh {self._installed_path}",
                 shell=True,
                 cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
                 sudo=True,
@@ -193,7 +204,7 @@ class Kselftest(Tool):
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder(self._kself_installed_dir.as_posix(), "777", sudo=True)
+            chmod.update_folder(self._installed_path.as_posix(), "777", sudo=True)
 
         return self._check_exists()
 
@@ -210,6 +221,8 @@ class Kselftest(Tool):
         # get username
         username = self.node.tools[Whoami].get_username()
         result_directory = f"/home/{username}"
+        if self._working_path:
+            result_directory = self._working_path
         if os.path.exists(result_directory) is False:
             mkdir = self.node.tools[Mkdir]
             mkdir.create_directory(result_directory)

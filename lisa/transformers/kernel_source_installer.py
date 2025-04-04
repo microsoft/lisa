@@ -10,11 +10,17 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.base_tools import Mv
 from lisa.node import Node
-from lisa.operating_system import CBLMariner, Redhat, Ubuntu
-from lisa.tools import Cp, Echo, Git, Make, Sed, Uname
+from lisa.operating_system import CBLMariner, CpuArchitecture, Redhat, Ubuntu
+from lisa.tools import B4, Cp, Echo, Git, Make, Sed, Uname
 from lisa.tools.gcc import Gcc
 from lisa.tools.lscpu import Lscpu
-from lisa.util import LisaException, field_metadata, subclasses
+from lisa.util import (
+    LisaException,
+    VersionInfo,
+    field_metadata,
+    parse_version,
+    subclasses,
+)
 from lisa.util.logger import Logger, get_logger
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -23,13 +29,13 @@ from .kernel_installer import BaseInstaller, BaseInstallerSchema
 @dataclass_json()
 @dataclass
 class BaseModifierSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    pass
 
 
 @dataclass_json()
 @dataclass
 class BaseLocationSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
-    ...
+    pass
 
 
 @dataclass_json()
@@ -73,6 +79,12 @@ class PatchModifierSchema(BaseModifierSchema):
     ref: str = ""
     path: str = ""
     file_pattern: str = "*.patch"
+
+
+@dataclass_json()
+@dataclass
+class B4PatchModifierSchema(BaseModifierSchema):
+    message_id: str = field(default="", metadata=field_metadata(required=True))
 
 
 @dataclass_json()
@@ -158,36 +170,53 @@ class SourceInstaller(BaseInstaller):
         # modify code
         self._modify_code(node=node, code_path=self._code_path)
 
+        result = node.execute(
+            "make kernelversion 2>/dev/null",
+            cwd=self._code_path,
+            shell=True,
+        )
+        result.assert_exit_code(
+            0,
+            f"failed on get kernel version: {result.stdout}",
+        )
+        build_kernel_version = parse_version(result.stdout)
+
         kconfig_file = runbook.kernel_config_file
         self._build_code(
-            node=node, code_path=self._code_path, kconfig_file=kconfig_file
+            node=node,
+            code_path=self._code_path,
+            kconfig_file=kconfig_file,
+            kernel_version=build_kernel_version,
         )
-
-        self._install_build(node=node, code_path=self._code_path)
-
         result = node.execute(
             "make kernelrelease 2>/dev/null",
             cwd=self._code_path,
             shell=True,
         )
-
-        kernel_version = result.stdout
         result.assert_exit_code(
             0,
-            f"failed on get kernel version: {kernel_version}",
+            f"failed on get kernel release: {result.stdout}",
+        )
+        build_kernel_release = result.stdout
+        self._install_build(
+            node=node,
+            code_path=self._code_path,
+            build_kernel_release=build_kernel_release,
         )
 
         # copy current config back to system folder.
         result = node.execute(
-            f"cp .config /boot/config-{kernel_version}",
+            f"cp .config /boot/config-{build_kernel_release}",
             cwd=self._code_path,
             sudo=True,
         )
         result.assert_exit_code()
 
-        return kernel_version
+        return build_kernel_release
 
-    def _install_build(self, node: Node, code_path: PurePath) -> None:
+    def _install_build(
+        self, node: Node, code_path: PurePath, build_kernel_release: str
+    ) -> None:
         make = node.tools[Make]
         make.make(arguments="modules", cwd=code_path, sudo=True)
 
@@ -195,7 +224,37 @@ class SourceInstaller(BaseInstaller):
             arguments="INSTALL_MOD_STRIP=1 modules_install", cwd=code_path, sudo=True
         )
 
-        make.make(arguments="install", cwd=code_path, sudo=True)
+        if isinstance(node.os, CBLMariner) and node.os.information.version >= "3.0.0":
+            cp = node.tools[Cp]
+            arch = node.tools[Lscpu].get_architecture()
+            image_path = ""
+            if arch == CpuArchitecture.ARM64:
+                image_path = "arch/arm64/boot/bzImage"
+            elif arch == CpuArchitecture.X64:
+                image_path = "arch/x86/boot/bzImage"
+            else:
+                raise LisaException(f"unsupported architecture: {arch}")
+            cp.copy(
+                PurePath(image_path),
+                PurePath(f"/boot/vmlinuz-{build_kernel_release}"),
+                cwd=code_path,
+                sudo=True,
+            )
+            node.execute(
+                f"dracut initramfs-{build_kernel_release}.img {build_kernel_release}",
+                cwd=code_path,
+                sudo=True,
+            )
+            cp.copy(
+                PurePath(f"initramfs-{build_kernel_release}.img"),
+                PurePath(f"/boot/initramfs-{build_kernel_release}.img"),
+                cwd=code_path,
+                sudo=True,
+            )
+            result = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+            result.assert_exit_code()
+        else:
+            make.make(arguments="install", cwd=code_path, sudo=True)
 
         # The build for Redhat needs extra steps than RPM package. So put it
         # here, not in OS.
@@ -227,7 +286,13 @@ class SourceInstaller(BaseInstaller):
             self._log.debug(f"modifying code by {modifier.type_name()}")
             modifier.modify()
 
-    def _build_code(self, node: Node, code_path: PurePath, kconfig_file: str) -> None:
+    def _build_code(
+        self,
+        node: Node,
+        code_path: PurePath,
+        kconfig_file: str,
+        kernel_version: VersionInfo,
+    ) -> None:
         self._log.info("building code...")
 
         uname = node.tools[Uname]
@@ -242,6 +307,7 @@ class SourceInstaller(BaseInstaller):
                 src=kernel_config,
                 dest=PurePath(".config"),
                 cwd=code_path,
+                sudo=True,
             )
         else:
             cp.copy(
@@ -250,6 +316,7 @@ class SourceInstaller(BaseInstaller):
                 ),
                 dest=PurePath(".config"),
                 cwd=code_path,
+                sudo=True,
             )
 
         config_path = code_path.joinpath(".config")
@@ -272,6 +339,7 @@ class SourceInstaller(BaseInstaller):
             "scripts/config --disable SYSTEM_TRUSTED_KEYS",
             cwd=code_path,
             shell=True,
+            sudo=True,
         )
         result.assert_exit_code()
 
@@ -283,11 +351,17 @@ class SourceInstaller(BaseInstaller):
             "scripts/config --disable SYSTEM_REVOCATION_KEYS",
             cwd=code_path,
             shell=True,
+            sudo=True,
         )
         result.assert_exit_code()
 
         # the gcc version of Redhat 7.x is too old. Upgrade it.
-        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+        if (
+            kernel_version > "3.10.0"
+            and isinstance(node.os, Redhat)
+            and node.os.information.version < "8.0.0"
+        ):
+            node.os.install_packages(["centos-release-scl"])
             node.os.install_packages(["devtoolset-8"])
             node.tools[Mv].move("/bin/gcc", "/bin/gcc_back", overwrite=True, sudo=True)
             result.assert_exit_code()
@@ -302,9 +376,22 @@ class SourceInstaller(BaseInstaller):
         # set timeout to 2 hours
         make.make(arguments="", cwd=code_path, timeout=60 * 60 * 2)
 
+    def _fix_mirrorlist_to_vault(self, node: Node) -> None:
+        node.execute(
+            "sed -i '\
+                    s/^mirrorlist=/#mirrorlist=/;\
+                    s/^#baseurl=/baseurl=/;\
+                    /^baseurl=/ s/mirror/vault/\
+                ' /etc/yum.repos.d/CentOS-*.repo",
+            shell=True,
+            sudo=True,
+        )
+
     def _install_build_tools(self, node: Node) -> None:
         os = node.os
         self._log.info("installing build tools")
+        if isinstance(node.os, Redhat) and node.os.information.version < "8.0.0":
+            self._fix_mirrorlist_to_vault(node)
         if isinstance(os, Redhat):
             for package in list(
                 ["elfutils-libelf-devel", "openssl-devel", "dwarves", "bc"]
@@ -329,6 +416,7 @@ class SourceInstaller(BaseInstaller):
                     "git",
                     "build-essential",
                     "bison",
+                    "cpio",
                     "flex",
                     "libelf-dev",
                     "libncurses5-dev",
@@ -336,6 +424,7 @@ class SourceInstaller(BaseInstaller):
                     "libssl-dev",
                     "bc",
                     "ccache",
+                    "zstd",
                 ]
             )
         elif isinstance(os, CBLMariner):
@@ -489,3 +578,19 @@ def _get_code_path(path: str, node: Node, default_name: str) -> PurePath:
         code_path = node.working_path / default_name
 
     return code_path
+
+
+class B4PatchModifier(BaseModifier):
+    @classmethod
+    def type_name(cls) -> str:
+        return "b4_patch"
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return B4PatchModifierSchema
+
+    def modify(self) -> None:
+        runbook: B4PatchModifierSchema = self.runbook
+        b4 = self._node.tools[B4]
+        message_id = runbook.message_id
+        b4.apply(message_id=message_id, cwd=self._code_path)

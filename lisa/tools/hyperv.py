@@ -3,28 +3,67 @@
 
 import re
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
 
 from assertpy import assert_that
-from dataclasses_json import config, dataclass_json
+from dataclasses_json import dataclass_json
 
+from lisa.base_tools import Service
 from lisa.executable import Tool
 from lisa.operating_system import Windows
 from lisa.tools.powershell import PowerShell
+from lisa.tools.rm import Rm
+from lisa.tools.windows_feature import WindowsFeatureManagement
 from lisa.util import LisaException
 from lisa.util.process import Process
+
+
+class HypervSwitchType(Enum):
+    INTERNAL = "Internal"
+    EXTERNAL = "External"
 
 
 @dataclass_json
 @dataclass
 class VMSwitch:
-    name: str = field(metadata=config(field_name="Name"))
+    name: str = ""
+    type: HypervSwitchType = HypervSwitchType.EXTERNAL
+
+
+class ControllerType(Enum):
+    IDE = 0
+    SCSI = 1
+
+
+@dataclass
+class VMDisk:
+    # The unique identifier of the virtual hard disk.
+    id: str = ""
+    # The file path of the virtual hard disk (VHDX) file.
+    path: str = ""
+    # The type of the controller (IDE or SCSI).
+    controller_type: ControllerType = ControllerType.IDE
+    # The number of the controller to which the virtual hard disk is attached.
+    controller_number: int = 0
+    # The location of the controller to which the virtual hard disk is attached.
+    controller_location: int = 0
 
 
 class HyperV(Tool):
+    # Internal NAT network configuration
+    INTERNAL_NAT_ROUTER = "192.168.5.1"
+    INTERNAL_NAT_SUBNET = "192.168.5.0/24"
+    INTERNAL_NAT_DHCP_IP_START = "192.168.5.50"
+    INTERNAL_NAT_DHCP_IP_END = "192.168.5.100"
+    # Azure DNS server
+    AZURE_DNS_SERVER = "168.63.129.16"
     # 192.168.5.12
     IP_REGEX = r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    _default_switch: Optional[VMSwitch] = None
+    _external_forwarding_port_start = 50000
+    _assigned_nat_ports: Set[int] = set()
 
     @property
     def command(self) -> str:
@@ -41,17 +80,73 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        return output.strip() != ""
+        return bool(output.strip() != "")
+
+    def get_vm_disks(self, name: str) -> List[VMDisk]:
+        vm_disks: List[VMDisk] = []
+        output = self.node.tools[PowerShell].run_cmdlet(
+            f"Get-VMHardDiskDrive -VMName {name} ",
+            force_run=True,
+            output_json=True,
+        )
+        if not output:
+            return []
+        # above command returns a list of disks if there are multiple disks.
+        # if there is only one disk, it returns a single disk but not a list.
+        # so convert the output to a list if it is not already a list
+        if not isinstance(output, list):
+            output = [output]
+        for disk in output:
+            vm_disks.append(
+                VMDisk(
+                    id=disk["Id"],
+                    path=disk["Path"],
+                    controller_type=disk["ControllerType"],
+                    controller_number=disk["ControllerNumber"],
+                    controller_location=disk["ControllerLocation"],
+                )
+            )
+        return vm_disks
+
+    def delete_vm_disks(self, name: str) -> None:
+        # get vm disks
+        vm_disks = self.get_vm_disks(name)
+
+        # delete vm disks
+        for disk in vm_disks:
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-VMHardDiskDrive -VMName {name} "
+                f"-ControllerType {disk.controller_type} "
+                f"-ControllerNumber {disk.controller_number} "
+                f"-ControllerLocation {disk.controller_location}",
+                force_run=True,
+            )
+            self.node.tools[Rm].remove_file(
+                disk.path,
+                sudo=True,
+            )
 
     def delete_vm_async(self, name: str) -> Optional[Process]:
-        # check if vm is present
+        # check if VM is present
         if not self.exists_vm(name):
             return None
 
+        if (
+            self._default_switch
+            and self._default_switch.type == HypervSwitchType.INTERNAL
+        ):
+            # delete port mapping for internal IP address of the VM
+            internal_ip = self.get_ip_address(name)
+            self.delete_nat_mapping(internal_ip=internal_ip)
+
         # stop and delete vm
         self.stop_vm(name=name)
-        powershell = self.node.tools[PowerShell]
-        return powershell.run_cmdlet_async(
+
+        # delete VM disks before deleting vm
+        self.delete_vm_disks(name)
+
+        # delete vm
+        return self.node.tools[PowerShell].run_cmdlet_async(
             f"Remove-VM -Name {name} -Force",
             force_run=True,
         )
@@ -93,14 +188,6 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        if extra_args is not None and "set-vmprocessor" in extra_args:
-            self._run_hyperv_cmdlet(
-                "Set-VMProcessor",
-                f"-VMName {name}",
-                extra_args=extra_args,
-                force_run=True,
-            )
-
         # set cores and memory type
         self._run_hyperv_cmdlet(
             "Set-VM",
@@ -109,6 +196,14 @@ class HyperV(Tool):
             extra_args=extra_args,
             force_run=True,
         )
+
+        if extra_args is not None and "set-vmprocessor" in extra_args:
+            self._run_hyperv_cmdlet(
+                "Set-VMProcessor",
+                f"-VMName {name}",
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         # disable secure boot if requested
         # secure boot is only supported for generation 2 VMs
@@ -201,25 +296,37 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def get_default_external_switch(self) -> Optional[VMSwitch]:
-        switch_json = self.node.tools[PowerShell].run_cmdlet(
-            'Get-VMSwitch | Where-Object {$_.SwitchType -eq "External"} '
-            "| Select -First 1 | select Name | ConvertTo-Json",
-            force_run=True,
-        )
+    # get default switch from hyperv
+    def get_default_switch(self) -> VMSwitch:
+        if self._default_switch is None:
+            # try to get external switch first
+            for switch_type in (HypervSwitchType.EXTERNAL, HypervSwitchType.INTERNAL):
+                switch_json = self.node.tools[PowerShell].run_cmdlet(
+                    f'Get-VMSwitch | Where-Object {{$_.SwitchType -eq "{switch_type.value}"}}'  # noqa: E501
+                    " | Select -First 1",
+                    force_run=True,
+                    output_json=True,
+                )
+                if switch_json:
+                    self._default_switch = VMSwitch()
+                    self._default_switch.name = switch_json["Name"]
+                    self._default_switch.type = switch_type
+                    break
 
-        if not switch_json:
-            return None
+            if self._default_switch is None:
+                raise LisaException("Could not find any Internal or External switch")
+        return self._default_switch
 
-        return VMSwitch.from_json(switch_json)  # type: ignore
-
-    def exists_switch(self, name: str) -> bool:
+    def exists_switch(self, name: str, switch_type: str = "") -> bool:
+        cmd = f"Get-VMSwitch -Name {name}"
+        if switch_type != "":
+            cmd += f"  -SwitchType '{switch_type}'"
         output = self.node.tools[PowerShell].run_cmdlet(
-            f"Get-VMSwitch -Name {name}",
+            cmdlet=cmd,
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_switch(self, name: str) -> None:
         if self.exists_switch(name):
@@ -228,13 +335,13 @@ class HyperV(Tool):
                 force_run=True,
             )
 
-    def create_switch(self, name: str) -> None:
-        # remove switch if it exists
-        self.delete_switch(name)
+    def create_switch(self, name: str, switch_type: str = "Internal") -> None:
+        if self.exists_switch(name, switch_type):
+            return
 
         # create a new switch
         self.node.tools[PowerShell].run_cmdlet(
-            f"New-VMSwitch -Name {name} -SwitchType Internal",
+            f"New-VMSwitch -Name {name} -SwitchType {switch_type}",
             force_run=True,
         )
 
@@ -251,24 +358,69 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
-    def delete_nat(self, name: str) -> None:
+    def delete_nat(self, name: str, fail_on_error: bool = True) -> None:
         if self.exists_nat(name):
             self.node.tools[PowerShell].run_cmdlet(
                 f"Remove-NetNat -Name {name} -Confirm:$false",
                 force_run=True,
+                fail_on_error=fail_on_error,
             )
 
     def create_nat(self, name: str, ip_range: str) -> None:
         # delete NAT if it exists
-        self.delete_nat(name)
+        self.delete_nat(name, fail_on_error=False)
 
         # create a new NAT
         self.node.tools[PowerShell].run_cmdlet(
             f"New-NetNat -Name {name} -InternalIPInterfaceAddressPrefix '{ip_range}' ",
             force_run=True,
         )
+
+    def add_nat_mapping(self, nat_name: str, internal_ip: str) -> int:
+        # get next available NAT port
+        external_port = self._get_next_available_nat_port()
+        # create a new NAT
+        self.node.tools[PowerShell].run_cmdlet(
+            f"Add-NetNatStaticMapping -NatName {nat_name} -Protocol TCP "
+            f"-ExternalIPAddress 0.0.0.0 -InternalIPAddress {internal_ip} "
+            f"-InternalPort 22 -ExternalPort {external_port}",
+            force_run=True,
+        )
+        return external_port
+
+    def get_nat_mapping_id(self, external_port: int) -> Any:
+        return self.node.tools[PowerShell].run_cmdlet(
+            f"Get-NetNatStaticMapping | "
+            f"Where-Object {{$_.ExternalPort -eq {external_port}}}"
+            f" | Select-Object -ExpandProperty StaticMappingID",
+            force_run=True,
+        )
+
+    # delete NAT mapping for a port or internal IP
+    def delete_nat_mapping(
+        self, external_port: Optional[int] = None, internal_ip: Optional[str] = None
+    ) -> None:
+        if external_port is None:
+            external_port = self.node.tools[PowerShell].run_cmdlet(
+                f"Get-NetNatStaticMapping | "
+                f"Where-Object {{$_.InternalIPAddress -eq '{internal_ip}'}}"
+                f" | Select-Object -ExpandProperty ExternalPort",
+                force_run=True,
+            )
+        mapping_id = self.get_nat_mapping_id(external_port)
+        if mapping_id:
+            # delete the NAT mapping if it exists
+            self.node.tools[PowerShell].run_cmdlet(
+                f"Remove-NetNatStaticMapping -StaticMappingID {mapping_id} "
+                "-Confirm:$false",
+                force_run=True,
+            )
+            if external_port:
+                self._release_nat_port(int(external_port))
+        else:
+            self._log.debug(f"Mapping for port {external_port} does not exist")
 
     def delete_nat_networking(self, switch_name: str, nat_name: str) -> None:
         # Delete switch
@@ -290,13 +442,13 @@ class HyperV(Tool):
 
         # set switch interface as gateway for NAT
         self.node.tools[PowerShell].run_cmdlet(
-            "New-NetIPAddress -IPAddress 192.168.5.1 "
+            f"New-NetIPAddress -IPAddress {self.INTERNAL_NAT_ROUTER} "
             f"-InterfaceIndex {interface_index} -PrefixLength 24",
             force_run=True,
         )
 
         # create a new NAT
-        self.create_nat(nat_name, "192.168.5.0/24")
+        self.create_nat(nat_name, self.INTERNAL_NAT_SUBNET)
 
     def get_ip_address(self, name: str) -> str:
         # verify vm is running
@@ -317,7 +469,7 @@ class HyperV(Tool):
         if not ip_address:
             raise LisaException(f"Could not find IP address for VM {name}")
 
-        return ip_address
+        return str(ip_address)
 
     def exist_port_forwarding(
         self,
@@ -328,7 +480,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_port_forwarding(self, nat_name: str) -> None:
         if self.exist_port_forwarding(nat_name):
@@ -359,7 +511,7 @@ class HyperV(Tool):
             fail_on_error=False,
             force_run=True,
         )
-        return output.strip() != ""
+        return bool(output.strip() != "")
 
     def delete_virtual_disk(self, name: str) -> None:
         if self.exists_virtual_disk(name):
@@ -381,29 +533,68 @@ class HyperV(Tool):
             force_run=True,
         )
 
-    def _check_exists(self) -> bool:
-        try:
-            self.node.tools[PowerShell].run_cmdlet(
-                "Get-VM",
-                force_run=True,
-            )
-            self._log.debug("Hyper-V is installed")
-            return True
-        except LisaException as e:
-            self._log.debug(f"Hyper-V not installed: {e}")
-            return False
+    # This method is specifically for Azure Windows Server edition VMs
+    # with internal NAT switch.
+    # Do not use this method in Hyper-V hosts on LAN or other networks where DHCP
+    # server is already available.
+    # Reference doc:
+    # https://techcommunity.microsoft.com/blog/itopstalkblog/how-to-setup-nested-virtualization-for-azure-vmvhd/1115338  # noqa
+    def enable_internal_dhcp(self, dhcp_scope_name: str = "DHCPInternalNAT") -> None:
+        powershell = self.node.tools[PowerShell]
+        service: Service = self.node.tools[Service]
+
+        # Install DHCP server
+        self.node.tools[WindowsFeatureManagement].install_feature("DHCP")
+
+        # Restart the DHCP server to make it available
+        service.restart_service("dhcpserver")
+
+        # check if DHCP server is already configured
+        output = powershell.run_cmdlet(
+            "Get-DhcpServerv4Scope",
+            force_run=True,
+            output_json=True,
+            fail_on_error=False,
+        )
+        if output:
+            return
+
+        # Configure the DHCP server to use the internal NAT network
+        powershell.run_cmdlet(
+            f'Add-DhcpServerV4Scope -Name "{dhcp_scope_name}" '
+            f"-StartRange {self.INTERNAL_NAT_DHCP_IP_START} "
+            f"-EndRange {self.INTERNAL_NAT_DHCP_IP_END} "
+            f"-SubnetMask 255.255.255.0",
+            force_run=True,
+        )
+
+        # Set the DHCP server options
+        powershell.run_cmdlet(
+            f"Set-DhcpServerV4OptionValue "
+            f"-Router {self.INTERNAL_NAT_ROUTER} "
+            f"-DnsServer {self.AZURE_DNS_SERVER}",
+            force_run=True,
+        )
+
+        # Restart the DHCP server to apply the changes
+        service.restart_service("dhcpserver")
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Windows)
 
+        # check if Hyper-V is already installed
+        if self._check_exists():
+            return True
+
         # enable hyper-v
-        self.node.tools[PowerShell].run_cmdlet(
-            "Install-WindowsFeature -Name Hyper-V -IncludeManagementTools",
-            force_run=True,
-        )
+        self.node.tools[WindowsFeatureManagement].install_feature("Hyper-V")
 
         # reboot node
         self.node.reboot()
+        service: Service = self.node.tools[Service]
+        # wait for Hyper-V services to start
+        service.wait_for_service_start("vmms")
+        service.wait_for_service_start("vmcompute")
 
         return self._check_exists()
 
@@ -417,6 +608,27 @@ class HyperV(Tool):
         pwsh = self.node.tools[PowerShell]
         if not extra_args:
             extra_args = {}
-        return pwsh.run_cmdlet(
-            f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+        return str(
+            pwsh.run_cmdlet(
+                f"{cmd} {args} {extra_args.get(cmd.lower(), '')}", force_run=force_run
+            )
         )
+
+    def _check_exists(self) -> bool:
+        return self.node.tools[WindowsFeatureManagement].is_installed("Hyper-V")
+
+    def _get_next_available_nat_port(self) -> int:
+        # Start checking from the external forwarding port start and
+        # find the first available one
+        port = self._external_forwarding_port_start
+        while self.get_nat_mapping_id(port):
+            port += 1
+        self._assigned_nat_ports.add(port)  # Assign this port
+        return port
+
+    def _release_nat_port(self, port: int) -> None:
+        # Release a port if used
+        if port in self._assigned_nat_ports:
+            self._assigned_nat_ports.remove(port)
+        else:
+            self._log.debug(f"Port {port} was not assigned.")

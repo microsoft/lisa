@@ -431,9 +431,19 @@ disk_type_priority: List[DiskType] = [
 ]
 
 
+class StorageInterfaceType(str, Enum):
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
+
+
 class DiskControllerType(str, Enum):
-    SCSI = "SCSI"
-    NVME = "NVMe"
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
+
+
+class ResourceDiskType(str, Enum):
+    SCSI = constants.STORAGE_INTERFACE_TYPE_SCSI
+    NVME = constants.STORAGE_INTERFACE_TYPE_NVME
 
 
 disk_controller_type_priority: List[DiskControllerType] = [
@@ -1241,6 +1251,50 @@ class LocalNode(Node):
 
 @dataclass_json()
 @dataclass
+class ConnectionInfo:
+    address: str = ""
+    port: int = field(
+        default=22,
+        metadata=field_metadata(
+            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
+        ),
+    )
+    username: str = constants.DEFAULT_USER_NAME
+    password: Optional[str] = ""
+    private_key_file: Optional[str] = ""
+
+    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
+        add_secret(self.username, PATTERN_HEADTAIL)
+        add_secret(self.password)
+        add_secret(self.private_key_file)
+
+        if not self.password and not self.private_key_file:
+            raise LisaException(
+                "at least one of password or private_key_file need to be set when "
+                "connecting"
+            )
+        elif not self.private_key_file:
+            # use password
+            # spurplus doesn't process empty string correctly, use None
+            self.private_key_file = None
+        elif not self.password:
+            self.password = None
+        else:
+            # Password and private_key_file all exist
+            # Private key is attempted with high priority for authentication when
+            # connecting to a remote node using paramiko
+            if not Path(self.private_key_file).exists():
+                raise FileNotFoundError(self.private_key_file)
+
+        if not self.username:
+            raise LisaException("username must be set")
+
+    def __str__(self) -> str:
+        return f"{self.username}@{self.address}:{self.port}"
+
+
+@dataclass_json()
+@dataclass
 class RemoteNode(Node):
     type: str = constants.ENVIRONMENTS_NODES_REMOTE
     address: str = ""
@@ -1261,11 +1315,23 @@ class RemoteNode(Node):
     username: str = constants.DEFAULT_USER_NAME
     password: str = ""
     private_key_file: str = ""
+    use_ipv6: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
+
+    def get_connection_info(self, is_public: bool = False) -> "ConnectionInfo":
+        connection = ConnectionInfo(
+            address=self.public_address if is_public else self.address,
+            port=self.public_port if is_public else self.port,
+            username=self.username,
+            password=self.password,
+            private_key_file=self.private_key_file,
+        )
+
+        return connection
 
 
 @dataclass_json()
@@ -1379,6 +1445,8 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     capture_azure_information: bool = False
     # capture boot time info or not
     capture_boot_time: bool = False
+    # to check if dmesg logs need to be analyzed after each test case
+    assert_kernel_error_after_test: bool = False
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
     capture_vm_information: bool = True
@@ -1540,50 +1608,6 @@ class LegacyTestCase(BaseTestCaseFilter):
     @classmethod
     def type_name(cls) -> str:
         return constants.TESTCASE_TYPE_LEGACY
-
-
-@dataclass_json()
-@dataclass
-class ConnectionInfo:
-    address: str = ""
-    port: int = field(
-        default=22,
-        metadata=field_metadata(
-            field_function=fields.Int, validate=validate.Range(min=1, max=65535)
-        ),
-    )
-    username: str = constants.DEFAULT_USER_NAME
-    password: Optional[str] = ""
-    private_key_file: Optional[str] = ""
-
-    def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        add_secret(self.username, PATTERN_HEADTAIL)
-        add_secret(self.password)
-        add_secret(self.private_key_file)
-
-        if not self.password and not self.private_key_file:
-            raise LisaException(
-                "at least one of password or private_key_file need to be set when "
-                "connecting"
-            )
-        elif not self.private_key_file:
-            # use password
-            # spurplus doesn't process empty string correctly, use None
-            self.private_key_file = None
-        elif not self.password:
-            self.password = None
-        else:
-            # Password and private_key_file all exist
-            # Private key is attempted with high priority for authentication when
-            # connecting to a remote node using paramiko
-            if not Path(self.private_key_file).exists():
-                raise FileNotFoundError(self.private_key_file)
-
-        if not self.username:
-            raise LisaException("username must be set")
-
-    def __str__(self) -> str:
-        return f"{self.username}@{self.address}:{self.port}"
 
 
 @dataclass_json()

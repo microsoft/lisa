@@ -16,7 +16,9 @@ from lisa.base_tools import (
 )
 
 from .aria import Aria
+from .b4 import B4
 from .blkid import Blkid
+from .bootctl import BootCtl
 from .bzip2 import Bzip2
 from .cargo import Cargo
 from .chmod import Chmod
@@ -27,6 +29,7 @@ from .curl import Curl
 from .date import Date
 from .df import Df
 from .dhclient import Dhclient
+from .diff import Diff
 from .dmesg import Dmesg
 from .dnsmasq import Dnsmasq
 from .docker import Docker
@@ -116,6 +119,7 @@ from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
+from .tpm2 import Tpm2
 from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
@@ -123,12 +127,15 @@ from .vdsotest import Vdsotest
 from .virtualclient import VcRunner, VcTargetInfo, VirtualClientTool
 from .who import Who
 from .whoami import Whoami
+from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
 
 __all__ = [
     "AptAddRepository",
     "Aria",
+    "B4",
     "Blkid",
+    "BootCtl",
     "Bzip2",
     "Cargo",
     "Cat",
@@ -140,6 +147,7 @@ __all__ = [
     "Date",
     "Df",
     "Dhclient",
+    "Diff",
     "Dmesg",
     "Dnsmasq",
     "Docker",
@@ -246,6 +254,7 @@ __all__ = [
     "TcpDump",
     "Timedatectl",
     "Timeout",
+    "Tpm2",
     "Uname",
     "Unzip",
     "Uptime",
@@ -258,5 +267,6 @@ __all__ = [
     "VirtualClientTool",
     "Who",
     "Whoami",
+    "WindowsFeatureManagement",
     "Wsl",
 ]

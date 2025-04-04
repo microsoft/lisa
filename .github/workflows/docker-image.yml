@@ -7,13 +7,50 @@ on:
       - main
 
 jobs:
-  build:
+  build-windows:
+      runs-on: windows-latest
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Log in to Azure Container Registry
+          run: |
+            echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+        - name: Build and Push Windows Docker Image
+          run: |
+            docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-windows -f Dockerfile.windows .
+            docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-windows
+
+        - name: Log out from ACR
+          run: docker logout ${{ secrets.ACR_LOGIN_SERVER }}
+
+  build-linux:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Log in to Azure Container Registry
+        run: |
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+      - name: Build and Push Linux Docker Image
+        run: |
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-linux -f Dockerfile.linux .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-linux
+
+      - name: Log out from ACR
+        run: |
+          docker logout ${{ secrets.ACR_LOGIN_SERVER }}
+
+  build-multi-platforms:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux]
+
+    steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -21,12 +58,19 @@ jobs:
         run: |
           echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
-      - name: Build and Push Docker Image
+      - name: Create Multi-Platforms Image
         run: |
-          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}
-          docker tag ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }} ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:latest
-          docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}
-          docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:latest
+          docker buildx imagetools create --tag ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }} \
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-windows \
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-linux
+          docker buildx imagetools create --tag ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:latest \
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-windows \
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ secrets.ACR_REPOSITORY }}:${{ github.event.release.tag_name }}-linux
+
+      - name: Delete Docker Tags
+        run: |
+          curl -X DELETE -u "${{ secrets.ACR_USERNAME }}:${{ secrets.ACR_PASSWORD }}" https://${{ secrets.ACR_LOGIN_SERVER }}/acr/v1/${{ secrets.ACR_REPOSITORY }}/_tags/${{ github.event.release.tag_name }}-windows
+          curl -X DELETE -u "${{ secrets.ACR_USERNAME }}:${{ secrets.ACR_PASSWORD }}" https://${{ secrets.ACR_LOGIN_SERVER }}/acr/v1/${{ secrets.ACR_REPOSITORY }}/_tags/${{ github.event.release.tag_name }}-linux
 
       - name: Log out from ACR
         run: |

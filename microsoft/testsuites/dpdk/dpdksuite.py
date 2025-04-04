@@ -15,6 +15,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedCpuArchitectureException,
     UnsupportedDistroException,
     UnsupportedOperationException,
     schema,
@@ -23,8 +24,9 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lsmod, Make, Modprobe
+from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
+from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
 from microsoft.testsuites.dpdk.common import (
     DPDK_STABLE_GIT_REPO,
@@ -205,6 +207,9 @@ class Dpdk(TestSuite):
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
+        if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
+            raise SkippedException("OVS test not supported on ARM64")
+
         force_dpdk_default_source(variables)
         try:
             test_kit = initialize_node_resources(
@@ -262,7 +267,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             nff_go = node.tools[DpdkNffGo]
-        except UnsupportedDistroException as err:
+        except (UnsupportedDistroException, UnsupportedCpuArchitectureException) as err:
             raise SkippedException(err)
 
         # hugepages needed for dpdk tests
@@ -501,6 +506,11 @@ class Dpdk(TestSuite):
                 UnsupportedDistroException(
                     node.os, "VPP test does not support Mariner installation."
                 )
+            )
+        node_arch = node.tools[Lscpu].get_architecture()
+        if node_arch != CpuArchitecture.X64:
+            raise SkippedException(
+                UnsupportedCpuArchitectureException(arch=str(node_arch.value))
             )
         try:
             initialize_node_resources(

@@ -4,11 +4,10 @@
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
-from lisa import RemoteNode, feature, schema, search_space
+from lisa import feature, schema
 from lisa.environment import Environment
 from lisa.platform_ import Platform
 from lisa.util.logger import Logger
-from lisa.util.shell import try_connect
 from lisa.util.subclasses import Factory
 
 from .. import BAREMETAL
@@ -20,7 +19,7 @@ from .features import SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
-from .schema import BareMetalPlatformSchema, BuildSchema, ClientCapabilities
+from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
 
 
@@ -56,15 +55,21 @@ class BareMetalPlatform(Platform):
         # currently only support one cluster
         assert self._baremetal_runbook.cluster, "no cluster is specified in the runbook"
         self._cluster_runbook = self._baremetal_runbook.cluster[0]
-        self.cluster = self.cluster_factory.create_by_runbook(self._cluster_runbook)
+
+        self.cluster = self.cluster_factory.create_by_runbook(
+            self._cluster_runbook, parent_logger=self._log
+        )
+        self.cluster.initialize()
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
-        client_capabilities = self.cluster.get_client_capabilities(
-            self.cluster.runbook.client[0]
-        )
-        return self._configure_node_capabilities(environment, log, client_capabilities)
+        assert environment.runbook.nodes_requirement, "nodes requirement is required"
+        if len(environment.runbook.nodes_requirement) > 1:
+            # so far only supports one node
+            return False
+
+        return self._check_capability(environment, log, self.cluster.client)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         # process the cluster elements from runbook
@@ -75,7 +80,7 @@ class BareMetalPlatform(Platform):
 
         if self._cluster_runbook.ready_checker:
             ready_checker = self.ready_checker_factory.create_by_runbook(
-                self._cluster_runbook.ready_checker
+                self._cluster_runbook.ready_checker, parent_logger=log
             )
 
         for index, node in enumerate(environment.nodes.list()):
@@ -85,18 +90,22 @@ class BareMetalPlatform(Platform):
             if ready_checker:
                 ready_checker.is_ready(node)
 
+            assert node_context.client.connection, "connection is required"
             # get ip address
             if self._cluster_runbook.ip_getter:
                 ip_getter = self.ip_getter_factory.create_by_runbook(
                     self._cluster_runbook.ip_getter
                 )
-                node_context.connection.address = ip_getter.get_ip()
 
-            assert isinstance(node, RemoteNode), f"actual: {type(node)}"
+                node_context.client.connection.address = ip_getter.get_ip()
+
             node.name = f"node_{index}"
-            try_connect(node_context.connection)
+            node.initialize()
 
         self._log.debug(f"deploy environment {environment.name} successfully")
+
+    def _delete_environment(self, environment: Environment, log: Logger) -> None:
+        self.cluster.delete(environment, log)
 
     def _copy(self, build_schema: BuildSchema, sources_path: List[Path]) -> None:
         if sources_path:
@@ -130,7 +139,8 @@ class BareMetalPlatform(Platform):
         # ready checker cleanup
         if self._cluster_runbook.ready_checker:
             ready_checker = self.ready_checker_factory.create_by_runbook(
-                self._cluster_runbook.ready_checker
+                self._cluster_runbook.ready_checker,
+                parent_logger=log,
             )
             ready_checker.clean_up()
 
@@ -161,13 +171,13 @@ class BareMetalPlatform(Platform):
                 key_file = key_loader.load_key(self.local_artifacts_path)
 
         assert environment.runbook.nodes_requirement, "no node is specified"
-        for node_space in environment.runbook.nodes_requirement:
+        for index, node_space in enumerate(environment.runbook.nodes_requirement):
             assert isinstance(
                 node_space, schema.NodeSpace
             ), f"actual: {type(node_space)}"
-            environment.create_node_from_requirement(node_space)
+            node = environment.create_node_from_requirement(node_space)
 
-        for index, node in enumerate(environment.nodes.list()):
+            node.features = feature.Features(node, self)
             node_context = get_node_context(node)
 
             if (
@@ -178,74 +188,29 @@ class BareMetalPlatform(Platform):
                     index
                 ].connection.private_key_file = key_file
 
-            connection_info = schema.ConnectionInfo(
-                address=self.cluster.runbook.client[index].connection.address,
-                port=self.cluster.runbook.client[index].connection.port,
-                username=self.cluster.runbook.client[index].connection.username,
-                private_key_file=self.cluster.runbook.client[
-                    index
-                ].connection.private_key_file,
-                password=self.cluster.runbook.client[index].connection.password,
-            )
-
-            node_context.connection = connection_info
+            node_context.client = self.cluster.runbook.client[index]
+            node_context.cluster = self.cluster.runbook
             index = index + 1
 
-    def _configure_node_capabilities(
+    def _check_capability(
         self,
         environment: Environment,
         log: Logger,
-        cluster_capabilities: ClientCapabilities,
+        client_capability: schema.NodeSpace,
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
-        nodes_capabilities = self._create_node_capabilities(cluster_capabilities)
-
         nodes_requirement = []
         for node_space in environment.runbook.nodes_requirement:
-            if not node_space.check(nodes_capabilities):
+            if not node_space.check(client_capability):
                 return False
 
-            node_requirement = node_space.generate_min_capability(nodes_capabilities)
+            node_requirement = node_space.generate_min_capability(client_capability)
             nodes_requirement.append(node_requirement)
 
         environment.runbook.nodes_requirement = nodes_requirement
         return True
-
-    def _create_node_capabilities(
-        self, cluster_capabilities: ClientCapabilities
-    ) -> schema.NodeSpace:
-        node_capabilities = schema.NodeSpace()
-        node_capabilities.name = "baremetal"
-        node_capabilities.node_count = 1
-        node_capabilities.core_count = search_space.IntRange(
-            min=1, max=cluster_capabilities.core_count
-        )
-        node_capabilities.memory_mb = cluster_capabilities.free_memory_mb
-        node_capabilities.disk = schema.DiskOptionSettings(
-            data_disk_count=search_space.IntRange(min=0),
-            data_disk_size=search_space.IntRange(min=1),
-        )
-        node_capabilities.network_interface = schema.NetworkInterfaceOptionSettings()
-        node_capabilities.network_interface.max_nic_count = 1
-        node_capabilities.network_interface.nic_count = 1
-        node_capabilities.network_interface.data_path = search_space.SetSpace[
-            schema.NetworkDataPath
-        ](
-            is_allow_set=True,
-            items=[schema.NetworkDataPath.Sriov, schema.NetworkDataPath.Synthetic],
-        )
-        node_capabilities.gpu_count = 0
-        node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
-            is_allow_set=True,
-            items=[
-                schema.FeatureSettings.create(SerialConsole.name()),
-                schema.FeatureSettings.create(StartStop.name()),
-            ],
-        )
-
-        return node_capabilities
 
     def _cleanup(self) -> None:
         self.cluster.cleanup()

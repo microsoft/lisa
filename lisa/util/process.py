@@ -213,10 +213,8 @@ class Process:
         self._nohup: bool = False
 
         # add a string stream handler to the logger
-        self._log_buffer = io.StringIO()
-        self._log_handler = logging.StreamHandler(self._log_buffer)
-        msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
-        add_handler(self._log_handler, self._log, msg_only_format)
+        self.log_buffer = io.StringIO()
+        self.log_buffer_offset = 0
 
     @_retry_spawn
     def start(
@@ -251,6 +249,11 @@ class Process:
         self.stderr_logger = get_logger("stderr", parent=self._log)
         self._stdout_writer = LogWriter(logger=self.stdout_logger, level=stdout_level)
         self._stderr_writer = LogWriter(logger=self.stderr_logger, level=stderr_level)
+
+        self._log_handler = logging.StreamHandler(self.log_buffer)
+        msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
+        add_handler(self._log_handler, self.stdout_logger, msg_only_format)
+        add_handler(self._log_handler, self.stderr_logger, msg_only_format)
 
         self._sudo = sudo
         self._nohup = nohup
@@ -301,13 +304,18 @@ class Process:
                 cwd=cwd_path,
                 update_env=update_envs,
                 allow_error=True,
-                store_pid=self._is_posix,
+                store_pid=True,
                 encoding=encoding,
                 use_pty=use_pty,
             )
             # save for logging.
             self._cmd = split_command
             self._running = True
+
+            # set keep alive for ssh connection, it avoids the connection being
+            # closed without any data transfer.
+            if self._shell.is_remote:
+                self._process._channel.transport.set_keepalive(30)
         except (FileNotFoundError, NoSuchCommandError) as identifier:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
@@ -337,13 +345,16 @@ class Process:
                             "Running commands with sudo requires user's password,"
                             " but no password is provided."
                         )
-                    self.input(f"{self._shell.connection_info.password}\n")
+                    self.input(f"{self._shell.connection_info.password}\n", False)
                     self._log.debug("The user's password is input")
                     break
 
-    def input(self, content: str) -> None:
-        assert self._process
-        self._log.debug(f"Inputting {len(content)} chars to process.")
+    def input(self, content: str, is_log_input: bool = True) -> None:
+        assert self._process, "The process object is None, the process may end."
+        if is_log_input:
+            self._log.debug(f"input content: {content}")
+        else:
+            self._log.debug(f"Inputting {len(content)} chars to process.")
         self._process.stdin_write(content)
 
     def wait_result(
@@ -370,10 +381,11 @@ class Process:
                 # LogWriter only flushes if "\n" is written, so we need to flush
                 # manually.
                 self._stdout_writer.flush()
+                self._stderr_writer.flush()
                 process_result = spur.results.result(
                     return_code=1,
                     allow_error=True,
-                    output=self._log_buffer.getvalue(),
+                    output=self.log_buffer.getvalue(),
                     stderr_output="",
                 )
             else:
@@ -443,17 +455,30 @@ class Process:
             and self._shell._inner_shell._spur._shell_type
             == spur.ssh.ShellTypes.minimal
         ):
+            self._log.debug("skip killing process on minimal shell")
             return
         if self._process:
-            self._log.debug(f"Killing process : {self._id_}")
+            self._log.debug(f"Killing process : {self._id_}, pid: {self._process.pid}")
             try:
-                if self._shell.is_remote:
-                    # Support remote Posix so far
-                    self._process.send_signal(9)
+                if self._is_posix:
+                    if self._shell.is_remote:
+                        # Support remote Posix so far
+                        self._process.send_signal(9)
+                    else:
+                        # local process should use the compiled value
+                        # the value is different between windows and posix
+                        self._process.send_signal(signal.SIGTERM)
                 else:
-                    # local process should use the compiled value
-                    # the value is different between windows and posix
-                    self._process.send_signal(signal.SIGTERM)
+                    # windows
+                    task_kill = "taskkill"
+                    kill_process = Process(
+                        task_kill, self._shell, parent_logger=self._log
+                    )
+                    kill_process.start(
+                        f"{task_kill} /F /T /PID " + str(self._process.pid),
+                        no_info_log=True,
+                    )
+                    kill_process.wait_result(1)
             except Exception as identifier:
                 self._log.debug(f"failed on killing process: {identifier}")
 
@@ -467,8 +492,9 @@ class Process:
         keyword: str,
         timeout: int = 300,
         error_on_missing: bool = True,
-        interval: int = 1,
-    ) -> None:
+        interval: float = 1,
+        delta_only: bool = False,
+    ) -> bool:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
         start_time = time.time()
@@ -476,12 +502,17 @@ class Process:
             # LogWriter only flushes if "\n" is written, so we need to flush
             # manually.
             self._stdout_writer.flush()
+            self._stderr_writer.flush()
 
             # check if buffer contains the keyword
-            if keyword in self._log_buffer.getvalue():
-                return
+            find_pos = self.log_buffer_offset if delta_only else 0
+            if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
+                self.log_buffer_offset = len(self.log_buffer.getvalue())
+                return True
 
             time.sleep(interval)
+
+        self.log_buffer_offset = len(self.log_buffer.getvalue())
 
         if error_on_missing:
             raise LisaException(
@@ -491,6 +522,8 @@ class Process:
             self._log.debug(
                 f"not found '{keyword}' in {timeout} seconds, but ignore it."
             )
+
+        return False
 
     def _recycle_resource(self) -> None:
         # TODO: The spur library is not very good and leaves open

@@ -10,7 +10,7 @@ from randmac import RandMac  # type: ignore
 
 from lisa.executable import Tool
 from lisa.operating_system import Fedora, Posix, Redhat
-from lisa.tools import Ip, Kill, Lscpu, Lsmod, Pgrep
+from lisa.tools import Ip, KernelConfig, Kill, Lscpu, Lsmod, Pgrep
 from lisa.tools.lscpu import CpuType
 from lisa.util import LisaException, SkippedException, get_matched_str
 
@@ -37,7 +37,7 @@ class Qemu(Tool):
         port: int,
         guest_image_path: str,
         cores: int = 2,
-        memory: int = 4096,
+        memory_in_gb: int = 4,
         nic_model: str = "e1000",
         taps: int = 0,
         bridge: Optional[str] = None,
@@ -52,7 +52,7 @@ class Qemu(Tool):
         port: port of the host vm mapped to the guest's ssh port
         guest_image_path: path of the guest image
         cores: number of cores of the vm. Defaults to 2
-        memory: memory of the vm in MB. Defaults to 2048MB
+        memory_in_gb: memory of the vm in GB. Defaults to 4G
         nics: number of qemu managed nics of the vm. Defaults to 1
         nic_model: model of the nics. Can be `e1000` or `virtio-net-pci`.
                     Defaults to `e1000` as it works with most x86 machines
@@ -86,7 +86,7 @@ class Qemu(Tool):
             )
             if not get_matched_str(try_pcid_flag.stdout, self.NO_PCID_PATTERN):
                 cmd += ",pcid=no"
-        cmd += f" -smp {cores} -m {memory} -hda {guest_image_path} "
+        cmd += f" -smp {cores} -m {memory_in_gb}G -hda {guest_image_path} "
 
         # Add qemu managed nic device
         # This will be used to communicate with ssh to the guest
@@ -104,9 +104,10 @@ class Qemu(Tool):
                     f"-device {nic_model},netdev=nettap{self.interface_count},"
                     f"mac={random_mac_address} "
                 )
-                cmd += (
-                    f"-netdev tap,id=nettap{self.interface_count},vhost=on,script=no "
-                )
+                base_cmd = f"-netdev tap,id=nettap{self.interface_count},script=no"
+                if self.node.tools[KernelConfig].is_enabled("CONFIG_VHOST_NET"):
+                    base_cmd += ",vhost=on"
+                cmd += base_cmd + " "
                 added_taps.append(f"tap{self.interface_count}")
                 self.interface_count += 1
 
@@ -121,6 +122,9 @@ class Qemu(Tool):
 
         if cd_rom:
             cmd += f" -cdrom {cd_rom} "
+            self.node.execute(
+                f"qemu-img resize {guest_image_path} +1G", sudo=True, shell=True
+            )
 
         # kill any existing qemu process if stop_existing_vm is True
         if stop_existing_vm:
@@ -159,13 +163,7 @@ class Qemu(Tool):
                 self.node.tools[Ip].up(tap)
                 self.node.tools[Ip].set_master(tap, bridge)
 
-        # update firewall rules
-        # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/using-and-configuring-firewalld_configuring-and-managing-networking # noqa E501
-        if isinstance(self.node.os, Fedora):
-            self.node.execute(
-                f"firewall-cmd --permanent --add-port={port}/tcp", sudo=True
-            )
-            self.node.execute("firewall-cmd --reload", sudo=True)
+        self._configure_firewall_for_fedora(port)
 
     def delete_vm(self, timeout: int = 300) -> None:
         # stop vm
@@ -231,3 +229,12 @@ class Qemu(Tool):
         if get_matched_str(result.stdout, self.ERROR_WHEN_USE_HOST_CPU):
             cmd = cmd.replace("-cpu host", "-cpu EPYC")
         return cmd
+
+    def _configure_firewall_for_fedora(self, port: int) -> None:
+        # update firewall rules
+        # https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/using-and-configuring-firewalld_configuring-and-managing-networking # noqa E501
+        if isinstance(self.node.os, Fedora):
+            self.node.execute(
+                f"firewall-cmd --permanent --add-port={port}/tcp", sudo=True
+            )
+            self.node.execute("firewall-cmd --reload", sudo=True)

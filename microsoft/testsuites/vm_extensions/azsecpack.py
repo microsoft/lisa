@@ -325,17 +325,23 @@ class AzSecPack(TestSuite):
         log.info("Azsecmond connection to mdsd is successful")
 
         output = journalctl.logs_for_unit("auoms", sudo=True)
+
+        # Previously, we also checked the string "Output(azsecmond): Connected".
+        # However, in some scenarios, such as with the Mariner images in locations
+        # other than westus2, this string is not present in the logs. We confirmed
+        # with AzSecPack team that they didn't find any impact. Therefore, we have
+        # temporarily removed this check until the AzSecPack team provides final
+        # confirmation.
         strings_to_check = [
             "Output(mdsd): Connected",
-            "Output(azsecmond): Connected",
         ]
         for s in strings_to_check:
             if s not in output:
                 raise LisaException(
                     f"'{s}' string is not in auoms logs. Please check if the connection"
-                    " auoms to mdsd and azsecmond is successful."
+                    " auoms to mdsd is successful."
                 )
-        log.info("Auoms connection to azsecmond and mdsd is successful")
+        log.info("Auoms connection to mdsd is successful")
 
     def _is_supported(self, node: Node) -> None:
         supported_major_versions_x86_64 = {
@@ -346,14 +352,14 @@ class AzSecPack(TestSuite):
             Ubuntu: [20, 22, 18],
             SLES: [15],
             AlmaLinux: [8],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
         supported_major_versions_arm64 = {
             Redhat: [8, 9],
             CentOs: [7],
             Debian: [11],
             Ubuntu: [20],
-            CBLMariner: [2],
+            CBLMariner: [2, 3],
         }
 
         arch = node.os.get_kernel_information().hardware_platform  # type: ignore

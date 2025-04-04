@@ -1,8 +1,10 @@
+from pathlib import Path
 from typing import List, Optional
 
 from lisa import (
     Environment,
     TestCaseMetadata,
+    TestResult,
     TestSuite,
     TestSuiteMetadata,
     schema,
@@ -32,9 +34,15 @@ class VirtualClient(TestSuite):
             min_count=2,
         ),
     )
-    def perf_vc_redis(self, environment: Environment) -> None:
+    def perf_vc_redis(
+        self, environment: Environment, result: TestResult, log_path: Path
+    ) -> None:
         self._run_work_load(
-            environment=environment, profile_name="PERF-REDIS", roles=["client"]
+            environment=environment,
+            profile_name="PERF-REDIS",
+            roles=["client"],
+            test_result=result,
+            log_path=log_path,
         )
 
     @TestCaseMetadata(
@@ -52,7 +60,9 @@ class VirtualClient(TestSuite):
         ),
         timeout=3000,
     )
-    def perf_vc_postgresql(self, environment: Environment) -> None:
+    def perf_vc_postgresql(
+        self, environment: Environment, result: TestResult, log_path: Path
+    ) -> None:
         node = environment.nodes[0]
         arch = node.os.get_kernel_information().hardware_platform  # type: ignore
         if arch == "aarch64":
@@ -68,13 +78,17 @@ class VirtualClient(TestSuite):
         self._run_work_load(
             environment=environment,
             profile_name="PERF-POSTGRESQL-HAMMERDB-TPCC",
+            test_result=result,
             timeout=45,
+            log_path=log_path,
         )
 
     def _run_work_load(
         self,
         environment: Environment,
         profile_name: str,
+        test_result: TestResult,
+        log_path: Path,
         timeout: int = 10,
         roles: Optional[List[str]] = None,
     ) -> None:
@@ -83,6 +97,9 @@ class VirtualClient(TestSuite):
 
         vc_runner: VcRunner = VcRunner(environment, roles)
         vc_runner.run(
+            node=environment.nodes[0],
+            test_result=test_result,
             profile_name=profile_name,
             timeout=timeout,
+            log_path=log_path,
         )

@@ -88,15 +88,15 @@ class WindowsLs(Ls):
             sudo=sudo,
         )
 
-        return output.strip() == "True"
+        return bool(output.strip() == "True")
 
     def path_exists(self, path: str, sudo: bool = False) -> bool:
         output = self.node.tools[PowerShell].run_cmdlet(
-            f"Test-Path {path}",
+            f"Test-Path '{path}'",
             force_run=True,
             sudo=sudo,
         )
-        return output.strip() == "True"
+        return bool(output.strip() == "True")
 
     def list(self, path: str, sudo: bool = False) -> List[str]:
         command = f'Get-ChildItem -Path "{path}" | Select-Object -ExpandProperty Name'
@@ -106,7 +106,7 @@ class WindowsLs(Ls):
             sudo=sudo,
         )
         if output:
-            return output.split()
+            return list(output.split())
         else:
             return []
 

@@ -52,11 +52,16 @@ from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
-from lisa.features import Disk
+from lisa.features import (
+    Disk,
+    SecurityProfile,
+    SecurityProfileSettings,
+    SecurityProfileType,
+)
 from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
-from lisa.secret import PATTERN_GUID, add_secret
+from lisa.secret import add_secret
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -80,6 +85,7 @@ from lisa.util import (
     plugin_manager,
     set_filtered_fields,
     strip_strs,
+    subclasses,
     truncate_keep_prefix,
 )
 from lisa.util.logger import Logger, get_logger
@@ -104,6 +110,7 @@ from .common import (
     CommunityGalleryImageSchema,
     DataDiskCreateOption,
     DataDiskSchema,
+    DiskPlacementType,
     SharedImageGallerySchema,
     check_or_create_resource_group,
     check_or_create_storage_account,
@@ -116,6 +123,7 @@ from .common import (
     get_or_create_storage_container,
     get_primary_ip_addresses,
     get_resource_management_client,
+    get_static_access_token,
     get_storage_account_name,
     get_vhd_details,
     get_vm,
@@ -124,6 +132,7 @@ from .common import (
     save_console_log,
     wait_operation,
 )
+from .credential import AzureCredential, AzureCredentialSchema
 from .tools import Uname, VmGeneration, Waagent
 
 # used by azure
@@ -233,6 +242,8 @@ class CloudSchema:
 @dataclass_json()
 @dataclass
 class AzurePlatformSchema:
+    credential: Optional[AzureCredentialSchema] = None
+
     service_principal_tenant_id: str = field(
         default="",
         metadata=field_metadata(
@@ -246,6 +257,10 @@ class AzurePlatformSchema:
         ),
     )
     service_principal_key: str = field(default="")
+    azure_arm_access_token: str = field(default="")
+    azure_storage_access_token: str = field(default="")
+    azure_keyvault_access_token: str = field(default="")
+    azure_graph_access_token: str = field(default="")
     subscription_id: str = field(
         default="",
         metadata=field_metadata(
@@ -279,6 +294,7 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
@@ -320,6 +336,10 @@ class AzurePlatformSchema:
                 "service_principal_tenant_id",
                 "service_principal_client_id",
                 "service_principal_key",
+                "azure_arm_access_token",
+                "azure_storage_access_token",
+                "azure_keyvault_access_token",
+                "azure_graph_access_token",
                 "subscription_id",
                 "shared_resource_group_name",
                 "resource_group_name",
@@ -329,17 +349,20 @@ class AzurePlatformSchema:
                 "virtual_network_name",
                 "subnet_prefix",
                 "use_public_address",
+                "use_ipv6",
             ],
         )
 
-        if self.service_principal_tenant_id:
-            add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
-        if self.subscription_id:
-            add_secret(self.subscription_id, mask=PATTERN_GUID)
         if self.service_principal_key:
             add_secret(self.service_principal_key)
-        if self.service_principal_client_id:
-            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
+        if self.azure_arm_access_token:
+            add_secret(self.azure_arm_access_token)
+        if self.azure_storage_access_token:
+            add_secret(self.azure_storage_access_token)
+        if self.azure_keyvault_access_token:
+            add_secret(self.azure_keyvault_access_token)
+        if self.azure_graph_access_token:
+            add_secret(self.azure_graph_access_token)
 
     @property
     def cloud(self) -> Cloud:
@@ -407,14 +430,14 @@ class AzurePlatform(Platform):
     )
     _arm_template: Any = None
 
-    _credentials: Dict[str, DefaultAzureCredential] = {}
+    _credentials: Dict[str, Any] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
         # for type detection
-        self.credential: DefaultAzureCredential
+        self.credential: Any
         self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
@@ -698,6 +721,19 @@ class AzurePlatform(Platform):
             node.log.debug("detecting vm generation...")
             information[KEY_VM_GENERATION] = node.tools[VmGeneration].get_generation()
             node.log.debug(f"vm generation: {information[KEY_VM_GENERATION]}")
+
+            security_profile = node.features[SecurityProfile].get_settings()
+            if (
+                security_profile
+                and isinstance(security_profile, SecurityProfileSettings)
+                and isinstance(security_profile.security_profile, SecurityProfileType)
+            ):
+                information[
+                    "security_profile"
+                ] = security_profile.security_profile.value
+                if security_profile.security_profile == SecurityProfileType.CVM:
+                    information["encrypt_disk"] = security_profile.encrypt_disk
+
             if node.capture_kernel_config:
                 node.log.debug("detecting mana driver enabled...")
                 information[
@@ -916,33 +952,50 @@ class AzurePlatform(Platform):
 
     def _initialize_credential(self) -> None:
         azure_runbook = self._azure_runbook
-
-        credential_key = (
-            f"{azure_runbook.service_principal_tenant_id}_"
-            f"{azure_runbook.service_principal_client_id}"
-        )
-        credential = self._credentials.get(credential_key, None)
-        if not credential:
-            # set azure log to warn level only
-            logging.getLogger("azure").setLevel(azure_runbook.log_level)
-
-            if azure_runbook.service_principal_tenant_id:
-                os.environ[
-                    "AZURE_TENANT_ID"
-                ] = azure_runbook.service_principal_tenant_id
-            if azure_runbook.service_principal_client_id:
-                os.environ[
-                    "AZURE_CLIENT_ID"
-                ] = azure_runbook.service_principal_client_id
-            if azure_runbook.service_principal_key:
-                os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-
-            credential = DefaultAzureCredential(
-                authority=self.cloud.endpoints.active_directory,
+        if azure_runbook.credential:
+            credential_factory = subclasses.Factory[AzureCredential](AzureCredential)
+            azure_credential: Optional[
+                AzureCredential
+            ] = credential_factory.create_by_runbook(
+                azure_runbook.credential, cloud=self.cloud, logger=self._log
             )
+            cached_key = f"{hash(azure_credential)}"
+        else:
+            cached_key = (
+                f"{azure_runbook.service_principal_tenant_id}_"
+                f"{azure_runbook.service_principal_client_id}"
+            )
+            azure_credential = None
+
+        # Use Any to support all types of credentials.
+        cached_credential: Any = self._credentials.get(cached_key, None)
+        if not cached_credential:
+            if azure_credential:
+                cached_credential = azure_credential.get_credential()
+            else:
+                # set azure log to warn level only
+                logging.getLogger("azure").setLevel(azure_runbook.log_level)
+                if azure_runbook.service_principal_tenant_id:
+                    os.environ[
+                        "AZURE_TENANT_ID"
+                    ] = azure_runbook.service_principal_tenant_id
+                if azure_runbook.service_principal_client_id:
+                    os.environ[
+                        "AZURE_CLIENT_ID"
+                    ] = azure_runbook.service_principal_client_id
+                if azure_runbook.service_principal_key:
+                    os.environ[
+                        "AZURE_CLIENT_SECRET"
+                    ] = azure_runbook.service_principal_key
+
+                cached_credential = get_static_access_token(
+                    azure_runbook.azure_arm_access_token
+                ) or DefaultAzureCredential(
+                    authority=self.cloud.endpoints.active_directory,
+                )
 
             with SubscriptionClient(
-                credential,
+                cached_credential,
                 base_url=self.cloud.endpoints.resource_manager,
                 credential_scopes=[self.cloud.endpoints.resource_manager + "/.default"],
             ) as self._sub_client:
@@ -965,9 +1018,9 @@ class AzurePlatform(Platform):
                 f"{subscription.id}, '{subscription.display_name}'"
             )
 
-            self._credentials[credential_key] = credential
+            self._credentials[cached_key] = cached_credential
 
-        self.credential = credential
+        self.credential = cached_credential
 
     def _load_template(self) -> Any:
         if self._arm_template is None:
@@ -1079,6 +1132,7 @@ class AzurePlatform(Platform):
         )
         arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
         arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+        arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
@@ -1417,6 +1471,7 @@ class AzurePlatform(Platform):
         arm_parameters.os_disk_type = features.get_azure_disk_type(
             capability.disk.os_disk_type
         )
+
         assert isinstance(capability.disk.data_disk_type, schema.DiskType)
         arm_parameters.data_disk_type = features.get_azure_disk_type(
             capability.disk.data_disk_type
@@ -1432,6 +1487,17 @@ class AzurePlatform(Platform):
                 "Gen 1 image cannot be set to NVMe Disk Controller Type"
             )
         arm_parameters.disk_controller_type = capability.disk.disk_controller_type.value
+
+        cap_disk: features.AzureDiskOptionSettings = cast(
+            features.AzureDiskOptionSettings,
+            capability.disk,
+        )
+        assert isinstance(
+            cap_disk.ephemeral_disk_placement_type, DiskPlacementType
+        ), f"actual: {type(cap_disk.ephemeral_disk_placement_type)}"
+        arm_parameters.ephemeral_disk_placement_type = (
+            cap_disk.ephemeral_disk_placement_type.value
+        )
 
         assert capability.network_interface
         assert isinstance(
@@ -1633,9 +1699,10 @@ class AzurePlatform(Platform):
                 vm = vms_map[vm_name]
             node.name = vm_name
             public_address, private_address = get_primary_ip_addresses(
-                self, resource_group_name, vm
+                self, resource_group_name, vm, use_ipv6=self._azure_runbook.use_ipv6
             )
             node_context.use_public_address = self._azure_runbook.use_public_address
+            node_context.use_ipv6 = self._azure_runbook.use_ipv6
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
@@ -1794,14 +1861,45 @@ class AzurePlatform(Platform):
         else:
             node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
 
+        # If EphemeralOSDisk is supported, then check for the placement type
         if azure_raw_capabilities.get("EphemeralOSDiskSupported", None) == "True":
-            # Check if CachedDiskBytes is greater than 30GB
-            # We use diff disk as cache disk for ephemeral OS disk
+            node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
+            # Add the EphemeralDiskPlacementType
+            node_space.disk.ephemeral_disk_placement_type = search_space.SetSpace(
+                True, [DiskPlacementType.NONE]
+            )
+            ephemeral_disk_placement_types = azure_raw_capabilities.get(
+                "SupportedEphemeralOSDiskPlacements", None
+            )
+            if ephemeral_disk_placement_types:
+                for allowed_type in ephemeral_disk_placement_types.split(","):
+                    try:
+                        node_space.disk.ephemeral_disk_placement_type.add(
+                            DiskPlacementType(allowed_type)
+                        )
+                    except ValueError:
+                        self._log.error(
+                            f"'{allowed_type}' is not a known Ephemeral Disk Placement"
+                            f" Type "
+                            f"({[x for x in DiskPlacementType]})"
+                        )
+
+            # EphemeralDiskPlacementType can be - ResourceDisk, CacheDisk or NvmeDisk.
+            # Depending on that, "CachedDiskBytes" may or may not be found in
+            # capabilities.
+            # refer
+            # https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks-faq
+            resource_disk_bytes = azure_raw_capabilities.get("MaxResourceVolumeMB", 0)
             cached_disk_bytes = azure_raw_capabilities.get("CachedDiskBytes", 0)
-            cached_disk_bytes_gb = int(int(cached_disk_bytes) / 1024 / 1024 / 1024)
-            if cached_disk_bytes_gb >= 30:
-                node_space.disk.os_disk_type.add(schema.DiskType.Ephemeral)
-                node_space.disk.os_disk_size = cached_disk_bytes_gb
+            nvme_disk_bytes = azure_raw_capabilities.get("NvmeDiskSizeInMiB", 0)
+            if nvme_disk_bytes:
+                node_space.disk.os_disk_size = int(int(nvme_disk_bytes) / 1024)
+            elif cached_disk_bytes:
+                node_space.disk.os_disk_size = int(
+                    int(cached_disk_bytes) / 1024 / 1024 / 1024
+                )
+            else:
+                node_space.disk.os_disk_size = int(int(resource_disk_bytes) / 1024)
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
@@ -2047,6 +2145,10 @@ class AzurePlatform(Platform):
         ](is_allow_set=True, items=[])
         node_space.disk.disk_controller_type.add(schema.DiskControllerType.SCSI)
         node_space.disk.disk_controller_type.add(schema.DiskControllerType.NVME)
+        node_space.disk.ephemeral_disk_placement_type = search_space.SetSpace[
+            DiskPlacementType
+        ](is_allow_set=True, items=[])
+        node_space.disk.ephemeral_disk_placement_type.add(DiskPlacementType.NVME)
         node_space.network_interface = schema.NetworkInterfaceOptionSettings()
         node_space.network_interface.data_path = search_space.SetSpace[
             schema.NetworkDataPath
@@ -2270,6 +2372,7 @@ class AzurePlatform(Platform):
             cloud=self.cloud,
             account_name=result_dict["account_name"],
             container_name=result_dict["container_name"],
+            platform=self,
         )
 
         vhd_blob = container_client.get_blob_client(result_dict["blob_name"])
@@ -2754,6 +2857,18 @@ class AzurePlatform(Platform):
             isinstance(node_space.disk.os_disk_type, search_space.SetSpace)
             and node_space.disk.os_disk_type.isunique(schema.DiskType.Ephemeral)
         ):
+            node_disk: features.AzureDiskOptionSettings = cast(
+                features.AzureDiskOptionSettings,
+                node_space.disk,
+            )
+            if isinstance(node_disk.ephemeral_disk_placement_type, DiskPlacementType):
+                node_disk.ephemeral_disk_placement_type = search_space.SetSpace[
+                    DiskPlacementType
+                ](
+                    is_allow_set=True,
+                    items=[node_disk.ephemeral_disk_placement_type],
+                )
+
             node_space.disk.os_disk_size = search_space.IntRange(
                 min=self._get_os_disk_size(azure_runbook)
             )
@@ -2769,6 +2884,12 @@ class AzurePlatform(Platform):
             azure_runbook.image.disk_controller_type = search_space.SetSpace[
                 schema.DiskControllerType
             ](is_allow_set=True, items=[azure_runbook.image.disk_controller_type])
+
+        # Disk controller type 'NVMe' not supported for user VM image.
+        if azure_runbook.vhd and azure_runbook.vhd.vhd_path:
+            node_space.disk.disk_controller_type = search_space.SetSpace[
+                schema.DiskControllerType
+            ](is_allow_set=True, items=[schema.DiskControllerType.SCSI])
 
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:

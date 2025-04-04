@@ -100,8 +100,9 @@ Configure Azure deployment
 
 Below section is for running cases on Azure platform, it specifies:
 
--  admin_private_key_file: the private key file to access the Azure VM.
+-  admin_private_key_file: the private key file to access the Azure VM. (Optional)
 -  subscription_id: Azure VM is created under this subscription.
+-  azcopy_path: the installation path of the AzCopy tool on the machine where LISA is installed. It speeds up copying VHDs between Azure storage accounts. (Optional)
 
 .. code:: yaml
 
@@ -110,6 +111,7 @@ Below section is for running cases on Azure platform, it specifies:
        admin_private_key_file: $(admin_private_key_file)
        azure:
          subscription_id: $(subscription_id)
+         azcopy_path: $(azcopy_path)
 
 Select and set test cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~

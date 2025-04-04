@@ -15,7 +15,7 @@ dependencies = [
     "assertpy ~= 1.1",
     "func-timeout ~= 4.3.5",
     "dataclasses-json ~= 0.5.2",
-    "paramiko ~= 3.4.0",
+    "paramiko ~= 3.5.1",
     "pluggy ~= 0.13.1",
     "python-dateutil ~= 2.8.1",
     "pytest-html ~= 3.2.0",
@@ -41,7 +41,7 @@ aws = [
 
 azure = [
     "azure-identity ~= 1.17.0b1",
-    "azure-mgmt-compute ~= 30.3.0",
+    "azure-mgmt-compute ~= 30.5.0",
     "azure-mgmt-keyvault ~= 10.2.3",
     "azure-mgmt-marketplaceordering ~= 1.1.0",
     "azure-mgmt-msi ~= 7.0.0",
@@ -52,12 +52,12 @@ azure = [
     "azure-mgmt-storage ~= 21.2.1",
     "azure-storage-blob ~= 12.23.0",
     "azure-storage-file-share ~= 12.18.0",
-    "azure-keyvault-secrets ~= 4.7.0", 
+    "azure-keyvault-secrets ~= 4.7.0",
     "azure-keyvault-certificates ~= 4.7.0",
     "msrestazure ~= 0.6.4",
     "cachetools ~= 5.2.0",
-    "Pillow ~= 10.3.0",
-    "PyGObject ~= 3.42.0; platform_system == 'Linux'",
+    "Pillow <= 11.1.0",
+    "PyGObject <= 3.50.0; platform_system == 'Linux'",
     "requests ~= 2.32.0",
     "pycdlib ~= 1.12.0",
 ]
@@ -104,6 +104,8 @@ libvirt = [
 baremetal = [
     "pysmb ~= 1.2.9.1",
     "redfish ~= 3.2.1",
+    "azure-devops ~= 7.1.0b3",
+    "requests ~= 2.32.0",
 ]
 
 mypy = [

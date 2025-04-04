@@ -3,7 +3,7 @@
 
 import copy
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import partial
 from typing import Any, Dict, List, Optional, Type
 
@@ -102,7 +102,9 @@ def register_notifier(notifier: Notifier) -> None:
 
 
 def notify(message: MessageBase) -> None:
-    message.time = datetime.utcnow()
+    if message.time is None:
+        # if time is not set, set it to now
+        message.time = datetime.now(timezone.utc)
 
     # to make sure message get order as possible, use a queue to hold messages.
     with _message_queue_lock:

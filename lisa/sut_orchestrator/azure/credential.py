@@ -9,27 +9,34 @@ from azure.identity import (
     ClientSecretCredential,
     DefaultAzureCredential,
     ManagedIdentityCredential,
+    WorkloadIdentityCredential,
 )
 from dataclasses_json import dataclass_json
+from msrestazure.azure_cloud import AZURE_PUBLIC_CLOUD, Cloud  # type: ignore
 
-from lisa import schema
-from lisa.util import constants, subclasses
+from lisa import schema, secret
+from lisa.util import subclasses
 from lisa.util.logger import Logger
+
+from .common import get_static_access_token
 
 
 class AzureCredentialType(str, Enum):
-    DefaultAzureCredential = constants.DEFAULT_AZURE_CREDENTIAL
-    CertificateCredential = constants.CERTIFICATE_CREDENTIAL
-    ClientAssertionCredential = constants.CLIENT_ASSERTION_CREDENTIAL
-    ClientSecretCredential = constants.CLIENT_SECRET_CREDENTIAL
+    DefaultAzureCredential = "default"
+    CertificateCredential = "certificate"
+    ClientAssertionCredential = "assertion"
+    ClientSecretCredential = "secret"
+    WorkloadIdentityCredential = "workloadidentity"
+    TokenCredential = "token"
 
 
 @dataclass_json()
 @dataclass
 class AzureCredentialSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
+    type: str = AzureCredentialType.DefaultAzureCredential
     tenant_id: str = ""
     client_id: str = ""
-    type: str = AzureCredentialType.DefaultAzureCredential
+    allow_all_tenants: bool = True
 
 
 @dataclass_json()
@@ -37,7 +44,6 @@ class AzureCredentialSchema(schema.TypedSchema, schema.ExtendableSchemaMixin):
 class CertCredentialSchema(AzureCredentialSchema):
     cert_path: str = ""
     client_send_cert_chain = "false"
-    type: str = AzureCredentialType.CertificateCredential
 
 
 @dataclass_json()
@@ -45,7 +51,6 @@ class CertCredentialSchema(AzureCredentialSchema):
 class ClientAssertionCredentialSchema(AzureCredentialSchema):
     msi_client_id: str = ""
     enterprise_app_client_id: str = ""
-    type: str = AzureCredentialType.ClientAssertionCredential
 
 
 @dataclass_json()
@@ -53,7 +58,20 @@ class ClientAssertionCredentialSchema(AzureCredentialSchema):
 class ClientSecretCredentialSchema(AzureCredentialSchema):
     # for ClientSecretCredential, will be deprecated due to Security WAVE
     client_secret: str = ""
-    type: str = AzureCredentialType.ClientSecretCredential
+
+    def __post_init__(self) -> None:
+        assert self.client_secret, "client_secret shouldn't be empty"
+        secret.add_secret(self.client_secret)
+
+
+@dataclass_json()
+@dataclass
+class TokenCredentialSchema(AzureCredentialSchema):
+    token: str = ""
+
+    def __post_init__(self) -> None:
+        assert self.token, "token shouldn't be empty"
+        secret.add_secret(self.token)
 
 
 class AzureCredential(subclasses.BaseClassWithRunbookMixin):
@@ -63,66 +81,158 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.DEFAULT_AZURE_CREDENTIAL
+        raise NotImplementedError()
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        raise NotImplementedError()
+
+    def __init__(
+        self,
+        runbook: AzureCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook=runbook)
+        self._log = logger
+
+        if runbook.type:
+            self._credential_type = runbook.type
+        else:
+            self._credential_type = AzureCredentialType.DefaultAzureCredential
+
+        self._log.debug(f"Credential type: {self._credential_type}")
+        self._cloud = cloud
+
+        # parameters overwrite seq: env var <- runbook <- cmd
+        self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
+        self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
+        self._allow_all_tenants = False
+
+        assert runbook, "azure_credential shouldn't be empty"
+        if runbook.tenant_id:
+            self._tenant_id = runbook.tenant_id
+            self._log.debug(f"Use defined tenant id: {self._tenant_id}")
+        if runbook.client_id:
+            self._client_id = runbook.client_id
+            self._log.debug(f"Use defined client id: {self._client_id}")
+
+        self._allow_all_tenants = runbook.allow_all_tenants
+
+    def _set_auth_env_variables(self) -> None:
+        if self._tenant_id:
+            os.environ["AZURE_TENANT_ID"] = self._tenant_id
+        if self._client_id:
+            os.environ["AZURE_CLIENT_ID"] = self._client_id
+
+    def __hash__(self) -> int:
+        return hash(self._get_key())
+
+    def get_credential(self) -> Any:
+        raise NotImplementedError()
+
+    def _get_key(self) -> str:
+        return f"{self._credential_type}_{self._client_id}_{self._tenant_id}"
+
+
+class AzureDefaultCredential(AzureCredential):
+    """
+    Class to create DefaultAzureCredential based on runbook Schema. Because the
+    subclass factory doesn't instance the base class, so create a subclass to be
+    instanced.
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.DefaultAzureCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return AzureCredentialSchema
 
-    def __init__(self, runbook: AzureCredentialSchema) -> None:
-        super().__init__(runbook=runbook)
-        # parameters overwrite seq: env var <- runbook <- cmd
-        self._credential_type: str = AzureCredentialType.DefaultAzureCredential
-        self._client_id = os.environ.get("AZURE_CLIENT_ID", "")
-        self._tenant_id = os.environ.get("AZURE_TENANT_ID", "")
+    def __init__(
+        self,
+        runbook: AzureCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, logger=logger, cloud=cloud)
+        self._set_auth_env_variables()
 
-        assert runbook, "azure_credential shouldn't be empty"
-        self._azure_credential = runbook
-        if runbook.type:
-            self._credential_type = runbook.type
-        if runbook.client_id:
-            self._client_id = runbook.client_id
-        if runbook.tenant_id:
-            self._tenant_id = runbook.tenant_id
+    def __hash__(self) -> int:
+        return hash(self._get_key())
 
-    def get_credential(self, log: Logger) -> Any:
+    def get_credential(self) -> Any:
         """
         return AzureCredential with related schema
         """
-        log.info("Authenticating using DefaultAzureCredential")
-        return DefaultAzureCredential()
+        additional_tenants = ["*"] if self._allow_all_tenants else None
+        return DefaultAzureCredential(
+            cloud=self._cloud,
+            additionally_allowed_tenants=additional_tenants,
+        )
+
+    def _get_key(self) -> str:
+        return f"{self._credential_type}_{self._client_id}_{self._tenant_id}"
+
+
+class AzureWorkloadIdentityCredential(AzureCredential):
+    """
+    Class to create azure WorkloadIdentityCredential
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.WorkloadIdentityCredential
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return AzureCredentialSchema
+
+    def get_credential(self) -> Any:
+        self._log.info("Authenticating Using WorkloadIdentityCredential")
+        additional_tenants = ["*"] if self._allow_all_tenants else None
+        return WorkloadIdentityCredential(
+            tenant_id=self._tenant_id,
+            client_id=self._client_id,
+            additionally_allowed_tenants=additional_tenants,
+        )
 
 
 class AzureCertificateCredential(AzureCredential):
     """
     Class to create azure credential based on runbook AzureCredentialSchema.
-    Methods:
-        get_credential(self, log: Logger) -> Any:
-            return the credential based on runbook AzureCredentialSchema define.
     """
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.CERTIFICATE_CREDENTIAL
+        return AzureCredentialType.CertificateCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return CertCredentialSchema
 
-    def __init__(self, runbook: CertCredentialSchema) -> None:
-        super().__init__(runbook)
+    def __init__(
+        self,
+        runbook: CertCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, cloud=cloud, logger=logger)
+        self._set_auth_env_variables()
         self._cert_path = os.environ.get("AZURE_CLIENT_CERTIFICATE_PATH", "")
         self._client_send_cert_chain = "false"
 
         runbook = cast(CertCredentialSchema, self.runbook)
-        self._credential_type = AzureCredentialType.CertificateCredential
         if runbook.cert_path:
             self._cert_path = runbook.cert_path
+            self._log.debug(f"Use defined cert path: {self._cert_path}")
+            os.environ["AZURE_CLIENT_CERTIFICATE_PATH"] = self._cert_path
         if runbook.client_send_cert_chain:
             self._client_send_cert_chain = runbook.client_send_cert_chain
 
-    def get_credential(self, log: Logger) -> Any:
-        log.info(f"Authenticating using cert path: {self._cert_path}")
+    def get_credential(self) -> Any:
+        self._log.info(f"Authenticating using cert path: {self._cert_path}")
 
         assert self._tenant_id, "tenant id shouldn't be none for CertificateCredential"
         assert self._client_id, "client id shouldn't be none for CertificateCredential"
@@ -143,18 +253,22 @@ class AzureClientAssertionCredential(AzureCredential):
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.CLIENT_ASSERTION_CREDENTIAL
+        return AzureCredentialType.ClientAssertionCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return ClientAssertionCredentialSchema
 
-    def __init__(self, runbook: ClientAssertionCredentialSchema) -> None:
+    def __init__(
+        self,
+        runbook: ClientAssertionCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
         if runbook:
-            super().__init__(runbook)
+            super().__init__(runbook, cloud=cloud, logger=logger)
         self._msi_client_id = ""
         self._enterprise_app_client_id = ""
-        self._credential_type = AzureCredentialType.ClientAssertionCredential
 
         runbook = cast(ClientAssertionCredentialSchema, self.runbook)
         if runbook.msi_client_id:
@@ -185,8 +299,8 @@ class AzureClientAssertionCredential(AzureCredential):
         )
         return credential
 
-    def get_credential(self, log: Logger) -> Any:
-        log.info("Authenticating using ClientAssertionCredential")
+    def get_credential(self) -> Any:
+        self._log.info("Authenticating using ClientAssertionCredential")
         return self.get_cross_tenant_credential(
             self._msi_client_id, self._enterprise_app_client_id, self._tenant_id
         )
@@ -196,30 +310,35 @@ class AzureClientSecretCredential(AzureCredential):
     """
     Class to create ClientSecretCredential based on runbook Schema
     Methods:
-        get_credential(self, log: Logger) -> Any:
+        get_credential(self) -> Any:
             return the credential based on runbook Schema define.
     """
 
     @classmethod
     def type_name(cls) -> str:
-        return constants.CLIENT_SECRET_CREDENTIAL
+        return AzureCredentialType.ClientSecretCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return ClientSecretCredentialSchema
 
-    def __init__(self, runbook: ClientSecretCredentialSchema) -> None:
-        super().__init__(runbook)
-        self._credential_type = AzureCredentialType.ClientSecretCredential
+    def __init__(
+        self,
+        runbook: ClientSecretCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, cloud=cloud, logger=logger)
+        self._set_auth_env_variables()
         self._client_secret = os.environ.get("AZURE_CLIENT_SECRET", "")
 
         runbook = cast(ClientSecretCredentialSchema, self.runbook)
-        if runbook.client_id:
-            self._client_id = runbook.client_id
-        if runbook.tenant_id:
-            self._tenant_id = runbook.tenant_id
         if runbook.client_secret:
             self._client_secret = runbook.client_secret
+            self._log.debug(
+                f"Use defined client secret: ({len(self._client_secret)} bytes)"
+            )
+            os.environ["AZURE_CLIENT_SECRET"] = self._client_secret
 
     def get_client_secret_credential(
         self, tenant_id: str, client_id: str, client_secret: str
@@ -237,8 +356,34 @@ class AzureClientSecretCredential(AzureCredential):
             tenant_id=tenant_id, client_id=client_id, client_secret=client_secret
         )
 
-    def get_credential(self, log: Logger) -> Any:
-        log.info("Authenticating using ClientSecretCredential")
+    def get_credential(self) -> Any:
+        self._log.info("Authenticating using ClientSecretCredential")
         return self.get_client_secret_credential(
             self._tenant_id, self._client_id, self._client_secret
         )
+
+
+class AzureTokenCredential(AzureCredential):
+    """
+    Class to create azure credential based on preappled tokens
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.TokenCredential
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return TokenCredentialSchema
+
+    def __init__(
+        self,
+        runbook: TokenCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, cloud=cloud, logger=logger)
+        self._token = runbook.token
+
+    def get_credential(self) -> Any:
+        return get_static_access_token(self._token)

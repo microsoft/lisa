@@ -15,6 +15,7 @@ from lisa import (
     TestSuiteMetadata,
 )
 from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
+from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import simple_requirement
@@ -61,7 +62,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             network_interface=Synthetic(),
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_synthetic_network(self, node: Node, log: Logger) -> None:
@@ -76,7 +77,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             network_interface=Sriov(),
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_sriov_network(self, node: Node, log: Logger) -> None:
@@ -94,7 +95,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_time_sync(self, node: Node, log: Logger) -> None:
@@ -136,7 +137,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_count=2,
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_with_network_workload(
@@ -159,7 +160,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_with_storage_workload(self, node: Node, log: Logger) -> None:
@@ -179,7 +180,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_with_memory_workload(self, node: Node, log: Logger) -> None:
@@ -207,7 +208,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=Synthetic(),
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_synthetic_network_max_nics(
@@ -225,7 +226,7 @@ class Power(TestSuite):
         requirement=simple_requirement(
             min_nic_count=8,
             network_interface=Sriov(),
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
     )
     def verify_hibernation_sriov_network_max_nics(
@@ -242,7 +243,7 @@ class Power(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_nic_count=8,
-            supported_features=[HibernationEnabled()],
+            supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
             min_data_disk_count=32,
         ),
     )

@@ -12,9 +12,10 @@ from lisa import Node
 from lisa.executable import Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Cat,
     Chmod,
     Chown,
     Dmesg,
@@ -22,11 +23,13 @@ from lisa.tools import (
     Echo,
     Git,
     Ls,
+    Lsblk,
     Mkdir,
     Modprobe,
+    Sed,
     Whoami,
 )
-from lisa.util import find_groups_in_lines
+from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
 
 
 @dataclass
@@ -62,9 +65,19 @@ class CloudHypervisorTests(Tool):
 
     # Block perf related env var
     use_datadisk = ""
-    datadisk_name = ""
-    disable_datadisk_cache = ""
-    block_size_kb = ""
+    use_pmem = ""
+    """
+    Following is the last usable entry in e820 table and is safest to use for
+    pmem since its most likely to be free. 0x0000001000000000 is 64G.
+    So, set it as default.
+
+    [    0.000000] BIOS-e820: [mem 0x0000001000000000-0x00000040ffffffff] usable
+
+    """
+    pmem_config = "memmap=8G!64G"
+    disable_disk_cache = ""
+    mibps_block_size_kb = ""
+    iops_block_size_kb = ""
 
     cmd_path: PurePath
     repo_root: PurePath
@@ -164,6 +177,17 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        disk_name = ""
+        if self.use_pmem:
+            disk_name = self._get_pmem_for_block_tests()
+        elif self.use_datadisk:
+            disk_name = self._get_data_disk_for_block_tests()
+
+        if disk_name:
+            self._log.debug(f"Using disk: {disk_name}, for block tests")
+            self.env_vars["DATADISK_NAME"] = disk_name
+            self._save_kernel_logs(log_path)
+
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -182,10 +206,11 @@ class CloudHypervisorTests(Tool):
 
         for testcase in subtests:
             testcase_log_file = log_path.joinpath(f"{testcase}.log")
-
             status: TestStatus = TestStatus.QUEUED
             metrics: str = ""
             trace: str = ""
+
+            self._set_block_size_env_var(testcase)
             cmd_args: str = (
                 f"tests --hypervisor {hypervisor} --metrics -- --"
                 f" --test-filter {testcase}"
@@ -262,14 +287,12 @@ class CloudHypervisorTests(Tool):
             if self.use_ms_bz_image:
                 self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
 
-            if self.use_datadisk:
+            if self.use_pmem:
+                self.env_vars["USE_DATADISK"] = self.use_pmem
+            elif self.use_datadisk:
                 self.env_vars["USE_DATADISK"] = self.use_datadisk
-            if self.datadisk_name:
-                self.env_vars["DATADISK_NAME"] = self.datadisk_name
-            if self.disable_datadisk_cache:
-                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_datadisk_cache
-            if self.block_size_kb:
-                self.env_vars["PERF_BLOCK_SIZE_KB"] = self.block_size_kb
+            if self.disable_disk_cache:
+                self.env_vars["DISABLE_DATADISK_CACHING"] = self.disable_disk_cache
         else:
             git.clone(self.upstream_repo, clone_path)
 
@@ -495,6 +518,88 @@ class CloudHypervisorTests(Tool):
             )
             node.tools[Chown].change_owner(file=PurePath(device_path), user=user)
             node.tools[Chmod].chmod(path=device_path, permission=permission, sudo=True)
+
+    def _get_pmem_for_block_tests(self) -> str:
+        lsblk = self.node.tools[Lsblk]
+        sed = self.node.tools[Sed]
+        cat = self.node.tools[Cat]
+
+        os_major_version = int(self.node.os.information.version.major)
+        if isinstance(self.node.os, CBLMariner) and os_major_version == 2:
+            grub_file = "/boot/mariner-mshv.cfg"
+            match_line = "mariner_cmdline_mshv="
+            regexp = "$"
+            replacement = f" {self.pmem_config} "
+        else:
+            grub_file = "/etc/default/grub"
+            match_line = "GRUB_CMDLINE_LINUX="
+            regexp = '"$'
+            replacement = f' {self.pmem_config} "'
+        cat.read(file=grub_file, sudo=True, force_run=True)
+        grub_cmdline = cat.read_with_filter(
+            file=grub_file,
+            grep_string=match_line,
+            sudo=True,
+        )
+        if self.pmem_config not in grub_cmdline:
+            sed.substitute(
+                file=grub_file,
+                match_lines=f"^{match_line}",
+                regexp=regexp,
+                replacement=replacement,
+                sudo=True,
+            )
+            cat.read(file=grub_file, sudo=True, force_run=True)
+
+        if isinstance(self.node.os, CBLMariner):
+            if os_major_version != 2:
+                self.node.execute(
+                    "grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True, shell=True
+                )
+        elif isinstance(self.node.os, Ubuntu):
+            self.node.execute("update-grub", sudo=True, shell=True)
+        else:
+            raise UnsupportedDistroException(
+                self.node.os,
+                "pmem for CH tests is supported only on Ubuntu and CBLMariner",
+            )
+
+        lsblk.run(force_run=True)
+        self.node.reboot(time_out=900)
+        lsblk.run(force_run=True)
+
+        return "/dev/pmem0"
+
+    def _get_data_disk_for_block_tests(self) -> str:
+        datadisk_name = ""
+        lsblk = self.node.tools[Lsblk]
+        disks = lsblk.get_disks()
+        # get the first unmounted disk (data disk)
+        for disk in disks:
+            if disk.is_mounted:
+                continue
+            if disk.name.startswith("sd"):
+                datadisk_name = disk.device_name
+                break
+        # running lsblk once again, just for human readable logs
+        lsblk.run()
+        if not datadisk_name:
+            raise LisaException("No unmounted data disk (/dev/sdX) found")
+        return datadisk_name
+
+    def _set_block_size_env_var(self, testcase: str) -> None:
+        block_size_env_var = "PERF_BLOCK_SIZE_KB"
+        if block_size_env_var in self.env_vars:
+            del self.env_vars[block_size_env_var]
+        if "block" in testcase:
+            block_size = ""
+            if "MiBps" in testcase:
+                block_size = self.mibps_block_size_kb
+            elif "IOPS" in testcase:
+                block_size = self.iops_block_size_kb
+
+            if block_size:
+                self.env_vars[block_size_env_var] = block_size
 
 
 def extract_jsons(input_string: str) -> List[Any]:

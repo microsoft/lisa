@@ -1,0 +1,41 @@
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
+
+WORKDIR /app
+
+RUN tdnf update -y && \
+    tdnf install -y \
+        git \
+        gcc \
+        gobject-introspection-devel \
+        cairo-gobject \
+        cairo-devel \
+        pkg-config \
+        libvirt-devel \
+        python3-devel \
+        python3-pip \
+        python3-virtualenv \
+        build-essential \
+        cairo-gobject-devel \
+        curl \
+        wget \
+        tar \
+        azure-cli \
+        ca-certificates && \
+    tdnf clean all && \
+    rm -rf /var/cache/tdnf /tmp/*
+
+RUN wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz && \
+    tar -xvf azcopy.tar.gz && \
+    mv azcopy*/azcopy /usr/local/bin/ && \
+    rm -rf azcopy*
+
+ENV LISA_azcopy_path="/usr/local/bin/azcopy"
+
+RUN git clone --depth 1 --branch $(curl --silent "https://api.github.com/repos/microsoft/lisa/releases/latest" \
+    | grep '"tag_name":' \
+    | sed -E 's/.*"([^"]+)".*/\1/') https://github.com/microsoft/lisa.git /app/lisa
+
+WORKDIR /app/lisa
+
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir --editable .[ado,azure,libvirt,baremetal] --config-settings editable_mode=compat

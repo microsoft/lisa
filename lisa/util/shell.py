@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
 import logging
 import os
 import re
@@ -77,10 +78,12 @@ def wait_tcp_port_ready(
         # If it's True, it means the direct connection doesn't work. Return a
         # mock value for test purpose.
         return True, 0
-
+    address_family = socket.AF_INET
+    if _is_valid_ipv6(address):
+        address_family = socket.AF_INET6
     timeout_timer = create_timer()
     while timeout_timer.elapsed(False) < timeout:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
+        with socket.socket(address_family, socket.SOCK_STREAM) as tcp_socket:
             try:
                 result = tcp_socket.connect_ex((address, port))
                 if result == 0:
@@ -99,6 +102,14 @@ def wait_tcp_port_ready(
             except Exception as e:
                 raise LisaException(f"failed to connect to {address}:{port}: {e}")
     return is_ready, result
+
+
+def _is_valid_ipv6(address: str) -> bool:
+    try:
+        ipaddress.IPv4Address(address)
+        return False
+    except ipaddress.AddressValueError:
+        return True
 
 
 class WindowsShellType(object):
@@ -180,12 +191,21 @@ def try_connect(
 
             # Give it some time to process the command, otherwise reads on
             # stdout on calling contexts have been seen having empty strings
-            # from stdout, on Windows. There is a certain 3s penalty on Linux
-            # systems, as it's never ready for that (nonexisting) command, but
-            # that should only happen once per node (not per command)
-            tries = 3
-            while not stdout.channel.recv_ready() and tries:
-                sleep(1)
+            # from stdout, on Windows.When the recv_ready is False, Windows
+            # returns empty string. So it needs to wait recv_ready to True. But
+            # Linux doesn't support recv_ready, it's always False. So add the
+            # eof_sent for Linux and its readiness checks. When eof_sent is
+            # True, it means the send is done, and it's Linux. Combine both
+            # recv_ready and eof_sent to make sure the channel is ready for both
+            # Windows and Linux, and not block on both OSes. The logic has a 3
+            # seconds timeout, so if both of them are not support, it wait 3
+            # seconds.
+            tries = 30
+            while (
+                stdout.channel.recv_ready() is False
+                and stdout.channel.eof_sent is not True
+            ) and tries:
+                sleep(0.1)
                 tries -= 1
 
             stdin.channel.shutdown_write()
@@ -269,7 +289,11 @@ class SshShell(InitializableMixin):
             stdout = try_connect(self.connection_info, sock=sock)
         except Exception as identifier:
             raise LisaException(
-                f"failed to connect SSH "
+                "failed to connect SSH port of the VM. It might be due to one of the "
+                "following reasons: 1. Port 22 is not open. 2. The VM denies other "
+                "users' access. 3. The VM is refusing the private key authentication. "
+                "Please modify the relevant configurations and try again. Error details"
+                ": failed to connect "
                 f"[{self.connection_info.address}:{self.connection_info.port}], "
                 f"{identifier.__class__.__name__}: {identifier}"
             )

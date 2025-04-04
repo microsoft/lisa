@@ -5,7 +5,7 @@ import re
 import string
 import sys
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from threading import Lock
@@ -328,7 +328,12 @@ class KernelPanicException(LisaException):
         self.source = source
 
     def __str__(self) -> str:
-        return f"{self.stage} found panic in {self.source}: {self.panics}"
+        return (
+            f"{self.stage} found panic in {self.source}. You can check the panic "
+            "details from the serial console log. Please download the test logs and "
+            "retrieve the serial_log from 'environments' directory, or you can ask "
+            f"support. Detected Panic phrases: {self.panics}"
+        )
 
 
 class RequireUserPasswordException(LisaException):
@@ -413,17 +418,28 @@ class SwitchableMixin:
         self._switch(True)
 
 
+class LisaVersionInfo(VersionInfo):
+    def __init__(self, version_str: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.version_str = version_str
+
+    @classmethod
+    def parse(cls, version: str) -> "LisaVersionInfo":
+        version_info = VersionInfo.parse(version)
+        return LisaVersionInfo(version, *version_info.to_tuple())
+
+
 def get_date_str(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
-    return current.utcnow().strftime("%Y%m%d")
+    return current.now(timezone.utc).strftime("%Y%m%d")
 
 
 def get_datetime_path(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
     date = get_date_str(current)
-    time = current.utcnow().strftime("%H%M%S-%f")[:-3]
+    time = current.now(timezone.utc).strftime("%H%M%S-%f")[:-3]
     return f"{date}-{time}"
 
 
@@ -649,7 +665,7 @@ def dump_file(file_name: Path, content: Any) -> None:
         f.write(secret.mask(content))
 
 
-def parse_version(version: str) -> VersionInfo:
+def parse_version(version: str) -> LisaVersionInfo:
     """
     Convert an incomplete version string into a semver-compatible Version
     object
@@ -667,9 +683,8 @@ def parse_version(version: str) -> VersionInfo:
         belong to a basic version.
     :rtype: tuple(:class:`Version` | None, str)
     """
-    version = '13.0'
-    if VersionInfo.isvalid(version):
-        return VersionInfo.parse(version)
+    if LisaVersionInfo.isvalid(version):
+        return LisaVersionInfo.parse(version)
 
     match = __version_info_pattern.search(version)
     if not match:
@@ -681,9 +696,9 @@ def parse_version(version: str) -> VersionInfo:
         if key != "prerelease"
     }
     ver["prerelease"] = match["prerelease"]
-    rest = match.string[match.end() :]  # noqa:E203
+    rest = match.string[match.end() :]
     ver["build"] = rest
-    release_version = VersionInfo(**ver)
+    release_version = LisaVersionInfo(version, **ver)
 
     return release_version
 

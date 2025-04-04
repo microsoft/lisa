@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ import re
 import sys
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from functools import lru_cache, partial
 from pathlib import Path, PurePath
 from threading import Lock
@@ -26,6 +28,7 @@ from typing import (
 
 import requests
 from assertpy import assert_that
+from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import ResourceExistsError
 from azure.keyvault.certificates import (
     CertificateClient,
@@ -195,6 +198,7 @@ class NodeContext:
     private_ip_address: str = ""
     location: str = ""
     subscription_id: str = ""
+    use_ipv6: bool = False
 
 
 @dataclass_json()
@@ -382,6 +386,7 @@ class AzureImageSchema(schema.ImageSchema):
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
+            "ConfidentialVM",
         ):
             capabilities.append(SecurityProfileType.CVM)
             capabilities.append(SecurityProfileType.Stateless)
@@ -523,7 +528,24 @@ class VhdSchema(AzureImageSchema):
     vmgs_path: Optional[str] = None
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
-        return
+        # There are no platform tags to parse, but we can assume the
+        # security profile based on the presence of a VMGS path.
+        if self.vmgs_path:
+            self.security_profile = search_space.SetSpace(
+                True,
+                [
+                    SecurityProfileType.CVM,
+                    SecurityProfileType.Stateless,
+                ],
+            )
+        else:
+            self.security_profile = search_space.SetSpace(
+                True,
+                [
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                ],
+            )
 
 
 @dataclass_json()
@@ -1051,6 +1073,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     os_disk_type: str = ""
     data_disk_type: str = ""
     disk_controller_type: str = ""
+    ephemeral_disk_placement_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -1085,6 +1108,30 @@ class DataDiskCreateOption:
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_FROM_IMAGE,
             DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_ATTACH,
         ]
+
+
+# EphemeralOSDiskPlacements
+# refer
+# https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks-faq
+class DiskPlacementType(str, Enum):
+    NONE = ""
+    RESOURCE = "ResourceDisk"
+    CACHE = "CacheDisk"
+    NVME = "NvmeDisk"
+
+
+class IpProtocol(str, Enum):
+    ipv4 = "IPv4"
+    ipv6 = "IPv6"
+
+
+def get_disk_placement_priority() -> List[DiskPlacementType]:
+    return [
+        DiskPlacementType.NVME,
+        DiskPlacementType.CACHE,
+        DiskPlacementType.RESOURCE,
+        DiskPlacementType.NONE,
+    ]
 
 
 @dataclass_json()
@@ -1160,6 +1207,7 @@ class AzureArmParameter:
     virtual_network_name: str = AZURE_VIRTUAL_NETWORK_NAME
     subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
+    use_ipv6: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1617,12 +1665,14 @@ def generate_user_delegation_sas_token(
     connection_string: Optional[str] = None,
     writable: bool = False,
     expired_hours: int = 1,
+    platform: Optional["AzurePlatform"] = None,
 ) -> Any:
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
+        platform=platform,
     )
     start_time = datetime.now(timezone.utc)
     expiry_time = start_time + timedelta(hours=expired_hours)
@@ -1647,6 +1697,7 @@ def get_blob_service_client(
     credential: Optional[Any] = None,
     account_name: Optional[str] = None,
     connection_string: Optional[str] = None,
+    platform: Optional["AzurePlatform"] = None,
 ) -> BlobServiceClient:
     """
     Create a Azure Storage container if it does not exist.
@@ -1660,7 +1711,10 @@ def get_blob_service_client(
         assert (
             account_name
         ), "account_name is required, if connection_string is not set."
-
+        if platform and platform._azure_runbook.azure_storage_access_token:
+            credential = get_static_access_token(
+                platform._azure_runbook.azure_storage_access_token
+            )
         blob_service_client = BlobServiceClient(
             f"https://{account_name}.blob.{cloud.suffixes.storage_endpoint}",
             credential,
@@ -1675,15 +1729,21 @@ def get_or_create_storage_container(
     account_name: Optional[str] = None,
     connection_string: Optional[str] = None,
     allow_create: bool = True,
+    platform: Optional["AzurePlatform"] = None,
 ) -> ContainerClient:
     """
     Create a Azure Storage container if it does not exist.
     """
+    if platform and platform._azure_runbook.azure_storage_access_token:
+        credential = get_static_access_token(
+            platform._azure_runbook.azure_storage_access_token
+        )
     blob_service_client = get_blob_service_client(
         cloud=cloud,
         credential=credential,
         account_name=account_name,
         connection_string=connection_string,
+        platform=platform,
     )
     container_client = blob_service_client.get_container_client(container_name)
     if not container_client.exists():
@@ -1819,6 +1879,7 @@ def copy_vhd_to_storage(
         cloud=platform.cloud,
         account_name=storage_name,
         container_name=SAS_COPIED_CONTAINER_NAME,
+        platform=platform,
     )
     full_vhd_path = f"{container_client.url}/{dst_vhd_name}"
 
@@ -1854,10 +1915,6 @@ def copy_vhd_to_storage(
         if not vhd_exists:
             azcopy_path = platform._azure_runbook.azcopy_path
             if azcopy_path:
-                log.info(f"AzCopy path: {azcopy_path}")
-                if not os.path.exists(azcopy_path):
-                    raise LisaException(f"{azcopy_path} does not exist")
-
                 sas_token = generate_user_delegation_sas_token(
                     container_name=blob_client.container_name,
                     blob_name=blob_client.blob_name,
@@ -1865,33 +1922,72 @@ def copy_vhd_to_storage(
                     cloud=platform.cloud,
                     account_name=storage_name,
                     writable=True,
+                    platform=platform,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
-                log.info(f"copying vhd by azcopy {dst_vhd_name}")
-                try:
-                    local().execute(
-                        f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
-                        expected_exit_code=0,
-                        expected_exit_code_failure_message=(
-                            "Azcopy failed to copy the blob"
-                        ),
-                        timeout=60 * 60,
-                    )
-                except Exception as identifier:
-                    blob_client.delete_blob(delete_snapshots="include")
-                    raise LisaException(f"{identifier}")
-
-                # Set metadata to mark the blob copied by AzCopy successfully
-                metadata = {"AzCopyStatus": "Success"}
-                blob_client.set_blob_metadata(metadata)
-            else:
-                blob_client.start_copy_from_url(
-                    src_vhd_sas_url, metadata=None, incremental_copy=False
+                log.info(f"Copying VHD using AzCopy: {dst_vhd_name}")
+                copy_vhd_using_azcopy(
+                    azcopy_path=azcopy_path,
+                    src_vhd_sas_url=src_vhd_sas_url,
+                    dst_vhd_sas_url=dst_vhd_sas_url,
+                    blob_client=blob_client,
+                    log=log,
                 )
+            else:
+                # When multiple LISA runs use the same VHD URL concurrently, Azure may
+                # throw the following error during start_copy_from_url:
+                #
+                # ResourceExistsError: There is currently a pending copy operation.
+                #
+                # This happens because multiple runs attempt to copy the VHD to the same
+                # destination. Although a lock prevents this within a single LISA run,
+                # it can still occur across multiple runs. To handle this, catch the
+                # exception and gracefully continue with wait_copy_blob.
+                try:
+                    blob_client.start_copy_from_url(
+                        src_vhd_sas_url, metadata=None, incremental_copy=False
+                    )
+                except ResourceExistsError as e:
+                    if "PendingCopyOperation" in str(e):
+                        log.warning(
+                            "Pending copy operation detected. Avoid copying again"
+                        )
+                    else:
+                        raise e
 
         wait_copy_blob(blob_client, dst_vhd_name, log)
 
     return full_vhd_path
+
+
+def copy_vhd_using_azcopy(
+    azcopy_path: str,
+    src_vhd_sas_url: str,
+    dst_vhd_sas_url: str,
+    blob_client: BlobClient,
+    log: Logger,
+) -> None:
+    """
+    Uses AzCopy to copy a VHD from source to destination.
+    """
+    log.info(f"AzCopy path: {azcopy_path}")
+    if not os.path.exists(azcopy_path):
+        raise LisaException(f"{azcopy_path} does not exist")
+
+    try:
+        local().execute(
+            f"{azcopy_path} copy {src_vhd_sas_url} {dst_vhd_sas_url} --recursive=true",  # noqa: E501
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("AzCopy failed to copy the blob"),
+            timeout=60 * 60,
+        )
+    except Exception as identifier:
+        blob_client.delete_blob(delete_snapshots="include")
+        raise LisaException(f"AzCopy error: {identifier}")
+
+    # Set metadata to mark the blob copied by AzCopy successfully
+    metadata = {"AzCopyStatus": "Success"}
+    blob_client.set_blob_metadata(metadata)
 
 
 def wait_copy_blob(
@@ -1900,7 +1996,7 @@ def wait_copy_blob(
     log: Logger,
     timeout: int = 60 * 60,
 ) -> None:
-    log.info(f"copying vhd: {vhd_path}")
+    log.info(f"Waiting for copying vhd: {vhd_path}")
     if blob_client.get_blob_properties().copy.status:
         check_till_timeout(
             lambda: blob_client.get_blob_properties().copy.status == "success",
@@ -1942,6 +2038,8 @@ def get_share_service_client(
     return share_service_client
 
 
+# Update: Added quota to allow creation of variable sized file share volumes.
+# Default is 100 GiB. All units are in GiB.
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
@@ -1951,9 +2049,10 @@ def get_or_create_file_share(
     resource_group_name: str,
     log: Logger,
     protocols: str = "SMB",
+    quota_in_gb: int = 100,
 ) -> str:
     """
-    Create a Azure Storage file share if it does not exist.
+    Create an Azure Storage file share if it does not exist.
     """
     share_service_client = get_share_service_client(
         credential,
@@ -1965,7 +2064,11 @@ def get_or_create_file_share(
     all_shares = list(share_service_client.list_shares())
     if file_share_name not in (x.name for x in all_shares):
         log.debug(f"creating file share {file_share_name} with protocols {protocols}")
-        share_service_client.create_share(file_share_name, protocols=protocols)
+        share_service_client.create_share(
+            file_share_name,
+            protocols=protocols,
+            quota=quota_in_gb,
+        )
     return str("//" + share_service_client.primary_hostname + "/" + file_share_name)
 
 
@@ -2136,7 +2239,10 @@ def get_vm(platform: "AzurePlatform", node: Node) -> Any:
 
 @retry(exceptions=LisaException, tries=150, delay=2)
 def get_primary_ip_addresses(
-    platform: "AzurePlatform", resource_group_name: str, vm: VirtualMachine
+    platform: "AzurePlatform",
+    resource_group_name: str,
+    vm: VirtualMachine,
+    use_ipv6: bool = False,
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
 
@@ -2144,6 +2250,7 @@ def get_primary_ip_addresses(
     assert isinstance(
         vm.network_profile.network_interfaces, List
     ), f"actual: {type(vm.network_profile.network_interfaces)}"
+    nic_index = 0
     for network_interface in vm.network_profile.network_interfaces:
         assert isinstance(
             network_interface.id, str
@@ -2151,18 +2258,33 @@ def get_primary_ip_addresses(
         nic_name = get_matched_str(network_interface.id, NIC_NAME_PATTERN)
         nic = network_client.network_interfaces.get(resource_group_name, nic_name)
         if nic.primary:
-            if not nic.ip_configurations[0].public_ip_address:
+            if use_ipv6:
+                nic_index = 1
+            if not nic.ip_configurations[nic_index].public_ip_address:
                 raise LisaException(f"no public address found in nic {nic.name}")
-            public_ip_name = get_matched_str(
-                nic.ip_configurations[0].public_ip_address.id, PATTERN_PUBLIC_IP_NAME
-            )
+            if (
+                use_ipv6
+                and not nic.ip_configurations[nic_index].private_ip_address_version
+                == IpProtocol.ipv6
+            ):
+                raise LisaException(f"private address is not IPv6 in nic {nic.name}")
+            if nic.ip_configurations[nic_index].public_ip_address:
+                public_ip_name = get_matched_str(
+                    nic.ip_configurations[nic_index].public_ip_address.id,
+                    PATTERN_PUBLIC_IP_NAME,
+                )
             public_ip_address = network_client.public_ip_addresses.get(
                 resource_group_name,
                 public_ip_name,
             )
+            if (
+                use_ipv6
+                and not public_ip_address.public_ip_address_version == IpProtocol.ipv6
+            ):
+                raise LisaException(f"public address is not IPv6 in nic {nic.name}")
             return (
                 public_ip_address.ip_address,
-                nic.ip_configurations[0].private_ip_address,
+                nic.ip_configurations[nic_index].private_ip_address,
             )
     raise LisaException(f"fail to find primary nic for vm {vm.name}")
 
@@ -2222,7 +2344,7 @@ def find_storage_account(
 
 def get_token(platform: "AzurePlatform") -> str:
     token = platform.credential.get_token(platform.cloud.endpoints.resource_manager)
-    return token.token
+    return str(token.token)
 
 
 def _generate_sas_token_for_vhd(
@@ -2237,6 +2359,7 @@ def _generate_sas_token_for_vhd(
         cloud=platform.cloud,
         account_name=sc_name,
         container_name=container_name,
+        platform=platform,
     )
     source_blob = source_container_client.get_blob_client(blob_name)
     sas_token = generate_user_delegation_sas_token(
@@ -2245,6 +2368,7 @@ def _generate_sas_token_for_vhd(
         credential=platform.credential,
         cloud=platform.cloud,
         account_name=sc_name,
+        platform=platform,
     )
     source_url = source_blob.url + "?" + sas_token
     return source_url
@@ -2272,6 +2396,7 @@ def get_deployable_vhd_path(
             vhd_path = _generate_sas_token_for_vhd(platform, vhd_details)
             matches = SAS_URL_PATTERN.match(vhd_path)
             assert matches, f"fail to generate sas url for {vhd_path}"
+            add_secret(vhd_path, PATTERN_URL)
             log.debug(
                 f"the vhd location {location} is not same with running case "
                 f"location {vhd_location}, generate a sas url for source vhd, "
@@ -2528,6 +2653,7 @@ def check_blob_exist(
         account_name=account_name,
         container_name=container_name,
         allow_create=False,
+        platform=platform,
     )
     blob_client = container_client.get_blob_client(blob_name)
     blob_exist = blob_client.exists()
@@ -2678,14 +2804,67 @@ class DataDisk:
             raise LisaException(f"Data disk type {disk_type} is unsupported.")
 
 
+class StaticAccessTokenCredential(TokenCredential):
+    def __init__(self, token: str) -> None:
+        """
+        Initialize StaticAccessTokenCredential with the provided token.
+
+        :param token: The Azure access token as a string.
+        """
+        self._token = token
+        self._expires_on = self._get_exp()
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        """
+        Get the access token for the specified scopes.
+
+        :param scopes: The OAuth 2.0 scopes the token applies to.
+        :param kwargs: Additional keyword arguments that may be required by the SDK.
+        :return: An AccessToken instance containing the token and its expiry time.
+        """
+        # You can choose to print or log the scopes and kwargs for debugging if needed
+        return AccessToken(self._token, self._expires_on)
+
+    def _get_exp(self) -> Any:
+        try:
+            # The second part of the JWT is the payload
+            payload = self._token.split(".")[1]
+            # Add padding to ensure Base64 decoding works properly
+            padded_payload = payload + "=" * (4 - len(payload) % 4)
+            # Decode the Base64 URL-safe encoded payload
+            decoded_payload = base64.urlsafe_b64decode(padded_payload)
+        except Exception as e:
+            raise LisaException(
+                f"Failed to decode JWT payload, maybe invalid token: {e}"
+            )
+        # Convert the payload into a dictionary and get the expiration time
+        # 'exp' is the UNIX timestamp for expiration
+        return json.loads(decoded_payload).get("exp")
+
+
+def get_static_access_token(token: str) -> Any:
+    credential = None
+    if token:
+        credential = StaticAccessTokenCredential(token)
+    return credential
+
+
 def get_certificate_client(
     vault_url: str, platform: "AzurePlatform"
 ) -> CertificateClient:
-    return CertificateClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
+    )
+    return CertificateClient(vault_url, credential)
 
 
 def get_secret_client(vault_url: str, platform: "AzurePlatform") -> SecretClient:
-    return SecretClient(vault_url, platform.credential)
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
+    )
+    return SecretClient(vault_url, credential)
 
 
 def get_key_vault_management_client(
@@ -2781,7 +2960,14 @@ def get_identity_id(
     else:
         endpoint = "me"
     graph_api_url = f"{base_url}{api_version}/{endpoint}"
-    token = platform.credential.get_token("https://graph.microsoft.com/.default").token
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_graph_access_token)
+        or platform.credential
+    )
+    if isinstance(credential, StaticAccessTokenCredential):
+        token = credential._token
+    else:
+        token = credential.get_token("https://graph.microsoft.com/.default").token
     # Set up the API call headers
     headers = {
         "Authorization": f"Bearer {token}",
@@ -2984,9 +3170,11 @@ def create_certificate(
 def check_certificate_existence(
     vault_url: str, cert_name: str, log: Logger, platform: "AzurePlatform"
 ) -> bool:
-    certificate_client = CertificateClient(
-        vault_url=vault_url, credential=platform.credential
+    credential = (
+        get_static_access_token(platform._azure_runbook.azure_keyvault_access_token)
+        or platform.credential
     )
+    certificate_client = CertificateClient(vault_url=vault_url, credential=credential)
 
     try:
         certificate = certificate_client.get_certificate(cert_name)

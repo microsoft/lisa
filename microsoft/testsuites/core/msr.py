@@ -20,7 +20,7 @@ from lisa.operating_system import (
     Linux,
     Suse,
 )
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.tools import Lscpu, Modprobe
 from lisa.util import MissingPackagesException
 
@@ -109,7 +109,7 @@ class HvOsPlatformInfo:
     on Hyper-V or Azure.
     """,
     requirement=simple_requirement(
-        supported_os=[Linux], supported_platform_type=[AZURE]
+        supported_os=[Linux], supported_platform_type=[AZURE, HYPERV]
     ),
 )
 class Msr(TestSuite):
