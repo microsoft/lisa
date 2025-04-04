@@ -17,7 +17,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator.azure.common import METADATA_ENDPOINT
 from lisa.tools import Curl, Fips
-from lisa.util import SkippedException, str_to_bool
+from lisa.util import SkippedException, to_bool
 
 
 @TestSuiteMetadata(
@@ -129,7 +129,7 @@ class FipsTests(TestSuite):
                 f"get_expected_fips_mode: testing_fips_image '{testing_fips_image}' "
                 "is set in the variables; using it to determine the expected FIPS mode."
             )
-            return str_to_bool(testing_fips_image)
+            return to_bool(testing_fips_image)
 
         # Fall back to checking the image SKU from the azure metadata endpoint.
         log.debug(

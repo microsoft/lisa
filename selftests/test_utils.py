@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa.util import get_first_combination, str_to_bool
+from lisa.util import get_first_combination, to_bool
 
 
 class UtilsTestCase(TestCase):
@@ -49,7 +49,7 @@ class UtilsTestCase(TestCase):
         )
         assert_that(results).described_as("unexpected results").is_equal_to([])
 
-    def test_str_to_bool_positive(self):
+    def test_to_bool_positive(self):
         test_cases = [
             # Basic tests.
             ("True", True),
@@ -71,34 +71,39 @@ class UtilsTestCase(TestCase):
             # Bools are the identity function.
             (True, True),
             (False, False),
+            # Ints are converted to bools.
+            # 0 is false, everything else is true.
+            (-1, True),
+            (0, False),
+            (1, True),
+            (2, True),
         ]
 
         for input_str, expected in test_cases:
-            result = str_to_bool(input_str)
+            result = to_bool(input_str)
             assert_that(result).described_as(
                 f"Failed for input: {input_str}"
             ).is_equal_to(expected)
 
-    def test_str_to_bool_negative(self):
+    def test_to_bool_negative(self):
         test_cases = [
-            "invalid",
-            "10",
-            "2",
-            "yesyes",
-            "no no",
-            "yes no",
-            "no yes",
-            "one",
+            ("invalid", ValueError),
+            ("10", ValueError),
+            ("2", ValueError),
+            ("yesyes", ValueError),
+            ("no no", ValueError),
+            ("yes no", ValueError),
+            ("no yes", ValueError),
+            ("one", ValueError),
+            (None, TypeError),
+            (1.5, TypeError),
+            (object(), TypeError),
+            ([], TypeError),
+            ({}, TypeError),
         ]
-
-        for input_str in test_cases:
-            try:
-                str_to_bool(input_str)
-                assert_that(False).described_as(
-                    f"Input '{input_str}' should raise an error"
-                ).is_true()
-            except ValueError:
-                continue
+        for input_value, expected_exception in test_cases:
+            with self.assertRaises(expected_exception):
+                to_bool(input_value)
 
     def _check(self, values: List[Any]) -> Any:
         print(f"checked results: {values}")

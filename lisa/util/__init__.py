@@ -910,10 +910,11 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
         raise KernelPanicException(stage, panics)
 
 
-def str_to_bool(value: Union[str, bool, int]) -> bool:
+def to_bool(value: Union[str, bool, int]) -> bool:
     """
     Convert a string to a boolean value.
-    returns True for "true", False for "false", and None for any other value.
+    Returns sensible "True/False" values for strings, bools and ints, failing
+    otherwise.
     Allows for casing and leading/trailing whitespace.
     """
     str_to_bool_map = {
@@ -929,10 +930,20 @@ def str_to_bool(value: Union[str, bool, int]) -> bool:
     if isinstance(value, bool):
         return value
 
+    # Handle integer values directly
+    if isinstance(value, int):
+        return bool(value)
+
     # If the value is a string, convert it to lowercase and strip whitespace
     # and look it up in the dictionary.
-    value = value.lower().strip()
-    bool_value = str_to_bool_map.get(value)
-    if bool_value is None:
-        raise ValueError(f"Invalid boolean string: {value}")
-    return bool_value
+    if isinstance(value, str):
+        value = value.lower().strip()
+        bool_value = str_to_bool_map.get(value)
+        if bool_value is None:
+            raise ValueError(f"Invalid boolean string: {value}")
+        return bool_value
+
+    # If the value is not a string, boolean, or integer, raise an error.
+    raise TypeError(
+        f"Unsupported type for conversion to boolean: {type(value).__name__}"
+    )

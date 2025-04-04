@@ -10,7 +10,7 @@ from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools import Blkid, Cat
 from .grub_config import GrubConfig
-from lisa.util import UnsupportedDistroException, get_matched_str, str_to_bool
+from lisa.util import UnsupportedDistroException, get_matched_str, to_bool
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -95,7 +95,7 @@ class Fips(Tool):
             "/proc/sys/crypto/fips_enabled", force_run=True
         )
 
-        return str_to_bool(fips_enabled)
+        return to_bool(fips_enabled)
 
     def _enable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
