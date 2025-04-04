@@ -1199,8 +1199,6 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        print("Debug:sleep 5 seconds after node close")
-        time.sleep(5)
         self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
