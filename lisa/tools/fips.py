@@ -9,8 +9,9 @@ from assertpy import assert_that
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner
 from lisa.tools import Blkid, Cat
-from .grub_config import GrubConfig
 from lisa.util import UnsupportedDistroException, get_matched_str, to_bool
+
+from .grub_config import GrubConfig
 
 if TYPE_CHECKING:
     from lisa.node import Node

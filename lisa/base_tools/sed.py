@@ -92,6 +92,7 @@ class Sed(Tool):
             sudo=sudo,
             shell=True,
         )
+        result.assert_exit_code(message=result.stdout)
 
 
 class SedBSD(Sed):

@@ -146,7 +146,8 @@ class FipsTests(TestSuite):
         # If we successfully fetched the metadata, check the image SKU.
         if response.exit_code == 0:
             log.debug(
-                "get_expected_fips_mode: successfully fetched metadata; checking image SKU."
+                "get_expected_fips_mode: successfully fetched metadata; "
+                "checking image SKU."
             )
             response = json.loads(response.stdout)
             return "fips" in response["compute"]["sku"]
