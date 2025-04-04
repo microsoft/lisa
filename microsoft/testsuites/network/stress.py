@@ -133,7 +133,7 @@ class Stress(TestSuite):
         ),
     )
     def stress_sriov_disable_enable(self, environment: Environment) -> None:
-        sriov_disable_enable(environment, times=50)
+        sriov_disable_enable(environment, times=250)
 
     @TestCaseMetadata(
         description="""
