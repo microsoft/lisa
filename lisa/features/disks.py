@@ -42,6 +42,17 @@ class Disk(Feature):
         else:
             return None
 
+    def get_partition_with_mount_point_or_raise(
+        self, mount_point: str
+    ) -> PartitionInfo:
+        """
+        Get partition with mount point or raise an exception if not found.
+        """
+        partition = self.get_partition_with_mount_point(mount_point)
+        if partition is None:
+            raise LisaException(f"Partition with mount point {mount_point} not found.")
+        return partition
+
     def check_resource_disk_mounted(self) -> bool:
         return False
 

@@ -139,10 +139,8 @@ class Fips(Tool):
         from lisa.features import Disk
 
         disk = self.node.features[Disk]
-        root_disk_partition = disk.get_partition_with_mount_point("/")
-        assert_that(root_disk_partition).is_not_none()
-        boot_disk_partition = disk.get_partition_with_mount_point("/boot")
-        assert_that(boot_disk_partition).is_not_none()
+        root_disk_partition = disk.get_partition_with_mount_point_or_raise("/")
+        boot_disk_partition = disk.get_partition_with_mount_point_or_raise("/boot")
 
         # If the boot and root devices are different, get the boot uuid it.
         if boot_disk_partition.name == root_disk_partition.name:
