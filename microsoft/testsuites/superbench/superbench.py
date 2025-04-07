@@ -162,7 +162,7 @@ class Superbench(Tool):
         self.working_dir = tempfile.mkdtemp(prefix="sb_lisa.")
 
         print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},"
-              "\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config},\ndate_tag:{self.date_tag}")
+              f"\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config},\ndate_tag:{self.date_tag}")
 
     def dash_board_entry(self, sysinfo, vmSKU):
         nodeinfo = self.node.get_information()
@@ -207,16 +207,16 @@ class Superbench(Tool):
         self.node.shell.copy_back(PosixPath(self.sb_install_path, "outputs.tgz"),
                                   sb_local_result_tgz)
 
-        test_result_list = self.parse_results(sb_local_result_tgz, log_path)
+        result_list = self.parse_results(sb_local_result_tgz, log_path)
         failed_tests = []
-        for test_result in test_result_list:
+        for result in result_list:
             # create test result message
             info = {"information" : {"version" : result.version,
                                      "exit_value" : result.exit_value}}
             send_sub_test_result_message(
                 test_result=test_result,
-                test_case_name=test_result.name,
-                test_status=test_result.status,
+                test_case_name=result.name,
+                test_status=result.status,
                 other_fields=info,
             )
             # assert that none of the tests failed
@@ -224,7 +224,7 @@ class Superbench(Tool):
                 failed_tests.append(result)
 
         assert_that(failed_tests, f"The following tests failed: {failed_tests}").is_empty()
-        return test_result
+        return result_list
 
     @staticmethod
     def get_enabled_tests(sb_cfg_yaml):

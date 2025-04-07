@@ -39,7 +39,7 @@ function assert_non_empty {
 }
 
 function superbench_setup() {
-    assert_non_empty sb_repo_dir sb_image_tag 
+    assert_non_empty sb_repo_dir sb_image_tag
     # Explicitly set working dir to show we are in home dir intentionally.
     cd "$HOME"
 
@@ -82,7 +82,7 @@ function run_sb_test() {
 
     source "$HOME/sb_venv/bin/activate"
     cd "${sb_repo_dir}"
-    
+
     # Make output dirs for system information and superbench test
     mkdir -p outputs/{node_info,sb_run}
 
