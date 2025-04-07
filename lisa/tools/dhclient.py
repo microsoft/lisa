@@ -60,7 +60,6 @@ class Dhclient(Tool):
             config_path = next(
                 (path for path in paths_to_check if ls.path_exists(path, sudo=True)), ""
             )
-            self._log.info(f"dhclient config paths: {paths_to_check}")
             if not config_path:
                 raise LisaException(f"Configuration file for {self._command} not found")
 
