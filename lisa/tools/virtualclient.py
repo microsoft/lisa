@@ -5,7 +5,6 @@ import json
 import re
 import uuid
 from datetime import datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
@@ -276,7 +275,7 @@ class VirtualClientTool(Tool):
                     "scenario_end_time": self._parse_timestamp(row["ScenarioEndTime"]),
                     "metric_categorization": row["MetricCategorization"],
                     "metric_name": row["MetricName"],
-                    "metric_value": Decimal(row["MetricValue"]),
+                    "metric_value": float(row["MetricValue"]),
                     "metric_unit": row["MetricUnit"],
                     "metric_description": row["MetricDescription"],
                     "metric_relativity": row["MetricRelativity"],
@@ -305,7 +304,7 @@ class VirtualClientTool(Tool):
                     test_result=test_result,
                     test_case_name=test_result.name,
                     metric_name=row["MetricName"],
-                    metric_value=Decimal(row["MetricValue"]),
+                    metric_value=float(row["MetricValue"]),
                     metric_unit=row["MetricUnit"],
                     metric_description=row["MetricDescription"],
                     metric_relativity=MetricRelativity.parse(row["MetricRelativity"]),
