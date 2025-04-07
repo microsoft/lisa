@@ -207,16 +207,16 @@ class Superbench(Tool):
         self.node.shell.copy_back(PosixPath(self.sb_install_path, "outputs.tgz"),
                                   sb_local_result_tgz)
 
-        test_result = self.parse_results(sb_local_result_tgz, log_path)
+        test_result_list = self.parse_results(sb_local_result_tgz, log_path)
         failed_tests = []
-        for result in test_result:
+        for test_result in test_result_list:
             # create test result message
             info = {"information" : {"version" : result.version,
                                      "exit_value" : result.exit_value}}
             send_sub_test_result_message(
                 test_result=test_result,
-                test_case_name=result.name,
-                test_status=result.status,
+                test_case_name=test_result.name,
+                test_status=test_result.status,
                 other_fields=info,
             )
             # assert that none of the tests failed
