@@ -90,7 +90,7 @@ function run_sb_test() {
     sudo sb node info --output-dir outputs/node_info
 
     # Extract SKU, assume this is an azure VM and ignore failures.
-    if ! self.curl --header 'Metadata: true' "${AZURE_SKU_URL}" -o outputs/node_info/sku.txt ; then
+    if ! curl --header 'Metadata: true' "${AZURE_SKU_URL}" -o outputs/node_info/sku.txt ; then
         echo "unknown" > outputs/node_info/sku.txt
     fi
 
