@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from assertpy import assert_that
 
@@ -40,6 +40,10 @@ class Fips(Tool):
             os=node.os, message="FIPS tool only supported on CBLMariner 2.0 and 3.0."
         )
 
+    def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
+        super().__init__(node=node, args=args, **kwargs)
+        self._azl_os = cast(CBLMariner, node.os)
+
     @property
     def command(self) -> str:
         """
@@ -69,7 +73,7 @@ class Fips(Tool):
         FIPS is enabled or disabled on the system.
         """
         # We rely on the dracut-fips package for bootloader FIPS support.
-        self.node.os.package_exists("dracut-fips", assert_existance=expect_fips_mode)
+        self._azl_os.package_exists("dracut-fips", assert_existance=expect_fips_mode)
 
         # Kernel needs to be in the correct FIPS mode.
         assert_that(self.is_kernel_fips_mode()).described_as(
@@ -100,7 +104,7 @@ class Fips(Tool):
 
     def _enable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
-        self.node.os.install_packages("dracut-fips")
+        self._azl_os.install_packages("dracut-fips")
 
         # Set the fips flag to the kernel command line.
         self.node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "1")
@@ -113,7 +117,7 @@ class Fips(Tool):
 
     def _disable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
-        self.node.os.uninstall_packages("dracut-fips")
+        self._azl_os.uninstall_packages("dracut-fips")
 
         # Set the fips flag to the kernel command line.
         self.node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "0")
@@ -136,7 +140,9 @@ class Fips(Tool):
 
         disk = self.node.features[Disk]
         root_disk_partition = disk.get_partition_with_mount_point("/")
+        assert_that(root_disk_partition).is_not_none()
         boot_disk_partition = disk.get_partition_with_mount_point("/boot")
+        assert_that(boot_disk_partition).is_not_none()
 
         # If the boot and root devices are different, get the boot uuid it.
         if boot_disk_partition.name == root_disk_partition.name:
@@ -205,10 +211,10 @@ class AzlV3Fips(Fips):
         # when FIPS is disabled.
         if expect_fips_mode:
             for package in self._SYMCRYPT_PACKAGES:
-                self.node.os.package_exists(package, assert_existance=True)
+                self._azl_os.package_exists(package, assert_existance=True)
 
     def _enable_fips(self) -> None:
         super()._enable_fips()
 
         # AZL3 requres the SymCrypt provider for FIPS-compliant openssl.
-        self.node.os.install_packages(self._SYMCRYPT_PACKAGES)
+        self._azl_os.install_packages(self._SYMCRYPT_PACKAGES)
