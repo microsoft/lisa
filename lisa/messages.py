@@ -145,7 +145,7 @@ class MetricRelativity(str, Enum):
 class UnifiedPerfMessage(PerfMessage):
     type: str = "UnifiedPerformance"
     metric_name: str = ""
-    metric_value: Decimal = Decimal(0)
+    metric_value: float = 0.0
     metric_unit: str = ""
     metric_description: str = ""
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA
@@ -309,7 +309,7 @@ class VCMetricsMessage(PerfMessage):
     scenario_end_time: datetime = datetime.now(timezone.utc)
     metric_categorization: str = ""
     metric_name: str = ""
-    metric_value: Decimal = Decimal(0)
+    metric_value: float = 0.0
     metric_unit: str = ""
     metric_description: str = ""
     metric_relativity: str = ""
@@ -387,15 +387,12 @@ def send_sub_test_result_message(
     return message
 
 
-__decimal_zero = Decimal(0)
-
-
 def send_unified_perf_message(
     node: "Node",
     test_result: "TestResult",
     test_case_name: str = "",
     metric_name: str = "",
-    metric_value: Decimal = __decimal_zero,
+    metric_value: float = 0.0,
     metric_unit: str = "",
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
