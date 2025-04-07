@@ -149,8 +149,8 @@ class FipsTests(TestSuite):
                 "get_expected_fips_mode: successfully fetched metadata; "
                 "checking image SKU."
             )
-            response = json.loads(response.stdout)
-            return "fips" in response["compute"]["sku"]
+            json_response = json.loads(response.stdout)
+            return "fips" in json_response["compute"]["sku"]
 
         # If we couldn't determine the FIPS mode, return False as a default.
         log.debug(
