@@ -92,7 +92,7 @@ class Idrac(Cluster):
             "only one client is supported for idrac, don't specify more than one client"
         ).is_equal_to(1)
 
-        self._enable_serial_console()
+    #    self._enable_serial_console()
 
     @classmethod
     def type_name(cls) -> str:
