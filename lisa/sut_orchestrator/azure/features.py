@@ -941,6 +941,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"consistent with set status [{enable}], no need to update."
                 )
             else:
+                print("Debug:sleep 10 seconds before sriov switch")
+                time.sleep(10)
                 self._log.debug(
                     f"network interface {nic_name}'s accelerated networking default "
                     f"status [{updated_nic.enable_accelerated_networking}], "
@@ -1199,8 +1201,8 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
     ) -> None:
         if reset_connections:
             self._node.close()
-        print("Debug:sleep 5 seconds after node close")
-        time.sleep(5)
+        print("Debug:sleep 10 seconds after node close")
+        time.sleep(10)
         self._node.nics.check_pci_enabled(enabled)
 
     def _get_primary(
