@@ -2,10 +2,11 @@
 # Licensed under the MIT license.
 import itertools
 import json
-import yaml
 import os
 import subprocess
 import tempfile
+import io
+import csv
 
 from dataclasses import dataclass
 from pathlib import Path, PurePath, PosixPath
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Tuple, Type
 from datetime import datetime
 
 from assertpy import assert_that
+import yaml
 
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -25,6 +27,62 @@ from lisa.tools.nvidiasmi import NvidiaSmi
 from lisa.tools.whoami import Whoami
 from lisa.tools.chmod import Chmod
 from lisa.tools import RemoteCopy
+
+
+class DashBoard:
+    __slots__ = ("Team",
+                 "RunTimestamp",
+                 "SessionType",
+                 "HostMinroot",
+                 "HostOSVersion",
+                 "HostMemoryPartition",
+                 "Hardware",
+                 "VMType",
+                 "VMOSVersion",
+                 "L2Type",
+                 "L2OS",
+                 "VMSKU",
+                 "ContainerCPU",
+                 "ContainerMemory",
+                 "ContainerConfiguration",
+                 "ContainerImage",
+                 "StorageConfiguration",
+                 "NetworkConfiguration",
+                 "GPUSKU",
+                 "NumGPUsUsed",
+                 "Category",
+                 "Workload",
+                 "WorkloadParameters",
+                 "Benchmark",
+                 "TraceDownloadLink",
+                 "AdditionalInfo",
+                 "cuda",
+                 "GPUDriverVersion",
+                 "TipSessionId",
+                 "Metric",
+                 "MetricValue",
+                 "Scenario")
+
+    def __init__(self, **kwargs):
+        self.assign(**kwargs)
+
+    def assign(self, **kwargs):
+        for attr, value in kwargs.items():
+            if attr in self.__slots__:
+                setattr(self, attr, value)
+
+    def header_csv(self):
+        csv_line = io.StringIO()
+        writer = csv.writer(csv_line, quoting=csv.QUOTE_NONNUMERIC)
+        writer.writerow(self.__slots__)
+        return csv_line.getvalue().replace("AdditionalInfo", "Additional Info")
+
+    def csv(self):
+        csv_line = io.StringIO()
+        writer = csv.writer(csv_line, quoting=csv.QUOTE_NONNUMERIC)
+        values = [getattr(self, attr, "") for attr in self.__slots__]
+        writer.writerow(values)
+        return csv_line.getvalue()
 
 @dataclass
 class SuperbenchResult:
@@ -65,7 +123,7 @@ class Superbench(Tool):
     @property
     def sb_exec_timeout(self) -> int:
         return 3600
-    
+
     @property
     def sb_config(self) -> str:
         if not self._sb_config:
@@ -76,8 +134,7 @@ class Superbench(Tool):
             gpu_count = self.node.tools[NvidiaSmi].get_gpu_count()
             sb_cfg = sb_cfg.format(NUM_GPU=gpu_count)
 
-            sb_cfg_tempdir = self.working_dir
-            sb_cfg_temp = PosixPath(sb_cfg_tempdir, self._sb_config_tpt)
+            sb_cfg_temp = PosixPath(self.working_dir, self._sb_config_tpt)
             with open(sb_cfg_temp, "w") as cfg_file:
                 cfg_file.write(sb_cfg)
             self._sb_config = sb_cfg_temp
@@ -94,6 +151,7 @@ class Superbench(Tool):
         self._sb_config_tpt = kwargs["sb_config"]
         self._sb_image_tag = kwargs["sb_image_tag"]
         self._sb_config = ""
+        self.variables = kwargs["variables"]
 
         # This is the date-time value which superbench dir will be suffixed with
         date_format = "%Y-%m-%d_%H-%M-%S"
@@ -101,9 +159,29 @@ class Superbench(Tool):
 
         # This will be populated while parsing result tgz
         self.node_list = []
-        self.working_dir = tempfile.mkdtemp()
-        
-        print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config},\ndate_tag:{self.date_tag}")
+        self.working_dir = tempfile.mkdtemp(prefix="sb_lisa.")
+
+        print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},"
+              "\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config},\ndate_tag:{self.date_tag}")
+
+    def dash_board_entry(self, sysinfo, vmSKU):
+        nodeinfo = self.node.get_information()
+
+        node_info_dict = { "Team" : self.variables["team"],
+                           "RunTimestamp" : self.run_timestamp,
+                           "VMType" : self.variables["vmtype"],
+                           "VMOSVersion" : nodeinfo["distro_version"],
+                           "VMSKU" : vmSKU,
+                           "GPUSKU" : sysinfo["Accelerator"]["nvidia_info"]["gpu"][0]["product_name"],
+                           "NumGPUsUsed" : sysinfo["Accelerator"]["gpu_count"],
+                           "Category" : "GPU Runtime",
+                           "Workload" : "Superbench",
+                           "AdditionalInfo" : self.variables["image_info"],
+                           "cuda" : sysinfo["Accelerator"]["nvidia_info"]["cuda_version"],
+                           "GPUDriverVersion" : sysinfo["Accelerator"]["nvidia_info"]["driver_version"],
+                           "Scenario" : self.variables["scenario"] }
+        return DashBoard(**node_info_dict)
+
 
     def run_test(
         self,
@@ -111,6 +189,9 @@ class Superbench(Tool):
         log_path,
         sb_run_timeout: int = 1800,
     ) -> List[SuperbenchResult]:
+
+        # This is needed for dashboard csv generation
+        self.run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         # run superbench tests
         sb_cfg_filename = os.path.basename(self.sb_config)
@@ -126,26 +207,24 @@ class Superbench(Tool):
         self.node.shell.copy_back(PosixPath(self.sb_install_path, "outputs.tgz"),
                                   sb_local_result_tgz)
 
-        passed_tests, failed_tests = self.parse_results(sb_local_result_tgz)
-        for result in itertools.chain(passed_tests, failed_tests):
+        test_result = self.parse_results(sb_local_result_tgz, log_path)
+        failed_tests = []
+        for result in test_result:
             # create test result message
-            info: Dict[str, Any] = {}
-            info["information"] = {}
-            info["information"]["version"] = result.version
-            info["information"]["exit_value"] = result.exit_value
+            info = {"information" : {"version" : result.version,
+                                     "exit_value" : result.exit_value}}
             send_sub_test_result_message(
                 test_result=test_result,
                 test_case_name=result.name,
                 test_status=result.status,
                 other_fields=info,
             )
+            # assert that none of the tests failed
+            if result.exit_value:
+                failed_tests.append(result)
 
-        # assert that none of the tests failed
-        assert_that(
-            failed_tests, f"The following tests failed: {failed_tests}"
-        ).is_empty()
-
-        return passed_tests + failed_tests
+        assert_that(failed_tests, f"The following tests failed: {failed_tests}").is_empty()
+        return test_result
 
     @staticmethod
     def get_enabled_tests(sb_cfg_yaml):
@@ -157,39 +236,51 @@ class Superbench(Tool):
 
         return enabled_tests
 
-    def group_result_by_test(self, jsonl_file: str, tests: list[str]) -> Dict[str, Dict[str, int]]:
-        test_results = {test_name : {} for test_name in tests}
-
-        result_entries = json.load(open(jsonl_file))
-        for key, value in result_entries.items():
-            if key == "node":
-                self.node_list.append(value)
-            else:
-                test_name, subtext = key.split("/", 1)
-                if not test_name in test_results:
-                    test_results[test_name] = {}
-                test_results[test_name][subtext] = value
-
-        return test_results
-
-    @staticmethod
-    def split_result(result_group: Dict[str, Dict[str, int]]) -> Tuple[Dict[str, int], Dict[str, int]]:
-        failed_tests = []
-        passed_tests = []
-        for test_name, test_results in result_group.items():
-            test_return_codes = [v for k, v in test_results.items() if k.startswith("return_code")]
-            result_object = SuperbenchResult(name=test_name, status=TestStatus.PASSED, exit_value=0)
-            if any(test_return_codes):
-                result_object.status = TestStatus.FAILED
-                result_object.exit_value = max(test_return_codes)
-                failed_tests.append(result_object)
-            else:
-                passed_tests.append(result_object)
-        return passed_tests, failed_tests
-
-    def parse_results(self, sb_result_tgz):
+    def notify_result(self, result_json: Dict, tests: list[str],
+                      sysinfo: Dict, vmSKU: str, db_csv_file: str) -> Dict[str, Dict[str, int]]:
         """
-        Expand result tgz:
+        For the given superbench result summary:
+                - "*return_code" accumulate to test-result object
+                - "node" entry extract and store
+                - ignore "monitor/gpu*" entries
+                - all other entries go into upload csv file
+        """
+        test_result = {test_name:0 for test_name in tests}
+
+        dashboard: DashBoard = self.dash_board_entry(sysinfo, vmSKU)
+
+        print(f"DashBoard csv file is: {db_csv_file}")
+        db_csv_fd = open(db_csv_file, "w")
+        db_csv_fd.write(dashboard.header_csv())
+
+        # There is only one node entry now, TODO: handle testing on clusters
+        self.node_list.append(result_json.pop("node"))
+
+        for key, value in result_json.items():
+            if key.startswith("monitor/gpu"):
+                continue
+            test_name, _ = key.split("/", 1)
+            if test_name.startswith("return_code:"):
+                test_result[test_name] += int(value)
+            else:
+                metricname = key.split(":", 1)[0] # Strip gpu number
+                metricvalue = str(round(float(value), 3)) # 3 digit precision
+                dashboard.assign(Metric=metricname, MetricValue=metricvalue)
+                db_csv_fd.write(dashboard.csv())
+        db_csv_fd.close()
+
+        # Build TestResult object list for lisa to process
+        result_object_list = []
+        for test_name, retval in test_result.items():
+            status = TestStatus.FAILED if retval else TestStatus.PASSED
+            result_object_list.append(SuperbenchResult(name=test_name,
+                                                       status=status, exit_value=retval))
+
+        return result_object_list
+
+    def parse_results(self, sb_result_tgz, log_path):
+        """
+        Expand result tgz, it has this layout:
         outputs
                /sb_run
                      /sb.config.yaml
@@ -197,18 +288,20 @@ class Superbench(Tool):
                /node_info
                      /sys_info.json
         """
-        result_tmpdir = self.working_dir
-        print(f"Superbench result temp dir: {result_tmpdir}")
         subprocess.run(["tar", "zxf", sb_result_tgz],
-                       check=True, cwd=result_tmpdir)
+                       check=True, cwd=self.working_dir)
 
-        cfg_yaml = PosixPath(result_tmpdir, "outputs/sb_run/sb.config.yaml")
-        result_json = PosixPath(result_tmpdir, "outputs/sb_run/results-summary.jsonl")
+        cfg_yaml = PosixPath(self.working_dir, "outputs/sb_run/sb.config.yaml")
+        result_json_file = PosixPath(self.working_dir, "outputs/sb_run/results-summary.jsonl")
+        sysinfo_json_file = PosixPath(self.working_dir, "outputs/node_info/sys_info.json")
+        sku_file = PosixPath(self.working_dir, "outputs/node_info/sku.txt")
+        db_csv_file = PosixPath(log_path, "dashboard_data.csv")
 
+        sysinfo = json.load(open(sysinfo_json_file))
+        vmSKU = open(sku_file).read().strip()
         enabled_tests = self.get_enabled_tests(cfg_yaml)
-        result_groups = self.group_result_by_test(result_json, enabled_tests)
-
-        return self.split_result(result_groups)
+        return self.notify_result(json.load(open(result_json_file)),
+                                  enabled_tests, sysinfo, vmSKU, db_csv_file)
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"

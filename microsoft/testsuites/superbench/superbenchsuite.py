@@ -55,12 +55,12 @@ class SuperbenchSuite(TestSuite):
     ) -> None:
 
         # parse variables
-        gpu = variables.get("gpu","V100").upper()
-        validation = variables.get("validation_type","feature")
-        sb_repo = variables.get("repo_url", "https://github.com/microsoft/superbenchmark")
+        gpu = variables["gpu"].upper()
+        validation = variables["validation_type"]
+        sb_repo = variables["repo_url"]
         sb_config = f"superbench_{validation}_{gpu}.yaml"
-        sb_branch = variables.get("sb_branch", "v0.11.0")
-        sb_image_tag = variables.get("sb_image_tag", "v0.11.0-cuda12.4")
+        sb_branch = variables["sb_branch"]
+        sb_image_tag = variables["sb_image_tag"]
 
         print(f"gpu: {gpu}\n validation: {validation}\n sb_repo: {sb_repo}\n sb_config: {sb_config}\n sb_branch: {sb_branch}\n sb_image_tag: {sb_image_tag}\n")
         
@@ -68,7 +68,7 @@ class SuperbenchSuite(TestSuite):
         superbench: Superbench = node.tools.get(
             Superbench,
             sb_repo=sb_repo, sb_branch=sb_branch,
-            sb_config=sb_config, sb_image_tag=sb_image_tag
+            sb_config=sb_config, sb_image_tag=sb_image_tag, variables=variables
         )
         superbench.run_test(
             result,

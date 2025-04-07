@@ -4,22 +4,42 @@ include:
 variable:
   - name: gpu
     value: "V100"
+    is_case_visible: true
   - name: validation_type
     value: "release"
+    is_case_visible: true
   - name: repo_url
     value: "https://github.com/microsoft/superbenchmark"
+    is_case_visible: true
   - name: sb_branch
     value: "v0.11.0"
+    is_case_visible: true
   - name: sb_image_tag
     value: "v0.11.0-cuda12.4"
+    is_case_visible: true
   - name: notification
     value: "console"
+    is_case_visible: true
   - name: vm_name
     value: "hpc_v100_vm"
-  - name: vm_ip
-    value: ""
+    is_case_visible: true
   - name: user_name
     value: "azl_user"
+    is_case_visible: true
+# These variables are for populating sb dashboard
+  - name: team
+    value: "Azure Linux"
+    is_case_visible: true
+  - name: vmtype
+    value: "L1VM"
+    is_case_visible: true
+  - name: image_info
+    value: "HPC reference image"
+    is_case_visible: true
+  - name: scenario
+    value: "LISA Superbench intergration"
+    is_case_visible: true
+
 testcase:
   - criteria:
       name: verify_superbench

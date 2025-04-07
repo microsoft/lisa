@@ -9,6 +9,9 @@ export sb_repo_dir=""
 export sb_image_tag=""
 export sb_config_file=""
 
+# This is the URL to extract SKU of the machine it is run on
+AZURE_SKU_URL='http://169.254.169.254/metadata/instance/compute/vmSize?api-version=2020-06-01&format=text'
+
 function parse_args() {
     ## Process command line parameters
     while [[ "$#" -gt 0 ]]; do
@@ -38,7 +41,7 @@ function assert_non_empty {
 function superbench_setup() {
     assert_non_empty sb_repo_dir sb_image_tag 
     # Explicitly set working dir to show we are in home dir intentionally.
-    cd $HOME
+    cd "$HOME"
 
     # Install python 3.11 from scratch
     wget https://www.python.org/ftp/python/3.11.11/Python-3.11.11.tar.xz -O- | tar Jxf -
@@ -49,7 +52,7 @@ function superbench_setup() {
 
     # create and activate virtual environment for sb pip
     python3.11 -m venv ~/sb_venv
-    source ~/sb_venv/bin/activate
+    source "$HOME/sb_venv/bin/activate"
     export PATH=$PATH:$HOME/.local/bin
 
     pip install pip_system_certs
@@ -57,9 +60,9 @@ function superbench_setup() {
     pip install ansible-core==2.17
 
     ## Superbench installation and setup
-    cd $HOME
-    git clone -b v0.11.0 https://github.com/microsoft/superbenchmark ${sb_repo_dir}
-    cd ${sb_repo_dir}
+    cd "$HOME"
+    git clone -b v0.11.0 https://github.com/microsoft/superbenchmark "${sb_repo_dir}"
+    cd "${sb_repo_dir}"
 
     # Install superbench modules
     pip install .
@@ -69,7 +72,7 @@ function superbench_setup() {
     # This is for superbench to run locally
     echo -e "[all]\nlocalhost ansible_connection=local" > local.ini
 
-    sb deploy -f local.ini -i ${sb_image_tag} --output-dir deploy_output
+    sb deploy -f local.ini -i "${sb_image_tag}" --output-dir deploy_output
 
     echo "SUPERBENCH: deployment successful."
 }
@@ -77,8 +80,8 @@ function superbench_setup() {
 function run_sb_test() {
     assert_non_empty sb_config_file sb_repo_dir
 
-    source ~/sb_venv/bin/activate
-    cd ${sb_repo_dir}
+    source "$HOME/sb_venv/bin/activate"
+    cd "${sb_repo_dir}"
     
     # Make output dirs for system information and superbench test
     mkdir -p outputs/{node_info,sb_run}
@@ -86,11 +89,16 @@ function run_sb_test() {
     # Collect system information for populating dashboard schema
     sudo sb node info --output-dir outputs/node_info
 
+    # Extract SKU, assume this is an azure VM and ignore failures.
+    if ! self.curl --header 'Metadata: true' "${AZURE_SKU_URL}" -o outputs/node_info/sku.txt ; then
+        echo "unknown" > outputs/node_info/sku.txt
+    fi
+
     # superbench test invocation
 
     # We do not want to fail here, output json provides the result
     set +e
-    sb run -f local.ini -c $HOME/${sb_config_file} --output-dir outputs/sb_run
+    sb run -f local.ini -c "$HOME/${sb_config_file}" --output-dir outputs/sb_run
     sb_retval=$?
     set -e
     # print return value for housekeeping
@@ -109,11 +117,11 @@ function verify() {
 	echo "Python virtual environment not setup at '~/sb_venv/bin/activate'"
 	return 1
     fi
-    if [ ! -d ${sb_repo_dir} ] ; then
+    if [ ! -d "${sb_repo_dir}" ] ; then
 	echo "superbench repository not found at ${sb_repo_dir}"
 	return 2
     fi
-    source ~/sb_venv/bin/activate
+    source "$HOME/sb_venv/bin/activate"
     if ! sb version ; then
 	echo "superbench not installed"
 	return 3
