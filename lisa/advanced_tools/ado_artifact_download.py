@@ -38,8 +38,8 @@ class ADOArtifactsDownloader(Tool):
         build_id: int = 0,
         build_name: str = "",
         timeout: int = 600,
+        output_path: Path = constants.RUN_LOCAL_WORKING_PATH,
     ) -> List[Path]:
-        working_path = constants.RUN_LOCAL_WORKING_PATH
         credentials = BasicAuthentication("", personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
 
@@ -89,9 +89,12 @@ class ADOArtifactsDownloader(Tool):
             )
             download_url = build_artifact.resource.download_url
             self._log.debug(f"artifact download url: {download_url}")
-            working_path.mkdir(parents=True, exist_ok=True)
+            output_path.mkdir(parents=True, exist_ok=True)
             file_extension = get_matched_str(download_url, self.__file_format)
-            artifact_path = working_path / f"{build_artifact.name}.{file_extension}"
+            extra_suffix = "" if not build_name else f".{build_name}"
+            artifact_path = (
+                output_path / f"{build_artifact.name}{extra_suffix}.{file_extension}"
+            )
             self._log.debug(
                 f"start to download artifact {artifact_name} to {artifact_path}"
             )
