@@ -399,6 +399,7 @@ def send_unified_perf_message(
     metric_unit: str = "",
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
+    tool: str = "",
 ) -> UnifiedPerfMessage:
     message = create_perf_message(
         message_type=UnifiedPerfMessage,
@@ -412,6 +413,8 @@ def send_unified_perf_message(
     message.metric_unit = metric_unit
     message.metric_description = metric_description
     message.metric_relativity = metric_relativity
+
+    message.tool = tool
 
     notifier.notify(message)
 
