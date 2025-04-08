@@ -635,7 +635,10 @@ class AzurePlatform(Platform):
         resource_group_name = environment_context.resource_group_name
         # the resource group name is empty when it is not deployed for some reasons,
         # like capability doesn't meet case requirement.
-
+        if not resource_group_name:
+            return
+        assert self._azure_runbook
+        
         if not environment_context.resource_group_is_specified:
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
