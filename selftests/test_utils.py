@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa.util import get_first_combination
+from lisa.util import get_first_combination, to_bool
 
 
 class UtilsTestCase(TestCase):
@@ -48,6 +48,62 @@ class UtilsTestCase(TestCase):
             False
         )
         assert_that(results).described_as("unexpected results").is_equal_to([])
+
+    def test_to_bool_positive(self):
+        test_cases = [
+            # Basic tests.
+            ("True", True),
+            ("False", False),
+            ("yes", True),
+            ("no", False),
+            ("1", True),
+            ("0", False),
+            # Should also work with different casing and whitepace.
+            # Rather than doing this exhaustively, we just test
+            # some random cases.
+            ("true", True),
+            ("FALSE", False),
+            (" 1", True),
+            ("faLse", False),
+            ("  yes  ", True),
+            ("  false", False),
+            ("faLsE ", False),
+            # Bools are the identity function.
+            (True, True),
+            (False, False),
+            # Ints are converted to bools.
+            # 0 is false, everything else is true.
+            (-1, True),
+            (0, False),
+            (1, True),
+            (2, True),
+        ]
+
+        for input_str, expected in test_cases:
+            result = to_bool(input_str)
+            assert_that(result).described_as(
+                f"Failed for input: {input_str}"
+            ).is_equal_to(expected)
+
+    def test_to_bool_negative(self):
+        test_cases = [
+            ("invalid", ValueError),
+            ("10", ValueError),
+            ("2", ValueError),
+            ("yesyes", ValueError),
+            ("no no", ValueError),
+            ("yes no", ValueError),
+            ("no yes", ValueError),
+            ("one", ValueError),
+            (None, TypeError),
+            (1.5, TypeError),
+            (object(), TypeError),
+            ([], TypeError),
+            ({}, TypeError),
+        ]
+        for input_value, expected_exception in test_cases:
+            with self.assertRaises(expected_exception):
+                to_bool(input_value)
 
     def _check(self, values: List[Any]) -> Any:
         print(f"checked results: {values}")

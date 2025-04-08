@@ -79,6 +79,21 @@ class Sed(Tool):
         )
         result.assert_exit_code(message=result.stdout)
 
+    def delete_line_substring(
+        self, match_line: str, regex_to_delete: str, file: PurePath, sudo: bool = False
+    ) -> None:
+        expression = f"/{match_line}/s/{regex_to_delete}//g"
+        cmd = f'-i.bak "{expression}" {file}'
+        result = self.run(
+            cmd,
+            force_run=True,
+            no_error_log=True,
+            no_info_log=True,
+            sudo=sudo,
+            shell=True,
+        )
+        result.assert_exit_code(message=result.stdout)
+
 
 class SedBSD(Sed):
     @property
