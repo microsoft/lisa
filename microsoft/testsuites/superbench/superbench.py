@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import io
 import csv
+import re
 
 from dataclasses import dataclass
 from pathlib import Path, PurePath, PosixPath
@@ -28,6 +29,7 @@ from lisa.tools.whoami import Whoami
 from lisa.tools.chmod import Chmod
 from lisa.tools import RemoteCopy
 
+# curl --header 'Metadata: true' "http://169.254.169.254/metadata/instance?api-version=2021-01-01" | jq > sku.metadata.json
 
 class DashBoard:
     __slots__ = ("Team",
@@ -156,28 +158,30 @@ class Superbench(Tool):
         # This is the date-time value which superbench dir will be suffixed with
         date_format = "%Y-%m-%d_%H-%M-%S"
         self.date_tag = datetime.now().strftime(date_format)
+        self.date_tag = "2025-04-07_13-08-10"
 
         # This will be populated while parsing result tgz
         self.node_list = []
         self.working_dir = tempfile.mkdtemp(prefix="sb_lisa.")
 
         print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},"
-              f"\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config},\ndate_tag:{self.date_tag}")
+              f"\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config_tpt},\ndate_tag:{self.date_tag}")
 
     def dash_board_entry(self, sysinfo, vmSKU):
         nodeinfo = self.node.get_information()
 
+        cuda_version = sysinfo["Accelerator"]["nvidia_info"]["cuda_version"]
         node_info_dict = { "Team" : self.variables["team"],
                            "RunTimestamp" : self.run_timestamp,
                            "VMType" : self.variables["vmtype"],
-                           "VMOSVersion" : nodeinfo["distro_version"],
+                           "VMOSVersion" : nodeinfo["distro_version"].replace("Microsoft ", ""),
                            "VMSKU" : vmSKU,
                            "GPUSKU" : sysinfo["Accelerator"]["nvidia_info"]["gpu"][0]["product_name"],
                            "NumGPUsUsed" : sysinfo["Accelerator"]["gpu_count"],
                            "Category" : "GPU Runtime",
                            "Workload" : "Superbench",
-                           "AdditionalInfo" : self.variables["image_info"],
-                           "cuda" : sysinfo["Accelerator"]["nvidia_info"]["cuda_version"],
+                           "AdditionalInfo" : f"{self.variables['image_info']} {cuda_version}",
+                           "cuda" : cuda_version,
                            "GPUDriverVersion" : sysinfo["Accelerator"]["nvidia_info"]["driver_version"],
                            "Scenario" : self.variables["scenario"] }
         return DashBoard(**node_info_dict)
@@ -259,13 +263,21 @@ class Superbench(Tool):
         for key, value in result_json.items():
             if key.startswith("monitor/gpu"):
                 continue
-            test_name, _ = key.split("/", 1)
-            if test_name.startswith("return_code:"):
+
+            # Strip gpu number
+            test_name = re.sub(":\d+", "", key)
+
+            # If entry is for test return code accumulate the value to check if
+            # there were any non-zero return codes.
+            if test_name.endswith("/return_code"):
+                # In some cases sub-test name has return code
+                test_name = test_name.rsplit("/", 1)[0]
+                if not test_name in test_result:
+                    test_result[test_name] = 0
                 test_result[test_name] += int(value)
             else:
-                metricname = key.split(":", 1)[0] # Strip gpu number
                 metricvalue = str(round(float(value), 3)) # 3 digit precision
-                dashboard.assign(Metric=metricname, MetricValue=metricvalue)
+                dashboard.assign(Metric=test_name, MetricValue=metricvalue)
                 db_csv_fd.write(dashboard.csv())
         db_csv_fd.close()
 

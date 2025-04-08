@@ -17,12 +17,6 @@ variable:
   - name: sb_image_tag
     value: "v0.11.0-cuda12.4"
     is_case_visible: true
-  - name: notification
-    value: "console"
-    is_case_visible: true
-  - name: vm_name
-    value: "hpc_v100_vm"
-    is_case_visible: true
   - name: user_name
     value: "azl_user"
     is_case_visible: true
