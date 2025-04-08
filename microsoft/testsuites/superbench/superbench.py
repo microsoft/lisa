@@ -158,7 +158,6 @@ class Superbench(Tool):
         # This is the date-time value which superbench dir will be suffixed with
         date_format = "%Y-%m-%d_%H-%M-%S"
         self.date_tag = datetime.now().strftime(date_format)
-        self.date_tag = "2025-04-07_13-08-10"
 
         # This will be populated while parsing result tgz
         self.node_list = []
