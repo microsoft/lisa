@@ -1,9 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from typing import Dict, Union
+from typing import Any, Dict
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata, notifier
-from lisa.messages import DescriptorPollThroughput, IPCLatency, create_perf_message
+from lisa.messages import (
+    DescriptorPollThroughput,
+    IPCLatency,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Perf
@@ -36,19 +41,19 @@ class PerfToolSuite(TestSuite):
     ) -> None:
         perf_tool = node.tools[Perf]
         perf_results = perf_tool.perf_messaging()
-        other_fields: Dict[str, Union[float, str]] = {}
-        other_fields["average_time_sec"] = sum(perf_results) / len(perf_results)
-        other_fields["min_time_sec"] = min(perf_results)
-        other_fields["max_time_sec"] = max(perf_results)
-        other_fields["tool"] = "perf"
-        message = create_perf_message(
+        # Calculate metrics
+        metrics = {
+            "average_time_sec": sum(perf_results) / len(perf_results),
+            "min_time_sec": min(perf_results),
+            "max_time_sec": max(perf_results),
+        }
+        self._create_and_notify_perf_message(
             IPCLatency,
             node,
             result,
-            self.__class__.__name__,
-            other_fields,
+            "perf_messaging",
+            metrics,
         )
-        notifier.notify(message)
 
     @TestCaseMetadata(
         description="""
@@ -69,16 +74,45 @@ class PerfToolSuite(TestSuite):
     ) -> None:
         perf_tool = node.tools[Perf]
         perf_results = perf_tool.perf_epoll()
-        other_fields: Dict[str, Union[float, str]] = {}
-        other_fields["average_ops"] = sum(perf_results) / len(perf_results)
-        other_fields["min_ops"] = min(perf_results)
-        other_fields["max_ops"] = max(perf_results)
-        other_fields["tool"] = "perf"
-        message = create_perf_message(
+        metrics = {
+            "average_ops": sum(perf_results) / len(perf_results),
+            "min_ops": min(perf_results),
+            "max_ops": max(perf_results),
+        }
+        self._create_and_notify_perf_message(
             DescriptorPollThroughput,
             node,
             result,
-            self.__class__.__name__,
+            "perf_epoll",
+            metrics,
+        )
+
+    def _create_and_notify_perf_message(
+        self,
+        message_type: type,
+        node: Node,
+        result: TestResult,
+        test_case_name: str,
+        metrics: Dict[str, Any],
+    ) -> None:
+        tool = "perf"
+        other_fields: Dict[str, Any] = metrics.copy()
+        other_fields["tool"] = tool
+        message = create_perf_message(  # type: ignore
+            message_type,
+            node,
+            result,
+            test_case_name,
             other_fields,
         )
         notifier.notify(message)
+
+        for key, value in metrics.items():
+            send_unified_perf_message(
+                node=node,
+                test_result=result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=key,
+                metric_value=value,
+            )
