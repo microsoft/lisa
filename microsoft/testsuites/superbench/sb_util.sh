@@ -11,6 +11,7 @@ export sb_config_file=""
 
 # This is the URL to extract SKU of the machine it is run on
 AZURE_SKU_URL='http://169.254.169.254/metadata/instance/compute/vmSize?api-version=2020-06-01&format=text'
+AZURE_METADATA_URL='http://169.254.169.254/metadata/instance?api-version=2021-01-01'
 
 function parse_args() {
     ## Process command line parameters
@@ -90,10 +91,14 @@ function run_sb_test() {
     sudo sb node info --output-dir outputs/node_info
 
     # Extract SKU, assume this is an azure VM and ignore failures.
-    if ! curl --header 'Metadata: true' "${AZURE_SKU_URL}" -o outputs/node_info/sku.txt ; then
-        echo "unknown" > outputs/node_info/sku.txt
-    fi
+    # if ! curl --header 'Metadata: true' "${AZURE_SKU_URL}" -o outputs/node_info/sku.txt ; then
+    #    echo "unknown" > outputs/node_info/sku.txt
+    # fi
 
+    if ! curl --header 'Metadata: true' "${AZURE_METADATA_URL}" -o outputs/node_info/sku.metadata.json ; then
+	echo '{"unknown":"unknown"}' > outputs/node_info/sku.metadata.json
+    fi
+    
     # superbench test invocation
 
     # We do not want to fail here, output json provides the result

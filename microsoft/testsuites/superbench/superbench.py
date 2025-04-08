@@ -166,20 +166,24 @@ class Superbench(Tool):
         print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},"
               f"\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config_tpt},\ndate_tag:{self.date_tag}")
 
-    def dash_board_entry(self, sysinfo, vmSKU):
+    def dash_board_entry(self, sysinfo, skuMetadata):
         nodeinfo = self.node.get_information()
 
+        image_version = skuMetadata["compute"]["storageProfile"]["imageReference"]["id"]
+        image_version = image_version.rsplit("/", 1)[1]
         cuda_version = sysinfo["Accelerator"]["nvidia_info"]["cuda_version"]
+        driver_version = sysinfo["Accelerator"]["nvidia_info"]["driver_version"]
+        additionalInfo = f"{self.variables['image_info']} {image_version} {driver_version} {cuda_version}"
         node_info_dict = { "Team" : self.variables["team"],
                            "RunTimestamp" : self.run_timestamp,
                            "VMType" : self.variables["vmtype"],
                            "VMOSVersion" : nodeinfo["distro_version"].replace("Microsoft ", ""),
-                           "VMSKU" : vmSKU,
+                           "VMSKU" : skuMetadata["compute"]["vmSize"],
                            "GPUSKU" : sysinfo["Accelerator"]["nvidia_info"]["gpu"][0]["product_name"],
                            "NumGPUsUsed" : sysinfo["Accelerator"]["gpu_count"],
                            "Category" : "GPU Runtime",
                            "Workload" : "Superbench",
-                           "AdditionalInfo" : f"{self.variables['image_info']} {cuda_version}",
+                           "AdditionalInfo" : additionalinfo,
                            "cuda" : cuda_version,
                            "GPUDriverVersion" : sysinfo["Accelerator"]["nvidia_info"]["driver_version"],
                            "Scenario" : self.variables["scenario"] }
@@ -240,7 +244,7 @@ class Superbench(Tool):
         return enabled_tests
 
     def notify_result(self, result_json: Dict, tests: list[str],
-                      sysinfo: Dict, vmSKU: str, db_csv_file: str) -> Dict[str, Dict[str, int]]:
+                      sysinfo: Dict, skuMetadata: Dict, db_csv_file: str) -> Dict[str, Dict[str, int]]:
         """
         For the given superbench result summary:
                 - "*return_code" accumulate to test-result object
@@ -250,7 +254,7 @@ class Superbench(Tool):
         """
         test_result = {test_name:0 for test_name in tests}
 
-        dashboard: DashBoard = self.dash_board_entry(sysinfo, vmSKU)
+        dashboard: DashBoard = self.dash_board_entry(sysinfo, skuMetadata)
 
         print(f"DashBoard csv file is: {db_csv_file}")
         db_csv_fd = open(db_csv_file, "w")
@@ -264,7 +268,7 @@ class Superbench(Tool):
                 continue
 
             # Strip gpu number
-            test_name = re.sub(":\d+", "", key)
+            test_name = re.sub(r":\d+", "", key)
 
             # If entry is for test return code accumulate the value to check if
             # there were any non-zero return codes.
@@ -305,14 +309,14 @@ class Superbench(Tool):
         cfg_yaml = PosixPath(self.working_dir, "outputs/sb_run/sb.config.yaml")
         result_json_file = PosixPath(self.working_dir, "outputs/sb_run/results-summary.jsonl")
         sysinfo_json_file = PosixPath(self.working_dir, "outputs/node_info/sys_info.json")
-        sku_file = PosixPath(self.working_dir, "outputs/node_info/sku.txt")
+        sku_json_file = PosixPath(self.working_dir, "outputs/node_info/sku.metadata.json")
         db_csv_file = PosixPath(log_path, "dashboard_data.csv")
 
         sysinfo = json.load(open(sysinfo_json_file))
-        vmSKU = open(sku_file).read().strip()
+        skuMetadata = json.load(open(sku_json_file))
         enabled_tests = self.get_enabled_tests(cfg_yaml)
         return self.notify_result(json.load(open(result_json_file)),
-                                  enabled_tests, sysinfo, vmSKU, db_csv_file)
+                                  enabled_tests, sysinfo, skuMetadata, db_csv_file)
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
