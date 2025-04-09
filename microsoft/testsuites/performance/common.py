@@ -28,6 +28,7 @@ from lisa.operating_system import BSD, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Ethtool,
     FIOMODES,
     Fdisk,
     Fio,
@@ -212,6 +213,12 @@ def perf_tcp_pps(
     # from the environment. We never combine the two options. We need to specify
     # server and client explicitly for nested VM's which are not part of the
     # `environment` and are created during the test.
+
+    # Setting ethtool rx to 1024
+    server_ethtool = server.tools[Ethtool]
+    server.log.debug(f"Ring Buffer Values before: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
+    server_ethtool.change_device_ring_buffer_settings("eth1", 1024, 256)
+    server.log.debug(f"Ring Buffer Values after: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
     if server is not None or client is not None:
         assert server is not None, "server need to be specified, if client is set"
         assert client is not None, "client need to be specified, if server is set"
