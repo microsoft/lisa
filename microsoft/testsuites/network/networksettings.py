@@ -56,6 +56,29 @@ class NetworkSettings(TestSuite):
     _queue_stats_regex = re.compile(r"[tr]x_queue_(?P<name>[\d]+)_packets")
     _vf_queue_stats_regex = re.compile(r"[tr]x[_]?(?P<name>[\d]+)_packets")
 
+    # regex for filtering vf queue stats on FreeBSD
+    # dev.mce.0.rxstat3.decrypted_error_packets: 0
+    # dev.mce.0.rxstat3.decrypted_ok_packets: 0
+    # dev.mce.0.rxstat3.wqe_err: 0
+    # dev.mce.0.rxstat3.sw_lro_flushed: 2171
+    # dev.mce.0.rxstat3.sw_lro_queued: 2900
+    # dev.mce.0.rxstat3.lro_bytes: 0
+    # dev.mce.0.rxstat3.lro_packets: 0
+    # dev.mce.0.rxstat3.csum_none: 0
+    # dev.mce.0.rxstat3.bytes: 1470978
+    # dev.mce.0.rxstat3.packets: 2901
+    # dev.mce.0.txstat3tc0.nop: 3
+    # dev.mce.0.txstat3tc0.cqe_err: 0
+    # dev.mce.0.txstat3tc0.enobuf: 0
+    # dev.mce.0.txstat3tc0.dropped: 0
+    # dev.mce.0.txstat3tc0.defragged: 0
+    # dev.mce.0.txstat3tc0.csum_offload_none: 0
+    # dev.mce.0.txstat3tc0.tso_bytes: 331660
+    # dev.mce.0.txstat3tc0.tso_packets: 125
+    # dev.mce.0.txstat3tc0.bytes: 857284
+    # dev.mce.0.txstat3tc0.packets: 3287
+    _bsd_vf_queue_stats_regex = re.compile(r"[tr]xstat(?P<name>[\d]+)\S*\.packets")
+
     # This will match different tx queues like -
     # {'name': 'tx_queue_0_packets', 'value': '0'}
     # {'name': 'tx_queue_1_packets', 'value': '0'}
@@ -776,9 +799,14 @@ class NetworkSettings(TestSuite):
                     raise SkippedException(identifier)
 
                 for k in device_stats.counters.keys():
-                    if self._vf_queue_stats_regex.search(k):
-                        # Both tx/rx queues will be counted with the regex.
-                        per_vf_queue_stats += 1
+                    if isinstance(client_node.os, BSD):
+                        if self._bsd_vf_queue_stats_regex.search(k):
+                            # Both tx/rx queues will be counted with the regex.
+                            per_vf_queue_stats += 1
+                    else:
+                        if self._vf_queue_stats_regex.search(k):
+                            # Both tx/rx queues will be counted with the regex.
+                            per_vf_queue_stats += 1
 
                 assert_that(
                     per_vf_queue_stats,

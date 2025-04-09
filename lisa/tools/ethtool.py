@@ -433,14 +433,22 @@ class DeviceStatistics:
     #     tx_scattered: 0
     #     tx_no_memory: 0
     _statistics_pattern = re.compile(r"^\s+(?P<name>.*?)\: +?(?P<value>\d*?)\r?$")
+    # FreeBSD NIC statistics:
+    # dev.hn.0.tx.0.packets: 0
+    # dev.hn.0.rx.0.packets: 0
+    # dev.mce.0.txstat0tc0.packets: 0
+    # dev.mce.0.rxstat0.packets: 0
+    _bsd_statistics_pattern = re.compile(r"^dev\.\w+\.\d+.(?P<name>.*?)\: +?(?P<value>\d+?)\r?$")
 
-    def __init__(self, interface: str, device_statistics_raw: str) -> None:
-        self._parse_statistics_info(interface, device_statistics_raw)
+    def __init__(self, interface: str, device_statistics_raw: str, bsd: bool = False) -> None:
+        self._parse_statistics_info(interface, device_statistics_raw, bsd)
 
-    def _parse_statistics_info(self, interface: str, raw_str: str) -> None:
+    def _parse_statistics_info(self, interface: str, raw_str: str, bsd: bool) -> None:
         statistics: Dict[str, int] = {}
-
-        items = find_groups_in_lines(raw_str, self._statistics_pattern)
+        if bsd:
+            items = find_groups_in_lines(raw_str, self._bsd_statistics_pattern)
+        else:
+            items = find_groups_in_lines(raw_str, self._statistics_pattern)
         statistics = {x["name"]: int(x["value"]) for x in items}
 
         self.interface = interface
@@ -1128,8 +1136,12 @@ class EthtoolFreebsd(Ethtool):
         if not force_run and device.device_statistics:
             return device.device_statistics
 
-        result = self.run(f"ifconfig {interface}", force_run=True, shell=True)
-        self.node.log.info(f"ifconfig {interface} result: {result.stdout}")
+        match = re.match(r"^(\w+)(\d+)$", interface)
+        if not match:
+            raise LisaException(f"Invalid interface name: {interface}")
+        device_name = match.group(1)
+        number = match.group(2)
+        result = self.run(f"sysctl dev.{device_name}.{number}", force_run=True, shell=True)
         if (result.exit_code != 0) and (
             "Operation not supported" in result.stdout
             or "no stats available" in result.stdout
@@ -1139,7 +1151,7 @@ class EthtoolFreebsd(Ethtool):
             )
         result.assert_exit_code(message=f"Couldn't get device {interface} statistics.")
 
-        device.device_statistics = DeviceStatistics(interface, result.stdout)
+        device.device_statistics = DeviceStatistics(interface, result.stdout, True)
         return device.device_statistics
 
     def _get_or_create_device_setting(self, interface: str) -> DeviceSettings:
