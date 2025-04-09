@@ -772,8 +772,8 @@ class NetworkSettings(TestSuite):
             "netvsc_set_msglevel" not in msg_level_symbols
         ):
             raise SkippedException(
-                f"Get/Set message level not supported on {kernel_version},"
-                " Skipping test."
+                f"Get/Set message level not supported on {kernel_version}, "
+                "Skipping test."
             )
 
     def _verify_stats_exists(
@@ -791,7 +791,6 @@ class NetworkSettings(TestSuite):
         per_vf_queue_stats = 0
         for device_stats in devices_statistics:
             nic = client_node.nics.get_nic(device_stats.interface)
-            client_node.log.info(f"Checking device stats for {device_stats.interface}: {device_stats.counters.keys()}")
             if nic.lower:
                 try:
                     device_stats = ethtool.get_device_statistics(nic.lower, True)

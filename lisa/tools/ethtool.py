@@ -438,9 +438,13 @@ class DeviceStatistics:
     # dev.hn.0.rx.0.packets: 0
     # dev.mce.0.txstat0tc0.packets: 0
     # dev.mce.0.rxstat0.packets: 0
-    _bsd_statistics_pattern = re.compile(r"^dev\.\w+\.\d+.(?P<name>.*?)\: +?(?P<value>\d+?)\r?$")
+    _bsd_statistics_pattern = re.compile(
+        r"^dev\.\w+\.\d+.(?P<name>.*?)\: +?(?P<value>\d+?)\r?$"
+    )
 
-    def __init__(self, interface: str, device_statistics_raw: str, bsd: bool = False) -> None:
+    def __init__(
+        self, interface: str, device_statistics_raw: str, bsd: bool = False
+    ) -> None:
         self._parse_statistics_info(interface, device_statistics_raw, bsd)
 
     def _parse_statistics_info(self, interface: str, raw_str: str, bsd: bool) -> None:
@@ -1141,7 +1145,9 @@ class EthtoolFreebsd(Ethtool):
             raise LisaException(f"Invalid interface name: {interface}")
         device_name = match.group(1)
         number = match.group(2)
-        result = self.run(f"sysctl dev.{device_name}.{number}", force_run=True, shell=True)
+        result = self.run(
+            f"sysctl dev.{device_name}.{number}", force_run=True, shell=True
+        )
         if (result.exit_code != 0) and (
             "Operation not supported" in result.stdout
             or "no stats available" in result.stdout
