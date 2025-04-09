@@ -214,6 +214,7 @@ class Kselftest(Tool):
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
+        **kwargs: Any,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
@@ -229,13 +230,63 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
-        self.run(
-            f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
-            force_run=True,
-            shell=True,
-            timeout=timeout,
-        )
+        
+        # Initialize run_tests and skip_tests from kwargs if provided
+        run_collections = kwargs.get("run_collections", [])
+        skip_tests = kwargs.get("skip_tests", [])
+
+        if run_collections or skip_tests:
+            # List all available tests
+            list_result = self.run(" -l", shell=True)
+            list_result.assert_exit_code(
+                message="failed to retrieve the list of available kself tests"
+            )
+            all_tests = list_result.stdout.splitlines()
+
+            # Filter tests based on run_collections if it exists
+            # Example: if run_collections = ['uevent']
+            # all_tests will already have all tests in the format:
+            #   ['core:close_range_test', 'core:unshare_test',
+            #    'tty:tty_tstamp_update', 'uevent:uevent_filtering']
+            # The filtered_tests will then have the value:
+            #   ['uevent:uevent_filtering']
+            # This means all the tests that belong to the 'uevent'
+            #   collection are selected.
+            if run_collections:
+                filtered_tests = [
+                    test
+                    for test in all_tests
+                    if any(
+                        (match := re.match(r"^[^:/]+", test))
+                        and collection == match.group(0)
+                        for collection in run_collections
+                    )
+                ]
+            else:
+                filtered_tests = all_tests
+
+            # Exclude tests based on skip_tests
+            tests_to_run = [test for test in filtered_tests if test not in skip_tests]
+
+            if tests_to_run:
+                tests_to_run_str = " ".join(f"-t {test}" for test in tests_to_run)
+                self._log.debug(f"Running tests: {tests_to_run}")
+                self.run(
+                    f" {tests_to_run_str} 2>&1 | tee -a {result_file}",
+                    sudo=run_test_as_root,
+                    force_run=True,
+                    shell=True,
+                    timeout=timeout,
+                )
+        else:
+            # run all tests
+            self.run(
+                f" 2>&1 | tee {result_file}",
+                sudo=run_test_as_root,
+                force_run=True,
+                shell=True,
+                timeout=timeout,
+            )
 
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt

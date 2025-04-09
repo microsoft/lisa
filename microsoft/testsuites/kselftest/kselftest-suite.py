@@ -50,12 +50,30 @@ class KselftestTestsuite(TestSuite):
         file_path = variables.get("kselftest_file_path", "")
         working_path = variables.get("kselftest_working_path", "")
         run_as_root = variables.get("kselftest_run_as_root", False)
+        test_collection_list = (
+            variables.get("kselftest_include_test_collections", "").split(",")
+            if variables.get("kselftest_include_test_collections", "")
+            else []
+        )
+        skip_tests_list = (
+            variables.get("kselftest_skip_tests", "").split(",")
+            if variables.get("kselftest_skip_tests", "")
+            else []
+        )
+
         try:
             kselftest: Kselftest = node.tools.get(
                 Kselftest,
                 working_path=working_path,
                 file_path=file_path,
             )
-            kselftest.run_all(result, log_path, self._KSELF_TIMEOUT, run_as_root)
+            kselftest.run_all(
+                test_result=result,
+                log_path=log_path,
+                timeout=self._KSELF_TIMEOUT,
+                run_test_as_root=run_as_root,
+                run_collections=test_collection_list,
+                skip_tests=skip_tests_list,
+            )
         except UnsupportedDistroException as identifier:
             raise SkippedException(identifier)
