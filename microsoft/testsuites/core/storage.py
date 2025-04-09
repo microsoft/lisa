@@ -156,7 +156,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            disk=AzureDiskOptionSettings(has_resource_disk=True),
+            # disk=AzureDiskOptionSettings(has_resource_disk=True),
             supported_platform_type=[AZURE],
         ),
     )
@@ -232,7 +232,7 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            disk=AzureDiskOptionSettings(has_resource_disk=True),
+            # disk=AzureDiskOptionSettings(has_resource_disk=True),
             supported_platform_type=[AZURE],
         ),
     )
