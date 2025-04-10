@@ -282,6 +282,13 @@ def perf_ntttcp(  # noqa: C901
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
 
+    # Setting ethtool rx to 1024
+    server_ethtool = server.tools[Ethtool]
+    server.log.debug(f"Ring Buffer Values before: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
+    server_ethtool.change_device_ring_buffer_settings("eth1", 1024, 256)
+    server.log.debug(f"Ring Buffer Values after: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
+    
+
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
