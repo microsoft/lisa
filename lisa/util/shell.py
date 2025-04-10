@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import ipaddress
 import logging
 import os
 import re
@@ -78,9 +77,7 @@ def wait_tcp_port_ready(
         # If it's True, it means the direct connection doesn't work. Return a
         # mock value for test purpose.
         return True, 0
-    address_family = socket.AF_INET
-    if _is_valid_ipv6(address):
-        address_family = socket.AF_INET6
+    address_family = _get_address_family(address)
     timeout_timer = create_timer()
     while timeout_timer.elapsed(False) < timeout:
         with socket.socket(address_family, socket.SOCK_STREAM) as tcp_socket:
@@ -104,12 +101,20 @@ def wait_tcp_port_ready(
     return is_ready, result
 
 
-def _is_valid_ipv6(address: str) -> bool:
+def _get_address_family(address: str) -> Any:
     try:
-        ipaddress.IPv4Address(address)
-        return False
-    except ipaddress.AddressValueError:
-        return True
+        addr_info = socket.getaddrinfo(address, None)
+        for info in addr_info:
+            family = info[0]
+            if family == socket.AF_INET:
+                return socket.AF_INET
+            elif family == socket.AF_INET6:
+                return socket.AF_INET6
+        return socket.AF_INET
+    except socket.gaierror:
+        return socket.AF_INET
+    except Exception:
+        return socket.AF_INET
 
 
 class WindowsShellType(object):
