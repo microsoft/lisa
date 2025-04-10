@@ -171,21 +171,26 @@ class Superbench(Tool):
 
         image_version = skuMetadata["compute"]["storageProfile"]["imageReference"]["id"]
         image_version = image_version.rsplit("/", 1)[1]
-        cuda_version = sysinfo["Accelerator"]["nvidia_info"]["cuda_version"]
-        driver_version = sysinfo["Accelerator"]["nvidia_info"]["driver_version"]
+        nvidia_info = sysinfo["Accelerator"]["nvidia_info"]
+        cuda_version = nvidia_info["cuda_version"]
+        driver_version = nvidia_info["driver_version"]
+        if nvidia_info["attached_gpus"] == "1":
+            gpuSku = nvidia_info["gpu"]["product_name"]
+        else:
+            gpuSku = nvidia_info["gpu"][0]["product_name"]
         additionalInfo = f"{self.variables['image_info']} {image_version} {driver_version} {cuda_version}"
         node_info_dict = { "Team" : self.variables["team"],
                            "RunTimestamp" : self.run_timestamp,
                            "VMType" : self.variables["vmtype"],
                            "VMOSVersion" : nodeinfo["distro_version"].replace("Microsoft ", ""),
                            "VMSKU" : skuMetadata["compute"]["vmSize"],
-                           "GPUSKU" : sysinfo["Accelerator"]["nvidia_info"]["gpu"][0]["product_name"],
+                           "GPUSKU" : gpuSku,
                            "NumGPUsUsed" : sysinfo["Accelerator"]["gpu_count"],
                            "Category" : "GPU Runtime",
                            "Workload" : "Superbench",
-                           "AdditionalInfo" : additionalinfo,
+                           "AdditionalInfo" : additionalInfo,
                            "cuda" : cuda_version,
-                           "GPUDriverVersion" : sysinfo["Accelerator"]["nvidia_info"]["driver_version"],
+                           "GPUDriverVersion" : nvidia_info["driver_version"],
                            "Scenario" : self.variables["scenario"] }
         return DashBoard(**node_info_dict)
 
