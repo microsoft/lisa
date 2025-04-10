@@ -284,9 +284,11 @@ def perf_ntttcp(  # noqa: C901
 
     # Setting ethtool rx to 1024
     server_ethtool = server.tools[Ethtool]
-    server.log.debug(f"Ring Buffer Values before: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
+    before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
+    server.log.debug(f"Ring Buffer Values before: {before_val}")
     server_ethtool.change_device_ring_buffer_settings("eth1", 1024, 256)
-    server.log.debug(f"Ring Buffer Values after: {server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw}")
+    after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
+    server.log.debug(f"Ring Buffer Values after: {after_val}")
     
 
     if not test_case_name:
