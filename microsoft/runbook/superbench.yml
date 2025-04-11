@@ -33,6 +33,10 @@ variable:
   - name: scenario
     value: "LISA Superbench intergration"
     is_case_visible: true
+# This is a free form string which will get tagged onto the "addition information" field
+  - name: run_tag
+    value: ""
+    is_case_visible: true
 
 testcase:
   - criteria:

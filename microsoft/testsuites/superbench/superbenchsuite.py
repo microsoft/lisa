@@ -62,8 +62,9 @@ class SuperbenchSuite(TestSuite):
         sb_branch = variables["sb_branch"]
         sb_image_tag = variables["sb_image_tag"]
 
-        print(f"gpu: {gpu}\n validation: {validation}\n sb_repo: {sb_repo}\n sb_config: {sb_config}\n sb_branch: {sb_branch}\n sb_image_tag: {sb_image_tag}\n")
-        
+        print(f"gpu: {gpu}\nvalidation: {validation}\n sb_repo: {sb_repo}\nsb_config: {sb_config}\n"
+              f"sb_branch: {sb_branch}\nsb_image_tag: {sb_image_tag}")
+
         # run superbench tests
         superbench: Superbench = node.tools.get(
             Superbench,

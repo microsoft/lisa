@@ -29,8 +29,6 @@ from lisa.tools.whoami import Whoami
 from lisa.tools.chmod import Chmod
 from lisa.tools import RemoteCopy
 
-# curl --header 'Metadata: true' "http://169.254.169.254/metadata/instance?api-version=2021-01-01" | jq > sku.metadata.json
-
 class DashBoard:
     __slots__ = ("Team",
                  "RunTimestamp",
@@ -163,8 +161,7 @@ class Superbench(Tool):
         self.node_list = []
         self.working_dir = tempfile.mkdtemp(prefix="sb_lisa.")
 
-        print(f"_sb_repo:{self._sb_repo},\n_sb_branch:{self._sb_branch},\n_sb_config_tpt:{self._sb_config_tpt},"
-              f"\n_sb_image_tag:{self._sb_image_tag},\n_sb_config:{self._sb_config_tpt},\ndate_tag:{self.date_tag}")
+        print(f"date_tag:{self.date_tag}")
 
     def dash_board_entry(self, sysinfo, skuMetadata):
         nodeinfo = self.node.get_information()
@@ -178,7 +175,8 @@ class Superbench(Tool):
             gpuSku = nvidia_info["gpu"]["product_name"]
         else:
             gpuSku = nvidia_info["gpu"][0]["product_name"]
-        additionalInfo = f"{self.variables['image_info']} {image_version} {driver_version} {cuda_version}"
+        runTag = self.variables["run_tag"]
+        additionalInfo = f"{self.variables['image_info']} {image_version} {driver_version} {cuda_version} {runTag}"
         node_info_dict = { "Team" : self.variables["team"],
                            "RunTimestamp" : self.run_timestamp,
                            "VMType" : self.variables["vmtype"],

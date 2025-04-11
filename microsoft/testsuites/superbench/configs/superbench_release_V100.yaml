@@ -6,7 +6,7 @@ superbench:
   - gemm-flops
   - cublas-function
   - cudnn-function
-  - ort-inference
+#  - ort-inference
   - tensorrt-inference
   - gpt_models
   - gpu-burn
@@ -214,10 +214,10 @@ superbench:
           parallel: no
       parameters:
         port: 22
-    ort-inference:
-      <<: *default_local_mode
-      parameters:
-        batch_size: 1
+#    ort-inference:
+#      <<: *default_local_mode
+#      parameters:
+#        batch_size: 1
     tensorrt-inference:
       <<: *default_local_mode
       parameters:

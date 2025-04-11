@@ -5,7 +5,8 @@ superbench:
   - kernel-launch
   - gemm-flops
   - cublas-function
-  - cudnn-function
+# Disable until algo-4 can be disabled
+#  - cudnn-function
   - ort-inference
   - tensorrt-inference
   - gpt_models
@@ -155,12 +156,13 @@ superbench:
         m: 7680
         n: 8192
         k: 8192
-    cudnn-function:
-      <<: *default_local_mode
-      parameters:
-        num_steps: 10
-        num_warmup: 10
-        num_in_step: 100
+# Disabled pending algo-4 opt-out
+#     cudnn-function:
+#       <<: *default_local_mode
+#       parameters:
+#         num_steps: 10
+#         num_warmup: 10
+#         num_in_step: 100
     cublas-function:
       <<: *default_local_mode
       parameters:
