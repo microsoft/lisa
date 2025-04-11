@@ -275,7 +275,7 @@ class RepoInstaller(BaseInstaller):
         self._log.info(f"Adding repository: {repo_entry}")
         ubuntu.add_repository(repo_entry)
         full_package_name = runbook.source
-        if full_package_name == "linux-azure-fips":
+        if "fips" in full_package_name:
             # Remove default fips repository before kernel installation.
             # The default fips repository is not needed and it causes
             # the kernel installation from proposed repos to fail.
