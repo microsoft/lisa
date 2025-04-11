@@ -78,6 +78,8 @@ class Kselftest(Tool):
         r"^(?P<status>(not ok|ok))\s+\d+\s+selftests:\s+\S+:\s+(?P<name>\S+)\s*(?:# (?:exit=)?(?P<reason>SKIP|TIMEOUT\d+).*)?(?:# exit=(?P<exit>\d+))?"  # noqa: E501
     )
 
+    _sudo = True
+
     @property
     def command(self) -> str:
         return str(self._command)
@@ -87,18 +89,23 @@ class Kselftest(Tool):
         return True
 
     def _check_exists(self) -> bool:
-        return len(self.node.tools[Ls].list(str(self._installed_path), sudo=True)) > 0
+        return (
+            len(self.node.tools[Ls].list(str(self._installed_path), sudo=self._sudo))
+            > 0
+        )
 
     def __init__(
         self,
         node: Node,
         working_path: str,
         file_path: str,
+        sudo: bool = True,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(node, *args, **kwargs)
 
+        self._sudo = sudo
         # tar file path specified in yml
         self._working_path = working_path
         self._tar_file_path = file_path
@@ -181,13 +188,13 @@ class Kselftest(Tool):
                 ),
                 dest=PurePath(".config"),
                 cwd=kernel_path,
-                sudo=True,
+                sudo=self._sudo,
             )
 
             self.node.tools[Make].run(
                 "headers",
                 cwd=kernel_path,
-                sudo=True,
+                sudo=self._sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="failed to build kernel headers.",
             ).assert_exit_code()
@@ -197,14 +204,14 @@ class Kselftest(Tool):
                 cmd=f"./kselftest_install.sh {self._installed_path}",
                 shell=True,
                 cwd=PurePosixPath(kernel_path, "tools/testing/selftests"),
-                sudo=True,
+                sudo=self._sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="fail to build & install kselftest",
             ).assert_exit_code()
             # change permissions of kselftest-packages directory
             # to run test as non root user.
             chmod = self.node.tools[Chmod]
-            chmod.update_folder(self._installed_path.as_posix(), "777", sudo=True)
+            chmod.update_folder(self._installed_path.as_posix(), "777", sudo=self._sudo)
 
         return self._check_exists()
 
@@ -213,10 +220,9 @@ class Kselftest(Tool):
         test_result: TestResult,
         log_path: str,
         timeout: int = 5000,
-        run_test_as_root: bool = False,
+        sudo: bool = False,
     ) -> List[KselftestResult]:
-        # Executing kselftest as root may cause
-        # VM to hang
+        # Executing kselftest as root may cause VM to hang
 
         # get username
         username = self.node.tools[Whoami].get_username()
@@ -229,9 +235,16 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
+
+        if self._tar_file_path:
+            work_dir = PurePosixPath(self._installed_path)
+        else:
+            work_dir = None
+
         self.run(
-            f" 2>&1 | tee {result_file}",
-            sudo=run_test_as_root,
+            f" -s 2>&1 | tee {result_file}",
+            cwd=work_dir,
+            sudo=sudo,
             force_run=True,
             shell=True,
             timeout=timeout,
@@ -240,11 +253,13 @@ class Kselftest(Tool):
         # Allow read permissions for "others" to remote copy the file
         # kselftest-results.txt
         chmod = self.node.tools[Chmod]
-        chmod.update_folder(result_file, "644", sudo=True)
+        chmod.update_folder(result_file, "644", sudo=sudo)
 
         # copy kselftest-results.txt from remote to local node for processing results
         remote_copy = self.node.tools[RemoteCopy]
-        remote_copy.copy_to_local(PurePosixPath(result_file), PurePath(log_path))
+        remote_copy.copy_to_local(
+            PurePosixPath(result_file), PurePath(log_path), False, sudo
+        )
 
         local_kselftest_results_path = PurePath(log_path) / result_file_name
 
