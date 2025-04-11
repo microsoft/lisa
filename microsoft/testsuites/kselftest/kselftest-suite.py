@@ -33,6 +33,15 @@ class KselftestTestsuite(TestSuite):
 
         For both cases, verify that the kselftest tool extracts the tar, runs the script
         run_kselftest.sh and redirects test results to a file kselftest-results.txt.
+
+        Customization:
+        Users can customize the test by specifying the
+        `kselftest_include_test_collections` and `kselftest_skip_tests` variables
+        in the runbook. For example:
+        - `kselftest_include_test_collections`: A comma-separated list of collections
+        to run (e.g., "bpf,net,timers").
+        - `kselftest_skip_tests`: A comma-separated list of tests to skip
+        (e.g., "net:test_tcp,test_udp").
         """,
         priority=3,
         timeout=_CASE_TIME_OUT,

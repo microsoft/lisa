@@ -230,7 +230,6 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
-        
         # Initialize run_tests and skip_tests from kwargs if provided
         run_collections = kwargs.get("run_collections", [])
         skip_tests = kwargs.get("skip_tests", [])
