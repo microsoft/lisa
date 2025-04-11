@@ -87,22 +87,33 @@ class Dhclient(Tool):
         return value
 
     def renew(self, interface: str = "") -> None:
+        # Determine the appropriate option based on the command
+        if "dhclient" in self._command:
+            option = "-r"
+        elif "dhcpcd" in self._command:
+            option = "-k"
+        else:
+            raise ValueError(f"Unsupported command: {self._command}")
+
+        # Construct the command based on the interface
         if interface:
             result = self.run(
-                f"-r {interface} && dhclient {interface}",
+                f"{option} {interface} && {self._command} {interface}",
                 shell=True,
                 sudo=True,
                 force_run=True,
             )
         else:
             result = self.run(
-                "-r && dhclient",
+                f"{option} && {self._command}",
                 shell=True,
                 sudo=True,
                 force_run=True,
             )
+
+        # Assert the exit code
         result.assert_exit_code(
-            0, f"dhclient renew return non-zero exit code: {result.stdout}"
+            0, f"{self._command} renew returned non-zero exit code: {result.stdout}"
         )
 
 
