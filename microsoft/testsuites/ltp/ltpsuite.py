@@ -71,6 +71,9 @@ class LtpTestsuite(TestSuite):
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
 
+        run_full_ltp_test = variables.get("run_full_ltp_test", False)
+        run_as_sudo = variables.get("run_as_sudo", True)
+
         # get comma separated list of tests
         if tests:
             test_list = tests.split(",")
@@ -83,7 +86,15 @@ class LtpTestsuite(TestSuite):
         else:
             skip_test_list = []
 
-        if not block_device:
+        # if run_full_ltp_test is true, ignore test_list and skip_test_list
+        if run_full_ltp_test:
+            # self.__log.debug(
+            #     "---ltp run full test, test_list & skip_test_list will be []"
+            # )
+            test_list = []
+            skip_test_list = []
+
+        if not block_device and node.type_name() != "local":
             mountpoint = node.find_partition_with_freespace(
                 self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
             )
@@ -94,7 +105,10 @@ class LtpTestsuite(TestSuite):
 
         # run ltp lite tests
         ltp: Ltp = node.tools.get(
-            Ltp, git_tag=ltp_tests_git_tag, source_file=ltp_source_file
+            Ltp,
+            git_tag=ltp_tests_git_tag,
+            source_file=ltp_source_file,
+            sudo=run_as_sudo,
         )
         ltp.run_test(
             result,
@@ -103,6 +117,8 @@ class LtpTestsuite(TestSuite):
             log_path,
             block_device=block_device,
             ltp_run_timeout=ltp_run_timeout,
+            run_full_test=run_full_ltp_test,
+            sudo=run_as_sudo,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:

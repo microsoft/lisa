@@ -72,11 +72,15 @@ class Ltp(Tool):
     def can_install(self) -> bool:
         return True
 
-    def __init__(self, node: Node, source_file: str, *args: Any, **kwargs: Any) -> None:
-        super().__init__(node, args, kwargs)
+    def __init__(self, node: Node, *args: Any, **kwargs: Any) -> None:
+        super().__init__(node, *args, **kwargs)
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
-        self._source_file = source_file
+        self._source_file = kwargs.get("source_file", "")
+        self._run_as_sudo = kwargs.get("sudo", True)
+
+        self._log.debug(f"--- paxue [init] self._source_file:{self._source_file}")
+        self._log.debug(f"--- self._run_as_sudo:{self._run_as_sudo}")
 
     def run_test(
         self,
@@ -87,6 +91,9 @@ class Ltp(Tool):
         block_device: Optional[str] = None,
         temp_dir: str = "/tmp/",
         ltp_run_timeout: int = 12000,
+        # run full test if True, else run lite test
+        run_full_test: bool = False,
+        sudo: bool = True,
     ) -> List[LtpResult]:
         # tests cannot be empty
         assert_that(ltp_tests, "ltp_tests cannot be empty").is_not_empty()
@@ -96,23 +103,25 @@ class Ltp(Tool):
         # remove skipfile if it exists
         if ls.path_exists(self.LTP_SKIP_FILE):
             self._log.debug(f"Removing skipfile: {self.LTP_SKIP_FILE}")
-            rm.remove_file(self.LTP_SKIP_FILE, sudo=True)
+            rm.remove_file(self.LTP_SKIP_FILE, sudo=sudo)
 
         # remove results file if it exists
-        if ls.path_exists(self.LTP_RESULT_PATH, sudo=True):
+        if ls.path_exists(self.LTP_RESULT_PATH, sudo=sudo):
             self._log.debug(f"Removing {self.LTP_RESULT_PATH}")
-            rm.remove_file(self.LTP_RESULT_PATH, sudo=True)
+            rm.remove_file(self.LTP_RESULT_PATH, sudo=sudo)
 
         # remove output file if it exists
-        if ls.path_exists(self.LTP_OUTPUT_PATH, sudo=True):
+        if ls.path_exists(self.LTP_OUTPUT_PATH, sudo=sudo):
             self._log.debug(f"Removing {self.LTP_OUTPUT_PATH}")
-            rm.remove_file(self.LTP_OUTPUT_PATH, sudo=True)
+            rm.remove_file(self.LTP_OUTPUT_PATH, sudo=sudo)
 
         # add parameters for the test logging
         parameters = f"-p -q -l {self.LTP_RESULT_PATH} -o {self.LTP_OUTPUT_PATH} "
 
-        # add the list of tests to run
-        parameters += f"-f {','.join(ltp_tests)} "
+        # add the list of tests to run, only when run_full_test is false
+        # when "-f" not set, ltp will run full test
+        if not run_full_test:
+            parameters += f"-f {','.join(ltp_tests)} "
 
         # some tests require a big unmounted block device
         # to run correctly.
@@ -127,7 +136,7 @@ class Ltp(Tool):
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
             self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(self.LTP_SKIP_FILE), sudo=True
+                skip_file_value, PurePosixPath(self.LTP_SKIP_FILE), sudo=sudo
             )
             parameters += f"-S {self.LTP_SKIP_FILE} "
 
@@ -137,9 +146,10 @@ class Ltp(Tool):
 
         # run ltp tests
         command = f"{self.command} {parameters}"
+        self._log.debug("---ltp command:" + command)
         self.node.execute_async(
             f"echo y | {command}",
-            sudo=True,
+            sudo=sudo,
             shell=True,
         )
 
@@ -147,7 +157,7 @@ class Ltp(Tool):
         pgrep.wait_processes("runltp", timeout=ltp_run_timeout)
 
         # to avoid no permission issue when copying back files
-        self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
+        self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=sudo)
 
         # write output to log path
         self.node.shell.copy_back(
@@ -193,6 +203,9 @@ class Ltp(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
+
+        sudo = self._run_as_sudo
+        self._log.debug(f"--- paxue [Install] self._run_as_sudo:{self._run_as_sudo}")
 
         # install common dependencies
         self.node.os.install_packages(
@@ -298,29 +311,29 @@ class Ltp(Tool):
             runtime_us = self.node.tools[Cat].read(
                 "/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us",
                 force_run=True,
-                sudo=True,
+                sudo=sudo,
             )
             runtime_us_int = int(runtime_us)
             if runtime_us_int == 0:
                 self.node.tools[Echo].write_to_file(
                     "1000000",
                     PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_period_us"),
-                    sudo=True,
+                    sudo=sudo,
                 )
                 self.node.tools[Echo].write_to_file(
                     "950000",
                     PurePosixPath("/sys/fs/cgroup/cpu/cpu.rt_runtime_us"),
-                    sudo=True,
+                    sudo=sudo,
                 )
                 self.node.tools[Echo].write_to_file(
                     "1000000",
                     PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_period_us"),
-                    sudo=True,
+                    sudo=sudo,
                 )
                 self.node.tools[Echo].write_to_file(
                     "950000",
                     PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us"),
-                    sudo=True,
+                    sudo=sudo,
                 )
 
         # Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
@@ -336,26 +349,33 @@ class Ltp(Tool):
         top_src_dir = f"{build_dir}/{self.LTP_DIR_NAME}".replace("//", "/")
 
         # remove build directory if it exists
-        if self.node.tools[Ls].path_exists(top_src_dir, sudo=True):
-            self.node.tools[Rm].remove_directory(top_src_dir, sudo=True)
+        if self.node.tools[Ls].path_exists(top_src_dir, sudo=sudo):
+            self.node.tools[Rm].remove_directory(top_src_dir, sudo=sudo)
 
         # setup build directory
-        self.node.tools[Mkdir].create_directory(top_src_dir, sudo=True)
-        self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=True)
+        self._log.debug(f"---top_src_dir: {top_src_dir}, sudo: {sudo}")
+        self.node.tools[Mkdir].create_directory(top_src_dir, sudo=sudo)
+        self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=sudo)
+        # mkdir -p /ltp'
+        # cannot create directory /ltp: Permission denied
 
         if self._source_file:
             self._log.debug(
                 f"Use downloaded source code tar file: {self._source_file}!"
             )
+            remote_source_folder = self.get_tool_path(use_global=True)
             remote_source_file = self.get_tool_path(use_global=True) / os.path.basename(
                 self._source_file
             )
 
             copy = self.node.tools[RemoteCopy]
-            copy.copy_to_remote(PurePath(self._source_file), remote_source_file)
+            copy.copy_to_remote(PurePath(self._source_file), remote_source_folder)
             self.node.tools[Tar].extract(
-                str(remote_source_file), top_src_dir, sudo=True
+                str(remote_source_file), top_src_dir, strip_components=1, sudo=True
             )
+            # top_src_dir = "/ltp"
+            # remote_source_file = "/home/lisatest/lisa_working/tool/ltp/ltp.tar.xz"
+
             ltp_path = self.node.get_pure_path(top_src_dir)
         else:
             # clone ltp
@@ -367,17 +387,19 @@ class Ltp(Tool):
             # checkout tag
             git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
 
+        make = self.node.tools[Make]
+        # uploaded release ltp.tar.xz don't need autoreconf
+        if not self._source_file:
+            self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
+            make.make("autotools", cwd=ltp_path, sudo=True)
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
-        make = self.node.tools[Make]
-        self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
-        make.make("autotools", cwd=ltp_path, sudo=True)
         self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
         make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
 
         # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
         # on the remote system's sysroot
-        make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=True)
+        make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=sudo)
 
         return self._check_exists()
 
