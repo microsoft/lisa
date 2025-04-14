@@ -388,9 +388,10 @@ class Posix(OperatingSystem, BaseClassMixin):
         signed: bool = False,
         timeout: int = 1200,
         extra_args: Optional[List[str]] = None,
+        sudo: bool = True,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed, timeout, extra_args)
+        self._install_packages(package_names, signed, timeout, sudo, extra_args)
 
     def uninstall_packages(
         self,
@@ -539,6 +540,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         raise NotImplementedError()
@@ -1051,6 +1053,7 @@ class Debian(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         file_packages = []
@@ -1445,6 +1448,7 @@ class FreeBSD(BSD):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         if self._first_time_installation:
@@ -1567,6 +1571,7 @@ class RPMDistro(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -1577,7 +1582,7 @@ class RPMDistro(Linux):
         self._node.execute(
             command,
             shell=True,
-            sudo=True,
+            sudo=sudo,
             timeout=timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Failed to install {packages}.",
@@ -1794,6 +1799,7 @@ class Redhat(Fedora):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -1922,7 +1928,9 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name: str
 
     def _initialize_package_installation(self) -> None:
-        self.set_kill_user_processes()
+        self._log.debug(f"--- CBLMariner, type_name: {self._node.type_name()}")
+        if self._node.type_name() != "local":
+            self.set_kill_user_processes()
 
         result = self._node.execute("command -v dnf", no_info_log=True, shell=True)
         if result.exit_code == 0:
@@ -2100,6 +2108,7 @@ class Suse(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -2247,6 +2256,7 @@ class SlMicro(Suse):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
+        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         raise SkippedException(

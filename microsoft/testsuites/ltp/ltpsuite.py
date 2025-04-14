@@ -70,6 +70,7 @@ class LtpTestsuite(TestSuite):
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
+        run_as_sudo = variables.get("run_as_sudo", True)
 
         # get comma separated list of tests
         if tests:
@@ -83,7 +84,7 @@ class LtpTestsuite(TestSuite):
         else:
             skip_test_list = []
 
-        if not block_device:
+        if not block_device and node.type_name() != "local":
             mountpoint = node.find_partition_with_freespace(
                 self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
             )
@@ -94,7 +95,10 @@ class LtpTestsuite(TestSuite):
 
         # run ltp lite tests
         ltp: Ltp = node.tools.get(
-            Ltp, git_tag=ltp_tests_git_tag, source_file=ltp_source_file
+            Ltp,
+            git_tag=ltp_tests_git_tag,
+            source_file=ltp_source_file,
+            sudo=run_as_sudo,
         )
         ltp.run_test(
             result,
@@ -103,6 +107,71 @@ class LtpTestsuite(TestSuite):
             log_path,
             block_device=block_device,
             ltp_run_timeout=ltp_run_timeout,
+            sudo=run_as_sudo,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test case will run Ltp Full tests.
+        1. When ltp_source_file (downloaded ltp code) is specified in .yml,
+        case will use it to extract the tar and run ltp, instead of downloading runtime.
+        Example:
+        - name: ltp_source_file
+          value: <path_to_ltp.tar.xz>
+          is_case_visible: true
+        2. When ltp_source_file not in .yml, clone github with ltp_tests_git_tag
+        """,
+        priority=3,
+        timeout=_TIME_OUT,
+        requirement=simple_requirement(
+            min_core_count=8,
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=12),
+            ),
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def verify_ltp_full(
+        self,
+        node: Node,
+        log_path: str,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        run_as_sudo = variables.get("run_as_sudo", True)
+        ltp_source_file = variables.get("ltp_source_file", "")
+        ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
+        ltp_run_timeout = variables.get("ltp_run_timeout", 72000)
+        # block device is required for few ltp tests
+        # If not provided, we will find a disk with enough space
+        block_device = variables.get("ltp_block_device", None)
+
+        if not block_device and node.type_name() != "local":
+            mountpoint = node.find_partition_with_freespace(
+                self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
+            )
+            if mountpoint:
+                block_device = (
+                    node.tools[Lsblk].find_disk_by_mountpoint(mountpoint).device_name
+                )
+
+        ltp: Ltp = node.tools.get(
+            Ltp,
+            git_tag=ltp_tests_git_tag,
+            source_file=ltp_source_file,
+            sudo=run_as_sudo,
+        )
+        # run ltp full tests
+        ltp.run_test(
+            result,
+            [],
+            [],
+            log_path,
+            block_device=block_device,
+            ltp_run_timeout=ltp_run_timeout,
+            run_full_test=True,
+            sudo=run_as_sudo,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:

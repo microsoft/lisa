@@ -42,10 +42,12 @@ class Pgrep(Tool):
     def can_install(self) -> bool:
         return False
 
-    def get_processes(self, process_identifier: str) -> List[ProcessInfo]:
+    def get_processes(
+        self, process_identifier: str, sudo: bool = True
+    ) -> List[ProcessInfo]:
         running_process: List[ProcessInfo] = []
         output = self.run(
-            f'-l "{process_identifier}"', sudo=True, force_run=True
+            f'-l "{process_identifier}"', sudo=sudo, force_run=True
         ).stdout
         found_processes = find_patterns_in_lines(output, [self._process_map_regex])
         running_process.extend(
@@ -54,7 +56,11 @@ class Pgrep(Tool):
         return running_process
 
     def wait_processes(
-        self, process_name: str, timeout: int = 600, interval: int = 10
+        self,
+        process_name: str,
+        timeout: int = 600,
+        sudo: bool = True,
+        interval: int = 10,
     ) -> None:
         start_timer = create_timer()
         pgrep = self.node.tools[Pgrep]
@@ -65,7 +71,7 @@ class Pgrep(Tool):
             #
             # The long running process may timeout on SSH connection. This
             # check is also help keep SSH alive.
-            process_infos = pgrep.get_processes(process_name)
+            process_infos = pgrep.get_processes(process_name, sudo=sudo)
             if not process_infos:
                 self._log.debug(
                     f"The '{process_name}' process is not running, stop to wait."
@@ -92,8 +98,10 @@ class PsBSD(Pgrep):
     def command(self) -> str:
         return "ps"
 
-    def get_processes(self, process_identifier: str) -> List[ProcessInfo]:
-        output = self.run("-axceo user,pid,command", sudo=True, force_run=True).stdout
+    def get_processes(
+        self, process_identifier: str, sudo: bool = True
+    ) -> List[ProcessInfo]:
+        output = self.run("-axceo user,pid,command", sudo=sudo, force_run=True).stdout
         found_processes = find_groups_in_lines(output, self._process_map_regex)
         running_process: List[ProcessInfo] = [
             ProcessInfo(name=item["name"], pid=item["id"])

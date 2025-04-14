@@ -24,26 +24,28 @@ class Sysctl(Tool):
     def can_install(self) -> bool:
         return False
 
-    def write(self, variable: str, value: str) -> None:
+    def write(self, variable: str, value: str, sudo: bool = True) -> None:
         try:
             _ = self._original_values[variable]
         except KeyError:
-            self._original_values[variable] = self.get(variable, force_run=True)
+            self._original_values[variable] = self.get(
+                variable, force_run=True, sudo=sudo
+            )
         self.run(
             f"-w {variable}='{value}'",
             force_run=True,
-            sudo=True,
+            sudo=sudo,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"fail to set {variable} value to {value}"
             ),
         )
 
-    def get(self, variable: str, force_run: bool = True) -> str:
+    def get(self, variable: str, force_run: bool = True, sudo: bool = True) -> str:
         result = self.run(
             f"-n {variable}",
             force_run=force_run,
-            sudo=True,
+            sudo=sudo,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"fail to get {variable}'s value",
         )
