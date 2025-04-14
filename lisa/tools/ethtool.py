@@ -1140,6 +1140,10 @@ class EthtoolFreebsd(Ethtool):
         if not force_run and device.device_statistics:
             return device.device_statistics
 
+        # Example Matches
+        # hn0
+        # mce0
+        # da0
         match = re.match(r"^(\w+)(\d+)$", interface)
         if not match:
             raise LisaException(f"Invalid interface name: {interface}")

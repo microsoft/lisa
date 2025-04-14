@@ -57,25 +57,7 @@ class NetworkSettings(TestSuite):
     _vf_queue_stats_regex = re.compile(r"[tr]x[_]?(?P<name>[\d]+)_packets")
 
     # regex for filtering vf queue stats on FreeBSD
-    # dev.mce.0.rxstat3.decrypted_error_packets: 0
-    # dev.mce.0.rxstat3.decrypted_ok_packets: 0
-    # dev.mce.0.rxstat3.wqe_err: 0
-    # dev.mce.0.rxstat3.sw_lro_flushed: 2171
-    # dev.mce.0.rxstat3.sw_lro_queued: 2900
-    # dev.mce.0.rxstat3.lro_bytes: 0
-    # dev.mce.0.rxstat3.lro_packets: 0
-    # dev.mce.0.rxstat3.csum_none: 0
-    # dev.mce.0.rxstat3.bytes: 1470978
     # dev.mce.0.rxstat3.packets: 2901
-    # dev.mce.0.txstat3tc0.nop: 3
-    # dev.mce.0.txstat3tc0.cqe_err: 0
-    # dev.mce.0.txstat3tc0.enobuf: 0
-    # dev.mce.0.txstat3tc0.dropped: 0
-    # dev.mce.0.txstat3tc0.defragged: 0
-    # dev.mce.0.txstat3tc0.csum_offload_none: 0
-    # dev.mce.0.txstat3tc0.tso_bytes: 331660
-    # dev.mce.0.txstat3tc0.tso_packets: 125
-    # dev.mce.0.txstat3tc0.bytes: 857284
     # dev.mce.0.txstat3tc0.packets: 3287
     _bsd_vf_queue_stats_regex = re.compile(r"[tr]xstat(?P<name>[\d]+)\S*\.packets")
 
