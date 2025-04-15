@@ -3,9 +3,10 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import List, Pattern, cast
+from typing import List, Optional, Pattern, cast
 
 from assertpy.assertpy import assert_that
+from packaging.version import Version
 
 from lisa import (
     Node,
@@ -37,6 +38,7 @@ from lisa.operating_system import (
 )
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
 from lisa.util import (
     LisaException,
@@ -280,6 +282,18 @@ class AzureImageStandard(TestSuite):
             r"(?P<res>[a-zA-Z]+)\'\r"
         ),
     ]
+
+    # Python 3.8.10
+    # Python 2.6
+    # 3.8.10
+    # 2.6
+    _python_version_pattern = re.compile(r"(?:Python\s*)?(\d+\.\d+(?:\.\d+)?)")
+
+    # OpenSSL 3.0.0
+    # OpenSSL 1.1
+    # 3.0.0
+    # 1.1
+    _openssl_version_pattern = re.compile(r"(?:Python\s*)?(\d+\.\d+(?:\.\d+)?)")
 
     @TestCaseMetadata(
         description="""
@@ -950,7 +964,10 @@ class AzureImageStandard(TestSuite):
             cat = node.tools[Cat]
             bash_history = cat.read(path_bash_history, sudo=True)
             assert_that(bash_history).described_as(
-                "/root/.bash_history is not empty, this image is not prepared well."
+                "/root/.bash_history is not empty. This could include private "
+                "information or plain-text credentials for other systems. It might be "
+                "vulnerable and exposing sensitive data. Please remove the bash "
+                "history completely using command 'sudo rm -f ~/.bash_history'."
             ).is_empty()
 
     @TestCaseMetadata(
@@ -1071,7 +1088,11 @@ class AzureImageStandard(TestSuite):
         if not value:
             raise LisaException(f"not find {setting} in sshd_config")
         if not (int(value) > 0 and int(value) < 181):
-            raise LisaException(f"{setting} should be set between 0 and 180")
+            raise LisaException(
+                f"The {setting} configuration of OpenSSH is set to {int(value)} "
+                "seconds in this image. Please keep the client alive interval between "
+                "0 seconds and 180 seconds."
+            )
 
     @TestCaseMetadata(
         description="""
@@ -1249,3 +1270,147 @@ class AzureImageStandard(TestSuite):
                 partition.fstype,
                 "Resource disk file system type should not equal to ntfs",
             ).is_not_equal_to("ntfs")
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of the Microsoft Azure Linux Agent (waagent).
+
+        Steps:
+        1. Retrieve the version of waagent.
+        2. Check if the version is lower than the minimum supported version.
+           The minimum supported version can be found at:
+           https://learn.microsoft.com/en-us/troubleshoot/azure/virtual-machines/
+           windows/support-extensions-agent-version
+        3. Check if auto update is enabled.
+        4. Fail the test if the version is lower than the minimum supported version
+           and auto update is not enabled, otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_waagent_version(self, node: Node) -> None:
+        minimum_version = Version("2.2.53.1")
+        waagent = node.tools[Waagent]
+        waagent_version = waagent.get_version()
+        try:
+            current_version = Version(waagent_version)
+        except Exception as e:
+            raise LisaException(
+                f"Failed to parse waagent version '{waagent_version}'. Error: {str(e)}"
+            )
+
+        if current_version < minimum_version:
+            waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
+            if not waagent_auto_update_enabled:
+                raise LisaException(
+                    f"The waagent version {waagent_version} is lower than the required "
+                    f"version {minimum_version} and auto update is not enabled. Please "
+                    f"update the waagent to a version >= {minimum_version}. Please "
+                    "refer to https://learn.microsoft.com/en-us/azure/virtual-machines/"
+                    "extensions/update-linux-agent?tabs=ubuntu for more details to "
+                    "update."
+                )
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of Python installed on the system.
+
+        Steps:
+        1. Retrieve the Python version.
+        2. Check if the version is lower than the minimum supported version.
+           The minimum supported version can be found at:
+           https://devguide.python.org/versions/
+        3. Fail the test if the version is lower than the minimum supported version,
+           otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_python_version(self, node: Node) -> None:
+        minimum_version = Version("3.8.0")
+        python_command = ["python3 --version"]
+        self._check_version_by_pattern_value(
+            node=node,
+            commands=python_command,
+            version_pattern=self._python_version_pattern,
+            minimum_version=minimum_version,
+            library_name="Python",
+        )
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of OpenSSL installed on the system. Please
+        refer to https://www.openssl-library.org/source/ for supported versions.
+
+        Steps:
+        1. Retrieve the OpenSSL version.
+        2. Check if the version is lower than the minimum supported version 3.0.0.
+        3. If the version is lower than 3.0.0, check if the version is 1.1.1 or 1.0.2.
+        4. Fail the test if the version is lower than the minimum supported version
+        and not the versions having extended support, otherwise pass.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_openssl_version(self, node: Node) -> None:
+        minimum_version = Version("3.0.0")
+        openssl_command = ["openssl version"]
+        extended_support_versions = [Version("1.1.1"), Version("1.0.2")]
+        self._check_version_by_pattern_value(
+            node=node,
+            commands=openssl_command,
+            version_pattern=self._openssl_version_pattern,
+            minimum_version=minimum_version,
+            extended_support_versions=extended_support_versions,
+            library_name="OpenSSL",
+        )
+
+    def _check_version_by_pattern_value(
+        self,
+        node: Node,
+        commands: List[str],
+        version_pattern: Pattern[str],
+        minimum_version: Version,
+        extended_support_versions: Optional[List[Version]] = None,
+        library_name: str = "library",
+        group_index: int = 1,
+    ) -> None:
+        version_output = None
+
+        for command in commands:
+            result = node.execute(command, shell=True)
+            if result.exit_code == 0:
+                version_output = result.stdout.strip()
+                break
+        if not version_output:
+            raise LisaException(
+                f"Failed to retrieve {library_name} version. Ensure {library_name} is "
+                "installed on the system."
+            )
+
+        match = version_pattern.search(version_output)
+        if not match:
+            raise LisaException(
+                f"Failed to parse {library_name} version from output: {version_output}"
+            )
+
+        current_version = Version(match.group(group_index))
+        if current_version < minimum_version:
+            message = (
+                f"The {library_name} version {current_version} is lower than the "
+                f"required version {minimum_version}. "
+            )
+            action_message = (
+                f"Please update {library_name} to a version >= {minimum_version}."
+            )
+            if (
+                extended_support_versions
+                and current_version not in extended_support_versions
+            ):
+                message += (
+                    f"It is not in the extended support versions "
+                    f"{extended_support_versions}. "
+                )
+                raise LisaException(message + action_message)
+            elif not extended_support_versions:
+                raise LisaException(message + action_message)

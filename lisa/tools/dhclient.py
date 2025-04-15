@@ -52,13 +52,14 @@ class Dhclient(Tool):
             paths_to_check = [
                 f"/etc/dhcp/{self._command}.conf",
                 f"/etc/{self._command}.conf",
+                f"/usr/lib/dracut/modules.d/40network/{self._command}.conf",
+                f"/usr/lib/dracut/modules.d/35network-legacy/{self._command}.conf",
             ]
 
             ls = self.node.tools[Ls]
             config_path = next(
                 (path for path in paths_to_check if ls.path_exists(path, sudo=True)), ""
             )
-
             if not config_path:
                 raise LisaException(f"Configuration file for {self._command} not found")
 

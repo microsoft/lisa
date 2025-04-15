@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019]
+        os: [ubuntu-24.04, windows-2025]
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         nox-session: [test, example]
 
@@ -36,22 +36,19 @@ jobs:
           - os: ubuntu-latest
             python-version: '3.10'
             nox-session: pylint
-            additional-sys-deps: libvirt-dev libcairo2-dev
+            additional-sys-deps: libvirt-dev
 
           - os: ubuntu-latest
             python-version: '3.8'
             nox-session: mypy
-            additional-sys-deps: libcairo2-dev
 
           - os: ubuntu-latest
             python-version: '3.8'
             nox-session: docs
-            additional-sys-deps: libcairo2-dev
 
           - os: ubuntu-latest
             python-version: '3.8'
             nox-session: coverage
-            additional-sys-deps: libcairo2-dev
 
     env:
       NOXSESSION: ${{ matrix.nox-session }}
@@ -68,7 +65,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install libgirepository1.0-dev ${{ matrix.additional-sys-deps }}
+          sudo apt install libgirepository1.0-dev libcairo2-dev ${{ matrix.additional-sys-deps }}
         if: startsWith(matrix.os, 'ubuntu')
 
       - name: Install Nox

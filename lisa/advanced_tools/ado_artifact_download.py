@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from time import time
-from typing import Any, List
+from typing import Any, Dict, List, Union
 
 import requests
 from assertpy import assert_that
@@ -28,6 +28,47 @@ class ADOArtifactsDownloader(Tool):
     def can_install(self) -> bool:
         return False
 
+    def _check_attrs_recursive(
+        self, obj: Any, checks: Union[Dict[Any, Any], None]
+    ) -> bool:
+        if not checks:
+            return True
+
+        for key, expected_value in checks.items():
+            if isinstance(obj, dict) and key in obj:
+                current_value = obj[key]
+            elif hasattr(obj, key):
+                current_value = getattr(obj, key)
+            else:
+                found = False
+                if isinstance(obj, dict):
+                    for v in obj.values():
+                        if isinstance(
+                            v, (dict, object)
+                        ) and self._check_attrs_recursive(v, {key: expected_value}):
+                            found = True
+                            break
+                elif hasattr(obj, "__dict__"):
+                    for attr_val in vars(obj).values():
+                        if isinstance(
+                            attr_val, (dict, object)
+                        ) and self._check_attrs_recursive(
+                            attr_val, {key: expected_value}
+                        ):
+                            found = True
+                            break
+                if not found:
+                    return False
+                continue  # skip rest of loop since match was deep
+
+            if isinstance(expected_value, dict):
+                if not self._check_attrs_recursive(current_value, expected_value):
+                    return False
+            elif current_value != expected_value:
+                return False
+
+        return True
+
     def download(
         self,
         personal_access_token: str,
@@ -38,8 +79,9 @@ class ADOArtifactsDownloader(Tool):
         build_id: int = 0,
         build_name: str = "",
         timeout: int = 600,
+        output_path: Path = constants.RUN_LOCAL_WORKING_PATH,
+        additional_build_checks: Union[Dict[Any, Any], None] = None,
     ) -> List[Path]:
-        working_path = constants.RUN_LOCAL_WORKING_PATH
         credentials = BasicAuthentication("", personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
 
@@ -50,7 +92,9 @@ class ADOArtifactsDownloader(Tool):
             pipeline_run = [
                 run
                 for run in pipeline_runs
-                if run.result == "succeeded" and run.state == "completed"
+                if run.result == "succeeded"
+                and run.state == "completed"
+                and self._check_attrs_recursive(run, additional_build_checks)
             ]
             assert_that(len(pipeline_run)).described_as(
                 f"no succeeded and completed run found for pipeline {pipeline_name}"
@@ -61,7 +105,12 @@ class ADOArtifactsDownloader(Tool):
             pipeline_runs = self._get_pipeline_runs(
                 connection, pipeline_name, project_name
             )
-            pipeline_run = [run for run in pipeline_runs if run.name == build_name]
+            pipeline_run = [
+                run
+                for run in pipeline_runs
+                if run.name == build_name
+                and self._check_attrs_recursive(run, additional_build_checks)
+            ]
             assert_that(len(pipeline_run)).described_as(
                 f"no succeeded and completed run found for pipeline {pipeline_name}"
             ).is_not_zero()
@@ -89,9 +138,12 @@ class ADOArtifactsDownloader(Tool):
             )
             download_url = build_artifact.resource.download_url
             self._log.debug(f"artifact download url: {download_url}")
-            working_path.mkdir(parents=True, exist_ok=True)
+            output_path.mkdir(parents=True, exist_ok=True)
             file_extension = get_matched_str(download_url, self.__file_format)
-            artifact_path = working_path / f"{build_artifact.name}.{file_extension}"
+            extra_suffix = "" if not build_name else f".{build_name}"
+            artifact_path = (
+                output_path / f"{build_artifact.name}{extra_suffix}.{file_extension}"
+            )
             self._log.debug(
                 f"start to download artifact {artifact_name} to {artifact_path}"
             )
