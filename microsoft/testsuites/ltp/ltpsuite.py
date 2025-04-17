@@ -94,7 +94,7 @@ class LtpTestsuite(TestSuite):
             test_list = []
             skip_test_list = []
 
-        if not block_device:
+        if not block_device and node.type_name() != "local":
             mountpoint = node.find_partition_with_freespace(
                 self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
             )
