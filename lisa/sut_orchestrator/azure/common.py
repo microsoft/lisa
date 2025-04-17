@@ -1926,6 +1926,7 @@ def copy_vhd_to_storage(
                     platform=platform,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
+                add_secret(dst_vhd_sas_url, PATTERN_URL)
                 log.info(f"Copying VHD using AzCopy: {dst_vhd_name}")
                 copy_vhd_using_azcopy(
                     azcopy_path=azcopy_path,
