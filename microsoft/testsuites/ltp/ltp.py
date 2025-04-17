@@ -347,14 +347,16 @@ class Ltp(Tool):
             self._log.debug(
                 f"Use downloaded source code tar file: {self._source_file}!"
             )
+
+            remote_source_folder = self.get_tool_path(use_global=True)
             remote_source_file = self.get_tool_path(use_global=True) / os.path.basename(
                 self._source_file
             )
 
             copy = self.node.tools[RemoteCopy]
-            copy.copy_to_remote(PurePath(self._source_file), remote_source_file)
+            copy.copy_to_remote(PurePath(self._source_file), remote_source_folder)
             self.node.tools[Tar].extract(
-                str(remote_source_file), top_src_dir, sudo=True
+                str(remote_source_file), top_src_dir, strip_components=1, sudo=True
             )
             ltp_path = self.node.get_pure_path(top_src_dir)
         else:
@@ -370,8 +372,9 @@ class Ltp(Tool):
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
         make = self.node.tools[Make]
-        self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
-        make.make("autotools", cwd=ltp_path, sudo=True)
+        if not self._source_file:
+            self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
+            make.make("autotools", cwd=ltp_path, sudo=True)
         self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
         make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
 
