@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ipaddress
 import random
 import re
 import string
@@ -28,9 +29,11 @@ from typing import (
 
 import paramiko
 import pluggy
+import requests
 from assertpy import assert_that
 from dataclasses_json import config
 from marshmallow import fields
+from retry import retry
 from semver import VersionInfo
 
 from lisa import secret
@@ -947,3 +950,11 @@ def to_bool(value: Union[str, bool, int]) -> bool:
     raise TypeError(
         f"Unsupported type for conversion to boolean: {type(value).__name__}"
     )
+
+
+@retry(tries=10, delay=0.5)
+def get_public_ip() -> str:
+    response = requests.get("https://api.ipify.org/", timeout=5)
+    result = response.text
+    ipaddress.ip_address(result)
+    return str(result)
