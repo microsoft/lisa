@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import copy
+import ipaddress
 import json
 import logging
 import math
@@ -301,6 +302,7 @@ class AzurePlatformSchema:
     # will be retired. It's recommended to disable outbound access to
     # enforce explicit connectivity rules.
     enable_vm_nat: bool = field(default=False)
+    source_address_prefixes: Optional[List[str]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -356,6 +358,7 @@ class AzurePlatformSchema:
                 "use_public_address",
                 "use_ipv6",
                 "enable_vm_nat",
+                "source_address_prefixes",
             ],
         )
 
@@ -939,6 +942,7 @@ class AzurePlatform(Platform):
         self.subscription_id = azure_runbook.subscription_id
         self.cloud = azure_runbook.cloud
         self.resource_group_managed_by = azure_runbook.resource_group_managed_by
+        self._cached_ip_address: List[str] = []
 
         self._initialize_credential()
 
@@ -955,6 +959,19 @@ class AzurePlatform(Platform):
         self._rm_client = get_resource_management_client(
             self.credential, self.subscription_id, self.cloud
         )
+
+    @retry(tries=10, delay=0.5)
+    def _get_external_ip_address(self) -> str:
+        response = requests.get("https://api.ipify.org/", timeout=5)
+        result = response.text
+        ipaddress.ip_address(result)
+        return str(result)
+
+    def _get_ip_addresses(self) -> List[str]:
+        if self._cached_ip_address:
+            return self._cached_ip_address
+        self._cached_ip_address = [self._get_external_ip_address()]
+        return self._cached_ip_address
 
     def _initialize_credential(self) -> None:
         azure_runbook = self._azure_runbook
@@ -1254,6 +1271,13 @@ class AzurePlatform(Platform):
             self._azure_runbook.shared_resource_group_name
         )
         arm_parameters.enable_vm_nat = self._azure_runbook.enable_vm_nat
+        if self._azure_runbook.source_address_prefixes:
+            arm_parameters.source_address_prefixes = (
+                self._azure_runbook.source_address_prefixes
+            )
+        else:
+            arm_parameters.source_address_prefixes = self._get_ip_addresses()
+
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
         template = deepcopy(self._load_template())

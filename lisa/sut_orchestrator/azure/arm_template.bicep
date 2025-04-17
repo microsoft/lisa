@@ -55,6 +55,9 @@ param use_ipv6 bool = false
 @description('whether to enable network outbound access')
 param enable_vm_nat bool
 
+@description('The source IP address prefixes allowed in NSG')
+param source_address_prefixes array
+
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -253,8 +256,36 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
           use_ipv6 ? ['2001:db8:${j}::/64'] : []
         )
         defaultOutboundAccess: !enable_vm_nat
+        networkSecurityGroup: {
+          id: resourceId('Microsoft.Network/networkSecurityGroups', '${toLower(virtual_network_name)}-nsg')
+        }
       }
     }]
+  }
+  dependsOn: [
+    nsg
+  ]
+}
+
+resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: '${toLower(virtual_network_name)}-nsg'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'LisaSSH'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefixes: source_address_prefixes
+          destinationAddressPrefix: '*'
+        }
+      }
+    ]
   }
 }
 
@@ -273,11 +304,11 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   tags: tags
   name: '${nodes[i].name}-public-ip'
   properties: {
-    publicIPAllocationMethod: ((is_ultradisk || use_availability_zones || use_ipv6) ? 'Static' : 'Dynamic')
+    publicIPAllocationMethod: 'Static'
     ipTags: (empty(ip_tags) ? null : ip_tags)
   }
   sku: {
-    name: ((is_ultradisk || use_availability_zones || use_ipv6) ? 'Standard' : 'Basic')
+    name: 'Standard'
   }
   zones: (use_availability_zones ? availability_zones : null)
 }]
