@@ -37,7 +37,7 @@ class Mdadm(Tool):
         count = len(disk_list)
         disks = " ".join(disk_list)
         if force_run:
-            cmd = f"echo y | {self.command} "
+            cmd = f"yes | {self.command} "
         else:
             cmd = f"{self.command} "
         cmd += f"--create {volume_name} --level={level} --raid-devices={count} {disks}"
