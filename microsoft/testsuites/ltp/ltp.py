@@ -79,9 +79,6 @@ class Ltp(Tool):
         self._source_file = kwargs.get("source_file", "")
         self._run_as_sudo = kwargs.get("sudo", True)
 
-        self._log.debug(f"--- paxue [init] self._source_file:{self._source_file}")
-        self._log.debug(f"--- self._run_as_sudo:{self._run_as_sudo}")
-
     def run_test(
         self,
         test_result: TestResult,
@@ -203,9 +200,7 @@ class Ltp(Tool):
 
     def _install(self) -> bool:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
-
         sudo = self._run_as_sudo
-        self._log.debug(f"--- paxue [Install] self._run_as_sudo:{self._run_as_sudo}")
 
         # install common dependencies
         self.node.os.install_packages(
@@ -353,11 +348,8 @@ class Ltp(Tool):
             self.node.tools[Rm].remove_directory(top_src_dir, sudo=sudo)
 
         # setup build directory
-        self._log.debug(f"---top_src_dir: {top_src_dir}, sudo: {sudo}")
         self.node.tools[Mkdir].create_directory(top_src_dir, sudo=sudo)
         self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=sudo)
-        # mkdir -p /ltp'
-        # cannot create directory /ltp: Permission denied
 
         if self._source_file:
             self._log.debug(
@@ -373,8 +365,6 @@ class Ltp(Tool):
             self.node.tools[Tar].extract(
                 str(remote_source_file), top_src_dir, strip_components=1, sudo=True
             )
-            # top_src_dir = "/ltp"
-            # remote_source_file = "/home/lisatest/lisa_working/tool/ltp/ltp.tar.xz"
 
             ltp_path = self.node.get_pure_path(top_src_dir)
         else:

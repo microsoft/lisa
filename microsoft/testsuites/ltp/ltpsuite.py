@@ -88,9 +88,6 @@ class LtpTestsuite(TestSuite):
 
         # if run_full_ltp_test is true, ignore test_list and skip_test_list
         if run_full_ltp_test:
-            # self.__log.debug(
-            #     "---ltp run full test, test_list & skip_test_list will be []"
-            # )
             test_list = []
             skip_test_list = []
 
