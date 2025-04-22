@@ -1328,7 +1328,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_python_version(self, node: Node) -> None:
         minimum_version = Version("3.8.0")
-        python_command = ["python3 --version"]
+        python_command = ["python3 --version", "python --version"]
         self._check_version_by_pattern_value(
             node=node,
             commands=python_command,
