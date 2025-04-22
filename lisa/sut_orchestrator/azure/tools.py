@@ -28,6 +28,8 @@ class Waagent(Tool):
     _python_candidates = [
         "python3",
         "python2",
+        # for some freebsd images, such as microsoftostc freebsd-11
+        "python",
         # for RedHat 8.0
         "/usr/libexec/platform-python",
         # for flatcar
@@ -71,6 +73,8 @@ class Waagent(Tool):
                     " /usr/bin and /usr/sbin."
                 )
             result = self.run("-version")
+        if result.exit_code != 0:
+            result = self.run("-version", sudo=True)
 
         # When the default command python points to python2,
         # we need specify python3 clearly.
