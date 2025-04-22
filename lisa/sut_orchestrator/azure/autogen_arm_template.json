@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.34.1.11899",
-      "templateHash": "6209161677269277510"
+      "version": "0.33.93.31351",
+      "templateHash": "15877188685327638829"
     }
   },
   "functions": [
@@ -574,7 +574,7 @@
               "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
               "properties": {
                 "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
-                "defaultOutboundAccess": "[not(parameters('enable_vm_nat'))]"
+                "defaultOutboundAccess": "[parameters('enable_vm_nat')]"
               }
             }
           }
@@ -823,8 +823,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.34.1.11899",
-              "templateHash": "12853422832965079706"
+              "version": "0.33.93.31351",
+              "templateHash": "2335646842987786457"
             }
           },
           "functions": [
