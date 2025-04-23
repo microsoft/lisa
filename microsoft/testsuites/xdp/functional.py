@@ -20,7 +20,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Firewall, Ip, Kill, TcpDump
+from lisa.tools import Firewall, Ip, KdumpBase, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
 from lisa.util.constants import SIGINT
@@ -300,8 +300,10 @@ class XdpFunctional(TestSuite):
     def verify_xdp_with_different_mtu(self, environment: Environment, log_path: Path, log: Logger) -> None:
         xdp_node = environment.nodes[0]
         remote_node = environment.nodes[1]
-        _trigger_kdump_on_specified_cpu(32, xdp_node, Logger, log)
-        _trigger_kdump_on_specified_cpu(32, remote_node, Logger, log)
+        xdp_kdump = xdp_node.tools[KdumpBase]
+        remote_kdump = remote_node.tools[KdumpBase]
+        xdp_kdump.enable_kdump_service()
+        remote_kdump.enable_kdump_service()
         xdpdump = get_xdpdump(xdp_node)
         remote_address = self._get_ping_address(environment)
         tested_mtu: List[int] = [1500, 2000, 3506]
