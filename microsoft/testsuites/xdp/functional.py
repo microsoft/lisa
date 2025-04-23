@@ -20,7 +20,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Firewall, Ip, KdumpBase, Kill, TcpDump
+from lisa.tools import Echo, Firewall, Free, Ip, KdumpBase, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
 from lisa.util.constants import SIGINT
@@ -297,12 +297,66 @@ class XdpFunctional(TestSuite):
         requirement=simple_requirement(min_count=2),
     )
     def verify_xdp_with_different_mtu(self, environment: Environment, log_path: Path, log: Logger) -> None:
+        for i in range(2):
+            node = environment.nodes[i]
+            kdump = node.tools[KdumpBase]
+            free = node.tools[Free]
+            total_memory = free.get_total_memory()
+            self.crash_kernel = kdump.calculate_crashkernel_size(total_memory)
+            if self.is_auto:
+                self.crash_kernel = "auto"
+
+            if self._is_system_with_more_memory(node):
+                # As system memory is more than free os disk size, need to
+                # change the dump path and increase the timeout duration
+                kdump.config_resource_disk_dump_path(
+                    self._get_resource_disk_dump_path(node)
+                )
+                self.timeout_of_dump_crash = 1200
+                if "T" in total_memory and float(total_memory.strip("T")) > 6:
+                    self.timeout_of_dump_crash = 2000
+
+            kdump.config_crashkernel_memory(self.crash_kernel)
+            kdump.enable_kdump_service()
+            # Cleaning up any previous crash dump files
+            node.execute(
+                f"mkdir -p {kdump.dump_path} && rm -rf {kdump.dump_path}/*",
+                shell=True,
+                sudo=True,
+            )
+
+            # Reboot system to make kdump take effect
+            node.reboot()
+
+            # Confirm that the kernel dump mechanism is enabled
+            kdump.check_crashkernel_loaded(self.crash_kernel)
+            # Activate the magic SysRq option
+            echo = node.tools[Echo]
+            echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
+            node.execute("sync", shell=True, sudo=True)
+
+            kdump.capture_info()
+
+            try:
+                # Trigger kdump. After execute the trigger cmd, the VM will be disconnected
+                # We set a timeout time 10.
+                node.execute_async(
+                    self.trigger_kdump_cmd,
+                    shell=True,
+                    sudo=True,
+                )
+            except Exception as identifier:
+                log.debug(f"ignorable ssh exception: {identifier}")
+
+            # Check if the vmcore file is generated after triggering a crash
+            self._check_kdump_result(node, log_path, log, kdump)
+
+            # We should clean up the vmcore file since the test is passed
+            node.execute(f"rm -rf {kdump.dump_path}/*", shell=True, sudo=True)
+
         xdp_node = environment.nodes[0]
         remote_node = environment.nodes[1]
-        xdp_kdump = xdp_node.tools[KdumpBase]
-        remote_kdump = remote_node.tools[KdumpBase]
-        xdp_kdump.enable_kdump_service()
-        remote_kdump.enable_kdump_service()
+
         xdpdump = get_xdpdump(xdp_node)
         remote_address = self._get_ping_address(environment)
         tested_mtu: List[int] = [1500, 2000, 3506]
