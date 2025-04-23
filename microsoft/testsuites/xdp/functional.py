@@ -27,7 +27,6 @@ from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
-from microsoft.testsuites.kdump.kdumpcrash import _trigger_kdump_on_specified_cpu
 
 @TestSuiteMetadata(
     area="xdp",
