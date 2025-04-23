@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from typing import Any, List, cast
-
+from pathlib import Path
 from assertpy import assert_that
 
 from lisa import (
@@ -27,7 +27,7 @@ from lisa.util.constants import SIGINT
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
-
+from microsoft.testsuites.kdump.kdumpcrash import _trigger_kdump_on_specified_cpu
 
 @TestSuiteMetadata(
     area="xdp",
@@ -297,9 +297,11 @@ class XdpFunctional(TestSuite):
         priority=3,
         requirement=simple_requirement(min_count=2),
     )
-    def verify_xdp_with_different_mtu(self, environment: Environment) -> None:
+    def verify_xdp_with_different_mtu(self, environment: Environment, log_path: Path, log: Logger) -> None:
         xdp_node = environment.nodes[0]
         remote_node = environment.nodes[1]
+        _trigger_kdump_on_specified_cpu(32, xdp_node, Logger, log)
+        _trigger_kdump_on_specified_cpu(32, remote_node, Logger, log)
         xdpdump = get_xdpdump(xdp_node)
         remote_address = self._get_ping_address(environment)
         tested_mtu: List[int] = [1500, 2000, 3506]
