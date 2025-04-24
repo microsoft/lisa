@@ -2,7 +2,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional, List
 
 from assertpy import assert_that
 
@@ -214,8 +214,8 @@ class Kselftest(Tool):
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
-        run_collections: List[str] = [],
-        skip_tests: List[str] = [],
+        run_collections: Optional[List[str]] = None,
+        skip_tests: Optional[List[str]] = None,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
