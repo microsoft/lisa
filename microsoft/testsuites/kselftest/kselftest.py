@@ -214,7 +214,8 @@ class Kselftest(Tool):
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
-        **kwargs: Any,
+        run_collections: list = None,
+        skip_tests: list = None,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
@@ -230,9 +231,6 @@ class Kselftest(Tool):
 
         result_file_name = "kselftest-results.txt"
         result_file = f"{result_directory}/{result_file_name}"
-        # Initialize run_tests and skip_tests from kwargs if provided
-        run_collections = kwargs.get("run_collections", [])
-        skip_tests = kwargs.get("skip_tests", [])
 
         if run_collections or skip_tests:
             # List all available tests
