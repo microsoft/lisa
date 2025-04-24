@@ -214,8 +214,8 @@ class Kselftest(Tool):
         log_path: str,
         timeout: int = 5000,
         run_test_as_root: bool = False,
-        run_collections: list = None,
-        skip_tests: list = None,
+        run_collections: List[int] = None,
+        skip_tests: List[int] = None,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause
         # VM to hang
