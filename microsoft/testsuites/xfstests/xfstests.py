@@ -68,6 +68,7 @@ class Xfstests(Tool):
         "python",
         "fio",
         "dbench",
+        "autoconf",
     ]
     debian_dep = [
         "libacl1-dev",
@@ -87,6 +88,7 @@ class Xfstests(Tool):
         "libgdbm-compat-dev",
         "liburing-dev",
         "liburing2",
+        "pkg-config",
     ]
     fedora_dep = [
         "libtool",
@@ -105,6 +107,7 @@ class Xfstests(Tool):
         "libtool",
         "e2fsprogs-devel",
         "gdbm-devel",
+        "pkgconf-pkg-config",
     ]
     suse_dep = [
         "btrfsprogs",
@@ -128,7 +131,6 @@ class Xfstests(Tool):
         "btrfs-progs",
         "btrfs-progs-devel",
         "gcc",
-        "autoconf",
         "binutils",
         "kernel-headers",
         "util-linux-devel",
