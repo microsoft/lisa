@@ -94,7 +94,7 @@ class Dhclient(Tool):
             option = "-k"
         else:
             raise ValueError(f"Unsupported command: {self._command}")
-        
+
         # If an interface is provided, use it; otherwise, use the default interface
         if interface:
             self._log.debug(f"Releasing IP for interface {interface} using {option}")
@@ -108,9 +108,12 @@ class Dhclient(Tool):
                 self._log.debug(f"Successfully released IP for interface {interface}")
             else:
                 self._log.warning(
-                    f"Failed to release IP for interface {interface}: {release_result.stdout}"
+                    f"Failed to release IP for interface {interface}: "
+                    f"{release_result.stdout}"
                 )
-            self._log.debug(f"Assigning IP to interface {interface} using {self._command}")
+            self._log.debug(
+                f"Assigning IP to interface {interface} using {self._command}"
+            )
             assign_result = self.run(
                 f" {interface}",
                 shell=True,
@@ -118,7 +121,9 @@ class Dhclient(Tool):
                 force_run=True,
             )
             assign_result.assert_exit_code(
-                0, f"{self._command} failed to assign IP to {interface}: {assign_result.stdout}"
+                0,
+                f"{self._command} failed to assign IP to {interface}: "
+                f"{assign_result.stdout}",
             )
         else:
             # If no interface is provided, execute the command globally
@@ -130,10 +135,13 @@ class Dhclient(Tool):
                 force_run=True,
             )
             if release_result.exit_code == 0:
-                self._log.debug(f"Successfully executed {self._command} for all interfaces")
+                self._log.debug(
+                    f"Successfully executed {self._command} for all interfaces"
+                )
             else:
                 self._log.warning(
-                    f"Failed to execute {self._command} for all interfaces: {release_result.stdout}"
+                    f"Failed to execute {self._command} for all interfaces: "
+                    f"{release_result.stdout}"
                 )
             assign_result = self.run(
                 "",
@@ -142,7 +150,9 @@ class Dhclient(Tool):
                 force_run=True,
             )
             assign_result.assert_exit_code(
-                0, f"{self._command} failed to assign IPs to all interfaces: {assign_result.stdout}"
+                0,
+                f"{self._command} failed to assign IPs to all interfaces: "
+                f"{assign_result.stdout}",
             )
 
 
