@@ -17,6 +17,7 @@ from lisa import (
 )
 from lisa.environment import EnvironmentStatus
 from lisa.features.security_profile import (
+    CvmDiskEncryptionEnabled,
     CvmEnabled,
     SecurityProfile,
     SecurityProfileSettings,
@@ -52,7 +53,7 @@ class CVMBootTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[CvmEnabled()],
+            supported_features=[CvmDiskEncryptionEnabled()],
             supported_platform_type=[AZURE],
         ),
     )

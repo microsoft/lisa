@@ -311,6 +311,15 @@ class AzureImageSchema(schema.ImageSchema):
             )
         ),
     )
+    encrypt_disk: Union[search_space.SetSpace[bool], bool] = field(
+        default_factory=partial(
+            search_space.SetSpace[bool], is_allow_set=True, items=[False, True]
+        ),
+        metadata=field_metadata(
+            decoder=partial(search_space.decode_set_space_by_type, base_type=bool),
+            required=False,
+        ),
+    )
 
     def load_from_platform(self, platform: "AzurePlatform") -> None:
         """
@@ -379,21 +388,28 @@ class AzureImageSchema(schema.ImageSchema):
         self, raw_features: Dict[str, Any], log: Logger
     ) -> None:
         security_profile = raw_features.get("SecurityType")
-        capabilities: List[SecurityProfileType] = []
+        security_profile_capabilities: List[SecurityProfileType] = []
+        encrypt_capability: List[bool] = [False]
         if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
-            capabilities.append(SecurityProfileType.Standard)
-            capabilities.append(SecurityProfileType.SecureBoot)
+            security_profile_capabilities.extend(
+                [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+            )
         elif security_profile in (
             "TrustedLaunchAndConfidentialVmSupported",
             "ConfidentialVmSupported",
             "ConfidentialVM",
         ):
-            capabilities.append(SecurityProfileType.CVM)
-            capabilities.append(SecurityProfileType.Stateless)
+            security_profile_capabilities.extend(
+                [SecurityProfileType.CVM, SecurityProfileType.Stateless]
+            )
+            encrypt_capability.append(True)
         else:
-            capabilities.append(SecurityProfileType.Standard)
+            security_profile_capabilities.append(SecurityProfileType.Standard)
 
-        self.security_profile = search_space.SetSpace(True, capabilities)
+        self.security_profile = search_space.SetSpace(
+            True, security_profile_capabilities
+        )
+        self.encrypt_disk = search_space.SetSpace(True, encrypt_capability)
 
 
 def _get_image_tags(image: Any) -> Dict[str, Any]:
@@ -538,6 +554,7 @@ class VhdSchema(AzureImageSchema):
                     SecurityProfileType.Stateless,
                 ],
             )
+            self.encrypt_disk = search_space.SetSpace(True, [True, False])
         else:
             self.security_profile = search_space.SetSpace(
                 True,
@@ -546,6 +563,7 @@ class VhdSchema(AzureImageSchema):
                     SecurityProfileType.SecureBoot,
                 ],
             )
+            self.encrypt_disk = search_space.SetSpace(True, [False])
 
 
 @dataclass_json()
