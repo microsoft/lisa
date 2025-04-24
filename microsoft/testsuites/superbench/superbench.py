@@ -325,7 +325,7 @@ class Superbench(Tool):
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
 
         # Install host packages, superbench container is self contained
-        self.node.os.install_packages(["lshw", "rsync", "bzip2-devel", "inih",
+        self.node.os.install_packages(["lshw", "rsync", "bzip2-devel", "inih", "dmidecode",
                                        "xfsprogs", "pigz", "parted", "golang",
                                        "dosfstools", "cdrkit", "build-essential", "acl"])
 

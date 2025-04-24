@@ -2,7 +2,7 @@
 
 set -ex
 
-# Possible commands are "install" and "run"
+# Possible commands are "install", "run" and "verify"
 export sub_command=""
 
 export sb_repo_dir=""
@@ -73,7 +73,7 @@ function superbench_setup() {
     # This is for superbench to run locally
     echo -e "[all]\nlocalhost ansible_connection=local" > local.ini
 
-    sb deploy -f local.ini -i "${sb_image_tag}" --output-dir deploy_output
+    sb deploy -f local.ini -i "${sb_image_tag}" --output-dir outputs/deploy
 
     echo "SUPERBENCH: deployment successful."
 }
