@@ -23,8 +23,7 @@ from lisa.tools import (
     Ls,
     Make,
     Mkdir,
-    Pgrep,
-    RemoteCopy,
+    Pidof,
     Rm,
     Swap,
     Sysctl,
@@ -54,29 +53,42 @@ class Ltp(Tool):
     LTP_DIR_NAME = "ltp"
     DEFAULT_LTP_TESTS_GIT_TAG = "20230929"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
+    LTP_RESULT_FILE = "ltp-results.log"
+    LTP_OUTPUT_FILE = "ltp-output.log"
+    LTP_SKIP_FILE = "skipfile"
+    LTP_RUN_COMMAND = "runltp"
     BUILD_REQUIRED_DISK_SIZE_IN_GB = 2
-    LTP_RESULT_PATH = "/opt/ltp/ltp-results.log"
-    LTP_OUTPUT_PATH = "/opt/ltp/ltp-output.log"
-    LTP_SKIP_FILE = "/opt/ltp/skipfile"
     COMPILE_TIMEOUT = 1800
 
     @property
     def command(self) -> str:
-        return "/opt/ltp/runltp"
+        return f"{self._command_path}/{self.LTP_RUN_COMMAND}"
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Make, Gcc, Git]
+        if self._binary_file:
+            return []
+        else:
+            return [Make, Gcc, Git]
 
     @property
     def can_install(self) -> bool:
         return True
 
-    def __init__(self, node: Node, source_file: str, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        node: Node,
+        source_file: str,
+        binary_file: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(node, args, kwargs)
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
         self._source_file = source_file
+        self._binary_file = binary_file
+        self._command_path = "/tmp/ltp"
 
     def run_test(
         self,
@@ -88,28 +100,32 @@ class Ltp(Tool):
         temp_dir: str = "/tmp/",
         ltp_run_timeout: int = 12000,
     ) -> List[LtpResult]:
+        result_file = f"{self._command_path}/{self.LTP_RESULT_FILE}"
+        output_file = f"{self._command_path}/{self.LTP_OUTPUT_FILE}"
+        skip_file = f"{self._command_path}/{self.LTP_SKIP_FILE}"
+
         # tests cannot be empty
         assert_that(ltp_tests, "ltp_tests cannot be empty").is_not_empty()
         ls = self.node.tools[Ls]
         rm = self.node.tools[Rm]
 
         # remove skipfile if it exists
-        if ls.path_exists(self.LTP_SKIP_FILE):
-            self._log.debug(f"Removing skipfile: {self.LTP_SKIP_FILE}")
-            rm.remove_file(self.LTP_SKIP_FILE, sudo=True)
+        if ls.path_exists(skip_file):
+            self._log.debug(f"Removing skipfile: {skip_file}")
+            rm.remove_file(skip_file, sudo=True)
 
         # remove results file if it exists
-        if ls.path_exists(self.LTP_RESULT_PATH, sudo=True):
-            self._log.debug(f"Removing {self.LTP_RESULT_PATH}")
-            rm.remove_file(self.LTP_RESULT_PATH, sudo=True)
+        if ls.path_exists(result_file, sudo=True):
+            self._log.debug(f"Removing {result_file}")
+            rm.remove_file(result_file, sudo=True)
 
         # remove output file if it exists
-        if ls.path_exists(self.LTP_OUTPUT_PATH, sudo=True):
-            self._log.debug(f"Removing {self.LTP_OUTPUT_PATH}")
-            rm.remove_file(self.LTP_OUTPUT_PATH, sudo=True)
+        if ls.path_exists(output_file, sudo=True):
+            self._log.debug(f"Removing {output_file}")
+            rm.remove_file(output_file, sudo=True)
 
         # add parameters for the test logging
-        parameters = f"-p -q -l {self.LTP_RESULT_PATH} -o {self.LTP_OUTPUT_PATH} "
+        parameters = f"-p -q -l {result_file} -o {output_file} "
 
         # add the list of tests to run
         parameters += f"-f {','.join(ltp_tests)} "
@@ -127,38 +143,33 @@ class Ltp(Tool):
             # write skip test to skipfile with newline separator
             skip_file_value = "\n".join(skip_tests)
             self.node.tools[Echo].write_to_file(
-                skip_file_value, PurePosixPath(self.LTP_SKIP_FILE), sudo=True
+                skip_file_value, PurePosixPath(skip_file), sudo=True
             )
-            parameters += f"-S {self.LTP_SKIP_FILE} "
+            parameters += f"-S {skip_file} "
 
         # Minimum 4M swap space is needed by some mmp test
         if self.node.tools[Free].get_swap_size() < 4:
             self.node.tools[Swap].create_swap()
 
         # run ltp tests
-        command = f"{self.command} {parameters}"
+        cur_command = f"echo y | {self.command} {parameters}"
         self.node.execute_async(
-            f"echo y | {command}",
+            cur_command,
             sudo=True,
             shell=True,
         )
 
-        pgrep = self.node.tools[Pgrep]
-        pgrep.wait_processes("runltp", timeout=ltp_run_timeout)
-
-        # to avoid no permission issue when copying back files
-        self.node.tools[Chmod].update_folder("/opt", "a+rwX", sudo=True)
+        pidof = self.node.tools[Pidof]
+        pidof.wait_processes(self.LTP_RUN_COMMAND, timeout=ltp_run_timeout)
 
         # write output to log path
         self.node.shell.copy_back(
-            PurePosixPath(self.LTP_OUTPUT_PATH), PurePath(log_path) / "ltp-output.log"
+            PurePosixPath(output_file), PurePath(log_path) / self.LTP_OUTPUT_FILE
         )
 
         # write results to log path
-        local_ltp_results_path = PurePath(log_path) / "ltp-results.log"
-        self.node.shell.copy_back(
-            PurePosixPath(self.LTP_RESULT_PATH), local_ltp_results_path
-        )
+        local_ltp_results_path = PurePath(log_path) / self.LTP_RESULT_FILE
+        self.node.shell.copy_back(PurePosixPath(result_file), local_ltp_results_path)
 
         # parse results from local_ltp_results_path file
         # read the file
@@ -192,6 +203,77 @@ class Ltp(Tool):
         return results
 
     def _install(self) -> bool:
+        if self._binary_file:
+            self._install_from_binary_file(self._binary_file)
+        else:
+            self._build_from_source()
+
+        return self._check_exists()
+
+    def _install_from_binary_file(
+        self,
+        binary_file: str,
+    ) -> None:
+        remote_tar_path = self.node.get_pure_path(
+            self._command_path
+        ) / os.path.basename(binary_file)
+        ltp_installed_dir = self.node.get_pure_path("/tmp")
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(remote_tar_path.parent.as_posix())
+        self.node.shell.copy(
+            PurePath(binary_file),
+            remote_tar_path,
+        )
+        self.node.tools[Tar].extract(
+            str(remote_tar_path),
+            str(ltp_installed_dir),
+            sudo=True,
+        )
+
+        self._log.debug(f"Extracted tar from path {binary_file}!")
+
+    def _extract_source(
+        self,
+        source_file: str,
+        dest_path: str,
+    ) -> PurePath:
+        remote_tar_path = self.node.get_pure_path(
+            self._command_path
+        ) / os.path.basename(source_file)
+
+        mkdir = self.node.tools[Mkdir]
+        mkdir.create_directory(remote_tar_path.parent.as_posix())
+        self.node.shell.copy(
+            PurePath(self._source_file),
+            remote_tar_path,
+        )
+
+        self.node.tools[Tar].extract(
+            str(remote_tar_path),
+            dest_path,
+            sudo=True,
+        )
+
+        return self.node.get_pure_path(dest_path)
+
+    def _clone_source(
+        self,
+        git_url: str,
+        dest_path: str,
+    ) -> PurePath:
+        # clone ltp
+        git = self.node.tools[Git]
+        ltp_path = git.clone(
+            git_url,
+            cwd=PurePosixPath(dest_path),
+            dir_name=dest_path,
+        )
+        # checkout tag
+        git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
+
+        return ltp_path
+
+    def _build_from_source(self) -> None:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
 
         # install common dependencies
@@ -230,7 +312,6 @@ class Ltp(Tool):
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages(
                 [
-                    "ntp",
                     "libaio-dev",
                     "libattr1",
                     "libcap-dev",
@@ -317,17 +398,18 @@ class Ltp(Tool):
                     PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_period_us"),
                     sudo=True,
                 )
+                cpu_file = "/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us"
                 self.node.tools[Echo].write_to_file(
                     "950000",
-                    PurePosixPath("/sys/fs/cgroup/cpu/user.slice/cpu.rt_runtime_us"),
+                    PurePosixPath(cpu_file),
                     sudo=True,
                 )
 
-        # Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
-        sysctl = self.node.tools[Sysctl]
-        sysctl.write("vm.dirty_ratio", "10")
-        sysctl.write("vm.dirty_background_ratio", "5")
-        sysctl.run("-p")
+            # Fix hung_task_timeout_secs and blocked for more than 120 seconds problem
+            sysctl = self.node.tools[Sysctl]
+            sysctl.write("vm.dirty_ratio", "10")
+            sysctl.write("vm.dirty_background_ratio", "5")
+            sysctl.run("-p")
 
         # find partition to install ltp
         build_dir = self.node.find_partition_with_freespace(
@@ -344,42 +426,23 @@ class Ltp(Tool):
         self.node.tools[Chmod].update_folder(top_src_dir, "a+rwX", sudo=True)
 
         if self._source_file:
-            self._log.debug(
-                f"Use downloaded source code tar file: {self._source_file}!"
-            )
-            remote_source_file = self.get_tool_path(use_global=True) / os.path.basename(
-                self._source_file
-            )
-
-            copy = self.node.tools[RemoteCopy]
-            copy.copy_to_remote(PurePath(self._source_file), remote_source_file)
-            self.node.tools[Tar].extract(
-                str(remote_source_file), top_src_dir, sudo=True
-            )
-            ltp_path = self.node.get_pure_path(top_src_dir)
+            cur_ltp_path = self._extract_source(self._source_file, top_src_dir)
         else:
-            # clone ltp
-            git = self.node.tools[Git]
-            ltp_path = git.clone(
-                self.LTP_GIT_URL, cwd=PurePosixPath(top_src_dir), dir_name=top_src_dir
-            )
-
-            # checkout tag
-            git.checkout(ref=f"tags/{self._git_tag}", cwd=ltp_path)
+            cur_ltp_path = self._clone_source(self.LTP_GIT_URL, top_src_dir)
 
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
         make = self.node.tools[Make]
-        self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
-        make.make("autotools", cwd=ltp_path, sudo=True)
-        self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=True)
-        make.make("all", cwd=ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
+        self.node.execute("autoreconf -f", cwd=cur_ltp_path, sudo=True)
+        make.make("autotools", cwd=cur_ltp_path, sudo=True)
+        self.node.execute(
+            f"./configure --prefix={self._command_path}", cwd=cur_ltp_path, sudo=True
+        )
+        make.make("all", cwd=cur_ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
 
         # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
         # on the remote system's sysroot
-        make.make_install(ltp_path, "SKIP_IDCHECK=1", sudo=True)
-
-        return self._check_exists()
+        make.make_install(cur_ltp_path, "SKIP_IDCHECK=1", sudo=True)
 
     def _parse_results(
         self,
