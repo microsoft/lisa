@@ -102,6 +102,7 @@ from .qemu import Qemu
 from .qemu_img import QemuImg
 from .reboot import Reboot
 from .remote_copy import RemoteCopy
+from .resize_partition import ResizePartition
 from .rm import Rm
 from .sar import Sar
 from .sockperf import Sockperf
@@ -235,6 +236,7 @@ __all__ = [
     "QemuImg",
     "Reboot",
     "RemoteCopy",
+    "ResizePartition",
     "Rpm",
     "Rm",
     "Sar",
