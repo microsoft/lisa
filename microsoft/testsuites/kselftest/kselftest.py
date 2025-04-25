@@ -264,6 +264,8 @@ class Kselftest(Tool):
             else:
                 filtered_tests = all_tests
 
+            # Ensure skip_tests is not None
+            skip_tests = skip_tests or []
             # Exclude tests based on skip_tests
             tests_to_run = [test for test in filtered_tests if test not in skip_tests]
 
