@@ -24,14 +24,22 @@ class RemoteCopy(Tool):
     def can_install(self) -> bool:
         return False
 
+    def _check_exists(self) -> bool:
+        return True
+
     def copy_to_local(
         self,
         src: PurePath,
         dest: PurePath,
         recurse: bool = False,
+        sudo: bool = True,
     ) -> List[PurePath]:
         return self._copy_internal(
-            src=src, dest=dest, recurse=recurse, is_copy_to_local=True
+            src=src,
+            dest=dest,
+            recurse=recurse,
+            is_copy_to_local=True,
+            sudo=sudo,
         )
 
     def copy_to_remote(
@@ -39,9 +47,14 @@ class RemoteCopy(Tool):
         src: PurePath,
         dest: PurePath,
         recurse: bool = False,
+        sudo: bool = True,
     ) -> List[PurePath]:
         return self._copy_internal(
-            src=src, dest=dest, recurse=recurse, is_copy_to_local=False
+            src=src,
+            dest=dest,
+            recurse=recurse,
+            is_copy_to_local=False,
+            sudo=sudo,
         )
 
     @classmethod
@@ -60,9 +73,10 @@ class RemoteCopy(Tool):
         dest: PurePath,
         recurse: bool = False,
         is_copy_to_local: bool = True,
+        sudo: bool = True,
     ) -> List[PurePath]:
         is_file = self._is_file(
-            self._get_source_node(is_copy_to_local=is_copy_to_local), src
+            self._get_source_node(is_copy_to_local=is_copy_to_local), src, sudo
         )
 
         # recurse should be false for files
@@ -88,7 +102,9 @@ class RemoteCopy(Tool):
             )
 
             # copy files to a temp directory with updated permissions
-            tmp_location = self._prepare_tmp_copy(src, recurse=recurse, is_file=is_file)
+            tmp_location = self._prepare_tmp_copy(
+                src, recurse=recurse, is_file=is_file, sudo=sudo
+            )
 
             # copy files from the temp directory and remove the temp directory
             try:
@@ -110,14 +126,15 @@ class RemoteCopy(Tool):
         else:
             return self.node
 
-    def _is_file(self, node: "Node", path: PurePath) -> bool:
-        return node.tools[Ls].is_file(path, sudo=True)
+    def _is_file(self, node: "Node", path: PurePath, sudo: bool = True) -> bool:
+        return node.tools[Ls].is_file(path, sudo=sudo)
 
     def _prepare_tmp_copy(
         self,
         src: PurePath,
         is_file: bool = False,
         recurse: bool = False,
+        sudo: bool = True,
     ) -> PurePath:
         # copy file/folder to a temp location
         tmp_location = PurePath("/tmp")
@@ -128,7 +145,7 @@ class RemoteCopy(Tool):
             tmp_dir = tmp_location / src.parent.name
             tmp_location = tmp_dir / src.name
             self.node.tools[Mkdir].create_directory(
-                self.node.get_str_path(tmp_dir), sudo=True
+                self.node.get_str_path(tmp_dir), sudo=sudo
             )
         elif not recurse:
             # we want to copy only the files in `src` folder at
@@ -137,7 +154,7 @@ class RemoteCopy(Tool):
             tmp_location = tmp_dir
             src = src / "*"
             self.node.tools[Mkdir].create_directory(
-                self.node.get_str_path(tmp_dir), sudo=True
+                self.node.get_str_path(tmp_dir), sudo=sudo
             )
         else:
             # we want to copy the folder at
@@ -146,9 +163,9 @@ class RemoteCopy(Tool):
             tmp_location = tmp_dir / src.name
 
         # copy the required file/folder to the temp directory
-        self.node.tools[Cp].copy(src, tmp_dir, sudo=True, recur=recurse)
+        self.node.tools[Cp].copy(src, tmp_dir, sudo=sudo, recur=recurse)
 
-        self.node.tools[Ls].path_exists(self.node.get_str_path(tmp_location), sudo=True)
+        self.node.tools[Ls].path_exists(self.node.get_str_path(tmp_location), sudo=sudo)
 
         # change the owner of the temp directory
         username = self.node.tools[Whoami].get_username()

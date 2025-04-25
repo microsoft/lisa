@@ -18,6 +18,7 @@ from lisa.base_tools import (
 from .aria import Aria
 from .b4 import B4
 from .blkid import Blkid
+from .bootctl import BootCtl
 from .bzip2 import Bzip2
 from .cargo import Cargo
 from .chmod import Chmod
@@ -39,11 +40,13 @@ from .fallocate import Fallocate
 from .fdisk import Fdisk
 from .find import Find
 from .fio import FIOMODES, Fio, FIOResult, IoEngine
+from .fips import Fips
 from .firewall import Firewall, Iptables
 from .free import Free
 from .gcc import Gcc
 from .gdb import Gdb
 from .git import Git
+from .grub_config import GrubConfig
 from .hibernation_setup import HibernationSetup
 from .hostname import Hostname
 from .hugepages import Hugepages
@@ -118,6 +121,7 @@ from .tee import Tee
 from .texinfo import Texinfo
 from .timedatectl import Timedatectl
 from .timeout import Timeout
+from .tpm2 import Tpm2
 from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
@@ -133,6 +137,7 @@ __all__ = [
     "Aria",
     "B4",
     "Blkid",
+    "BootCtl",
     "Bzip2",
     "Cargo",
     "Cat",
@@ -158,11 +163,13 @@ __all__ = [
     "FIOMODES",
     "Fio",
     "FIOResult",
+    "Fips",
     "Firewall",
     "Free",
     "Gcc",
     "Gdb",
     "Git",
+    "GrubConfig",
     "Ip",
     "IpInfo",
     "Iperf3",
@@ -251,6 +258,7 @@ __all__ = [
     "TcpDump",
     "Timedatectl",
     "Timeout",
+    "Tpm2",
     "Uname",
     "Unzip",
     "Uptime",

@@ -205,9 +205,12 @@ class CloudHypervisorTestSuite(TestSuite):
         # with no disk caching and with direct mode. By Default, we
         # will not run it with data-disk and it would not add direct=on
         # if run_without_cache is not set to YES
-        use_datadisk = variables.get("use_datadisk", "")
-        disable_datadisk_cache = variables.get("disable_datadisk_cache", "")
-        block_size_kb = variables.get("block_size_kb", "")
+        use_datadisk = variables.get("ch_tests_use_datadisk", "")
+        use_pmem = variables.get("ch_tests_use_pmem", "")
+        pmem_config = variables.get("ch_tests_pmem_config", "")
+        disable_disk_cache = variables.get("ch_tests_disable_disk_cache", "")
+        mibps_block_size_kb = variables.get("ch_tests_mibps_block_size_kb", "")
+        iops_block_size_kb = variables.get("ch_tests_iops_block_size_kb", "")
 
         if not ms_access_token:
             raise SkippedException("Access Token is needed while using MS-CLH")
@@ -227,12 +230,18 @@ class CloudHypervisorTestSuite(TestSuite):
         if use_ms_bz_image == "YES":
             CloudHypervisorTests.use_ms_bz_image = use_ms_bz_image
 
-        if block_size_kb:
-            CloudHypervisorTests.block_size_kb = block_size_kb
+        if mibps_block_size_kb:
+            CloudHypervisorTests.mibps_block_size_kb = mibps_block_size_kb
+        if iops_block_size_kb:
+            CloudHypervisorTests.iops_block_size_kb = iops_block_size_kb
+        if use_pmem:
+            CloudHypervisorTests.use_pmem = use_pmem
+            if pmem_config:
+                CloudHypervisorTests.pmem_config = pmem_config
         if use_datadisk:
             CloudHypervisorTests.use_datadisk = use_datadisk
-        if disable_datadisk_cache:
-            CloudHypervisorTests.disable_datadisk_cache = disable_datadisk_cache
+        if disable_disk_cache:
+            CloudHypervisorTests.disable_disk_cache = disable_disk_cache
 
 
 def get_test_list(variables: Dict[str, Any], var1: str, var2: str) -> Any:

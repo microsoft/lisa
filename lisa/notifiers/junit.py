@@ -156,6 +156,7 @@ class JUnit(Notifier):
             testsuite_info.xml.attrib["name"] = message.suite_full_name
 
             # Timestamp must not contain timezone information.
+            assert message.time is not None, "Message time should not be None"
             timestamp = message.time.replace(tzinfo=None).isoformat(timespec="seconds")
             testsuite_info.xml.attrib["timestamp"] = timestamp
 
@@ -296,7 +297,7 @@ class JUnit(Notifier):
             raise LisaException("Test suite not started.")
 
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
-        testcase.attrib["name"] = message.name
+        testcase.attrib["name"] = f"{message.name} ({message.id_})"
         testcase.attrib["classname"] = class_name
         testcase.attrib["time"] = self._get_elapsed_str(elapsed)
 

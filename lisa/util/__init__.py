@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ipaddress
 import random
 import re
 import string
 import sys
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from threading import Lock
@@ -28,9 +29,11 @@ from typing import (
 
 import paramiko
 import pluggy
+import requests
 from assertpy import assert_that
 from dataclasses_json import config
 from marshmallow import fields
+from retry import retry
 from semver import VersionInfo
 
 from lisa import secret
@@ -418,17 +421,28 @@ class SwitchableMixin:
         self._switch(True)
 
 
+class LisaVersionInfo(VersionInfo):
+    def __init__(self, version_str: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.version_str = version_str
+
+    @classmethod
+    def parse(cls, version: str) -> "LisaVersionInfo":
+        version_info = VersionInfo.parse(version)
+        return LisaVersionInfo(version, *version_info.to_tuple())
+
+
 def get_date_str(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
-    return current.utcnow().strftime("%Y%m%d")
+    return current.now(timezone.utc).strftime("%Y%m%d")
 
 
 def get_datetime_path(current: Optional[datetime] = None) -> str:
     if current is None:
         current = datetime.now()
     date = get_date_str(current)
-    time = current.utcnow().strftime("%H%M%S-%f")[:-3]
+    time = current.now(timezone.utc).strftime("%H%M%S-%f")[:-3]
     return f"{date}-{time}"
 
 
@@ -654,7 +668,7 @@ def dump_file(file_name: Path, content: Any) -> None:
         f.write(secret.mask(content))
 
 
-def parse_version(version: str) -> VersionInfo:
+def parse_version(version: str) -> LisaVersionInfo:
     """
     Convert an incomplete version string into a semver-compatible Version
     object
@@ -672,8 +686,8 @@ def parse_version(version: str) -> VersionInfo:
         belong to a basic version.
     :rtype: tuple(:class:`Version` | None, str)
     """
-    if VersionInfo.isvalid(version):
-        return VersionInfo.parse(version)
+    if LisaVersionInfo.isvalid(version):
+        return LisaVersionInfo.parse(version)
 
     match = __version_info_pattern.search(version)
     if not match:
@@ -685,9 +699,9 @@ def parse_version(version: str) -> VersionInfo:
         if key != "prerelease"
     }
     ver["prerelease"] = match["prerelease"]
-    rest = match.string[match.end() :]  # noqa:E203
+    rest = match.string[match.end() :]
     ver["build"] = rest
-    release_version = VersionInfo(**ver)
+    release_version = LisaVersionInfo(version, **ver)
 
     return release_version
 
@@ -897,3 +911,50 @@ def check_panic(content: str, stage: str, log: "Logger") -> None:
 
     if panics:
         raise KernelPanicException(stage, panics)
+
+
+def to_bool(value: Union[str, bool, int]) -> bool:
+    """
+    Convert a string to a boolean value.
+    Returns sensible "True/False" values for strings, bools and ints, failing
+    otherwise.
+    Allows for casing and leading/trailing whitespace.
+    """
+    str_to_bool_map = {
+        "true": True,
+        "false": False,
+        "yes": True,
+        "no": False,
+        "1": True,
+        "0": False,
+    }
+
+    # Handle boolean values directly
+    if isinstance(value, bool):
+        return value
+
+    # Handle integer values directly
+    if isinstance(value, int):
+        return bool(value)
+
+    # If the value is a string, convert it to lowercase and strip whitespace
+    # and look it up in the dictionary.
+    if isinstance(value, str):
+        value = value.lower().strip()
+        bool_value = str_to_bool_map.get(value)
+        if bool_value is None:
+            raise ValueError(f"Invalid boolean string: {value}")
+        return bool_value
+
+    # If the value is not a string, boolean, or integer, raise an error.
+    raise TypeError(
+        f"Unsupported type for conversion to boolean: {type(value).__name__}"
+    )
+
+
+@retry(tries=10, delay=0.5)
+def get_public_ip() -> str:
+    response = requests.get("https://api.ipify.org/", timeout=5)
+    result = response.text
+    ipaddress.ip_address(result)
+    return str(result)

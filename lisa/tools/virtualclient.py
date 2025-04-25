@@ -5,7 +5,6 @@ import json
 import re
 import uuid
 from datetime import datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
@@ -14,7 +13,12 @@ from assertpy import assert_that
 from lisa import notifier
 from lisa.base_tools import Uname, Wget
 from lisa.executable import Tool
-from lisa.messages import VCMetrics
+from lisa.messages import (
+    MetricRelativity,
+    VCMetricsMessage,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import Posix
 from lisa.util import LisaException
 from lisa.util.process import Process
@@ -28,7 +32,7 @@ from .unzip import Unzip
 from .whoami import Whoami
 
 if TYPE_CHECKING:
-    from lisa import Environment
+    from lisa import Environment, Node, TestResult
     from lisa.node import RemoteNode
 
 
@@ -237,8 +241,8 @@ class VirtualClientTool(Tool):
 
         return "".join(cmd_parts)
 
-    def download_raw_data_file(self) -> Path:
-        local_path = self.node.local_log_path / "metrics.csv"
+    def download_raw_data_file(self, local_log_path: Path) -> Path:
+        local_path = local_log_path / "metrics.csv"
         remote_path = self.node.get_pure_path(f"{self._vc_log_path}/metrics.csv")
         current_user = self.node.tools[Whoami].get_username()
         self.node.tools[Chown].change_owner(remote_path, current_user)
@@ -248,40 +252,63 @@ class VirtualClientTool(Tool):
         )
         return local_path
 
-    def send_metrics_message(self, metrics_file: Path) -> None:
+    def send_metrics_messages(
+        self,
+        metrics_file: Path,
+        node: "Node",
+        test_result: "TestResult",
+    ) -> None:
         with open(metrics_file, mode="r", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
-            metric_messages: List[VCMetrics] = []
             for row in reader:
-                metric = VCMetrics(
-                    time_stamp=self._parse_timestamp(row["Timestamp"]),
-                    experiment_id=row["ExperimentId"],
-                    client_id=row["ClientId"],
-                    profile=row["Profile"],
-                    profile_name=row["ProfileName"],
-                    tool_name=row["ToolName"],
-                    scenario_name=row["ScenarioName"],
-                    scenario_start_time=self._parse_timestamp(row["ScenarioStartTime"]),
-                    scenario_end_time=self._parse_timestamp(row["ScenarioEndTime"]),
-                    metric_categorization=row["MetricCategorization"],
+                fields = {
+                    "time": self._parse_timestamp(row["Timestamp"]),
+                    "tool": row["ToolName"],
+                    "experiment_id": row["ExperimentId"],
+                    "client_id": row["ClientId"],
+                    "profile": row["Profile"],
+                    "profile_name": row["ProfileName"],
+                    "scenario_name": row["ScenarioName"],
+                    "scenario_start_time": self._parse_timestamp(
+                        row["ScenarioStartTime"]
+                    ),
+                    "scenario_end_time": self._parse_timestamp(row["ScenarioEndTime"]),
+                    "metric_categorization": row["MetricCategorization"],
+                    "metric_name": row["MetricName"],
+                    "metric_value": float(row["MetricValue"]),
+                    "metric_unit": row["MetricUnit"],
+                    "metric_description": row["MetricDescription"],
+                    "metric_relativity": row["MetricRelativity"],
+                    "execution_system": row["ExecutionSystem"],
+                    "operating_system_platform": row["OperatingSystemPlatform"],
+                    "operation_id": row["OperationId"],
+                    "operation_parent_id": row["OperationParentId"],
+                    "app_host": row["AppHost"],
+                    "app_name": row["AppName"],
+                    "app_version": row["AppVersion"],
+                    "app_telemetry_version": row["AppTelemetryVersion"],
+                    "tags": row["Tags"],
+                }
+                message = create_perf_message(
+                    message_type=VCMetricsMessage,
+                    node=node,
+                    test_result=test_result,
+                    test_case_name=test_result.name,
+                    other_fields=fields,
+                )
+                notifier.notify(message)
+
+                # send by unified perf messages
+                send_unified_perf_message(
+                    node=node,
+                    test_result=test_result,
+                    test_case_name=test_result.name,
                     metric_name=row["MetricName"],
-                    metric_value=Decimal(row["MetricValue"]),
+                    metric_value=float(row["MetricValue"]),
                     metric_unit=row["MetricUnit"],
                     metric_description=row["MetricDescription"],
-                    metric_relativity=row["MetricRelativity"],
-                    execution_system=row["ExecutionSystem"],
-                    operating_system_platform=row["OperatingSystemPlatform"],
-                    operation_id=row["OperationId"],
-                    operation_parent_id=row["OperationParentId"],
-                    app_host=row["AppHost"],
-                    app_name=row["AppName"],
-                    app_version=row["AppVersion"],
-                    app_telemetry_version=row["AppTelemetryVersion"],
-                    tags=row["Tags"],
+                    metric_relativity=MetricRelativity.parse(row["MetricRelativity"]),
                 )
-                metric_messages.append(metric)
-        for metri_messages in metric_messages:
-            notifier.notify(metri_messages)
 
     def _parse_timestamp(self, timestamp_str: str) -> datetime:
         # Strip 'Z' and limit microseconds to 6 digits
@@ -313,7 +340,10 @@ class VcRunner:
 
     def run(
         self,
+        node: "Node",
+        test_result: "TestResult",
         profile_name: str,
+        log_path: Path,
         experiment_id: str = "",
         system: str = "Azure",
         timeout: int = 10,
@@ -331,7 +361,7 @@ class VcRunner:
 
         results = self._execute_commands(client_params)
         self._wait_for_client_result(results, timeout)
-        self._process_results()
+        self._process_results(node=node, test_result=test_result, log_path=log_path)
 
     def _generate_layout_file(
         self,
@@ -392,7 +422,13 @@ class VcRunner:
         for node_info in self._targets:
             node_info.node.close()
 
-    def _process_results(self) -> None:
+    def _process_results(
+        self, node: "Node", test_result: "TestResult", log_path: Path
+    ) -> None:
         for target in self._targets:
-            local_path = target.virtual_client.download_raw_data_file()
-            target.virtual_client.send_metrics_message(local_path)
+            local_path = target.virtual_client.download_raw_data_file(
+                local_log_path=log_path
+            )
+            target.virtual_client.send_metrics_messages(
+                metrics_file=local_path, node=node, test_result=test_result
+            )

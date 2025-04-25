@@ -36,8 +36,10 @@ class Dmesg(Tool):
 
     # [   3.191822] hv_vmbus: Hyper-V Host Build:18362-10.0-3-0.3294; Vmbus version:3.0
     # [   3.191822] hv_vmbus: Vmbus version:3.0
+    # [    0.862842] [    T1] hv_vmbus: Vmbus version:5.3
+    # [    0.862842][    T1] hv_vmbus: Vmbus version:4.0
     __vmbus_version_pattern = re.compile(
-        r"\[\s+\d+.\d+\]\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"
+        r"\[\s+\d+.\d+\](?:\s*\[\s*T\d+\])?\s+hv_vmbus:.*Vmbus version:(?P<major>\d+).(?P<minor>\d+)"  # noqa: E501
     )
 
     @property

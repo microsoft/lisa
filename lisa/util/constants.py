@@ -53,12 +53,6 @@ NOTIFIER = "notifier"
 NOTIFIER_CONSOLE = "console"
 NOTIFIER_FILE = "file"
 
-# Azure Credential Type
-DEFAULT_AZURE_CREDENTIAL = "default"
-CERTIFICATE_CREDENTIAL = "certificate"
-CLIENT_ASSERTION_CREDENTIAL = "assertion"
-CLIENT_SECRET_CREDENTIAL = "secret"
-
 # common
 NODES = "nodes"
 NAME = "name"

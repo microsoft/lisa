@@ -27,7 +27,7 @@ from lisa.base_tools import Systemctl
 from lisa.features import NetworkInterface, SerialConsole, StartStop
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.tools import (
     Cat,
     Ethtool,
@@ -267,7 +267,7 @@ class Sriov(TestSuite):
         priority=1,
         requirement=simple_requirement(
             network_interface=features.Sriov(),
-            supported_platform_type=[AZURE],
+            supported_platform_type=[AZURE, HYPERV],
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:

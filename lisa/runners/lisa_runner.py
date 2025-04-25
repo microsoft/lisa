@@ -2,6 +2,8 @@
 # Licensed under the MIT license.
 
 import copy
+import os
+import shutil
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Set, cast
 
@@ -116,60 +118,54 @@ class LisaRunner(BaseRunner):
         # Loop environments instead of test results, because it needs to reuse
         # environment as much as possible.
         if available_results and available_environments:
-            for priority in range(6):
-                can_run_results = self._get_results_by_priority(
-                    available_results, priority
-                )
-                if not can_run_results:
+            # it means there are test cases and environment, so it needs to
+            # schedule task.
+            for environment in available_environments:
+                if environment.is_in_use:
+                    # skip in used environments
                     continue
 
-                # it means there are test cases and environment, so it needs to
-                # schedule task.
-                for environment in available_environments:
-                    if environment.is_in_use:
-                        # skip in used environments
+                # Try to pick the designated test result from the current
+                # priority. So it may not be able to get the designed test
+                # result.
+                environment_results = [
+                    x
+                    for x in available_results
+                    if environment.source_test_result
+                    and x.id_ == environment.source_test_result.id_
+                ]
+                if not environment_results:
+                    if (
+                        not environment.is_predefined
+                    ) and environment.status == EnvironmentStatus.Prepared:
+                        # If the environment is not deployed, it will be
+                        # skipped until the source test result is found. It
+                        # makes sure the deployment failure attaches to the
+                        # source test result.
                         continue
-
-                    # Try to pick the designated test result from the current
-                    # priority. So it may not be able to get the designed test
-                    # result.
-                    environment_results = [
-                        x
-                        for x in can_run_results
-                        if environment.source_test_result
-                        and x.id_ == environment.source_test_result.id_
-                    ]
-                    if not environment_results:
-                        if (
-                            not environment.is_predefined
-                        ) and environment.status == EnvironmentStatus.Prepared:
-                            # If the environment is not deployed, it will be
-                            # skipped until the source test result is found. It
-                            # makes sure the deployment failure attaches to the
-                            # source test result.
-                            continue
-                        environment_results = self._get_runnable_test_results(
-                            test_results=can_run_results, environment=environment
-                        )
-
-                    if not environment_results:
-                        continue
-
-                    task = self._dispatch_test_result(
-                        environment=environment, test_results=environment_results
+                    environment_results = self._get_runnable_test_results(
+                        test_results=available_results, environment=environment
                     )
-                    # there is more checking conditions. If some conditions doesn't
-                    # meet, the task is None. If so, not return, and try next
-                    # conditions or skip this test case.
-                    if task:
-                        return task
-                if not any(
-                    x.is_in_use or x.status == EnvironmentStatus.New
-                    for x in available_environments
-                ):
-                    # if there is no environment in used, new, and results are
-                    # not fit envs. those results cannot be run.
-                    self._skip_test_results(can_run_results)
+
+                if not environment_results:
+                    continue
+
+                task = self._dispatch_test_result(
+                    environment=environment, test_results=environment_results
+                )
+                # there is more checking conditions. If some conditions doesn't
+                # meet, the task is None. If so, not return, and try next
+                # conditions or skip this test case.
+                if task:
+                    return task
+
+            if not any(
+                x.is_in_use or x.status == EnvironmentStatus.New
+                for x in available_environments
+            ):
+                # if there is no environment in used, new, and results are
+                # not fit envs. those results cannot be run.
+                self._skip_test_results(available_results)
         elif available_results:
             # no available environments, so mark all test results skipped.
             self._skip_test_results(available_results)
@@ -525,18 +521,6 @@ class LisaRunner(BaseRunner):
                 remaining_results.append(test_result)
         self.test_results = remaining_results
 
-    def _get_results_by_priority(
-        self, test_results: List[TestResult], priority: int
-    ) -> List[TestResult]:
-        if not test_results:
-            return []
-
-        test_results = [
-            x for x in test_results if x.runtime_data.metadata.priority == priority
-        ]
-
-        return test_results
-
     def _generate_task(
         self,
         task_method: Callable[..., None],
@@ -620,7 +604,7 @@ class LisaRunner(BaseRunner):
         # so deployment failure can be tracked.
         environment.platform = self.platform
         result.environment = environment
-
+        self._copy_env_log(environment, result)
         result.handle_exception(
             exception=exception, log=environment.log, phase="deployment"
         )
@@ -916,3 +900,20 @@ class LisaRunner(BaseRunner):
             )
 
         return platform_requirement
+
+    def _copy_env_log(self, environment: Environment, test_result: TestResult) -> None:
+        # Skip this function for Unit test since it does not have environment log dir.
+        # The value of environment_log_path is ".", so this code would attempt to copy
+        # entire lisa code to the test log folder for unittest.
+        if is_unittest():
+            return
+        assert environment.source_test_result
+        environment_log_path = environment.log_path
+        destination_path = os.path.join(
+            test_result.get_case_log_path(), os.path.basename(environment_log_path)
+        )
+
+        try:
+            shutil.copytree(environment_log_path, destination_path, dirs_exist_ok=True)
+        except Exception as e:
+            self._log.debug(f"Failed to copy environment log to case log: {e}")

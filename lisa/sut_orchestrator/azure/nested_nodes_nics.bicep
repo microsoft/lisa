@@ -6,31 +6,48 @@ param subnet_prefix string
 param existing_subnet_ref string
 param enable_sriov bool
 param tags object
+param use_ipv6 bool
 
-func getPublicIpAddress(vmName string) object => {
-  id: resourceId('Microsoft.Network/publicIPAddresses', '${vmName}-public-ip')
+func getPublicIpAddress(vmName string, publicIpName string) object => {
+  id: resourceId('Microsoft.Network/publicIPAddresses', publicIpName)
 }
 
-var publicIpAddress = getPublicIpAddress(vmName)
+var publicIpAddress = getPublicIpAddress(vmName, '${vmName}-public-ip')
+var publicIpAddressV6 = getPublicIpAddress(vmName, '${vmName}-public-ipv6')
 
 resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in range(0, nic_count): {
   name: '${vmName}-nic-${i}'
   location: location
   tags: tags
   properties: {
-    ipConfigurations: [
-      {
-        name: 'IPv4Config'
-        properties: {
-          privateIPAddressVersion: 'IPv4'
-          publicIPAddress: ((0 == i) ? publicIpAddress : null)
-          subnet: {
-            id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
+    ipConfigurations: concat(
+      [
+        {
+          name: 'IPv4Config'
+          properties: {
+            privateIPAddressVersion: 'IPv4'
+            publicIPAddress: ((0 == i) ? publicIpAddress : null)
+            subnet: {
+              id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
+            }
+            privateIPAllocationMethod: 'Dynamic'
           }
-          privateIPAllocationMethod: 'Dynamic'
         }
-      }
-    ]
+      ],
+      use_ipv6 ? [
+        {
+          name: 'IPv6Config'
+          properties: {
+            privateIPAddressVersion: 'IPv6'
+            publicIPAddress: ((0 == i) ? publicIpAddressV6 : null)
+            subnet: {
+              id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
+            }
+            privateIPAllocationMethod: 'Dynamic'
+          }
+        }
+      ] : []
+    )
     enableAcceleratedNetworking: enable_sriov
   }
 }]

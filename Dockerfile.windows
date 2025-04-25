@@ -20,6 +20,18 @@ RUN Start-Process -FilePath "C:\\python-installer.exe" -ArgumentList '/quiet Ins
 RUN $latestRelease = (Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/lisa/releases/latest").tag_name; \
     git clone --depth 1 --branch $latestRelease https://github.com/microsoft/lisa.git C:\\app\\lisa
 
+WORKDIR C:\\
+
+RUN Invoke-WebRequest -Uri "https://aka.ms/downloadazcopy-v10-windows" -OutFile AzCopy.zip -UseBasicParsing; \
+    Expand-Archive -Path 'AzCopy.zip' -DestinationPath 'AzCopy'; \
+    $FullAzCopyPath = (Get-ChildItem -Path 'AzCopy' -Recurse -File -Filter 'azcopy.exe').FullName; \
+    Write-Host "AzCopy path is ${FullAzCopyPath}"; \
+    Move-Item -Path $FullAzCopyPath -Destination "C:\\azcopy.exe"; \
+    Remove-Item -Path 'AzCopy.zip' -Force; \
+    Remove-Item -Path 'AzCopy' -Recurse -Force
+
+ENV LISA_azcopy_path="C:\\azcopy.exe"
+
 WORKDIR C:\\app\\lisa
 
 RUN python -m pip install --no-cache-dir --upgrade pip; \

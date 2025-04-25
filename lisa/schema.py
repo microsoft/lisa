@@ -1315,6 +1315,7 @@ class RemoteNode(Node):
     username: str = constants.DEFAULT_USER_NAME
     password: str = ""
     private_key_file: str = ""
+    use_ipv6: bool = False
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.username, PATTERN_HEADTAIL)
@@ -1444,6 +1445,8 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     capture_azure_information: bool = False
     # capture boot time info or not
     capture_boot_time: bool = False
+    # to check if dmesg logs need to be analyzed after each test case
+    assert_kernel_error_after_test: bool = False
     # capture kernel config info or not
     capture_kernel_config_information: bool = False
     capture_vm_information: bool = True

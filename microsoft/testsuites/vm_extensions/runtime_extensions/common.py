@@ -136,6 +136,7 @@ def retrieve_storage_blob_url(
             credential=platform.credential,
             cloud=platform.cloud,
             account_name=storage_account_name,
+            platform=platform,
         )
 
         blob_url = blob_url + "?" + sas_token

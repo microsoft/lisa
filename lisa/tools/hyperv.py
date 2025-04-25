@@ -131,9 +131,13 @@ class HyperV(Tool):
         if not self.exists_vm(name):
             return None
 
-        # delete port mapping for internal IP address of the VM
-        internal_ip = self.get_ip_address(name)
-        self.delete_nat_mapping(internal_ip=internal_ip)
+        if (
+            self._default_switch
+            and self._default_switch.type == HypervSwitchType.INTERNAL
+        ):
+            # delete port mapping for internal IP address of the VM
+            internal_ip = self.get_ip_address(name)
+            self.delete_nat_mapping(internal_ip=internal_ip)
 
         # stop and delete vm
         self.stop_vm(name=name)
@@ -184,14 +188,6 @@ class HyperV(Tool):
             force_run=True,
         )
 
-        if extra_args is not None and "set-vmprocessor" in extra_args:
-            self._run_hyperv_cmdlet(
-                "Set-VMProcessor",
-                f"-VMName {name}",
-                extra_args=extra_args,
-                force_run=True,
-            )
-
         # set cores and memory type
         self._run_hyperv_cmdlet(
             "Set-VM",
@@ -200,6 +196,14 @@ class HyperV(Tool):
             extra_args=extra_args,
             force_run=True,
         )
+
+        if extra_args is not None and "set-vmprocessor" in extra_args:
+            self._run_hyperv_cmdlet(
+                "Set-VMProcessor",
+                f"-VMName {name}",
+                extra_args=extra_args,
+                force_run=True,
+            )
 
         # disable secure boot if requested
         # secure boot is only supported for generation 2 VMs

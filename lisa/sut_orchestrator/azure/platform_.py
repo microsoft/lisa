@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, cast
 
 import requests
-from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.compute.models import (
@@ -62,7 +61,7 @@ from lisa.features import (
 from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
-from lisa.secret import PATTERN_GUID, add_secret
+from lisa.secret import add_secret
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -81,11 +80,13 @@ from lisa.util import (
     get_first_combination,
     get_matched_str,
     get_or_generate_key_pairs,
+    get_public_ip,
     get_public_key_data,
     is_unittest,
     plugin_manager,
     set_filtered_fields,
     strip_strs,
+    subclasses,
     truncate_keep_prefix,
 )
 from lisa.util.logger import Logger, get_logger
@@ -132,6 +133,7 @@ from .common import (
     save_console_log,
     wait_operation,
 )
+from .credential import AzureCredential, AzureCredentialSchema
 from .tools import Uname, VmGeneration, Waagent
 
 # used by azure
@@ -241,6 +243,8 @@ class CloudSchema:
 @dataclass_json()
 @dataclass
 class AzurePlatformSchema:
+    credential: Optional[AzureCredentialSchema] = None
+
     service_principal_tenant_id: str = field(
         default="",
         metadata=field_metadata(
@@ -291,7 +295,14 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
+    # Default outbound access is disabled for better security and control.
+    # As of September 30, 2025, default outbound access for new deployments
+    # will be retired. It's recommended to disable outbound access to
+    # enforce explicit connectivity rules.
+    enable_vm_nat: bool = field(default=False)
+    source_address_prefixes: Optional[List[str]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -345,13 +356,12 @@ class AzurePlatformSchema:
                 "virtual_network_name",
                 "subnet_prefix",
                 "use_public_address",
+                "use_ipv6",
+                "enable_vm_nat",
+                "source_address_prefixes",
             ],
         )
 
-        if self.service_principal_tenant_id:
-            add_secret(self.service_principal_tenant_id, mask=PATTERN_GUID)
-        if self.subscription_id:
-            add_secret(self.subscription_id, mask=PATTERN_GUID)
         if self.service_principal_key:
             add_secret(self.service_principal_key)
         if self.azure_arm_access_token:
@@ -362,8 +372,6 @@ class AzurePlatformSchema:
             add_secret(self.azure_keyvault_access_token)
         if self.azure_graph_access_token:
             add_secret(self.azure_graph_access_token)
-        if self.service_principal_client_id:
-            add_secret(self.service_principal_client_id, mask=PATTERN_GUID)
 
     @property
     def cloud(self) -> Cloud:
@@ -431,14 +439,14 @@ class AzurePlatform(Platform):
     )
     _arm_template: Any = None
 
-    _credentials: Dict[str, Union[DefaultAzureCredential, TokenCredential]] = {}
+    _credentials: Dict[str, Any] = {}
     _locations_data_cache: Dict[str, AzureLocation] = {}
 
     def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
 
         # for type detection
-        self.credential: Union[DefaultAzureCredential, TokenCredential]
+        self.credential: Any
         self.cloud: Cloud
 
         # It has to be defined after the class definition is loaded. So it
@@ -939,6 +947,7 @@ class AzurePlatform(Platform):
         self.subscription_id = azure_runbook.subscription_id
         self.cloud = azure_runbook.cloud
         self.resource_group_managed_by = azure_runbook.resource_group_managed_by
+        self._cached_ip_address: List[str] = []
 
         self._initialize_credential()
 
@@ -956,37 +965,61 @@ class AzurePlatform(Platform):
             self.credential, self.subscription_id, self.cloud
         )
 
+    def _get_ip_addresses(self) -> List[str]:
+        if self._cached_ip_address:
+            return self._cached_ip_address
+        if self._azure_runbook.source_address_prefixes:
+            self._cached_ip_address = self._azure_runbook.source_address_prefixes
+        else:
+            self._cached_ip_address = [get_public_ip()]
+        return self._cached_ip_address
+
     def _initialize_credential(self) -> None:
         azure_runbook = self._azure_runbook
-
-        credential_key = (
-            f"{azure_runbook.service_principal_tenant_id}_"
-            f"{azure_runbook.service_principal_client_id}"
-        )
-        credential = self._credentials.get(credential_key, None)
-        if not credential:
-            # set azure log to warn level only
-            logging.getLogger("azure").setLevel(azure_runbook.log_level)
-
-            if azure_runbook.service_principal_tenant_id:
-                os.environ[
-                    "AZURE_TENANT_ID"
-                ] = azure_runbook.service_principal_tenant_id
-            if azure_runbook.service_principal_client_id:
-                os.environ[
-                    "AZURE_CLIENT_ID"
-                ] = azure_runbook.service_principal_client_id
-            if azure_runbook.service_principal_key:
-                os.environ["AZURE_CLIENT_SECRET"] = azure_runbook.service_principal_key
-
-            credential = get_static_access_token(
-                azure_runbook.azure_arm_access_token
-            ) or DefaultAzureCredential(
-                authority=self.cloud.endpoints.active_directory,
+        if azure_runbook.credential:
+            credential_factory = subclasses.Factory[AzureCredential](AzureCredential)
+            azure_credential: Optional[
+                AzureCredential
+            ] = credential_factory.create_by_runbook(
+                azure_runbook.credential, cloud=self.cloud, logger=self._log
             )
+            cached_key = f"{hash(azure_credential)}"
+        else:
+            cached_key = (
+                f"{azure_runbook.service_principal_tenant_id}_"
+                f"{azure_runbook.service_principal_client_id}"
+            )
+            azure_credential = None
+
+        # Use Any to support all types of credentials.
+        cached_credential: Any = self._credentials.get(cached_key, None)
+        if not cached_credential:
+            if azure_credential:
+                cached_credential = azure_credential.get_credential()
+            else:
+                # set azure log to warn level only
+                logging.getLogger("azure").setLevel(azure_runbook.log_level)
+                if azure_runbook.service_principal_tenant_id:
+                    os.environ[
+                        "AZURE_TENANT_ID"
+                    ] = azure_runbook.service_principal_tenant_id
+                if azure_runbook.service_principal_client_id:
+                    os.environ[
+                        "AZURE_CLIENT_ID"
+                    ] = azure_runbook.service_principal_client_id
+                if azure_runbook.service_principal_key:
+                    os.environ[
+                        "AZURE_CLIENT_SECRET"
+                    ] = azure_runbook.service_principal_key
+
+                cached_credential = get_static_access_token(
+                    azure_runbook.azure_arm_access_token
+                ) or DefaultAzureCredential(
+                    authority=self.cloud.endpoints.active_directory,
+                )
 
             with SubscriptionClient(
-                credential,
+                cached_credential,
                 base_url=self.cloud.endpoints.resource_manager,
                 credential_scopes=[self.cloud.endpoints.resource_manager + "/.default"],
             ) as self._sub_client:
@@ -1009,9 +1042,9 @@ class AzurePlatform(Platform):
                 f"{subscription.id}, '{subscription.display_name}'"
             )
 
-            self._credentials[credential_key] = credential
+            self._credentials[cached_key] = cached_credential
 
-        self.credential = credential
+        self.credential = cached_credential
 
     def _load_template(self) -> Any:
         if self._arm_template is None:
@@ -1123,6 +1156,7 @@ class AzurePlatform(Platform):
         )
         arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
         arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+        arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
         is_windows: bool = False
         arm_parameters.admin_username = self.runbook.admin_username
@@ -1237,6 +1271,8 @@ class AzurePlatform(Platform):
         arm_parameters.shared_resource_group_name = (
             self._azure_runbook.shared_resource_group_name
         )
+        arm_parameters.enable_vm_nat = self._azure_runbook.enable_vm_nat
+        arm_parameters.source_address_prefixes = self._get_ip_addresses()
 
         # the arm template may be updated by the hooks, so make a copy to avoid
         # the original template is modified.
@@ -1689,9 +1725,10 @@ class AzurePlatform(Platform):
                 vm = vms_map[vm_name]
             node.name = vm_name
             public_address, private_address = get_primary_ip_addresses(
-                self, resource_group_name, vm
+                self, resource_group_name, vm, use_ipv6=self._azure_runbook.use_ipv6
             )
             node_context.use_public_address = self._azure_runbook.use_public_address
+            node_context.use_ipv6 = self._azure_runbook.use_ipv6
             assert isinstance(node, RemoteNode)
             node.set_connection_info(
                 address=private_address,
@@ -2873,6 +2910,12 @@ class AzurePlatform(Platform):
             azure_runbook.image.disk_controller_type = search_space.SetSpace[
                 schema.DiskControllerType
             ](is_allow_set=True, items=[azure_runbook.image.disk_controller_type])
+
+        # Disk controller type 'NVMe' not supported for user VM image.
+        if azure_runbook.vhd and azure_runbook.vhd.vhd_path:
+            node_space.disk.disk_controller_type = search_space.SetSpace[
+                schema.DiskControllerType
+            ](is_allow_set=True, items=[schema.DiskControllerType.SCSI])
 
         allowed_types = azure_runbook.image.disk_controller_type
         if node_space.disk.disk_controller_type:

@@ -126,7 +126,7 @@ be specified in the runbook.
 
 .. code:: bash
 
-   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>
+   lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>"
 
 Set other Azure parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -139,11 +139,13 @@ deployment.
    platform:
    - type: azure
       ...
+      admin_private_key_file: "<path of private key file>"
       azure:
          virtual_network_resource_group: $(vnet_resource_group)
          virtual_network_name: $(vnet_name)
          subnet_prefix: $(subnet_name)
          use_public_address: "<true or false>"
+         use_ipv6: "<true or false>"
       requirement:
          ...
          ignored_capability:
@@ -156,6 +158,17 @@ deployment.
             maximize_capability: "<true or false>"
             osdisk_size_in_gb: <disk size in gb>
 
+* **admin_private_key_file**: This step is optional. If not provided, LISA will generate a new key pair for you,
+  which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair 
+  (both public and private keys). If you already have one, you can skip this step. Otherwise, generate a new key pair using the command below:
+
+  .. code:: bash
+
+     ssh-keygen
+
+.. warning::
+
+   Do not use a passphrase to protect your key, as LISA does not support it.
 * **virtual_network_resource_group**. Specify if an existing virtual network
   should be used. If `virtual_network_resource_group` is not provided, a virtual
   network will be created in the default resource group. If
@@ -177,6 +190,9 @@ deployment.
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
+* **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and 
+  the platform may enable IPv6 connections during creating VMs. 
+  The default value is `false`, it means IPv4 only.
 * **ignored_capability**. Specify feature names which will be ignored in 
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:

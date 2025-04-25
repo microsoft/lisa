@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, c
 import paramiko
 import spur  # type: ignore
 import spurplus
-from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
+from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 from paramiko.ssh_exception import NoValidConnectionsError, SSHException
 
 from lisa import development, schema
@@ -77,10 +77,10 @@ def wait_tcp_port_ready(
         # If it's True, it means the direct connection doesn't work. Return a
         # mock value for test purpose.
         return True, 0
-
+    address_family = _get_address_family(address)
     timeout_timer = create_timer()
     while timeout_timer.elapsed(False) < timeout:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_socket:
+        with socket.socket(address_family, socket.SOCK_STREAM) as tcp_socket:
             try:
                 result = tcp_socket.connect_ex((address, port))
                 if result == 0:
@@ -99,6 +99,22 @@ def wait_tcp_port_ready(
             except Exception as e:
                 raise LisaException(f"failed to connect to {address}:{port}: {e}")
     return is_ready, result
+
+
+def _get_address_family(address: str) -> Any:
+    try:
+        addr_info = socket.getaddrinfo(address, None)
+        for info in addr_info:
+            family = info[0]
+            if family == socket.AF_INET:
+                return socket.AF_INET
+            elif family == socket.AF_INET6:
+                return socket.AF_INET6
+        return socket.AF_INET
+    except socket.gaierror:
+        return socket.AF_INET
+    except Exception:
+        return socket.AF_INET
 
 
 class WindowsShellType(object):
@@ -223,9 +239,12 @@ def try_connect(
 # some images needs longer time to set up ssh connection.
 # e.g. Oracle Oracle-Linux 7.5 7.5.20181207
 # e.g. qubole-inc qubole-data-service default-img 0.7.4
-@func_set_timeout(20)  # type: ignore
-def _spawn_ssh_process(shell: spur.ssh.SshShell, **kwargs: Any) -> spur.ssh.SshProcess:
-    return shell.spawn(**kwargs)
+def _spawn_ssh_process(
+    shell: spur.ssh.SshShell,
+    timeout: int,
+    **kwargs: Any,
+) -> spur.ssh.SshProcess:
+    return func_timeout(timeout, shell.spawn, kwargs=kwargs)
 
 
 def _minimize_shell(shell: spur.ssh.SshShell) -> None:
@@ -254,6 +273,7 @@ class SshShell(InitializableMixin):
         self.password_prompts: List[str] = []
         self.bash_prompt: str = ""
         self.spawn_initialization_error_string = ""
+        self.spawn_timeout: int = 20
 
         paramiko_logger = logging.getLogger("paramiko")
         paramiko_logger.setLevel(logging.WARN)
@@ -377,6 +397,7 @@ class SshShell(InitializableMixin):
                     store_pid = False
                 process: spur.ssh.SshProcess = _spawn_ssh_process(
                     self._inner_shell,
+                    self.spawn_timeout,
                     command=command,
                     update_env=update_env,
                     store_pid=store_pid,
