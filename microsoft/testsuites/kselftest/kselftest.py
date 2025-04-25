@@ -2,7 +2,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -233,7 +233,7 @@ class Kselftest(Tool):
             work_dir = PurePosixPath(self._installed_path)
         else:
             work_dir = None
-            
+
         if run_collections or skip_tests:
             # List all available tests
             list_result = self.run(" -l", shell=True)
