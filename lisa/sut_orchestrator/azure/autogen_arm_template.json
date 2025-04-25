@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.34.1.11899",
-      "templateHash": "3180323640814036703"
+      "version": "0.33.93.31351",
+      "templateHash": "14741729812904551283"
     }
   },
   "functions": [
@@ -524,6 +524,18 @@
       "metadata": {
         "description": "whether to use ipv6"
       }
+    },
+    "enable_vm_nat": {
+      "type": "bool",
+      "metadata": {
+        "description": "whether to enable network outbound access"
+      }
+    },
+    "source_address_prefixes": {
+      "type": "array",
+      "metadata": {
+        "description": "The source IP address prefixes allowed in NSG"
+      }
     }
   },
   "variables": {
@@ -567,7 +579,11 @@
             "input": {
               "name": "[format('{0}{1}', parameters('subnet_prefix'), range(0, parameters('subnet_count'))[copyIndex('subnets')])]",
               "properties": {
-                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]"
+                "addressPrefixes": "[concat(createArray(format('10.0.{0}.0/24', range(0, parameters('subnet_count'))[copyIndex('subnets')])), if(parameters('use_ipv6'), createArray(format('2001:db8:{0}::/64', range(0, parameters('subnet_count'))[copyIndex('subnets')])), createArray()))]",
+                "defaultOutboundAccess": "[parameters('enable_vm_nat')]",
+                "networkSecurityGroup": {
+                  "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg', toLower(parameters('virtual_network_name'))))]"
+                }
               }
             }
           }
@@ -575,6 +591,60 @@
         "addressSpace": {
           "addressPrefixes": "[concat(createArray('10.0.0.0/16'), if(parameters('use_ipv6'), createArray('2001:db8::/32'), createArray()))]"
         }
+      },
+      "dependsOn": [
+        "nsg"
+      ]
+    },
+    "nsg": {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}-nsg', toLower(parameters('virtual_network_name')))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "LISASSH",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "22",
+              "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "LISAKVMSSH",
+            "properties": {
+              "description": "Allows nested VM SSH traffic",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "60020-60030",
+              "destinationAddressPrefix": "*",
+              "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+              "access": "Allow",
+              "priority": 206,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "LISALIBVIRTSSH",
+            "properties": {
+              "description": "Allows SSH traffic to Libvirt Platform Guests",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "49152-49352",
+              "destinationAddressPrefix": "*",
+              "sourceAddressPrefixes": "[parameters('source_address_prefixes')]",
+              "access": "Allow",
+              "priority": 208,
+              "direction": "Inbound"
+            }
+          }
+        ]
       }
     },
     "availability_set": {
@@ -600,11 +670,11 @@
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]",
       "properties": {
-        "publicIPAllocationMethod": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Static', 'Dynamic')]",
+        "publicIPAllocationMethod": "Static",
         "ipTags": "[if(empty(variables('ip_tags')), null(), variables('ip_tags'))]"
       },
       "sku": {
-        "name": "[if(or(parameters('is_ultradisk'), variables('use_availability_zones')), 'Standard', 'Basic')]"
+        "name": "Standard"
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]"
     },
@@ -816,8 +886,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.34.1.11899",
-              "templateHash": "12853422832965079706"
+              "version": "0.33.93.31351",
+              "templateHash": "2335646842987786457"
             }
           },
           "functions": [

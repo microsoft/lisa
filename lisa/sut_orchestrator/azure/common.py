@@ -1208,6 +1208,8 @@ class AzureArmParameter:
     subnet_prefix: str = AZURE_SUBNET_PREFIX
     is_ultradisk: bool = False
     use_ipv6: bool = False
+    enable_vm_nat: bool = False
+    source_address_prefixes: List[str] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         add_secret(self.admin_username, PATTERN_HEADTAIL)
@@ -1925,6 +1927,7 @@ def copy_vhd_to_storage(
                     platform=platform,
                 )
                 dst_vhd_sas_url = f"{full_vhd_path}?{sas_token}"
+                add_secret(dst_vhd_sas_url, PATTERN_URL)
                 log.info(f"Copying VHD using AzCopy: {dst_vhd_name}")
                 copy_vhd_using_azcopy(
                     azcopy_path=azcopy_path,
