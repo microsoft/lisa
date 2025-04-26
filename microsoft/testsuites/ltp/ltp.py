@@ -107,17 +107,17 @@ class Ltp(Tool):
         rm = self.node.tools[Rm]
 
         # remove skipfile if it exists
-        if ls.path_exists(self.LTP_SKIP_FILE, sudo=sudo):
+        if ls.path_exists(self.LTP_SKIP_FILE):
             self._log.debug(f"Removing skipfile: {self.LTP_SKIP_FILE}")
             rm.remove_file(self.LTP_SKIP_FILE, sudo=sudo)
 
         # remove results file if it exists
-        if ls.path_exists(self.LTP_RESULT_PATH, sudo=sudo):
+        if ls.path_exists(self.LTP_RESULT_PATH):
             self._log.debug(f"Removing {self.LTP_RESULT_PATH}")
             rm.remove_file(self.LTP_RESULT_PATH, sudo=sudo)
 
         # remove output file if it exists
-        if ls.path_exists(self.LTP_OUTPUT_PATH, sudo=sudo):
+        if ls.path_exists(self.LTP_OUTPUT_PATH):
             self._log.debug(f"Removing {self.LTP_OUTPUT_PATH}")
             rm.remove_file(self.LTP_OUTPUT_PATH, sudo=sudo)
 
@@ -379,10 +379,10 @@ class Ltp(Tool):
 
             copy = self.node.tools[RemoteCopy]
             copy.copy_to_remote(
-                PurePath(self._source_file), remote_source_folder, sudo=sudo
+                PurePath(self._source_file), remote_source_folder, sudo=False
             )
             self.node.tools[Tar].extract(
-                str(remote_source_file), top_src_dir, strip_components=1, sudo=sudo
+                str(remote_source_file), top_src_dir, strip_components=1
             )
 
             ltp_path = self.node.get_pure_path(top_src_dir)
@@ -399,12 +399,12 @@ class Ltp(Tool):
         make = self.node.tools[Make]
         # uploaded release ltp.tar.xz don't need autoreconf
         if not self._source_file:
-            self.node.execute("autoreconf -f", cwd=ltp_path, sudo=True)
-            make.make("autotools", cwd=ltp_path, sudo=True)
+            self.node.execute("autoreconf -f", cwd=ltp_path)
+            make.make("autotools", cwd=ltp_path)
         # build ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
-        self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path, sudo=sudo)
-        make.make("all", cwd=ltp_path, sudo=sudo, timeout=self.COMPILE_TIMEOUT)
+        self.node.execute("./configure --prefix=/opt/ltp", cwd=ltp_path)
+        make.make("all", cwd=ltp_path, timeout=self.COMPILE_TIMEOUT)
 
         # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
         # on the remote system's sysroot
