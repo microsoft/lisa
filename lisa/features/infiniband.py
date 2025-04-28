@@ -173,7 +173,7 @@ class Infiniband(Feature):
         return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
 
     def setup_rdma(self) -> None:
-        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt") or node.tools[Ls].path_exists("/opt/azurehpc/component-versions"):
+        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt") or self._node.tools[Ls].path_exists("/opt/azurehpc/component-versions"):
             self.is_hpc_image = True
         else:
             self.install_ofed()
