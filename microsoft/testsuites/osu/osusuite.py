@@ -57,7 +57,7 @@ class OSUTestSuite(TestSuite):
         priority=2,
     )
     def perf_mpi_operations(self, node: Node, log: Logger, log_path: Path) -> None:
-        if node.tools[Ls].path_exists(path="/opt/azurehpc/component_versions*", sudo=True):
+        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
             _install_osu_mpi(node)
             path = _install_osu_bench(node)
 
