@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import AvailabilitySetEnabled, Infiniband, Sriov
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import BSD, CBLMariner, Windows
 from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import Find, KernelConfig, Ls, Modprobe, Ssh
 from lisa.util import (
@@ -286,6 +286,9 @@ class InfinibandSuite(TestSuite):
         client_ssh.enable_public_key(server_ssh.generate_key_pairs())
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
+        sudo=False
+        if isinstance(server_node.os, CBLMariner):
+            sudo=True
 
         # Note: Using bash because script is not supported by Dash
         # sh points to dash on Ubuntu
@@ -295,6 +298,7 @@ class InfinibandSuite(TestSuite):
             "-env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
             "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
             "/opt/intel/oneapi/mpi/2021.1.1/bin/IMB-MPI1 pingpong",
+            sudo=sudo,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed intra-node pingpong test "
             "with intel mpi",
@@ -306,6 +310,7 @@ class InfinibandSuite(TestSuite):
             "-env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
             "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
             "/opt/intel/oneapi/mpi/2021.1.1/bin/IMB-MPI1 pingpong",
+            sudo=sudo,
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed inter-node pingpong test "
             "with intel mpi",
@@ -319,6 +324,7 @@ class InfinibandSuite(TestSuite):
                 "-n 44 -env I_MPI_FABRICS=shm:ofi -env SECS_PER_SAMPLE=600 "
                 "-env FI_PROVIDER=mlx -env I_MPI_DEBUG=5 -env I_MPI_PIN_DOMAIN=numa "
                 f"/opt/intel/oneapi/mpi/2021.1.1/bin/{test}",
+                sudo=sudo,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test with intel mpi",
                 timeout=3000,
@@ -360,9 +366,12 @@ class InfinibandSuite(TestSuite):
             raise SkippedException(err)
 
         run_in_parallel([server_ib.install_open_mpi, client_ib.install_open_mpi])
-
         server_node.execute("ldconfig", sudo=True)
         client_node.execute("ldconfig", sudo=True)
+
+        # Only for mariner, we need to build intel benchmarking tools 
+        # as they are not included in our packages
+        server_ib.install_intel_mpi_benchmarking_tool()
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
         # to take effect
@@ -386,7 +395,7 @@ class InfinibandSuite(TestSuite):
         # Ping Pong test
         find = server_node.tools[Find]
         find_results = find.find_files(
-            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
+            server_node.get_pure_path("/"), "IMB-MPI1", sudo=True
         )
         assert_that(len(find_results)).described_as(
             "Could not find location of IMB-MPI1 for Open MPI"
@@ -407,7 +416,7 @@ class InfinibandSuite(TestSuite):
 
         # IMB-MPI Tests
         find_results = find.find_files(
-            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
+            server_node.get_pure_path("/"), "IMB-MPI1", sudo=True
         )
         assert_that(len(find_results)).described_as(
             "Could not find location of Open MPI test: IMB-MPI1"
@@ -417,7 +426,7 @@ class InfinibandSuite(TestSuite):
             "Could not find location of Open MPI test: IMB-MPI1"
         ).is_not_empty()
         server_node.execute(
-            f"/usr/local/bin/mpirun --host {server_ip},{client_ip} "
+            f"/usr/local/bin/mpirun -hosts {server_ip},{client_ip} "
             "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
             "--mca btl_openib_allow_ib 1 --mca "
             f"btl_openib_warn_no_device_params_found 0 {test_path}",
@@ -571,6 +580,12 @@ class InfinibandSuite(TestSuite):
             raise SkippedException(err)
 
         run_in_parallel([server_ib.install_mvapich_mpi, client_ib.install_mvapich_mpi])
+        test_names = ["IMB-MPI1", "IMB-RMA", "IMB-NBC"]
+        # Only for mariner, we need to build intel benchmarking tools 
+        # as they are not included in our packages
+        server_ib.install_intel_mpi_benchmarking_tool(tool_names=test_names)
+
+        server_node.execute("ldconfig", sudo=True)
 
         # Restart the ssh sessions for changes to /etc/security/limits.conf
         # to take effect
@@ -590,13 +605,15 @@ class InfinibandSuite(TestSuite):
         client_ssh.enable_public_key(server_ssh.generate_key_pairs())
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
+        sudo=False
+        if isinstance(server_node.os, CBLMariner):
+            sudo=True
 
         # Run MPI tests
         find = server_node.tools[Find]
-        test_names = ["IMB-MPI1", "IMB-RMA", "IMB-NBC"]
         for test in test_names:
             find_results = find.find_files(
-                server_node.get_pure_path("/usr"), test, sudo=True
+                server_node.get_pure_path("/"), test, sudo=True
             )
             assert_that(len(find_results)).described_as(
                 f"Could not find location of MVAPICH MPI test: {test}"
@@ -611,6 +628,7 @@ class InfinibandSuite(TestSuite):
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"Failed {test} test "
                 "with MVAPICH MPI",
+                sudo=sudo
             )
 
     def _check_nd_enabled(self, node: Node) -> None:
