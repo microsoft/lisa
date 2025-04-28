@@ -11,8 +11,8 @@ from retry import retry
 from lisa.base_tools import Cat, Sed, Uname, Wget
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import CBLMariner, Oracle, Redhat, Ubuntu
-from lisa.tools import Firewall, Ls, Lspci, Make, Service
+from lisa.operating_system import CBLMariner, CpuArchitecture, Oracle, Redhat, Ubuntu
+from lisa.tools import Firewall, Ls, Lscpu, Lspci, Make, Service
 from lisa.tools.tar import Tar
 from lisa.util import (
     LisaException,
@@ -173,7 +173,9 @@ class Infiniband(Feature):
         return cat.read(f"/sys/class/infiniband/{ib_device_name}/ports/1/pkeys/0")
 
     def setup_rdma(self) -> None:
-        if not self.is_hpc_image:
+        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
+            self.is_hpc_image = True
+        else:
             self.install_ofed()
 
         node = self._node
@@ -209,6 +211,8 @@ class Infiniband(Feature):
     def _install_dependencies(self) -> None:
         node = self._node
         os_version = node.os.information.release.split(".")
+        lscpu = node.tools[Lscpu]
+        arch = lscpu.get_architecture()
         # Dependencies
         kernel = node.tools[Uname].get_linux_information().kernel_version_raw
         ubuntu_required_packages = [
@@ -244,11 +248,14 @@ class Infiniband(Feature):
             "dkms",
             "python3-setuptools",
             "g++",
-            "libc6-i386",
             "cloud-init",
             "walinuxagent",
             "net-tools",
         ]
+        if arch == CpuArchitecture.ARM64:
+            ubuntu_required_packages.append("libc6-armhf-cross")
+        else:
+            ubuntu_required_packages.append("libc6-i386")
         redhat_required_packages = [
             "gtk2",
             "atk",
@@ -321,12 +328,17 @@ class Infiniband(Feature):
                     )
                     node.os.install_packages("kernel-devel")
         elif isinstance(node.os, Ubuntu) and node.os.information.version >= "18.4.0":
-            for package in [
-                "lib32gcc-9-dev",
+            check_package = [
                 "python3-dev",
-                "lib32gcc-8-dev",
                 "python-dev",
-            ]:
+            ]
+            if arch == CpuArchitecture.ARM64:
+                check_package.append("lib32gcc-9-dev")
+                check_package.append("libgcc-8-dev")
+            else:
+                check_package.append("lib32gcc-9-dev")
+                check_package.append("lib32gcc-8-dev")
+            for package in check_package:
                 if node.os.is_package_in_repo(package):
                     ubuntu_required_packages.append(package)
             node.os.install_packages(ubuntu_required_packages)
