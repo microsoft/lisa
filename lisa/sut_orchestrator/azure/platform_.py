@@ -642,6 +642,11 @@ class AzurePlatform(Platform):
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)
         resource_group_name = environment_context.resource_group_name
+
+        if True:
+            log.debug(f"Skipping RG Deletion as part of this Branch and Testing..")
+            return
+
         # the resource group name is empty when it is not deployed for some reasons,
         # like capability doesn't meet case requirement.
         if not resource_group_name:
