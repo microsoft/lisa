@@ -14,6 +14,7 @@ from lisa import (
     TcpConnectionException,
     TestCaseMetadata,
     TestSuite,
+    features,
     TestSuiteMetadata,
     create_timer,
     schema,
@@ -70,6 +71,8 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
+            min_count=2,
+            network_interface=features.Sriov(),
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
