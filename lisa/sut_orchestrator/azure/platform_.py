@@ -966,7 +966,7 @@ class AzurePlatform(Platform):
         if self._azure_runbook.source_address_prefixes:
             self._cached_ip_address = self._azure_runbook.source_address_prefixes
         else:
-            self._cached_ip_address = [get_public_ip()]
+            self._cached_ip_address = [get_public_ip() + "/32"]
         return self._cached_ip_address
 
     def _initialize_credential(self) -> None:
