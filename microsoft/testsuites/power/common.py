@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import re
 from decimal import Decimal
 from typing import cast
 
@@ -19,15 +18,10 @@ from lisa.tools import (
     KernelConfig,
     Kill,
     Lscpu,
-    Mount,
+    ResizePartition,
 )
 from lisa.tools.hwclock import Hwclock
-from lisa.util import (
-    LisaException,
-    SkippedException,
-    UnsupportedDistroException,
-    find_group_in_lines,
-)
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
 
@@ -59,7 +53,8 @@ def verify_hibernation(
         # In case of LVM enabled Redhat images, increasing the os disk size
         # does not increase the root partition. It requires growpart to grow the
         # partition size.
-        _expand_os_partition(node, log)
+        resize = node.tools[ResizePartition]
+        resize.expand_os_partition()
     hibernation_setup_tool = node.tools[HibernationSetup]
     startstop = node.features[StartStop]
     cat = node.tools[Cat]
@@ -219,37 +214,3 @@ def cleanup_env(environment: Environment) -> None:
         kill.by_name("iperf3")
         kill.by_name("fio")
         kill.by_name("stress-ng")
-
-
-def _expand_os_partition(node: Node, log: Logger) -> None:
-    if isinstance(node.os, Redhat):
-        pv_result = node.execute("pvscan -s", sudo=True, shell=True).stdout
-        # The output of pvscan -s is like below.:
-        #  /dev/sda4
-        #  Total: 1 [299.31 GiB] / in use: 1 [299.31 GiB] / in no VG: 0 [0   ]
-        pattern = re.compile(r"(?P<disk>.*)(?P<number>[\d]+)$", re.M)
-        matched = find_group_in_lines(pv_result, pattern)
-        if not matched:
-            log.debug("No physical volume found. Does not require partition resize.")
-            return
-        disk = matched.get("disk")
-        number = matched.get("number")
-        node.execute(f"growpart {disk} {number}", sudo=True)
-        node.execute(f"pvresize {pv_result.splitlines()[0]}", sudo=True)
-        root_partition = node.tools[Mount].get_partition_info("/")[0]
-        device_name = root_partition.name
-        device_type = root_partition.type
-        cmd_result = node.execute(f"lvdisplay {device_name}", sudo=True)
-        if cmd_result.exit_code == 0:
-            node.execute(f"lvextend -l 100%FREE {device_name}", sudo=True, shell=True)
-            if device_type == "xfs":
-                node.execute(f"xfs_growfs {device_name}", sudo=True)
-            elif device_type == "ext4":
-                node.execute(f"resize2fs {device_name}", sudo=True)
-            else:
-                raise LisaException(f"Unknown partition type: {device_type}")
-        else:
-            log.debug("No LV found. Does not require LV resize.")
-            return
-    else:
-        raise UnsupportedDistroException(node.os, "OS Partition Resize not supported")

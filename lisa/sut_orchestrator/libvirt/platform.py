@@ -38,6 +38,7 @@ from lisa.tools import (
     Ls,
     Mkdir,
     QemuImg,
+    ResizePartition,
     Sed,
     Service,
     Uname,
@@ -398,6 +399,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         try:
             self._create_nodes(environment, log)
             self._fill_nodes_metadata(environment, log)
+            self._expand_nodes_os_partition(environment, log)
 
         except Exception as ex:
             assert environment.platform
@@ -1444,3 +1446,13 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
             with open(str(libvirt_log_local_path), "w") as f:
                 f.write(libvirt_log)
+
+    def _expand_nodes_os_partition(self, environment: Environment, log: Logger) -> None:
+        for node in environment.nodes.list():
+            # In some cases, we observe that resize vhd resizes the entire disk
+            # but fails to expand the partition size.
+            log.debug(
+                f"Expanding os parition for: node: {node.name}, os: {node.os.name}"
+            )
+            resize = node.tools[ResizePartition]
+            resize.expand_os_partition()
