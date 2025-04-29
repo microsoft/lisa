@@ -282,17 +282,6 @@ def perf_ntttcp(  # noqa: C901
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
 
-    # Setting ethtool rx to 1024
-    server_ethtool = server.tools[Ethtool]
-    # before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
-    # server.log.debug(f"Ring Buffer Values before: {before_val}")
-    server_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
-    # after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
-    # server.log.debug(f"Ring Buffer Values after: {after_val}")
-    
-    client_ethtool = client.tools[Ethtool]
-    client_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
-
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
@@ -368,6 +357,17 @@ def perf_ntttcp(  # noqa: C901
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
         ] = []
+        
+        # Setting ethtool rx to 1024
+        server_ethtool = server.tools[Ethtool]
+        # before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
+        # server.log.debug(f"Ring Buffer Values before: {before_val}")
+        server_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
+        # after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
+        # server.log.debug(f"Ring Buffer Values after: {after_val}")
+        client_ethtool = client.tools[Ethtool]
+        client_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
+
         for test_thread in connections:
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
