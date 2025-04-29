@@ -50,7 +50,11 @@ class InfinibandSuite(TestSuite):
         ),
     )
     def verify_ib_naming(self, log: Logger, node: Node) -> None:
-        if node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt") or node.tools[Ls].path_exists(path="/opt/azurehpc/component-versions", sudo=True):
+        if node.tools[Ls].path_exists(
+            path="/opt/azurehpc/component_versions.txt", sudo=True
+        ) or node.tools[Ls].path_exists(
+            path="/opt/azurehpc/component-versions", sudo=True
+        ):
             ib_interfaces = node.features[Infiniband].get_ib_interfaces()
             ib_first_device_name = [x.nic_name for x in ib_interfaces]
 
