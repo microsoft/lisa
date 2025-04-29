@@ -333,7 +333,7 @@ class Infiniband(Feature):
                 "python-dev",
             ]
             if arch == CpuArchitecture.ARM64:
-                check_package.append("lib32gcc-9-dev")
+                check_package.append("libgcc-9-dev")
                 check_package.append("libgcc-8-dev")
             else:
                 check_package.append("lib32gcc-9-dev")
