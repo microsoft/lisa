@@ -31,7 +31,7 @@ from azure.mgmt.compute.models import (
     VirtualMachineImage,
 )
 from azure.mgmt.marketplaceordering.models import AgreementTerms  # type: ignore
-from azure.mgmt.resource import SubscriptionClient  # type: ignore
+from azure.mgmt.resource import FeatureClient, SubscriptionClient  # type: ignore
 from azure.mgmt.resource.resources.models import (  # type: ignore
     Deployment,
     DeploymentMode,
@@ -943,6 +943,7 @@ class AzurePlatform(Platform):
         self.cloud = azure_runbook.cloud
         self.resource_group_managed_by = azure_runbook.resource_group_managed_by
         self._cached_ip_address: List[str] = []
+        self._cached_byoip_registered: Optional[bool] = None
 
         self._initialize_credential()
 
@@ -1145,6 +1146,8 @@ class AzurePlatform(Platform):
             arm_parameters.availability_options,
             availability_copied_fields,
         )
+        if self._is_byoip_feature_registered():
+            arm_parameters.ip_service_tags["FirstPartyUsage"] = "/SyntheticLoad"
 
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
@@ -2966,6 +2969,23 @@ class AzurePlatform(Platform):
         convert_to_azure_node_space(node_space)
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
+
+    def _is_byoip_feature_registered(self) -> bool:
+        if self._cached_byoip_registered is not None:
+            return self._cached_byoip_registered
+        try:
+            feature_client = FeatureClient(self.credential, self.subscription_id)
+            resource_provider = "Microsoft.Network"
+            feature_name = "AllowBringYourOwnPublicIpAddress"
+            feature = feature_client.features.get(resource_provider, feature_name)
+            state = feature.properties.state.lower()
+            self._cached_byoip_registered = state == "registered"
+            self._log.debug(f"Got BYOIP feature state: {state}")
+            assert isinstance(self._cached_byoip_registered, bool)
+        except Exception as e:
+            self._log.debug(f"Failed to check BYOIP feature: {e}")
+            self._cached_byoip_registered = False
+        return self._cached_byoip_registered
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
