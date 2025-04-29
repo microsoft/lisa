@@ -87,23 +87,73 @@ class Dhclient(Tool):
         return value
 
     def renew(self, interface: str = "") -> None:
+        # Determine the appropriate option based on the command
+        if "dhclient" in self._command:
+            option = "-r"
+        elif "dhcpcd" in self._command:
+            option = "-k"
+        else:
+            raise ValueError(f"Unsupported command: {self._command}")
+
+        # If an interface is provided, use it; otherwise, use the default interface
         if interface:
-            result = self.run(
-                f"-r {interface} && dhclient {interface}",
+            self._log.debug(f"Releasing IP for interface {interface} using {option}")
+            release_result = self.run(
+                f" {option} {interface}",
                 shell=True,
                 sudo=True,
                 force_run=True,
+            )
+            if release_result.exit_code == 0:
+                self._log.debug(f"Successfully released IP for interface {interface}")
+            else:
+                self._log.warning(
+                    f"Failed to release IP for interface {interface}: "
+                    f"{release_result.stdout}"
+                )
+            self._log.debug(
+                f"Assigning IP to interface {interface} using {self._command}"
+            )
+            assign_result = self.run(
+                f" {interface}",
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
+            assign_result.assert_exit_code(
+                0,
+                f"{self._command} failed to assign IP to {interface}: "
+                f"{assign_result.stdout}",
             )
         else:
-            result = self.run(
-                "-r && dhclient",
+            # If no interface is provided, execute the command globally
+            self._log.debug(f"Executing {self._command} globally with option {option}")
+            release_result = self.run(
+                f" {option}",
                 shell=True,
                 sudo=True,
                 force_run=True,
             )
-        result.assert_exit_code(
-            0, f"dhclient renew return non-zero exit code: {result.stdout}"
-        )
+            if release_result.exit_code == 0:
+                self._log.debug(
+                    f"Successfully executed {self._command} for all interfaces"
+                )
+            else:
+                self._log.warning(
+                    f"Failed to execute {self._command} for all interfaces: "
+                    f"{release_result.stdout}"
+                )
+            assign_result = self.run(
+                "",
+                shell=True,
+                sudo=True,
+                force_run=True,
+            )
+            assign_result.assert_exit_code(
+                0,
+                f"{self._command} failed to assign IPs to all interfaces: "
+                f"{assign_result.stdout}",
+            )
 
 
 class DhclientFreeBSD(Dhclient):
