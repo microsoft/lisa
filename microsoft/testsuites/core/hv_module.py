@@ -207,42 +207,58 @@ class HvModule(TestSuite):
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
         # Constants
-        module = "hv_netvsc"
-        loop_count = 100
+        # skip_reason_record = {"built-in": [], "in-use": []}
+        skip_reason_record = {"in-use": []}
+        # hv_modules = ["hv_vmbus", "hv_netvsc", "hv_storvsc", "hv_utils", "hv_balloon", "hid_hyperv", "hyperv_keyboard", "hyperv_fb"]
+        hv_modules = self._get_not_built_in_modules(node)
+        for module in hv_modules:
+            # module = "hv_netvsc"
+            loop_count = 100
 
-        if isinstance(node.os, Redhat):
-            try:
-                log.debug("Checking LIS installation before reload.")
-                node.tools.get(LisDriver)
-            except Exception:
-                log.debug("Updating LIS failed. Moving on to attempt reload.")
+            if isinstance(node.os, Redhat):
+                try:
+                    log.debug("Checking LIS installation before reload.")
+                    node.tools.get(LisDriver)
+                except Exception:
+                    log.debug("Updating LIS failed. Moving on to attempt reload.")
 
-        if module not in self._get_not_built_in_modules(node):
-            raise SkippedException(
-                f"{module} is loaded statically into the "
-                "kernel and therefore can not be reloaded"
+            # if module not in self._get_not_built_in_modules(node):
+            #     log.info(f"Module {module} is built-in")
+            #     skip_reason_record["built-in"].append(module)
+            #     continue
+            #     # raise SkippedException(
+            #     #     f"{module} is loaded statically into the "
+            #     #     "kernel and therefore can not be reloaded"
+            #     # )
+
+            result = node.execute(
+                ("for i in $(seq 1 %i); do " % loop_count)
+                + f"modprobe -r -v {module}; modprobe -v {module}; "
+                "done; sleep 1; "
+                "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
+                sudo=True,
+                shell=True,
             )
 
-        result = node.execute(
-            ("for i in $(seq 1 %i); do " % loop_count)
-            + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
-            sudo=True,
-            shell=True,
-        )
+            if "is in use" in result.stdout:
+                log.info(f"Module {module} is in use")
+                skip_reason_record["in-use"].append(module)
+                continue
+                # raise SkippedException(
+                #     f"Module {module} is in use so it cannot be reloaded"
+                # )
 
-        if "is in use" in result.stdout:
-            raise SkippedException(
-                f"Module {module} is in use so it cannot be reloaded"
-            )
-
-        assert_that(result.stdout.count("rmmod")).described_as(
-            f"Expected {module} to be removed {loop_count} times"
-        ).is_equal_to(loop_count)
-        assert_that(result.stdout.count("insmod")).described_as(
-            f"Expected {module} to be inserted {loop_count} times"
-        ).is_equal_to(loop_count)
+            for reason in skip_reason_record:
+                for module in skip_reason_record[reason]:
+                    log.info(
+                        f"Module {module} is skipped because it is {reason}."
+                    )
+            assert_that(result.stdout.count("rmmod")).described_as(
+                f"Expected {module} to be removed {loop_count} times"
+            ).is_equal_to(loop_count)
+            assert_that(result.stdout.count("insmod")).described_as(
+                f"Expected {module} to be inserted {loop_count} times"
+            ).is_equal_to(loop_count)
 
     def _get_not_built_in_modules(self, node: Node) -> List[str]:
         """
