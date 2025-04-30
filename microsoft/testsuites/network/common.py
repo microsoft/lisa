@@ -78,7 +78,7 @@ def sriov_basic_test(environment: Environment) -> None:
         ).is_length(len(set(node.nics.get_device_slots())))
 
         # 2. Check module of sriov network device is loaded.
-        for module_name in node.nics.get_used_modules(["hv_netvsc"]):
+        for module_name in node.nics.get_used_modules(["Mana"]):
             if node.nics.is_module_reloadable(module_name):
                 assert_that(node.nics.module_exists(module_name)).described_as(
                     "The module of sriov network device isn't loaded."
