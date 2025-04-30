@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from typing import Any
 
 from assertpy import assert_that
@@ -14,7 +15,19 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import Posix
+from lisa.testsuite import DebugHandler
 from lisa.tools import Echo, Uname
+
+
+class customDebugHandler(DebugHandler):
+    def __init__(self) -> None:
+        super().__init__()
+        print("==>>>> debugHandler: _add_before_test_run")
+        super()._add_before_test_run("date")
+        print("==>>>> debugHandler: _add_while_test_run")
+        super()._add_while_test_run("free -m")
+        print("==>>>> debugHandler: _add_after_test_run")
+        super()._add_after_test_run("date")
 
 
 @TestSuiteMetadata(
@@ -35,6 +48,7 @@ class HelloWorld(TestSuite):
         """,
         priority=0,
         use_new_environment=True,
+        debug_handler=customDebugHandler(),
     )
     def hello(self, node: Node, log: Logger) -> None:
         if node.os.is_posix:
@@ -49,6 +63,13 @@ class HelloWorld(TestSuite):
         else:
             log.info("windows operating system")
 
+        for i in range(20):
+            temp = node.execute("uname -a; sleep 5;", shell=True).stdout
+            print(f"running testcase workload: {temp}")
+            time.sleep(1)
+            if i > 5:
+                raise Exception("Check the failed flow too")
+
         # get process output directly.
         echo = node.tools[Echo]
         hello_world = "hello world!"
@@ -62,6 +83,7 @@ class HelloWorld(TestSuite):
         demonstrate a simple way to run command in one line.
         """,
         priority=1,
+        # debug_handler=customDebugHandler(),
     )
     def bye(self, node: Node) -> None:
         node.tools.get(Echo)  # Ensure echo is in cache

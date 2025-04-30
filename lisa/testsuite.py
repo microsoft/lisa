@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import copy
 import logging
+import threading
+import time
 import traceback
 from dataclasses import dataclass, field
 from functools import wraps
@@ -513,6 +515,92 @@ def simple_requirement(
 DEFAULT_REQUIREMENT = simple_requirement()
 
 
+@dataclass
+class DebugHandlerSchema:
+    pre_testrun_cmd: list = field(default_factory=list)
+    while_testrun_cmd: list = field(default_factory=list)
+    post_testrun_cmd: list = field(default_factory=list)
+    env: Environment = None
+    interval = 2
+
+
+class PeriodicCommandThread(threading.Thread):
+    def __init__(self, cmd_list: list, interval: int, node: Any):
+        super().__init__(daemon=True)
+        self.cmd = cmd_list
+        self.interval = interval
+        self.node = node
+        self._stop_event = threading.Event()
+
+    def run(self):
+        while not self._stop_event.is_set():
+            try:
+                for cmd in self.cmd:
+                    print("WHILE THREAD ==>", self.node.name, cmd)
+                    self.node.execute(cmd, sudo=True)
+            except Exception as e:
+                print(f"Error running command: {e}")
+            time.sleep(self.interval)
+
+    def stop(self):
+        self._stop_event.set()
+
+
+class DebugHandler:
+    def __init__(self) -> None:
+        self.info = DebugHandlerSchema()
+        self._worker_threads = []
+
+    def _add_before_test_run(self, cmd) -> None:
+        self.info.pre_testrun_cmd += [cmd]
+
+    def _add_while_test_run(self, cmd, interval=2) -> None:
+        self.info.while_testrun_cmd += [cmd]
+        self.info.interval = interval
+
+    def _add_after_test_run(self, cmd) -> None:
+        self.info.post_testrun_cmd += [cmd]
+
+    def _before_test_run(self) -> None:
+        print(f"_before_test_run: {self.info.pre_testrun_cmd}")
+        for node in self.info.env.nodes.list():
+            for command in self.info.pre_testrun_cmd:
+                node.execute(command)
+
+    def _while_test_run(self) -> None:
+        print(f"_while_test_run: {self.info.while_testrun_cmd}")
+        self._start_worker_threads_for_nodes()
+
+    def _after_test_run(self) -> None:
+        self._stop_worker_threads_for_nodes()
+        print(f"_after_test_run: {self.info.post_testrun_cmd}")
+        for node in self.info.env.nodes.list():
+            for command in self.info.post_testrun_cmd:
+                node.execute(command)
+
+    def _set_metadata(self, env) -> None:
+        self.info.env = env
+        for node in self.info.env.nodes.list():
+            print(f"node: {node.name}")
+
+    def _start_worker_threads_for_nodes(self) -> None:
+        for node in self.info.env.nodes.list():
+            thread = PeriodicCommandThread(
+                cmd_list=self.info.while_testrun_cmd,
+                interval=self.info.interval,
+                node=node,
+            )
+            thread.start()
+            self._worker_threads.append(thread)
+
+    def _stop_worker_threads_for_nodes(self) -> None:
+        for thread in self._worker_threads:
+            print(f"Clearing thread {thread}")
+            thread.stop()
+            thread.join()
+        self._worker_threads.clear()
+
+
 class TestSuiteMetadata:
     def __init__(
         self,
@@ -566,6 +654,7 @@ class TestCaseMetadata:
         use_new_environment: bool = False,
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
+        debug_handler: DebugHandler = None,
     ) -> None:
         self.suite: TestSuiteMetadata
 
@@ -577,6 +666,7 @@ class TestCaseMetadata:
             self.requirement = requirement
 
         self._owner = owner
+        self.debug_handler = debug_handler
 
     def __getattr__(self, key: str) -> Any:
         # return attributes of test suite, if it's not redefined in case level
@@ -597,7 +687,15 @@ class TestCaseMetadata:
             for name in kwargs.keys():
                 if name in func.__annotations__:
                     parameters[name] = kwargs[name]
-            func(*args, **parameters)
+            if self.debug_handler:
+                self.debug_handler._set_metadata(kwargs["environment"])
+                self.debug_handler._before_test_run()
+                self.debug_handler._while_test_run()
+            try:
+                func(*args, **parameters)
+            finally:
+                if self.debug_handler:
+                    self.debug_handler._after_test_run()
 
         return wrapper
 
