@@ -281,6 +281,7 @@ class Ltp(Tool):
                 [
                     "kernel-headers",
                     "binutils",
+                    "diffutils",
                     "glibc-devel",
                     "zlib-devel",
                 ]
