@@ -82,7 +82,7 @@ def _create_cloud_init_iso(
         "ssh_pwauth": True,
         "growpart": {
             "mode": "auto",
-            "devices": ["/dev/sda"],
+            "devices": ["/dev/sda1"],
             "fixup_filesystem": True,
         },
     }
