@@ -22,12 +22,15 @@ def initialize_nic_info(
         interfaces_info_list: List[
             IpInfo
         ] = network_interface_feature.get_all_primary_nics_ip_info()
+        print(f"interfaces_info_list: {interfaces_info_list}")
         if is_sriov:
             sriov_count = network_interface_feature.get_nic_count()
+            print(f"vm sriov count: {sriov_count}")
             assert_that(sriov_count).described_as(
                 f"there is no sriov nic attached to VM {node.name}"
             ).is_greater_than(0)
         nics_info = node.nics
+        print(f"nics_info: {nics_info}")
         nics_info.reload()
         found_ip = False
         for interface_info in interfaces_info_list:
