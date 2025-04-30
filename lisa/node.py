@@ -145,6 +145,18 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
                     self.log.debug(
                         "node doesn't support sudo, may cause failure later."
                     )
+
+                process = self._execute(
+                    "sudo /bin/sh -c ls", shell=True, no_info_log=True
+                )
+                result = process.wait_result(10)
+                if result.exit_code == 0:
+                    self._support_sudo = True
+                else:
+                    self._support_sudo = False
+                    self.log.debug(
+                        "node doesn't support sudo /bin/sh, may cause failure later."
+                    )
             else:
                 # set Windows to true to ignore sudo asks.
                 self._support_sudo = True
