@@ -126,6 +126,7 @@ class SnpGuest(Tool):
     _snpguest_repo = "https://github.com/virtee/snpguest"
     cmd_path: PurePath
     repo_root: PurePath
+    branch = "v0.8.3"
 
     @property
     def command(self) -> str:
@@ -150,7 +151,7 @@ class SnpGuest(Tool):
             self.node.os.install_packages(["perl", "tpm2-tss-devel"])
         tool_path = self.get_tool_path(use_global=True)
         git = self.node.tools[Git]
-        git.clone(self._snpguest_repo, tool_path)
+        git.clone(self._snpguest_repo, tool_path, ref=self.branch)
 
         cargo = self.node.tools[Cargo]
         cargo.build(release=True, features="hyperv", sudo=False, cwd=self.repo_root)
