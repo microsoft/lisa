@@ -2965,6 +2965,8 @@ class Nvme(AzureFeatureMixin, features.Nvme):
         # https://docs.microsoft.com/en-us/azure/virtual-machines/acu
         if resource_sku.family.casefold() in [
             "standardlsv2family",
+            "standardlsv3family",
+            "standardlasv3family",
         ]:
             # refer https://docs.microsoft.com/en-us/azure/virtual-machines/lsv2-series # noqa: E501
             # NVMe disk count = vCPU / 8
