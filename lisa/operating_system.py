@@ -223,8 +223,7 @@ class OperatingSystem:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def capture_system_information(self, saved_path: Path) -> None:
-        ...
+    def capture_system_information(self, saved_path: Path) -> None: ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -388,10 +387,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         signed: bool = False,
         timeout: int = 1200,
         extra_args: Optional[List[str]] = None,
-        sudo: bool = True,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed, timeout, sudo, extra_args)
+        self._install_packages(package_names, signed, timeout, extra_args)
 
     def uninstall_packages(
         self,
@@ -540,7 +538,6 @@ class Posix(OperatingSystem, BaseClassMixin):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         raise NotImplementedError()
@@ -732,8 +729,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         return package_name
 
 
-class BSD(Posix):
-    ...
+class BSD(Posix): ...
 
 
 class BMC(Posix):
@@ -754,8 +750,7 @@ class MacOS(Posix):
         return re.compile("^Darwin$")
 
 
-class Linux(Posix):
-    ...
+class Linux(Posix): ...
 
 
 class CoreOs(Linux):
@@ -1053,7 +1048,6 @@ class Debian(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         file_packages = []
@@ -1448,7 +1442,6 @@ class FreeBSD(BSD):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         if self._first_time_installation:
@@ -1483,8 +1476,7 @@ class FreeBSD(BSD):
         )
 
 
-class OpenBSD(BSD):
-    ...
+class OpenBSD(BSD): ...
 
 
 @dataclass
@@ -1571,7 +1563,6 @@ class RPMDistro(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -1582,7 +1573,7 @@ class RPMDistro(Linux):
         self._node.execute(
             command,
             shell=True,
-            sudo=sudo,
+            sudo=True,
             timeout=timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message=f"Failed to install {packages}.",
@@ -1799,7 +1790,6 @@ class Redhat(Fedora):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -2108,7 +2098,6 @@ class Suse(Linux):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         add_args = self._process_extra_package_args(extra_args)
@@ -2256,7 +2245,6 @@ class SlMicro(Suse):
         packages: List[str],
         signed: bool = True,
         timeout: int = 600,
-        sudo: bool = True,
         extra_args: Optional[List[str]] = None,
     ) -> None:
         raise SkippedException(
