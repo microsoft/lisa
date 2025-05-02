@@ -915,7 +915,8 @@ class GuestNode(Node):
 
         self.capture_system_information("started")
 
-    def _provision(self) -> None: ...
+    def _provision(self) -> None:
+        ...
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -1200,7 +1201,8 @@ def quick_connect(
 
 class NodeHookSpec:
     @hookspec
-    def get_node_information(self, node: Node) -> Dict[str, str]: ...
+    def get_node_information(self, node: Node) -> Dict[str, str]:
+        ...
 
 
 class NodeHookImpl:
