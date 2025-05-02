@@ -62,11 +62,12 @@ class LtpTestsuite(TestSuite):
         result: TestResult,
     ) -> None:
         # parse variables
-        ltp_source_file = variables.get("ltp_source_file", "")
+        source_file = variables.get("ltp_source_file", "")
         tests = variables.get("ltp_test", "")
         skip_tests = variables.get("ltp_skip_test", "")
-        ltp_tests_git_tag = variables.get("ltp_tests_git_tag", "")
+        tests_git_tag = variables.get("ltp_tests_git_tag", "")
         ltp_run_timeout = variables.get("ltp_run_timeout", 12000)
+        binary_file = variables.get("ltp_binary_file", "")
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
@@ -83,7 +84,7 @@ class LtpTestsuite(TestSuite):
         else:
             skip_test_list = []
 
-        if not block_device:
+        if not block_device and not binary_file:
             mountpoint = node.find_partition_with_freespace(
                 self.LTP_REQUIRED_DISK_SIZE_IN_GB, use_os_drive=False, raise_error=False
             )
@@ -94,7 +95,10 @@ class LtpTestsuite(TestSuite):
 
         # run ltp lite tests
         ltp: Ltp = node.tools.get(
-            Ltp, git_tag=ltp_tests_git_tag, source_file=ltp_source_file
+            Ltp,
+            source_file=source_file,
+            binary_file=binary_file,
+            git_tag=tests_git_tag,
         )
         ltp.run_test(
             result,
