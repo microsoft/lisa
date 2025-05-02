@@ -907,7 +907,12 @@ class LisaRunner(BaseRunner):
         # entire lisa code to the test log folder for unittest.
         if is_unittest():
             return
-        assert environment.source_test_result
+        if not environment.source_test_result:
+            self._log.debug(
+                "No source test result found for environment log copy, "
+                "maybe it's failed when preparing the environment."
+            )
+            return
         environment_log_path = environment.log_path
         destination_path = os.path.join(
             test_result.get_case_log_path(), os.path.basename(environment_log_path)
