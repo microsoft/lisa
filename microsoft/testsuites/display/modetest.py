@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from typing import List, Type, Union
+
 from lisa.executable import Tool
-from lisa.operating_system import CpuArchitecture, Oracle, Redhat, Suse, Ubuntu
+from lisa.operating_system import SLES, CpuArchitecture, Oracle, Redhat, Suse, Ubuntu
 from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
 from lisa.util import UnsupportedDistroException
@@ -71,18 +73,22 @@ class Modetest(Tool):
         elif isinstance(self.node.os, Suse):
             arch = self.node.os.get_kernel_information().hardware_platform
             os_version = self.node.os.information.release.split(".")
-            self.node.os.install_packages(
-                (
-                    Gcc,
-                    "make",
-                    "autoconf",
-                    "automake",
-                    "libtool",
-                    "meson",
-                    "libpciaccess-devel",
-                    f"https://rpmfind.net/linux/opensuse/distribution/leap/{os_version[0]}.{os_version[1]}/repo/oss/{arch}/util-macros-devel-1.19.1-1.22.{arch}.rpm",  # noqa: E501
+            packages: List[Union[str, Tool, Type[Tool]]] = [
+                Gcc,
+                "make",
+                "autoconf",
+                "automake",
+                "libtool",
+                "meson",
+                "libpciaccess-devel",
+            ]
+            if isinstance(self.node.os, SLES):
+                packages.append("util-macros-devel")
+            else:
+                packages.append(
+                    f"https://rpmfind.net/linux/opensuse/distribution/leap/{os_version[0]}.{os_version[1]}/repo/oss/{arch}/util-macros-devel-1.19.1-1.22.{arch}.rpm"  # noqa: E501
                 )
-            )
+            self.node.os.install_packages(packages)
         else:
             raise UnsupportedDistroException(self.node.os)
 
