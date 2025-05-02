@@ -70,7 +70,6 @@ class LtpTestsuite(TestSuite):
         # block device is required for few ltp tests
         # If not provided, we will find a disk with enough space
         block_device = variables.get("ltp_block_device", None)
-        run_as_sudo = variables.get("ltp_run_as_sudo", True)
 
         # get comma separated list of tests
         if tests:
@@ -98,7 +97,6 @@ class LtpTestsuite(TestSuite):
             Ltp,
             git_tag=ltp_tests_git_tag,
             source_file=ltp_source_file,
-            sudo=run_as_sudo,
         )
         ltp.run_test(
             result,

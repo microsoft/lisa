@@ -76,7 +76,6 @@ class Ltp(Tool):
         self,
         node: Node,
         source_file: str = "",
-        sudo: bool = True,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -84,7 +83,6 @@ class Ltp(Tool):
         git_tag = kwargs.get("git_tag", "")
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
         self._source_file = source_file
-        self._run_as_sudo = sudo
 
     def run_test(
         self,
@@ -151,7 +149,6 @@ class Ltp(Tool):
 
         # run ltp tests
         command = f"{self.command} {parameters}"
-        self._log.debug("---ltp command:" + command)
         self.node.execute_async(
             f"echo y | {command}",
             sudo=True,
@@ -303,8 +300,6 @@ class Ltp(Tool):
             raise LisaException(f"{self.node.os} is not supported")
 
     def _install(self) -> bool:
-        self._log.debug(f"--- LTP [Install] self._run_as_sudo:{self._run_as_sudo}")
-        sudo = self._run_as_sudo
         self._install_dependencies()
 
         # Some CPU time is assigned to set real-time scheduler and it affects
@@ -346,7 +341,7 @@ class Ltp(Tool):
         sysctl = self.node.tools[Sysctl]
         sysctl.write("vm.dirty_ratio", "10")
         sysctl.write("vm.dirty_background_ratio", "5")
-        sysctl.run("-p", sudo=sudo)
+        sysctl.run("-p", sudo=True)
 
         # find partition to install ltp
         if self.node.type_name() == "local":

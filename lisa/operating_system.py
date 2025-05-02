@@ -1922,7 +1922,6 @@ class CBLMariner(RPMDistro):
         self._dnf_tool_name: str
 
     def _initialize_package_installation(self) -> None:
-        self._log.debug(f"--- CBLMariner, type_name: {self._node.type_name()}")
         if self._node.type_name() != "local":
             self.set_kill_user_processes()
 
