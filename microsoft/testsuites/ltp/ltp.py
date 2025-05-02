@@ -97,7 +97,6 @@ class Ltp(Tool):
         ltp_run_timeout: int = 12000,
         # run full test if True, else run lite test
         run_full_test: bool = False,
-        sudo: bool = True,
     ) -> List[LtpResult]:
         if not run_full_test:
             # ltp_tests cannot be empty

@@ -107,7 +107,6 @@ class LtpTestsuite(TestSuite):
             log_path,
             block_device=block_device,
             ltp_run_timeout=ltp_run_timeout,
-            sudo=run_as_sudo,
         )
 
     @TestCaseMetadata(
@@ -171,7 +170,6 @@ class LtpTestsuite(TestSuite):
             block_device=block_device,
             ltp_run_timeout=ltp_run_timeout,
             run_full_test=True,
-            sudo=run_as_sudo,
         )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
