@@ -20,7 +20,7 @@ from lisa.features.security_profile import (
 from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
+from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
 from lisa.tools.lsvmbus import VmBusDevice
 from lisa.util import LisaException
 from lisa.util.perf_timer import create_timer
@@ -105,13 +105,9 @@ class LsVmBus(TestSuite):
             - Synthetic keyboard
         2. Check that each netvsc and storvsc SCSI device have correct number of vmbus
             channels created and associated.
-            2.1 Check expected channel count of each netvsc is min (num of vcpu, 8).
-                2.1.1 Caculate channel count of each netvsc device.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1548 # noqa: E501
-                2.2.2 Cap of channel count of each netvsc device.
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/hyperv_net.h#n877 noqa: E501
-                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/rndis_filter.c#n1551 noqa: E501
-
+            2.1 Check expected channel count of each netvsc matches that obtained from the ethtool.
+                2.1.1 Get expected channel count of netvsc from ethtool.
+                https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/net/hyperv/netvsc_drv.c#n2001 # noqa: E501
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
                 2.2.1 Caculate channel count of each storvsc SCSI device.
@@ -134,11 +130,13 @@ class LsVmBus(TestSuite):
         #  vmbus channels created and associated.
         lscpu_tool = node.tools[Lscpu]
         core_count = lscpu_tool.get_core_count()
-        # Each netvsc device should have "the_number_of_vCPUs" channel(s)
-        #  with a cap value of 8.
-        expected_network_channel_count = min(core_count, 8)
-        # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
-        #  with a cap value of 64.
+
+        # 2.1 Get expected channel count of each netvsc is min (num of vcpu, 8).
+        expected_network_channel_count = (
+            node.tools[Ethtool].get_device_channels_info("eth0", True)
+        ).current_channels
+
+        # 2.2 Get expected channel count of each storvsc SCSI device
         if node.nics.is_mana_device_present():
             expected_scsi_channel_count = min(core_count, 64)
         else:
