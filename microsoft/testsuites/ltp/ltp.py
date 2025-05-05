@@ -165,6 +165,9 @@ class Ltp(Tool):
             process_name = self.LTP_RUN_COMMAND
         pidof.wait_processes(process_name, timeout=ltp_run_timeout)
 
+        # to avoid no permission issue when copying back files
+        self.node.tools[Chmod].update_folder(self._command_path, "a+rwX", sudo=True)
+
         # write output to log path
         self.node.shell.copy_back(
             PurePosixPath(output_file), PurePath(log_path) / self.LTP_OUTPUT_FILE
