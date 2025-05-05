@@ -133,23 +133,34 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
     def support_sudo(self) -> bool:
         self.initialize()
 
-        # check if sudo supported
-        if self._support_sudo is None:
-            if self.is_posix:
-                process = self._execute("command -v sudo", shell=True, no_info_log=True)
-                result = process.wait_result(10)
-                if result.exit_code == 0:
-                    self._support_sudo = True
-                else:
-                    self._support_sudo = False
-                    self.log.debug(
-                        "node doesn't support sudo, may cause failure later."
-                    )
-            else:
-                # set Windows to true to ignore sudo asks.
-                self._support_sudo = True
+        # self._support_sudo already set, return it directly.
+        if self._support_sudo is not None:
+            return self._support_sudo
 
+        if not self.is_posix:
+            # Windows or non-POSIX: assume sudo not needed
+            self._support_sudo = True
+            return self._support_sudo
+
+        self._support_sudo = self._check_sudo_available()
         return self._support_sudo
+
+    def _check_sudo_available(self) -> bool:
+        # Check if 'sudo' command exists
+        process = self._execute("command -v sudo", shell=True, no_info_log=True)
+        result = process.wait_result(10)
+        if result.exit_code != 0:
+            self.log.debug("node doesn't support 'sudo', may cause failure later.")
+            return False
+
+        # Further test: try running 'ls' with sudo /bin/sh
+        process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
+        result = process.wait_result(10)
+        if result.exit_code != 0:
+            self.log.debug("node doesn't support sudo /bin/sh.")
+            return False
+
+        return True
 
     @property
     def parent(self) -> Optional[Node]:
