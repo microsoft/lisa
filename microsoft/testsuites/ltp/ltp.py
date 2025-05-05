@@ -24,6 +24,7 @@ from lisa.tools import (
     Make,
     Mkdir,
     Pidof,
+    RemoteCopy,
     Rm,
     Swap,
     Sysctl,
@@ -51,7 +52,7 @@ class Ltp(Tool):
     _RESULT_LTP_ARCH_REGEX = re.compile(r"Machine Architecture: (.*)\s+")
 
     LTP_DIR_NAME = "ltp"
-    DEFAULT_LTP_TESTS_GIT_TAG = "20230929"
+    DEFAULT_LTP_TESTS_GIT_TAG = "20250130"
     LTP_GIT_URL = "https://github.com/linux-test-project/ltp.git"
     LTP_RESULT_FILE = "ltp-results.log"
     LTP_OUTPUT_FILE = "ltp-output.log"
@@ -80,6 +81,7 @@ class Ltp(Tool):
         node: Node,
         source_file: str,
         binary_file: str,
+        install_path: str,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -88,11 +90,17 @@ class Ltp(Tool):
         self._git_tag = git_tag if git_tag else self.DEFAULT_LTP_TESTS_GIT_TAG
         self._source_file = source_file
         self._binary_file = binary_file
-        self._command_path = "/tmp/ltp"
+
+        if install_path:
+            self._command_path = install_path
+        else:
+            # default binary_file install path is /tmp/ltp
+            self._command_path = "/tmp/ltp" if self._binary_file else "/opt/ltp"
 
     def run_test(
         self,
         test_result: TestResult,
+        # empty ltp_tests will run LTP full test
         ltp_tests: List[str],
         skip_tests: List[str],
         log_path: str,
@@ -104,8 +112,6 @@ class Ltp(Tool):
         output_file = f"{self._command_path}/{self.LTP_OUTPUT_FILE}"
         skip_file = f"{self._command_path}/{self.LTP_SKIP_FILE}"
 
-        # tests cannot be empty
-        assert_that(ltp_tests, "ltp_tests cannot be empty").is_not_empty()
         ls = self.node.tools[Ls]
         rm = self.node.tools[Rm]
 
@@ -128,7 +134,9 @@ class Ltp(Tool):
         parameters = f"-p -q -l {result_file} -o {output_file} "
 
         # add the list of tests to run
-        parameters += f"-f {','.join(ltp_tests)} "
+        # if ltp_tests=[], "-f" not set, ltp will run full test
+        if ltp_tests:
+            parameters += f"-f {','.join(ltp_tests)} "
 
         # some tests require a big unmounted block device
         # to run correctly.
@@ -243,21 +251,13 @@ class Ltp(Tool):
         source_file: str,
         dest_path: str,
     ) -> PurePath:
-        remote_tar_path = self.node.get_pure_path(
-            self._command_path
-        ) / os.path.basename(source_file)
-
-        mkdir = self.node.tools[Mkdir]
-        mkdir.create_directory(remote_tar_path.parent.as_posix())
-        self.node.shell.copy(
-            PurePath(self._source_file),
-            remote_tar_path,
-        )
+        remote_source_folder = self.get_tool_path(use_global=True)
+        remote_tar_path = remote_source_folder / os.path.basename(source_file)
+        copy = self.node.tools[RemoteCopy]
+        copy.copy_to_remote(PurePath(self._source_file), remote_source_folder)
 
         self.node.tools[Tar].extract(
-            str(remote_tar_path),
-            dest_path,
-            sudo=True,
+            str(remote_tar_path), dest_path, strip_components=1
         )
 
         return self.node.get_pure_path(dest_path)
@@ -279,7 +279,7 @@ class Ltp(Tool):
 
         return ltp_path
 
-    def _build_from_source(self) -> None:
+    def _install_dependencies(self) -> None:
         assert isinstance(self.node.os, Posix), f"{self.node.os} is not supported"
 
         # install common dependencies
@@ -376,6 +376,7 @@ class Ltp(Tool):
         else:
             raise LisaException(f"{self.node.os} is not supported")
 
+    def _set_realtime_cgroup(self) -> None:
         # Some CPU time is assigned to set real-time scheduler and it affects
         # all cgroup test cases. The values for rt_period_us(1000000us or 1s)
         # and rt_runtime_us (950000us or 0.95s). This gives 0.05s to be used
@@ -416,9 +417,13 @@ class Ltp(Tool):
             sysctl = self.node.tools[Sysctl]
             sysctl.write("vm.dirty_ratio", "10")
             sysctl.write("vm.dirty_background_ratio", "5")
-            sysctl.run("-p")
+            sysctl.run("-p", sudo=True)
 
-        # find partition to install ltp
+    def _build_from_source(self) -> None:
+        self._install_dependencies()
+        self._set_realtime_cgroup()
+
+        # find partition to build ltp
         build_dir = self.node.find_partition_with_freespace(
             self.BUILD_REQUIRED_DISK_SIZE_IN_GB
         )
@@ -437,15 +442,17 @@ class Ltp(Tool):
         else:
             cur_ltp_path = self._clone_source(self.LTP_GIT_URL, top_src_dir)
 
-        # build ltp in /opt/ltp since this path is used by some
+        # better to install ltp in /opt/ltp since this path is used by some
         # tests, e.g, block_dev test
         make = self.node.tools[Make]
-        self.node.execute("autoreconf -f", cwd=cur_ltp_path, sudo=True)
-        make.make("autotools", cwd=cur_ltp_path, sudo=True)
+        # uploaded release ltp.tar.xz don't need autoreconf
+        if not self._source_file:
+            self.node.execute("autoreconf -f", cwd=cur_ltp_path)
+            make.make("autotools", cwd=cur_ltp_path)
         self.node.execute(
-            f"./configure --prefix={self._command_path}", cwd=cur_ltp_path, sudo=True
+            f"./configure --prefix={self._command_path}", cwd=cur_ltp_path
         )
-        make.make("all", cwd=cur_ltp_path, sudo=True, timeout=self.COMPILE_TIMEOUT)
+        make.make("all", cwd=cur_ltp_path, timeout=self.COMPILE_TIMEOUT)
 
         # Specify SKIP_IDCHECK=1 since we don't want to modify /etc/{group,passwd}
         # on the remote system's sysroot
