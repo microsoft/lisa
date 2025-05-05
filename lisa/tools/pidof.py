@@ -27,7 +27,11 @@ class Pidof(Tool):
         return pids
 
     def wait_processes(
-        self, process_name: str, timeout: int = 600, interval: int = 10
+        self,
+        process_name: str,
+        sudo: bool = False,
+        timeout: int = 600,
+        interval: int = 10,
     ) -> None:
         start_timer = create_timer()
         pid = self.node.tools[Pidof]
@@ -38,7 +42,7 @@ class Pidof(Tool):
             #
             # The long running process may timeout on SSH connection. This
             # check is also help keep SSH alive.
-            process_infos = pid.get_pids(process_name)
+            process_infos = pid.get_pids(process_name, sudo)
             if not process_infos:
                 self._log.debug(
                     f"The '{process_name}' process is not running, stop to wait."

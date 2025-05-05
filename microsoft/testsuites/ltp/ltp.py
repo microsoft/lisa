@@ -163,7 +163,10 @@ class Ltp(Tool):
         process_name = f"-x {self.LTP_RUN_COMMAND}"
         if self._binary_file:
             process_name = self.LTP_RUN_COMMAND
-        pidof.wait_processes(process_name, timeout=ltp_run_timeout)
+        pidof.wait_processes(process_name, sudo=True, timeout=ltp_run_timeout)
+
+        # to avoid no permission issue when copying back files
+        self.node.tools[Chmod].update_folder(self._command_path, "a+rwX", sudo=True)
 
         # write output to log path
         self.node.shell.copy_back(
