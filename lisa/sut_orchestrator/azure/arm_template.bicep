@@ -58,6 +58,9 @@ param enable_vm_nat bool
 @description('The source IP address prefixes allowed in NSG')
 param source_address_prefixes array
 
+@description('Generate public IP address for each node')
+param create_public_address bool
+
 var vnet_id = virtual_network_name_resource.id
 var node_count = length(nodes)
 var availability_set_name_value = 'lisa-availabilitySet'
@@ -230,6 +233,7 @@ module nodes_nics './nested_nodes_nics.bicep' = [for i in range(0, node_count): 
     enable_sriov: nodes[i].enable_sriov
     tags: tags
     use_ipv6: use_ipv6
+    create_public_address: create_public_address
   }
   dependsOn: [
     nodes_public_ip[i]
@@ -327,7 +331,7 @@ resource availability_set 'Microsoft.Compute/availabilitySets@2019-07-01' = if (
   properties: availability_set_properties
 }
 
-resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): {
+resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if (create_public_address) {
   location: location
   tags: tags
   name: '${nodes[i].name}-public-ip'
@@ -341,7 +345,7 @@ resource nodes_public_ip 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for
   zones: (use_availability_zones ? availability_zones : null)
 }]
 
-resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if (use_ipv6) {
+resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' = [for i in range(0, node_count): if (use_ipv6 && create_public_address) {
   name: '${nodes[i].name}-public-ipv6'
   location: location
   tags: tags

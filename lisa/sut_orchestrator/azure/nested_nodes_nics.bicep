@@ -7,6 +7,7 @@ param existing_subnet_ref string
 param enable_sriov bool
 param tags object
 param use_ipv6 bool
+param create_public_address bool
 
 func getPublicIpAddress(vmName string, publicIpName string) object => {
   id: resourceId('Microsoft.Network/publicIPAddresses', publicIpName)
@@ -26,7 +27,7 @@ resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in ra
           name: 'IPv4Config'
           properties: {
             privateIPAddressVersion: 'IPv4'
-            publicIPAddress: ((0 == i) ? publicIpAddress : null)
+            publicIPAddress: ((0 == i && create_public_address) ? publicIpAddress : null)
             subnet: {
               id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
             }
@@ -39,7 +40,7 @@ resource vm_nics 'Microsoft.Network/networkInterfaces@2023-06-01' = [for i in ra
           name: 'IPv6Config'
           properties: {
             privateIPAddressVersion: 'IPv6'
-            publicIPAddress: ((0 == i) ? publicIpAddressV6 : null)
+            publicIPAddress: ((0 == i && create_public_address) ? publicIpAddressV6 : null)
             subnet: {
               id: ((!empty(existing_subnet_ref)) ? existing_subnet_ref : '${vnet_id}/subnets/${subnet_prefix}${i}')
             }

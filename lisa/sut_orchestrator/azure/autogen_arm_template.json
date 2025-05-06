@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "14741729812904551283"
+      "templateHash": "9070223824614413840"
     }
   },
   "functions": [
@@ -536,6 +536,12 @@
       "metadata": {
         "description": "The source IP address prefixes allowed in NSG"
       }
+    },
+    "create_public_address": {
+      "type": "bool",
+      "metadata": {
+        "description": "Generate public IP address for each node"
+      }
     }
   },
   "variables": {
@@ -664,6 +670,7 @@
         "name": "nodes_public_ip",
         "count": "[length(range(0, variables('node_count')))]"
       },
+      "condition": "[parameters('create_public_address')]",
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2020-05-01",
       "name": "[format('{0}-public-ip', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
@@ -683,7 +690,7 @@
         "name": "nodes_public_ip_ipv6",
         "count": "[length(range(0, variables('node_count')))]"
       },
-      "condition": "[parameters('use_ipv6')]",
+      "condition": "[and(parameters('use_ipv6'), parameters('create_public_address'))]",
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2020-05-01",
       "name": "[format('{0}-public-ipv6', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
@@ -877,6 +884,9 @@
           },
           "use_ipv6": {
             "value": "[parameters('use_ipv6')]"
+          },
+          "create_public_address": {
+            "value": "[parameters('create_public_address')]"
           }
         },
         "template": {
@@ -887,7 +897,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "2335646842987786457"
+              "templateHash": "6914571954054027821"
             }
           },
           "functions": [
@@ -942,6 +952,9 @@
             },
             "use_ipv6": {
               "type": "bool"
+            },
+            "create_public_address": {
+              "type": "bool"
             }
           },
           "variables": {
@@ -960,7 +973,7 @@
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
               "properties": {
-                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(equals(0, range(0, parameters('nic_count'))[copyIndex()]), variables('publicIpAddress'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(equals(0, range(0, parameters('nic_count'))[copyIndex()]), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
+                "ipConfigurations": "[concat(createArray(createObject('name', 'IPv4Config', 'properties', createObject('privateIPAddressVersion', 'IPv4', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddress'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), if(parameters('use_ipv6'), createArray(createObject('name', 'IPv6Config', 'properties', createObject('privateIPAddressVersion', 'IPv6', 'publicIPAddress', if(and(equals(0, range(0, parameters('nic_count'))[copyIndex()]), parameters('create_public_address')), variables('publicIpAddressV6'), null()), 'subnet', createObject('id', if(not(empty(parameters('existing_subnet_ref'))), parameters('existing_subnet_ref'), format('{0}/subnets/{1}{2}', parameters('vnet_id'), parameters('subnet_prefix'), range(0, parameters('nic_count'))[copyIndex()]))), 'privateIPAllocationMethod', 'Dynamic'))), createArray()))]",
                 "enableAcceleratedNetworking": "[parameters('enable_sriov')]"
               }
             }

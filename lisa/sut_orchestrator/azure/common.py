@@ -1209,6 +1209,7 @@ class AzureArmParameter:
     is_ultradisk: bool = False
     use_ipv6: bool = False
     enable_vm_nat: bool = False
+    create_public_address: bool = True
     source_address_prefixes: List[str] = field(default_factory=list)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
@@ -2245,7 +2246,6 @@ def get_primary_ip_addresses(
     platform: "AzurePlatform",
     resource_group_name: str,
     vm: VirtualMachine,
-    use_ipv6: bool = False,
 ) -> Tuple[str, str]:
     network_client = get_network_client(platform)
 
@@ -2254,6 +2254,8 @@ def get_primary_ip_addresses(
         vm.network_profile.network_interfaces, List
     ), f"actual: {type(vm.network_profile.network_interfaces)}"
     nic_index = 0
+    use_ipv6 = platform._azure_runbook.use_ipv6
+    create_public_address = platform._azure_runbook.create_public_address
     for network_interface in vm.network_profile.network_interfaces:
         assert isinstance(
             network_interface.id, str
@@ -2263,32 +2265,33 @@ def get_primary_ip_addresses(
         if nic.primary:
             if use_ipv6:
                 nic_index = 1
-            if not nic.ip_configurations[nic_index].public_ip_address:
-                raise LisaException(f"no public address found in nic {nic.name}")
-            if (
-                use_ipv6
-                and not nic.ip_configurations[nic_index].private_ip_address_version
-                == IpProtocol.ipv6
-            ):
+
+            ip_config = nic.ip_configurations[nic_index]
+            if use_ipv6 and ip_config.private_ip_address_version != IpProtocol.ipv6:
                 raise LisaException(f"private address is not IPv6 in nic {nic.name}")
-            if nic.ip_configurations[nic_index].public_ip_address:
+            private_ip = ip_config.private_ip_address
+
+            if create_public_address:
+                if not ip_config.public_ip_address:
+                    raise LisaException(f"no public address found in nic {nic.name}")
                 public_ip_name = get_matched_str(
-                    nic.ip_configurations[nic_index].public_ip_address.id,
+                    ip_config.public_ip_address.id,
                     PATTERN_PUBLIC_IP_NAME,
                 )
-            public_ip_address = network_client.public_ip_addresses.get(
-                resource_group_name,
-                public_ip_name,
-            )
-            if (
-                use_ipv6
-                and not public_ip_address.public_ip_address_version == IpProtocol.ipv6
-            ):
-                raise LisaException(f"public address is not IPv6 in nic {nic.name}")
-            return (
-                public_ip_address.ip_address,
-                nic.ip_configurations[nic_index].private_ip_address,
-            )
+                public_ip_address = network_client.public_ip_addresses.get(
+                    resource_group_name,
+                    public_ip_name,
+                )
+                if (
+                    use_ipv6
+                    and public_ip_address.public_ip_address_version != IpProtocol.ipv6
+                ):
+                    raise LisaException(f"public address is not IPv6 in nic {nic.name}")
+
+                return public_ip_address.ip_address, private_ip
+            else:
+                return "", private_ip
+
     raise LisaException(f"fail to find primary nic for vm {vm.name}")
 
 
