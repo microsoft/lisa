@@ -287,6 +287,10 @@ class SetSpace(RequirementMixin, Set[T]):
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self.update(self.items)
 
+    def __deepcopy__(self, memo: Any) -> Any:
+        # Deepcopy is not supported for SetSpace, so we need to implement it manually.
+        return SetSpace(is_allow_set=self.is_allow_set, items=copy.deepcopy(self.items))
+
     def check(self, capability: Any) -> ResultReason:
         result = ResultReason()
         if self.is_allow_set and len(self) > 0 and not capability:
