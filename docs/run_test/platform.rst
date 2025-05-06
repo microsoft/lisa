@@ -145,6 +145,7 @@ deployment.
          virtual_network_name: $(vnet_name)
          subnet_prefix: $(subnet_name)
          use_public_address: "<true or false>"
+         create_public_address: "<true or false>"
          use_ipv6: "<true or false>"
       requirement:
          ...
@@ -190,6 +191,11 @@ deployment.
   public IP addresses.  False means to connect with the private IP addresses.
   If not provided, the connections will default to using the public IP
   addresses.
+* **create_public_address**. True means to create a public IP address for the
+  Azure VMs. False means not to create a public IP address.  If not provided,
+  the connections will default to create a public IP address. It only can be used when use_public_address is set to false.
+  When enable_vm_nat is set to true, the VM can access the internet even without a public IP address.
+  If enable_vm_nat is set to false, the VM cannot access the internet without a public IP address.
 * **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and 
   the platform may enable IPv6 connections during creating VMs. 
   The default value is `false`, it means IPv4 only.

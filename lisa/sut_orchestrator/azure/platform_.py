@@ -295,6 +295,7 @@ class AzurePlatformSchema:
     vm_tags: Optional[Dict[str, Any]] = field(default=None)
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
+    create_public_address: bool = field(default=True)
     use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
     # Default outbound access is disabled for better security and control.
@@ -359,6 +360,7 @@ class AzurePlatformSchema:
                 "use_ipv6",
                 "enable_vm_nat",
                 "source_address_prefixes",
+                "create_public_address",
             ],
         )
 
@@ -1270,6 +1272,13 @@ class AzurePlatform(Platform):
             self._azure_runbook.shared_resource_group_name
         )
         arm_parameters.enable_vm_nat = self._azure_runbook.enable_vm_nat
+        arm_parameters.create_public_address = self._azure_runbook.create_public_address
+        if arm_parameters.create_public_address is False:
+            log.debug(
+                "create_public_address is set to False, "
+                "the use_public_address must be set to False."
+            )
+            self._azure_runbook.use_public_address = False
         arm_parameters.source_address_prefixes = self._get_ip_addresses()
 
         # the arm template may be updated by the hooks, so make a copy to avoid
@@ -1723,7 +1732,7 @@ class AzurePlatform(Platform):
                 vm = vms_map[vm_name]
             node.name = vm_name
             public_address, private_address = get_primary_ip_addresses(
-                self, resource_group_name, vm, use_ipv6=self._azure_runbook.use_ipv6
+                self, resource_group_name, vm
             )
             node_context.use_public_address = self._azure_runbook.use_public_address
             node_context.use_ipv6 = self._azure_runbook.use_ipv6
