@@ -285,7 +285,7 @@ class RepoInstaller(BaseInstaller):
         ubuntu.install_packages(full_package_name)
 
         # kernel_version = self._get_kernel_version(runbook.source, node)
-        kernel_version = "6.11.0-1014"
+        kernel_version = "6.11.0-1015"
         return kernel_version
 
     def _get_kernel_version(self, source: str, node: Node) -> str:
