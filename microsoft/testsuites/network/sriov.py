@@ -781,7 +781,6 @@ class Sriov(TestSuite):
             if client_nic_info.is_pci_module_enabled:
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
-                client_node.log.info(f"pci slot: {client_nic_info.pci_slot}")
                 initial_pci_interrupts_by_irqs = (
                     client_interrupt_inspector.sum_cpu_counter_by_irqs(
                         client_nic_info.pci_slot,
