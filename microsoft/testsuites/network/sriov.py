@@ -781,6 +781,7 @@ class Sriov(TestSuite):
             if client_nic_info.is_pci_module_enabled:
                 # 2. Get initial interrupts sum per irq and cpu number on client node.
                 # only collect 'Completion Queue Interrupts' irqs
+                client_node.log.info(f"pci slot: {client_nic_info.pci_slot}")
                 initial_pci_interrupts_by_irqs = (
                     client_interrupt_inspector.sum_cpu_counter_by_irqs(
                         client_nic_info.pci_slot,
@@ -793,9 +794,15 @@ class Sriov(TestSuite):
                         client_nic_info.pci_slot
                     )
                 )
-                assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
-                    "initial cpu count of interrupts should be equal to cpu count"
-                ).is_equal_to(client_cpu_count)
+                if isinstance(client_node.os, BSD):
+                    assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
+                        "initial cpu count of interrupts should be equal to cpu count"
+                        " plus one to account for control queue"
+                    ).is_equal_to(client_cpu_count + 1)
+                else:
+                    assert_that(len(initial_pci_interrupts_by_cpus)).described_as(
+                        "initial cpu count of interrupts should be equal to cpu count"
+                    ).is_equal_to(client_cpu_count)
                 matched_server_nic_info: NicInfo
                 for _, server_nic_info in vm_nics[server_node.name].items():
                     if (
