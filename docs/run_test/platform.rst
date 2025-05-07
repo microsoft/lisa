@@ -146,6 +146,7 @@ deployment.
          subnet_prefix: $(subnet_name)
          use_public_address: "<true or false>"
          use_ipv6: "<true or false>"
+         enable_vm_nat: "<true or false>"
       requirement:
          ...
          ignored_capability:
@@ -193,6 +194,11 @@ deployment.
 * **use_ipv6**. When use_ipv6 is set to true, LISA uses IPv6 to connect VMs and 
   the platform may enable IPv6 connections during creating VMs. 
   The default value is `false`, it means IPv4 only.
+* **enable_vm_nat**. When enable_vm_nat is set to true, the DefaultOutboundAccess 
+  property of the subnet will be set to "True". This allows the VMs in the
+  subnet to access the internet. The default value is `false`, it means that
+  the DefaultOutboundAccess property of the subnet will be set to "False".
+  This means that the VMs in the subnet cannot access the internet.
 * **ignored_capability**. Specify feature names which will be ignored in 
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
