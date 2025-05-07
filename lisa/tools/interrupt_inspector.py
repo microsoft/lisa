@@ -136,7 +136,8 @@ class InterruptInspectorBSD(InterruptInspector):
     # irq15: ata1                          585          1
     # cpu0:timer                          9154         12
     _interrupt_regex = re.compile(
-        r"^\s*(?P<irq_name>\S+):\s?(?P<irq_type>\S+)\s*(?P<irq_count>\d+)\s*(?P<irq_rate>\d+)$"
+        r"^\s*(?P<irq_name>\S+):\s?(?P<irq_type>\S+)\s*(?P<irq_count>\d+)\s*"
+        r"(?P<irq_rate>\d+)$"
     )
 
     @property
