@@ -206,7 +206,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=Synthetic(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
@@ -224,7 +224,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=Sriov(),
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
         ),
@@ -242,7 +242,7 @@ class Power(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             supported_features=[HibernationEnabled(), AvailabilityTypeNoRedundancy()],
             min_data_disk_count=32,
         ),

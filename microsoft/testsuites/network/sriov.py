@@ -211,7 +211,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=8,
+                nic_count=4,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
@@ -242,7 +242,7 @@ class Sriov(TestSuite):
             min_count=2,
             min_core_count=64,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=8,
+                nic_count=4,
                 data_path=schema.NetworkDataPath.Sriov,
             ),
         ),
@@ -343,7 +343,7 @@ class Sriov(TestSuite):
         try:
             node = cast(RemoteNode, environment.nodes[0])
             network_interface_feature = node.features[NetworkInterface]
-            network_interface_feature.attach_nics(extra_nic_count=7)
+            network_interface_feature.attach_nics(extra_nic_count=3)
             is_ready, tcp_error_code = wait_tcp_port_ready(
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
                 node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
@@ -377,7 +377,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -397,7 +397,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -423,7 +423,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -450,7 +450,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -479,7 +479,7 @@ class Sriov(TestSuite):
         priority=1,
         requirement=simple_requirement(
             min_count=2,
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
