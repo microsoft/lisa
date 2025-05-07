@@ -239,7 +239,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         )
         return node
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 1200) -> None:
         self.tools[Reboot].reboot(time_out)
 
     def execute(
@@ -252,7 +252,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         no_info_log: bool = True,
         no_debug_log: bool = False,
         cwd: Optional[PurePath] = None,
-        timeout: int = 600,
+        timeout: int = 1200,
         update_envs: Optional[Dict[str, str]] = None,
         encoding: str = "",
         expected_exit_code: Optional[int] = None,
@@ -949,7 +949,7 @@ class WslContainerNode(GuestNode):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return schema.WslNode
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 1200) -> None:
         self._wsl.shutdown_distro(self._distro)
 
     def _provision(self) -> None:

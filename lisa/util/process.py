@@ -359,7 +359,7 @@ class Process:
 
     def wait_result(
         self,
-        timeout: float = 600,
+        timeout: float = 1200,
         expected_exit_code: Optional[int] = None,
         expected_exit_code_failure_message: str = "",
     ) -> ExecutableResult:
