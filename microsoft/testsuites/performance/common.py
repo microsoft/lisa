@@ -218,7 +218,7 @@ def perf_tcp_pps(
     server_ethtool = server.tools[Ethtool]
     before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
     server.log.debug(f"Ring Buffer Values before: {before_val}")
-    server_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
+    server_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
     after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
     server.log.debug(f"Ring Buffer Values after: {after_val}")
     if server is not None or client is not None:
@@ -362,11 +362,11 @@ def perf_ntttcp(  # noqa: C901
         server_ethtool = server.tools[Ethtool]
         # before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
         # server.log.debug(f"Ring Buffer Values before: {before_val}")
-        server_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
+        server_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
         # after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
         # server.log.debug(f"Ring Buffer Values after: {after_val}")
         client_ethtool = client.tools[Ethtool]
-        client_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
+        client_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
 
         for test_thread in connections:
             if test_thread < max_server_threads:
