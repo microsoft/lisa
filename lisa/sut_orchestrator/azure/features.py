@@ -706,8 +706,12 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         return "hvnd_try_bind_nic" in dmesg.get_output()
 
     def setup_rdma(self) -> None:
-        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
-            self.is_hpc_image = True
+        self._log.debug(f"Checking hpc in azure feature for {self._node.name}")
+        ls = self._node.tools[Ls]
+        self.is_hpc_image = (
+            ls.path_exists("/opt/azurehpc/component_versions.txt")
+            or ls.path_exists("/opt/azurehpc/component-versions")
+        )
         super().setup_rdma()
         waagent = self._node.tools[Waagent]
         devices = self._get_ib_device_names()
