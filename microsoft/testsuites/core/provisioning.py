@@ -95,7 +95,7 @@ class Provisioning(TestSuite):
         ),
     )
     def reboot_stress(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._reboot_test(log, node, log_path, "reboot_stress")
+        self._reboot_test(log, node, log_path, "reboot_stress", 4)
 
     @TestCaseMetadata(
         description="""
@@ -300,7 +300,7 @@ class Provisioning(TestSuite):
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
-        print(f"number_of_iterations: {number_of_iterations}")
+        print(f"number_of_iterations: number_of_iterations")
         is_ready, tcp_error_code = wait_tcp_port_ready(
             node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
             node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
@@ -320,7 +320,7 @@ class Provisioning(TestSuite):
             )
 
         reboot_times = []  # List to store reboot times
-        for i in range(0, 3):  # Loop for 100 iterations
+        for i in range(0, {number_of_iterations}):  # Loop for 100 iterations
             try:
                 timer = create_timer()
                 log.info(f"Iteration {i}: Rebooting node '{node.name}'")
