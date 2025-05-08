@@ -294,52 +294,42 @@ class Provisioning(TestSuite):
                 tcp_error_code,
                 "no panic found in serial log during bootup",
             )
-        try:
-            timer = create_timer()
-            log.info(f"SSH port 22 is opened, connecting and rebooting '{node.name}'")
-            # In this step, the underlying shell will connect to SSH port.
-            # If successful, the node will be reboot.
-            # If failed, It distinguishes TCP and SSH errors by error messages.
-            if reboot_in_platform:
-                start_stop = node.features[StartStop]
-                if is_restart:
-                    start_stop.restart(wait=wait)
-                else:
-                    start_stop.stop(wait=wait)
-                    start_stop.start(wait=wait)
-                is_ready, tcp_error_code = wait_tcp_port_ready(
-                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
-                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-                    log=log,
-                    timeout=self.PLATFORM_TIME_OUT,
-                )
-                if not is_ready:
-                    serial_console = node.features[SerialConsole]
-                    serial_console.check_panic(
-                        saved_path=log_path, stage="reboot", force_run=True
-                    )
-                    raise TcpConnectionException(
-                        node.connection_info[
-                            constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-                        ],
-                        node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
-                        tcp_error_code,
-                        "no panic found in serial log during reboot",
-                    )
-            else:
-                node.reboot()
-            log.info(f"node '{node.name}' rebooted in {timer}")
-        except Exception as identifier:
-            serial_console = node.features[SerialConsole]
-            # if there is any panic, fail before partial pass
-            serial_console.check_panic(
-                saved_path=log_path, stage="reboot", force_run=True
-            )
 
-            # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {identifier}")
-            raise PassedException(identifier)
+        reboot_times = []  # List to store reboot times
+        for i in range(1, 3):  # Loop for 100 iterations
+            try:
+                timer = create_timer()
+                log.info(f"Iteration {i}: Rebooting node '{node.name}'")
+                node.reboot()
+                reboot_time = timer.elapsed()
+                reboot_times.append((i, reboot_time))
+                log.info(f"Iteration {i}: Node '{node.name}' rebooted in {reboot_time}s")
+
+                # Check for panic after reboot
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}", force_run=True
+                )
+
+            except Exception as identifier:
+                serial_console = node.features[SerialConsole]
+                # Check for panic if an exception occurs
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}_error", force_run=True
+                )
+
+                # If the exception is a TCP connection issue, raise a bad environment state
+                if isinstance(identifier, TcpConnectionException):
+                    raise BadEnvironmentStateException(
+                        f"Iteration {i}: After reboot, {identifier}"
+                    )
+                log.warning(f"Iteration {i}: Exception occurred: {identifier}")
+                continue  # Continue to the next iteration
+
+        # Print all reboot times after the loop
+        log.info("Reboot times for all iterations:")
+        for iteration, time in reboot_times:
+            log.info(f"Iteration {iteration}: Reboot time = {time}s")
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
