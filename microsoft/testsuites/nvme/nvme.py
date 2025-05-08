@@ -376,6 +376,9 @@ class NvmeTestSuite(TestSuite):
         nvme = node.features[Nvme]
         nvme_device = nvme.get_devices()
         nvme_namespace = nvme.get_raw_nvme_disks()
+        assert_that(len(nvme_device)).described_as(
+            "nvme devices count should be greater than 0"
+        ).is_greater_than(0)
         assert_that(nvme_device).described_as(
             "nvme devices count should be equal to namespace count by listing devices "
             "under folder /dev."
