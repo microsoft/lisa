@@ -63,7 +63,9 @@ class LtpTestsuite(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        test_str = variables.get("ltp_test", self.LTP_LITE_TESTS)
+        test_str = variables.get("ltp_test", "")
+        if not test_str:
+            test_str = self.LTP_LITE_TESTS
         self._verify_ltp(node, variables, test_str, log_path, result)
 
     @TestCaseMetadata(
