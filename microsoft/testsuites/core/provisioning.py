@@ -293,6 +293,7 @@ class Provisioning(TestSuite):
         log_path: Path,
         case_name: str,
         number_of_iterations: int = 100,
+        environment: Any = None, 
         wait: bool = True,
         is_restart: bool = True,
     ) -> None:
