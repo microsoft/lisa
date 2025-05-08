@@ -77,6 +77,28 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This case verifies whether a node is operating normally.
+
+        Steps,
+        1. Connect to TCP port 22. If it's not connectable, failed and check whether
+            there is kernel panic.
+        2. Connect to SSH port 22, and reboot the node. If there is an error and kernel
+            panic, fail the case. If it's not connectable, also fail the case.
+        3. If there is another error, but not kernel panic or tcp connection, pass with
+            warning.
+        4. Otherwise, fully passed.
+        """,
+        priority=0,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def reboot_stress(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        self._reboot_test(log, node, log_path, "reboot_stress")
+
+    @TestCaseMetadata(
+        description="""
         This case runs smoke test on a node provisioned with synthetic nic.
         The test steps are same as `smoke_test`.
         """,
@@ -264,19 +286,20 @@ class Provisioning(TestSuite):
             is_restart=False,
         )
 
-    def _smoke_test(
+    def _reboot_test(
         self,
         log: Logger,
         node: RemoteNode,
         log_path: Path,
         case_name: str,
-        reboot_in_platform: bool = False,
+        number_of_iterations: int = 100,
         wait: bool = True,
         is_restart: bool = True,
     ) -> None:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
+        print(f"number_of_iterations: {number_of_iterations}")
         is_ready, tcp_error_code = wait_tcp_port_ready(
             node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
             node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
@@ -296,7 +319,7 @@ class Provisioning(TestSuite):
             )
 
         reboot_times = []  # List to store reboot times
-        for i in range(1, 3):  # Loop for 100 iterations
+        for i in range(0, 3):  # Loop for 100 iterations
             try:
                 timer = create_timer()
                 log.info(f"Iteration {i}: Rebooting node '{node.name}'")
