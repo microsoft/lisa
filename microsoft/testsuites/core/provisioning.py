@@ -384,3 +384,70 @@ class Provisioning(TestSuite):
                 f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
+
+    def reboot_stress(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        case_name: str,
+        reboot_in_platform: bool = False,
+        wait: bool = True,
+        is_restart: bool = True,
+    ) -> None:
+        if not node.is_remote:
+            raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
+
+        is_ready, tcp_error_code = wait_tcp_port_ready(
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+            node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+            log=log,
+            timeout=self.TIME_OUT,
+        )
+        if not is_ready:
+            serial_console = node.features[SerialConsole]
+            serial_console.check_panic(
+                saved_path=log_path, stage="bootup", force_run=True
+            )
+            raise TcpConnectionException(
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                tcp_error_code,
+                "no panic found in serial log during bootup",
+            )
+
+        reboot_times = []  # List to store reboot times
+        for i in range(1, 3):  # Loop for 100 iterations
+            try:
+                timer = create_timer()
+                log.info(f"Iteration {i}: Rebooting node '{node.name}'")
+                node.reboot()
+                reboot_time = timer.elapsed()
+                reboot_times.append((i, reboot_time))
+                log.info(f"Iteration {i}: Node '{node.name}' rebooted in {reboot_time}s")
+
+                # Check for panic after reboot
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}", force_run=True
+                )
+
+            except Exception as identifier:
+                serial_console = node.features[SerialConsole]
+                # Check for panic if an exception occurs
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}_error", force_run=True
+                )
+
+                # If the exception is a TCP connection issue, raise a bad environment state
+                if isinstance(identifier, TcpConnectionException):
+                    raise BadEnvironmentStateException(
+                        f"Iteration {i}: After reboot, {identifier}"
+                    )
+                log.warning(f"Iteration {i}: Exception occurred: {identifier}")
+                continue  # Continue to the next iteration
+
+        # Print all reboot times after the loop
+        log.info("Reboot times for all iterations:")
+        for iteration, time in reboot_times:
+            log.info(f"Iteration {iteration}: Reboot time = {time}s")
