@@ -293,7 +293,7 @@ class Provisioning(TestSuite):
         log_path: Path,
         case_name: str,
         number_of_iterations: int = 100,
-        environment: Any = None, 
+        #environment: Any = None, 
         wait: bool = True,
         is_restart: bool = True,
     ) -> None:
@@ -399,7 +399,7 @@ class Provisioning(TestSuite):
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
 
-    def reboot_stress(
+    def _smoke_test(
         self,
         log: Logger,
         node: RemoteNode,
