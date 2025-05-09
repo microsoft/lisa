@@ -707,10 +707,9 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
 
     def setup_rdma(self) -> None:
         ls = self._node.tools[Ls]
-        self.is_hpc_image = (
-            ls.path_exists("/opt/azurehpc/component_versions.txt")
-            or ls.path_exists("/opt/azurehpc/component-versions")
-        )
+        self.is_hpc_image = ls.path_exists(
+            "/opt/azurehpc/component_versions.txt"
+        ) or ls.path_exists("/opt/azurehpc/component-versions")
         super().setup_rdma()
         waagent = self._node.tools[Waagent]
         devices = self._get_ib_device_names()
