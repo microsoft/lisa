@@ -367,7 +367,10 @@ class LisaRunner(BaseRunner):
         # connected after it's initialized. It breaks the flow, so the
         # transformers are in the connected phase will be ignored. So mark this
         # kind of environment is dirty to prevent it run other test cases.
-        if environment.status == EnvironmentStatus.Deployed:
+        if (
+            not environment.ignore_dirty_env
+            and environment.status == EnvironmentStatus.Deployed
+        ):
             environment.mark_dirty()
 
         tested_environment = environment
