@@ -8,12 +8,11 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
+    create_timer
 )
 from lisa.features import SerialConsole, StartStop
 from lisa.util import BadEnvironmentStateException, SkippedException
 from lisa.util.shell import wait_tcp_port_ready
-from lisa.util.timer import create_timer
-
 
 @TestSuiteMetadata(
     area="reboot",
