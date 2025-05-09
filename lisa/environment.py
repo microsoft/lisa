@@ -182,6 +182,7 @@ class Environment(ContextMixin, InitializableMixin):
 
         self._default_node: Optional[Node] = None
         self._is_dirty: bool = False
+        self.ignore_dirty_env: bool = False
 
         # track retried times to provide an unique name.
         self._raw_id = id_

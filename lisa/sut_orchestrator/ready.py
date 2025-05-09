@@ -1,8 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Type
+from typing import Any, List, Optional, Type
+
+from dataclasses_json import dataclass_json
 
 from lisa import feature, features
 from lisa.environment import Environment
@@ -14,10 +17,24 @@ from lisa.util.logger import Logger
 from . import READY
 
 
+@dataclass_json()
+@dataclass
+class ReadyPlatformSchema:
+    ignore_dirty_env: bool = True
+
+
 class ReadyPlatform(Platform):
     @classmethod
     def type_name(cls) -> str:
         return READY
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        ready_runbook: ReadyPlatformSchema = self.runbook.get_extended_runbook(
+            ReadyPlatformSchema
+        )
+        assert ready_runbook, "platform runbook cannot be empty"
+
+        self._ready_runbook = ready_runbook
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
@@ -62,7 +79,10 @@ class ReadyPlatform(Platform):
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         # do nothing for deploy
-        pass
+        if self._ready_runbook.ignore_dirty_env:
+            # if ignore_dirty_env is set, it will reset the environment to clean
+            # then test cases can be run on the same environment
+            environment.ignore_dirty_env = True
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         # ready platform doesn't support delete environment
