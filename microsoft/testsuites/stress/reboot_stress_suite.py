@@ -80,7 +80,7 @@ class RebootStressSuite(TestSuite):
         :param reboot_method: The method to use for rebooting ("guest" or "platform").
         """
         reboot_times = []  # List to store reboot times
-        for iteration in range(10):  # Reboot 10 times
+        for iteration in range(100):  # Reboot 10 times
             try:
                 timer = create_timer()
                 log.info(
