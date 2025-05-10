@@ -332,7 +332,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                min_nic_count=15,
+                max_nic_count=15,
             ),
         ),
     )
@@ -528,7 +528,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=search_space.IntRange(min=3, max=16),
+                nic_count=search_space.IntRange(min=3, max=15),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
             # BSD is unsupported since this is testing to patches to the linux kernel
