@@ -25,15 +25,15 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max (8) synthetic nics.
+        This case verify VM works well when provisioned with max (15) synthetic nics.
 
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
-        2. Check each nic has an ip address.
+        2. Check each nic has an IP address.
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=15,  # Updated from 8 to 15
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -56,7 +56,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -82,7 +82,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -109,7 +109,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=15,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -140,7 +140,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=15,
             ),
         ),
     )
@@ -173,7 +173,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=15,
             ),
         ),
     )
