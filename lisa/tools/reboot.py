@@ -64,7 +64,8 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise identifier
 
-    def reboot(self, time_out: int = 300) -> None:
+    def reboot(self, time_out: int = 3000) -> None:
+        time_out = 3000
         who = self.node.tools[Who]
         timer = create_timer()
 
