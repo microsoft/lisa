@@ -2625,7 +2625,7 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                         "encryption_type"
                     ] = "NonPersistedTPM"
                 else:
-                    node_parameters.security_profile["secure_boot"] = True
+                    node_parameters.security_profile["secure_boot"] = False
                     node_parameters.security_profile["encryption_type"] = (
                         "DiskWithVMGuestState"
                         if settings.encrypt_disk
