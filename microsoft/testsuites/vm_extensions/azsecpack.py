@@ -128,7 +128,7 @@ class AzSecPack(TestSuite):
         # Install agent extension
         try:
             self._install_monitor_agent_extension(node)
-            self._install_security_agent_extension(node, log)
+            # self._install_security_agent_extension(node, log)
         except HttpResponseError as identifier:
             if any(
                 s in str(identifier)
