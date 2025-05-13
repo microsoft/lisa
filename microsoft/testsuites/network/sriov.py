@@ -543,6 +543,7 @@ class Sriov(TestSuite):
         vm_nics = initialize_nic_info(environment)
 
         # skip test if scatter-gather can't be updated
+        print("Check if scatter-gather can be updated")
         for client_nic_info in vm_nics[client_node.name].values():
             device_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.name, True
@@ -558,8 +559,10 @@ class Sriov(TestSuite):
         device_enabled_features_origin = client_ethtool.get_all_device_enabled_features(
             True
         )
+        print("device_enabled_features_origin: ", device_enabled_features_origin[0].enabled_features)
 
         # run iperf3 on server side and client side
+        print("Run iperf3 on server and client")
         # iperfResults.log stored client side log
         source_iperf3 = server_node.tools[Iperf3]
         dest_iperf3 = client_node.tools[Iperf3]
@@ -571,20 +574,25 @@ class Sriov(TestSuite):
         )
 
         # wait for a while then check any error shown up in iperfResults.log
+        print("Wait for a while then check any error shown up in iperfResults.log")
         dest_cat = client_node.tools[Cat]
         iperf_log = dest_cat.read(client_iperf3_log, sudo=True, force_run=True)
         assert_that(iperf_log).does_not_contain("error")
 
         # disable and enable VF in pci level
+        print("Disable and enable VF in pci level")
         disable_enable_devices(environment)
         # check VF still paired with synthetic nic
+        print("Check VF still paired with synthetic nic")
         vm_nics = initialize_nic_info(environment)
+        print("vm_nics: ", vm_nics)
 
         # get the enabled features after disable and enable VF
         # make sure there is not any change
         device_enabled_features_after = client_ethtool.get_all_device_enabled_features(
             True
         )
+        print("device_enabled_features_after: ", device_enabled_features_after[0].enabled_features)
         assert_that(device_enabled_features_origin[0].enabled_features).is_equal_to(
             device_enabled_features_after[0].enabled_features
         )
@@ -595,9 +603,11 @@ class Sriov(TestSuite):
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, True
             )
+            print("new_settings: ", new_settings.sg_setting)
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
+            print("device_vf_sg_settings: ", device_vf_sg_settings.sg_setting)
             assert_that(
                 new_settings.sg_setting,
                 "sg setting is not sync into VF.",
@@ -609,20 +619,25 @@ class Sriov(TestSuite):
             new_settings = client_ethtool.change_device_sg_settings(
                 client_nic_info.name, False
             )
+            print("new_settings: ", new_settings.sg_setting)
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
             )
+            print("device_vf_sg_settings: ", device_vf_sg_settings.sg_setting, device_vf_sg_settings)
             assert_that(
                 new_settings.sg_setting,
                 "sg setting is not sync into VF.",
             ).is_equal_to(device_vf_sg_settings.sg_setting)
 
         #  disable and enable VF in pci level
+        print("Disable and enable VF in pci level")
         disable_enable_devices(environment)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
+        print("vm_nics: ", vm_nics)
 
         # check VF's scatter-gather feature keep consistent with previous status
+        print("Check VF's scatter-gather feature keep consistent with previous status")
         for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
@@ -633,11 +648,14 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # disable and enable sriov in network interface level
+        print("Disable and enable sriov in network interface level")
         sriov_disable_enable(environment, 3)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
+        print("vm_nics: ", vm_nics)
 
         # check VF's scatter-gather feature keep consistent with previous status
+        print("Check VF's scatter-gather feature keep consistent with previous status")
         for client_nic_info in vm_nics[client_node.name].values():
             device_vf_sg_settings = client_ethtool.get_device_sg_settings(
                 client_nic_info.pci_device_name, True
@@ -648,8 +666,10 @@ class Sriov(TestSuite):
             ).is_equal_to(False)
 
         # reload sriov modules
+        print("Reload sriov modules")
         if reload_modules(environment):
             # check VF still paired with synthetic nic
+            print("Check VF still paired with synthetic nic")
             vm_nics = initialize_nic_info(environment)
 
             # check VF's scatter-gather feature keep consistent with previous status
