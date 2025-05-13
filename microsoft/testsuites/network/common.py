@@ -107,7 +107,21 @@ def sriov_vf_connection_test(
     max_retry_times = 10
     for _, source_nic_info in vm_nics[source_node.name].items():
         matched_dest_nic_name = ""
-
+        source_node.log.debug(
+            f"copy file from {source_nic_info.ip_addr} on {source_node.name} to "
+            f"{dest_node.name}"
+        )
+        source_node.log.debug(
+            f"NIC Details: {_}:{str(source_nic_info)} on {source_node.name}"
+        )
+        if source_nic_info.name.startswith("ib"):
+            source_node.log.debug(f"skip infiniband {source_nic_info.name} on {source_node.name}")
+            continue
+        if source_nic_info.name is None or source_nic_info.pci_slot is None or source_nic_info.ip_addr is None:
+            source_node.log.debug(
+                f"no nic name/pci_slot/ip_addr found {_}:{str(source_nic_info)} on {source_node.name}"
+            )
+            continue
         # find the same subnet nic on dest node
         for dest_nic_name, dest_nic_info in vm_nics[dest_node.name].items():
             # only when IPs are in the same subnet, IP1 of machine A can connect to
