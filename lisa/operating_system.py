@@ -223,8 +223,7 @@ class OperatingSystem:
     def name(self) -> str:
         return self.__class__.__name__
 
-    def capture_system_information(self, saved_path: Path) -> None:
-        ...
+    def capture_system_information(self, saved_path: Path) -> None: ...
 
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
@@ -390,7 +389,16 @@ class Posix(OperatingSystem, BaseClassMixin):
         extra_args: Optional[List[str]] = None,
     ) -> None:
         package_names = self._get_package_list(packages)
-        self._install_packages(package_names, signed, timeout, extra_args)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                self._install_packages(package_names, signed, timeout, extra_args)
+                break
+            except Exception as e:
+                if attempt == max_retries:
+                    raise  # re-raise after final attempt
+                else:
+                    print(f"install_packages attempt {attempt} failed: {e}, retrying")
 
     def uninstall_packages(
         self,
@@ -730,8 +738,7 @@ class Posix(OperatingSystem, BaseClassMixin):
         return package_name
 
 
-class BSD(Posix):
-    ...
+class BSD(Posix): ...
 
 
 class BMC(Posix):
@@ -752,8 +759,7 @@ class MacOS(Posix):
         return re.compile("^Darwin$")
 
 
-class Linux(Posix):
-    ...
+class Linux(Posix): ...
 
 
 class CoreOs(Linux):
@@ -1479,8 +1485,7 @@ class FreeBSD(BSD):
         )
 
 
-class OpenBSD(BSD):
-    ...
+class OpenBSD(BSD): ...
 
 
 @dataclass
