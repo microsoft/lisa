@@ -1562,6 +1562,7 @@ class RPMDistro(Linux):
         )
         return self._cache_and_return_version_info(package_name, version_info)
 
+    @retry(tries=3, delay=1)
     def _install_packages(
         self,
         packages: List[str],
