@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.tools import Cat
@@ -47,6 +47,10 @@ class InterruptInspector(Tool):
         r"^\s*(?P<irq_number>\S+):\s+(?P<cpu_counter>[\d+ ]+)\s*(?P<metadata>.*)$"
     )
 
+    @classmethod
+    def _freebsd_tool(cls) -> Optional[Type[Tool]]:
+        return InterruptInspectorBSD
+
     @property
     def command(self) -> str:
         return "cat /proc/interrupts"
@@ -54,6 +58,9 @@ class InterruptInspector(Tool):
     @property
     def can_install(self) -> bool:
         return False
+
+    def _check_exists(self) -> bool:
+        return True
 
     def get_interrupt_data(self) -> List[Interrupt]:
         # Run cat /proc/interrupts. The output is of the form :
@@ -121,5 +128,72 @@ class InterruptInspector(Tool):
             for cpu_index, count in enumerate(interrupt.cpu_counter):
                 interrupts_by_cpu[cpu_index] += count
 
+        # Return a standard dictionary
+        return dict(interrupts_by_cpu)
+
+
+class InterruptInspectorBSD(InterruptInspector):
+    # irq15: ata1                          585          1
+    # cpu0:timer                          9154         12
+    _interrupt_regex = re.compile(
+        r"^\s*(?P<irq_name>\S+):\s?(?P<irq_type>\S+)\s*(?P<irq_count>\d+)\s*"
+        r"(?P<irq_rate>\d+)$"
+    )
+
+    @property
+    def command(self) -> str:
+        return "vmstat -i"
+
+    def get_interrupt_data(self) -> List[Interrupt]:
+        # Run vmstat -i. The output is of the form :
+        # interrupt                          total       rate
+        # irq1: atkbd0                           2          0
+        # irq4: uart0                          842          1
+        # irq6: fdc0                            11          0
+        # irq14: ata0                            2          0
+        # cpu0:timer                          9154         12
+        # cpu1:timer                          4384          6
+        # cpu2:timer                          4297          6
+        # Total                              13950         25
+        # The columns are in order: IRQ name, IRQ type, IRQ count, IRQ rate.
+        result = self.run()
+        mappings = result.stdout.splitlines(keepends=False)[1:-1]
+        assert mappings
+        interrupts = []
+        for line in mappings:
+            matched = self._interrupt_regex.fullmatch(line)
+            assert matched
+            interrupts.append(
+                Interrupt(
+                    irq_number=str(matched.group("irq_name")),
+                    cpu_counter=[int(matched.group("irq_count"))],
+                    counter_sum=int(matched.group("irq_count")),
+                    metadata=str(matched.group("irq_type")),
+                )
+            )
+        result = self.node.execute("pciconf -l")
+        for interrupt in interrupts:
+            # The metadata is the IRQ type. We need to get the PCI slot from the
+            # pciconf output.
+            for line in result.stdout.splitlines(keepends=False):
+                if interrupt.metadata in line:
+                    interrupt.metadata += line
+                    break
+        return interrupts
+
+    def sum_cpu_counter_by_index(self, pci_slot: str) -> Dict[int, int]:
+        interrupts_by_irq: Counter[str] = Counter()
+        for interrupt in self.get_interrupt_data():
+            # Ignore unrelated entries
+            if pci_slot not in interrupt.metadata:
+                continue
+
+            # For each CPU, add count to totals
+            interrupts_by_irq[interrupt.irq_number] += interrupt.counter_sum
+        interrupts_by_cpu: Counter[int] = Counter()
+        i = 0
+        for irq in interrupts_by_irq:
+            interrupts_by_cpu[i] = interrupts_by_irq[irq]
+            i += 1
         # Return a standard dictionary
         return dict(interrupts_by_cpu)
