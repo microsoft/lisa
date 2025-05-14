@@ -399,6 +399,7 @@ class Posix(OperatingSystem, BaseClassMixin):
                     raise  # re-raise after final attempt
                 else:
                     print(f"install_packages attempt {attempt} failed: {e}, retrying")
+                    time.sleep(1)
 
     def uninstall_packages(
         self,
