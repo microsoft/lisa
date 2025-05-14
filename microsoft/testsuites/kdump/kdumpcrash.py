@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 import time
-from pathlib import Path
+from pathlib import Path, PurePath
 from random import randint
-from typing import Any, cast
+from typing import Any, Dict, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout  # type: ignore
 
@@ -24,9 +25,24 @@ from lisa import (
 )
 from lisa.features import Disk, SerialConsole
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import BSD, Redhat, Windows
-from lisa.tools import Df, Dmesg, Echo, KdumpBase, KernelConfig, Lscpu, Stat
+from lisa.operating_system import BSD, CBLMariner, Redhat, Windows
+from lisa.tools import (
+    Cat,
+    Cp,
+    Df,
+    Dmesg,
+    Echo,
+    KdumpBase,
+    KernelConfig,
+    Ls,
+    Lscpu,
+    Reboot,
+    Sed,
+    Stat,
+    Tar,
+)
 from lisa.tools.free import Free
+from lisa.util import find_group_in_lines
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import try_connect
 
@@ -223,6 +239,136 @@ class KdumpCrash(TestSuite):
         self.is_auto = True
         self._kdump_test(node, log_path, log)
 
+    @TestCaseMetadata(
+        description="""
+        This test case will
+        1. replace FRE bins with CHK bins
+        2. Configure kdump, reboot VM
+        3. Generate Crash with hv syscall and verify dump
+
+        The test expects the directory containing MSHV CHK binaries tar to be passed
+        in the mshv_chk_bin variable.
+        """,
+        priority=2,
+        requirement=node_requirement(
+            node=schema.NodeSpace(
+                core_count=4, memory_mb=search_space.IntRange(min=8192)
+            ),
+        ),
+    )
+    def verify_mshv_crash(
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
+        log_path: Path,
+    ) -> None:
+        chkbinpath = variables.get("mshv_chk_bin", "")
+        chkloaderpath = variables.get("mshv_chk_loader", "")
+        if not chkbinpath or not chkloaderpath:
+            raise SkippedException(
+                "Requires a path to MSHV binaries to be passed via mshv_chk_bin"
+            )
+        if not isinstance(node.os, CBLMariner):
+            raise SkippedException("Unsupported distro")
+
+        mshv = node.tools[Ls].path_exists("/dev/mshv", sudo=True)
+        if not mshv:
+            raise SkippedException("MSHV not present")
+
+        log.info(f"chkbinpath: {chkbinpath}")
+        log.info(f"chkloaderpath: {chkloaderpath}")
+
+        # Copy and Extract CHK tar on node
+        grub_config_file = "/boot/grub2/grub.cfg"
+        chk_bin_dir = "chk_bin"
+        chk_bin_folder = f"/tmp/{chk_bin_dir}"
+        chk_bin_src_path = f"/tmp/{chk_bin_dir}.tar.gz"
+
+        chk_loader_dir = "chk_loader"
+        chk_loader_folder = f"/tmp/{chk_loader_dir}"
+        chk_loader_src_path = f"/tmp/{chk_loader_dir}.tar.gz"
+
+        # Copy artifacts on to the node
+        node.shell.copy(PurePath(chkbinpath), PurePath(chk_bin_src_path))
+        node.shell.copy(PurePath(chkloaderpath), PurePath(chk_loader_src_path))
+        node.execute("sudo ls -lrt /tmp/chk_loader")
+        node.execute("sudo ls -lrt /tmp/chk_bin")
+
+        tar = node.tools[Tar]
+        tar.extract(
+            file=chk_bin_src_path,
+            dest_dir=chk_bin_folder,
+            gzip=True,
+            sudo=True,
+        )
+        tar.extract(
+            file=chk_loader_src_path,
+            dest_dir=chk_loader_folder,
+            gzip=True,
+            sudo=True,
+        )
+
+        # Copy CHK bins into test machine
+        copy_tool = node.tools[Cp]
+        copy_tool.copy(
+            src=PurePath(chk_bin_folder) / "Windows" / "System32",
+            dest=PurePath("/boot/efi/Windows"),
+            sudo=True,
+            recur=True,
+        )
+        copy_tool.copy(
+            src=PurePath(chk_loader_folder) / "boot" / "efi" / "lxhvloader.dll",
+            dest=PurePath("/boot/efi"),
+            sudo=True,
+        )
+
+        # Remove kernel lockdown from grub config
+        node.tools[Sed].substitute(
+            regexp="lockdown=integrity",
+            replacement="",
+            file=grub_config_file,
+            sudo=True,
+        )
+
+        # Add MSHV debug option in chainloader
+        hv_debug_option = "LXHVLOADER_DEBUG=TRUE"
+        grub_config = node.tools[Cat].read(
+            file=grub_config_file,
+            force_run=True,
+            sudo=True,
+        )
+        regex = re.compile(r"(?P<chainloader_cfg>.*chainloader.*)")
+        chainloader_grub_data = find_group_in_lines(
+            lines=grub_config,
+            pattern=regex,
+            single_line=False,
+        )
+        chainloader_config = chainloader_grub_data.get("chainloader_cfg", "").strip()
+        err_msg = f"Cannot get chainloader config, got {chainloader_config}"
+        assert chainloader_config, err_msg
+        if hv_debug_option not in chainloader_config:
+            node.tools[Sed].substitute(
+                regexp="MSHV_SEV_SNP=TRUE",
+                replacement=f"MSHV_SEV_SNP=TRUE {hv_debug_option}",
+                file=grub_config_file,
+                sudo=True,
+            )
+
+        node.tools[Reboot].reboot_and_check_panic(log_path)
+
+        # Trigger HV crash and if dump generated
+        sysfs_entry = "/sys/kernel/debug/mshv/hvdbg"
+        hvdbg = node.tools[Ls].path_exists(sysfs_entry, sudo=True)
+        if not hvdbg:
+            raise LisaException(f"sysfs entry not present: {sysfs_entry}")
+        self.trigger_kdump_cmd = f"echo 0x4856434f5245 > {sysfs_entry}"
+        self._kdump_test(
+            node=node,
+            log_path=log_path,
+            log=log,
+        )
+
     # This method might stuck after triggering crash,
     # so use timeout to recycle it faster.
     @func_set_timeout(10)  # type: ignore
@@ -316,10 +462,16 @@ class KdumpCrash(TestSuite):
 
         # Confirm that the kernel dump mechanism is enabled
         kdump.check_crashkernel_loaded(self.crash_kernel)
-        # Activate the magic SysRq option
-        echo = node.tools[Echo]
-        echo.write_to_file("1", node.get_pure_path("/proc/sys/kernel/sysrq"), sudo=True)
-        node.execute("sync", shell=True, sudo=True)
+
+        if self.trigger_kdump_cmd.find("/sys/kernel/debug/mshv/hvdbg") < 0:
+            # Activate the magic SysRq option
+            echo = node.tools[Echo]
+            echo.write_to_file(
+                value="1",
+                file=node.get_pure_path("/proc/sys/kernel/sysrq"),
+                sudo=True,
+            )
+            node.execute("sync", shell=True, sudo=True)
 
         kdump.capture_info()
 
