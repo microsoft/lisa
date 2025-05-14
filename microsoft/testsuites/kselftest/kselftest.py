@@ -12,7 +12,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Git, Ls, Make, RemoteCopy, Tar
+from lisa.tools import Cp, Df, Git, Ls, Make, RemoteCopy, Tar
 from lisa.tools.chmod import Chmod
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.whoami import Whoami
@@ -234,6 +234,14 @@ class Kselftest(Tool):
         else:
             work_dir = None
 
+        env_var_dict: Dict[str, str] = {}
+        kself_required_space = 2  # 2 GB required for /tmp/ folder
+        tmp_folder_space = self.node.tools[Df].get_filesystem_available_space("/tmp/")
+        if tmp_folder_space < kself_required_space:
+            new_tmp_path = self.node.find_partition_with_freespace(kself_required_space)
+            env_var_dict["TMPDIR"] = new_tmp_path
+            self._log.debug(f"Kselftest set TMPDIR to {new_tmp_path}!")
+
         if run_collections or skip_tests:
             # List all available tests
             list_result = self.run(" -l", shell=True)
@@ -279,6 +287,7 @@ class Kselftest(Tool):
                     force_run=True,
                     shell=True,
                     timeout=timeout,
+                    update_envs=env_var_dict,
                 )
         else:
             # run all tests
@@ -289,6 +298,7 @@ class Kselftest(Tool):
                 force_run=True,
                 shell=True,
                 timeout=timeout,
+                update_envs=env_var_dict,
             )
 
         # Allow read permissions for "others" to remote copy the file
