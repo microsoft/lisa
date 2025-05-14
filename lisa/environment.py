@@ -55,6 +55,8 @@ EnvironmentStatus = Enum(
         "Deleted",
         # the environment is in a bad state, and need to be deleted.
         "Bad",
+        # the environment is in a bad state, but should not be deleted.
+        "BadDoNotDelete",
     ],
 )
 

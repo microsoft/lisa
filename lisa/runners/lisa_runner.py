@@ -424,7 +424,7 @@ class LisaRunner(BaseRunner):
         # if an environment is in bad status, it will be deleted, not run more
         # test cases. But if the setting is to keep failed environment, it may
         # be kept in above logic.
-        if environment.status == EnvironmentStatus.Bad or environment.is_dirty:
+        if environment.status == EnvironmentStatus.Bad or environment.is_dirty or environment.status != EnvironmentStatus.BadDoNotDelete:
             self._log.debug(
                 f"delete environment '{environment.name}', "
                 f"because it's in Bad status or marked as dirty."

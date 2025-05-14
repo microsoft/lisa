@@ -51,7 +51,7 @@ from packaging.version import parse
 from retry import retry
 
 from lisa import feature, schema, search_space
-from lisa.environment import Environment
+from lisa.environment import Environment, EnvironmentStatus
 from lisa.features import (
     Disk,
     SecurityProfile,
@@ -637,9 +637,18 @@ class AzurePlatform(Platform):
                     environment_context.provision_time = time.elapsed()
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
+                raise Exception("dummy Exception")
             except Exception as identifier:
-                self._delete_environment(environment, log)
-                raise identifier
+                if self.runbook.keep_environment in {constants.ENVIRONMENT_KEEP_ALWAYS, constants.ENVIRONMENT_KEEP_FAILED}:
+                    # we intentionally not updating environment.status to EnvironmentStatus.Bad,
+                    # as we want to retain the env despite deployment failure.
+                    # hence not executing: environment.status = EnvironmentStatus.Bad
+                    # and not setting to EnvironmentStatus.Deployed to avoid confusion.
+                    environment.status = EnvironmentStatus.BadDoNotDelete
+                    log.info(f"skip deleting resource group: {resource_group_name} despite deployment failed. Exception: {identifier}")
+                else:
+                    self._delete_environment(environment, log)
+                    raise identifier
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)

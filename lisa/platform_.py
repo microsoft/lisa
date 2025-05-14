@@ -182,7 +182,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         timer = create_timer()
         environment.platform = self
         self._deploy_environment(environment, log)
-        environment.status = EnvironmentStatus.Deployed
+        if environment.status != EnvironmentStatus.BadDoNotDelete:
+            environment.status = EnvironmentStatus.Deployed
+        log.info(f"environment status: {environment.status}")
 
         # initialize features
         # features may need platform, so create it in platform
@@ -204,8 +206,10 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
             if platform_runbook.guest_enabled:
                 self._initialize_guest_nodes(node)
-
-        log.info(f"deployed in {timer}")
+        if environment.status == EnvironmentStatus.Deployed:
+            log.info(f"Deployed in {timer}")
+        else:
+            log.info(f"Deployment attempted in {timer}, but failed.")
 
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
