@@ -263,6 +263,27 @@ class Provisioning(TestSuite):
             reboot_in_platform=True,
             is_restart=False,
         )
+        @TestCaseMetadata(
+        description="""
+        This case verifies whether a node is operating normally.
+
+        Steps,
+        1. Connect to TCP port 22. If it's not connectable, failed and check whether
+            there is kernel panic.
+        2. Connect to SSH port 22, and reboot the node. If there is an error and kernel
+            panic, fail the case. If it's not connectable, also fail the case.
+        3. If there is another error, but not kernel panic or tcp connection, pass with
+            warning.
+        4. Otherwise, fully passed.
+        """,
+        priority=0,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
@@ -384,3 +405,70 @@ class Provisioning(TestSuite):
                 f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
+            
+    def _stress_reboot(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        log_path: Path,
+        case_name: str,
+        number_of_iterations: int = 100,
+        wait: bool = True,
+        is_restart: bool = True,
+    ) -> None:
+        if not node.is_remote:
+            raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
+        
+
+        reboot_times = []  # List to store reboot times
+        for i in range(0, {number_of_iterations}): 
+            is_ready, tcp_error_code = wait_tcp_port_ready(
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                log=log,
+                timeout=self.TIME_OUT,
+            )
+            if not is_ready:
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage="bootup", force_run=True
+                )
+                raise TcpConnectionException(
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
+                    node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
+                    tcp_error_code,
+                    "no panic found in serial log during bootup",
+                ) 
+            try:
+                timer = create_timer()
+                log.info(f"Iteration {i}: Rebooting node '{node.name}'")
+                node.reboot()
+                reboot_time = timer.elapsed()
+                reboot_times.append((i, reboot_time))
+                log.info(f"Iteration {i}: Node '{node.name}' rebooted in {reboot_time}s")
+
+                # Check for panic after reboot
+                serial_console = node.features[SerialConsole]
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}", force_run=True
+                )
+
+            except Exception as identifier:
+                serial_console = node.features[SerialConsole]
+                # Check for panic if an exception occurs
+                serial_console.check_panic(
+                    saved_path=log_path, stage=f"reboot_iteration_{i}_error", force_run=True
+                )
+
+                # If the exception is a TCP connection issue, raise a bad environment state
+                if isinstance(identifier, TcpConnectionException):
+                    raise BadEnvironmentStateException(
+                        f"Iteration {i}: After reboot, {identifier}"
+                    )
+                log.warning(f"Iteration {i}: Exception occurred: {identifier}")
+                continue  # Continue to the next iteration
+
+        # Print all reboot times after the loop
+        log.info("Reboot times for all iterations:")
+        for iteration, time in reboot_times:
+            log.info(f"Iteration {iteration}: Reboot time = {time}s")
