@@ -263,7 +263,7 @@ class Provisioning(TestSuite):
             reboot_in_platform=True,
             is_restart=False,
         )
-        @TestCaseMetadata(
+    @TestCaseMetadata(
         description="""
         This case verifies whether a node is operating normally.
 
@@ -419,7 +419,7 @@ class Provisioning(TestSuite):
              
 
         reboot_times = []  # List to store reboot times
-        for i in range(2, {number_of_iterations}):            
+        for i in range(2, number_of_iterations):            
             try:
                 timer = create_timer()
                 log.info(f"Iteration {i}: Rebooting node '{node.name}'")
@@ -442,7 +442,12 @@ class Provisioning(TestSuite):
                     )
                 log.warning(f"Iteration {i}: Exception occurred: {identifier}")
                 continue  # Continue to the next iteration
-
+            
+            finally:
+            serial_console = node.features[SerialConsole]
+            serial_console.check_panic(
+                saved_path=log_path, stage=f"reboot_iteration_{i}", force_run=True
+            )
         # Print all reboot times after the loop
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
