@@ -284,7 +284,7 @@ class Provisioning(TestSuite):
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         self._smoke_test(log, node, log_path, "smoke_test")
-        self._stress_reboot(log, node, log_path, "reboot_stress", 99)
+        self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
@@ -419,7 +419,7 @@ class Provisioning(TestSuite):
              
 
         reboot_times = []  # List to store reboot times
-        for i in range(2, number_of_iterations):            
+        for i in range(1, number_of_iterations):            
             try:
                 timer = create_timer()
                 log.info(f"Iteration {i}: Rebooting node '{node.name}'")
