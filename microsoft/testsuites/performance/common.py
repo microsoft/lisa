@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+import time
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -362,11 +363,11 @@ def perf_ntttcp(  # noqa: C901
         server_ethtool = server.tools[Ethtool]
         # before_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
         # server.log.debug(f"Ring Buffer Values before: {before_val}")
-        server_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
+        server_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
         # after_val = server_ethtool.get_device_ring_buffer_settings("eth1").device_ring_buffer_settings_raw
         # server.log.debug(f"Ring Buffer Values after: {after_val}")
         client_ethtool = client.tools[Ethtool]
-        client_ethtool.change_device_ring_buffer_settings("eth1", 4096, 4096)
+        client_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
 
         for test_thread in connections:
             if test_thread < max_server_threads:
@@ -390,17 +391,17 @@ def perf_ntttcp(  # noqa: C901
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
             )
-            client_lagscope_process = client_lagscope.run_as_client_async(
-                server_ip=server.internal_address,
-                ping_count=0,
-                run_time_seconds=10,
-                print_histogram=False,
-                print_percentile=False,
-                histogram_1st_interval_start_value=0,
-                length_of_histogram_intervals=0,
-                count_of_histogram_intervals=0,
-                dump_csv=False,
-            )
+            # client_lagscope_process = client_lagscope.run_as_client_async(
+            #     server_ip=server.internal_address,
+            #     ping_count=0,
+            #     run_time_seconds=10,
+            #     print_histogram=False,
+            #     print_percentile=False,
+            #     histogram_1st_interval_start_value=0,
+            #     length_of_histogram_intervals=0,
+            #     count_of_histogram_intervals=0,
+            #     dump_csv=False,
+            # )
             client_ntttcp_result = client_ntttcp.run_as_client(
                 client_nic_name,
                 server.internal_address,
@@ -418,8 +419,8 @@ def perf_ntttcp(  # noqa: C901
             client_result_temp = client_ntttcp.create_ntttcp_result(
                 client_ntttcp_result, role="client"
             )
-            client_sar_result = client_lagscope_process.wait_result()
-            client_average_latency = client_lagscope.get_average(client_sar_result)
+            # client_sar_result = client_lagscope_process.wait_result()
+            # client_average_latency = client_lagscope.get_average(client_sar_result)
             if udp_mode:
                 ntttcp_message: Union[
                     NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage
@@ -435,14 +436,17 @@ def perf_ntttcp(  # noqa: C901
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
                     server_result_temp,
                     client_result_temp,
-                    client_average_latency,
+                    0,
                     str(test_thread),
                     buffer_size,
                     test_case_name,
                     test_result,
                 )
+            server_ethtool.get_device_statistics("eth1")
+            client_ethtool.get_device_statistics("eth1")
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+            time.sleep(10)
     finally:
         error_msg = ""
         throw_error = False
