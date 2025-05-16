@@ -265,25 +265,22 @@ class Provisioning(TestSuite):
         )
     @TestCaseMetadata(
         description="""
-        This case verifies whether a node is operating normally.
+        This case performs a reboot stress test on the node.
 
-        Steps,
-        1. Connect to TCP port 22. If it's not connectable, failed and check whether
-            there is kernel panic.
-        2. Connect to SSH port 22, and reboot the node. If there is an error and kernel
-            panic, fail the case. If it's not connectable, also fail the case.
-        3. If there is another error, but not kernel panic or tcp connection, pass with
-            warning.
-        4. Otherwise, fully passed.
+        Steps:
+        1. Reboot the node 100 times from the guest OS.
+        2. After each reboot, check if the node is reachable and verify there is no kernel panic using the serial console.
+        3. Log the reboot time for each iteration.
+        4. If a TCP connection error or kernel panic is detected, fail the test.
         """,
-        priority=0,
+        priority=3,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
         ),
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path, "smoke_test")
+        self._smoke_test(log, node, log_path, "reboot_stress")
         self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
@@ -412,7 +409,6 @@ class Provisioning(TestSuite):
         log: Logger,
         node: RemoteNode,
         log_path: Path,
-        case_name: str,
         number_of_iterations: int = 100,
         wait: bool = True
         ) -> None:
