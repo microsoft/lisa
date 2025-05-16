@@ -300,12 +300,12 @@ def perf_ntttcp(  # noqa: C901
         [lambda: client.tools[Ntttcp], lambda: server.tools[Ntttcp]]  # type: ignore
     )
     try:
-        client_lagscope, server_lagscope = run_in_parallel(
-            [
-                lambda: client.tools[Lagscope],  # type: ignore
-                lambda: server.tools[Lagscope],  # type: ignore
-            ]
-        )
+        # client_lagscope, server_lagscope = run_in_parallel(
+        #     [
+        #         lambda: client.tools[Lagscope],  # type: ignore
+        #         lambda: server.tools[Lagscope],  # type: ignore
+        #     ]
+        # )
         # no need to set task max and reboot VM when connection less than 20480
         if max(connections) >= 20480 and not isinstance(server.os, BSD):
             set_task_max = True
@@ -321,8 +321,8 @@ def perf_ntttcp(  # noqa: C901
             server_sriov_count = len(server.nics.get_lower_nics())
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.setup_system(udp_mode, set_task_max)
-        for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.set_busy_poll()
+        # for lagscope in [client_lagscope, server_lagscope]:
+        #     lagscope.set_busy_poll()
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
             if need_reboot:
@@ -349,11 +349,11 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
-        server_lagscope.run_as_server_async(
-            ip=lagscope_server_ip
-            if lagscope_server_ip is not None
-            else server.internal_address
-        )
+        # server_lagscope.run_as_server_async(
+        #     ip=lagscope_server_ip
+        #     if lagscope_server_ip is not None
+        #     else server.internal_address
+        # )
         max_server_threads = 64
         perf_ntttcp_message_list: List[
             Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
@@ -370,6 +370,8 @@ def perf_ntttcp(  # noqa: C901
         client_ethtool.change_device_ring_buffer_settings("eth1", 8192, 8192)
 
         for test_thread in connections:
+            server.log.debug(f"Running with thread count: {test_thread}")
+            client.log.debug(f"Running with thread count: {test_thread}")
             if test_thread < max_server_threads:
                 num_threads_p = test_thread
                 num_threads_n = 1
@@ -411,6 +413,8 @@ def perf_ntttcp(  # noqa: C901
                 dev_differentiator=dev_differentiator,
                 udp_mode=udp_mode,
             )
+            server_ethtool.get_device_statistics("eth1")
+            client_ethtool.get_device_statistics("eth1")
             server.tools[Kill].by_name(server_ntttcp.command)
             server_ntttcp_result = server_result.wait_result()
             server_result_temp = server_ntttcp.create_ntttcp_result(
@@ -442,11 +446,11 @@ def perf_ntttcp(  # noqa: C901
                     test_case_name,
                     test_result,
                 )
-            server_ethtool.get_device_statistics("eth1")
-            client_ethtool.get_device_statistics("eth1")
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
-            time.sleep(10)
+            server.log.debug(f"Sleeping for 60 seconds")
+            client.log.debug(f"Sleeping for 60 seconds")
+            time.sleep(60)
     finally:
         error_msg = ""
         throw_error = False
@@ -459,9 +463,9 @@ def perf_ntttcp(  # noqa: C901
             raise LisaException(error_msg)
         for ntttcp in [client_ntttcp, server_ntttcp]:
             ntttcp.restore_system(udp_mode)
-        for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.kill()
-            lagscope.restore_busy_poll()
+        # for lagscope in [client_lagscope, server_lagscope]:
+        #     lagscope.kill()
+        #     lagscope.restore_busy_poll()
     return perf_ntttcp_message_list
 
 
