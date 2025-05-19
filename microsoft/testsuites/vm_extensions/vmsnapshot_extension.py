@@ -19,6 +19,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Debian, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
@@ -41,7 +42,9 @@ from lisa.tools.whoami import Whoami
     area="vm_extension",
     category="functional",
     description="Test for VMSnapshot extension",
-    requirement=simple_requirement(unsupported_os=[]),
+    requirement=simple_requirement(
+        unsupported_os=[], supported_features=[CvmDisabled()]
+    ),
 )
 class VmSnapsotLinuxBVTExtension(TestSuite):
     @TestCaseMetadata(

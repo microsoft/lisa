@@ -32,6 +32,7 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
+from lisa.features.security_profile import CvmDisabled
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
@@ -122,7 +123,10 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskEphemeral(),
-            supported_features=[SerialConsole],
+            supported_features=[
+                SerialConsole,
+                CvmDisabled(),
+            ],  # TODO: Fix disk deployment for CVM
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
