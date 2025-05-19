@@ -280,8 +280,18 @@ class Provisioning(TestSuite):
         ),
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path, "reboot_stress")
-        self._stress_reboot(log, node, log_path, "reboot_stress", 100)
+        reboot_times = []
+        for i in range(100):
+            log.info(f"Reboot stress iteration {i+1}/100")
+            elapsed = self._smoke_test(
+                log, node, log_path, f"reboot_stress_{i+1}"
+            )
+            reboot_times.append((i + 1, elapsed))
+        log.info("Reboot times for all iterations:")
+        for iteration, time in reboot_times:
+            log.info(f"Iteration {iteration}: Reboot time = {time}s")
+            #self._smoke_test(log, node, log_path, "reboot_stress")
+            #self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
@@ -348,6 +358,7 @@ class Provisioning(TestSuite):
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
+            return timer.elapsed()
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
