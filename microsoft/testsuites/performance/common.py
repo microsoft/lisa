@@ -4,6 +4,7 @@ import inspect
 import pathlib
 from functools import partial
 from typing import Any, Dict, List, Optional, Union, cast
+import time
 
 from assertpy import assert_that
 from retry import retry
@@ -28,10 +29,12 @@ from lisa.operating_system import BSD, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    Dhclient,
     FIOMODES,
     Fdisk,
     Fio,
     FIOResult,
+    Ip,
     Iperf3,
     Kill,
     Lagscope,
@@ -272,6 +275,30 @@ def perf_ntttcp(  # noqa: C901
         # set server and client from environment, if not set explicitly
         server = cast(RemoteNode, environment.nodes[1])
         client = cast(RemoteNode, environment.nodes[0])
+
+    print(f"Server {server.name} IP info:")
+    server_ip_tool = server.tools[Ip]
+    server_ip_info = server_ip_tool.get_info()
+    for ip_info in server_ip_info:
+        print(ip_info.nic_name)
+        if ip_info.nic_name.startswith("enP"):
+            server_ip_tool.up(ip_info.nic_name)
+            server.tools[Dhclient].renew(ip_info.nic_name)
+
+
+    print(f"Client {client.name} IP info:")
+    client_ip_tool = client.tools[Ip]
+    client_ip_info = client_ip_tool.get_info()
+    for ip_info in client_ip_info:
+        print(ip_info.nic_name)
+        if ip_info.nic_name.startswith("enP"):
+            client_ip_tool.up(ip_info.nic_name)
+            client.tools[Dhclient].renew(ip_info.nic_name)
+
+    print("reload")
+    server_ip_tool.get_info()
+    client_ip_tool.get_info()
+
 
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
