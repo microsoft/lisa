@@ -61,7 +61,7 @@ def support_working_path(parser: ArgumentParser) -> None:
         "-w",
         type=Path,
         dest="working_path",
-        help="Uses to replace the default log working path.",
+        help="Uses to replace the default working path. All runtime files including cache will be created under this path.",
     )
 
 
