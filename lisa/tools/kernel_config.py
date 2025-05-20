@@ -30,6 +30,8 @@ class KernelConfig(Tool):
         return False
 
     def is_built_in(self, config_name: str) -> bool:
+        print("Checking built-in kernel config:")
+        print(f"grep ^{config_name}=y {self.config_path}")
         return (
             self.node.execute(
                 f"grep ^{config_name}=y {self.config_path}", sudo=True, shell=True

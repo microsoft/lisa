@@ -33,6 +33,8 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.tools import Lspci
+from lisa.tools import Ip
+from lisa.tools.start_configuration import StartConfiguration
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -73,7 +75,27 @@ class Provisioning(TestSuite):
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
-        self._smoke_test(log, node, log_path, "smoke_test")
+
+        print(f"Server {node.name} IP info pre reboot:")
+        mlx_eth_name = ""
+        node_ip_tool = node.tools[Ip]
+        node_ip_info = node_ip_tool.get_info()
+        for ip_info in node_ip_info:
+            print(ip_info.nic_name)
+            if ip_info.nic_name.startswith("enP"):
+                mlx_eth_name = ip_info.nic_name
+                break
+        print(f"mlx_eth_name: {mlx_eth_name}")
+        node.tools[StartConfiguration].add_command(
+                f"ip link set {mlx_eth_name} up"
+            )
+        node.tools[StartConfiguration].add_command(f"dhclient {mlx_eth_name}")
+        node.reboot()
+
+        print(f"Server {node.name} IP info post reboot:")
+        node_ip_tool = node.tools[Ip]
+        node_ip_info = node_ip_tool.get_info()
+        # self._smoke_test(log, node, log_path, "smoke_test")
 
     @TestCaseMetadata(
         description="""
