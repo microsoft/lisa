@@ -1,5 +1,0 @@
-name: test
-launcher: ready
-
-testcase:
-  test_result: skip
