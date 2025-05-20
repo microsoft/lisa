@@ -27,22 +27,17 @@ from lisa.util.logger import (
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
-# This is initially set to the current directory's runtime folder
-# but will be updated in initialize_runtime_folder based on working_path
 _runtime_root = Path("runtime").absolute()
 
 
-def _normalize_path(path_type: str, path: Optional[Path] = None, runtime_root: Path = None) -> Path:
+def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
     # Layout the run time folder structure.
-    if runtime_root is None:
-        runtime_root = _runtime_root
-        
     if path:
         # if log path is relative path, join with root.
         if not path.is_absolute():
-            path = runtime_root / path
+            path = _runtime_root / path
     else:
-        path = runtime_root / path_type
+        path = _runtime_root / path_type
 
     return path
 
@@ -94,22 +89,19 @@ def initialize_runtime_folder(
 ) -> None:
     global _runtime_root
     
-    # Update _runtime_root based on working_path if provided
+    # Update _runtime_root if working_path is provided
     if working_path and working_path.is_absolute():
-        # If absolute working_path is provided, use it as the base for runtime
         _runtime_root = working_path / "runtime"
     elif working_path:
-        # If relative working_path is provided, make it absolute first
         _runtime_root = Path(working_path).absolute() / "runtime"
     
-    # Create the cache directory within the runtime directory
     cache_path = _runtime_root.joinpath("cache")
     cache_path.mkdir(parents=True, exist_ok=True)
     constants.CACHE_PATH = cache_path
 
     # Layout the run time folder structure.
-    log_path = _normalize_path("log", log_path, _runtime_root)
-    working_path = _normalize_path("working", working_path, _runtime_root)
+    log_path = _normalize_path("log", log_path)
+    working_path = _normalize_path("working", working_path)
 
     logic_path = test_path(log_path, working_path, run_id=run_id)
 
