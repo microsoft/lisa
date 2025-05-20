@@ -27,7 +27,8 @@ from lisa.util.logger import (
 from lisa.util.perf_timer import create_timer
 from lisa.variable import add_secrets_from_pairs
 
-_runtime_root = Path("runtime").absolute()
+# Initialize with None, will be set in initialize_runtime_folder
+_runtime_root = None
 
 
 def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
@@ -35,8 +36,12 @@ def _normalize_path(path_type: str, path: Optional[Path] = None) -> Path:
     if path:
         # if log path is relative path, join with root.
         if not path.is_absolute():
+            # Ensure _runtime_root is initialized
+            assert _runtime_root is not None, "_runtime_root must be initialized before calling _normalize_path"
             path = _runtime_root / path
     else:
+        # Ensure _runtime_root is initialized
+        assert _runtime_root is not None, "_runtime_root must be initialized before calling _normalize_path"
         path = _runtime_root / path_type
 
     return path
@@ -87,6 +92,19 @@ def initialize_runtime_folder(
     working_path: Optional[Path] = None,
     run_id: str = "",
 ) -> None:
+    global _runtime_root
+    
+    # If working_path is provided, use it as base for runtime folder
+    # Otherwise fallback to current directory
+    if working_path is not None and working_path.is_absolute():
+        _runtime_root = working_path / "runtime"
+    else:
+        _runtime_root = Path("runtime").absolute()
+    
+    # Ensure runtime directory exists
+    _runtime_root.mkdir(parents=True, exist_ok=True)
+    
+    # Initialize cache path
     cache_path = _runtime_root.joinpath("cache")
     cache_path.mkdir(parents=True, exist_ok=True)
     constants.CACHE_PATH = cache_path
