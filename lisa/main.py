@@ -84,6 +84,7 @@ def test_path(
         )
 
     log_path.mkdir(parents=True)
+    working_path.mkdir(parents=True)
     return logic_path
 
 
@@ -112,9 +113,6 @@ def initialize_runtime_folder(
     # Layout the run time folder structure.
     log_path = _normalize_path("log", log_path)
     working_path = _normalize_path("working", working_path)
-    
-    # Ensure working_path directory exists
-    working_path.mkdir(parents=True, exist_ok=True)
 
     logic_path = test_path(log_path, working_path, run_id=run_id)
 
