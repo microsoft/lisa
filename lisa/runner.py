@@ -248,12 +248,12 @@ class RootRunner(Action):
             register_notifier(self._results_collector)
 
             self._start_loop()
-        except Exception as identifier:
+        except Exception as e:
             self._log.exception(
-                "canceling runner due to exception", exc_info=identifier
+                "canceling runner due to exception", exc_info=e
             )
             cancel()
-            raise identifier
+            raise e
         finally:
             self._cleanup()
 
@@ -458,10 +458,10 @@ class RootRunner(Action):
         try:
             for runner in self._runners:
                 runner.close()
-        except Exception as identifier:
-            self._log.warn(f"error on close runner: {identifier}")
+        except Exception as e:
+            self._log.warn(f"error on close runner: {e}")
 
         try:
             transformer.run(self._runbook_builder, constants.TRANSFORMER_PHASE_CLEANUP)
-        except Exception as identifier:
-            self._log.warn(f"error on run cleanup transformers: {identifier}")
+        except Exception as e:
+            self._log.warn(f"error on run cleanup transformers: {e}")

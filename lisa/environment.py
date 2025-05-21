@@ -567,9 +567,9 @@ class EnvironmentHookImpl:
             node = environment.default_node
             try:
                 information = node.get_information()
-            except Exception as identifier:
+            except Exception as e:
                 environment.log.exception(
-                    "failed to get environment information", exc_info=identifier
+                    "failed to get environment information", exc_info=e
                 )
 
         return information

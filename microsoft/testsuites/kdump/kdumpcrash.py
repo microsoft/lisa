@@ -282,8 +282,8 @@ class KdumpCrash(TestSuite):
     def _kdump_test(self, node: Node, log_path: Path, log: Logger) -> None:
         try:
             self._check_supported(node)
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
 
         kdump = node.tools[KdumpBase]
         free = node.tools[Free]
@@ -331,8 +331,8 @@ class KdumpCrash(TestSuite):
                 shell=True,
                 sudo=True,
             )
-        except Exception as identifier:
-            log.debug(f"ignorable ssh exception: {identifier}")
+        except Exception as e:
+            log.debug(f"ignorable ssh exception: {e}")
 
         # Check if the vmcore file is generated after triggering a crash
         self._check_kdump_result(node, log_path, log, kdump)
@@ -344,16 +344,16 @@ class KdumpCrash(TestSuite):
         remote_node = cast(RemoteNode, node)
         try:
             self._try_connect(remote_node)
-        except FunctionTimedOut as identifier:
+        except FunctionTimedOut as e:
             # The FunctionTimedOut must be caught separated, or the process will exit.
-            log.debug(f"ignorable timeout exception: {identifier}")
+            log.debug(f"ignorable timeout exception: {e}")
             return False
-        except Exception as identifier:
+        except Exception as e:
             log.debug(
                 "Fail to connect SSH "
                 f"{remote_node._connection_info.address}:"
                 f"{remote_node._connection_info.port}. "
-                f"{identifier.__class__.__name__}: {identifier}. Retry..."
+                f"{e.__class__.__name__}: {e}. Retry..."
             )
             return False
         return True
@@ -431,11 +431,11 @@ class KdumpCrash(TestSuite):
                         check_dump_file_tries = 0
                         stat = node.tools[Stat]
                         incomplete_file_size = stat.get_total_size(incomplete_file)
-                except Exception as identifier:
+                except Exception as e:
                     log.debug(
                         "Fail to execute command. It may be caused by the system kernel"
                         " reboot after dumping vmcore."
-                        f"{identifier.__class__.__name__}: {identifier}. Retry..."
+                        f"{e.__class__.__name__}: {e}. Retry..."
                     )
                     # Hit exception, break this loop and re-try to connect the system
                     break

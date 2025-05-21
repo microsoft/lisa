@@ -29,8 +29,8 @@ class Aria(Tool):
             posix_os.install_packages(["aria2"])
         except (RepoNotExistException, ReleaseEndOfLifeException) as e:
             raise e
-        except Exception as identifier:
-            self._log.debug(f"Failed to install aria2: {identifier}")
+        except Exception as e:
+            self._log.debug(f"Failed to install aria2: {e}")
 
         if not self._check_exists():
             self._log.debug("Installing aria2 from source")

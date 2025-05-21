@@ -566,10 +566,10 @@ class Storage(TestSuite):
                 mount_dir,
                 options="vers=4,minorversion=1,sec=sys",
             )
-        except Exception as identifier:
+        except Exception as e:
             raise LisaException(
                 f"fail to mount {server_shared_dir} into {mount_dir}"
-                f"{identifier.__class__.__name__}: {identifier}."
+                f"{e.__class__.__name__}: {e}."
             )
         finally:
             nfs.delete_share()

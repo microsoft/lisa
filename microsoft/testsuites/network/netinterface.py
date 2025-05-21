@@ -57,7 +57,7 @@ class NetInterface(TestSuite):
             # Unload and load hv_netvsc
             try:
                 network_interface_feature.reload_module()
-            except Exception as identifier:
+            except Exception as e:
                 # It has two kinds of known exceptions. One is SSHException "SSH session
                 # not active". Another is "cannot connect to TCP port". The SSHException
                 # can be ignorable. If no panic is detected, close the node and retry.
@@ -73,21 +73,21 @@ class NetInterface(TestSuite):
                 serial_console.check_panic(
                     saved_path=log_path, stage="after_reload_netvsc", force_run=True
                 )
-                if str(identifier) == "SSH session not active":
+                if str(e) == "SSH session not active":
                     node.log.debug(
-                        f"This exception '{identifier}' is ignorable. Try again"
+                        f"This exception '{e}' is ignorable. Try again"
                     )
                     node.close()
-                elif "cannot connect to TCP port" in str(identifier):
+                elif "cannot connect to TCP port" in str(e):
                     raise LisaException(
                         f"After reloading netvsc module {test_count - 1} times, "
-                        f"encounter exception '{identifier}'. It is not clear if"
+                        f"encounter exception '{e}'. It is not clear if"
                         " the image has an issue. Please rerun this case."
                     )
                 else:
                     raise LisaException(
                         f"After reloading netvsc module {test_count - 1} times, "
-                        f"encounter exception '{identifier}'."
+                        f"encounter exception '{e}'."
                     )
 
     @TestCaseMetadata(
@@ -165,11 +165,11 @@ class NetInterface(TestSuite):
                 is_built_in_module = node.tools[KernelConfig].is_built_in(
                     "CONFIG_HYPERV_NET"
                 )
-            except LisaException as identifier:
+            except LisaException as e:
                 # Some image's kernel config is inconsistent with the kernel version.
                 # E.g. fatpipe-inc fatpipe-wanopt 10 0.0.3, then it has the exception.
                 # If so, check if netvsc is built-in using below way.
-                node.log.debug(identifier)
+                node.log.debug(e)
                 uname = node.tools[Uname]
                 kernel = uname.get_linux_information().kernel_version_raw
                 is_built_in_module = (

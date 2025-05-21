@@ -154,10 +154,10 @@ class RunbookBuilder:
             variables = self.variables
         try:
             parsed_data = replace_variables(raw_data, variables)
-        except Exception as identifier:
+        except Exception as e:
             # log current data for troubleshooting.
             self._log.debug(f"parsed raw data: {raw_data}")
-            raise identifier
+            raise e
 
         return parsed_data
 
@@ -358,9 +358,9 @@ class RunbookBuilder:
                 try:
                     include: schema.Include
                     include = schema.load_by_type(schema.Include, include_raw)
-                except Exception as identifier:
+                except Exception as e:
                     raise LisaException(
-                        f"error on loading include node [{include_raw}]: {identifier}"
+                        f"error on loading include node [{include_raw}]: {e}"
                     )
                 if include.strategy:
                     raise NotImplementedError(

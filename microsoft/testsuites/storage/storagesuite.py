@@ -160,8 +160,8 @@ class StorageTest(TestSuite):
                     verify_fatal=True,
                     verify="md5",
                 )
-            except LisaException as identifier:
-                matched = find_patterns_in_lines(str(identifier), [pattern])
+            except LisaException as e:
+                matched = find_patterns_in_lines(str(e), [pattern])
                 if matched[0]:
                     raise LisaException(
                         "This is a bug in the Linux block layer merging BIOs that"
@@ -170,7 +170,7 @@ class StorageTest(TestSuite):
                         " to support multiple pages. Please pick up this commit "
                         "https://patchwork.kernel.org/project/linux-block/patch/1623094445-22332-1-git-send-email-longli@linuxonhyperv.com/"  # noqa: E501
                     )
-                raise identifier
+                raise e
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs.pop("node")

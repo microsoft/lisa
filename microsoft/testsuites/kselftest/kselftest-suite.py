@@ -84,5 +84,5 @@ class KselftestTestsuite(TestSuite):
                 run_collections=test_collection_list,
                 skip_tests=skip_tests_list,
             )
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)

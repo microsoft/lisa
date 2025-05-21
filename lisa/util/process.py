@@ -143,8 +143,8 @@ def process_posix_command(
             command = f"nohup {command}"
         try:
             split_command = shlex.split(command, posix=True)
-        except Exception as identifier:
-            raise LisaException(f"failed on split command: {command}: {identifier}")
+        except Exception as e:
+            raise LisaException(f"failed on split command: {command}: {e}")
 
     return split_command
 
@@ -157,8 +157,8 @@ def process_windows_command(
     else:
         try:
             split_command = shlex.split(command, posix=False)
-        except Exception as identifier:
-            raise LisaException(f"failed on split command: {command}: {identifier}")
+        except Exception as e:
+            raise LisaException(f"failed on split command: {command}: {e}")
 
     return split_command
 
@@ -316,13 +316,13 @@ class Process:
             # closed without any data transfer.
             if self._shell.is_remote:
                 self._process._channel.transport.set_keepalive(30)
-        except (FileNotFoundError, NoSuchCommandError) as identifier:
+        except (FileNotFoundError, NoSuchCommandError) as e:
             # FileNotFoundError: not found command on Windows
             # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
-                "", identifier.strerror, 1, split_command, self._timer.elapsed()
+                "", e.strerror, 1, split_command, self._timer.elapsed()
             )
-            self._log.log(stderr_level, f"not found command: {identifier}")
+            self._log.log(stderr_level, f"not found command: {e}")
         except SshSpawnTimeoutException:
             # close the shell and try again, see if the ssh connection is interrupted.
             self._shell.close()
@@ -479,8 +479,8 @@ class Process:
                         no_info_log=True,
                     )
                     kill_process.wait_result(1)
-            except Exception as identifier:
-                self._log.debug(f"failed on killing process: {identifier}")
+            except Exception as e:
+                self._log.debug(f"failed on killing process: {e}")
 
     def is_running(self) -> bool:
         if self._running and self._process:

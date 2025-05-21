@@ -395,9 +395,9 @@ class InitializableMixin:
             try:
                 self._is_initialized = True
                 self._initialize(*args, **kwargs)
-            except Exception as identifier:
+            except Exception as e:
                 self._is_initialized = False
-                raise identifier
+                raise e
 
 
 class BaseClassMixin:

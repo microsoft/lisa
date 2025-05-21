@@ -364,11 +364,11 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         self.log.debug(f"capturing system information to {saved_path}.")
         try:
             self.os.capture_system_information(saved_path)
-        except Exception as identifier:
+        except Exception as e:
             # For some images like cisco, southrivertech1586314123192, they might raise
             # exception when calling copy_back. This should not block the test, so add
             # try-except.
-            self.log.debug(f"error on capturing system information: {identifier}")
+            self.log.debug(f"error on capturing system information: {e}")
 
     def find_partition_with_freespace(
         self, size_in_gb: int, use_os_drive: bool = True, raise_error: bool = True
@@ -489,8 +489,8 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         try:
             self.execute("echo connected", timeout=10)
             return True
-        except Exception as identifier:
-            self.log.debug(f"cannot access VM {self.name}, error is {identifier}")
+        except Exception as e:
+            self.log.debug(f"cannot access VM {self.name}, error is {e}")
         return False
 
     def check_kernel_panic(self) -> None:
@@ -795,8 +795,8 @@ class RemoteNode(Node):
             password = generate_strong_password()
         try:
             password_extension.reset_password(username, str(password))
-        except Exception as identifier:
-            self.log.debug(f"reset password failed: {identifier}")
+        except Exception as e:
+            self.log.debug(f"reset password failed: {e}")
             return False
         add_secret(password)
         self._connection_info.password = password
@@ -1220,9 +1220,9 @@ class NodeHookImpl:
                     information.update(information_dict)
                     information["distro_version"] = node.os.information.full_version
                     information["kernel_version"] = linux_information.kernel_version_raw
-            except Exception as identifier:
+            except Exception as e:
                 node.log.exception(
-                    "failed to get node information", exc_info=identifier
+                    "failed to get node information", exc_info=e
                 )
 
         return information

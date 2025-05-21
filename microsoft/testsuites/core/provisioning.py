@@ -329,7 +329,7 @@ class Provisioning(TestSuite):
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
-        except Exception as identifier:
+        except Exception as e:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
             serial_console.check_panic(
@@ -337,9 +337,9 @@ class Provisioning(TestSuite):
             )
 
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {identifier}")
-            raise PassedException(identifier)
+            if isinstance(e, TcpConnectionException):
+                raise BadEnvironmentStateException(f"after reboot, {e}")
+            raise PassedException(e)
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]

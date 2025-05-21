@@ -400,8 +400,8 @@ class Infiniband(Feature):
                 overwrite=False,
                 sudo=True,
             )
-        except LisaException as identifier:
-            if "404: Not Found." in str(identifier):
+        except LisaException as e:
+            if "404: Not Found." in str(e):
                 raise UnsupportedDistroException(
                     node.os, f"{mlnx_ofed_download_url} doesn't exist."
                 )

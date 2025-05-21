@@ -215,9 +215,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                                 current_settings.type,
                                 BaseLibvirtPlatform.supported_features(),
                             )
-                        except NotMeetRequirementException as identifier:
+                        except NotMeetRequirementException as e:
                             raise LisaException(
-                                f"platform doesn't support all features. {identifier}"
+                                f"platform doesn't support all features. {e}"
                             )
                         new_setting = schema.load_by_type(
                             settings_type, current_settings
@@ -1397,8 +1397,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                     value = method()
                     if value:
                         information[key] = value
-                except Exception as identifier:
-                    node.log.exception(f"error on get {key}.", exc_info=identifier)
+                except Exception as e:
+                    node.log.exception(f"error on get {key}.", exc_info=e)
 
         return information
 
