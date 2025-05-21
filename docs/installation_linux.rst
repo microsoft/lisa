@@ -46,7 +46,7 @@ Run the command below to install the dependencies on Ubuntu:
 
    sudo apt install git gcc libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev python3-pip python3-venv -y
 
-On Azure Linux, run the following command:
+Run the command below to install the dependencies on Azure Linux:
 
 .. code:: bash
 
