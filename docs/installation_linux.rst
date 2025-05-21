@@ -57,7 +57,7 @@ On Azure Linux (Mariner) 2.0 or 3.0, run the following command:
 
 .. code:: bash
 
-   sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel
+   sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel curl wget tar azure-cli ca-certificates
 
 If you're using a different distribution or python version, adjust the command as needed
 
