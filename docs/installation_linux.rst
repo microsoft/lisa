@@ -9,7 +9,7 @@ Minimum System Requirements
 3. 4 GB system memory
 
 We will guide you through the installation of LISA on Linux.
-The following commands assume Ubuntu or Azure Linux (Mariner) 2.0/3.0 is being used.
+The following commands assume Ubuntu or Azure Linux is being used.
 
 
 Install Python on Linux
@@ -36,13 +36,6 @@ Here is an example to install Python 3.11 on Ubuntu 22.04
    sudo apt update
    sudo apt install python3.11 python3.11-dev -y
 
-Here is an example to install Python 3.11 on Azure Linux (Mariner) 2.0 or 3.0
-
-.. code:: bash
-
-   sudo tdnf update
-   sudo tdnf install python3.11 python3.11-devel -y
-
 
 Install system dependencies
 ---------------------------
@@ -53,7 +46,7 @@ Run the command below to install the dependencies on Ubuntu:
 
    sudo apt install git gcc libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev python3-pip python3-venv -y
 
-On Azure Linux (Mariner) 2.0 or 3.0, run the following command:
+On Azure Linux, run the following command:
 
 .. code:: bash
 
@@ -79,7 +72,7 @@ if it exists.
 
 .. note::
 
-   For some distributions, such as Ubuntu and Azure Linux (Mariner), ``$HOME/\.local/bin`` will be
+   For some distributions, such as Ubuntu and Azure Linux, ``$HOME/\.local/bin`` will be
    added to the ``$PATH`` at login if it exists. In this case, log out and
    log back in after installing LISA if your path doesn't currently include it.
 
