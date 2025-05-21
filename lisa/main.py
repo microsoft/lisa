@@ -87,21 +87,14 @@ def initialize_runtime_folder(
     working_path: Optional[Path] = None,
     run_id: str = "",
 ) -> None:
-    # If working_path is provided and absolute, set cache_path within it
-    # This needs to be done before normalization
-    if working_path and working_path.is_absolute():
-        cache_path = working_path / "cache"
-        cache_path.mkdir(parents=True, exist_ok=True)
-        constants.CACHE_PATH = cache_path
-    else:
-        # Use default cache path if no absolute working_path provided
-        cache_path = _runtime_root.joinpath("cache")
-        cache_path.mkdir(parents=True, exist_ok=True)
-        constants.CACHE_PATH = cache_path
-
     # Layout the run time folder structure.
     log_path = _normalize_path("log", log_path)
     working_path = _normalize_path("working", working_path)
+    
+    # Set cache path after working_path is normalized
+    cache_path = working_path.parent / "cache"
+    cache_path.mkdir(parents=True, exist_ok=True)
+    constants.CACHE_PATH = cache_path
 
     logic_path = test_path(log_path, working_path, run_id=run_id)
 
