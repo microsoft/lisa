@@ -114,9 +114,7 @@ def main() -> int:
     try:
         args = parse_args()
 
-        initialize_runtime_folder(
-            args.log_path, args.working_path, args.run_id
-        )
+        initialize_runtime_folder(args.log_path, args.working_path, args.run_id)
 
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
