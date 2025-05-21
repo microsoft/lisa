@@ -73,8 +73,8 @@ _default_smb_testcases: str = (
     "generic/406 generic/412 generic/422 generic/428 generic/432 generic/433 "
     "generic/437 generic/443 generic/450 generic/451 generic/452 generic/460 "
     "generic/464 generic/465 generic/469 generic/524 generic/528 generic/538 "
-    "generic/565 generic/567 generic/568 generic/590 generic/591 generic/598"
-    "generic/599 generic/604 generic/609 generic/615 generic/632 generic/634"
+    "generic/565 generic/567 generic/568 generic/590 generic/591 generic/598 "
+    "generic/599 generic/604 generic/609 generic/615 generic/632 generic/634 "
     "generic/635 generic/637 generic/638 generic/639"
 )
 # Section : Global options
