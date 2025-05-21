@@ -15,7 +15,7 @@ On Ubuntu, you can install Docker with the following commands:
    sudo apt update
    sudo apt install docker.io -y
 
-On Azure Linux (Mariner) 2.0 or 3.0, you can install Docker with the following commands:
+On Azure Linux, you can install Docker with the following commands:
 
 .. code:: bash
 

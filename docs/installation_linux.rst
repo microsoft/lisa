@@ -46,6 +46,12 @@ Run the command below to install the dependencies on Ubuntu:
 
    sudo apt install git gcc libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev python3-pip python3-venv -y
 
+On Azure Linux (Mariner) 2.0 or 3.0, run the following command:
+
+.. code:: bash
+
+   sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel
+
 If you're using a different distribution or python version, adjust the command as needed
 
 
