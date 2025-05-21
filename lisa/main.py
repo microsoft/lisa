@@ -46,7 +46,8 @@ def _dump_code_information(log: Logger) -> None:
     command = r'git log -1 "--pretty=format:%H%d %ci, %s"'
     output = subprocess.getoutput(command)
     log.info(f"git head: {output}")
-    output = subprocess.getoutput(f"git submodule foreach --recursive {command}")
+    submodule_cmd = f"git submodule foreach --recursive {command}"
+    output = subprocess.getoutput(submodule_cmd)
     if output:
         log.info(f"submodules: {output}")
 
@@ -113,7 +114,9 @@ def main() -> int:
     try:
         args = parse_args()
 
-        initialize_runtime_folder(args.log_path, args.working_path, args.run_id)
+        initialize_runtime_folder(
+            args.log_path, args.working_path, args.run_id
+        )
 
         log_level = DEBUG if (args.debug) else INFO
         set_level(log_level)
@@ -162,8 +165,8 @@ def cli() -> int:
         try:
             log.exception(exception)
         except Exception:
-            # if there is any exception in log class, they have to be caught and show
-            # on console only
+            # if there is any exception in log class,
+            # they have to be caught and show on console only
             traceback.print_exc()
     finally:
         sys.exit(exit_code)
