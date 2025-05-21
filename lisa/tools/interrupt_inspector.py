@@ -156,7 +156,7 @@ class InterruptInspectorBSD(InterruptInspector):
         # cpu2:timer                          4297          6
         # Total                              13950         25
         # The columns are in order: IRQ name, IRQ type, IRQ count, IRQ rate.
-        result = self.run()
+        result = self.run(force_run=True)
         mappings = result.stdout.splitlines(keepends=False)[1:-1]
         assert mappings
         interrupts = []
