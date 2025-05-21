@@ -150,7 +150,24 @@ class FipsTests(TestSuite):
                 "checking image SKU."
             )
             json_response = json.loads(response.stdout)
-            return "fips" in json_response["compute"]["sku"]
+        
+            # Safely get compute and sku with default empty values
+            compute = json_response.get("compute", {})
+            sku = compute.get("sku", "")
+            
+            # Ensure SKU is a string type before processing
+            if not isinstance(sku, str):
+                log.debug(f"get_expected_fips_mode: Expected string for SKU, got {type(sku)}")
+                return None
+            
+            # Skip empty or whitespace-only SKUs    
+            if not sku.strip():
+                log.debug("get_expected_fips_mode: SKU is empty or contains only whitespace")
+                return None
+            
+            # Check if SKU contains 'fips' (case-insensitive)    
+            return "fips" in sku.lower()
+    
 
         # If we couldn't determine the FIPS mode, return False as a default.
         log.debug(
