@@ -36,6 +36,8 @@ Here is an example to install Python 3.11 on Ubuntu 22.04
    sudo apt update
    sudo apt install python3.11 python3.11-dev -y
 
+For Azure Linux, Python installation is included in the system dependencies section below and does not need to be installed separately.
+
 
 Install system dependencies
 ---------------------------
