@@ -90,7 +90,7 @@ def initialize_runtime_folder(
     # Layout the run time folder structure.
     log_path = _normalize_path("log", log_path)
     working_path = _normalize_path("working", working_path)
-    
+
     # Set cache path after working_path is normalized
     cache_path = working_path.parent / "cache"
     cache_path.mkdir(parents=True, exist_ok=True)
