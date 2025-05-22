@@ -284,7 +284,7 @@ class Provisioning(TestSuite):
         reboot_times = []
         for i in range(100):
             log.info(f"Reboot stress iteration {i+1}/100")
-            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}")
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",i)
             reboot_times.append((i + 1, elapsed))
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
@@ -301,6 +301,7 @@ class Provisioning(TestSuite):
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
+        n : int = 2,
     ) -> None:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
@@ -357,6 +358,8 @@ class Provisioning(TestSuite):
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
+            if n == 2:
+                raise Exception("This is a test exception for _smoke_test")
             return timer.elapsed()
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
