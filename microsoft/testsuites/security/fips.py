@@ -30,8 +30,8 @@ from lisa.util import SkippedException, to_bool
 class FipsTests(TestSuite):
     @TestCaseMetadata(
         description="""
-            Ensures that an AZL machine is in the correct FIPS mode.
-        """,
+        Ensures that an AZL machine is in the correct FIPS mode.
+    """,
         priority=3,
         requirement=simple_requirement(
             supported_os=[CBLMariner],
@@ -114,15 +114,15 @@ class FipsTests(TestSuite):
             log (Logger): The logger instance for logging messages.
             node (Node): The node object representing the target machine.
             variables (Dict[str, Any]): A dictionary of variables containing the
-                                        'testing_fips_image' key.
+            'testing_fips_image' key.
 
         Returns:
             bool: The expected FIPS mode (True for enabled,
-                  False for disabled or None if we can't determine.).
+            False for disabled or None if we can't determine.).
         """
         log.debug(f"get_expected_fips_mode: variables is '{variables}'")
 
-        # First, see if the test runner specified the FIPS image type in the variables.
+        # First, check FIPS image type in variables
         testing_fips_image = variables.get("testing_fips_image", None)
         if testing_fips_image is not None:
             log.debug(
@@ -131,10 +131,10 @@ class FipsTests(TestSuite):
             )
             return to_bool(testing_fips_image)
 
-        # Fall back to checking the image SKU from the azure metadata endpoint.
+        # Fall back to checking image SKU from azure metadata endpoint
         log.debug(
-            "get_expected_fips_mode: testing_fips_image is not set; falling back to "
-            "marketplace image sku."
+            "get_expected_fips_mode: testing_fips_image is not set; "
+            "falling back to marketplace image sku."
         )
         response = node.tools[Curl].fetch(
             arg="--max-time 2 --header Metadata:true --silent",
@@ -143,34 +143,39 @@ class FipsTests(TestSuite):
             url=METADATA_ENDPOINT,
         )
 
-        # If we successfully fetched the metadata, check the image SKU.
+        # If metadata fetch successful, check image SKU
         if response.exit_code == 0:
             log.debug(
                 "get_expected_fips_mode: successfully fetched metadata; "
                 "checking image SKU."
             )
             json_response = json.loads(response.stdout)
-        
+
             # Safely get compute and sku with default empty values
             compute = json_response.get("compute", {})
             sku = compute.get("sku", "")
-            
+
             # Ensure SKU is a string type before processing
             if not isinstance(sku, str):
-                log.debug(f"get_expected_fips_mode: Expected string for SKU, got {type(sku)}")
+                log.debug(
+                    f"get_expected_fips_mode: Expected string for SKU, "
+                    f"got {type(sku)}"
+                )
                 return None
-            
-            # Skip empty or whitespace-only SKUs    
-            if not sku.strip():
-                log.debug("get_expected_fips_mode: SKU is empty or contains only whitespace")
-                return None
-            
-            # Check if SKU contains 'fips' (case-insensitive)    
-            return "fips" in sku.lower()
-    
 
-        # If we couldn't determine the FIPS mode, return False as a default.
+            # Skip empty or whitespace-only SKUs
+            if not sku.strip():
+                log.debug(
+                    "get_expected_fips_mode: SKU is empty or contains only whitespace"
+                )
+                return None
+
+            # Check if SKU contains 'fips' (case-insensitive)
+            return "fips" in sku.lower()
+
+        # If we couldn't determine the FIPS mode, return None as a default.
         log.debug(
-            "get_expected_fips_mode: could not determine the FIPS mode; returning None."
+            "get_expected_fips_mode: could not determine the FIPS mode; "
+            "returning None."
         )
         return None
