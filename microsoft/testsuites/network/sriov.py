@@ -731,7 +731,7 @@ class Sriov(TestSuite):
         )
 
         irqbalance.kill()
-        result = irqbalance.wait_result()
+        result = irqbalance.wait_result(timeout=60000)
         assert re.search(
             "Selecting irq [0-9]+ for rebalancing",
             result.stdout,
