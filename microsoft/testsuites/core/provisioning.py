@@ -301,7 +301,7 @@ class Provisioning(TestSuite):
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
-        n : int = 2,
+        n : int = i,
     ) -> None:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
