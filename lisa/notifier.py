@@ -139,5 +139,5 @@ def finalize() -> None:
     for notifier in _notifiers:
         try:
             notifier.finalize()
-        except Exception as identifier:
-            notifier._log.exception(identifier)
+        except Exception as e:
+            notifier._log.exception(e)

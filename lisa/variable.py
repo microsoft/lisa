@@ -289,13 +289,13 @@ def add_secrets_from_pairs(
             raw_pair = raw_pair[2:]
         try:
             key, value = raw_pair.split(":", 1)
-        except Exception as identifier:
+        except Exception as e:
             raise LisaException(
                 f"failed on parsing variable '{raw_pair}'. The right format is "
                 f"like name:value. If there is whitespace in the value, quote "
                 f'the whole string like "name:value has whitespace". If It\'s a '
                 'secret variable, follow the formant "s:name:value"'
-                f"The raw error: {identifier}"
+                f"The raw error: {e}"
             )
         _add_variable(key, value, results, is_secret=is_secret)
     return results

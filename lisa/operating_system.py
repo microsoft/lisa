@@ -470,8 +470,8 @@ class Posix(OperatingSystem, BaseClassMixin):
                     boot_time = systemd_analyze_tool.get_boot_time()
                     boot_time.information.update(self._node.get_information())
                     notifier.notify(boot_time)
-                except Exception as identifier:
-                    self._node.log.debug(f"error on get boot time: {identifier}")
+                except Exception as e:
+                    self._node.log.debug(f"error on get boot time: {e}")
 
             file_list = []
             if self._node.capture_azure_information:
@@ -500,11 +500,11 @@ class Posix(OperatingSystem, BaseClassMixin):
                     )
                 except FileNotFoundError:
                     self._log.debug(f"File {file} doesn't exist.")
-                except Exception as identifier:
+                except Exception as e:
                     # Some images have no /etc/os-release. e.g. osirium-ltd osirium_pem
                     # image. It will have an exception (not FileNotFoundError).
                     self._log.debug(
-                        f"Fail to copy back file {file}: {identifier}. "
+                        f"Fail to copy back file {file}: {e}. "
                         "Please check if the file exists"
                     )
 
@@ -1293,10 +1293,9 @@ class Ubuntu(Debian):
                     f"linux-headers-{kernel_version}-azure",
                 ]
             )
-        except Exception as identifier:
+        except Exception as e:
             self._log.debug(
-                f"ignorable error on install packages after replaced kernel: "
-                f"{identifier}"
+                f"ignorable error on install packages after replaced kernel: {e}"
             )
 
     def wait_cloud_init_finish(self) -> None:

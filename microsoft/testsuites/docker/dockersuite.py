@@ -218,8 +218,8 @@ class DockerTestSuite(TestSuite):
         self._skip_if_not_supported(node)
         try:
             docker_tool = node.tools[Docker]
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
         self._verify_docker_engine(node)
         docker_tool.remove_image(docker_image_name)
         docker_tool.remove_container(docker_container_name)

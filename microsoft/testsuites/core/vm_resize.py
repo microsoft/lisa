@@ -134,25 +134,24 @@ class VmResize(TestSuite):
                     resize_action
                 )
                 break
-            except Exception as identifier:
-                if "no available size for resizing" in str(identifier):
-                    raise SkippedException(str(identifier))
+            except Exception as e:
+                if "no available size for resizing" in str(e):
+                    raise SkippedException(str(e))
                 if (
-                    "cannot find current vm size in eligible list" in str(identifier)
-                    or "OperationNotAllowed" in str(identifier)
-                    or "Allocation failed" in str(identifier)
-                    or "AllocationFailed" in str(identifier)
-                    or "PropertyChangeNotAllowed" in str(identifier)
-                    or "cannot boot Hypervisor Generation" in str(identifier)
-                    or "due to different CPU Architectures" in str(identifier)
+                    "cannot find current vm size in eligible list" in str(e)
+                    or "OperationNotAllowed" in str(e)
+                    or "Allocation failed" in str(e)
+                    or "AllocationFailed" in str(e)
+                    or "PropertyChangeNotAllowed" in str(e)
+                    or "cannot boot Hypervisor Generation" in str(e)
+                    or "due to different CPU Architectures" in str(e)
                     or "An existing connection was forcibly closed by the remote host"
-                    in str(identifier)
-                    or "Following SKUs have failed for Capacity Restrictions"
-                    in str(identifier)
+                    in str(e)
+                    or "Following SKUs have failed for Capacity Restrictions" in str(e)
                 ):
                     retry = retry + 1
                 else:
-                    raise identifier
+                    raise e
                 time.sleep(1)
             finally:
                 if not hot_resize:

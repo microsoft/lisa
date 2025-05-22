@@ -296,7 +296,7 @@ class SshShell(InitializableMixin):
 
         try:
             stdout = try_connect(self.connection_info, sock=sock)
-        except Exception as identifier:
+        except Exception as e:
             raise LisaException(
                 "failed to connect SSH port of the VM. It might be due to one of the "
                 "following reasons: 1. Port 22 is not open. 2. The VM denies other "
@@ -304,7 +304,7 @@ class SshShell(InitializableMixin):
                 "Please modify the relevant configurations and try again. Error details"
                 ": failed to connect "
                 f"[{self.connection_info.address}:{self.connection_info.port}], "
-                f"{identifier.__class__.__name__}: {identifier}"
+                f"{e.__class__.__name__}: {e}"
             )
 
         self._close_jump_boxes()
@@ -416,7 +416,7 @@ class SshShell(InitializableMixin):
                     "the process wait for inputs, "
                     "the paramiko/spur not support the shell of node."
                 )
-            except spur.errors.CommandInitializationError as identifier:
+            except spur.errors.CommandInitializationError as e:
                 # *Second* chance in getting a clue about no POSIX shell
                 # support (still not Windows). Set minimal shell type if
                 # so, again.
@@ -435,15 +435,13 @@ class SshShell(InitializableMixin):
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
                     _minimize_shell(self._inner_shell)
                     have_tried_minimal_type = True
-                    matched = _spawn_initialization_error_pattern.search(
-                        str(identifier)
-                    )
+                    matched = _spawn_initialization_error_pattern.search(str(e))
                     if matched:
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
                         )
                 else:
-                    raise identifier
+                    raise e
         return process
 
     def mkdir(
@@ -471,9 +469,9 @@ class SshShell(InitializableMixin):
             )
         except PermissionError:
             self._inner_shell.run(command=["sudo", "mkdir", "-p", path_str])
-        except SSHException as identifier:
+        except SSHException as e:
             # no sftp, try commands
-            if "Channel closed." in str(identifier):
+            if "Channel closed." in str(e):
                 assert isinstance(path_str, str)
                 self.spawn(command=["mkdir", "-p", path_str])
         except OSError as e:
@@ -517,9 +515,9 @@ class SshShell(InitializableMixin):
             self._inner_shell.remove(path_str, recursive)
         except PermissionError:
             self._inner_shell.run(command=["sudo", "rm", path_str])
-        except SSHException as identifier:
+        except SSHException as e:
             # no sftp, try commands
-            if "Channel closed." in str(identifier):
+            if "Channel closed." in str(e):
                 assert isinstance(path_str, str)
                 self.spawn(command=["rm", path_str])
 

@@ -206,8 +206,8 @@ def reload_platform_features(
             settings_type = get_feature_settings_type_by_name(
                 current_settings.type, platform_features
             )
-        except NotMeetRequirementException as identifier:
-            raise LisaException(f"platform doesn't support all features. {identifier}")
+        except NotMeetRequirementException as e:
+            raise LisaException(f"platform doesn't support all features. {e}")
         new_setting = schema.load_by_type(settings_type, current_settings)
         existing_setting = get_feature_settings_by_name(
             new_setting.type, new_settings, True

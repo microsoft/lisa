@@ -277,12 +277,12 @@ class WindowsService(Tool):
                 force_run=True,
                 output_json=True,
             )
-        except LisaException as identifier:
-            if "Cannot find any service with service name" in str(identifier):
+        except LisaException as e:
+            if "Cannot find any service with service name" in str(e):
                 if fail_on_error:
                     raise LisaException(f"service '{name}' does not exist")
                 return WindowsServiceStatus.NOT_FOUND
-            raise identifier
+            raise e
         return WindowsServiceStatus(int(service_status["Status"]))
 
     def _wait_for_service(

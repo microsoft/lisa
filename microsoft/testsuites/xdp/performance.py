@@ -370,8 +370,8 @@ class XdpPerformance(TestSuite):
             tools: List[Any] = []
             tools.append(get_xdpdump(receiver))
             tools.append(sender.tools[Pktgen])
-        except UnsupportedKernelException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedKernelException as e:
+            raise SkippedException(e)
 
         # type annotations
         xdpdump: XdpDump = tools[0]
@@ -445,8 +445,8 @@ class XdpPerformance(TestSuite):
         # install pktgen on sender
         try:
             pktgen = sender.tools[Pktgen]
-        except UnsupportedKernelException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedKernelException as e:
+            raise SkippedException(e)
 
         sender_nic = sender.nics.get_nic_by_index(1)
         forwarder_nic = forwarder.nics.get_nic_by_index(1)
@@ -588,8 +588,8 @@ class XdpPerformance(TestSuite):
                 nic_name=sender_nic.name,
                 thread_count=thread_count,
             )
-        except UnsupportedKernelException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedKernelException as e:
+            raise SkippedException(e)
         finally:
             remove_hugepage(sender)
         return result

@@ -121,9 +121,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             information.update(
                 self._get_environment_information(environment=environment)
             )
-        except Exception as identifier:
+        except Exception as e:
             self._log.exception(
-                "failed to get environment information on platform", exc_info=identifier
+                "failed to get environment information on platform", exc_info=e
             )
 
         return information
@@ -133,9 +133,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         information: Dict[str, str] = {}
         try:
             information.update(self._get_node_information(node=node))
-        except Exception as identifier:
+        except Exception as e:
             self._log.exception(
-                "failed to get node information on platform", exc_info=identifier
+                "failed to get node information on platform", exc_info=e
             )
 
         return information
@@ -162,8 +162,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
         try:
             is_success = self._prepare_environment(environment, log)
-        except NotMeetRequirementException as identifier:
-            raise SkippedException(identifier)
+        except NotMeetRequirementException as e:
+            raise SkippedException(e)
 
         if is_success:
             environment.status = EnvironmentStatus.Prepared

@@ -628,8 +628,8 @@ class Xfstesting(TestSuite):
                     node.execute(f"dmsetup remove {path}", sudo=True)
             for mount_point in [_scratch_folder, _test_folder]:
                 node.tools[Mount].umount("", mount_point, erase=False)
-        except Exception as identifier:
-            raise BadEnvironmentStateException(f"after case, {identifier}")
+        except Exception as e:
+            raise BadEnvironmentStateException(f"after case, {e}")
 
     def _execute_xfstests(
         self,
@@ -718,8 +718,8 @@ class Xfstesting(TestSuite):
         try:
             xfstests = node.tools[Xfstests]
             return xfstests
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
 
     def _check_btrfs_supported(self, node: Node) -> None:
         if not node.tools[KernelConfig].is_enabled("CONFIG_BTRFS_FS"):

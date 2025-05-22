@@ -637,9 +637,9 @@ class AzurePlatform(Platform):
                     environment_context.provision_time = time.elapsed()
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
-            except Exception as identifier:
+            except Exception as e:
                 self._delete_environment(environment, log)
-                raise identifier
+                raise e
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)
@@ -676,8 +676,8 @@ class AzurePlatform(Platform):
                 delete_operation = self._rm_client.resource_groups.begin_delete(
                     resource_group_name
                 )
-            except Exception as identifier:
-                log.debug(f"exception on delete resource group: {identifier}")
+            except Exception as e:
+                log.debug(f"exception on delete resource group: {e}")
             if delete_operation and self._azure_runbook.wait_delete:
                 wait_operation(
                     delete_operation, failure_identity="delete resource group"
@@ -721,8 +721,8 @@ class AzurePlatform(Platform):
                 value = method(node)
                 if value:
                     information[key] = value
-            except Exception as identifier:
-                node.log.exception(f"error on get {key}.", exc_info=identifier)
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
 
         if node.is_connected and node.is_posix:
             node.log.debug("detecting lis version...")
@@ -779,10 +779,10 @@ class AzurePlatform(Platform):
         result: str = ""
         try:
             result = node.features[Disk].get_hardware_disk_controller_type()
-        except Exception as identifier:
+        except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on collecting disk controller type: {identifier}")
+            node.log.debug(f"error on collecting disk controller type: {e}")
         return result
 
     def _get_kernel_version(self, node: Node) -> str:
@@ -810,10 +810,10 @@ class AzurePlatform(Platform):
                 result = get_matched_str(
                     dmesg.get_output(), HOST_VERSION_PATTERN, first_match=False
                 )
-        except Exception as identifier:
+        except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run dmesg: {identifier}")
+            node.log.debug(f"error on run dmesg: {e}")
 
         # skip for Windows
         if not node.is_connected or node.is_posix:
@@ -834,10 +834,10 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting hardware platform from uname...")
                 uname_tool = node.tools[Uname]
                 result = uname_tool.get_linux_information().hardware_platform
-        except Exception as identifier:
+        except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run uname: {identifier}")
+            node.log.debug(f"error on run uname: {e}")
 
         return result
 
@@ -849,10 +849,10 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting wala version from waagent...")
                 waagent = node.tools[Waagent]
                 result = waagent.get_version()
-        except Exception as identifier:
+        except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run waagent: {identifier}")
+            node.log.debug(f"error on run waagent: {e}")
 
         if not node.is_connected or node.is_posix:
             if not result and hasattr(node, ATTRIBUTE_FEATURES):
@@ -868,10 +868,10 @@ class AzurePlatform(Platform):
             if node.is_connected and node.is_posix:
                 waagent = node.tools[Waagent]
                 result = waagent.get_distro_version()
-        except Exception as identifier:
+        except Exception as e:
             # it happens on some error vms. Those error should be caught earlier in
             # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on get waagent distro version: {identifier}")
+            node.log.debug(f"error on get waagent distro version: {e}")
 
         return result
 
@@ -1109,9 +1109,9 @@ class AzurePlatform(Platform):
                                 resource_sku=resource_sku,
                             )
                             all_skus[azure_capability.vm_size] = azure_capability
-                    except Exception as identifier:
+                    except Exception as e:
                         log.error(f"unknown sku: {sku_obj}")
-                        raise identifier
+                        raise e
             location_data = AzureLocation(location=location, capabilities=all_skus)
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
@@ -1558,18 +1558,18 @@ class AzurePlatform(Platform):
                     **deployment_parameters
                 )
             wait_operation(validate_operation, failure_identity="validation")
-        except Exception as identifier:
-            error_messages: List[str] = [str(identifier)]
+        except Exception as e:
+            error_messages: List[str] = [str(e)]
 
             # retry when encounter azure.core.exceptions.ResourceNotFoundError:
             # (ResourceGroupNotFound) Resource group 'lisa-xxxx' could not be found.
-            if isinstance(identifier, ResourceNotFoundError) and identifier.error:
-                raise identifier
+            if isinstance(e, ResourceNotFoundError) and e.error:
+                raise e
 
-            if isinstance(identifier, HttpResponseError) and identifier.error:
+            if isinstance(e, HttpResponseError) and e.error:
                 # no validate_operation returned, the message may include
                 # some errors, so check details
-                error_messages = self._parse_detail_errors(identifier.error)
+                error_messages = self._parse_detail_errors(e.error)
 
             error_message = "\n".join(error_messages)
             plugin_manager.hook.azure_deploy_failed(error_message=error_message)
@@ -1612,14 +1612,14 @@ class AzurePlatform(Platform):
                     )
                     continue
                 break
-        except HttpResponseError as identifier:
+        except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
             # For example,
             # azure.core.exceptions.HttpResponseError:
             #    Operation returned an invalid status 'OK'
-            assert identifier.error, f"HttpResponseError: {identifier}"
+            assert e.error, f"HttpResponseError: {e}"
 
-            error_message = "\n".join(self._parse_detail_errors(identifier.error))
+            error_message = "\n".join(self._parse_detail_errors(e.error))
             if (
                 self._azure_runbook.ignore_provisioning_error
                 and "OSProvisioningTimedOut: OS Provisioning for VM" in error_message
@@ -2126,8 +2126,8 @@ class AzurePlatform(Platform):
                     offer_id=marketplace.offer,
                     plan_id=plan_name,
                 )
-        except Exception as identifier:
-            raise LisaException(f"error on getting marketplace agreement: {identifier}")
+        except Exception as e:
+            raise LisaException(f"error on getting marketplace agreement: {e}")
 
         assert term
         if term.accepted is False:
