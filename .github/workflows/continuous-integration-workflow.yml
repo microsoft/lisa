@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025]
+        os: [ubuntu-latest, windows-2025]
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
         nox-session: [test, example]
 
