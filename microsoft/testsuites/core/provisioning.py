@@ -284,7 +284,7 @@ class Provisioning(TestSuite):
         reboot_times = []
         for i in range(5):
             log.info(f"Reboot stress iteration {i+1}/5")
-            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",i)
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
             reboot_times.append((i + 1, elapsed))
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
@@ -359,9 +359,9 @@ class Provisioning(TestSuite):
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
-            if n == 2:
+            if n == 1:
                 raise Exception("This is a test exception for _smoke_test")
-            return timer.elapsed()
+            
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
@@ -373,7 +373,7 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
-
+        return timer.elapsed()
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
