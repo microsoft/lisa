@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Type, cast
 
 from azure.identity import (
+    AzureCliCredential,
     CertificateCredential,
     ClientAssertionCredential,
     ClientSecretCredential,
@@ -28,6 +29,7 @@ class AzureCredentialType(str, Enum):
     ClientSecretCredential = "secret"
     WorkloadIdentityCredential = "workloadidentity"
     TokenCredential = "token"
+    CliCredential = "cli"
 
 
 @dataclass_json()
@@ -387,3 +389,44 @@ class AzureTokenCredential(AzureCredential):
 
     def get_credential(self) -> Any:
         return get_static_access_token(self._token)
+
+
+class AzureCliCredentialImpl(AzureCredential):
+    """
+    Class to create AzureCliCredential based on runbook Schema. Uses Azure CLI
+    for authentication which requires logging in to Azure via "az login" first.
+    """
+
+    @classmethod
+    def type_name(cls) -> str:
+        return AzureCredentialType.CliCredential
+
+    @classmethod
+    def type_schema(cls) -> Type[schema.TypedSchema]:
+        return AzureCredentialSchema
+
+    def __init__(
+        self,
+        runbook: AzureCredentialSchema,
+        logger: Logger,
+        cloud: Cloud = AZURE_PUBLIC_CLOUD,
+    ) -> None:
+        super().__init__(runbook, logger=logger, cloud=cloud)
+        self._set_auth_env_variables()
+
+    def get_credential(self) -> Any:
+        """
+        return AzureCliCredential for authentication
+        """
+        self._log.info("Authenticating using AzureCliCredential")
+
+        # Create a CLI credential with tenant_id if specified
+        cli_args = {}
+        if self._tenant_id:
+            cli_args["tenant_id"] = self._tenant_id
+
+        # Add additionally_allowed_tenants if allow_all_tenants is enabled
+        if self._allow_all_tenants:
+            cli_args["additionally_allowed_tenants"] = ["*"]
+
+        return AzureCliCredential(**cli_args)
