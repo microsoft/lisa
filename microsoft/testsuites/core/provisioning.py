@@ -263,6 +263,7 @@ class Provisioning(TestSuite):
             reboot_in_platform=True,
             is_restart=False,
         )
+
     @TestCaseMetadata(
         description="""
         This case performs a reboot stress test on the node.
@@ -283,15 +284,13 @@ class Provisioning(TestSuite):
         reboot_times = []
         for i in range(100):
             log.info(f"Reboot stress iteration {i+1}/100")
-            elapsed = self._smoke_test(
-                log, node, log_path, f"reboot_stress_{i+1}"
-            )
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}")
             reboot_times.append((i + 1, elapsed))
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
             log.info(f"Iteration {iteration}: Reboot time = {time}s")
-            #self._smoke_test(log, node, log_path, "reboot_stress")
-            #self._stress_reboot(log, node, log_path, "reboot_stress", 100)
+            # self._smoke_test(log, node, log_path, "reboot_stress")
+            # self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
@@ -414,48 +413,3 @@ class Provisioning(TestSuite):
                 f"VF count inside VM is {len(node_nic_info.get_lower_nics())},"
                 f"actual sriov nic count is {sriov_count}"
             ).is_equal_to(sriov_count)
-
-    def _stress_reboot(
-        self,
-        log: Logger,
-        node: RemoteNode,
-        log_path: Path,
-        number_of_iterations: int = 100,
-        wait: bool = True
-        ) -> None:
-             
-
-        reboot_times = []  # List to store reboot times
-        for i in range(1, number_of_iterations):            
-            try:
-                timer = create_timer()
-                log.info(f"Iteration {i}: Rebooting node '{node.name}'")
-                node.reboot()
-                reboot_time = timer.elapsed()
-                reboot_times.append((i, reboot_time))
-                log.info(f"Iteration {i}: Node '{node.name}' rebooted in {reboot_time}s")
-
-            except Exception as identifier:
-                serial_console = node.features[SerialConsole]
-                # Check for panic if an exception occurs
-                serial_console.check_panic(
-                    saved_path=log_path, stage=f"reboot_iteration_{i}_error", force_run=True
-                )
-
-                # If the exception is a TCP connection issue, raise a bad environment state
-                if isinstance(identifier, TcpConnectionException):
-                    raise BadEnvironmentStateException(
-                        f"Iteration {i}: After reboot, {identifier}"
-                    )
-                log.warning(f"Iteration {i}: Exception occurred: {identifier}")
-                continue  # Continue to the next iteration
-
-            finally:
-                serial_console = node.features[SerialConsole]
-                serial_console.check_panic(
-                    saved_path=log_path, stage=f"reboot_iteration_{i}", force_run=True
-                )
-        # Print all reboot times after the loop
-        log.info("Reboot times for all iterations:")
-        for iteration, time in reboot_times:
-            log.info(f"Iteration {iteration}: Reboot time = {time}s")
