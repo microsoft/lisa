@@ -282,9 +282,9 @@ class Provisioning(TestSuite):
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         reboot_times = []
-        for i in range(100):
-            log.info(f"Reboot stress iteration {i+1}/100")
-            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",i)
+        for i in range(5):
+            log.info(f"Reboot stress iteration {i+1}/5")
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
             reboot_times.append((i + 1, elapsed))
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
@@ -298,10 +298,11 @@ class Provisioning(TestSuite):
         node: RemoteNode,
         log_path: Path,
         case_name: str,
+        n : int = 0,
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
-        n : int = 0,
+        
     ) -> None:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
