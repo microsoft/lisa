@@ -33,7 +33,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -56,7 +56,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -82,7 +82,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -109,7 +109,7 @@ class Synthetic(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
@@ -140,7 +140,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=4,
             ),
         ),
     )
@@ -152,7 +152,7 @@ class Synthetic(TestSuite):
             for node in environment.nodes.list():
                 network_interface_feature = node.features[NetworkInterface]
                 network_interface_feature.attach_nics(
-                    extra_nic_count=7, enable_accelerated_networking=False
+                    extra_nic_count=3, enable_accelerated_networking=False
                 )
             initialize_nic_info(environment, is_sriov=False)
         finally:
@@ -173,7 +173,7 @@ class Synthetic(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
-                max_nic_count=8,
+                max_nic_count=4,
             ),
         ),
     )
