@@ -1295,8 +1295,7 @@ class Ubuntu(Debian):
             )
         except Exception as e:
             self._log.debug(
-                f"ignorable error on install packages after replaced kernel: "
-                f"{e}"
+                f"ignorable error on install packages after replaced kernel: " f"{e}"
             )
 
     def wait_cloud_init_finish(self) -> None:

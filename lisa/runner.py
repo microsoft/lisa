@@ -249,9 +249,7 @@ class RootRunner(Action):
 
             self._start_loop()
         except Exception as e:
-            self._log.exception(
-                "canceling runner due to exception", exc_info=e
-            )
+            self._log.exception("canceling runner due to exception", exc_info=e)
             cancel()
             raise e
         finally:

@@ -74,9 +74,7 @@ class NetInterface(TestSuite):
                     saved_path=log_path, stage="after_reload_netvsc", force_run=True
                 )
                 if str(e) == "SSH session not active":
-                    node.log.debug(
-                        f"This exception '{e}' is ignorable. Try again"
-                    )
+                    node.log.debug(f"This exception '{e}' is ignorable. Try again")
                     node.close()
                 elif "cannot connect to TCP port" in str(e):
                     raise LisaException(

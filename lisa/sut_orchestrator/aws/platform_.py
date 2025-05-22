@@ -938,9 +938,7 @@ class AwsPlatform(Platform):
             except Exception as e:
                 # if schema changed, There may be exception, remove cache and retry
                 # Note: retry on this method depends on decorator
-                log.debug(
-                    f"error on loading cache, delete cache and retry. {e}"
-                )
+                log.debug(f"error on loading cache, delete cache and retry. {e}")
                 cached_file_name.unlink()
                 raise e
         return loaded_obj

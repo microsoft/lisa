@@ -1221,9 +1221,7 @@ class NodeHookImpl:
                     information["distro_version"] = node.os.information.full_version
                     information["kernel_version"] = linux_information.kernel_version_raw
             except Exception as e:
-                node.log.exception(
-                    "failed to get node information", exc_info=e
-                )
+                node.log.exception("failed to get node information", exc_info=e)
 
         return information
 

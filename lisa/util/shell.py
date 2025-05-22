@@ -435,9 +435,7 @@ class SshShell(InitializableMixin):
                     self._inner_shell._spur._shell_type = spur.ssh.ShellTypes.minimal
                     _minimize_shell(self._inner_shell)
                     have_tried_minimal_type = True
-                    matched = _spawn_initialization_error_pattern.search(
-                        str(e)
-                    )
+                    matched = _spawn_initialization_error_pattern.search(str(e))
                     if matched:
                         self.spawn_initialization_error_string = matched.group(
                             "linux_profile_error"
