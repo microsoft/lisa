@@ -284,7 +284,7 @@ class Provisioning(TestSuite):
         reboot_times = []
         for i in range(5):
             log.info(f"Reboot stress iteration {i+1}/5")
-            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",i)
             reboot_times.append((i + 1, elapsed))
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
