@@ -373,7 +373,9 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
-        return timer.elapsed()
+        finally:
+            return timer.elapsed()
+        
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
