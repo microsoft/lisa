@@ -267,7 +267,6 @@ class Provisioning(TestSuite):
     @TestCaseMetadata(
         description="""
         This case performs a reboot stress test on the node.
-
         Steps:
         1. Reboot the node 100 times from the guest OS.
         2. After each reboot, check if the node is reachable and verify there is no kernel panic using the serial console.
@@ -289,8 +288,6 @@ class Provisioning(TestSuite):
         log.info("Reboot times for all iterations:")
         for iteration, time in reboot_times:
             log.info(f"Iteration {iteration}: Reboot time = {time}s")
-            # self._smoke_test(log, node, log_path, "reboot_stress")
-            # self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
