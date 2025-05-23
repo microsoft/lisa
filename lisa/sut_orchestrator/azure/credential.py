@@ -29,7 +29,7 @@ class AzureCredentialType(str, Enum):
     ClientSecretCredential = "secret"
     WorkloadIdentityCredential = "workloadidentity"
     TokenCredential = "token"
-    CliCredential = "azcli"
+    AzCliCredential = "azcli"
 
 
 @dataclass_json()
@@ -399,7 +399,7 @@ class AzureCliCredentialImpl(AzureCredential):
 
     @classmethod
     def type_name(cls) -> str:
-        return AzureCredentialType.CliCredential
+        return AzureCredentialType.AzCliCredential
 
     @classmethod
     def type_schema(cls) -> Type[schema.TypedSchema]:
