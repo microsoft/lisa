@@ -2,8 +2,10 @@
 # Licensed under the MIT license.
 from typing import Any, List, Optional, Type, Union
 
-from lisa.executable import ExecutableResult, Tool
+from lisa.executable import ExecutableException, ExecutableResult, Tool
+from lisa.tools.dmesg import Dmesg
 from lisa.tools.kernel_config import KLDStat
+from lisa.tools.lsmod import Lsmod
 from lisa.util import UnsupportedOperationException
 
 
@@ -74,15 +76,21 @@ class Modprobe(Tool):
                 self.node.execute(f"rmmod {mod_name}", sudo=True, shell=True)
             else:
                 if self.is_module_loaded(mod_name, force_run=True):
-                    self.run(
-                        f"-r {mod_name}",
-                        force_run=True,
-                        sudo=True,
-                        shell=True,
-                        expected_exit_code=0,
-                        expected_exit_code_failure_message="Fail to remove module "
-                        f"{mod_name}",
-                    )
+                    try:
+                        # This call will raise ExecutableException on failure
+                        self.run(
+                            f"-r {mod_name}",
+                            force_run=True,
+                            sudo=True,
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                f"Fail to remove module {mod_name}"
+                            ),
+                        )
+                    except AssertionError as e:
+                        self._debug_modprobe_remove_failure(mod_name)
+                        raise e
 
     def load(
         self,
@@ -153,6 +161,45 @@ class Modprobe(Tool):
         if not ignore_error:
             result.assert_exit_code(0, f"failed to load module {file_name}")
         return result
+
+    def _debug_modprobe_remove_failure(self, mod_name: str) -> None:
+        """
+        Helper function to log debug information when modprobe -r fails.
+        """
+        self._log.info(
+            f"Failed to remove module {mod_name}. "
+            f"Collecting additional debug information."
+        )
+
+        # Use Lsmod tool to check current status of the module
+        lsmod_tool = self.node.tools[Lsmod]
+        lsmod_output = lsmod_tool.run(
+            sudo=True, force_run=True, expected_exit_code=0
+        ).stdout
+        # Manually filter for the module, similar to 'grep mod_name || true'
+        filtered_lsmod_output = "\\\\n".join(
+            [line for line in lsmod_output.splitlines() if mod_name in line]
+        )
+        if not filtered_lsmod_output:  # if grep finds nothing
+            filtered_lsmod_output = (
+                f"(Module {mod_name} not found in lsmod output)"
+            )
+
+        self._log.info(
+            f"Debug: Output of lsmod for {mod_name}:\\\\n"
+            f"{filtered_lsmod_output}"
+        )
+
+        # Use Dmesg tool for recent kernel messages
+        dmesg_tool = self.node.tools[Dmesg]
+        dmesg_output = dmesg_tool.get_output(force_run=True)
+        dmesg_lines = dmesg_output.splitlines()
+        # Get last 20 lines, similar to 'tail -n 20'
+        recent_dmesg_output = "\\\\n".join(dmesg_lines[-20:])
+        self._log.info(
+            f"Debug: Recent dmesg output (last 20 lines):\\\\n"
+            f"{recent_dmesg_output}"
+        )
 
 
 class ModprobeFreeBSD(Modprobe):
