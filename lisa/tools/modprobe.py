@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from typing import Any, List, Optional, Type, Union
 
-from lisa.executable import ExecutableException, ExecutableResult, Tool
+from lisa.executable import ExecutableResult, Tool
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.kernel_config import KLDStat
 from lisa.tools.lsmod import Lsmod

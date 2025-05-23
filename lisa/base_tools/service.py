@@ -6,6 +6,7 @@ from time import sleep
 from typing import Optional, Type
 
 from lisa.executable import ExecutableResult, Tool
+from lisa.tools.journalctl import Journalctl
 from lisa.tools.powershell import PowerShell
 from lisa.util import (
     LisaException,
@@ -48,6 +49,9 @@ class Service(Tool):
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         self._internal_tool.restart_service(name, ignore_exit_code)  # type: ignore
+
+    def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        self._internal_tool.start_service(name, ignore_exit_code)  # type: ignore
 
     def stop_service(self, name: str) -> None:
         self._internal_tool.stop_service(name)  # type: ignore
@@ -135,6 +139,14 @@ class Systemctl(Tool):
 
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
+        if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
+            self._debug_service_failure(name, "restart", cmd_result)
+        _check_error_codes(cmd_result, ignore_exit_code)
+
+    def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
+        cmd_result = self.run(f"start {name}", shell=True, sudo=True, force_run=True)
+        if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
+            self._debug_service_failure(name, "start", cmd_result)
         _check_error_codes(cmd_result, ignore_exit_code)
 
     def enable_service(self, name: str) -> None:
@@ -208,6 +220,45 @@ class Systemctl(Tool):
             "could not be found" not in cmd_result.stdout
             or "not-found" in cmd_result.stdout
         ) and 0 == cmd_result.exit_code
+
+    def _debug_service_failure(
+        self, service_name: str, operation: str, result: ExecutableResult
+    ) -> None:
+        self._log.info(
+            f"Failed to {operation} service '{service_name}\' "
+            f"(exit code: {result.exit_code}). Collecting debug info."
+        )
+    
+        # Get detailed status from systemctl status
+        status_cmd = f"status {service_name} --no-pager -n 100"
+        try:
+            status_result = self.run(
+                status_cmd, shell=True, sudo=True, force_run=True
+            )
+            self._log.info(
+                f"Debug: Output of '{status_cmd}':\\\\n"
+                f"Stdout:\\\\n{status_result.stdout}\\\\n"
+                f"Stderr:\\\\n{status_result.stderr}"
+            )
+        except Exception as e_status:
+            self._log.warning(f"Failed to get status for {service_name}: {e_status}")
+
+        # Get journal logs for the service
+        try:
+            journalctl_tool = self.node.tools[Journalctl]
+            # The logs_for_unit method returns all logs, we take the last 100 lines.
+            journal_output = journalctl_tool.logs_for_unit(unit_name=service_name)
+            journal_lines = journal_output.splitlines()
+            last_100_lines = "\\n".join(journal_lines[-100:])
+            self._log.info(
+                f"Debug: Last 100 journal logs for unit '{service_name}':\\\\n"
+                f"{last_100_lines}"
+            )
+        except Exception as e_journal:
+            self._log.warning(
+                f"Could not retrieve or process journal logs for {service_name}: "
+                f"{e_journal}"
+            )
 
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
