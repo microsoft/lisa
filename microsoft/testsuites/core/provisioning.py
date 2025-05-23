@@ -370,8 +370,8 @@ class Provisioning(TestSuite):
             )
 
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {identifier}")
+            #if isinstance(identifier, TcpConnectionException):
+            raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
         return timer.elapsed()
         
