@@ -353,7 +353,7 @@ class Provisioning(TestSuite):
                     )
             else:
                 node.reboot()
-            log.info(f"node '{node.name}' rebooted in {timer}")    
+            log.info(f"node '{node.name}' rebooted in {timer}")
         except Exception as e:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
