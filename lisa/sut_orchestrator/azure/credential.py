@@ -419,13 +419,11 @@ class AzureCliCredentialImpl(AzureCredential):
         """
         self._log.info("Authenticating using AzureCliCredential")
 
-        # Create a CLI credential with tenant_id if specified
-        cli_args = {}
-        if self._tenant_id:
-            cli_args["tenant_id"] = self._tenant_id
+        # Determine additionally_allowed_tenants based on allow_all_tenants setting
+        additionally_allowed_tenants = ["*"] if self._allow_all_tenants else None
 
-        # Add additionally_allowed_tenants if allow_all_tenants is enabled
-        if self._allow_all_tenants:
-            cli_args["additionally_allowed_tenants"] = ["*"]
-
-        return AzureCliCredential(**cli_args)
+        # Create AzureCliCredential with proper parameter types
+        return AzureCliCredential(
+            tenant_id=self._tenant_id,
+            additionally_allowed_tenants=additionally_allowed_tenants
+        )
