@@ -302,10 +302,9 @@ class Provisioning(TestSuite):
         node: RemoteNode,
         log_path: Path,
         case_name: str,
-        n : int = 0,
         reboot_in_platform: bool = False,
         wait: bool = True,
-        is_restart: bool = True,        
+        is_restart: bool = True,    
     ) -> float:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
@@ -372,12 +371,8 @@ class Provisioning(TestSuite):
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(e, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
-            raise PassedException(e)        
+            raise PassedException(e)   
         return timer.elapsed()
-        
-            if isinstance(e, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {e}")
-            raise PassedException(e)
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
