@@ -266,13 +266,9 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case performs a reboot stress test on the node.
-
-        Steps:
-        1. Reboot the node 100 times from the guest OS.
-        2. After each reboot, check if the node is reachable and verify there is no kernel panic using the serial console.
-        3. Log the reboot time for each iteration.
-        4. If a TCP connection error or kernel panic is detected, fail the test.
+        This case performs a reboot stress test on the node and iterates smoke test 100 times.
+        The test steps are almost the same as `smoke_test`.The reboot times is summarized after the test is run
+        
         """,
         priority=3,
         requirement=simple_requirement(
