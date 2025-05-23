@@ -53,3 +53,40 @@ class Journalctl(Tool):
             expected_exit_code=0,
         )
         return result.stdout
+
+    def filter_logs_by_pattern(
+        self,
+        pattern: str,
+        tail_line_count: int = 1000,
+        no_debug_log: bool = False,
+        no_error_log: bool = False,
+        no_info_log: bool = True,
+        sudo: bool = True,
+    ) -> str:
+        """
+        Filters journalctl logs by a given pattern using grep.
+
+        Args:
+            pattern (str): Passed directly to grep. Use a valid grep pattern
+                (string or regex).
+            tail_line_count (int): Optionally limits the output to the last N lines.
+        """
+        cmd = f"--no-pager | grep '{pattern}'"
+
+        if tail_line_count > 0:
+            cmd = cmd + f" | tail -n {tail_line_count}"
+
+        result = self.run(
+            cmd,
+            force_run=True,
+            shell=True,
+            sudo=sudo,
+            no_debug_log=no_debug_log,
+            no_error_log=no_error_log,
+            no_info_log=no_info_log,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to filter journalctl logs by pattern '{pattern}'"
+            ),
+        )
+        return result.stdout
