@@ -29,7 +29,7 @@ class AzureCredentialType(str, Enum):
     ClientSecretCredential = "secret"
     WorkloadIdentityCredential = "workloadidentity"
     TokenCredential = "token"
-    CliCredential = "cli"
+    CliCredential = "azcli"
 
 
 @dataclass_json()
