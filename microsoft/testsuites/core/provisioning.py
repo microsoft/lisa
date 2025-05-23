@@ -360,7 +360,7 @@ class Provisioning(TestSuite):
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
             if n == 1:
-                raise Exception("This is a test exception for _smoke_test")
+                raise Exception("TcpConnectionException")
             
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
@@ -373,8 +373,6 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
-        finally:
-            pass
         return timer.elapsed()
         
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
