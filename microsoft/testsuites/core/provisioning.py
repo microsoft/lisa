@@ -287,10 +287,10 @@ class Provisioning(TestSuite):
                 log.info(f"Reboot stress iteration {i+1}/5")
                 elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
                 reboot_times.append((i + 1, elapsed))
-            log.info("Reboot times for all iterations:")
-        except Exception as identifier: 
-            log.info(f"Reboot stress test failed: {identifier} at iteration {i+1}")
+
         finally:
+            if (len(reboot_times) < 100):
+                log.info(f"Reboot stress test failed at iteration {i+1}")
             log.info(f"Number of iterations completed: {len(reboot_times)}")
             log.info("Reboot times for all iterations:")
             for iteration, time in reboot_times:
@@ -309,7 +309,7 @@ class Provisioning(TestSuite):
         wait: bool = True,
         is_restart: bool = True,
         
-    ) -> None:
+    ) -> float:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
@@ -379,6 +379,7 @@ class Provisioning(TestSuite):
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
+        
         return timer.elapsed()
         
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
