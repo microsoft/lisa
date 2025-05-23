@@ -425,5 +425,5 @@ class AzureCliCredentialImpl(AzureCredential):
         # Create AzureCliCredential with proper parameter types
         return AzureCliCredential(
             tenant_id=self._tenant_id,
-            additionally_allowed_tenants=additionally_allowed_tenants
+            additionally_allowed_tenants=additionally_allowed_tenants,
         )
