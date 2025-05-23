@@ -295,9 +295,7 @@ class Provisioning(TestSuite):
             log.info("Reboot times for all iterations:")
             for iteration, time in reboot_times:
                 log.info(f"Iteration {iteration}: Reboot time = {time}s")
-                # self._smoke_test(log, node, log_path, "reboot_stress")
-                # self._stress_reboot(log, node, log_path, "reboot_stress", 100)
-
+                
     def _smoke_test(
         self,
         log: Logger,
@@ -307,8 +305,7 @@ class Provisioning(TestSuite):
         n : int = 0,
         reboot_in_platform: bool = False,
         wait: bool = True,
-        is_restart: bool = True,
-        
+        is_restart: bool = True,        
     ) -> float:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
@@ -365,9 +362,7 @@ class Provisioning(TestSuite):
             else:
                 node.reboot()
             log.info(f"node '{node.name}' rebooted in {timer}")
-            if n == 1:
-                raise Exception("TcpConnectionException")
-            
+                        
         except Exception as identifier:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
@@ -378,8 +373,7 @@ class Provisioning(TestSuite):
             # if node cannot be connected after reboot, it should be failed.
             if isinstance(identifier, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
-            raise PassedException(identifier)
-        
+            raise PassedException(identifier)        
         return timer.elapsed()
         
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
