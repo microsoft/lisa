@@ -374,7 +374,8 @@ class Provisioning(TestSuite):
                 raise BadEnvironmentStateException(f"after reboot, {identifier}")
             raise PassedException(identifier)
         finally:
-            return timer.elapsed()
+            pass
+        return timer.elapsed()
         
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
