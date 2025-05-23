@@ -31,7 +31,7 @@ class FipsTests(TestSuite):
     @TestCaseMetadata(
         description="""
         Ensures that an AZL machine is in the correct FIPS mode.
-    """,
+        """,
         priority=3,
         requirement=simple_requirement(
             supported_os=[CBLMariner],
