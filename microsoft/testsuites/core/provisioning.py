@@ -264,6 +264,31 @@ class Provisioning(TestSuite):
             is_restart=False,
         )
 
+    @TestCaseMetadata(
+        description="""
+        This case performs a reboot stress test on the node.
+        Steps:
+        1. Reboot the node 100 times from the guest OS.
+        2. After each reboot, check if the node is reachable and verify there is no kernel panic using the serial console.
+        3. Log the reboot time for each iteration.
+        4. If a TCP connection error or kernel panic is detected, fail the test.
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        reboot_times = []
+        for i in range(100):
+            log.info(f"Reboot stress iteration {i+1}/100")
+            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}")
+            reboot_times.append((i + 1, elapsed))
+        log.info("Reboot times for all iterations:")
+        for iteration, time in reboot_times:
+            log.info(f"Iteration {iteration}: Reboot time = {time}s")
+
     def _smoke_test(
         self,
         log: Logger,
@@ -273,7 +298,7 @@ class Provisioning(TestSuite):
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
-    ) -> None:
+    ) -> float:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
@@ -328,7 +353,7 @@ class Provisioning(TestSuite):
                     )
             else:
                 node.reboot()
-            log.info(f"node '{node.name}' rebooted in {timer}")
+            log.info(f"node '{node.name}' rebooted in {timer}")    
         except Exception as e:
             serial_console = node.features[SerialConsole]
             # if there is any panic, fail before partial pass
@@ -340,7 +365,8 @@ class Provisioning(TestSuite):
             if isinstance(e, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise PassedException(e)
-
+        return timer.elapsed()
+    
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
         pci_devices = lspci.get_devices_by_type(
