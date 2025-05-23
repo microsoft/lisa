@@ -412,7 +412,6 @@ class AzureCliCredentialImpl(AzureCredential):
         cloud: Cloud = AZURE_PUBLIC_CLOUD,
     ) -> None:
         super().__init__(runbook, logger=logger, cloud=cloud)
-        self._set_auth_env_variables()
 
     def get_credential(self) -> Any:
         """
