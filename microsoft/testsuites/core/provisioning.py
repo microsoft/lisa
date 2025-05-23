@@ -282,15 +282,19 @@ class Provisioning(TestSuite):
     )
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         reboot_times = []
-        for i in range(5):
-            log.info(f"Reboot stress iteration {i+1}/5")
-            elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
-            reboot_times.append((i + 1, elapsed))
-        log.info("Reboot times for all iterations:")
-        for iteration, time in reboot_times:
-            log.info(f"Iteration {iteration}: Reboot time = {time}s")
-            # self._smoke_test(log, node, log_path, "reboot_stress")
-            # self._stress_reboot(log, node, log_path, "reboot_stress", 100)
+        try:
+            for i in range(5):
+                log.info(f"Reboot stress iteration {i+1}/5")
+                elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
+                reboot_times.append((i + 1, elapsed))
+            log.info("Reboot times for all iterations:")
+        finally:
+            log.info(f"Number of iterations completed: {len(reboot_times)}")
+            log.info("Reboot times for all iterations:")
+            for iteration, time in reboot_times:
+                log.info(f"Iteration {iteration}: Reboot time = {time}s")
+                # self._smoke_test(log, node, log_path, "reboot_stress")
+                # self._stress_reboot(log, node, log_path, "reboot_stress", 100)
 
     def _smoke_test(
         self,
