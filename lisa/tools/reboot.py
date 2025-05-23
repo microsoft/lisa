@@ -51,7 +51,7 @@ class Reboot(Tool):
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
-        except Exception as identifier:
+        except Exception as e:
             if self.node.features.is_supported(SerialConsole):
                 # if there is any panic, fail before partial pass
                 serial_console = self.node.features[SerialConsole]
@@ -60,9 +60,9 @@ class Reboot(Tool):
                     stage="reboot",
                 )
             # if node cannot be connected after reboot, it should be failed.
-            if isinstance(identifier, TcpConnectionException):
-                raise BadEnvironmentStateException(f"after reboot, {identifier}")
-            raise identifier
+            if isinstance(e, TcpConnectionException):
+                raise BadEnvironmentStateException(f"after reboot, {e}")
+            raise e
 
     def reboot(self, time_out: int = 300) -> None:
         who = self.node.tools[Who]
@@ -106,9 +106,9 @@ class Reboot(Tool):
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
             self.run(force_run=True, sudo=True, timeout=10)
-        except Exception as identifier:
+        except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
-            self._log.debug(f"ignorable exception on rebooting: {identifier}")
+            self._log.debug(f"ignorable exception on rebooting: {e}")
 
         connected: bool = False
         # The previous steps may take longer time than time out. After that, it
@@ -120,13 +120,13 @@ class Reboot(Tool):
                 self.node.close()
                 current_boot_time = _who_last(who)
                 connected = True
-            except FunctionTimedOut as identifier:
+            except FunctionTimedOut as e:
                 # The FunctionTimedOut must be caught separated, or the process
                 # will exit.
-                self._log.debug(f"ignorable timeout exception: {identifier}")
-            except Exception as identifier:
+                self._log.debug(f"ignorable timeout exception: {e}")
+            except Exception as e:
                 # error is ignorable, as ssh may be closed suddenly.
-                self._log.debug(f"ignorable ssh exception: {identifier}")
+                self._log.debug(f"ignorable ssh exception: {e}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
             if last_boot_time < current_boot_time:
                 break
@@ -195,8 +195,8 @@ class WindowsReboot(Reboot):
                     is_ready = True
                     break
 
-            except Exception as identifier:
-                self._log.debug(f"Waiting for VM to reboot: {identifier}")
+            except Exception as e:
+                self._log.debug(f"Waiting for VM to reboot: {e}")
                 sleep(2)
 
         if not is_ready:

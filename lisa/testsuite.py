@@ -813,8 +813,8 @@ class TestSuite:
                 timeout=timeout,
                 test_kwargs=test_kwargs,
             )
-        except Exception as identifier:
-            case_result.handle_exception(identifier, log, "before_case")
+        except Exception as e:
+            case_result.handle_exception(e, log, "before_case")
             result = False
 
         log.debug(f"before_case end in {timer}")
@@ -834,9 +834,9 @@ class TestSuite:
                 timeout=timeout,
                 test_kwargs=test_kwargs,
             )
-        except Exception as identifier:
+        except Exception as e:
             # after case doesn't impact test case result.
-            log.error("after_case failed", exc_info=identifier)
+            log.error("after_case failed", exc_info=e)
         log.debug(f"after_case end in {timer}")
 
     def __run_case(
@@ -862,8 +862,8 @@ class TestSuite:
                     if node.assert_kernel_error_after_test:
                         node.check_kernel_error()
             case_result.set_status(TestStatus.PASSED, "")
-        except Exception as identifier:
-            case_result.handle_exception(exception=identifier, log=log)
+        except Exception as e:
+            case_result.handle_exception(exception=e, log=log)
         log.debug(f"case end in {timer}")
 
 

@@ -39,8 +39,8 @@ class Dhcp(TestSuite):
         dhclient = node.tools[Dhclient]
         try:
             timeout = dhclient.get_timeout()
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
 
         assert_that(timeout).described_as(
             "the DHCP client timeout should be set equal or more than 300 seconds"

@@ -296,17 +296,17 @@ class LisaRunner(BaseRunner):
                     environment.status == EnvironmentStatus.Deployed
                 ), f"actual: {environment.status}"
                 self._reset_awaitable_timer("deploy")
-            except ResourceAwaitableException as identifier:
+            except ResourceAwaitableException as e:
                 if self._is_awaitable_timeout("deploy"):
                     self._log.info(
                         f"[{environment.name}] timeout on waiting for more resource: "
-                        f"{identifier}, skip assigning case."
+                        f"{e}, skip assigning case."
                     )
-                    raise SkippedException(identifier)
+                    raise SkippedException(e)
                 else:
                     # rerun prepare to calculate resource again.
                     environment.status = EnvironmentStatus.New
-        except Exception as identifier:
+        except Exception as e:
             if self._need_retry(environment):
                 environment.status = EnvironmentStatus.New
             else:
@@ -314,7 +314,7 @@ class LisaRunner(BaseRunner):
                 self._attach_failed_environment_to_result(
                     environment=environment,
                     result=test_result,
-                    exception=identifier,
+                    exception=e,
                 )
                 self._delete_environment_task(environment=environment, test_results=[])
         finally:
@@ -335,11 +335,11 @@ class LisaRunner(BaseRunner):
                 phase=constants.TRANSFORMER_PHASE_ENVIRONMENT_CONNECTED,
                 environment=environment,
             )
-        except Exception as identifier:
+        except Exception as e:
             self._attach_failed_environment_to_result(
                 environment=environment,
                 result=test_results[0],
-                exception=identifier,
+                exception=e,
             )
             self._delete_environment_task(environment=environment, test_results=[])
 
@@ -398,13 +398,13 @@ class LisaRunner(BaseRunner):
             try:
                 # check panic when node(s) in bad status
                 environment.nodes.check_kernel_panics()
-            except KernelPanicException as identifier:
+            except KernelPanicException as e:
                 # not throw exception here, since it will cancel all tasks
                 # just print log here and set test result status as failed
-                test_result.set_status(TestStatus.FAILED, str(identifier))
+                test_result.set_status(TestStatus.FAILED, str(e))
                 self._log.debug(
                     "found kernel panic from the node(s) of "
-                    f"'{environment.name}': {identifier}"
+                    f"'{environment.name}': {e}"
                 )
         tested_environment.nodes.close()
 
@@ -473,9 +473,9 @@ class LisaRunner(BaseRunner):
         else:
             try:
                 self.platform.delete_environment(environment)
-            except Exception as identifier:
+            except Exception as e:
                 self._log.debug(
-                    f"error on deleting environment '{environment.name}': {identifier}"
+                    f"error on deleting environment '{environment.name}': {e}"
                 )
 
     def _prepare_environment(self, environment: Environment) -> bool:
@@ -484,23 +484,23 @@ class LisaRunner(BaseRunner):
             try:
                 self.platform.prepare_environment(environment)
                 self._reset_awaitable_timer("prepare")
-            except ResourceAwaitableException as identifier:
+            except ResourceAwaitableException as e:
                 # if timed out, raise the exception and skip the test case. If
                 # not, do nothing to keep env as new to try next time.
                 if self._is_awaitable_timeout("prepare"):
-                    raise SkippedException(identifier)
-        except Exception as identifier:
+                    raise SkippedException(e)
+        except Exception as e:
             success = False
 
             matched_result = self._match_failed_environment_with_result(
                 environment=environment,
                 candidate_results=self.test_results,
-                exception=identifier,
+                exception=e,
             )
             self._attach_failed_environment_to_result(
                 environment=environment,
                 result=matched_result,
-                exception=identifier,
+                exception=e,
             )
 
         return success
@@ -654,13 +654,13 @@ class LisaRunner(BaseRunner):
                         or environment.is_new
                     ):
                         runnable_results.append(result)
-                except SkippedException as identifier:
+                except SkippedException as e:
                     if not result.environment:
                         result.environment = environment
                     # when check the environment, the test result may be marked
                     # as skipped, due to the test result is assumed not to match
                     # any environment.
-                    result.handle_exception(identifier, log=self._log, phase="check")
+                    result.handle_exception(e, log=self._log, phase="check")
             results = runnable_results
 
         # only select one test case, which needs the new environment. Others
@@ -848,8 +848,8 @@ class LisaRunner(BaseRunner):
                             node_requirement = original_node_requirement.intersect(
                                 platform_requirement
                             )
-                        except NotMeetRequirementException as identifier:
-                            test_result.set_status(TestStatus.SKIPPED, str(identifier))
+                        except NotMeetRequirementException as e:
+                            test_result.set_status(TestStatus.SKIPPED, str(e))
                             break
 
                         assert isinstance(platform_requirement.extended_schemas, dict)

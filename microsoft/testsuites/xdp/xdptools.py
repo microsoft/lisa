@@ -21,8 +21,8 @@ def can_install(node: Node) -> bool:
     ethtool = node.tools[Ethtool]
     try:
         statistics = ethtool.get_device_statistics(node.nics.default_nic).counters
-    except UnsupportedOperationException as identifier:
-        raise UnsupportedDistroException(node.os, str(identifier))
+    except UnsupportedOperationException as e:
+        raise UnsupportedDistroException(node.os, str(e))
 
     # check if xdp supported on nic
     if not any("xdp_drop" in x for x in statistics):

@@ -228,6 +228,12 @@ class Environment(ContextMixin, InitializableMixin):
         if self._status != value:
             if value == EnvironmentStatus.New:
                 self._reset()
+            if value == EnvironmentStatus.Prepared:
+                # When transitioning to Prepared, clear the initialized flag.
+                # This is necessary for scenarios where an environment is being reused
+                # (e.g., reuse_dirty_env=True), so that it can go through
+                # init steps again.
+                self._is_initialized = False
             self._status = value
             environment_message = EnvironmentMessage(
                 name=self.name,
@@ -567,9 +573,9 @@ class EnvironmentHookImpl:
             node = environment.default_node
             try:
                 information = node.get_information()
-            except Exception as identifier:
+            except Exception as e:
                 environment.log.exception(
-                    "failed to get environment information", exc_info=identifier
+                    "failed to get environment information", exc_info=e
                 )
 
         return information

@@ -1,11 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Type
+from typing import Any, List, Optional, Type
+
+from dataclasses_json import dataclass_json
 
 from lisa import feature, features
-from lisa.environment import Environment
+from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.platform_ import Platform
 from lisa.schema import DiskOptionSettings, NetworkInterfaceOptionSettings
@@ -14,10 +17,25 @@ from lisa.util.logger import Logger
 from . import READY
 
 
+@dataclass_json()
+@dataclass
+class ReadyPlatformSchema:
+    # If set to True, a dirty environment will be retained and reused
+    # instead of being deleted and recreated.
+    reuse_dirty_env: bool = field(default=True)
+
+
 class ReadyPlatform(Platform):
     @classmethod
     def type_name(cls) -> str:
         return READY
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        ready_runbook: ReadyPlatformSchema = self.runbook.get_extended_runbook(
+            ReadyPlatformSchema
+        )
+        assert ready_runbook, "platform runbook cannot be empty"
+        self._ready_runbook = ready_runbook
 
     @classmethod
     def supported_features(cls) -> List[Type[Feature]]:
@@ -65,8 +83,14 @@ class ReadyPlatform(Platform):
         pass
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        # ready platform doesn't support delete environment
-        pass
+        if self._ready_runbook.reuse_dirty_env:
+            log.debug(
+                f"Environment '{environment.name}' was marked as 'Deleted' "
+                "because it was dirty. Now resetting it to 'Prepared' since "
+                "'reuse_dirty_env' is true, allowing test cases to reuse "
+                "the environment."
+            )
+            environment.status = EnvironmentStatus.Prepared
 
 
 class SerialConsole(features.SerialConsole):

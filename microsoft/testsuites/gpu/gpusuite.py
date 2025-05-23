@@ -340,10 +340,10 @@ def _check_driver_installed(node: Node, log: Logger) -> None:
             f"GPU count from lspci {lspci_gpucount} not equal to "
             f"count from nvidia-smi {nvidiasmi_gpucount}"
         ).is_equal_to(nvidiasmi_gpucount)
-    except Exception as identifier:
+    except Exception as e:
         raise LisaException(
             f"Cannot find nvidia-smi, make sure the driver installed correctly. "
-            f"Inner exception: {identifier}"
+            f"Inner exception: {e}"
         )
 
 

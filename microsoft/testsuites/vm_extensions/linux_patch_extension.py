@@ -263,9 +263,9 @@ def _assert_assessment_patch(
         # before timeout
         assess_result = wait_operation(operation, 600)
 
-    except HttpResponseError as identifier:
+    except HttpResponseError as e:
         if any(
-            s in str(identifier)
+            s in str(e)
             for s in [
                 "The selected VM image is not supported",
                 "CPU Architecture 'arm64' was not found in the extension repository",
@@ -273,7 +273,7 @@ def _assert_assessment_patch(
         ):
             _unsupported_image_exception_msg(node)
         else:
-            raise identifier
+            raise e
 
     assert assess_result, "assess_result shouldn't be None"
     log.debug(f"assess_result:{assess_result}")
@@ -303,9 +303,9 @@ def _assert_installation_patch(
         # generated before timeout
         install_result = wait_operation(operation, timeout)
 
-    except HttpResponseError as identifier:
+    except HttpResponseError as e:
         if any(
-            s in str(identifier)
+            s in str(e)
             for s in [
                 "The selected VM image is not supported",
                 "CPU Architecture 'arm64' was not found in the extension repository",
@@ -313,7 +313,7 @@ def _assert_installation_patch(
         ):
             _unsupported_image_exception_msg(node)
         else:
-            raise identifier
+            raise e
 
     assert install_result, "install_result shouldn't be None"
     log.debug(f"install_result:{install_result}")

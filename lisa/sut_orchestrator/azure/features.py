@@ -675,9 +675,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         try:
             # install LIS driver if required and not already installed.
             self._node.tools[LisDriver]
-        except Exception as identifier:
+        except Exception as e:
             self._log.debug(
-                f"LisDriver is not installed. It might not be required. {identifier}"
+                f"LisDriver is not installed. It might not be required. {e}"
             )
         super().install_compute_sdk(version)
 
@@ -706,8 +706,10 @@ class Infiniband(AzureFeatureMixin, features.Infiniband):
         return "hvnd_try_bind_nic" in dmesg.get_output()
 
     def setup_rdma(self) -> None:
-        if self._node.tools[Ls].path_exists("/opt/azurehpc/component_versions.txt"):
-            self.is_hpc_image = True
+        ls = self._node.tools[Ls]
+        self.is_hpc_image = ls.path_exists(
+            "/opt/azurehpc/component_versions.txt"
+        ) or ls.path_exists("/opt/azurehpc/component-versions")
         super().setup_rdma()
         waagent = self._node.tools[Waagent]
         devices = self._get_ib_device_names()
@@ -3224,8 +3226,8 @@ class AzureExtension(AzureFeatureMixin, Feature):
             # no return for this operation
             wait_operation(operation, timeout)
             return True
-        except HttpResponseError as identifier:
-            error_message = str(identifier)
+        except HttpResponseError as e:
+            error_message = str(e)
             if "was not found" in error_message:
                 if ignore_not_found:
                     self._log.info(
@@ -3236,12 +3238,12 @@ class AzureExtension(AzureFeatureMixin, Feature):
                     raise LisaException(
                         f"Extension '{name}' not found. Cannot delete "
                         "non-existent extension."
-                    ) from identifier
+                    ) from e
             else:
                 raise LisaException(
                     "Unexpected error occurred while deleting extension "
                     f"'{name}': {error_message}"
-                ) from identifier
+                ) from e
 
     def list_all(self) -> Any:
         platform: AzurePlatform = self._platform  # type: ignore

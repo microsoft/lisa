@@ -123,9 +123,9 @@ class XdpDump(Tool):
                 sudo=True,
                 cwd=self._code_path,
             )
-        except Exception as identifier:
+        except Exception as e:
             self._restore_lro(nic_name)
-            raise identifier
+            raise e
 
         # wait to receive at least one packet or 1 second to make sure the
         # process started.

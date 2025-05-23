@@ -1351,10 +1351,10 @@ def delete_private_zones(
                 )
                 log.debug(f"delete private zone: {private_zone_name}")
                 break
-            except Exception as identifier:
+            except Exception as e:
                 if (
                     "Can not delete resource before nested resources are deleted"
-                    in str(identifier)
+                    in str(e)
                 ):
                     sleep(1)
                     continue
@@ -1985,9 +1985,9 @@ def copy_vhd_using_azcopy(
             expected_exit_code_failure_message=("AzCopy failed to copy the blob"),
             timeout=60 * 60,
         )
-    except Exception as identifier:
+    except Exception as e:
         blob_client.delete_blob(delete_snapshots="include")
-        raise LisaException(f"AzCopy error: {identifier}")
+        raise LisaException(f"AzCopy error: {e}")
 
     # Set metadata to mark the blob copied by AzCopy successfully
     metadata = {"AzCopyStatus": "Success"}
@@ -2115,8 +2115,8 @@ def save_console_log(
                     resource_group_name=resource_group_name, vm_name=vm_name
                 )
             )
-        except ResourceExistsError as identifier:
-            log.debug(f"fail to get serial console log. {identifier}")
+        except ResourceExistsError as e:
+            log.debug(f"fail to get serial console log. {e}")
             return b""
     if saved_path:
         screenshot_raw_name = saved_path / f"{screenshot_file_name}.bmp"
@@ -2549,7 +2549,7 @@ def check_or_create_gallery_image(
                 "os_state": gallery_image_osstate,
                 "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
                 "architecture": gallery_image_architecture,
-                "identifier": {
+                "ex": {
                     "publisher": gallery_image_publisher,
                     "offer": gallery_image_offer,
                     "sku": gallery_image_sku,
@@ -3278,12 +3278,12 @@ def load_location_info_from_file(
             with open(cached_file_name, "r") as f:
                 loaded_data: Dict[str, Any] = json.load(f)
             loaded_obj = schema.load_by_type(AzureLocation, loaded_data)
-        except Exception as identifier:
+        except Exception as e:
             # if schema changed, There may be exception, remove cache and retry
             # Note: retry on this method depends on decorator
-            log.debug(f"error on loading cache, delete cache and retry. {identifier}")
+            log.debug(f"error on loading cache, delete cache and retry. {e}")
             cached_file_name.unlink()
-            raise identifier
+            raise e
     return loaded_obj
 
 
