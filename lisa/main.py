@@ -46,7 +46,8 @@ def _dump_code_information(log: Logger) -> None:
     command = r'git log -1 "--pretty=format:%H%d %ci, %s"'
     output = subprocess.getoutput(command)
     log.info(f"git head: {output}")
-    output = subprocess.getoutput(f"git submodule foreach --recursive {command}")
+    submodule_cmd = f"git submodule foreach --recursive {command}"
+    output = subprocess.getoutput(submodule_cmd)
     if output:
         log.info(f"submodules: {output}")
 
@@ -87,13 +88,14 @@ def initialize_runtime_folder(
     working_path: Optional[Path] = None,
     run_id: str = "",
 ) -> None:
-    cache_path = _runtime_root.joinpath("cache")
-    cache_path.mkdir(parents=True, exist_ok=True)
-    constants.CACHE_PATH = cache_path
-
     # Layout the run time folder structure.
     log_path = _normalize_path("log", log_path)
     working_path = _normalize_path("working", working_path)
+
+    # Set cache path after working_path is normalized
+    cache_path = working_path.parent / "cache"
+    cache_path.mkdir(parents=True, exist_ok=True)
+    constants.CACHE_PATH = cache_path
 
     logic_path = test_path(log_path, working_path, run_id=run_id)
 
@@ -161,8 +163,8 @@ def cli() -> int:
         try:
             log.exception(exception)
         except Exception:
-            # if there is any exception in log class, they have to be caught and show
-            # on console only
+            # if there is any exception in log class,
+            # they have to be caught and show on console only
             traceback.print_exc()
     finally:
         sys.exit(exit_code)
