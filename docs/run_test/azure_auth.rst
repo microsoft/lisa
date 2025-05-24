@@ -164,7 +164,7 @@ Example:
            allow_all_tenants: false | true  # Optional. Default is `false`.
 
 * **type**: `azcli` indicates Azure CLI authentication.
-* **tenant_id**: (Optional) Needed to specify a specific tenant for the token request.
+* **tenant_id**: (Optional) Needed to specify a specific tenant for authentication.
 * **allow_all_tenants**: (Optional) Specifies whether to allow cross-tenant authorization. Default is `false`.
 
 Schema Description
@@ -179,6 +179,6 @@ The configuration follows this schema:
   -  **secret**: Uses client secret authentication. Requires `client_secret`.
   -  **workloadidentity**: Uses workload identity authentication.
   -  **token**: Uses token-based authentication. Requires a valid `token`.
-  -  **azcli**: Uses Azure CLI authentication. Requires previously logging in via "az login".
+  -  **azcli**: Uses Azure CLI authentication. Requires previously logging in via "az login" and uses the CLI's currently logged in identity.
 
 **Schema Inheritance:** The `default` authentication method defines a base schema that all other authentication types inherit from. Fields such as `allow_all_tenants` are applicable to all authentication methods.
