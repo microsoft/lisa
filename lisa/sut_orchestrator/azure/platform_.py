@@ -638,7 +638,6 @@ class AzurePlatform(Platform):
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
             except Exception as e:
-                self._delete_environment(environment, log)
                 raise e
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:

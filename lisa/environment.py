@@ -53,7 +53,8 @@ EnvironmentStatus = Enum(
         "Connected",
         # deleted by platform
         "Deleted",
-        # the environment is in a bad state, and need to be deleted.
+        # the environment is in a bad state, and need to be
+        # deleted or retained based on keep_environment value
         "Bad",
     ],
 )
