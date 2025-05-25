@@ -384,7 +384,7 @@ VM is stopped for exporting VHD. Restore can be set to true to start the VM afte
 Use Script File Transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This transformer is used to execute scripts on a node, install required packages, and optionally reboot the node after execution.
+This transformer is used to install required packages, execute scripts on a node, and optionally reboot the node after execution.
 
 Usage
 ``````
