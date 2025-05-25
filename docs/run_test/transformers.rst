@@ -286,7 +286,7 @@ deploy
 ^^^^^^
 type: bool | Default: true
 
-Whether to deploy the VM. If set to false, the resource group will be created but no VM will be deployed.
+Whether to create a new deployment. If true, creates a new VM deployment. If false, uses existing VMs in the specified resource_group_name.
 
 
 Use Delete Transformer
