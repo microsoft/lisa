@@ -379,3 +379,79 @@ restore
 type: bool | Default: false
 
 VM is stopped for exporting VHD. Restore can be set to true to start the VM after exporting.
+
+
+Use Script File Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer is used to execute scripts on a node, install required packages, and optionally reboot the node after execution.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: script_file
+      phase: expanded
+      connection:
+        address: $(build_vm_address)
+        private_key_file: $(admin_private_key_file)
+      reboot: true
+      dependent_packages:
+        - git
+      scripts:
+        - script: "/tmp/waagent.sh"
+          interpreter: bash
+          args: "--flag"
+          expected_exit_code: 0
+
+Outputs
+````````
+ - results
+
+Reference
+`````````
+
+dependent_packages
+^^^^^^^^^^^^^^^^^
+type: List[str] | Default: []
+
+List of packages to install before executing scripts.
+
+scripts (Required)
+^^^^^^^^^^^^^^^
+type: List[ScriptEntry]
+
+List of scripts to execute on the node.
+
+Script Entry Properties:
+
+script (Required)
+""""""""""""""""
+type: string
+
+Path to the script file on the target node.
+
+interpreter
+""""""""""
+type: string | Default: "bash"
+
+Interpreter to use for executing the script.
+
+args
+""""
+type: string | Default: None
+
+Arguments to pass to the script.
+
+expected_exit_code
+""""""""""""""""
+type: int | Default: 0
+
+Expected exit code of the script. If the script returns a different exit code, execution will fail.
+
+reboot
+^^^^^
+type: bool | Default: false
+
+Reboot the node after script execution.
