@@ -436,7 +436,7 @@ interpreter
 """"""""""
 type: string | Default: "bash"
 
-Interpreter to use for executing the script.
+Interpreter to use for executing the script. Currently only bash is supported.
 
 args
 """"
