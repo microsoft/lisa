@@ -282,6 +282,12 @@ type: int
 
 Automatically selects vm_size based on the count provided.
 
+deploy
+^^^^^^
+type: bool | Default: true
+
+Whether to deploy the VM. If set to false, the resource group will be created but no VM will be deployed.
+
 
 Use Delete Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -295,6 +301,8 @@ Usage
   transformer:
     - type: azure_delete
       resource_group_name: rg_name
+      keep_environment: "failed"
+      wait_delete: true
 
 Reference
 `````````
@@ -306,6 +314,19 @@ type: string
 
 Name of the resource group that should be deleted.
 
+keep_environment
+^^^^^^^^^^^^^^^
+
+type: string | bool | Default: "no"
+
+Whether to keep the environment after deletion. Allowed values: "always", "no", "failed", or True/False.
+
+wait_delete
+^^^^^^^^^^
+
+type: bool | Default: false
+
+Whether to wait for the deletion to complete. If set to true, the transformer will wait for the resource group to be fully deleted before proceeding.
 
 
 Use Vhd Transformer
