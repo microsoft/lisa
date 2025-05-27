@@ -5,7 +5,7 @@ from typing import List
 
 from assertpy import assert_that
 from semver import VersionInfo
-
+import time
 from lisa import (
     Environment,
     Logger,
@@ -222,7 +222,9 @@ class HvModule(TestSuite):
                 f"{module} is loaded statically into the "
                 "kernel and therefore can not be reloaded"
             )
-
+        print("sleep 6000 seconds...")
+        time.sleep(6000)
+        print("resume reloading modules")
         result = node.execute(
             ("for i in $(seq 1 %i); do " % loop_count)
             + f"modprobe -r -v {module}; modprobe -v {module}; "
