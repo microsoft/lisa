@@ -289,12 +289,12 @@ class Provisioning(TestSuite):
                 reboot_times.append((i + 1, elapsed))
 
         finally:
-            if (len(reboot_times) < 100):
-                log.info(f"Reboot stress test raised exception/warning at iteration {i+1}")
             log.info(f"Number of iterations completed: {len(reboot_times)}")
             log.info("Reboot times for all iterations:")
             for iteration, time in reboot_times:
-                log.info(f"Iteration {iteration}: Reboot time = {time}s")
+                log.info(f"Iteration {iteration}: Reboot time = {time}s")            
+            if (len(reboot_times) < 100):
+                raise Exception(f"Reboot stress test completed only {len(reboot_times)}/100 iterations.")
                 
     def _smoke_test(
         self,
