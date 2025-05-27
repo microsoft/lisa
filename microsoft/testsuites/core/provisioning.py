@@ -292,7 +292,7 @@ class Provisioning(TestSuite):
             log.info(f"Number of iterations completed: {len(reboot_times)}")
             log.info("Reboot times for all iterations:")
             for iteration, time in reboot_times:
-                log.info(f"Iteration {iteration}: Reboot time = {time}s")            
+                log.info(f"Iteration {iteration}: Reboot time = {time}s")
             if (len(reboot_times) < 100):
                 raise Exception(f"Reboot stress test completed only {len(reboot_times)}/100 iterations.")
                 
