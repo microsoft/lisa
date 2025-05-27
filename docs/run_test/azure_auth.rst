@@ -23,6 +23,7 @@ Available Authentication Methods
 4. `Workload Identity Authentication <#workload-identity-authentication>`__
 5. `Token Authentication <#token-authentication>`__
 6. `Client Secret Authentication <#client-secret-authentication>`__
+7. `Azure CLI Authentication <#azure-cli-authentication>`__
 
 Default Credentials
 -------------------
@@ -146,6 +147,26 @@ Example:
            tenant_id: <tenant id> # Required
            client_secret: <client secret> # Required
 
+Azure CLI Authentication
+-----------------------
+This authentication uses the Azure CLI for authentication, which requires previously logging in to Azure via "az login". It will use the CLI's currently logged in identity.
+
+Example:
+
+.. code:: yaml
+
+   platform:
+     - type: azure
+       azure:
+         credential:
+           type: azcli
+           tenant_id: <tenant id> # Optional
+           allow_all_tenants: false | true  # Optional. Default is `false`.
+
+* **type**: `azcli` indicates Azure CLI authentication.
+* **tenant_id**: (Optional) Needed to specify a specific tenant for authentication.
+* **allow_all_tenants**: (Optional) Specifies whether to allow cross-tenant authorization. Default is `false`.
+
 Schema Description
 --------------------
 
@@ -158,5 +179,6 @@ The configuration follows this schema:
   -  **secret**: Uses client secret authentication. Requires `client_secret`.
   -  **workloadidentity**: Uses workload identity authentication.
   -  **token**: Uses token-based authentication. Requires a valid `token`.
+  -  **azcli**: Uses Azure CLI authentication. Requires previously logging in via "az login" and uses the CLI's currently logged in identity.
 
 **Schema Inheritance:** The `default` authentication method defines a base schema that all other authentication types inherit from. Fields such as `allow_all_tenants` are applicable to all authentication methods.
