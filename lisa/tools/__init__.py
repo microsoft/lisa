@@ -90,6 +90,7 @@ from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
 from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
+from .openssl import Openssl
 from .parted import Parted
 from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
@@ -222,6 +223,7 @@ __all__ = [
     "Ntttcp",
     "NvidiaSmi",
     "Nvmecli",
+    "Openssl",
     "Parted",
     "Perf",
     "Pidof",
