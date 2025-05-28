@@ -270,11 +270,11 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case performs a reboot stress test on the node 
+        This case performs a reboot stress test on the node
         and iterates smoke test 100 times.
         The test steps are almost the same as `smoke_test`.
         The reboot times is summarized after the test is run
-   
+
         """,
         priority=3,
         requirement=simple_requirement(
@@ -299,7 +299,7 @@ class Provisioning(TestSuite):
                 raise AssertionError(
                     f"Test completed only {len(reboot_times)}/100 iterations."
                 )
-            
+
     def _smoke_test(
         self,
         log: Logger,
