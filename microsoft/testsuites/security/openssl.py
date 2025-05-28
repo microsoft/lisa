@@ -2,8 +2,8 @@
 # Licensed under the MIT license.
 
 from assertpy import assert_that
-
-from lisa.lisa.util import SkippedException
+import json
+from lisa.util import SkippedException
 from lisa.logger import Logger
 from lisa.node import Node
 from lisa.testcase import TestCaseMetadata
@@ -15,7 +15,11 @@ from lisa.exceptions import LisaException
 
 
 def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
-    # Key and IV for encryption and decryption.
+    """
+    Tests OpenSSL encryption and decryption functionality.
+    This function generates a random key and IV, encrypts various types of
+    """
+    # Key and IV for encryption and decryption.   
     openssl = node.tools[OpenSSL]
     key_hex = openssl.run("rand -hex 32", expected_exit_code=0).stdout.strip()
     iv_hex = openssl.run("rand -hex 16", expected_exit_code=0).stdout.strip()
@@ -25,8 +29,8 @@ def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
         "cool",  # Short string
         "A" * 1024,  # Longer string
         "Special chars: !@#$%^&*()",  # Special characters
+        json.dumps({"resourceId": "test123"}),  # JSON Azure resource data
     ]
-    
     for plaintext in test_data:
         log.debug(f"Testing with data length: {len(plaintext)}")
         encrypted_data = openssl.encrypt(plaintext, key_hex, iv_hex)
@@ -34,35 +38,6 @@ def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
         assert_that(plaintext).is_equal_to(decrypted_data)
 
     log.debug("Successfully encrypted and decrypted all test data.")
-
-def is_fips_enabled(node: Node) -> bool:
-    """
-    Checks if the system is in FIPS mode and
-    verifies AZL FIPS status.
-    Check if the system is in FIPS mode.
-    """
-    if not isinstance(node.os, CBLMariner):
-        raise LisaException(
-            "This function is only applicable for CBL-Mariner OS."
-        )
-    fips_tool = node.tools[Fips]
-    if not fips_tool.is_fips_enabled():
-        return False
-    # If FIPS is enabled, verify the AZL FIPS status.
-    if not getattr(getattr(node.os, "information", None), "is_azl", False):
-        raise LisaException(
-            "This function is only applicable for AZL systems."
-        )
-    security = getattr(node, "security", None)
-    if security and hasattr(security, "verify_azl_fips_status"):
-        if security.verify_azl_fips_status():
-            return True
-        else:
-            return False
-    else:
-        raise LisaException(
-            "Node security attribute or verify_azl_fips_status method not found."
-        )
 
 
 @TestSuiteMetadata(
@@ -87,7 +62,8 @@ class OpenSSLTestSuite(TestSuite):
     )
     def verify_openssl_basic(self, log: Logger, node: Node) -> None:
         """
-        Verifies basic OpenSSL encryption and decryption, with and without SymCrypt.
+        Verifies basic OpenSSL encryption and decryption,
+        with and without SymCrypt.
         """
         if (
             isinstance(node.os, CBLMariner)
@@ -95,21 +71,24 @@ class OpenSSLTestSuite(TestSuite):
         ):
             node.os.install_packages(["SymCrypt", "SymCrypt-OpenSSL"])
 
-        openssl_test_encrypt_decrypt(log, node)
-
-        if not node.os.information.is_azl:
+        if (
+            not getattr(node.os, "information", None)
+            or not node.os.information.is_azl
+        ):
             raise SkippedException("This test requires Azure Linux.")
 
         if node.os.information.release not in ["2.0", "3.0"]:
             raise SkippedException(
-                f"Unsupported Azure Linux version: {node.os.information.release}. "
+                f"Unsupported Azure Linux version:"
+                f"{node.os.information.release}. "
                 "Supported versions: 2.0, 3.0"
             )
 
         if (
             isinstance(node.os, CBLMariner)
             and node.os.information.release == "3.0"
-            and not is_fips_enabled(node)
+            and hasattr(node.os, "is_fips_enabled")
+            and not node.os.is_fips_enabled()
         ):
             node.os.uninstall_packages(["SymCrypt", "SymCrypt-OpenSSL"])
             openssl_test_encrypt_decrypt(log, node)
