@@ -270,9 +270,11 @@ class Provisioning(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case performs a reboot stress test on the node and iterates smoke test 100 times.
-        The test steps are almost the same as `smoke_test`.The reboot times is summarized after the test is run
-        
+        This case performs a reboot stress test on the node 
+        and iterates smoke test 100 times.
+        The test steps are almost the same as `smoke_test`.
+        The reboot times is summarized after the test is run
+   
         """,
         priority=3,
         requirement=simple_requirement(
@@ -285,7 +287,7 @@ class Provisioning(TestSuite):
         try:
             for i in range(100):
                 log.info(f"Reboot stress iteration {i+1}/100")
-                elapsed = self._smoke_test(log, node, log_path, f"reboot_stress_{i+1}",n=i)
+                elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
 
         finally:
@@ -293,9 +295,11 @@ class Provisioning(TestSuite):
             log.info("Reboot times for all iterations:")
             for iteration, time in reboot_times:
                 log.info(f"Iteration {iteration}: Reboot time = {time}s")
-            if (len(reboot_times) < 100):
-                raise Exception(f"Reboot stress test completed only {len(reboot_times)}/100 iterations.")
-                
+            if len(reboot_times) < 100:
+                raise AssertionError(
+                    f"Test completed only {len(reboot_times)}/100 iterations."
+                )
+            
     def _smoke_test(
         self,
         log: Logger,
