@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
 
+
 class OpenSSL(Tool):
     @property
     def command(self) -> str:
@@ -25,7 +26,8 @@ class OpenSSL(Tool):
         algorithm: str = "aes-256-cbc",
     ) -> str:
         """
-        Encrypt the plaintext using the specified key and IV, and return the base64 encoded ciphertext.
+        Encrypt the plaintext using the specified key and IV,
+        and return the base64 encoded ciphertext.
         """
         return self._run_with_piped_input(
             plaintext,
@@ -40,8 +42,10 @@ class OpenSSL(Tool):
         algorithm: str = "aes-256-cbc",
     ) -> str:
         """_summary_
-        This method decrypts the ciphertext using the specified key and IV, and returns the plaintext.
-        Decrypt the ciphertext using the specified key and IV, and return the plaintext.
+        This method decrypts the ciphertext using the specified
+        key and IV, and returns the plaintext.
+        Decrypt the ciphertext using the specified
+        key and IV, and return the plaintext.
         """
         return self._run_with_piped_input(
             ciphertext,
