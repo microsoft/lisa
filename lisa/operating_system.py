@@ -77,6 +77,7 @@ class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
     I386 = "i386"
+    UNKNOWN = "unknown"
 
 
 class AzureCoreRepo(str, Enum):
