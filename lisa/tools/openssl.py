@@ -24,6 +24,9 @@ class OpenSSL(Tool):
         hex_iv: str,
         algorithm: str = "aes-256-cbc",
     ) -> str:
+        """
+        Encrypt the plaintext using the specified key and IV, and return the base64 encoded ciphertext.
+        """
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
@@ -36,6 +39,10 @@ class OpenSSL(Tool):
         hex_iv: str,
         algorithm: str = "aes-256-cbc",
     ) -> str:
+        """_summary_
+        This method decrypts the ciphertext using the specified key and IV, and returns the plaintext.
+        Decrypt the ciphertext using the specified key and IV, and return the plaintext.
+        """
         return self._run_with_piped_input(
             ciphertext,
             f"enc -d -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
