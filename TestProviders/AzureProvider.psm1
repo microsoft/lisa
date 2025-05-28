@@ -192,6 +192,8 @@ Class AzureProvider : TestProvider {
 
 	[void] RunTestCleanup() {
 		# Wait till all the cleanup background jobs successfully started cleanup of resource groups.
+
+		Write-LogInfo "Waiting for background cleanup abhishek"
 		$DeleteResourceGroupJobs = Get-Job | Where-Object { $_.Name -imatch "DeleteResourceGroup" }
 		$RunningJobs = $DeleteResourceGroupJobs | Where-Object { $_.State -imatch "Running" }
 		While ( $RunningJobs ) {
