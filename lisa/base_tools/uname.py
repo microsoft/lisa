@@ -12,6 +12,7 @@ from lisa.util import LisaException, parse_version
 
 if TYPE_CHECKING:
     from lisa.node import Node
+    from lisa.operating_system import CpuArchitecture
 
 
 @dataclass
@@ -79,6 +80,21 @@ class Uname(Tool):
             )
 
         return result
+
+    def get_machine_architecture(self, force_run: bool = False) -> "CpuArchitecture":
+        # To avoid circular import
+        from lisa.operating_system import CpuArchitecture
+
+        arch_map = {
+            "x86_64": CpuArchitecture.X64,
+            "amd64": CpuArchitecture.X64,
+            "aarch64": CpuArchitecture.ARM64,
+            "arm64": CpuArchitecture.ARM64,
+            "i386": CpuArchitecture.I386,
+        }
+        self.initialize()
+        arch_str = self.run("-m", force_run=force_run).stdout.strip().lower()
+        return arch_map.get(arch_str, CpuArchitecture.UNKNOWN)
 
 
 class FreeBSDUname(Uname):
