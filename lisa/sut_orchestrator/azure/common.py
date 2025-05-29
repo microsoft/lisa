@@ -536,7 +536,7 @@ class VhdSchema(AzureImageSchema):
                 [
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
-                ],
+                ]
             )
         else:
             self.security_profile = search_space.SetSpace(
@@ -2534,9 +2534,6 @@ def check_or_create_gallery_image(
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
-        Logger.get_logger("azure").debug(
-            f"Checking gallery image: {gallery_image_name} in gallery: {gallery_name}"
-        )
         compute_client.gallery_images.get(
             gallery_resource_group_name,
             gallery_name,
