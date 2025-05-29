@@ -62,36 +62,6 @@ class OpenSSLTestSuite(TestSuite):
     )
     def verify_openssl_basic(self, log: Logger, node: Node) -> None:
         """
-        Verifies basic OpenSSL encryption and decryption,
-        with and without SymCrypt.
+        Verifies basic OpenSSL encryption and decryption
         """
-        if (
-            isinstance(node.os, CBLMariner)
-            and node.os.information.release == "3.0"
-        ):
-            node.os.install_packages(["SymCrypt", "SymCrypt-OpenSSL"])
-
-        if (
-            not getattr(node.os, "information", None)
-            or not node.os.information.is_azl
-        ):
-            raise SkippedException("This test requires Azure Linux.")
-
-        if node.os.information.release not in ["2.0", "3.0"]:
-            raise SkippedException(
-                f"Unsupported Azure Linux version:"
-                f"{node.os.information.release}. "
-                "Supported versions: 2.0, 3.0"
-            )
-
-        if (
-            isinstance(node.os, CBLMariner)
-            and node.os.information.release == "3.0"
-            and hasattr(node.os, "is_fips_enabled")
-            and not node.os.is_fips_enabled()
-        ):
-            node.os.uninstall_packages(["SymCrypt", "SymCrypt-OpenSSL"])
-            openssl_test_encrypt_decrypt(log, node)
-            log.debug(
-                "OpenSSL basic functionality test passed without SymCrypt."
-            )
+        openssl_test_encrypt_decrypt(log, node)
