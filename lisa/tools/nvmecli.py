@@ -170,6 +170,14 @@ class BSDNvmecli(Nvmecli):
     # nvme0ns1 (1831420MB)
     # nvme10ns12 (1831420MB)
     _namespace_cli_pattern = re.compile(r"(?P<namespace>nvme\d+ns\d+)")
+    # nvme0ns1 (10293847MB)
+    _devicename_from_namespace_pattern = re.compile(r"(?P<devicename>nvme\d+)ns\d+")
+    # Total NVM Capacity:          1920383410176 bytes
+    _total_storage_pattern = re.compile(r"Total NVM Capacity:\s+(?P<storage>\d+)\s+bytes")
+    # Format NVM:                  Supported
+    __format_device_support = "Format NVM:                  Supported"
+    # Namespace Management:        Supported
+    __ns_management_attachement_support = "Namespace Management:        Supported"
 
     @property
     def command(self) -> str:
@@ -196,3 +204,43 @@ class BSDNvmecli(Nvmecli):
                 namespaces_cli.append(f"/dev/{namespace}")
 
         return namespaces_cli
+
+    def support_device_format(self, device_name: str) -> bool:
+        name_without_dev = device_name.replace("/dev/", "")
+        cmd_result = self.run(f"identify {name_without_dev}", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+        return self.__format_device_support in cmd_result.stdout
+
+    def support_ns_manage_attach(self, device_name: str) -> bool:
+        name_without_dev = device_name.replace("/dev/", "")
+        cmd_result = self.run(f"identify {name_without_dev}", shell=True, sudo=True)
+        cmd_result.assert_exit_code()
+        return self.__ns_management_attachement_support in cmd_result.stdout
+
+    def create_namespace(self, namespace: str) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        cmd_result = self.run(f"identify {device_name}", shell=True, sudo=True)
+        cmd_result.assert_exit_code(message="Failed to identify devicename and collect requirements for namespace creation.")
+        total_storage_space_in_bytes = find_patterns_in_lines(cmd_result.stdout, [self._total_storage_pattern])[0][0]
+        # Using the standard block size of 512 bytes
+        total_storage_space_in_blocks = int(total_storage_space_in_bytes) // 4096
+        cmd_result = self.run(f"ns create -s {total_storage_space_in_blocks} -c {total_storage_space_in_blocks} {device_name}", shell=True, sudo=True)
+        return cmd_result
+
+    def delete_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        return self.run(f"ns delete -n {id_} {device_name}", shell=True, sudo=True)
+
+    def detach_namespace(self, namespace: str, id_: int) -> ExecutableResult:
+        device_name = find_patterns_in_lines(
+            namespace, [self._devicename_from_namespace_pattern]
+        )[0][0]
+        return self.run(f"ns detach -n {id_} -c 0 {device_name}", shell=True, sudo=True)
+
+    def format_namespace(self, namespace: str) -> ExecutableResult:
+        name_without_dev = namespace.replace("/dev/", "")
+        return self.run(f"format {name_without_dev}", shell=True, sudo=True)
