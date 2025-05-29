@@ -536,7 +536,7 @@ class VhdSchema(AzureImageSchema):
                 [
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
-                ]
+                ],
             )
         else:
             self.security_profile = search_space.SetSpace(
