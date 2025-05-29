@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type, Union
 
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.kernel_config import KLDStat
+from lisa.tools import Dhclient
 from lisa.util import UnsupportedOperationException
 
 
@@ -28,10 +29,20 @@ class Modprobe(Tool):
         # These commands must be sent together, bundle them up as one line
         # If the VM is disconnected after running below command, wait 60s is enough.
         # Don't need to wait the default timeout 600s. So set timeout 60.
+        dhclient = self.node.tools.get(Dhclient)
+        if not dhclient._check_exists():
+            raise UnsupportedOperationException(
+                "Dhclient tool is not available on the node, "
+                "unable to reload hv_netvsc module."
+            )
+        if "dhclient" in dhclient._command:
+            option = "-r"
+        elif "dhcpcd" in dhclient._command:
+            option = "-k"
         self.node.execute(
             "modprobe -r hv_netvsc; modprobe hv_netvsc; "
             "ip link set eth0 down; ip link set eth0 up;"
-            "dhclient -r eth0; dhclient eth0",
+            f"{dhclient._command} {option} eth0; {dhclient._command} eth0",
             sudo=True,
             shell=True,
             nohup=True,
