@@ -274,7 +274,6 @@ class Provisioning(TestSuite):
         and iterates smoke test 100 times.
         The test steps are almost the same as `smoke_test`.
         The reboot times is summarized after the test is run
-
         """,
         priority=3,
         requirement=simple_requirement(
