@@ -106,7 +106,7 @@ from lisa.util import (
     get_matched_str,
     strip_strs,
 )
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
 
@@ -2534,6 +2534,19 @@ def check_or_create_gallery_image(
 ) -> None:
     try:
         compute_client = get_compute_client(platform)
+        # get gallery image
+        # print all values
+        log = get_logger("azure.gallery")
+        log.debug(
+            f"Checking gallery image: {gallery_image_name} in "
+            f"resource group: {gallery_resource_group_name}, "
+            f"gallery: {gallery_name}, location: {gallery_image_location}, "
+            f"publisher: {gallery_image_publisher}, offer: {gallery_image_offer}, "
+            f"sku: {gallery_image_sku}, ostype: {gallery_image_ostype}, "
+            f"osstate: {gallery_image_osstate}, hyperv_generation: "
+            f"{gallery_image_hyperv_generation}, architecture: "
+            f"{gallery_image_architecture}, securitytype: {gallery_image_securitytype}"
+        )
         compute_client.gallery_images.get(
             gallery_resource_group_name,
             gallery_name,
