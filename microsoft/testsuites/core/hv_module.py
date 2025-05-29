@@ -230,6 +230,7 @@ class HvModule(TestSuite):
             "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
             sudo=True,
             shell=True,
+            nohup=True,
         )
 
         if "is in use" in result.stdout:
