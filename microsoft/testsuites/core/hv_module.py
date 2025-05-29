@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
 
 from typing import List
 
@@ -15,10 +16,11 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.tools import Cat, KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.util import LisaException, SkippedException
 
 
@@ -222,20 +224,44 @@ class HvModule(TestSuite):
                 f"{module} is loaded statically into the "
                 "kernel and therefore can not be reloaded"
             )
-
-        result = node.execute(
-            ("for i in $(seq 1 %i); do " % loop_count)
-            + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
-            sudo=True,
-            shell=True,
-        )
-
-        if "is in use" in result.stdout:
-            raise SkippedException(
-                f"Module {module} is in use so it cannot be reloaded"
+        try:
+            result = node.execute(
+                f"for i in $(seq 1 {loop_count}); do "
+                f"modprobe -r -v {module}; modprobe -v {module}; "
+                "echo $i > /tmp/loop_count.txt; "
+                "done; sleep 1; "
+                "ip link set eth0 down; ip link set eth0 up; dhcpcd eth0;",
+                sudo=True,
+                shell=True,
             )
+            if "is in use" in result.stdout:
+                raise SkippedException(
+                    f"Module {module} is in use so it cannot be reloaded"
+                )
+        except Exception as e:
+            log.info("ignorable exception during module reload: %s", e)
+            
+        # read the count in the loop count file
+        current_loop_count = 0
+        timeout = 0
+        while True:
+            try:
+                current_loop_count = int(
+                    node.tools[Cat].read("/tmp/loop_count.txt", sudo=True).strip()
+                )
+                if current_loop_count == loop_count:
+                    break
+            # If the file is not found or cannot be read, ignore the exception
+            except Exception as e:
+                log.info(
+                    "ignorable exception reading loop count file: %s", e
+                )
+            time.sleep(1)
+            timeout += 1
+            if timeout > 600:
+                raise LisaException(
+                    "Timeout while executing the module reload command."
+                )
 
         assert_that(result.stdout.count("rmmod")).described_as(
             f"Expected {module} to be removed {loop_count} times"
