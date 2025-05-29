@@ -80,6 +80,11 @@ class Uname(Tool):
 
         return result
 
+    def get_machine_architecture(self, force_run: bool = False) -> str:
+        self.initialize()
+        cmd_result = self.run("-m", force_run=force_run)
+        return cmd_result.stdout.strip()
+
 
 class FreeBSDUname(Uname):
     _key_info_pattern = re.compile(
