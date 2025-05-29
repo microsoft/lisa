@@ -173,7 +173,9 @@ class BSDNvmecli(Nvmecli):
     # nvme0ns1 (10293847MB)
     _devicename_from_namespace_pattern = re.compile(r"(?P<devicename>nvme\d+)ns\d+")
     # Total NVM Capacity:          1920383410176 bytes
-    _total_storage_pattern = re.compile(r"Total NVM Capacity:\s+(?P<storage>\d+)\s+bytes")
+    _total_storage_pattern = re.compile(
+        r"Total NVM Capacity:\s+(?P<storage>\d+)\s+bytes"
+    )
     # Format NVM:                  Supported
     __format_device_support = "Format NVM:                  Supported"
     # Namespace Management:        Supported
@@ -222,11 +224,21 @@ class BSDNvmecli(Nvmecli):
             namespace, [self._devicename_from_namespace_pattern]
         )[0][0]
         cmd_result = self.run(f"identify {device_name}", shell=True, sudo=True)
-        cmd_result.assert_exit_code(message="Failed to identify devicename and collect requirements for namespace creation.")
-        total_storage_space_in_bytes = find_patterns_in_lines(cmd_result.stdout, [self._total_storage_pattern])[0][0]
+        cmd_result.assert_exit_code(
+            message="Failed to identify devicename and collect"
+            " requirements for namespace creation."
+        )
+        total_storage_space_in_bytes = find_patterns_in_lines(
+            cmd_result.stdout, [self._total_storage_pattern]
+        )[0][0]
         # Using the standard block size of 512 bytes
         total_storage_space_in_blocks = int(total_storage_space_in_bytes) // 4096
-        cmd_result = self.run(f"ns create -s {total_storage_space_in_blocks} -c {total_storage_space_in_blocks} {device_name}", shell=True, sudo=True)
+        cmd_result = self.run(
+            f"ns create -s {total_storage_space_in_blocks} -c "
+            f"{total_storage_space_in_blocks} {device_name}",
+            shell=True,
+            sudo=True,
+        )
         return cmd_result
 
     def delete_namespace(self, namespace: str, id_: int) -> ExecutableResult:
