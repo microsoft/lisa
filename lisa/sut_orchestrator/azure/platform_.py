@@ -1111,6 +1111,7 @@ class AzurePlatform(Platform):
                     except Exception as e:
                         log.error(f"unknown sku: {sku_obj}")
                         raise e
+            plugin_manager.hook.azure_update_vm_capabilities(capabilities=all_skus)
             location_data = AzureLocation(location=location, capabilities=all_skus)
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
