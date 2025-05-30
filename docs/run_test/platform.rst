@@ -17,6 +17,8 @@ Run tests on different platforms
 
 -  `Run on WSL <#run-on-wsl>`__
 
+-  `Run on Hyper-V <#run-on-hyper-v>`__
+
 Run on Azure
 ------------
 
@@ -367,3 +369,112 @@ phase.
      destination: \temp
      files:
        - linux-5.15.123.1-microsoft-standard-WSL2.tar.xz
+
+Run on Hyper-V
+---------------
+
+You can run tests on a Hyper-V host on Windows 10/11 desktops. This platform
+is useful for development and testing scenarios where you need local VM
+management and control.
+
+The Hyper-V platform supports:
+
+* Deploying VMs from VHD files
+* Generation 1 and Generation 2 VMs  
+* Secure Boot configuration
+* Multiple VM configurations
+* Device passthrough
+* Serial console access
+
+Prerequisites
+^^^^^^^^^^^^^
+
+1. Windows 10/11 with Hyper-V enabled
+2. VHD files for the Linux distributions you want to test
+3. PowerShell execution policy configured to allow script execution
+4. Sufficient system resources (CPU, memory, disk space)
+
+Basic Configuration
+^^^^^^^^^^^^^^^^^^^
+
+To run tests using Hyper-V, add the following to your runbook:
+
+.. code:: yaml
+
+   platform:
+   - type: hyperv
+     admin_username: $(vhd_admin_username)
+     admin_password: $(vhd_admin_password)
+     keep_environment: $(keep_environment)
+     hyperv:
+       source:
+         type: local
+         files:
+           - source: $(vhd)
+             unzip: true
+       servers:
+         - address: $(hv_server_address)
+           username: $(hv_server_username)  
+           password: $(hv_server_password)
+     requirement:
+       core_count:
+         min: 2
+       memory_mb:
+         min: 2048
+       hyperv:
+         hyperv_generation: 2
+
+Parameters
+^^^^^^^^^^
+
+* **admin_username**: Username for the VM guest OS
+* **admin_password**: Password for the VM guest OS  
+* **keep_environment**: Whether to keep VMs after test completion (true/false/always/no)
+* **source**: Configuration for VM image sources
+* **servers**: List of Hyper-V host servers to connect to
+* **hyperv_generation**: VM generation (1 or 2). Generation 2 is recommended for modern Linux distributions
+
+Advanced Configuration
+^^^^^^^^^^^^^^^^^^^^^^
+
+You can specify additional VM configuration options:
+
+.. code:: yaml
+
+   platform:
+   - type: hyperv
+     admin_username: $(vhd_admin_username)
+     admin_password: $(vhd_admin_password)
+     hyperv:
+       source:
+         type: local
+         files:
+           - source: $(vhd)
+             unzip: true
+       servers:
+         - address: $(hv_server_address)
+           username: $(hv_server_username)
+           password: $(hv_server_password)
+     requirement:
+       core_count:
+         min: 4
+       memory_mb:
+         min: 4096
+       hyperv:
+         hyperv_generation: 2
+         osdisk_size_in_gb: 50
+
+Example Usage
+^^^^^^^^^^^^^
+
+To run the LISA ready test on a Hyper-V VM:
+
+.. code:: bash
+
+   lisa -r ./microsoft/runbook/hyperv.yml -v "vhd_admin_username:testuser" -v "vhd_admin_password:password123" -v "vhd:/path/to/your/vm.vhd" -v "hv_server_address:localhost" -v "hv_server_username:admin" -v "hv_server_password:adminpass"
+
+For local Hyper-V host (localhost), you can often use Windows authentication:
+
+.. code:: bash
+
+   lisa -r ./microsoft/runbook/hyperv.yml -v "vhd_admin_username:testuser" -v "vhd_admin_password:password123" -v "vhd:/path/to/your/vm.vhd"
