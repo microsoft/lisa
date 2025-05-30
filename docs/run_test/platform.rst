@@ -373,26 +373,39 @@ phase.
 Run on Hyper-V
 ---------------
 
-You can run tests on a Hyper-V host on Windows 10/11 desktops. This platform
+You can run tests on a Hyper-V host on Windows 10/11 desktops or Windows Server. This platform
 is useful for development and testing scenarios where you need local VM
-management and control.
+management and control. The Hyper-V platform provides full lifecycle management
+of test VMs including deployment, configuration, and cleanup.
 
 The Hyper-V platform supports:
 
-* Deploying VMs from VHD files
+* Deploying VMs from VHD and VHDX files
 * Generation 1 and Generation 2 VMs  
-* Secure Boot configuration
-* Multiple VM configurations
-* Device passthrough
-* Serial console access
+* Secure Boot configuration (disabled by default for compatibility)
+* Automatic VHD resizing
+* Device passthrough for GPU and other hardware
+* Serial console access and logging
+* NAT networking for internal switches
+* Resource allocation validation
+* Compressed file extraction (zip support)
+* Multiple Hyper-V host connections
 
 Prerequisites
 ^^^^^^^^^^^^^
 
-1. Windows 10/11 with Hyper-V enabled
-2. VHD files for the Linux distributions you want to test
-3. PowerShell execution policy configured to allow script execution
-4. Sufficient system resources (CPU, memory, disk space)
+1. **Windows 10/11 or Windows Server** with Hyper-V role enabled
+2. **VHD/VHDX files** for the Linux distributions you want to test
+3. **PowerShell execution policy** configured to allow script execution:
+
+   .. code:: powershell
+
+      Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+4. **Sufficient system resources**: LISA automatically validates that the host has enough
+   CPU cores and memory for the requested VM configuration
+5. **Administrative privileges** on the Hyper-V host (for VM management)
+6. **Network connectivity** from test machine to Hyper-V host (if using remote hosts)
 
 Basic Configuration
 ^^^^^^^^^^^^^^^^^^^
@@ -424,20 +437,155 @@ To run tests using Hyper-V, add the following to your runbook:
        hyperv:
          hyperv_generation: 2
 
-Parameters
-^^^^^^^^^^
+Platform Parameters
+^^^^^^^^^^^^^^^^^^^
 
-* **admin_username**: Username for the VM guest OS
-* **admin_password**: Password for the VM guest OS  
-* **keep_environment**: Whether to keep VMs after test completion (true/false/always/no)
-* **source**: Configuration for VM image sources
-* **servers**: List of Hyper-V host servers to connect to
-* **hyperv_generation**: VM generation (1 or 2). Generation 2 is recommended for modern Linux distributions
+Core Platform Configuration:
 
-Advanced Configuration
-^^^^^^^^^^^^^^^^^^^^^^
+* **admin_username**: Username for the VM guest OS (required)
+* **admin_password**: Password for the VM guest OS (required for password auth)
+* **admin_private_key_file**: Path to SSH private key file (alternative to password)  
+* **keep_environment**: Whether to keep VMs after test completion:
+  
+  - ``"no"`` (default): Delete VMs after tests complete
+  - ``"failed"``: Keep VMs only if tests fail
+  - ``"always"``: Always keep VMs for debugging
 
-You can specify additional VM configuration options:
+Hyper-V Specific Configuration:
+
+* **source**: Configuration for VM image sources (see `Source Configuration`_ below)
+* **servers**: List of Hyper-V host servers to connect to (see `Server Configuration`_ below)
+* **extra_args**: Additional PowerShell arguments for VM operations
+* **wait_delete**: Wait for VM deletion to complete before proceeding (default: false)
+* **device_pools**: Device passthrough pool configuration (see `Device Passthrough`_ below)
+
+Source Configuration
+^^^^^^^^^^^^^^^^^^^^
+
+The ``source`` section configures how VM images are provided:
+
+.. code:: yaml
+
+   hyperv:
+     source:
+       type: local                    # Currently only 'local' type is supported
+       files:
+         - source: "/path/to/vm.vhd"  # Path to VHD/VHDX file
+           destination: "vm.vhd"      # Optional: custom destination filename
+           unzip: true                # Extract if source is a zip file
+         - source: "/path/to/vm.zip"  # Compressed VHD files are supported
+           unzip: true
+
+Source File Options:
+
+* **source**: Path to the VHD, VHDX, or zip file containing the VM image (required)
+* **destination**: Target filename on the Hyper-V host (optional, defaults to source filename)
+* **unzip**: Extract zip files automatically (default: false)
+
+Server Configuration
+^^^^^^^^^^^^^^^^^^^^
+
+The ``servers`` section configures Hyper-V host connections:
+
+.. code:: yaml
+
+   hyperv:
+     servers:
+       - address: "localhost"         # Use local Hyper-V host
+         username: ""                 # Empty for Windows authentication
+         password: ""
+       - address: "hyperv-host.corp"  # Remote Hyper-V host
+         username: "domain\\admin"    # Domain or local admin account
+         password: "secure_password"
+
+Server Options:
+
+* **address**: Hyper-V host address ("localhost" for local, IP/hostname for remote)
+* **username**: Username for authentication (empty string uses current Windows credentials)
+* **password**: Password for authentication (empty string uses current Windows credentials)
+
+.. note::
+   For localhost connections, you can often omit username/password to use
+   current Windows authentication. For remote hosts, you typically need
+   administrator credentials.
+
+VM Requirements Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Configure VM specifications in the ``requirement`` section:
+
+.. code:: yaml
+
+   requirement:
+     core_count:
+       min: 4              # Minimum CPU cores (required)
+       max: 8              # Maximum CPU cores (optional)
+     memory_mb:
+       min: 4096           # Minimum memory in MB (required)
+       max: 8192           # Maximum memory in MB (optional)
+     hyperv:
+       hyperv_generation: 2          # VM generation (1 or 2)
+       osdisk_size_in_gb: 50         # OS disk size in GB
+       device_passthrough:           # Device passthrough config (optional)
+         - device_type: "gpu"
+           count: 1
+
+Hyper-V Specific Requirements:
+
+* **hyperv_generation**: VM generation (1 or 2, default: 2)
+  
+  - Generation 1: Compatible with older Linux distributions, uses BIOS
+  - Generation 2: Modern Linux distributions, uses UEFI, supports Secure Boot
+  
+* **osdisk_size_in_gb**: Resize OS disk to specified size in GB (default: 30)
+
+  - If smaller than the source VHD size, no resize is performed
+  - Automatically expands the OS partition after resize
+
+Device Passthrough
+^^^^^^^^^^^^^^^^^^
+
+LISA supports GPU and other device passthrough to Hyper-V VMs:
+
+.. code:: yaml
+
+   platform:
+   - type: hyperv
+     hyperv:
+       device_pools:
+         - device_type: "gpu"      # Device type identifier
+           devices:
+             - instance_id: "PCI\\VEN_10DE&DEV_1234&SUBSYS_12345678&REV_A1\\4&ABCDEF12&0&0008"
+               location_path: "PCIROOT(0)#PCI(0300)#PCI(0000)"
+               friendly_name: "NVIDIA GeForce RTX 3080"
+   requirement:
+     hyperv:
+       device_passthrough:
+         - device_type: "gpu"
+           count: 1             # Number of devices to assign
+
+Device Pool Configuration:
+
+* **device_type**: Identifier for the device type (e.g., "gpu", "fpga")
+* **devices**: List of available devices in the pool
+* **instance_id**: Windows device instance ID
+* **location_path**: PCI location path
+* **friendly_name**: Human-readable device name
+
+To find device information on Windows:
+
+.. code:: powershell
+
+   # List GPU devices
+   Get-PnpDevice -Class Display | Select-Object InstanceId, FriendlyName
+   
+   # Get device location path
+   Get-PnpDeviceProperty -InstanceId "<instance_id>" -KeyName "DEVPKEY_Device_LocationPaths"
+
+Advanced Configuration Examples
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Multi-VM Configuration (currently limited to 1 VM):
 
 .. code:: yaml
 
@@ -449,32 +597,153 @@ You can specify additional VM configuration options:
        source:
          type: local
          files:
-           - source: $(vhd)
-             unzip: true
+           - source: "/path/to/ubuntu.vhd"
        servers:
-         - address: $(hv_server_address)
-           username: $(hv_server_username)
-           password: $(hv_server_password)
+         - address: "hyperv1.corp"
+           username: "domain\\admin"  
+           password: "password"
+       extra_args:
+         - command: "New-VM"
+           args: "-MemoryStartupBytes 8GB"
      requirement:
+       node_count: 1              # Currently only 1 node supported
        core_count:
          min: 4
        memory_mb:
          min: 4096
        hyperv:
          hyperv_generation: 2
-         osdisk_size_in_gb: 50
+         osdisk_size_in_gb: 100
+
+Custom PowerShell Arguments:
+
+.. code:: yaml
+
+   hyperv:
+     extra_args:
+       - command: "New-VM"         # PowerShell cmdlet name
+         args: "-AutomaticCheckpointsEnabled $false"
+       - command: "Set-VM"
+         args: "-DynamicMemory $false"
+
+Serial Console and Logging
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+LISA automatically configures serial console access for debugging:
+
+* **Serial console logging**: Automatically enabled for all VMs
+* **Log location**: Console logs are saved in the test run output directory
+* **COM port**: Uses COM1 with named pipe for communication
+* **Access**: Serial logs are available during and after test execution
+
+Console logs help troubleshoot boot issues, kernel panics, and VM connectivity problems.
+
+Networking
+^^^^^^^^^^
+
+LISA automatically handles network configuration:
+
+* **Switch detection**: Uses the default Hyper-V virtual switch
+* **Switch types**:
+  
+  - **External switches**: Direct VM access via host network
+  - **Internal switches**: NAT mapping for VM access (port forwarding)
+  
+* **IP assignment**: Automatic via Hyper-V DHCP or static configuration
+* **SSH access**: Automatic connection setup on port 22 (or mapped port for NAT)
+
+For internal switches, LISA automatically:
+1. Detects the switch type
+2. Creates NAT port mappings for SSH access
+3. Configures the connection to use the mapped port
 
 Example Usage
 ^^^^^^^^^^^^^
 
-To run the LISA ready test on a Hyper-V VM:
+Local Hyper-V with VHD file:
 
 .. code:: bash
 
-   lisa -r ./microsoft/runbook/hyperv.yml -v "vhd_admin_username:testuser" -v "vhd_admin_password:password123" -v "vhd:/path/to/your/vm.vhd" -v "hv_server_address:localhost" -v "hv_server_username:admin" -v "hv_server_password:adminpass"
+   lisa -r ./microsoft/runbook/hyperv.yml \
+     -v "vhd_admin_username:testuser" \
+     -v "vhd_admin_password:password123" \
+     -v "vhd:/path/to/ubuntu.vhd"
 
-For local Hyper-V host (localhost), you can often use Windows authentication:
+Remote Hyper-V host:
 
 .. code:: bash
 
-   lisa -r ./microsoft/runbook/hyperv.yml -v "vhd_admin_username:testuser" -v "vhd_admin_password:password123" -v "vhd:/path/to/your/vm.vhd"
+   lisa -r ./microsoft/runbook/hyperv.yml \
+     -v "vhd_admin_username:testuser" \
+     -v "vhd_admin_password:password123" \
+     -v "vhd:/path/to/ubuntu.vhd" \
+     -v "hv_server_address:hyperv-host.corp" \
+     -v "hv_server_username:domain\\admin" \
+     -v "hv_server_password:adminpass"
+
+Using compressed VHD files:
+
+.. code:: bash
+
+   lisa -r ./microsoft/runbook/hyperv.yml \
+     -v "vhd_admin_username:testuser" \
+     -v "vhd_admin_password:password123" \
+     -v "vhd:/path/to/ubuntu.vhd.zip"
+
+Testing with specific VM configuration:
+
+.. code:: bash
+
+   lisa -r ./microsoft/runbook/hyperv.yml \
+     -v "vhd_admin_username:testuser" \
+     -v "vhd_admin_password:password123" \
+     -v "vhd:/path/to/ubuntu.vhd" \
+     -v "cores:8" \
+     -v "memory_mb:8192" \
+     -v "osdisk_size_in_gb:100"
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+Common Issues and Solutions:
+
+**VM fails to start:**
+
+* Check VHD file path and permissions
+* Verify Hyper-V host has sufficient resources
+* Review serial console logs for boot errors
+* Check VM generation compatibility with the Linux distribution
+
+**Connection timeouts:**
+
+* Verify network switch configuration
+* Check if NAT is properly configured for internal switches
+* Ensure SSH service is running in the VM
+* Review firewall settings on both host and VM
+
+**Device passthrough issues:**
+
+* Verify device is not in use by host or other VMs
+* Check device instance IDs and location paths
+* Ensure VM is stopped before configuring passthrough
+* Review Hyper-V host compatibility for device types
+
+**Resource allocation failures:**
+
+* Check available memory and CPU cores on host
+* Review concurrent VM resource usage
+* Adjust VM requirements to fit within host limits
+
+**Authentication failures:**
+
+* Verify administrator credentials for Hyper-V host
+* Check PowerShell execution policy settings
+* Ensure WinRM is configured for remote hosts
+* Review domain authentication requirements
+
+For additional troubleshooting, check:
+
+1. **LISA logs**: Contains detailed platform operations and error messages
+2. **Serial console logs**: VM boot and kernel messages  
+3. **Hyper-V event logs**: Windows Event Viewer → Applications and Services → Microsoft → Windows → Hyper-V
+4. **PowerShell transcripts**: If enabled, provide detailed command execution logs
