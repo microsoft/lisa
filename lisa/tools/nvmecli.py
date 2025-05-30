@@ -210,7 +210,9 @@ class BSDNvmecli(Nvmecli):
     def support_device_format(self, device_name: str) -> bool:
         name_without_dev = device_name.replace("/dev/", "")
         cmd_result = self.run(f"identify {name_without_dev}", shell=True, sudo=True)
-        cmd_result.assert_exit_code()
+        cmd_result.assert_exit_code(
+            message=f"Failed to identify settings for {device_name}."
+        )
         return self.__format_device_support in cmd_result.stdout
 
     def support_ns_manage_attach(self, device_name: str) -> bool:
