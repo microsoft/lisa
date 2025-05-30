@@ -90,6 +90,13 @@ class BinaryInstaller(BaseInstaller):
         # Naming convention : vmlinuz-<version>
         new_kernel = os.path.basename(kernel_image_path).split("-")[1].strip()
 
+        # if its lvbs kernel, then the new kernel name should be
+        # vmlinuz-<version>-lvbs
+        if "lvbs" in current_kernel:
+            new_kernel = f"{new_kernel}-lvbs"   
+        
+        print(f"Installing kernel {new_kernel} on {node.name}")
+        
         # Copy the binaries to azure VM from where LISA is running
         err: str = f"Can not find kernel image path: {kernel_image_path}"
         assert os.path.exists(kernel_image_path), err
