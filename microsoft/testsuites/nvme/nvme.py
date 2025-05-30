@@ -296,8 +296,9 @@ class NvmeTestSuite(TestSuite):
         if not nvme_cli.support_ns_manage_attach(nvme_devices[0]):
             # for old nvme cli version, it returns 22
             # for new nvme cli version, it returns 1
+            # for nvmecontrol on FreeBSD, it returns 69
             # refer https://github.com/linux-nvme/nvme-cli/issues/1120
-            ns_management_exit_code = [1, 22]
+            ns_management_exit_code = [1, 22, 69]
         for namespace in nvme_namespaces:
             # 2. `nvme format namespace` - format a namespace.
             format_namespace = nvme_cli.format_namespace(namespace)
