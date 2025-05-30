@@ -1,17 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from assertpy import assert_that
 import json
-from lisa.util import SkippedException
-from lisa.logger import Logger
-from lisa.node import Node
-from lisa.testcase import TestCaseMetadata
-from lisa.testsuite import TestSuite, TestSuiteMetadata
-from lisa.operating_systems.cblmariner import CBLMariner
+
+from assertpy import assert_that
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+)
 from lisa.tools.fips import Fips
 from lisa.tools.openssl import OpenSSL
-from lisa.exceptions import LisaException
 
 
 def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
