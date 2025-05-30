@@ -41,7 +41,7 @@ class Xfstests(Tool):
     # This is the default repo and branch for xfstests.
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
-    branch = "master"
+    branch = "v2024.02.09"
     # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
         "acl",
