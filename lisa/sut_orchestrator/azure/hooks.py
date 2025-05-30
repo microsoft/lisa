@@ -1,8 +1,9 @@
 import re
 from functools import partial
-from typing import Any, List, Pattern, Tuple
+from typing import Any, Dict, List, Pattern, Tuple
 
 from lisa.environment import Environment
+from lisa.sut_orchestrator.azure.common import AzureCapability
 from lisa.util import (
     ResourceAwaitableException,
     SkippedException,
@@ -31,6 +32,19 @@ class AzureHookSpec:
         Args:
             template: the dict object, which is loaded from the arm_template.json.
             environment: the deploying environment.
+        """
+        ...
+
+    @hookspec
+    def azure_update_vm_capabilities(
+        self, capabilities: Dict[str, AzureCapability]
+    ) -> None:
+        """
+        Implement it to update the vm capabilities.
+
+        Args:
+            capabilities: the dict object mapping VM SKU name to Azure capability,
+                which is compiled from the output of _resource_sku_to_capability()
         """
         ...
 
