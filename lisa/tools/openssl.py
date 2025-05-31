@@ -13,7 +13,10 @@ class OpenSSL(Tool):
     def command(self) -> str:
         return "openssl"
 
-# Encryption and Decryption using AES
+    @property
+    def can_install(self) -> bool:
+        return True
+
     def encrypt(
         self,
         plaintext: str,
