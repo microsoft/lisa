@@ -11,11 +11,15 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.tools.fips import Fips
 from lisa.tools.openssl import OpenSSL
 
 
-def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
+
+class OpenSSLTestSuite(TestSuite):
+    """
+    Test suite for OpenSSL functionality.
+    """
+    def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
     """
     Tests OpenSSL encryption and decryption functionality.
     This function generates a random key and IV, encrypts various types of
@@ -50,11 +54,6 @@ def openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
     and decrypt it back to its original form using generated keys and IVs.
     """,
 )
-class OpenSSLTestSuite(TestSuite):
-    """
-    Test suite for OpenSSL functionality.
-    """
-
     @TestCaseMetadata(
         description="""
         Tests basic functionality of openssl.
