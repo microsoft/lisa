@@ -13,10 +13,6 @@ class OpenSSL(Tool):
     def command(self) -> str:
         return "openssl"
 
-    @property
-    def can_install(self) -> bool:
-        return True
-
 # Encryption and Decryption using AES
     def encrypt(
         self,
@@ -32,7 +28,10 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
-        )
+        """
+        This method pipes input plaintext to the OpenSSL command
+        for encryption, using the specified key and IV.
+        """        )
 
     def decrypt(
         self,
