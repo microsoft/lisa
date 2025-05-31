@@ -333,7 +333,18 @@ class TestResult:
             # force refresh information, when test result status is changed. The
             # refreshed information is not used so far. But in case it's needed
             # in future, keep it up to date.
-            self._environment_information = self.environment.get_information()
+            # avoid fetching information unnecessarily when rerun env
+            force_run = True
+            if (
+                result_message.status
+                in [TestResult.status.RUNNING, TestResult.status.SKIPPED]
+                and not self.environment.is_new
+            ):
+                force_run = False
+
+            self._environment_information = self.environment.get_information(
+                force_run=force_run
+            )
             self.information.update(self._environment_information)
 
             self.information["environment"] = self.environment.name
