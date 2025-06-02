@@ -54,6 +54,12 @@ Run the command below to install the dependencies on Azure Linux:
 
    sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel curl wget tar azure-cli ca-certificates
 
+Run the command below to install the dependencies on Fedora 41 & above:
+
+.. code:: bash
+
+   sudo dnf install -y git gcc gobject-introspection-devel cairo-devel qemu-img libvirt-devel python3-pip python3-virtualenv -y
+
 If you're using a different distribution or python version, adjust the command as needed
 
 
