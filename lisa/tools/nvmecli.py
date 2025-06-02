@@ -233,7 +233,7 @@ class BSDNvmecli(Nvmecli):
         total_storage_space_in_bytes = find_patterns_in_lines(
             cmd_result.stdout, [self._total_storage_pattern]
         )[0][0]
-        # Using the standard block size of 512 bytes
+        # Using the same block size as linux tests of 4096 bytes
         total_storage_space_in_blocks = int(total_storage_space_in_bytes) // 4096
         cmd_result = self.run(
             f"ns create -s {total_storage_space_in_blocks} -c "
