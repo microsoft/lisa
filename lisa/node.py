@@ -157,8 +157,16 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
         process = self._execute("ls", shell=True, sudo=True, no_info_log=True)
         result = process.wait_result(10)
         if result.exit_code != 0:
-            self.log.debug("node doesn't support sudo /bin/sh.")
-            return False
+            self.log.debug(f"---pauxe debug: result error: {result.stderr}")
+            self.log.debug(f"---pauxe debug: result.stderr: {result.stderr}")
+            if "not allowed" in result.stderr:
+                self.log.debug("node doesn't support sudo /bin/sh.")
+                return False
+            else:
+                self.log.warning(
+                    "In _check_sudo_available: sudo /bin/sh ls has some error, ",
+                    f"exit_code: {result.exit_code}, stderr: {result.stderr}",
+                )
 
         return True
 
