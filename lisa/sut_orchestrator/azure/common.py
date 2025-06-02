@@ -2549,7 +2549,7 @@ def check_or_create_gallery_image(
                 "os_state": gallery_image_osstate,
                 "hyper_v_generation": f"V{gallery_image_hyperv_generation}",
                 "architecture": gallery_image_architecture,
-                "ex": {
+                "identifier": {
                     "publisher": gallery_image_publisher,
                     "offer": gallery_image_offer,
                     "sku": gallery_image_sku,
