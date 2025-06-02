@@ -282,6 +282,12 @@ type: int
 
 Automatically selects vm_size based on the count provided.
 
+deploy
+^^^^^^
+type: bool | Default: true
+
+Whether to create a new deployment. If true, creates a new VM deployment. If false, uses existing VMs in the specified resource_group_name.
+
 
 Use Delete Transformer
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -295,6 +301,8 @@ Usage
   transformer:
     - type: azure_delete
       resource_group_name: rg_name
+      keep_environment: "failed"
+      wait_delete: true
 
 Reference
 `````````
@@ -306,6 +314,19 @@ type: string
 
 Name of the resource group that should be deleted.
 
+keep_environment
+^^^^^^^^^^^^^^^
+
+type: string | bool | Default: "no"
+
+Whether to keep the environment after deletion. Allowed values: "always", "no", "failed", or True/False.
+
+wait_delete
+^^^^^^^^^^
+
+type: bool | Default: false
+
+Whether to wait for the deletion to complete. If set to true, the transformer will wait for the resource group to be fully deleted before proceeding.
 
 
 Use Vhd Transformer
@@ -379,3 +400,79 @@ restore
 type: bool | Default: false
 
 VM is stopped for exporting VHD. Restore can be set to true to start the VM after exporting.
+
+
+Use Script File Transformer
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This transformer is used to install required packages, execute scripts on a node, and optionally reboot the node after execution.
+
+Usage
+``````
+.. code:: yaml
+
+  transformer:
+    - type: script_file
+      phase: expanded
+      connection:
+        address: $(build_vm_address)
+        private_key_file: $(admin_private_key_file)
+      reboot: true
+      dependent_packages:
+        - git
+      scripts:
+        - script: "/tmp/waagent.sh"
+          interpreter: bash
+          args: "--flag"
+          expected_exit_code: 0
+
+Outputs
+````````
+ - results
+
+Reference
+`````````
+
+dependent_packages
+^^^^^^^^^^^^^^^^^
+type: List[str] | Default: []
+
+List of packages to install before executing scripts.
+
+scripts (Required)
+^^^^^^^^^^^^^^^
+type: List[ScriptEntry]
+
+List of scripts to execute on the node.
+
+Script Entry Properties:
+
+script (Required)
+""""""""""""""""
+type: string
+
+Path to the script file on the target node.
+
+interpreter
+""""""""""
+type: string | Default: "bash"
+
+Interpreter to use for executing the script. Currently only bash is supported.
+
+args
+""""
+type: string | Default: None
+
+Arguments to pass to the script.
+
+expected_exit_code
+""""""""""""""""
+type: int | Default: 0
+
+Expected exit code of the script. If the script returns a different exit code, execution will fail.
+
+reboot
+^^^^^
+type: bool | Default: false
+
+Reboot the node after script execution.
