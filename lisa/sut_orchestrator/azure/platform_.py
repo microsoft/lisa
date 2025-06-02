@@ -638,8 +638,28 @@ class AzurePlatform(Platform):
                 # Even skipped deploy, try best to initialize nodes
                 self.initialize_environment(environment, log)
             except Exception as e:
+                self._debug_environment_using_serial_console(environment, log)
                 self._delete_environment(environment, log)
                 raise e
+
+    def _debug_environment_using_serial_console(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        nodes = environment.nodes.list()
+        for node in nodes:
+            serial_console = node.features[features.SerialConsole]
+            if not serial_console:
+                log.debug(
+                    f"node {node.name} doesn't have serial console feature, "
+                    "skip to save console log."
+                )
+                continue
+            serial_console.write("systemctl status networking; ip addr; systemctl status sshd;")
+            output = serial_console.read()
+            log.info(
+                f"serial console output for node {node.name}:\n{output}"
+            )
+
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment=environment)
