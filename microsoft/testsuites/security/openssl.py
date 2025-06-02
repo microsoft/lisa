@@ -6,13 +6,13 @@ import json
 from assertpy import assert_that
 from lisa import (
     Logger,
+    LisaException,
     Node,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
 )
 from lisa.tools.openssl import OpenSSL
-from lisa.util.exception import LisaException
 
 @TestSuiteMetadata(
     area="security",

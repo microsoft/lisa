@@ -56,47 +56,46 @@ class OpenSSL(Tool):
         )
 
     def _run_with_piped_input(
-    self, 
-    piped_input_cmd: str, 
-    openssl_cmd: str, 
-    expected_exit_code: int = 0
-) -> str:
-    """
-    Execute OpenSSL command with piped input and validate results.
-    
-    Args:
-        piped_input_cmd: The input string to pipe to OpenSSL
-        openssl_cmd: The OpenSSL command to execute
-        expected_exit_code:
-        Expected exit code from command (default: 0)
+        self, 
+        piped_input_cmd: str, 
+        openssl_cmd: str, 
+        expected_exit_code: int = 0
+    ) -> str:
+        """
+        Execute OpenSSL command with piped input and validate results.
         
-    Returns:
-        The stripped stdout from the command
-        
-    Raises:
-        LisaException: When the command fails
-        or returns unexpected exit code
-    """
-    cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
-    try:
-        result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
-        return result.stdout.strip()
-    except Exception as e:
-        self.node.log.error(
-            f"OpenSSL command failed: '{openssl_cmd}'. Error: {str(e)}"
-        )
-        raise LisaException(
-            f"OpenSSL operation failed with exit code
-            {getattr(e, 'exit_code', 'unknown')}. "
+        Args:
+            piped_input_cmd: The input string to pipe to OpenSSL
+            openssl_cmd: The OpenSSL command to execute
+            expected_exit_code:
+            Expected exit code from command (default: 0)
             
-            f"Command: {openssl_cmd}. Error: {str(e)}"
-        ) from e
+        Returns:
+            The stripped stdout from the command
+            
+        Raises:
+            LisaException: When the command fails
+            or returns unexpected exit code
+        """
+        cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
+        try:
+            result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
+            return result.stdout.strip()
+        except Exception as e:
+            self.node.log.error(
+                f"OpenSSL command failed: '{openssl_cmd}'. Error: {str(e)}"
+            )
+            raise LisaException(
+                f"OpenSSL operation failed with exit code {getattr(e, 'exit_code', 'unknown')}. "
+                
+                f"Command: {openssl_cmd}. Error: {str(e)}"
+            ) from e
 
     def _install(self) -> bool:
         """
         Install OpenSSL on the node if
         it is not already installed.
-        '''
+        """
         posix_os: Posix = self.node.os  # type: ignore
         posix_os.install_packages([self])
         return self._check_exists()
