@@ -30,6 +30,7 @@ class Dhclient(Tool):
         for command in commands_to_check:
             self._command = command
             if super()._check_exists():
+                print(f"command exists: {self._command}")
                 return True
         self._command = original_command
         return False

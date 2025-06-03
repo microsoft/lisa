@@ -18,7 +18,7 @@ from lisa import (
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.tools import Dhclient, KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.util import LisaException, SkippedException
 
 
@@ -222,12 +222,13 @@ class HvModule(TestSuite):
                 f"{module} is loaded statically into the "
                 "kernel and therefore can not be reloaded"
             )
-
+        dhclient = node.tools[Dhclient]
+        # dhclient._check_exists()
         result = node.execute(
             ("for i in $(seq 1 %i); do " % loop_count)
             + f"modprobe -r -v {module}; modprobe -v {module}; "
             "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
+            f"ip link set eth0 down; ip link set eth0 up; {dhclient.command} eth0",
             sudo=True,
             shell=True,
         )
