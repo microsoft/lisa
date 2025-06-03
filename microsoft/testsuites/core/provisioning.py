@@ -18,6 +18,7 @@ from lisa import (
     create_timer,
     schema,
     search_space,
+    features
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
