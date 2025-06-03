@@ -69,8 +69,16 @@ class Provisioning(TestSuite):
         """,
         priority=0,
         requirement=simple_requirement(
+	            disk=schema.DiskOptionSettings(
+                    data_disk_type=schema.DiskType.PremiumSSDLRS,
+                    os_disk_type=schema.DiskType.PremiumSSDLRS,
+                    data_disk_iops=search_space.IntRange(min=5000),
+                    data_disk_count=search_space.IntRange(min=64),
+                ),
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
+	        min_nic_count=15,
+            network_interface=features.Sriov(),
         ),
     )
     def smoke_test(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
