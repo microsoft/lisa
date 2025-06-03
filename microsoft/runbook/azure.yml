@@ -39,6 +39,8 @@ variable:
     value: "default"
   - name: use_ipv6
     value: false
+  - name: source_address_prefixes
+    value: []
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -58,6 +60,7 @@ platform:
       wait_delete: $(wait_delete)
       azcopy_path: $(azcopy_path)
       use_ipv6: $(use_ipv6)
+      source_address_prefixes: $(source_address_prefixes)
     requirement:
       core_count:
         min: 2
