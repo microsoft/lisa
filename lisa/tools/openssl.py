@@ -31,10 +31,7 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
-         """
-        This method pipes input plaintext to the OpenSSL command
-        for encryption, using the specified key and IV.
-        """        )
+                )
 
     def decrypt(
         self,
@@ -78,19 +75,9 @@ class OpenSSL(Tool):
             or returns unexpected exit code
         """
         cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
-        try:
-            result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
-            return result.stdout.strip()
-        except Exception as e:
-            self.node.log.error(
-                f"OpenSSL command failed: '{openssl_cmd}'. Error: {str(e)}"
-            )
-            raise LisaException(
-                f"OpenSSL operation failed with exit code {getattr(e, 'exit_code', 'unknown')}. "
-                
-                f"Command: {openssl_cmd}. Error: {str(e)}"
-            ) from e
-
+        result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
+        return result.stdout.strip()
+       
     def _install(self) -> bool:
         """
         Install OpenSSL on the node if

@@ -4,9 +4,9 @@
 import json
 
 from assertpy import assert_that
+
 from lisa import (
     Logger,
-    LisaException,
     Node,
     TestCaseMetadata,
     TestSuite,
@@ -35,14 +35,14 @@ class OpenSSLTestSuite(TestSuite):
             """,
             priority=2,
         )
-
+      
     def verify_openssl_basic(self, log: Logger, node: Node) -> None:
         """
         Verifies basic OpenSSL encryption and decryption
         """
-        _openssl_test_encrypt_decrypt(log, node)
+        self._openssl_test_encrypt_decrypt(log, node)
     
-    def _openssl_test_encrypt_decrypt(log: Logger, node: Node) -> None:
+    def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
         Tests OpenSSL encryption and decryption functionality.
         This function generates a random key and IV, encrypts various types of
@@ -60,11 +60,11 @@ class OpenSSLTestSuite(TestSuite):
             "Special chars: !@#$%^&*()",  # Special characters
             json.dumps({"resourceId": "test123"}),  # JSON Azure resource data
         ]
+        
         for plaintext in test_data:
-            log.debug(f"Testing with data length: {len(plaintext)}")
-            encrypted_data = openssl.encrypt(plaintext, key_hex, iv_hex)
-            decrypted_data = openssl.decrypt(encrypted_data, key_hex, iv_hex)
-            assert_that(plaintext).is_equal_to(decrypted_data)
 
-        log.debug("Successfully encrypted and decrypted all test data.")
-       
+            # Encrypt and decrypt the plaintext
+            log.debug(f"Output plaintext : {plaintext}")
+            encrypted_data = openssl.encrypt (plaintext, key_hex, iv_hex)
+            decrypted_data = openssl.decrypt (encrypted_data, key_hex, iv_hex)
+            assert_that(plaintext).is_equal_to(decrypted_data)
