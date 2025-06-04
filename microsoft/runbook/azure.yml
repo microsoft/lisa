@@ -39,6 +39,16 @@ variable:
     value: "default"
   - name: use_ipv6
     value: false
+  - name: vnet_resource_group
+    value: ""
+  - name: vnet_name
+    value: ""
+  - name: subnet_name
+    value: ""
+  - name: use_public_address
+    value: true
+  - name: create_public_address
+    value: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -58,6 +68,11 @@ platform:
       wait_delete: $(wait_delete)
       azcopy_path: $(azcopy_path)
       use_ipv6: $(use_ipv6)
+      virtual_network_resource_group: $(vnet_resource_group)
+      virtual_network_name: $(vnet_name)
+      subnet_prefix: $(subnet_name)
+      use_public_address: $(use_public_address)
+      create_public_address: $(create_public_address)
     requirement:
       core_count:
         min: 2
