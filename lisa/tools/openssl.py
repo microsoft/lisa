@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from lisa.executable import Tool
 from typing import TYPE_CHECKING
+
+from lisa.executable import Tool
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
