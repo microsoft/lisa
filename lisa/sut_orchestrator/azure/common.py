@@ -390,6 +390,7 @@ class AzureImageSchema(schema.ImageSchema):
         ):
             capabilities.append(SecurityProfileType.CVM)
             capabilities.append(SecurityProfileType.Stateless)
+            capabilities.append(SecurityProfileType.SecureBoot)
         else:
             capabilities.append(SecurityProfileType.Standard)
 
