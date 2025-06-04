@@ -9,6 +9,9 @@ if TYPE_CHECKING:
 
 
 class OpenSSL(Tool):
+    """
+    OpenSSL tool for encryption and decryption operations.
+    """
     @property
     def command(self) -> str:
         return "openssl"
@@ -45,7 +48,6 @@ class OpenSSL(Tool):
         key and IV, and returns the plaintext.
         Decrypt the ciphertext using the specified
         key and IV, and return the plaintext.
-        
         """
         return self._run_with_piped_input(
             ciphertext,
@@ -60,16 +62,16 @@ class OpenSSL(Tool):
     ) -> str:
         """
         Execute OpenSSL command with piped input and validate results.
-        
+
         Args:
             piped_input_cmd: The input string to pipe to OpenSSL
             openssl_cmd: The OpenSSL command to execute
             expected_exit_code:
             Expected exit code from command (default: 0)
-            
+
         Returns:
             The stripped stdout from the command
-            
+
         Raises:
             LisaException: When the command fails
             or returns unexpected exit code
@@ -77,7 +79,7 @@ class OpenSSL(Tool):
         cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
         result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
         return result.stdout.strip()
-       
+
     def _install(self) -> bool:
         """
         Install OpenSSL on the node if
