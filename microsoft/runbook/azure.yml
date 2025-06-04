@@ -47,6 +47,8 @@ variable:
     value: ""
   - name: use_public_address
     value: true
+  - name: create_public_address
+    value: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -70,6 +72,7 @@ platform:
       virtual_network_name: $(vnet_name)
       subnet_prefix: $(subnet_name)
       use_public_address: $(use_public_address)
+      create_public_address: $(create_public_address)
     requirement:
       core_count:
         min: 2
