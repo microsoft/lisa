@@ -291,6 +291,7 @@ class RepoInstaller(BaseInstaller):
 
         # kernel_version = self._get_kernel_version(runbook.source, node)
         kernel_version = "6.11.0-1015"
+        kernel_version = "6.14.0-1006"
         return kernel_version
 
     def _get_kernel_version(self, source: str, node: Node) -> str:
