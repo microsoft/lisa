@@ -103,7 +103,7 @@ class BinaryInstaller(BaseInstaller):
         if "lvbs" in current_kernel:
             new_kernel = f"{new_kernel}-lvbs"
 
-        print(f"Installing kernel {new_kernel} on {node.name}")
+        self._log.info(f"Installing kernel {new_kernel} on {node.name}")
 
         # Copy the binaries to azure VM from where LISA is running
         err: str = f"Can not find kernel image path: {kernel_image_path}"
