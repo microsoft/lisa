@@ -1153,8 +1153,12 @@ class AzurePlatform(Platform):
         arm_parameters.virtual_network_resource_group = (
             self._azure_runbook.virtual_network_resource_group
         )
-        arm_parameters.subnet_prefix = self._azure_runbook.subnet_prefix
-        arm_parameters.virtual_network_name = self._azure_runbook.virtual_network_name
+        arm_parameters.subnet_prefix = (
+            self._azure_runbook.subnet_prefix or AZURE_SUBNET_PREFIX
+        )
+        arm_parameters.virtual_network_name = (
+            self._azure_runbook.virtual_network_name or AZURE_VIRTUAL_NETWORK_NAME
+        )
         arm_parameters.use_ipv6 = self._azure_runbook.use_ipv6
 
         is_windows: bool = False
