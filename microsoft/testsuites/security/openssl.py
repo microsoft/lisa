@@ -31,16 +31,13 @@ class OpenSSLTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Tests basic functionality of openssl.
+        Verifies basic OpenSSL encryption and decryption behavior by generating
+        a random key and IV, encrypting various types of plaintext, and
+        decrypting them back to their original form.
         """,
         priority=2,
     )
     def verify_openssl_basic(self, log: Logger, node: Node) -> None:
-        """
-        Verifies basic OpenSSL encryption and decryption behavior by generating
-        a random key and IV, encrypting various types of plaintext, and
-        decrypting them back to their original form.
-        """
         self._openssl_test_encrypt_decrypt(log, node)
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
