@@ -46,7 +46,7 @@ variable:
   - name: subnet_name
     value: ""
   - name: use_public_address
-    value: ""
+    value: true
 concurrency: $(concurrency)
 notifier:
   - type: html
