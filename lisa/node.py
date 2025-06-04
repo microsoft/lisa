@@ -252,6 +252,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
 
     def reboot(self, time_out: int = 300) -> None:
         self.tools[Reboot].reboot(time_out)
+        self.execute("ip link set enP1p0s2 up; dhclient enP1p0s2", shell=True, sudo=True)
 
     def execute(
         self,
