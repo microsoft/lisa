@@ -303,7 +303,7 @@ class AzurePlatformSchema:
     # will be retired. It's recommended to disable outbound access to
     # enforce explicit connectivity rules.
     enable_vm_nat: bool = field(default=False)
-    source_address_prefixes: Optional[List[str]] = field(default=None)
+    source_address_prefixes: Optional[Union[str, List[str]]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -966,7 +966,15 @@ class AzurePlatform(Platform):
         if self._cached_ip_address:
             return self._cached_ip_address
         if self._azure_runbook.source_address_prefixes:
-            self._cached_ip_address = self._azure_runbook.source_address_prefixes
+            if isinstance(self._azure_runbook.source_address_prefixes, str):
+                # Split string by comma and strip whitespace
+                self._cached_ip_address = [
+                    prefix.strip() 
+                    for prefix in self._azure_runbook.source_address_prefixes.split(',')
+                    if prefix.strip()
+                ]
+            else:
+                self._cached_ip_address = self._azure_runbook.source_address_prefixes
         else:
             self._cached_ip_address = [get_public_ip()]
         return self._cached_ip_address
