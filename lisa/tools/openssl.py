@@ -34,7 +34,7 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
-                )
+        )
 
     def decrypt(
         self,
@@ -43,7 +43,7 @@ class OpenSSL(Tool):
         hex_iv: str,
         algorithm: str = "aes-256-cbc",
     ) -> str:
-        """_summary_
+        """
         This method decrypts the ciphertext using the specified
         key and IV, and returns the plaintext.
         Decrypt the ciphertext using the specified
@@ -56,8 +56,8 @@ class OpenSSL(Tool):
 
     def _run_with_piped_input(
         self, 
-        piped_input_cmd: str, 
-        openssl_cmd: str, 
+        piped_input_cmd: str,
+        openssl_cmd: str,
         expected_exit_code: int = 0
     ) -> str:
         """
@@ -66,8 +66,7 @@ class OpenSSL(Tool):
         Args:
             piped_input_cmd: The input string to pipe to OpenSSL
             openssl_cmd: The OpenSSL command to execute
-            expected_exit_code:
-            Expected exit code from command (default: 0)
+            expected_exit_code: Expected exit code from command (default: 0)
 
         Returns:
             The stripped stdout from the command
@@ -77,7 +76,9 @@ class OpenSSL(Tool):
             or returns unexpected exit code
         """
         cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
-        result = self.node.execute(cmd, shell=True, expected_exit_code=expected_exit_code)
+        result = self.node.execute(
+            cmd, shell=True,
+            expected_exit_code=expected_exit_code)
         return result.stdout.strip()
 
     def _install(self) -> bool:
