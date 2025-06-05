@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ast
 import copy
 import json
 import logging
@@ -965,16 +966,30 @@ class AzurePlatform(Platform):
     def _get_ip_addresses(self) -> List[str]:
         if self._cached_ip_address:
             return self._cached_ip_address
-        if self._azure_runbook.source_address_prefixes:
-            if isinstance(self._azure_runbook.source_address_prefixes, str):
-                # Split string by comma and strip whitespace
-                self._cached_ip_address = [
-                    prefix.strip()
-                    for prefix in self._azure_runbook.source_address_prefixes.split(",")
-                    if prefix.strip()
-                ]
+
+        prefixes = self._azure_runbook.source_address_prefixes
+        result: List[str] = []
+
+        if prefixes:
+            if isinstance(prefixes, str):
+                try:
+                    parsed = ast.literal_eval(prefixes)
+                    if isinstance(parsed, list):
+                        result = parsed
+                    else:
+                        result = prefixes.split(",")
+                except (ValueError, SyntaxError):
+                    result = prefixes.split(",")
+            elif isinstance(prefixes, list):
+                result = prefixes
             else:
-                self._cached_ip_address = self._azure_runbook.source_address_prefixes
+                raise LisaException(
+                    f"Invalid type for source_address_prefixes: {type(prefixes)}"
+                )
+
+            self._cached_ip_address = [
+                p.strip() for p in result if isinstance(p, str) and p.strip()
+            ]
         else:
             self._cached_ip_address = [get_public_ip()]
         return self._cached_ip_address

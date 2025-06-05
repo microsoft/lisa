@@ -220,10 +220,8 @@ deployment.
      # Multiple IP ranges (comma-separated string format)
      lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24,10.0.0.0/8"
      
-     # Using a variable file (recommended for complex configurations)
-     # Create variables.yml with:
-     # source_address_prefixes: ['192.168.1.0/24', '10.0.0.0/8']
-     lisa -r ./microsoft/runbook/azure.yml -v "variable_file:variables.yml"
+     # List format
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:['192.168.1.0/24','10.0.0.0/8']"
 * **ignored_capability**. Specify feature names which will be ignored in 
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
