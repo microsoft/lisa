@@ -57,10 +57,7 @@ class OpenSSL(Tool):
         )
 
     def _run_with_piped_input(
-        self,
-        piped_input_cmd: str,
-        openssl_cmd: str,
-        expected_exit_code: int = 0
+        self, piped_input_cmd: str, openssl_cmd: str, expected_exit_code: int = 0
     ) -> str:
         """
         Execute OpenSSL command with piped input and validate results.
@@ -79,8 +76,8 @@ class OpenSSL(Tool):
         """
         cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
         result = self.node.execute(
-            cmd, shell=True,
-            expected_exit_code=expected_exit_code)
+            cmd, shell=True, expected_exit_code=expected_exit_code
+        )
         return result.stdout.strip()
 
     def _install(self) -> bool:
