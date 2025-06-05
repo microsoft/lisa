@@ -969,8 +969,8 @@ class AzurePlatform(Platform):
             if isinstance(self._azure_runbook.source_address_prefixes, str):
                 # Split string by comma and strip whitespace
                 self._cached_ip_address = [
-                    prefix.strip() 
-                    for prefix in self._azure_runbook.source_address_prefixes.split(',')
+                    prefix.strip()
+                    for prefix in self._azure_runbook.source_address_prefixes.split(",")
                     if prefix.strip()
                 ]
             else:
