@@ -37,7 +37,7 @@ class AzureHookSpec:
 
     @hookspec
     def azure_update_vm_capabilities(
-        self, capabilities: Dict[str, AzureCapability]
+        self, location: str, capabilities: Dict[str, AzureCapability]
     ) -> None:
         """
         Implement it to update the vm capabilities.
