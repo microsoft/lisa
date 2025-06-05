@@ -36,6 +36,7 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
+            expected_exit_code_failure_message="Failed to encrypt data with OpenSSL.",
         )
 
     def decrypt(
@@ -54,10 +55,15 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             ciphertext,
             f"enc -d -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
+            expected_exit_code_failure_message="Failed to decrypt data with OpenSSL.",
         )
 
     def _run_with_piped_input(
-        self, piped_input_cmd: str, openssl_cmd: str, expected_exit_code: int = 0
+        self,
+        piped_input_cmd: str,
+        openssl_cmd: str,
+        expected_exit_code: int = 0,
+        expected_exit_code_failure_message: str = "",
     ) -> str:
         """
         Execute OpenSSL command with piped input and validate results.
@@ -66,6 +72,7 @@ class OpenSSL(Tool):
             piped_input_cmd: The input string to pipe to OpenSSL
             openssl_cmd: The OpenSSL command to execute
             expected_exit_code: Expected exit code from command (default: 0)
+            expected_exit_code_failure_message: Message to display if the command fails with an unexpected exit code
 
         Returns:
             The stripped stdout from the command
@@ -76,7 +83,10 @@ class OpenSSL(Tool):
         """
         cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
         result = self.node.execute(
-            cmd, shell=True, expected_exit_code=expected_exit_code
+            cmd,
+            shell=True,
+            expected_exit_code=expected_exit_code,
+            expected_exit_code_failure_message=expected_exit_code_failure_message,
         )
         return result.stdout.strip()
 
