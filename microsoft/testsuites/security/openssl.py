@@ -5,13 +5,7 @@ import json
 
 from assertpy import assert_that
 
-from lisa import (
-    Logger,
-    Node,
-    TestCaseMetadata,
-    TestSuite,
-    TestSuiteMetadata,
-)
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.tools import OpenSSL
 
 
