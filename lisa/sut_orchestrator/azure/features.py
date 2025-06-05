@@ -356,6 +356,22 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             self._get_connection()
             raise e
 
+    def execute_command(self, commands: List[str]) -> str:
+        """
+        Execute a list of commands on the serial console and return the output.
+        This method is used to run multiple commands in sequence.
+        """
+        # read the serial console to clear any previous output
+        _ = self.read()
+
+        # \n is required to ensure that the command is executed
+        for command in commands:
+            self.write(f"{command} \n")
+
+        output = self.read()
+
+        return output
+
     def close(self) -> None:
         if self._ws is not None:
             self._log.debug("Closing connection to serial console")
