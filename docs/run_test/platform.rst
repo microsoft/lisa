@@ -148,6 +148,7 @@ deployment.
          create_public_address: "<true or false>"
          use_ipv6: "<true or false>"
          enable_vm_nat: "<true or false>"
+         source_address_prefixes: $(source_address_prefixes)
       requirement:
          ...
          ignored_capability:
@@ -205,6 +206,24 @@ deployment.
   subnet to access the internet. The default value is `false`, it means that
   the DefaultOutboundAccess property of the subnet will be set to "False".
   This means that the VMs in the subnet cannot access the internet.
+* **source_address_prefixes**. Specify source IP address ranges that are 
+  allowed to access the VMs through network security group rules. If not
+  provided, your current public IP address will be automatically detected and 
+  used. You can specify multiple IP ranges using either comma-separated string
+  format or YAML list format. Examples:
+  
+  .. code:: bash
+  
+     # Single IP range (string format)
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24"
+     
+     # Multiple IP ranges (comma-separated string format)
+     lisa -r ./microsoft/runbook/azure.yml -v "source_address_prefixes:192.168.1.0/24,10.0.0.0/8"
+     
+     # Using a variable file (recommended for complex configurations)
+     # Create variables.yml with:
+     # source_address_prefixes: ['192.168.1.0/24', '10.0.0.0/8']
+     lisa -r ./microsoft/runbook/azure.yml -v "variable_file:variables.yml"
 * **ignored_capability**. Specify feature names which will be ignored in 
   test requirement. You can find the feature name from its name method in source code.
   For example, IsolatedResource feature's name defined in ``lisa/features/isolated_resource.py`` as below:
