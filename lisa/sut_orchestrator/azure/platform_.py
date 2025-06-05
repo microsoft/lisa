@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ast
 import copy
 import json
 import logging
@@ -303,7 +304,7 @@ class AzurePlatformSchema:
     # will be retired. It's recommended to disable outbound access to
     # enforce explicit connectivity rules.
     enable_vm_nat: bool = field(default=False)
-    source_address_prefixes: Optional[List[str]] = field(default=None)
+    source_address_prefixes: Optional[Union[str, List[str]]] = field(default=None)
 
     virtual_network_resource_group: str = field(default="")
     virtual_network_name: str = field(default=AZURE_VIRTUAL_NETWORK_NAME)
@@ -965,8 +966,30 @@ class AzurePlatform(Platform):
     def _get_ip_addresses(self) -> List[str]:
         if self._cached_ip_address:
             return self._cached_ip_address
-        if self._azure_runbook.source_address_prefixes:
-            self._cached_ip_address = self._azure_runbook.source_address_prefixes
+
+        prefixes = self._azure_runbook.source_address_prefixes
+        result: List[str] = []
+
+        if prefixes:
+            if isinstance(prefixes, str):
+                try:
+                    parsed = ast.literal_eval(prefixes)
+                    if isinstance(parsed, list):
+                        result = parsed
+                    else:
+                        result = prefixes.split(",")
+                except (ValueError, SyntaxError):
+                    result = prefixes.split(",")
+            elif isinstance(prefixes, list):
+                result = prefixes
+            else:
+                raise LisaException(
+                    f"Invalid type for source_address_prefixes: {type(prefixes)}"
+                )
+
+            self._cached_ip_address = [
+                p.strip() for p in result if isinstance(p, str) and p.strip()
+            ]
         else:
             self._cached_ip_address = [get_public_ip()]
         return self._cached_ip_address
