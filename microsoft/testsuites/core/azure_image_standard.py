@@ -296,6 +296,13 @@ class AzureImageStandard(TestSuite):
     # 1.1
     _openssl_version_pattern = re.compile(r"(?:Python\s*)?(\d+\.\d+(?:\.\d+)?)")
 
+    # OMI-1.9.1-0 - Wed Aug 28 23:16:27 PDT 2024
+    # ii  omi    1.9.1.0    amd64    Open Management Infrastructure
+    # omi-1.9.1-0.x86_64
+    _omi_version_pattern = re.compile(
+        r"(?:OMI-|omi\s+|omi-)(\d+\.\d+\.\d+(?:\.\d+|-\d+)?)"
+    )
+
     @TestCaseMetadata(
         description="""
         This test will verify that `Defaults targetpw` is not enabled in the
@@ -1330,7 +1337,7 @@ class AzureImageStandard(TestSuite):
     def verify_python_version(self, node: Node) -> None:
         minimum_version = Version("3.8.0")
         python_command = ["python3 --version", "python --version"]
-        self._check_version_by_pattern_value(
+        self._verify_version_by_pattern_value(
             node=node,
             commands=python_command,
             version_pattern=self._python_version_pattern,
@@ -1357,7 +1364,7 @@ class AzureImageStandard(TestSuite):
         minimum_version = Version("3.0.0")
         openssl_command = ["openssl version"]
         extended_support_versions = [Version("1.1.1"), Version("1.0.2")]
-        self._check_version_by_pattern_value(
+        self._verify_version_by_pattern_value(
             node=node,
             commands=openssl_command,
             version_pattern=self._openssl_version_pattern,
@@ -1388,7 +1395,72 @@ class AzureImageStandard(TestSuite):
                 f"64-bit architectures: {', '.join(str(a.value) for a in arch_64bit)}."
             )
 
-    def _check_version_by_pattern_value(
+    @TestCaseMetadata(
+        description="""
+        This test verifies the version of the Open Management Infrastructure (OMI)
+        version installed on the system is not vulnerable to the "OMIGOD"
+        vulnerabilities.
+
+        The "OMIGOD" vulnerabilities (CVE-2021-38647, CVE-2021-38648,
+        CVE-2021-38645, CVE-2021-38649) were fixed in OMI version 1.6.8.1.
+
+        OMI github: https://github.com/microsoft/omi
+
+        Steps:
+        1. Check if OMI is installed on the system.
+           a. If OMI is installed, the version can be got by using
+              ""/opt/omi/bin/omiserver --version"" command.
+           b. If omiserver command fails, use ""dpkg -l omi | grep omi"" and
+              ""rpm -q omi"" to double-check whether the OMI package is installed.
+           c. If all the commands fail, it means OMI is not installed.
+        2. Verify that the version is 1.6.8.1 or later.
+        3. Pass if OMI is not installed or the version is secure.
+                """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_omi_version(self, node: Node) -> None:
+        minimum_secure_version = Version("1.6.8.1")
+        # LISA has node.os.package_exists to check if a package is installed. However,
+        # since this test case is for Azure image certification, we prefer to use
+        # simpler and more generic commands to support a wider range of distributions.
+        # OMI supports most modern Linux platforms, including Ubuntu, Debian, CentOS,
+        # Oracle, Red Hat, SUSE, Rocky, and Alma. All of these distributions include
+        # either the dpkg command (for Debian-based systems like Ubuntu and Debian)
+        # or the rpm command (for RPM-based systems like CentOS and SUSE).
+        commands = [
+            "/opt/omi/bin/omiserver --version",
+            "dpkg -l omi | grep omi",
+            "rpm -q omi",
+        ]
+
+        try:
+            self._verify_version_by_pattern_value(
+                node=node,
+                commands=commands,
+                version_pattern=self._omi_version_pattern,
+                minimum_version=minimum_secure_version,
+                library_name="OMI",
+            )
+        except LisaException as e:
+            if "lower than the required version" in str(e):
+                raise LisaException(
+                    f"Vulnerable OMI version detected. You have an OMI framework "
+                    f"version less than {minimum_secure_version}. "
+                    f"Please update OMI to the version {minimum_secure_version} or "
+                    "later. For more information, please see the OMI update guidance at"
+                    " https://aka.ms/omi-updation."
+                ) from e
+            elif "Failed to retrieve" in str(e):
+                node.log.info("OMI is not installed on the system. Pass the case.")
+            elif "Failed to parse" in str(e):
+                raise LisaException(
+                    "OMI is installed but could not determine version. Please verify "
+                    "manually that the OMI version is at least "
+                    f"{minimum_secure_version} to prevent OMIGOD vulnerabilities."
+                ) from e
+
+    def _verify_version_by_pattern_value(
         self,
         node: Node,
         commands: List[str],
@@ -1398,6 +1470,21 @@ class AzureImageStandard(TestSuite):
         library_name: str = "library",
         group_index: int = 1,
     ) -> None:
+        """
+        Verifies the version of a library or tool against a minimum required version.
+        Args:
+            node: The node to execute commands on
+            commands: List of commands to try to get version information
+            version_pattern: Regex pattern to extract version string from command
+                    output
+            minimum_version: Minimum required version. Please use dots (.) to separate
+                    version numbers for proper version comparison, e.g. "1.2.3" or
+                    "1.2.3.4"
+            extended_support_versions: Optional list of versions that are still
+                    supported despite being lower than minimum_version
+            library_name: Name of the library/tool being checked (for messages)
+            group_index: Index of the regex group that contains the version string
+        """
         version_output = None
 
         for command in commands:
@@ -1417,7 +1504,17 @@ class AzureImageStandard(TestSuite):
                 f"Failed to parse {library_name} version from output: {version_output}"
             )
 
-        current_version = Version(match.group(group_index))
+        # The reason we don't use 'parse_version' and 'LisaVersionInfo' here is because
+        # they don't support the four-part version like "1.2.3.4". Some versions of
+        # waagent have this format. So we use 'Version' class from 'packaging'.
+        #
+        # Version class supports multiple formats but is unable comparing versions with
+        # hyphens like "1.2.3-4" and "1.2.3-5". So we replace "-" with "." for proper
+        # version comparison.
+        #
+        # e.g. the version of OMI has the format of "1.9.0-1". Changing it to "1.9.0.1"
+        # allows proper comparison with the minimum version.
+        current_version = Version(match.group(group_index).replace("-", "."))
         if current_version < minimum_version:
             message = (
                 f"The {library_name} version {current_version} is lower than the "
