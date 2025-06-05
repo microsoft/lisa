@@ -631,7 +631,7 @@ class AzurePlatform(Platform):
                     log.info(f"reusing resource group: [{resource_group_name}]")
 
                 if self._azure_runbook.deploy:
-                    self._validate_template(deployment_parameters, log)
+                    #self._validate_template(deployment_parameters, log)
                     time = create_timer()
                     self._deploy(location, deployment_parameters, log, environment)
                     environment_context.provision_time = time.elapsed()
