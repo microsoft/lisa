@@ -56,7 +56,7 @@ class OpenSSL(Tool):
         )
 
     def _run_with_piped_input(
-        self, 
+        self,
         piped_input_cmd: str,
         openssl_cmd: str,
         expected_exit_code: int = 0
