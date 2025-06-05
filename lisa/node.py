@@ -31,6 +31,7 @@ from lisa.util import (
     InitializableMixin,
     LisaException,
     RequireUserPasswordException,
+    TcpConnectionException,
     constants,
     fields_to_dict,
     generate_strong_password,
@@ -535,7 +536,26 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             )
             self._first_initialize = True
         self.log.info(f"initializing node '{self.name}' {self}")
-        self.shell.initialize()
+        try:
+            self.shell.initialize()
+        except TcpConnectionException as e:
+            from lisa.features import SerialConsole
+
+            if self.features.is_supported(SerialConsole):
+                serial_console = self.features[SerialConsole]
+
+                # @TODO: this is temporary, we need another way to determine the commands.
+                # OS is not initialized yet, so cannot use self.os.
+                commands = [
+                    "ip addr show",
+                    "ip link show",
+                    "systemctl status NetworkManager --no-pager --plain",
+                    "systemctl status network --no-pager --plain",
+                    "systemctl status systemd-networkd --no-pager --plain",
+                    "ping -c 3 -n 8.8.8.8",
+                ]
+                serial_console.execute_command(commands=commands)
+            raise e
         self.os: OperatingSystem = OperatingSystem.create(self)
         self.capture_system_information("started")
 

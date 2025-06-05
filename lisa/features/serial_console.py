@@ -199,3 +199,6 @@ class SerialConsole(Feature):
     def close(self) -> None:
         # it's not required to implement close method.
         pass
+
+    def execute_command(self, commands: List[str]) -> str:
+        raise NotImplementedError
