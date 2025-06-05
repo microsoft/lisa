@@ -13,6 +13,7 @@ class OpenSSL(Tool):
     """
     OpenSSL tool for encryption and decryption operations.
     """
+
     @property
     def command(self) -> str:
         return "openssl"
