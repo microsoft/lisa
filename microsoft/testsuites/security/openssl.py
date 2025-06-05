@@ -12,7 +12,7 @@ from lisa import (
     TestSuite,
     TestSuiteMetadata,
 )
-from lisa.tools.openssl import OpenSSL
+from lisa.tools import OpenSSL
 
 
 @TestSuiteMetadata(
