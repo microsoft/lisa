@@ -40,7 +40,17 @@ variable:
   - name: use_ipv6
     value: false
   - name: source_address_prefixes
-    value: []
+    value: ""
+  - name: vnet_resource_group
+    value: ""
+  - name: vnet_name
+    value: ""
+  - name: subnet_name
+    value: ""
+  - name: use_public_address
+    value: true
+  - name: create_public_address
+    value: true
 concurrency: $(concurrency)
 notifier:
   - type: html
@@ -61,6 +71,11 @@ platform:
       azcopy_path: $(azcopy_path)
       use_ipv6: $(use_ipv6)
       source_address_prefixes: $(source_address_prefixes)
+      virtual_network_resource_group: $(vnet_resource_group)
+      virtual_network_name: $(vnet_name)
+      subnet_prefix: $(subnet_name)
+      use_public_address: $(use_public_address)
+      create_public_address: $(create_public_address)
     requirement:
       core_count:
         min: 2
