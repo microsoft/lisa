@@ -2,10 +2,19 @@
 # Licensed under the MIT license.
 
 import json
+from pathlib import Path
 
 from assertpy import assert_that
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.operating_system import CBLMariner
 from lisa.tools import OpenSSL
 
 
@@ -86,3 +95,48 @@ class OpenSSLTestSuite(TestSuite):
         openssl.verify(plaintext, public_key, signature)
 
         log.debug("Successfully signed and verified a file.")
+
+    @TestCaseMetadata(
+        description="""
+        This test will use Go experimental system crypto tests
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+        ),
+    )
+    def openssl_golang__sys_crypto_tests_verify(self, log: Logger, node: Node) -> None:
+        """Verifies the Go experimental system crypto tests"""
+        self._run_go_crypto_tests(log, node)
+        return
+
+    def _run_go_crypto_tests(self, log: Logger, node: Node) -> None:
+        """
+        This test sets up the dependencies to run the
+        experimental Go system crypto tests and cleans go builds.
+        """
+        # installs go dependencies for tests
+        node.os.install_packages(
+            ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
+        )
+        # cleans up previous go builds
+        node.execute(
+            "go clean -testcache",
+            cwd=Path("/usr/lib/golang/src"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("Go clean up failed."),
+            shell=True,
+        )
+        node.execute(
+            "go test -short ./crypto/...",
+            cwd=Path("/usr/lib/golang/src"),
+            update_envs={
+                "GOEXPERIMENT": "systemcrypto",
+            },
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Setting up Go system crypto environment failed."
+            ),
+        )
+
+        log.info("golang crypto test set up successfully.")
