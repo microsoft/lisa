@@ -32,12 +32,16 @@ class OpenSSLTestSuite(TestSuite):
         priority=2,
     )
     def verify_openssl_basic(self, log: Logger, node: Node) -> None:
+        """This function tests the basic functionality of
+        OpenSSL by calling helper functions"""
         self._openssl_test_encrypt_decrypt(log, node)
+        self.openssl_test_sign_verify(log, node)
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
         Tests OpenSSL encryption and decryption functionality.
         This function generates a random key and IV, encrypts various types of
+        plaintext, and then decrypts them to verify the functionality.
         """
 
         # Key and IV for encryption and decryption.
@@ -66,3 +70,18 @@ class OpenSSLTestSuite(TestSuite):
             assert_that(plaintext).described_as(
                 "Plaintext and decrypted data do not match"
             ).is_equal_to(decrypted_data)
+
+    def openssl_test_sign_verify(self, log: Logger, node: Node) -> None:
+        """
+        Tests OpenSSL signing and verification functionality.
+        This function generates a key pair, signs a message,
+        and verifies the signature.
+        """
+        openssl = node.tools[OpenSSL]
+        private_key, public_key = openssl.create_key_pair()
+
+        plaintext = "cool"
+        signature = openssl.sign(plaintext, private_key)
+        openssl.verify(plaintext, public_key, signature)
+
+        log.debug("Successfully signed and verified a file.")

@@ -37,7 +37,7 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             plaintext,
             f"enc -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
-            expected_exit_code_failure_message="Failed to encrypt data with OpenSSL.",
+            expected_exit_code_failure_message=("Failed to encrypt data with OpenSSL."),
         )
 
     def decrypt(
@@ -56,7 +56,66 @@ class OpenSSL(Tool):
         return self._run_with_piped_input(
             ciphertext,
             f"enc -d -{algorithm} -K '{hex_key}' -iv '{hex_iv}' -base64 -A",
-            expected_exit_code_failure_message="Failed to decrypt data with OpenSSL.",
+            expected_exit_code_failure_message=("Failed to decrypt data with OpenSSL."),
+        )
+
+    def create_key_pair(self, algorithm: str = "RSA") -> tuple[str, str]:
+        """
+        Generate a key pair using the specified algorithm.
+        Returns the private key and public key as strings.
+        """
+        private_key_result = self.run(
+            f"genpkey -algorithm {algorithm} -outform PEM",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to generate private key with OpenSSL."
+            ),
+        )
+        private_key_pem = private_key_result.stdout.strip()
+        public_key = self._run_with_piped_input(
+            private_key_pem,
+            "pkey -in /dev/stdin -pubout -outform PEM",
+            expected_exit_code_failure_message=(
+                "Failed to generate public key with OpenSSL."
+            ),
+        )
+        return private_key_pem, public_key
+
+    def sign(
+        self,
+        data: str,
+        private_key: str,
+        algorithm: str = "sha256",
+    ) -> str:
+        """
+        Sign the data using the specified private key and algorithm.
+        Returns the base64 encoded signature.
+        """
+        return self._run_with_piped_input(
+            data,
+            f"dgst -{algorithm} -sign <(echo '{private_key}') | openssl base64 -A",
+            expected_exit_code_failure_message="Failed to sign data with OpenSSL.",
+        )
+
+    def verify(
+        self,
+        data: str,
+        public_key: str,
+        signature_base64: str,
+        algorithm: str = "sha256",
+    ) -> None:
+        """
+        Verify the signature of the data using the specified
+        public key and algorithm.
+        """
+        self._run_with_piped_input(
+            data,
+            f"dgst -{algorithm} -verify <(echo '{public_key}') "
+            f"-signature <(echo '{signature_base64}' | "
+            "openssl base64 -A -d)",
+            expected_exit_code_failure_message=(
+                "Failed to verify signature with OpenSSL."
+            ),
         )
 
     def _run_with_piped_input(
@@ -83,6 +142,8 @@ class OpenSSL(Tool):
             LisaException: When the command fails
             or returns unexpected exit code
         """
+        sanitized_input = shlex.quote(piped_input_cmd)
+        cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
         sanitized_input = shlex.quote(piped_input_cmd)
         cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
         result = self.node.execute(
