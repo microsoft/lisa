@@ -268,6 +268,37 @@ class Provisioning(TestSuite):
             is_restart=False,
         )
 
+    @TestCaseMetadata(
+        description="""
+        This case performs a reboot stress test on the node
+        and iterates smoke test 100 times.
+        The test steps are almost the same as `smoke_test`.
+        The reboot times is summarized after the test is run
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_features=[SerialConsole],
+        ),
+    )
+    def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
+        reboot_times = []
+        try:
+            for i in range(100):
+                log.info(f"Reboot stress iteration {i+1}/100")
+                elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
+                reboot_times.append((i + 1, elapsed))
+
+        finally:
+            log.info(f"Number of iterations completed: {len(reboot_times)}")
+            log.info("Reboot times for all iterations:")
+            for iteration, time in reboot_times:
+                log.info(f"Iteration {iteration}: Reboot time = {time}s")
+            if len(reboot_times) < 100:
+                raise AssertionError(
+                    f"Test completed only {len(reboot_times)}/100 iterations."
+                )
+
     def _smoke_test(
         self,
         log: Logger,
@@ -277,7 +308,7 @@ class Provisioning(TestSuite):
         reboot_in_platform: bool = False,
         wait: bool = True,
         is_restart: bool = True,
-    ) -> None:
+    ) -> float:
         if not node.is_remote:
             raise SkippedException(f"smoke test: {case_name} cannot run on local node.")
 
@@ -344,6 +375,7 @@ class Provisioning(TestSuite):
             if isinstance(e, TcpConnectionException):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise PassedException(e)
+        return timer.elapsed()
 
     def is_mana_device_discovered(self, node: RemoteNode) -> bool:
         lspci = node.tools[Lspci]
