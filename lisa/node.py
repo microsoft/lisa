@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from random import randint
 from typing import (
@@ -536,26 +537,7 @@ class Node(subclasses.BaseClassWithRunbookMixin, ContextMixin, InitializableMixi
             )
             self._first_initialize = True
         self.log.info(f"initializing node '{self.name}' {self}")
-        try:
-            self.shell.initialize()
-        except TcpConnectionException as e:
-            from lisa.features import SerialConsole
-
-            if self.features.is_supported(SerialConsole):
-                serial_console = self.features[SerialConsole]
-
-                # @TODO: this is temporary, we need another way to determine the commands.
-                # OS is not initialized yet, so cannot use self.os.
-                commands = [
-                    "ip addr show",
-                    "ip link show",
-                    "systemctl status NetworkManager --no-pager --plain",
-                    "systemctl status network --no-pager --plain",
-                    "systemctl status systemd-networkd --no-pager --plain",
-                    "ping -c 3 -n 8.8.8.8",
-                ]
-                serial_console.execute_command(commands=commands)
-            raise e
+        self.shell.initialize()
         self.os: OperatingSystem = OperatingSystem.create(self)
         self.capture_system_information("started")
 
@@ -713,7 +695,39 @@ class RemoteNode(Node):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         assert self._connection_info, "call setConnectionInfo before use remote node"
-        super()._initialize(*args, **kwargs)
+        try:
+            super()._initialize(*args, **kwargs)
+        except TcpConnectionException as e:
+            from lisa.features import SerialConsole
+
+            if self.features.is_supported(SerialConsole):
+                serial_console = self.features[SerialConsole]
+
+                # @TODO: this is temporary, we need another way to determine the commands.
+                # OS is not initialized yet, so cannot use self.os.
+                self._reset_password()
+                clear = serial_console.read()
+                serial_console.write("\n")
+                serial = serial_console.read()
+                if "login" in serial:
+                    serial_console.write(f"{self._connection_info.username}\n")
+                    time.sleep(5)
+                serial2 = serial_console.read()
+                if "password" in serial2.lower():
+                    serial_console.write(f"{self._connection_info.password}\n")
+                serial3 = serial_console.read()
+                self.log.debug(serial3)
+                commands = [
+                    "ip addr show",
+                    "ip link show",
+                    "systemctl status NetworkManager --no-pager --plain",
+                    "systemctl status network --no-pager --plain",
+                    "systemctl status systemd-networkd --no-pager --plain",
+                    "ping -c 3 -n 8.8.8.8",
+                ]
+                test2 = serial_console.execute_command(commands=commands)
+
+            raise e
 
     def get_working_path(self) -> PurePath:
         return self._get_remote_working_path()
@@ -803,6 +817,74 @@ class RemoteNode(Node):
                     ssh_shell = cast(SshShell, self.shell)
                     ssh_shell.bash_prompt = bash_prompt
             self.has_checked_bash_prompt = True
+
+    def _login_to_serial_console(self) -> None:
+        from lisa.features import SerialConsole
+
+        if self.features.is_supported(SerialConsole):
+            serial_console = self.features[SerialConsole]
+            # clear the serial console
+            # write \n to serial console to get the prompt
+            # read the serial console output
+            _ = serial_console.read()
+            serial_console.write("\n")
+            serial_read = serial_console.read()
+            if "login" in serial_read:
+                password = self._get_password()
+                serial_console.write(f"{self._connection_info.username}\n")
+                password_prompt = serial_console.read()
+                if "password" in password_prompt.lower():
+                    serial_console.write(f"{password}\n")
+            else:
+                self.log.debug(
+                    "No login prompt found, serial console is already logged in."
+                )
+
+    def _collect_info_using_serial_console(self, commands: List[str]) -> str:
+        from lisa.features import SerialConsole
+
+        if self.features.is_supported(SerialConsole):
+            serial_console = self.features[SerialConsole]
+            # clear the serial console
+            _ = serial_console.read()
+            commands = [
+                f"echo 'Executing: {cmd}' && {cmd}"
+                for cmd in [
+                    "ip addr show",
+                    "ip link show",
+                    "systemctl status NetworkManager --no-pager --plain",
+                    "systemctl status network --no-pager --plain",
+                    "systemctl status systemd-networkd --no-pager --plain",
+                    "ping -c 3 -n 8.8.8.8",
+                ]
+            ]
+            serial_console.write(data=commands)
+            output = serial_console.read()
+            return output
+        else:
+            raise LisaException(
+                "SerialConsole feature is not supported, cannot collect information."
+            )
+
+    def _get_password(self, generate: bool = True) -> str:
+        """
+        Get the password for the node. If the password is not set, it will
+        generate a strong password and reset it.
+        """
+        if not self._connection_info.password:
+            if not generate:
+                raise RequireUserPasswordException(
+                    "The password is not set, and generate is False."
+                )
+            self.log.debug("password is not set, generating a strong password.")
+            if not self._reset_password():
+                raise RequireUserPasswordException("Reset password failed")
+        password = self._connection_info.password
+        if not password:
+            raise RequireUserPasswordException(
+                "The password is not set, and generate is False."
+            )
+        return password
 
     def _reset_password(self) -> bool:
         from lisa.features import PasswordExtension

@@ -193,7 +193,7 @@ class SerialConsole(Feature):
     def read(self) -> str:
         raise NotImplementedError
 
-    def write(self, data: str) -> None:
+    def write(self, data: str | List[str]) -> None:
         raise NotImplementedError
 
     def close(self) -> None:

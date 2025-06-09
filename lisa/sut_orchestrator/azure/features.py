@@ -330,9 +330,12 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         return schema.FeatureSettings.create(cls.name())
 
     @retry(tries=3, delay=5)
-    def write(self, data: str) -> None:
+    def write(self, data: str | List[str]) -> None:
         # websocket connection is not stable, so we need to retry
         try:
+            if isinstance(data, list):
+                # if data is a list, join it with \n and add a newline to the last item
+                data = "\n".join(data) + "\n"
             self._write(data)
             return
         except websockets.ConnectionClosed as e:  # type: ignore
