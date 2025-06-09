@@ -444,8 +444,8 @@ class XdpFunctional(TestSuite):
     def verify_xdp_community_test(self, node: Node) -> None:
         try:
             xdptool = node.tools[XdpTool]
-        except UnsupportedDistroException as identifier:
-            raise SkippedException(identifier)
+        except UnsupportedDistroException as e:
+            raise SkippedException(e)
         xdptool.run_full_test()
 
     def _test_with_build_type(

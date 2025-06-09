@@ -121,9 +121,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             information.update(
                 self._get_environment_information(environment=environment)
             )
-        except Exception as identifier:
+        except Exception as e:
             self._log.exception(
-                "failed to get environment information on platform", exc_info=identifier
+                "failed to get environment information on platform", exc_info=e
             )
 
         return information
@@ -133,9 +133,9 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         information: Dict[str, str] = {}
         try:
             information.update(self._get_node_information(node=node))
-        except Exception as identifier:
+        except Exception as e:
             self._log.exception(
-                "failed to get node information on platform", exc_info=identifier
+                "failed to get node information on platform", exc_info=e
             )
 
         return information
@@ -162,8 +162,8 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
         try:
             is_success = self._prepare_environment(environment, log)
-        except NotMeetRequirementException as identifier:
-            raise SkippedException(identifier)
+        except NotMeetRequirementException as e:
+            raise SkippedException(e)
 
         if is_success:
             environment.status = EnvironmentStatus.Prepared
@@ -181,7 +181,11 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         log.info(f"deploying environment: {environment.name}")
         timer = create_timer()
         environment.platform = self
-        self._deploy_environment(environment, log)
+        try:
+            self._deploy_environment(environment, log)
+        except Exception as identifier:
+            environment.status = EnvironmentStatus.Bad
+            raise identifier
         environment.status = EnvironmentStatus.Deployed
 
         # initialize features
@@ -210,29 +214,38 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def delete_environment(self, environment: Environment) -> None:
         log = get_logger(f"del[{environment.name}]", parent=self._log)
 
-        # mark environment is deleted firstly, if there is any error on
-        # deleting, it should be ignored.
-        environment.status = EnvironmentStatus.Deleted
-        environment.cleanup()
-        if self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS:
-            log.info(
-                f"skipped to delete environment {environment.name}, "
-                f"as runbook set to keep environment."
-            )
+        try:
+            environment.cleanup()
+            if (self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_ALWAYS) or (
+                self.runbook.keep_environment == constants.ENVIRONMENT_KEEP_FAILED
+                and environment.status == EnvironmentStatus.Bad
+            ):
+                log.info(
+                    f"skipped to delete environment {environment.name}, "
+                    "as on runbook, keep_environment value "
+                    f"is set to {self.runbook.keep_environment} "
+                    f"and env status is {environment.status}"
+                )
 
-            # output addresses for troubleshooting easier.
-            remote_addresses = [
-                x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
-                for x in environment.nodes.list()
-                if isinstance(x, RemoteNode) and hasattr(x, "_connection_info")
-            ]
-            # if the connection info is not found, there is no ip address to
-            # output.
-            if remote_addresses:
-                log.info(f"node ip addresses: {remote_addresses}")
-        else:
-            log.debug("deleting")
-            self._delete_environment(environment, log)
+                # output addresses for troubleshooting easier.
+                remote_addresses = [
+                    x.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS]
+                    for x in environment.nodes.list()
+                    if isinstance(x, RemoteNode) and hasattr(x, "_connection_info")
+                ]
+                # if the connection info is not found, there is no ip address to
+                # output.
+                if remote_addresses:
+                    log.info(f"node ip addresses: {remote_addresses}")
+            else:
+                log.debug("deleting")
+                self._delete_environment(environment, log)
+                log.info("deleted")
+
+        finally:
+            # mark environment is deleted.
+            # if there is any error on deleting, it should be ignored.
+            environment.status = EnvironmentStatus.Deleted
 
     def cleanup(self) -> None:
         self._cleanup()

@@ -42,9 +42,9 @@ def run(args: Namespace) -> int:
         runner = RootRunner(runbook_builder=builder)
         asyncio.run(runner.start())
         run_status = messages.TestRunStatus.SUCCESS
-    except Exception as identifier:
-        run_error_message = str(identifier)
-        raise identifier
+    except Exception as e:
+        run_error_message = str(e)
+        raise e
     finally:
         run_message.status = run_status
         run_message.elapsed = run_timer.elapsed()

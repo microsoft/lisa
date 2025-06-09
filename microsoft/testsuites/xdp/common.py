@@ -38,8 +38,8 @@ _nic_not_found = re.compile(r"Couldn't get device .* statistics", re.M)
 def get_xdpdump(node: Node) -> XdpDump:
     try:
         xdpdump = node.tools[XdpDump]
-    except UnsupportedDistroException as identifier:
-        raise SkippedException(identifier)
+    except UnsupportedDistroException as e:
+        raise SkippedException(e)
 
     return xdpdump
 
@@ -161,15 +161,15 @@ def _aggregate_count(
                     interface=nic_name, force_run=True
                 ).counters
                 break
-            except Exception as identifier:
-                if _nic_not_found.search(str(identifier)):
+            except Exception as e:
+                if _nic_not_found.search(str(e)):
                     log.debug(f"nic {nic_name} not found, need to reload nics")
                     sleep(2)
                     node.nics.reload()
                     nic_name = node.nics.get_primary_nic().lower
                     attempts += 1
                 else:
-                    raise identifier
+                    raise e
         # the name and pattern ordered by syn/vf
         for pattern in patterns:
             items = {key: value for key, value in stats.items() if pattern.match(key)}

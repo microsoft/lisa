@@ -129,14 +129,14 @@ class AzSecPack(TestSuite):
         try:
             self._install_monitor_agent_extension(node)
             self._install_security_agent_extension(node, log)
-        except HttpResponseError as identifier:
+        except HttpResponseError as e:
             if any(
-                s in str(identifier)
+                s in str(e)
                 for s in ["OS is not supported", "Unsupported operating system"]
             ):
                 raise SkippedException(UnsupportedDistroException(node.os))
             else:
-                raise identifier
+                raise e
 
         # Check and verify
         self._check_mdsd_service_status(node, log)
@@ -179,15 +179,15 @@ class AzSecPack(TestSuite):
             assert_that(result["provisioning_state"]).described_as(
                 "Expected the extension to succeed"
             ).is_equal_to("Succeeded")
-        except HttpResponseError as identifier:
-            if "already added" in str(identifier):
+        except HttpResponseError as e:
+            if "already added" in str(e):
                 node.log.debug(
                     "AzureMonitorLinuxAgent has been installed in current VM."
                 )
                 result = extension.get("Microsoft.Azure.Monitor.AzureMonitorLinuxAgent")
                 node.log.debug(f"extension status {result.provisioning_state}")
             else:
-                raise identifier
+                raise e
 
         # After Azure Monitor Linux Agent extension is installed, the package
         # azuremonitoragent should be installed.
@@ -217,13 +217,13 @@ class AzSecPack(TestSuite):
             assert_that(result["provisioning_state"]).described_as(
                 "Expected the extension to succeed"
             ).is_equal_to("Succeeded")
-        except HttpResponseError as identifier:
-            if "already added" in str(identifier):
+        except HttpResponseError as e:
+            if "already added" in str(e):
                 node.log.debug(
                     "AzureSecurityLinuxAgent has been installed in current VM."
                 )
             else:
-                raise identifier
+                raise e
 
         # Check azure-security, azsec-monitor, azsec-clamav, auoms are installed
         # After installing extension, some packages might not be installed completely.

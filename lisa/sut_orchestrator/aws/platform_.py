@@ -518,9 +518,9 @@ class AwsPlatform(Platform):
 
                 # Even skipped deploy, try best to initialize nodes
                 self._initialize_nodes(environment, instances, log)
-            except Exception as identifier:
+            except Exception as e:
                 self._delete_environment(environment, log)
-                raise identifier
+                raise e
 
     def _create_deployment_parameters(
         self, security_group_name: str, environment: Environment, log: Logger
@@ -935,14 +935,12 @@ class AwsPlatform(Platform):
                 with open(cached_file_name, "r") as f:
                     loaded_data: Dict[str, Any] = json.load(f)
                 loaded_obj = schema.load_by_type(AwsLocation, loaded_data)
-            except Exception as identifier:
+            except Exception as e:
                 # if schema changed, There may be exception, remove cache and retry
                 # Note: retry on this method depends on decorator
-                log.debug(
-                    f"error on loading cache, delete cache and retry. {identifier}"
-                )
+                log.debug(f"error on loading cache, delete cache and retry. {e}")
                 cached_file_name.unlink()
-                raise identifier
+                raise e
         return loaded_obj
 
     def _get_location_info(self, location: str, log: Logger) -> AwsLocation:

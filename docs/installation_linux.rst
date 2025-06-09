@@ -9,7 +9,7 @@ Minimum System Requirements
 3. 4 GB system memory
 
 We will guide you through the installation of LISA on Linux.
-The following commands assume Ubuntu is being used.
+The following commands assume Ubuntu or Azure Linux is being used.
 
 
 Install Python on Linux
@@ -36,6 +36,8 @@ Here is an example to install Python 3.11 on Ubuntu 22.04
    sudo apt update
    sudo apt install python3.11 python3.11-dev -y
 
+For Azure Linux, Python installation is included in the system dependencies section below and does not need to be installed separately.
+
 
 Install system dependencies
 ---------------------------
@@ -45,6 +47,18 @@ Run the command below to install the dependencies on Ubuntu:
 .. code:: bash
 
    sudo apt install git gcc libgirepository1.0-dev libcairo2-dev qemu-utils libvirt-dev python3-pip python3-venv -y
+
+Run the command below to install the dependencies on Azure Linux:
+
+.. code:: bash
+
+   sudo tdnf install -y git gcc gobject-introspection-devel cairo-gobject cairo-devel pkg-config libvirt-devel python3-devel python3-pip python3-virtualenv build-essential cairo-gobject-devel curl wget tar azure-cli ca-certificates
+
+Run the command below to install the dependencies on Fedora 41 & above:
+
+.. code:: bash
+
+   sudo dnf install -y git gcc gobject-introspection-devel cairo-devel qemu-img libvirt-devel python3-pip python3-virtualenv -y
 
 If you're using a different distribution or python version, adjust the command as needed
 
@@ -66,7 +80,7 @@ if it exists.
 
 .. note::
 
-   For some distributions, such as Ubuntu, ``$HOME/\.local/bin`` will be
+   For some distributions, such as Ubuntu and Azure Linux, ``$HOME/\.local/bin`` will be
    added to the ``$PATH`` at login if it exists. In this case, log out and
    log back in after installing LISA if your path doesn't currently include it.
 

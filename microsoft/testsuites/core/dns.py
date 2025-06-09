@@ -60,11 +60,11 @@ class Dns(TestSuite):
         try:
             self._upgrade_system(node)
 
-        except (ReleaseEndOfLifeException, RepoNotExistException) as identifier:
+        except (ReleaseEndOfLifeException, RepoNotExistException) as e:
             # If the release is end of life, or there is no repo existing,
             # then skip the step of upgrading system. Continue the following test
-            node.log.debug(identifier)
-            raise PassedException(identifier) from identifier
+            node.log.debug(e)
+            raise PassedException(e) from e
 
         finally:
             self._check_dns_name_resolution(node)
@@ -80,13 +80,13 @@ class Dns(TestSuite):
         ping = node.tools[Ping]
         try:
             ping.ping(target="bing.com")
-        except Exception as identifier:
-            if ping.no_sendmsg_permission_pattern.findall(str(identifier)):
+        except Exception as e:
+            if ping.no_sendmsg_permission_pattern.findall(str(e)):
                 # ping ICMP packet might be blocked by control plane ACL
                 # Use "nslookup bing.com" command to check
                 node.execute("nslookup bing.com", expected_exit_code=0, timeout=30)
             else:
-                raise LisaException(identifier)
+                raise LisaException(e)
 
     def _upgrade_system(self, node: Node) -> None:
         if not isinstance(node.os, Posix):

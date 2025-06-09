@@ -17,6 +17,7 @@ from lisa import (
     schema,
     simple_requirement,
 )
+from lisa.base_tools.uname import Uname
 from lisa.features import Disk
 from lisa.operating_system import (
     BSD,
@@ -1364,6 +1365,28 @@ class AzureImageStandard(TestSuite):
             extended_support_versions=extended_support_versions,
             library_name="OpenSSL",
         )
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies that the Linux operating system has a 64-bit architecture.
+
+        Steps:
+        1. Retrieve the OS architecture using the Uname tool.
+        2. Verify that the architecture is either x86_64 (AMD64) or aarch64 (ARM64).
+        3. Fail the test if the architecture is not 64-bit.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_azure_64bit_os(self, node: Node) -> None:
+        uname_tool = node.tools[Uname]
+        arch = uname_tool.get_machine_architecture()
+        arch_64bit = [CpuArchitecture.X64, CpuArchitecture.ARM64]
+        if arch not in arch_64bit:
+            raise LisaException(
+                f"Architecture '{arch.value}' is not supported. Azure only supports "
+                f"64-bit architectures: {', '.join(str(a.value) for a in arch_64bit)}."
+            )
 
     def _check_version_by_pattern_value(
         self,
