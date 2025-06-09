@@ -698,34 +698,28 @@ class RemoteNode(Node):
         try:
             super()._initialize(*args, **kwargs)
         except TcpConnectionException as e:
-            from lisa.features import SerialConsole
+            from lisa.features.run_command import RunCommand
 
-            if self.features.is_supported(SerialConsole):
-                serial_console = self.features[SerialConsole]
-
-                # @TODO: this is temporary, we need another way to determine the commands.
-                # OS is not initialized yet, so cannot use self.os.
-                self._reset_password()
-                clear = serial_console.read()
-                serial_console.write("\n")
-                serial = serial_console.read()
-                if "login" in serial:
-                    serial_console.write(f"{self._connection_info.username}\n")
-                    time.sleep(5)
-                serial2 = serial_console.read()
-                if "password" in serial2.lower():
-                    serial_console.write(f"{self._connection_info.password}\n")
-                serial3 = serial_console.read()
-                self.log.debug(serial3)
-                commands = [
-                    "ip addr show",
-                    "ip link show",
-                    "systemctl status NetworkManager --no-pager --plain",
-                    "systemctl status network --no-pager --plain",
-                    "systemctl status systemd-networkd --no-pager --plain",
-                    "ping -c 3 -n 8.8.8.8",
-                ]
-                test2 = serial_console.execute_command(commands=commands)
+            run_command = self.features[RunCommand]
+            commands = [
+                "echo 'Executing: ip addr show'",
+                "ip addr show",
+                "echo 'Executing: ip link show'",
+                "ip link show",
+                "echo 'Executing: systemctl status NetworkManager --no-pager --plain'",
+                "systemctl status NetworkManager --no-pager --plain",
+                "echo 'Executing: systemctl status network --no-pager --plain'",
+                "systemctl status network --no-pager --plain",
+                "echo 'Executing: systemctl status systemd-networkd --no-pager --plain'",
+                "systemctl status systemd-networkd --no-pager --plain",
+                "echo 'Executing: ping -c 3 -n 8.8.8.8'",
+                "ping -c 3 -n 8.8.8.8",
+            ]
+            out = run_command.execute(commands=commands)
+            self.log.info(f"Collected information using run_command:\n{out}")
+            self._login_to_serial_console()
+            output = self._collect_info_using_serial_console(commands=commands)
+            self.log.info(f"Collected information using serial console:\n{output}")
 
             raise e
 

@@ -6,6 +6,7 @@ import json
 import re
 import string
 import time
+import uuid
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -26,6 +27,8 @@ from azure.mgmt.compute.models import (
     DiskCreateOptionTypes,
     HardwareProfile,
     NetworkInterfaceReference,
+    RunCommandInput,
+    RunCommandInputParameter,
     VirtualMachineExtension,
     VirtualMachineUpdate,
 )
@@ -3760,3 +3763,47 @@ class AzureFileShare(AzureFeatureMixin, Feature):
                 sudo=True,
                 append=True,
             )
+
+
+class RunCommand(AzureFeatureMixin, features.RunCommand):
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        return schema.FeatureSettings.create(cls.name())
+
+    @classmethod
+    def can_disable(cls) -> bool:
+        return False
+
+    def is_enabled(self) -> bool:
+        # RunCommand is always enabled for Azure
+        return True
+
+    def execute(self, commands: List[str]) -> str:
+        """
+        Executes a list of commands on the Azure VM using RunCommand.
+
+        :param commands: A list of shell commands to execute.
+        :return: The output of the commands.
+        """
+        context = get_node_context(self._node)
+        platform = self._platform
+        compute_client = get_compute_client(platform)
+
+        # Prepare the RunCommandInput for Azure
+        command = RunCommandInput(
+            command_id="RunShellScript",
+            script=commands,
+        )
+
+        # Execute the command on the VM
+        operation = compute_client.virtual_machines.begin_run_command(
+            resource_group_name=context.resource_group_name,
+            vm_name=context.vm_name,
+            parameters=command,
+        )
+        result = wait_operation(operation=operation, failure_identity="run command")
+
+        return result["value"][0]["message"]
