@@ -90,6 +90,7 @@ class HvModule(TestSuite):
             "hv_vmbus": "hv_vmbus.ko",
             "hid_hyperv": "hid-hyperv.ko",
             "hyperv_keyboard": "hyperv-keyboard.ko",
+            "wdt": "wdt.ko",
         }
         skip_modules = self._get_built_in_modules(node)
         hv_modules_file_names = {
@@ -135,6 +136,7 @@ class HvModule(TestSuite):
             "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
             "hv_balloon": "CONFIG_HYPERV_BALLOON",
             "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
+            "wdt": "CONFIG_WATCHDOG",
         }
 
         modules = []
