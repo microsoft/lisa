@@ -81,7 +81,8 @@ class OpenSSL(Tool):
             LisaException: When the command fails
             or returns unexpected exit code
         """
-        cmd = f"printf '%s' '{piped_input_cmd}' | {self.command} {openssl_cmd}"
+        sanitized_input = shlex.quote(piped_input_cmd)
+        cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
         result = self.node.execute(
             cmd,
             shell=True,
