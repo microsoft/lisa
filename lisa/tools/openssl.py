@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import shlex
 from typing import TYPE_CHECKING
 
 from lisa.executable import Tool
@@ -72,7 +73,8 @@ class OpenSSL(Tool):
             piped_input_cmd: The input string to pipe to OpenSSL
             openssl_cmd: The OpenSSL command to execute
             expected_exit_code: Expected exit code from command (default: 0)
-            expected_exit_code_failure_message: Message to display if the command fails with an unexpected exit code
+            expected_exit_code_failure_message:
+            Message to display if the command fails with an unexpected exit code
 
         Returns:
             The stripped stdout from the command
