@@ -89,6 +89,7 @@ class StorageTest(TestSuite):
                 data_disk_iops=search_space.IntRange(min=500),
                 data_disk_count=search_space.IntRange(min=64),
             ),
+            unsupported_os=[Windows, BSD],
         ),
     )
     def verify_disk_with_nobarrier(self, node: Node) -> None:
