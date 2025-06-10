@@ -1,12 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from typing import Any
+
 from assertpy.assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner
-from lisa.testsuite import simple_requirement
 from lisa.tools.ls import Ls
 from lisa.tools.lsmod import Lsmod
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 @TestSuiteMetadata(
@@ -17,6 +19,15 @@ from lisa.tools.lsmod import Lsmod
     """,
 )
 class BpfSuite(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        node: Node = kwargs["node"]
+        if not isinstance(node.os, CBLMariner) or node.os.information.version < "3.0.0":
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os, "BPF support promised on AzureLinux 3.0 and later."
+                )
+            )
+
     @TestCaseMetadata(
         description="""
         This test case checks for the presences of the btf sysfs.
@@ -27,9 +38,6 @@ class BpfSuite(TestSuite):
         available on the system.
         """,
         priority=3,
-        requirement=simple_requirement(
-            supported_os=[CBLMariner],
-        ),
     )
     def confirm_btf_sysfs(
         self,
