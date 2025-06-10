@@ -42,6 +42,15 @@ class Dhclient(Tool):
     def can_install(self) -> bool:
         return False
 
+    def generate_renew_command(self, interface: str = "eth0") -> str:
+        if "dhclient" in self._command:
+            option = "-r"
+        elif "dhcpcd" in self._command:
+            option = "-k"
+        else:
+            raise LisaException(f"Unsupported command: {self._command}")
+        return f"{self._command} {option} {interface}; {self._command} {interface}"
+
     def get_timeout(self) -> int:
         is_default_value: bool = True
         if (

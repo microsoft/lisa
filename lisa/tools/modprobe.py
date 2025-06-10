@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Type, Union
 
 from lisa.executable import ExecutableResult, Tool
 from lisa.tools.kernel_config import KLDStat
+from lisa.tools import Dhclient
 from lisa.util import UnsupportedOperationException
 
 
@@ -21,22 +22,6 @@ class Modprobe(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "modprobe"
-
-    # hv_netvsc needs a special case, since reloading it has the potential
-    # to leave the node without a network connection if things go wrong.
-    def _reload_hv_netvsc(self) -> None:
-        # These commands must be sent together, bundle them up as one line
-        # If the VM is disconnected after running below command, wait 60s is enough.
-        # Don't need to wait the default timeout 600s. So set timeout 60.
-        self.node.execute(
-            "modprobe -r hv_netvsc; modprobe hv_netvsc; "
-            "ip link set eth0 down; ip link set eth0 up;"
-            "dhclient -r eth0; dhclient eth0",
-            sudo=True,
-            shell=True,
-            nohup=True,
-            timeout=60,
-        )
 
     def is_module_loaded(
         self,
@@ -126,20 +111,38 @@ class Modprobe(Tool):
     def reload(
         self,
         mod_names: List[str],
+        times: int = 1,
+        verbose: bool = False,
+        timeout: int = 60,
+        nohup: bool = True,
     ) -> None:
         for mod_name in mod_names:
+            if verbose:
+                reload_command = f"modprobe -r -v {mod_name}; modprobe -v {mod_name};"
+            else:
+                reload_command = f"modprobe -r {mod_name}; modprobe {mod_name};"
             if self.is_module_loaded(mod_name, force_run=True):
-                # hv_netvsc reload requires resetting the network interface
-                if mod_name == "hv_netvsc":
-                    # handle special case
-                    self._reload_hv_netvsc()
-                else:
-                    # execute the command for regular non-network modules
-                    self.node.execute(
-                        f"modprobe -r {mod_name}; modprobe {mod_name};",
-                        sudo=True,
-                        shell=True,
+                if times > 1:
+                    reload_command = (
+                        f"for i in $(seq 1 {times}); do " + reload_command + "done; "
                     )
+                # hv_netvsc needs a special case, since reloading it has the potential
+                # to leave the node without a network connection if things go wrong.
+                if mod_name == "hv_netvsc":
+                    # These commands must be sent together, bundle them up as one line
+                    # If the VM is disconnected after running below command, wait 60s is enough.
+                    # however, go with bigger timeout if times > 1 (multiple times of reload)
+                    renew_command = self.node.tools[Dhclient].generate_renew_command()
+                    reload_command = (
+                        reload_command
+                        + "ip link set eth0 down; ip link set eth0 up; "
+                        + renew_command
+                    )
+
+                result = self.node.execute(
+                    reload_command, sudo=True, nohup=nohup, shell=True, timeout=timeout
+                )
+                return result
 
     def load_by_file(
         self, file_name: str, ignore_error: bool = False
