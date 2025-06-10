@@ -411,7 +411,6 @@ class Xfstests(Tool):
                          repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
         )
         """
-        # Set branch to the recommended tag for the OS if not provided
         # Set the branch to the recommended tag for the OS if not provided
         if branch is None:
             os_id_version = self.get_os_id_version()
