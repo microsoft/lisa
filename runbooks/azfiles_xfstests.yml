@@ -1,0 +1,89 @@
+name: $(test_name)
+include:
+  - path: ../microsoft/runbook/tiers/tier.yml
+variable:
+  - name: test_name
+    value: default_test
+  - name: location
+    value: "westus3"
+  - name: keep_environment
+    value: "no"
+  - name: resource_group_name
+    value: ""
+  - name: marketplace_image
+    value: ""
+  - name: shared_gallery
+    value: ""
+  - name: community_gallery_image
+    value: ""
+  - name: vhd
+    value: ""
+  - name: vm_size
+    value: ""
+  - name: deploy
+    value: true
+  - name: wait_delete
+    value: false
+  - name: concurrency
+    value: 5
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: admin_password
+    value: ""
+    is_secret: true
+  - name: azure_arm_access_token
+    value: ""
+    is_secret: true
+  - name: azcopy_path
+    value: ""
+  - name: auth_type
+    value: "default"
+  - name: use_ipv6
+    value: false
+  - name: test_case_name
+    value: "verify_azure_file_share"
+  - name: azcopy_path
+    value: "C:\\temp\\azcopy.exe"
+  - name: smb_mount_opts
+    is_case_visible: true
+    value: ""
+  - name: smb_testcases
+    is_case_visible: true
+    value: ""
+  - name: source_address_prefixes
+    value: ["4.194.0.0/16"]
+concurrency: $(concurrency)
+notifier:
+  - type: html
+  - type: env_stats
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    admin_password: $(admin_password)
+    keep_environment: $(keep_environment)
+    azure:
+      credential:
+        type: $(auth_type)
+        token: $(azure_arm_access_token)
+      resource_group_name: $(resource_group_name)
+      deploy: $(deploy)
+      subscription_id: $(subscription_id)
+      wait_delete: $(wait_delete)
+      azcopy_path: $(azcopy_path)
+      use_ipv6: $(use_ipv6)
+      source_address_prefixes: $(source_address_prefixes)
+    requirement:
+      core_count:
+        min: 4
+      azure:
+        marketplace: $(marketplace_image)
+        shared_gallery: $(shared_gallery)
+        community_gallery_image: $(community_gallery_image)
+        vhd: $(vhd)
+        location: $(location)
+        vm_size: $(vm_size)
+testcase:
+  - criteria:
+      name: $(test_case_name)
+#      priority: 5

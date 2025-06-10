@@ -1,0 +1,57 @@
+name: $(test_name)
+# test_project: $(test_project)
+# test_pass: $(test_pass)
+tags:
+  - $(test_tag)
+include:
+  - path: "./azure-existing.yml"
+variable:
+  - name: subscription_id
+    value: ""
+  - name: kernel_repo
+    value: "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+  - name: kernel_repo_tag
+    value: "master"
+  # - name: patch_repo
+  #   value: ""
+  # - name: patch_ref
+  #   value: ""
+  # - name: patch_file_pattern
+  #   value: ""
+  - name: test_tag
+    value: "kernelbuild"
+  - name: test_name
+    value: "ubuntu-kerneltest"
+  # - name: test_project
+  #   value: "Adhoc Test"
+  # - name: test_pass
+  #   value: "Adhoc Test"
+  - name: build_vm_address
+    value: ""
+  - name: build_vm_resource_group_name
+    value: ""
+  - name: admin_private_key_file
+    value: ""
+  - name: public_port
+    value: 22
+  - name: user_name
+    value: "lisatest"
+  - name: deploy
+    value: false
+  - name: build_kernel
+    value: True
+  - name: kernel_build_directory
+    value: "/media/code"
+transformer:
+  - type: kernel_installer
+    enabled: $(build_kernel)
+    connection:
+      address: $(build_vm_address)
+      private_key_file: $(admin_private_key_file)
+    installer:
+      type: source
+      location: 
+        type: repo
+        path: $(kernel_build_directory)
+        ref: $(kernel_repo_tag)
+        repo: $(kernel_repo)

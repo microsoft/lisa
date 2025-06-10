@@ -1,0 +1,134 @@
+name: $(test_name)
+# test_project: $(test_project)
+# test_pass: $(test_pass)
+tags:
+  - $(test_tag)
+include:
+  - path: "./azure-vhd.yml"
+extension:
+  - ../../microsoft/testsuites/
+variable:
+  - name: subscription_id
+    value: ""
+  - name: kernel_repo
+    value: "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+  - name: kernel_repo_tag
+    value: "master"
+  - name: patch_repo
+    value: ""
+  - name: patch_ref
+    value: ""
+  - name: patch_file_pattern
+    value: ""
+  - name: test_tag
+    value: "kernelbuild"
+  - name: build_vm_address
+    value: ""
+  - name: build_vm_resource_group_name
+    value: ""
+  - name: location
+    value: "northeurope"
+  - name: vm_size
+    value: ""
+  - name: test_name
+    value: "ubuntu-kerneltest"
+  # - name: test_project
+  #   value: "Adhoc Test"
+  # - name: test_pass
+  #   value: "Adhoc Test"
+  - name: keep_environment
+    value: "no"
+  # - name: azure_deploy_address
+  #   value: ""
+  # - name: azure_deploy_resource_group_name
+  #   value: ""
+  - name: admin_private_key_file
+    value: 
+  - name: marketplace_image
+    value: ""
+  - name: vhd
+    value: ""
+  - name: storage_account_name
+    value: ""
+  - name: custom_blob_name
+    value: ""
+  - name: use_public_address
+    value: "True"
+  - name: kernel_build
+    value: True
+  - name: kernel_build_directory
+    value: "/mnt/code"
+  - name: capture_vhd
+    value: True
+  - name: azcopy_path
+    value: ""
+transformer:
+  - type: azure_deploy
+    # name: build_vm
+    # resource_group_name: $(build_vm_resource_group_name)
+    requirement:
+      azure:
+        marketplace: $(marketplace_image)
+        vhd: $(vhd)
+        location: $(location)
+        vm_size: $(vm_size)
+      core_count: 32
+      disk:
+        os_disk_size: 64
+        os_disk_type: "PremiumSSDLRS"
+    enabled: $(kernel_build)
+    rename:
+      azure_deploy_address: build_vm_address
+      azure_deploy_resource_group_name: build_vm_resource_group_name
+  - type: kernel_installer
+    connection:
+      address: $(build_vm_address)
+      private_key_file: $(admin_private_key_file)
+    installer:
+      type: source
+      location: 
+        type: repo
+        path: $(kernel_build_directory)
+        ref: $(kernel_repo_tag)
+        repo: $(kernel_repo)
+      # modifier:
+      #   - type: patch
+      #     repo: $(patch_repo)
+      #     ref: $(patch_ref)
+      #     file_pattern: $(patch_file_pattern)
+    enabled: $(kernel_build)
+  - type: azure_vhd
+    resource_group_name: $(build_vm_resource_group_name)
+    azcopy_path: $(azcopy_path)
+    storage_account_name: $(storage_account_name)
+    custom_blob_name: $(custom_blob_name)
+    rename:
+      azure_vhd_url: vhd
+    enabled: $(capture_vhd)
+  - type: azure_delete
+    resource_group_name: $(build_vm_resource_group_name)
+    # keep_environment: $(keep_environment)
+    # enabled: $(keep_environment)
+    # wait_delete: $(wait_delete)
+  - type: to_list
+    items:
+      images: $(marketplace_image)
+      vhds: $(vhd)
+      locations: $(location)
+      vmsizes: $(vm_size)
+    rename:
+      to_list_images: images_list
+      to_list_vhds: vhds_list
+      to_list_locations: locations_list
+      to_list_vmsizes: vmsizes_list
+combinator:
+  type: grid
+  items:
+    - name: marketplace_image
+      value: $(images_list)
+    - name: vhd
+      value: $(vhds_list)
+    - name: location
+      value: $(locations_list)
+    - name: vm_size
+      value: $(vmsizes_list)

@@ -1,0 +1,82 @@
+name: $(test_name)
+# test_project: $(test_project)
+# test_pass: $(test_pass)
+tags:
+  - $(test_tag)
+include:
+  - path: "./azure-vhd.yml"
+extension:
+  - ../../microsoft/testsuites/
+variable:
+  - name: subscription_id
+    value: ""
+  - name: kernel_repo
+    value: "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+  - name: kernel_repo_tag
+    value: "master"
+  - name: test_tag
+    value: "kerneldemo"
+  - name: build_vm_address
+    value: ""
+  - name: build_vm_resource_group_name
+    value: ""
+  - name: location
+    value: "northeurope"
+  - name: vm_size
+    value: ""
+  - name: test_name
+    value: "ubuntu-kerneltest"
+  # - name: test_project
+  #   value: "Adhoc Test"
+  # - name: test_pass
+  #   value: "Adhoc Test"
+  - name: keep_environment
+    value: "no"
+  - name: azure_deploy_address
+    value: ""
+  - name: azure_deploy_resource_group_name
+    value: ""
+  - name: admin_private_key_file
+    value: 
+  - name: marketplace_image
+    value: ""
+  - name: vhd
+    value: ""
+  - name: storage_account_name
+    value: ""
+  - name: custom_blob_name
+    value: ""
+transformer:
+  - type: azure_deploy
+    name: build_vm
+    requirement:
+      azure:
+        marketplace: $(marketplace_image)
+        # vm_size: 
+        location: $(location)
+      core_count: 16
+    enabled: true
+  - type: kernel_installer
+    connection:
+      address: $(build_vm_address)
+      private_key_file: $(admin_private_key_file)
+    installer:
+      type: source
+      location: 
+        type: repo
+        path: "/mnt/code"
+        ref: $(kernel_repo_tag)
+        repo: $(kernel_repo)
+  - type: azure_vhd
+    resource_group_name: $(build_vm_resource_group_name)
+    storage_account_name: $(storage_account_name)
+    rename:
+      azure_vhd_url: vhd
+  - type: azure_delete
+    resource_group_name: $(build_vm_resource_group_name)
+combinator:
+  type: grid
+  items:
+    - name: marketplace_image
+      value:
+        - canonical 0001-com-ubuntu-server-focal 20_04-lts latest

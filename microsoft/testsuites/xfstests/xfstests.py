@@ -20,7 +20,12 @@ from lisa.operating_system import (
 )
 from lisa.testsuite import TestResult
 from lisa.tools import Cat, Chmod, Diff, Echo, Git, Make, Pgrep, Rm, Sed
-from lisa.util import LisaException, UnsupportedDistroException, find_patterns_in_lines
+from lisa.util import (
+    LisaException,
+    PassedException,
+    UnsupportedDistroException,
+    find_patterns_in_lines,
+)
 
 
 @dataclass
@@ -692,6 +697,11 @@ class Xfstests(Tool):
                     # fetch fail_count from regex.This variable is used in Finally block
                     fail_count = 0
                     self._log.debug("No failed cases found in xfstests.")
+                    # this displays the raw message output as passed exception.
+                    # Use full for displaying output on the html report
+                    raise PassedException(
+                        f"XFSTest output {raw_message}"
+                    )
         finally:
             self.save_xfstests_log(fail_cases_list, log_path, test_section)
             results_folder = xfstests_path / "results/"

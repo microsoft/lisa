@@ -1,0 +1,37 @@
+name: azure vhd
+include:
+  - path: ../../microsoft/runbook/tiers/tier.yml
+variable:
+  # - name: azure-vhd
+  #   value: ""
+  - name: deploy 
+    value: False
+  - name: wait_delete
+    value: false
+  - name: concurrency
+    value: 3
+  - name: tier
+    value: 1
+  - name: keep_environment
+    value: "always"
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    keep_environment: $(keep_environment)
+    azure:
+      deploy: false
+      subscription_id: $(subscription_id)
+      resource_group_name: $(build_vm_resource_group_name)
+      wait_delete: false
+    requirement:
+      azure:
+        hyperv_generation: 2
+        # vhd: $(vhd)
+        location: $(location)
+concurrency: $(concurrency)
+notifier:
+  - type: html
+  - type: env_stats
+  - type: junit
+    include_subtest: true
+
