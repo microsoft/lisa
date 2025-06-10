@@ -119,6 +119,9 @@ class Nvmecli(Tool):
                 disks.append(device["DevicePath"])
             elif "NameSpace" in device and isinstance(device["NameSpace"], str):
                 disks.append(f"/dev/{device['NameSpace']}")
+                print(f"Namespace {device['NameSpace']} "  )
+
+        print(f"disks are {disks}")
         return disks
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
