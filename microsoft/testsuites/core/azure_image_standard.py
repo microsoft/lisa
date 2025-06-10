@@ -40,7 +40,7 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh
+from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh, Swap
 from lisa.util import (
     LisaException,
     PassedException,
@@ -1459,6 +1459,55 @@ class AzureImageStandard(TestSuite):
                     "manually that the OMI version is at least "
                     f"{minimum_secure_version} to prevent OMIGOD vulnerabilities."
                 ) from e
+
+    @TestCaseMetadata(
+        description="""
+        This test verifies that there is no swap partition on the OS disk.
+
+        Azure's policy 200.3.3 Linux:
+        No swap partition on the OS disk. Swap can be requested for creation on the
+        local resource disk by the Linux Agent. It is recommended that a single root
+        partition is created for the OS disk.
+
+        There should be no Swap Partition on OS Disk. OS disk has IOPS limit. When
+        memory pressure causes swapping, IOPS limit may be reached easily and cause VM
+        performance to go down disastrously, because aside from memory issues in now
+        also has IO issues.
+
+        Steps:
+        1. Use 'cat /proc/swaps' or 'swapon -s' list all swap devices
+            Note: For FreeBSD, use 'swapinfo -k'.
+        2. Use 'lsblk' to identify the OS disk and get all the partitions
+            Note: For FreeBSD, if there is no lsblk, install it and run the command
+        3. Verify that no swap partition exists on the OS disk
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_platform_type=[AZURE]),
+    )
+    def verify_no_swap_on_osdisk(self, node: Node) -> None:
+        swap_tool = node.tools[Swap]
+        swap_parts = swap_tool.get_swap_partitions()
+        if not swap_parts:
+            return
+        node.log.info(f"Swap partitions: {swap_parts}")
+
+        lsblk = node.tools[Lsblk]
+        os_disk = lsblk.find_disk_by_mountpoint("/")
+        # e.g. os_disk_partitions: ['sda1', 'sda2']
+        os_disk_partitions = [part.name for part in os_disk.partitions]
+        node.log.info(f"OS disk partitions: {os_disk_partitions}")
+
+        for swap_part in swap_parts:
+            for os_part in os_disk_partitions:
+                if os_part in swap_part:
+                    raise LisaException(
+                        f"Swap partition '{swap_part}' found on OS disk. There should"
+                        "  be no Swap Partition on OS Disk. OS disk has IOPS limit. "
+                        "When memory pressure causes swapping, IOPS limit may be "
+                        "reached easily and cause VM performance to go down "
+                        "disastrously, because aside from memory issues in now also "
+                        "has IO issues."
+                    )
 
     def _verify_version_by_pattern_value(
         self,
