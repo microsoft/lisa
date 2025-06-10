@@ -41,7 +41,26 @@ class Xfstests(Tool):
     # This is the default repo and branch for xfstests.
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
-    branch = "v2024.02.09"
+    branch = "master"
+    # Dictionary mapping OS identifier (e.g., "ubuntu_18", "rhel_7")
+    # to recommended xfstests-dev git tags.
+    # This allows using specific xfstests versions for different OSes if needed.
+    # The key is typically constructed as f"{node.os.id}_{node.os.information.version.major}".
+    # The value is the git tag/branch to checkout.
+    # The 'default' key is used if a specific OS version is not found.
+    os_recommended_tags: Dict[str, str] = {
+        "ubuntu_18.04": "v2024.12.22",  # Ubuntu 18.04 LTS (ID: ubuntu, MajorVersion: 18)
+        "ubuntu_20.04": "v2024.12.22",  # Ubuntu 20.04 LTS (ID: ubuntu, MajorVersion: 20)
+        "centos_7": "v2024.12.22",  # CentOS 7.x (ID: centos, MajorVersion: 7)
+        "rhel_7.8": "v2024.12.22",  # RHEL 7.x (ID: rhel, MajorVersion: 7)
+        "sles_12.5": "v2024.12.22",  # SUSE Linux Enterprise Server 12 (ID: sles, MajorVersion: 12)
+        "debian_10": "v2024.12.22",  # Debian 10 (Buster) (ID: debian, MajorVersion: 10)
+        "debian_11": "v2024.12.22",  # Debian 11 (Bullseye) (ID: debian, MajorVersion: 11)
+        "cbl-mariner_1": "v2024.12.22",  # CBL-Mariner 1.0 (ID: cbl-mariner, MajorVersion: 1)
+        "cbl-mariner_2": "v2024.12.22",  # CBL-Mariner 2.0 (ID: cbl-mariner, MajorVersion: 2)
+        "default": "master",  # Default tag for other/unlisted OSes
+    }
+
     # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
         "acl",
@@ -392,7 +411,15 @@ class Xfstests(Tool):
                          repo="https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
         )
         """
-        branch = branch or self.branch
+                # Set branch to the recommended tag for the OS if not provided
+        # Set the branch to the recommended tag for the OS if not provided
+        if branch is None:
+            os_id_version = self.get_os_id_version()
+            branch = self.os_recommended_tags.get(
+                os_id_version, self.os_recommended_tags["default"]
+            )
+        else:
+            branch = self.branch
         repo = repo or self.repo
         self._install_dep()
         self._add_test_users()
@@ -945,3 +972,25 @@ class Xfstests(Tool):
                     f"with status {test_status}"
                 )
         return result
+
+    def get_os_id_version(self) -> str:
+        """
+        Reads /etc/os-release and extracts ID and VERSION_ID.
+        Returns a string in the format <ID>_<VERSION_ID>.
+        """
+        cat = self.node.tools[Cat]
+        os_release_content = cat.run(
+            "/etc/os-release", sudo=True, force_run=True
+        ).stdout
+        os_id = ""
+        version_id = ""
+        for line in os_release_content.splitlines():
+            if line.startswith("ID="):
+                os_id = line.split("=", 1)[1].strip().replace('"', "")
+            elif line.startswith("VERSION_ID="):
+                version_id = line.split("=", 1)[1].strip().replace('"', "")
+        if not os_id or not version_id:
+            raise LisaException(
+                "Could not extract ID or VERSION_ID from /etc/os-release"
+            )
+        return f"{os_id}_{version_id}"
