@@ -415,8 +415,7 @@ class Xfstests(Tool):
         if branch is None:
             os_id_version = self.get_os_id_version()
             branch = self.os_recommended_tags.get(os_id_version, self.branch)
-        else:
-            branch = branch
+
         repo = repo or self.repo
         self._install_dep()
         self._add_test_users()
