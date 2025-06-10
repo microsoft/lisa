@@ -113,7 +113,41 @@ class Nvmecli(Tool):
 
     def get_disks(self, force_run: bool = False) -> List[str]:
         nvme_devices = self.get_devices(force_run=force_run)
-        return [device["DevicePath"] for device in nvme_devices]
+        disks = []
+        for device in nvme_devices:
+            if "DevicePath" in device:
+                disks.append(device["DevicePath"])
+            elif "NameSpace" in device and isinstance(device["NameSpace"], str):
+                disks.append(f"/dev/{device['NameSpace']}")
+        return disks
+
+    def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
+        nvme_devices = self.get_devices(force_run=force_run)
+        ns_list = []
+        for device in nvme_devices:
+            # Determine device path
+            if "DevicePath" in device:
+                dev_path = device["DevicePath"]
+            elif "NameSpace" in device and isinstance(device["NameSpace"], str):
+                dev_path = f"/dev/{device['NameSpace']}"
+            else:
+                continue
+
+            # Determine namespace id
+            ns_id = None
+            if "NameSpace" in device:
+                if isinstance(device["NameSpace"], int):
+                    ns_id = device["NameSpace"]
+                elif isinstance(device["NameSpace"], str):
+                    # Extract the last integer after 'n' (e.g., nvme0n11 -> 11)
+                    ns_str = device["NameSpace"]
+                    try:
+                        ns_id = int(ns_str.split('n')[-1])
+                    except Exception:
+                        continue
+            if ns_id is not None:
+                ns_list.append({dev_path: ns_id})
+        return ns_list
 
     # NVME namespace ids are unique for each disk under any NVME controller.
     # These are useful in detecting the lun id of the remote azure disk disks.
@@ -159,13 +193,7 @@ class Nvmecli(Tool):
     # /dev/nvme1n1          68e8d42a7ed4e5f90002 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
     # /dev/nvme2n1          68e8d42a7ed4e5f90001 Microsoft NVMe Direct Disk v2            1         472.45  GB / 472.45  GB    512   B +  0 B   NVMDV00  # noqa: E501
 
-    def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
-        nvme_devices = self.get_devices(force_run=force_run)
-        return [
-            {device["DevicePath"]: int(device["NameSpace"])} for device in nvme_devices
-        ]
-
-
+    
 class BSDNvmecli(Nvmecli):
     # nvme0ns1 (1831420MB)
     # nvme10ns12 (1831420MB)
