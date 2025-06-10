@@ -18,7 +18,7 @@ from lisa import (
 from lisa.operating_system import BSD, Redhat
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
+from lisa.tools import Cat, KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.util import LisaException, SkippedException
 
 
@@ -206,10 +206,6 @@ class HvModule(TestSuite):
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:
-        # Constants
-        module = "hv_netvsc"
-        loop_count = 100
-
         if isinstance(node.os, Redhat):
             try:
                 log.debug("Checking LIS installation before reload.")
@@ -217,34 +213,131 @@ class HvModule(TestSuite):
             except Exception:
                 log.debug("Updating LIS failed. Moving on to attempt reload.")
 
-        if module not in self._get_not_built_in_modules(node):
-            raise SkippedException(
-                f"{module} is loaded statically into the "
-                "kernel and therefore can not be reloaded"
-            )
-
-        result = node.execute(
-            ("for i in $(seq 1 %i); do " % loop_count)
-            + f"modprobe -r -v {module}; modprobe -v {module}; "
-            "done; sleep 1; "
-            "ip link set eth0 down; ip link set eth0 up; dhclient eth0",
-            sudo=True,
-            shell=True,
+        preferred_log_level = 4
+        log_level = int(
+            node.tools[Cat]
+            .read("/proc/sys/kernel/printk", force_run=True, sudo=True)
+            .split()[0]
         )
 
-        if "is in use" in result.stdout:
-            raise SkippedException(
-                f"Module {module} is in use so it cannot be reloaded"
+        # The 10-minute timeout specified in node.execute is not being honoured,
+        # as the local process in the spur library stops running after approximately
+        # 50 seconds. To mitigate this, we set the log level to 4 for any VM where
+        # the log level exceeds 4. This helps reduce excessive logging during module
+        # reloads, which could otherwise cause command execution to time out due to
+        # the loop count being set to 100.
+        if log_level > preferred_log_level:
+            log.info(
+                f"Current dmesg log level is {log_level}, "
+                f"setting it to {preferred_log_level} for module reload."
             )
+            self._set_dmesg_log_level(log, node, preferred_log_level)
 
-        assert_that(result.stdout.count("rmmod")).described_as(
-            f"Expected {module} to be removed {loop_count} times"
-        ).is_equal_to(loop_count)
-        assert_that(result.stdout.count("insmod")).described_as(
-            f"Expected {module} to be inserted {loop_count} times"
-        ).is_equal_to(loop_count)
+        skipped_modules = []
+        failed_modules = {}
+        hv_modules = [
+            "hv_vmbus",
+            "hv_netvsc",
+            "hv_storvsc",
+            "hv_utils",
+            "hv_balloon",
+            "hid_hyperv",
+            "hyperv_keyboard",
+            "hyperv_fb",
+        ]
+        non_built_in_modules = set(
+            self._get_not_built_in_modules(node, only_loadable=True)
+        )
+        # Constants
+        try:
+            log.info("Executing try block")
+            for module in hv_modules:
+                # try:
+                if module not in non_built_in_modules:
+                    log.info(f"{module} is not a reloadable module, ")
+                    skipped_modules.append(module)
+                    continue
+                loop_count = 100
+                log.info(f"Reloading {module} {loop_count} times")
 
-    def _get_not_built_in_modules(self, node: Node) -> List[str]:
+                reload_command = (
+                    f"for i in $(seq 1 {loop_count}); do "  # noqa: E702
+                    f"modprobe -r -v {module}; modprobe -v {module}; "  # noqa: E702
+                    "done; "  # noqa: E702
+                )
+                if module == "hv_netvsc":
+                    reload_command += "sleep 1; "
+                    reload_command += (
+                        "ip link set eth0 down; ip link set eth0 up; dhclient eth0"
+                    )
+
+                log.info(f"reload command to reload {module}: {reload_command}")
+                result = node.execute(
+                    reload_command,
+                    sudo=True,
+                    shell=True,
+                )
+
+                if (
+                    "is in use" in result.stdout
+                    or "Device or resource busy" in result.stdout
+                ):
+                    # If the module is in use, it cannot be reloaded.
+                    log.info(f"Module {module} is in use so it cannot be reloaded")
+                    skipped_modules.append(module)
+                    continue
+
+                if (
+                    result.stdout.count("rmmod") != loop_count
+                    or result.stdout.count("insmod") != loop_count
+                ):
+                    failure_message = (
+                        f"Module {module} was not reloaded {loop_count} times. "
+                        f"rmmod count: {result.stdout.count('rmmod')}, "
+                        f"insmod count: {result.stdout.count('insmod')}"
+                    )
+                    failed_modules[module] = failure_message
+
+        finally:
+            log.info("Executing finally block")
+            if log_level > preferred_log_level:
+                log.info("Restoring dmesg log level to original value")
+                self._set_dmesg_log_level(log, node, log_level)
+            if failed_modules:
+                raise AssertionError(
+                    "The following modules have reload count mismatch:\n"
+                    + ",\n".join(
+                        f"{module}: {msg}" for module, msg in failed_modules.items()
+                    )
+                )
+
+            if skipped_modules:
+                raise SkippedException(
+                    f"The following modules were skipped during"
+                    f" reload: {', '.join(skipped_modules)}. "
+                    "This may be due to them being built into the kernel or in use."
+                )
+
+    def _set_dmesg_log_level(
+        self, log: Logger, node: Node, preferred_log_level: int
+    ) -> None:
+        log.info(f"Setting dmesg log level to {preferred_log_level}")
+        node.execute(f"dmesg -n {preferred_log_level}", sudo=True, shell=True)
+
+        new_log_level = int(
+            node.tools[Cat]
+            .read("/proc/sys/kernel/printk", force_run=True, sudo=True)
+            .split()[0]
+        )
+
+        assert_that(new_log_level).described_as(
+            f"Expected dmesg log level to be set to {preferred_log_level}, "
+            f"but it is {new_log_level}."
+        ).is_equal_to(preferred_log_level)
+
+    def _get_not_built_in_modules(
+        self, node: Node, only_loadable: bool = False
+    ) -> List[str]:
         """
         Returns the hv_modules that are not directly loaded into the kernel and
         therefore would be expected to show up in lsmod.
@@ -264,12 +357,19 @@ class HvModule(TestSuite):
                 "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
                 "hv_balloon": "CONFIG_HYPERV_BALLOON",
                 "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
+                "hyperv_fb": "CONFIG_FB_HYPERV",
             }
         modules = []
         for module in hv_modules_configuration:
-            if not node.tools[KernelConfig].is_built_in(
-                hv_modules_configuration[module]
-            ):
-                modules.append(module)
+            if only_loadable:
+                if node.tools[KernelConfig].is_built_as_module(
+                    hv_modules_configuration[module]
+                ):
+                    modules.append(module)
+            else:
+                if not node.tools[KernelConfig].is_built_in(
+                    hv_modules_configuration[module]
+                ):
+                    modules.append(module)
 
         return modules
