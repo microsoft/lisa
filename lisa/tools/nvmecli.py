@@ -117,7 +117,7 @@ class Nvmecli(Tool):
         for device in nvme_devices:
             if "DevicePath" in device:
                 disks.append(device["DevicePath"])
-            elif "NameSpace" in device and isinstance(device["NameSpace"], str):
+            elif "NameSpace" in device :
                 disks.append(f"/dev/{device['NameSpace']}")
                 print(f"Namespace {device['NameSpace']} "  )
 
