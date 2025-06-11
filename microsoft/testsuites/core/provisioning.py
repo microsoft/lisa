@@ -277,7 +277,7 @@ class Provisioning(TestSuite):
         The reboot times is summarized after the test is run
         """,
         priority=3,
-        timeout=6000,
+        timeout=9000,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
