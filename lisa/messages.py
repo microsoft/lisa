@@ -244,6 +244,8 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
+    client_mtu: int = 0
+    server_mtu: int = 0
 
 
 @dataclass
@@ -258,6 +260,8 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     data_loss: Decimal = Decimal(0)
     packet_size_kbytes: Decimal = Decimal(0)
+    client_mtu: int = 0
+    server_mtu: int = 0
 
 
 @dataclass
