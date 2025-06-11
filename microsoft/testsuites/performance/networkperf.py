@@ -180,7 +180,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_tcp_ntttcp_sriov(self, result: TestResult) -> None:
-        perf_ntttcp(result)
+        perf_ntttcp(result, mtu=2048)
 
     @TestCaseMetadata(
         description="""
@@ -195,7 +195,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_udp_1k_ntttcp_synthetic(self, result: TestResult) -> None:
-        perf_ntttcp(result, udp_mode=True)
+        perf_ntttcp(result, udp_mode=True, mtu=2048)
 
     @TestCaseMetadata(
         description="""
@@ -210,7 +210,7 @@ class NetworkPerformace(TestSuite):
         ),
     )
     def perf_udp_1k_ntttcp_sriov(self, result: TestResult) -> None:
-        perf_ntttcp(result, udp_mode=True)
+        perf_ntttcp(result, udp_mode=True, mtu=2048)
 
     @TestCaseMetadata(
         description="""
