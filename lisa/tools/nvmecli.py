@@ -114,12 +114,22 @@ class Nvmecli(Tool):
     def get_disks(self, force_run: bool = False) -> List[str]:
         nvme_devices = self.get_devices(force_run=force_run)
         disks = []
+        print(f"nvme devices are {nvme_devices}")
         for device in nvme_devices:
-            if "DevicePath" in device:
-                disks.append(device["DevicePath"])
-            elif "NameSpace" in device :
-                disks.append(f"/dev/{device['NameSpace']}")
-                print(f"Namespace {device['NameSpace']} "  )
+            print(f"device is {device}")
+            for subsystem in device.get("Subsystems", []):
+                for controller in subsystem.get("Controllers", []):
+                    for namespace in controller.get("Namespaces", []):
+            # Determine device path
+                        if "DevicePath" in namespace:
+                            disks.append(device["DevicePath"])
+                            print(f"DevicePath {device['DevicePath']} "  )
+                        elif "NameSpace" in device :
+                            disks.append(f"/dev/{device['NameSpace']}")
+                            print(f"Namespace {device['NameSpace']} "  )
+                        else:
+                            print(f"Device {device} does not have DevicePath or NameSpace")
+                            continue
 
         print(f"disks are {disks}")
         return disks
@@ -128,13 +138,16 @@ class Nvmecli(Tool):
         nvme_devices = self.get_devices(force_run=force_run)
         ns_list = []
         for device in nvme_devices:
+            for subsystem in device.get("Subsystems", []):
+                for controller in subsystem.get("Controllers", []):
+                    for namespace in controller.get("Namespaces", []):
             # Determine device path
-            if "DevicePath" in device:
-                dev_path = device["DevicePath"]
-            elif "NameSpace" in device and isinstance(device["NameSpace"], str):
-                dev_path = f"/dev/{device['NameSpace']}"
-            else:
-                continue
+                        if "DevicePath" in namespace:
+                            dev_path = device["DevicePath"]
+                        elif "NameSpace" in namespace :
+                            dev_path = f"/dev/{device['NameSpace']}"
+                        else:
+                            continue
 
             # Determine namespace id
             ns_id = None
