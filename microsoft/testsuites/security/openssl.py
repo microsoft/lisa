@@ -16,6 +16,7 @@ from lisa.tools import OpenSSL
     Tests the functionality of OpenSSL, including encryption and decryption
     operations. Validates that OpenSSL can successfully encrypt plaintext data
     and decrypt it back to its original form using generated keys and IVs.
+    Validates that OpenSSL signs and verifies signatures correctly.
     """,
 )
 class OpenSSLTestSuite(TestSuite):
@@ -35,7 +36,7 @@ class OpenSSLTestSuite(TestSuite):
         """This function tests the basic functionality of
         OpenSSL by calling helper functions"""
         self._openssl_test_encrypt_decrypt(log, node)
-        self.openssl_test_sign_verify(log, node)
+        self._openssl_test_sign_verify(log, node)
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
@@ -71,7 +72,7 @@ class OpenSSLTestSuite(TestSuite):
                 "Plaintext and decrypted data do not match"
             ).is_equal_to(decrypted_data)
 
-    def openssl_test_sign_verify(self, log: Logger, node: Node) -> None:
+    def _openssl_test_sign_verify(self, log: Logger, node: Node) -> None:
         """
         Tests OpenSSL signing and verification functionality.
         This function generates a key pair, signs a message,
