@@ -39,7 +39,7 @@ class BpfSuite(TestSuite):
         """,
         priority=3,
     )
-    def confirm_btf_sysfs(
+    def verify_btf_sysfs_exists(
         self,
         node: Node,
         log: Logger,
