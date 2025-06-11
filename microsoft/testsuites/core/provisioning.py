@@ -37,6 +37,7 @@ from lisa.features.security_profile import CvmDisabled
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -291,10 +292,10 @@ class Provisioning(TestSuite):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
         except PassedException as e:
-            raise LISAException(e.message)
+            raise LisaException(e.message)
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
-            log.info("Reboot times summary:")
+            log.info(f"Ran {i+1}/100 - Reboot times summary:")
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
