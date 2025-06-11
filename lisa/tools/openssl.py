@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import shlex
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 from lisa.executable import Tool
 
@@ -59,7 +59,7 @@ class OpenSSL(Tool):
             expected_exit_code_failure_message=("Failed to decrypt data with OpenSSL."),
         )
 
-    def create_key_pair(self, algorithm: str = "RSA") -> tuple[str, str]:
+    def create_key_pair(self, algorithm: str = "RSA") -> Tuple[str, str]:
         """
         Generate a key pair using the specified algorithm.
         Returns the private key and public key as strings.
