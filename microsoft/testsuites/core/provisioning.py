@@ -4,6 +4,7 @@
 from pathlib import Path
 
 from assertpy import assert_that
+from statistics import mean
 
 from lisa import (
     BadEnvironmentStateException,
@@ -292,9 +293,11 @@ class Provisioning(TestSuite):
         except PassedException as e:
             raise LISAException(e.message)
         finally:
+            times = [time for _, time in reboot_times if isinstance(time, (int, float))]
             log.info("Reboot times summary:")
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
+            log.info(f"Average reboot time: {mean(times):.2f}s")
 
     def _smoke_test(
         self,
