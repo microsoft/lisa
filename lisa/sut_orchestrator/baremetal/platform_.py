@@ -2,13 +2,15 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, List, Optional, Type, Dict
+import re
 
 from lisa import feature, schema
 from lisa.environment import Environment
 from lisa.platform_ import Platform
-from lisa.util.logger import Logger
+from lisa.util.logger import Logger, get_logger, filter_ansi_escape
 from lisa.util.subclasses import Factory
+from lisa.node import Node
 
 from .. import BAREMETAL
 from .bootconfig import BootConfig
@@ -21,14 +23,25 @@ from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
+from lisa.tools import Dmesg
+from lisa.util import get_matched_str
 
+KEY_VMM_VERSION = "vmm_version"
+KEY_MSHV_VERSION = "mshv_version"
 
+VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
+MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 class BareMetalPlatform(Platform):
     def __init__(
         self,
         runbook: schema.Platform,
     ) -> None:
         super().__init__(runbook=runbook)
+
+        self._environment_information_hooks = {
+            KEY_VMM_VERSION: self._get_vmm_version,
+            KEY_MSHV_VERSION: self._get_mshv_version,
+        }
 
     @classmethod
     def type_name(cls) -> str:
@@ -61,6 +74,51 @@ class BareMetalPlatform(Platform):
         )
         self.cluster.initialize()
 
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+
+        # Get VMM/MSHV version from the default node.
+        information[KEY_VMM_VERSION] = self._environment_information_hooks[KEY_VMM_VERSION](environment.default_node)
+        information[KEY_MSHV_VERSION] = self._environment_information_hooks[KEY_MSHV_VERSION](environment.default_node)
+        return information
+
+    def _get_vmm_version(self, node: Node) -> str:
+        result: str = "UNKNOWN"  
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("detecting vmm version...")
+                output = node.execute(
+                    "cloud-hypervisor --version",
+                    shell=True,
+                ).stdout
+                output = filter_ansi_escape(output)
+                match = re.search(VMM_VERSION_PATTERN, output.strip())
+                if match:
+                    result = match.group("ch_version")
+
+        except Exception as e:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run vmm: {e}")
+        return result
+    
+    def _get_mshv_version(self, node: Node) -> str:
+        result: str = "UNKNOWN"
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("detecting mshv version...")
+                try:
+                    dmesg = node.tools[Dmesg]
+                    result = get_matched_str(
+                        dmesg.get_output(), MSHV_VERSION_PATTERN, first_match=False
+                    )
+                except Exception as e:
+                    node.log.debug(f"error on run dmesg: {e}")
+        except Exception as e:
+            node.log.debug(f"error on run mshv: {e}")
+        
+        return result
+    
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
