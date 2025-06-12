@@ -346,6 +346,8 @@ def perf_ntttcp(  # noqa: C901
                 else client.nics.get_primary_nic().pci_device_name
             )
             dev_differentiator = "mlx"
+            client_ip.set_mtu(client_nic_name, mtu)
+            server_ip.set_mtu(server_nic_name, mtu)
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
