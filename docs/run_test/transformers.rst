@@ -244,6 +244,9 @@ Usage
   transformer:
     - type: azure_deploy
       resource_group_name: rg_name
+      source_address_prefixes: 
+        - "192.168.1.0/24"
+        - "10.0.0.0/8"
       requirement:
         azure:
           marketplace: image_name
@@ -287,6 +290,12 @@ deploy
 type: bool | Default: true
 
 Whether to create a new deployment. If true, creates a new VM deployment. If false, uses existing VMs in the specified resource_group_name.
+
+source_address_prefixes
+^^^^^^^^^^^^^^^^^^^^^^^
+type: Optional[Union[str, List[str]]] | Default: None
+
+Source address prefixes for network security rules. Can be a single string, a comma-separated string, or a list of strings. When not specified, defaults to the current public IP address for security.
 
 
 Use Delete Transformer
