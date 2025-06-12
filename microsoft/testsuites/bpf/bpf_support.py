@@ -57,13 +57,22 @@ class BpfSuite(TestSuite):
         # Grab loaded modules
         modules = lsmod.list_modules()
 
-        # Check if module is available in /sys/kernel/btf
+        missing_modules = []
+
         for module in modules:
             result = ls.path_exists(f"/sys/kernel/btf/{module}", sudo=True)
-            assert_that(
-                result,
-                description=f"Check if /sys/kernel/btf/{module} exists",
-            ).is_equal_to(True)
+            if not result:
+                missing_modules.append(module)
 
-        # If all checks passed, log success
+        if missing_modules:
+            log.error("BTF sysfs missing for modules: %s", ", ".join(missing_modules))
+
+        assert_that(
+            missing_modules,
+            description=(
+                "The following modules are missing /sys/kernel/btf entries: "
+                f"{', '.join(missing_modules)}"
+            ),
+        ).is_empty()
+
         log.info("BTF sysfs confirmed for all loaded modules.")
