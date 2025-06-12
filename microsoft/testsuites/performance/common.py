@@ -316,10 +316,8 @@ def perf_ntttcp(  # noqa: C901
             lagscope.set_busy_poll()
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
-        client_ip = client.tools[Ip]
-        server_ip = server.tools[Ip]
-        client_mtu = client_ip.get_mtu(client_nic)
-        server_mtu = server_ip.get_mtu(server_nic)
+        client_mtu = client.tools[Ip].get_mtu(client_nic)
+        server_mtu = server.tools[Ip].get_mtu(server_nic)
 
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
