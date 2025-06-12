@@ -314,10 +314,9 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        client_nic = client.nics.default_nic
-        server_nic = server.nics.default_nic
-        client_mtu = client.tools[Ip].get_mtu(client_nic)
-        server_mtu = server.tools[Ip].get_mtu(server_nic)
+
+        client_mtu = client.tools[Ip].get_mtu(client.nics.default_nic)
+        server_mtu = server.tools[Ip].get_mtu(server.nics.default_nic)
 
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
