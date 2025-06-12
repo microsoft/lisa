@@ -259,7 +259,6 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
-    mtu: Optional[int] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -319,10 +318,6 @@ def perf_ntttcp(  # noqa: C901
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
         server_ip = server.tools[Ip]
-        if mtu is not None:
-            # set mtu for ntttcp
-            client_ip.set_mtu(client_nic, mtu)
-            server_ip.set_mtu(server_nic, mtu)
         client_mtu = client_ip.get_mtu(client_nic)
         server_mtu = server_ip.get_mtu(server_nic)
         print(f"client_mtu: {client_mtu}")
