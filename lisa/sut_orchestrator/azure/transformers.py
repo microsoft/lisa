@@ -391,7 +391,9 @@ class DeployTransformer(Transformer):
         if runbook.resource_group_name:
             platform._azure_runbook.resource_group_name = runbook.resource_group_name
         if runbook.source_address_prefixes:
-            platform._azure_runbook.source_address_prefixes = runbook.source_address_prefixes
+            platform._azure_runbook.source_address_prefixes = (
+                runbook.source_address_prefixes
+            )
         platform.deploy_environment(environment)
 
         resource_group_name = get_environment_context(environment).resource_group_name
