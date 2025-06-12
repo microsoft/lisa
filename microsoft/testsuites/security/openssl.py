@@ -5,7 +5,14 @@ import json
 
 from assertpy import assert_that
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
 from lisa.tools import OpenSSL
 
 
@@ -37,6 +44,7 @@ class OpenSSLTestSuite(TestSuite):
         OpenSSL by calling helper functions"""
         self._openssl_test_encrypt_decrypt(log, node)
         self._openssl_test_sign_verify(log, node)
+        self._openssl_verify_golang__sys_crypto_tests(log, node)
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
@@ -86,3 +94,18 @@ class OpenSSLTestSuite(TestSuite):
         openssl.verify(plaintext, public_key, signature)
 
         log.debug("Successfully signed and verified a file.")
+
+    @TestCaseMetadata(
+        description="""
+        This test will use Go experimental system crypto tests
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+        ),
+    )
+    def _openssl_verify_golang__sys_crypto_tests(self, log: Logger, node: Node) -> None:
+        # node.os.install_packages(
+        #     ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
+        self.run_go_crypto_tests(log, node)
+        return
