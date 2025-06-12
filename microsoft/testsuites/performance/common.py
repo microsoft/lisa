@@ -251,7 +251,6 @@ def perf_tcp_pps(
 
 def perf_ntttcp(  # noqa: C901
     test_result: TestResult,
-    variables: Optional[Dict[str, Any]] = None,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     udp_mode: bool = False,
@@ -260,6 +259,7 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
+    variables: Optional[Dict[str, Any]] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
