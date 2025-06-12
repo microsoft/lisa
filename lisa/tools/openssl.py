@@ -144,8 +144,6 @@ class OpenSSL(Tool):
         """
         sanitized_input = shlex.quote(piped_input_cmd)
         cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
-        sanitized_input = shlex.quote(piped_input_cmd)
-        cmd = f"printf '%s' {sanitized_input} | {self.command} {openssl_cmd}"
         result = self.node.execute(
             cmd,
             shell=True,
