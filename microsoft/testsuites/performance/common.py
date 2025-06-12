@@ -320,8 +320,6 @@ def perf_ntttcp(  # noqa: C901
         server_ip = server.tools[Ip]
         client_mtu = client_ip.get_mtu(client_nic)
         server_mtu = server_ip.get_mtu(server_nic)
-        print(f"client_mtu: {client_mtu}")
-        print(f"server_mtu: {server_mtu}")
 
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
