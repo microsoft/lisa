@@ -316,8 +316,8 @@ def perf_ntttcp(  # noqa: C901
             lagscope.set_busy_poll()
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
-        client_mtu = client.tools[Ip].get_mtu(client_nic)
-        server_mtu = server.tools[Ip].get_mtu(server_nic)
+        client_mtu = client.tools[Ip].get_mtu(client.nics.default_nic)
+        server_mtu = server.tools[Ip].get_mtu(server.nics.default_nic)
 
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
@@ -345,6 +345,8 @@ def perf_ntttcp(  # noqa: C901
                 client_nic_name if client_nic_name else client.nics.default_nic
             )
             dev_differentiator = "Hypervisor callback interrupts"
+        client_mtu = client.tools[Ip].get_mtu(client_nic_name)
+        server_mtu = server.tools[Ip].get_mtu(server_nic_name)
         server_lagscope.run_as_server_async(
             ip=lagscope_server_ip
             if lagscope_server_ip is not None
