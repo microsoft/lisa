@@ -124,6 +124,8 @@ class PerfMessage(MessageBase):
     test_date: datetime = datetime.now(timezone.utc)
     role: str = ""
     test_result_id: str = ""
+    ch_version: str = ""
+    mshv_version: str = ""
 
 
 class MetricRelativity(str, Enum):
