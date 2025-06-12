@@ -251,7 +251,7 @@ def perf_tcp_pps(
 
 def perf_ntttcp(  # noqa: C901
     test_result: TestResult,
-    variables: Dict[str, Any],
+    variables: Optional[Dict[str, Any]] = None,
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     udp_mode: bool = False,
@@ -315,7 +315,7 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        mtu = variables.get("network_mtu", None)
+        mtu = variables.get("network_mtu", None) if variables is not None else None
         if not mtu:
             mtu = None
         client_nic = client.nics.default_nic
