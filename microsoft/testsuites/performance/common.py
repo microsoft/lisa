@@ -251,6 +251,7 @@ def perf_tcp_pps(
 
 def perf_ntttcp(  # noqa: C901
     test_result: TestResult,
+    variables: Dict[str, Any],
     server: Optional[RemoteNode] = None,
     client: Optional[RemoteNode] = None,
     udp_mode: bool = False,
@@ -259,7 +260,6 @@ def perf_ntttcp(  # noqa: C901
     lagscope_server_ip: Optional[str] = None,
     server_nic_name: Optional[str] = None,
     client_nic_name: Optional[str] = None,
-    variables: Optional[Dict[str, Any]] = None,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -315,19 +315,19 @@ def perf_ntttcp(  # noqa: C901
             ntttcp.setup_system(udp_mode, set_task_max)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        mtu = variables.get("mtu", "") if variables is not None else None
+        mtu = variables.get("network_mtu", None)
+        if not mtu:
+            mtu = None
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
         server_ip = server.tools[Ip]
         if mtu is not None:
-            # set mtu for ntttcp
+            # set mtu for non-AN nics
             client_ip.set_mtu(client_nic, mtu)
             server_ip.set_mtu(server_nic, mtu)
         client_mtu = client_ip.get_mtu(client_nic)
         server_mtu = server_ip.get_mtu(server_nic)
-        print(f"client_mtu: {client_mtu}")
-        print(f"server_mtu: {server_mtu}")
 
         data_path = get_nic_datapath(client)
         if NetworkDataPath.Sriov.value == data_path:
@@ -351,12 +351,6 @@ def perf_ntttcp(  # noqa: C901
                 # set mtu for AN nics
                 client_ip.set_mtu(client_nic_name, mtu)
                 server_ip.set_mtu(server_nic_name, mtu)
-            print(
-                f"Client MTU '{client_nic_name}': {client_ip.get_mtu(client_nic_name)}"
-            )
-            print(
-                f"Server MTU '{server_nic_name}': {server_ip.get_mtu(server_nic_name)}"
-            )
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
