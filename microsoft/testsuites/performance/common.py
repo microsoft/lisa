@@ -348,7 +348,7 @@ def perf_ntttcp(  # noqa: C901
             )
             dev_differentiator = "mlx"
             if mtu is not None:
-                # set mtu for AN nics
+                # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
                 client_ip.set_mtu(client_nic_name, mtu)
                 server_ip.set_mtu(server_nic_name, mtu)
         else:
