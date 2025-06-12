@@ -4,6 +4,7 @@
 from pathlib import Path
 
 from assertpy import assert_that
+from statistics import mean
 
 from lisa import (
     BadEnvironmentStateException,
@@ -36,6 +37,7 @@ from lisa.features.security_profile import CvmDisabled
 from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -276,6 +278,7 @@ class Provisioning(TestSuite):
         The reboot times is summarized after the test is run
         """,
         priority=3,
+        timeout=9000,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
@@ -288,16 +291,14 @@ class Provisioning(TestSuite):
                 log.info(f"Reboot stress iteration {i+1}/100")
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
-
+        except PassedException as e:
+            raise LisaException(e.message)
         finally:
-            log.info(f"Number of iterations completed: {len(reboot_times)}")
-            log.info("Reboot times for all iterations:")
-            for iteration, time in reboot_times:
-                log.info(f"Iteration {iteration}: Reboot time = {time}s")
-            if len(reboot_times) < 100:
-                raise AssertionError(
-                    f"Test completed only {len(reboot_times)}/100 iterations."
-                )
+            times = [time for _, time in reboot_times if isinstance(time, (int, float))]
+            log.info(f"Ran {i+1}/100 - Reboot times summary:")
+            log.info(f"Min reboot time: {min(times):.2f}s")
+            log.info(f"Max reboot time: {max(times):.2f}s")
+            log.info(f"Average reboot time: {mean(times):.2f}s")
 
     def _smoke_test(
         self,
