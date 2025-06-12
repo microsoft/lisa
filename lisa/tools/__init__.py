@@ -56,7 +56,7 @@ from .interrupt_inspector import InterruptInspector
 from .ip import Ip, IpInfo
 from .iperf3 import Iperf3
 from .journalctl import Journalctl
-from .kdump import KdumpBase
+from .kdump import KdumpBase, KdumpCheck
 from .kernel_config import KernelConfig
 from .kill import Kill
 from .lagscope import Lagscope
@@ -90,6 +90,7 @@ from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
 from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
+from .openssl import OpenSSL
 from .parted import Parted
 from .perf import Perf
 from .pgrep import Pgrep, ProcessInfo
@@ -185,6 +186,7 @@ __all__ = [
     "Iperf3",
     "Iptables",
     "Journalctl",
+    "KdumpCheck",
     "KdumpBase",
     "KernelConfig",
     "Kill",
@@ -222,6 +224,7 @@ __all__ = [
     "Ntttcp",
     "NvidiaSmi",
     "Nvmecli",
+    "OpenSSL",
     "Parted",
     "Perf",
     "Pidof",
