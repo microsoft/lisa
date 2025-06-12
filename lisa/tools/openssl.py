@@ -63,6 +63,9 @@ class OpenSSL(Tool):
         """
         Generate a key pair using the specified algorithm.
         Returns the private key and public key as strings.
+
+        This key generation is for testing generation of keys
+        with OpenSSL on the remote.
         """
         private_key_result = self.run(
             f"genpkey -algorithm {algorithm} -outform PEM",
