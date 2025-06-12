@@ -244,6 +244,7 @@ Usage
   transformer:
     - type: azure_deploy
       resource_group_name: rg_name
+      deploy: true
       source_address_prefixes: 
         - "192.168.1.0/24"
         - "10.0.0.0/8"
