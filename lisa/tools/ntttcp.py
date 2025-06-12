@@ -389,8 +389,8 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
-        client_mtu: int,
-        server_mtu: int,
+        client_mtu: int = -1,
+        server_mtu: int = -1,
     ) -> NetworkTCPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
