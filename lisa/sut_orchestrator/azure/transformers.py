@@ -108,7 +108,7 @@ class DeployTransformerSchema(schema.Transformer):
     requirement: schema.Capability = field(default_factory=schema.Capability)
     resource_group_name: str = ""
     deploy: bool = True
-    source_address_prefixes: List[str] = field(default_factory=list)
+    source_address_prefixes: Optional[Union[str, List[str]]] = field(default=None)
 
 
 @dataclass_json

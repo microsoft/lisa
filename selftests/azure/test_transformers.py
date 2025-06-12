@@ -48,7 +48,7 @@ class AzureTransformerTestCase(TestCase):
 
         # Validate defaults
         self.assertEqual("", transformer_schema.resource_group_name)
-        self.assertEqual([], transformer_schema.source_address_prefixes)
+        self.assertIsNone(transformer_schema.source_address_prefixes)
         self.assertTrue(transformer_schema.deploy)
 
     def test_deploy_transformer_sets_platform_values(self) -> None:
