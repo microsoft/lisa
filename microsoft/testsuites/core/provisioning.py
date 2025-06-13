@@ -3,6 +3,7 @@
 
 from pathlib import Path
 from statistics import mean
+
 from assertpy import assert_that
 
 from lisa import (
@@ -37,6 +38,7 @@ from lisa.tools import Lspci
 from lisa.util import constants
 from lisa.util.shell import wait_tcp_port_ready
 from lisa.util import LisaException
+
 
 @TestSuiteMetadata(
     area="provisioning",
