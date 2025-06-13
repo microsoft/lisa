@@ -5,7 +5,6 @@ import shlex
 from typing import TYPE_CHECKING, Tuple
 
 from lisa.executable import Tool
-from lisa.node import Node, Logger
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix

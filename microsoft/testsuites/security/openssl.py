@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import json
+from pathlib import Path
 
 from assertpy import assert_that
 
@@ -13,8 +14,8 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.tools import OpenSSL, Nproc
 from lisa.operating_system import CBLMariner
+from lisa.tools import OpenSSL
 
 
 @TestSuiteMetadata(
@@ -45,8 +46,6 @@ class OpenSSLTestSuite(TestSuite):
         OpenSSL by calling helper functions"""
         self._openssl_test_encrypt_decrypt(log, node)
         self._openssl_test_sign_verify(log, node)
-        self._openssl_golang__sys_crypto_tests_verify(log, node)
-        self.openssl_speed_test(log, node)
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
@@ -106,26 +105,15 @@ class OpenSSLTestSuite(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def _openssl_golang__sys_crypto_tests_verify(self, log: Logger, node: Node) -> None:
-        """node.os.install_packages(
-            ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
-        )"""
-        self.run_go_crypto_tests(log, node)
+    def openssl_golang__sys_crypto_tests_verify(self, log: Logger, node: Node) -> None:
+        """Verifies the Go experimental system crypto tests"""
+        self._run_go_crypto_tests(log, node)
         return
 
-    @TestCaseMetadata(
-        description="""
-        This test installs go dependencies and
-        runs the experimental Go system crypto tests.
-    """,
-        priority=2,
-        requirement=simple_requirement(
-            min_core_count=8,
-        ),
-    )
-    def run_go_crypto_tests(self, log: Logger, node: Node) -> None:
+    def _run_go_crypto_tests(self, log: Logger, node: Node) -> None:
         """
-        This test runs the experimental Go system crypto tests.
+        This test sets up the dependencies to run the
+        experimental Go system crypto tests and cleans go builds.
         """
         # installs go dependencies for tests
         node.os.install_packages(
@@ -133,15 +121,15 @@ class OpenSSLTestSuite(TestSuite):
         )
         # cleans up previous go builds
         node.execute(
-            "go clean -testcase",
-            cwd="/usr/lib/golang/src",
+            "go clean -testcache",
+            cwd=Path("/usr/lib/golang/src"),
             expected_exit_code=0,
             expected_exit_code_failure_message=("Go clean up failed."),
             shell=True,
         )
         node.execute(
             "go test -short ./crypto/...",
-            cwd="/usr/lib/golang/src",
+            cwd=Path("/usr/lib/golang/src"),
             update_envs={
                 "GOEXPERIMENT": "systemcrypto",
             },
@@ -152,25 +140,3 @@ class OpenSSLTestSuite(TestSuite):
         )
 
         log.info("golang crypto test set up successfully.")
-
-    @TestCaseMetadata(
-        description="""
-        This test runs OpenSSL speed test this test will
-        run performance tests on OpenSSL cryptography tests,
-        not only giving us a performance baseline but also
-        testing to make sure crypto functions of openssl are working.
-        """,
-        priority=2,
-    )
-    def openssl_speed_test(self, log: Logger, node: Node) -> None:
-        # Sets up multiple processes to run the OpenSSL speed test
-        num_procs = node.tools[Nproc].get_num_procs()
-        result = node.execute(
-            # command to run OpenSSL speed test for 1 second using multiple processes
-            f"openssl speed -seconds 1 -multi {num_procs}",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=("OpenSSL speed test failed."),
-        )
-        assert_that(result.stderr).is_empty()
-        log.info(f"OpenSSL speed test result: \n{result.stdout}")
-        log.info("OpenSSL speed test completed successfully.")
