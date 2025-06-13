@@ -288,8 +288,10 @@ class Provisioning(TestSuite):
         try:
             for i in range(100):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
-                reboot_times.append((i + 1, elapsed))                
-                log.debug(f"Reboot stress iteration {i+1}/100 completed in {elapsed:.2f}s")
+                reboot_times.append((i + 1, elapsed)) 
+                log.debug(
+                    f"Reboot iterations {i+1}/100 completed in {elapsed:.2f}s"
+                )
         except PassedException as e:
             raise LisaException(f"{e}")
         finally:
