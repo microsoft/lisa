@@ -2,9 +2,8 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-
-from assertpy import assert_that
 from statistics import mean
+from assertpy import assert_that
 
 from lisa import (
     BadEnvironmentStateException,
@@ -291,7 +290,7 @@ class Provisioning(TestSuite):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))
         except PassedException as e:
-            raise LisaException(e.message)
+            raise LisaException(f"{e}")
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
             log.info(f"completed {i+1}/100 iterations;summary:")
