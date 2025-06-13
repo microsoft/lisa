@@ -5,6 +5,7 @@ import shlex
 from typing import TYPE_CHECKING, Tuple
 
 from lisa.executable import Tool
+from lisa.node import Node, Logger
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
@@ -151,36 +152,6 @@ class OpenSSL(Tool):
             expected_exit_code_failure_message=expected_exit_code_failure_message,
         )
         return result.stdout.strip()
-
-    def run_go_crypto_tests(self, log: "Logger", node: "Node") -> None:
-        """
-        This test runs the experimental Go system crypto tests.
-        """
-        # installs go dependencies for tests
-        node.os.install_packages(
-            ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
-        )
-        # cleans up previous go builds
-        node.execute(
-            "go clean -testcase",
-            cwd="/usr/lib/golang/src",
-            expected_exit_code=0,
-            expected_exit_code_failure_message=("Go clean up failed."),
-            shell=True,
-        )
-        node.execute(
-            "go test -short ./crypto/...",
-            cwd="/usr/lib/golang/src",
-            update_envs={
-                "GOEXPERIMENT": "systemcrypto",
-            },
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Setting up Go system crypto environment failed."
-            ),
-        )
-
-        log.info("golang crypto test set up successfully.")
 
     def _install(self) -> bool:
         """
