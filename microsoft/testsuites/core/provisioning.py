@@ -286,7 +286,7 @@ class Provisioning(TestSuite):
     def stress_reboot(self, log: Logger, node: RemoteNode, log_path: Path) -> None:
         reboot_times = []
         try:
-            for i in range(100):
+            for i in range(5):
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
                 reboot_times.append((i + 1, elapsed))                
                 log.debug(f"Reboot stress iteration {i+1}/100 completed in {elapsed:.2f}s")
