@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median
 
 from assertpy import assert_that
 
@@ -35,9 +35,8 @@ from lisa.features import (
 )
 from lisa.features.security_profile import CvmDisabled
 from lisa.tools import Lspci
-from lisa.util import constants
+from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
-from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -278,7 +277,7 @@ class Provisioning(TestSuite):
         The reboot times is summarized after the test is run
         """,
         priority=3,
-        timeout=9000,
+        timeout=7200,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
@@ -288,9 +287,9 @@ class Provisioning(TestSuite):
         reboot_times = []
         try:
             for i in range(100):
-                log.info(f"Reboot stress iteration {i+1}/100")
                 elapsed = self._smoke_test(log, node, log_path, "stress_reboot")
-                reboot_times.append((i + 1, elapsed))
+                reboot_times.append((i + 1, elapsed))                
+                log.debug(f"Reboot stress iteration {i+1}/100 completed in {elapsed:.2f}s")
         except PassedException as e:
             raise LisaException(f"{e}")
         finally:
@@ -299,6 +298,7 @@ class Provisioning(TestSuite):
             log.info(f"Min reboot time: {min(times):.2f}s")
             log.info(f"Max reboot time: {max(times):.2f}s")
             log.info(f"Average reboot time: {mean(times):.2f}s")
+            log.info(f"Median reboot time: {median(times):.2f}s")
 
     def _smoke_test(
         self,
