@@ -219,7 +219,7 @@ class Lspci(Tool):
     # controller id. For example, NVME and ASAP devices use same controller id for.
     # In such cases, use 'get_device_names_by_device_id' method.
     def get_device_names_by_type(
-        self, device_type: str, force_run: bool = False
+        self, device_type: str, force_run: bool = True
     ) -> List[str]:
         # NVME devices are searched based on device ids as 'ASAP' devices use same
         # controller id.
@@ -400,7 +400,7 @@ class Lspci(Tool):
 
 class LspciBSD(Lspci):
     _DEVICE_DRIVER_MAPPING: Dict[str, Pattern[str]] = {
-        constants.DEVICE_TYPE_SRIOV: re.compile(r"mlx\d+_core\d+"),
+        constants.DEVICE_TYPE_SRIOV: re.compile(r"(mlx\d+_core\d+|mana\d+)"),
         constants.DEVICE_TYPE_NVME: re.compile(r"nvme\d+"),
     }
 

@@ -83,7 +83,7 @@ class NicInfo:
     @property
     def pci_device_name(self) -> str:
         if self.is_pci_device:
-            return self.lower if self.lower else self.name
+            return "mana0"
         return ""
 
 
@@ -544,16 +544,16 @@ class NicsBSD(Nics):
                 ]
 
                 # get info about its pci slot and mlx module version
-                slot_regex = re.compile(
-                    rf"mlx(?P<index>\d+)_core{nic_index}@(?P<pci_slot>.*):\s+"
-                )
+                # Update the regex to dynamically include nic_index
+                slot_regex = re.compile(rf"mana0@pci(?P<pci_slot>[\d:]+):\s+")
                 module_slot_info = self._node.execute("pciconf -l", sudo=True).stdout
-                matched = find_groups_in_lines(module_slot_info, slot_regex)[0]
-                module_version = matched["index"]
+                matched = find_groups_in_lines(module_slot_info, slot_regex)
+                matched = matched[0]
+                module_version = 0
                 pci_slot = matched["pci_slot"]
 
                 # set the module name
-                module = f"mlx{module_version}_core"
+                module = "if_mana"
 
             self.append(
                 NicInfo(

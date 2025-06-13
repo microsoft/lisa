@@ -19,9 +19,9 @@ def initialize_nic_info(
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
         network_interface_feature = node.features[NetworkInterface]
-        interfaces_info_list: List[
-            IpInfo
-        ] = network_interface_feature.get_all_primary_nics_ip_info()
+        interfaces_info_list: List[IpInfo] = (
+            network_interface_feature.get_all_primary_nics_ip_info()
+        )
         if is_sriov:
             sriov_count = network_interface_feature.get_nic_count()
             assert_that(sriov_count).described_as(
@@ -71,6 +71,7 @@ def sriov_basic_test(environment: Environment) -> None:
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
         if len(devices_slots) != len(set(node.nics.get_device_slots())):
+            s = set(node.nics.get_device_slots())
             node.nics.reload()
         assert_that(devices_slots).described_as(
             "count of sriov devices listed from lspci is not expected,"
