@@ -291,7 +291,7 @@ class Provisioning(TestSuite):
                 reboot_times.append((i + 1, elapsed))
                 log.debug(f"Reboot iterations {i+1}/100 completed in {elapsed:.2f}s")
         except PassedException as e:
-            raise LisaException(f"{e}")
+            raise LisaException(e)
         finally:
             times = [time for _, time in reboot_times if isinstance(time, (int, float))]
             log.info(f"completed {i+1}/100 iterations;summary:")
