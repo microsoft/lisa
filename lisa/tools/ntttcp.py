@@ -387,10 +387,14 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int = -1,
+        server_mtu: int = -1,
     ) -> NetworkTCPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
         other_fields["buffer_size"] = Decimal(buffer_size)
+        other_fields["client_mtu"] = client_mtu
+        other_fields["server_mtu"] = server_mtu
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
         )
@@ -419,11 +423,15 @@ class Ntttcp(Tool):
         buffer_size: int,
         test_case_name: str,
         test_result: "TestResult",
+        client_mtu: int,
+        server_mtu: int,
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
         other_fields["protocol_type"] = TransportProtocol.Udp
         other_fields["send_buffer_size"] = Decimal(buffer_size)
+        other_fields["client_mtu"] = client_mtu
+        other_fields["server_mtu"] = server_mtu
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
         )
