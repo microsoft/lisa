@@ -139,6 +139,8 @@ class InterruptInspectorBSD(InterruptInspector):
         r"^\s*(?P<irq_name>\S+):\s?(?P<irq_type>\S+)\s*(?P<irq_count>\d+)\s*"
         r"(?P<irq_rate>\d+)$"
     )
+    _cpu_number_regex = re.compile(r"cpu(?P<cpu_index>\d+):")
+
 
     @property
     def command(self) -> str:
@@ -163,6 +165,16 @@ class InterruptInspectorBSD(InterruptInspector):
         for line in mappings:
             matched = self._interrupt_regex.fullmatch(line)
             assert matched
+            if matched.group("irq_name").startswith("cpu"):
+                # cpu interrupts need to be organized by irq type not name
+                for interrupt in interrupts:
+                    if interrupt.irq_number == matched.group("irq_type"):
+                        cpu_num = self._cpu_number_regex.search(matched.group("irq_name")).cpu_index
+                        if cpu_num <= len(interrupt.cpu_counter):
+                            interrupt.cpu_counter[cpu_num] += int(matched.group("irq_count"))
+                        interrupt.counter_sum += int(matched.group("irq_count"))
+                        break
+                
             interrupts.append(
                 Interrupt(
                     irq_number=str(matched.group("irq_name")),
