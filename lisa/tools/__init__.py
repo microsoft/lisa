@@ -25,6 +25,7 @@ from .chmod import Chmod
 from .chown import Chown
 from .chrony import Chrony
 from .cp import Cp
+from .createrepo import CreateRepo
 from .curl import Curl
 from .date import Date
 from .df import Df
@@ -147,6 +148,7 @@ __all__ = [
     "Chown",
     "Chrony",
     "Cp",
+    "CreateRepo",
     "Curl",
     "Date",
     "Df",
