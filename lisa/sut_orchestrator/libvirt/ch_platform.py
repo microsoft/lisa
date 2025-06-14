@@ -7,7 +7,7 @@ import re
 import secrets
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
-from typing import List, Type
+from typing import List, Type, Dict, Any, Optional, cast
 
 from lisa import schema
 from lisa.environment import Environment
@@ -299,7 +299,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
-        node_runbook: Optional[AzureNodeSchema] = None
+        node_runbook: Optional[CloudHypervisorNodeSchema] = None
         if environment.nodes:
             node: Optional[Node] = environment.default_node
         else:
@@ -307,4 +307,4 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         
         information["PPlocation"] = "YYTest"
         return information
-    
+
