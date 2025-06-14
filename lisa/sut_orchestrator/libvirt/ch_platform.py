@@ -12,6 +12,7 @@ from typing import List, Type
 from lisa import schema
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.messages import MessageBase
 from lisa.node import Node
 from lisa.sut_orchestrator.libvirt.context import (
     GuestVmType,
@@ -29,8 +30,19 @@ from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageF
 
 CH_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
+# Environment information fields
+KEY_VMM_VERSION = "vmm_version"
+
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
+
+     def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook=runbook)
+         
+        self._environment_information = {
+            KEY_VMM_VERSION: self._get_vmm_version,
+        }
+    
     @classmethod
     def type_name(cls) -> str:
         return CLOUD_HYPERVISOR
@@ -271,3 +283,18 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             if match:
                 result = match.group("ch_version")
         return result
+
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+            platform_runbook = cast(schema.Platform, self.runbook)
+            information: Dict[str, Any] = {}
+
+            for key, method in self._environment_information.items():
+                node.log.debug(f"VYadav detecting {key} ...")
+                try:
+                    value = method(node)
+                    if value:
+                        information[key] = value
+                except Exception as e:
+                    node.log.exception(f"error on get {key}.", exc_info=e)
+            return information
+    
