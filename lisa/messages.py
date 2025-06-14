@@ -372,7 +372,19 @@ def send_sub_test_result_message(
     other_fields: Optional[Dict[str, Any]] = None,
 ) -> SubTestMessage:
     message = SubTestMessage()
-    dict_to_fields(test_result.environment_information, message)
+    # environment_information is populated via environment.get_information(),
+    # which aggregates all platform and node hooks. vmm_version should be present
+    # if the platform is CloudHypervisorPlatform and hooks are set up correctly.
+    env_info = test_result.environment_information
+    # Assert vmm_version is present for CloudHypervisorPlatform environments
+    env = getattr(test_result, "environment", None)
+    if env and getattr(env, "platform", None):
+        if env.platform.__class__.__name__ == "CloudHypervisorPlatform":
+            assert "vmm_version" in env_info and env_info["vmm_version"], (
+                "vmm_version must be present in environment_information for CloudHypervisorPlatform. "
+                "Check that the platform is set and hooks are registered."
+            )
+    dict_to_fields(env_info, message)
     message.id_ = test_result.id_
     message.name = test_case_name
     message.status = test_status

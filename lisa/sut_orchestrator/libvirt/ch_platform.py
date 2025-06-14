@@ -28,9 +28,17 @@ from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
 CH_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
-
+KEY_VMM_VERSION = "vmm_version"
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
+    def __init__(self, runbook: schema.Platform) -> None:
+        super().__init__(runbook=runbook)
+        # Assign vmm_version at instantiation
+        self.vmm_version = self._get_vmm_version()
+        # Ensure vmm_version is available in environment info hooks
+        if hasattr(self, '_host_environment_information_hooks'):
+            self._host_environment_information_hooks[KEY_VMM_VERSION] = self._get_vmm_version
+
     @classmethod
     def type_name(cls) -> str:
         return CLOUD_HYPERVISOR
@@ -260,7 +268,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
 
     def _get_vmm_version(self) -> str:
-        result = "Unknown"
+        result = "YUnknown"
         if self.host_node:
             output = self.host_node.execute(
                 "cloud-hypervisor --version",

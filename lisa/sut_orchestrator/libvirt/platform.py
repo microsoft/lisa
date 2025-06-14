@@ -1384,7 +1384,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return result
 
     def _get_vmm_version(self) -> str:
-        return "Unknown"
+        return "Vyadav7"
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
