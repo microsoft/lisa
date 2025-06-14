@@ -35,10 +35,9 @@ KEY_VMM_VERSION = "vmm_version"
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
-
-     def __init__(self, runbook: schema.Platform) -> None:
+    def __init__(self, runbook: schema.Platform) -> None:
         super().__init__(runbook=runbook)
-         
+        
         self._environment_information = {
             KEY_VMM_VERSION: self._get_vmm_version,
         }
@@ -285,16 +284,27 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         return result
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:
-            platform_runbook = cast(schema.Platform, self.runbook)
-            information: Dict[str, Any] = {}
+        platform_runbook = cast(schema.Platform, self.runbook)
+        information: Dict[str, Any] = {}
 
-            for key, method in self._environment_information.items():
-                node.log.debug(f"VYadav detecting {key} ...")
-                try:
-                    value = method(node)
-                    if value:
-                        information[key] = value
-                except Exception as e:
-                    node.log.exception(f"error on get {key}.", exc_info=e)
-            return information
+        for key, method in self._environment_information.items():
+            node.log.debug(f"VYadav detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
+        return information
+        
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        node_runbook: Optional[AzureNodeSchema] = None
+        if environment.nodes:
+            node: Optional[Node] = environment.default_node
+        else:
+            node = None
+        
+        information["PPlocation"] = "YYTest"
+        return information
     
