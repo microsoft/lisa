@@ -89,7 +89,7 @@ from lisa.util import (
     subclasses,
     truncate_keep_prefix,
 )
-from lisa.util.logger import Logger, get_logger
+from lisa.util.logger import Logger, get_logger, filter_ansi_escape
 from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
@@ -188,6 +188,7 @@ KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", r
 WALA_VERSION_PATTERN = re.compile(
     r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
+VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
 KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
 KEY_HOST_VERSION = "host_version"
@@ -199,6 +200,7 @@ KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
+KEY_VMM_VERSION = "vmm_version"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
     "azurecloud": AZURE_PUBLIC_CLOUD,
@@ -460,6 +462,7 @@ class AzurePlatform(Platform):
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
+            KEY_VMM_VERSION: self._get_vmm_version,
         }
 
     @classmethod
@@ -796,7 +799,27 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
+        return result
 
+    def _get_vmm_version(self, node: Node) -> str:
+        result: str = "vyadavUNKNOWN"
+        node.log.debug("vyadav:inside _get_vmm_version...")
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("vyadav:detecting vmm version from dmesg...")
+                output = node.execute(
+                    "cloud-hypervisor --version",
+                    shell=True,
+                ).stdout
+                output = filter_ansi_escape(output)
+                match = re.search(VMM_VERSION_PATTERN, output.strip())
+                if match:
+                    result = match.group("ch_version")
+
+        except Exception as e:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run vmm: {e}")
         return result
 
     def _get_host_version(self, node: Node) -> str:
