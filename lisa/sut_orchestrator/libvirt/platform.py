@@ -7,6 +7,7 @@ import io
 import json
 import os
 import random
+import re
 import string
 import sys
 import tempfile
@@ -72,6 +73,8 @@ from .schema import (
 )
 from .serial_console import SerialConsole
 from .start_stop import StartStop
+
+VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)") 
 
 # Host environment information fields
 KEY_HOST_DISTRO = "host_distro"
@@ -1383,8 +1386,26 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             result = result.split()[-1]
         return result
 
-    def _get_vmm_version(self) -> str:
-        return "Vyadav7"
+    def _get_vmm_version(self, node: Node) -> str:
+        result: str = "LibvyadavUNKNOWN"
+        node.log.debug("Libvyadav:inside _get_vmm_version...")
+        try:
+            if node.is_connected and node.is_posix:
+                node.log.debug("vyadav:detecting vmm version from dmesg...")
+                output = node.execute(
+                    "cloud-hypervisor --version",
+                    shell=True,
+                ).stdout
+                output = filter_ansi_escape(output)
+                match = re.search(VMM_VERSION_PATTERN, output.strip())
+                if match:
+                    result = match.group("ch_version")
+
+        except Exception as e:
+            # it happens on some error vms. Those error should be caught earlier in
+            # test cases not here. So ignore any error here to collect information only.
+            node.log.debug(f"error on run vmm: {e}")
+        return result
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}

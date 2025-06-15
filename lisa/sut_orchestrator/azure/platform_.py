@@ -200,7 +200,7 @@ KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
-KEY_VMM_VERSION = "vmm_version"
+#KEY_VMM_VERSION = "vmm_version"
 
 CLOUD: Dict[str, Dict[str, Any]] = {
     "azurecloud": AZURE_PUBLIC_CLOUD,
@@ -462,7 +462,7 @@ class AzurePlatform(Platform):
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
-            KEY_VMM_VERSION: self._get_vmm_version,
+            #KEY_VMM_VERSION: self._get_vmm_version,
         }
 
     @classmethod
