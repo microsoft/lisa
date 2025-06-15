@@ -41,26 +41,26 @@ class Xfstests(Tool):
     # This is the default repo and branch for xfstests.
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
+    # Branch default will be used when there are no match from the hash table below
     branch = "master"
-    # Dictionary mapping OS identifier (e.g., "ubuntu_18", "rhel_7")
-    # to recommended xfstests-dev git tags.
-    # This allows using specific xfstests versions for different OSes if needed.
-    # The key is typically constructed as
-    # f"{node.os.id}_{node.os.information.version.major}".
-    # The value is the git tag/branch to checkout.
-    # The 'default' key is used if a specific OS version is not found.
+    # This hash table contains recommended tags for different OS versions.
+    # Since not all distros are updated to the latest build tools
+    # XFStests may not compile or run correctly.
+    # This is a workaround to ensure that the tests run on the recommended tag
+    # for the OS version.
+    # The format for key is "<OS full_version>_< major>_<minor>_<patch>"
+    # This information is derived from node.os.information
     os_recommended_tags: Dict[str, str] = {
-        "ubuntu_18.04": "v2024.12.22",  # Ubuntu 18.04 LTS
-        "ubuntu_20.04": "v2024.12.22",  # Ubuntu 20.04 LTS
-        "centos_7": "v2024.12.22",  # CentOS 7.x (ID: centos, MajorVersion: 7)
-        "rhel_7.8": "v2024.12.22",  # RHEL 7.x (ID: rhel, MajorVersion: 7)
-        "sles_12.5": "v2024.12.22",  # SUSE Linux Enterprise Server 12
-        "debian_10": "v2024.12.22",  # Debian 10 (Buster)
-        "debian_11": "v2024.12.22",  # Debian 11 (Bullseye)
-        "cbl-mariner_1": "v2024.12.22",  # CBL-Mariner 1.0
-        "cbl-mariner_2": "v2024.12.22",  # CBL-Mariner 2.0
-        "default": "v2024.02.09",  # Default tag for other/unlisted OSes
+        "SUSE Linux Enterprise Server 15 SP5_15_5_0": "v2025.04.27",
+        "SUSE Linux Enterprise Server 12 SP5_12_5_0": "v2025.12.22",
+        "Debian GNU/Linux 11 (bullseye)_11_11_0": "v2024.12.22",
+        "Ubuntu 18.04.6 LTS_18_4_0": "v2024.12.22",
+        "Ubuntu 20.04.6 LTS_20_4_0": "v2024.12.22",
+        "Red Hat Enterprise Linux Server release 7.8 (Maipo)_7_8_0": "v2024.02.09",
+        "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
+    # for all other distross not part of the above hash table,
+    # the default branch will be used from line 45
     # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
         "acl",
@@ -90,52 +90,61 @@ class Xfstests(Tool):
         "autoconf",
     ]
     debian_dep = [
+        "exfatprogs",
+        "f2fs-tools", 
+        "ocfs2-tools",
+        "udftools",
+        "xfsdump",
+        "xfslibs-dev",
+        "dbench",
         "libacl1-dev",
         "libaio-dev",
-        "libattr1-dev",
+        "libcap-dev",
         "libgdbm-dev",
         "libtool-bin",
+        "liburing-dev",
         "libuuid1",
-        "libuuidm-ocaml-dev",
-        "sqlite3",
+        "psmisc",
+        "python3",
         "uuid-dev",
         "uuid-runtime",
-        "xfslibs-dev",
-        "zlib1g-dev",
-        "btrfs-tools",
-        "btrfs-progs",
+        "linux-headers-generic",
+        "sqlite3",
         "libgdbm-compat-dev",
-        "liburing-dev",
-        "liburing2",
-        "pkg-config",
     ]
     fedora_dep = [
-        "libtool",
-        "libuuid-devel",
-        "libacl-devel",
-        "xfsprogs-devel",
-        "epel-release",
-        "libaio-devel",
-        "libattr-devel",
-        "sqlite",
-        "xfsprogs-qa-devel",
-        "zlib-devel",
-        "btrfs-progs-devel",
-        "llvm-ocaml-devel",
-        "uuid-devel",
-        "libtool",
-        "e2fsprogs-devel",
+        "btrfs-progs",
+        "exfatprogs",
+        "f2fs-tools",
         "gdbm-devel",
-        "pkgconf-pkg-config",
+        "kernel-devel",
+        "libacl-devel",
+        "libaio-devel",
+        "libcap-devel",
+        "libtool",
+        "liburing-devel",
+        "libuuid-devel",
+        "ocfs2-tools",
+        "psmisc",
+        "python3",
+        "sqlite",
+        "udftools",
+        "xfsprogs-devel",
     ]
     suse_dep = [
         "btrfsprogs",
+        "duperemove",
         "libacl-devel",
         "libaio-devel",
         "libattr-devel",
-        "sqlite",
+        "libbtrfs-devel",
+        "libcap",
+        "libcap-devel",
+        "libtool",
+        "liburing-devel",
+        "libuuid-devel",
+        "sqlite3",
         "xfsprogs-devel",
-        "lib-devel",
     ]
     mariner_dep = [
         "python-iniparse",
@@ -415,7 +424,6 @@ class Xfstests(Tool):
         if branch is None:
             os_id_version = self.get_os_id_version()
             branch = self.os_recommended_tags.get(os_id_version, self.branch)
-
         repo = repo or self.repo
         self._install_dep()
         self._add_test_users()
@@ -968,30 +976,23 @@ class Xfstests(Tool):
                     f"with status {test_status}"
                 )
         return result
-
+    
     def get_os_id_version(self) -> str:
         """
-        Reads /etc/os-release and extracts ID and VERSION_ID.
-        Returns a string in the format <ID>_<VERSION_ID>.
-        If /etc/os-release is not found, returns "default".
+        Extracts OS information from node.os.information.
+        Returns a string in the format <full_version>_<major>_<minor>_<patch>.
+        If OS information is not available, returns "unknown".
         """
-        cat = self.node.tools[Cat]
         try:
-            os_release_content = cat.run(
-                "/etc/os-release", sudo=True, force_run=True
-            ).stdout
+            os_info = self.node.os.information
+            full_version = getattr(os_info, 'full_version', '')
+            major = getattr(os_info.version, 'major', 0) if hasattr(os_info, 'version') else 0
+            minor = getattr(os_info.version, 'minor', 0) if hasattr(os_info, 'version') else 0
+            patch = getattr(os_info.version, 'patch', 0) if hasattr(os_info, 'version') else 0
+
+            if not full_version:
+                return "unknown"
+
+            return f"{full_version}_{major}_{minor}_{patch}"
         except Exception:
-            return "default"
-
-        os_id = ""
-        version_id = ""
-        for line in os_release_content.splitlines():
-            if line.startswith("ID="):
-                os_id = line.split("=", 1)[1].strip().replace('"', "")
-            elif line.startswith("VERSION_ID="):
-                version_id = line.split("=", 1)[1].strip().replace('"', "")
-
-        if not os_id or not version_id:
-            return "default"
-
-        return f"{os_id}_{version_id}"
+            return "unknown"
