@@ -1385,26 +1385,21 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             # From the return value, only return the version info
             result = result.split()[-1]
         return result
+    
+    def _get_vmm_version(self) -> str:
+        result = "LibvyadavUNKNOWN"
 
-    def _get_vmm_version(self, node: Node) -> str:
-        result: str = "LibvyadavUNKNOWN"
-        node.log.debug("Libvyadav:inside _get_vmm_version...")
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("vyadav:detecting vmm version from dmesg...")
-                output = node.execute(
-                    "cloud-hypervisor --version",
-                    shell=True,
-                ).stdout
-                output = filter_ansi_escape(output)
-                match = re.search(VMM_VERSION_PATTERN, output.strip())
-                if match:
-                    result = match.group("ch_version")
-
-        except Exception as e:
-            # it happens on some error vms. Those error should be caught earlier in
-            # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run vmm: {e}")
+        self.host_node.log.debug(f"function vmm version ...")
+        if self.host_node:
+            output = self.host_node.execute(
+                "cloud-hypervisor --version",
+                shell=True,
+            ).stdout
+            output = filter_ansi_escape(output)
+            match = re.search(VMM_VERSION_PATTERN, output.strip())
+            if match:
+                result = match.group("ch_version")
+        self.host_node.log.debug(f"Expanding value of vmm version: {result}")
         return result
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
@@ -1420,6 +1415,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                         information[key] = value
                 except Exception as e:
                     node.log.exception(f"error on get {key}.", exc_info=e)
+        else:
+            self._log.debug("host node is not available, add manually")
+            information["vmm_version"] = self._get_vmm_version()
 
         return information
 
