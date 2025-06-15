@@ -12,6 +12,7 @@ from lisa.messages import (
     NetworkUDPPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
@@ -411,6 +412,44 @@ class Ntttcp(Tool):
             other_fields,
         )
 
+    def send_ntttcp_tcp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        latency: Decimal,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for TCP ntttcp metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
+
+        # Key performance metrics to send as unified messages
+        metrics = {
+            "throughput_in_gbps": float(client_result.throughput_in_gbps),
+            "latency_us": float(latency),
+            "connections_num": int(connections_num),
+            "buffer_size": float(buffer_size),
+            "retrans_segments": float(client_result.retrans_segs),
+            "connections_created_time": float(client_result.connections_created_time),
+            "rx_packets": float(server_result.rx_packets),
+            "tx_packets": float(client_result.tx_packets),
+            "pkts_interrupts": float(client_result.pkts_interrupt),
+            "sender_cycles_per_byte": float(client_result.cycles_per_byte),
+            "receiver_cycles_per_byte": float(server_result.cycles_per_byte),
+        }
+
+        for metric_name, metric_value in metrics.items():
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric_name,
+                metric_value=metric_value,
+            )
+
     def create_ntttcp_udp_performance_message(
         self,
         server_result: NtttcpResult,
@@ -443,6 +482,43 @@ class Ntttcp(Tool):
             test_case_name,
             other_fields,
         )
+
+    def send_ntttcp_udp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for UDP ntttcp metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
+
+        # Key performance metrics to send as unified messages
+        metrics = {
+            "tx_throughput_in_gbps": float(client_result.throughput_in_gbps),
+            "rx_throughput_in_gbps": float(server_result.throughput_in_gbps),
+            "data_loss": float(
+                100
+                * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
+                / client_result.throughput_in_gbps
+            ),
+            "connections_num": int(connections_num),
+            "send_buffer_size": float(buffer_size),
+            "connections_created_time": float(client_result.connections_created_time),
+            "receiver_cycles_per_byte": float(server_result.cycles_per_byte),
+        }
+
+        for metric_name, metric_value in metrics.items():
+            send_unified_perf_message(
+                node=self.node,
+                test_result=test_result,
+                test_case_name=test_case_name,
+                tool=tool,
+                metric_name=metric_name,
+                metric_value=metric_value,
+            )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
