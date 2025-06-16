@@ -423,6 +423,27 @@ def perf_ntttcp(  # noqa: C901
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
+
+            # Send unified performance messages
+            if udp_mode:
+                client_ntttcp.send_ntttcp_udp_unified_perf_messages(
+                    server_result_temp,
+                    client_result_temp,
+                    str(test_thread),
+                    buffer_size,
+                    test_case_name,
+                    test_result,
+                )
+            else:
+                client_ntttcp.send_ntttcp_tcp_unified_perf_messages(
+                    server_result_temp,
+                    client_result_temp,
+                    client_average_latency,
+                    str(test_thread),
+                    buffer_size,
+                    test_case_name,
+                    test_result,
+                )
     finally:
         error_msg = ""
         throw_error = False
