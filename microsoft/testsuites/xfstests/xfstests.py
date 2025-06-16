@@ -41,25 +41,35 @@ class Xfstests(Tool):
     # This is the default repo and branch for xfstests.
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
-    # Branch default will be used when there are no match from the hash table below
     branch = "master"
-    # This hash table contains recommended tags for different OS versions.
+    # This hash table contains recommended tags for different OS versions
+    # based on our findings.
     # Since not all distros are updated to the latest build tools
-    # XFStests may not compile or run correctly.
-    # This is a workaround to ensure that the tests run on the recommended tag
-    # for the OS version.
-    # The format for key is "<OS full_version>_< major>_<minor>_<patch>"
+    # XFStests may not compile and/or run correctly.
+    # This is a workaround to ensure that the tests run on the maximum
+    # recommended tag for the OS version.
+    # The format for key is "<full_version>_< major>_<minor>_<patch>"
     # This information is derived from node.os.information
+    # Logic : the method "get_os_id_version" will return a string
+    # in the format "<full_version>_<major>_<minor>_<patch>"
+    # Example: "SUSE Linux Enterprise Server 15 SP5_15_5_0"
+    # This string is used to lookup the recommended key-value pair from
+    # the hash table. If a match is found, the value is used as the
+    # recommended tag for the OS version.
+    # If the OS Version is not detected, the method "get_os_id_version" will return
+    # "unknown" and a corresponding value will be used from the hash table.
+    # If the OS Version is not found in the hash table,
+    # the default branch will be used from line 45.
     os_recommended_tags: Dict[str, str] = {
         "SUSE Linux Enterprise Server 15 SP5_15_5_0": "v2025.04.27",
-        "SUSE Linux Enterprise Server 12 SP5_12_5_0": "v2025.12.22",
+        "SUSE Linux Enterprise Server 12 SP5_12_5_0": "v2024.12.22",
         "Debian GNU/Linux 11 (bullseye)_11_11_0": "v2024.12.22",
         "Ubuntu 18.04.6 LTS_18_4_0": "v2024.12.22",
         "Ubuntu 20.04.6 LTS_20_4_0": "v2024.12.22",
         "Red Hat Enterprise Linux Server release 7.8 (Maipo)_7_8_0": "v2024.02.09",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
-    # for all other distross not part of the above hash table,
+    # for all other distros not part of the above hash table,
     # the default branch will be used from line 45
     # these are dependencies for xfstests. Update on regular basis.
     common_dep = [
