@@ -474,6 +474,7 @@ class Ntttcp(Tool):
         metrics: List[Dict[str, Any]],
         test_case_name: str,
         test_result: "TestResult",
+        protocol_type: str,
     ) -> None:
         """Helper method to send unified performance metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
@@ -487,6 +488,7 @@ class Ntttcp(Tool):
                 metric_name=metric["name"],
                 metric_value=metric["value"],
                 metric_relativity=metric["relativity"],
+                protocol_type=protocol_type,
             )
 
     def send_ntttcp_tcp_unified_perf_messages(
@@ -558,7 +560,7 @@ class Ntttcp(Tool):
             },
         ]
         
-        self._send_unified_perf_metrics(metrics, test_case_name, test_result)
+        self._send_unified_perf_metrics(metrics, test_case_name, test_result, TransportProtocol.Tcp)
 
     def send_ntttcp_udp_unified_perf_messages(
         self,
@@ -612,7 +614,7 @@ class Ntttcp(Tool):
             },
         ]
         
-        self._send_unified_perf_metrics(metrics, test_case_name, test_result)
+        self._send_unified_perf_metrics(metrics, test_case_name, test_result, TransportProtocol.Udp)
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]

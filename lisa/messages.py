@@ -397,12 +397,18 @@ def send_unified_perf_message(
     metric_description: str = "",
     metric_relativity: Optional[MetricRelativity] = MetricRelativity.NA,
     tool: str = "",
+    protocol_type: Optional[str] = None,
 ) -> UnifiedPerfMessage:
+    other_fields = {}
+    if protocol_type is not None:
+        other_fields["protocol_type"] = protocol_type
+    
     message = create_perf_message(
         message_type=UnifiedPerfMessage,
         node=node,
         test_result=test_result,
         test_case_name=test_case_name,
+        other_fields=other_fields if other_fields else None,
     )
 
     message.metric_name = metric_name
