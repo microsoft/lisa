@@ -402,7 +402,7 @@ def send_unified_perf_message(
     other_fields = {}
     if protocol_type is not None:
         other_fields["protocol_type"] = protocol_type
-    
+
     message = create_perf_message(
         message_type=UnifiedPerfMessage,
         node=node,

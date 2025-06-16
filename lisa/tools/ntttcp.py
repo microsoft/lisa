@@ -405,7 +405,7 @@ class Ntttcp(Tool):
         other_fields["pkts_interrupts"] = client_result.pkts_interrupt
         other_fields["sender_cycles_per_byte"] = client_result.cycles_per_byte
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
-        
+
         # Send unified performance messages
         self.send_ntttcp_tcp_unified_perf_messages(
             server_result,
@@ -416,7 +416,7 @@ class Ntttcp(Tool):
             test_case_name,
             test_result,
         )
-        
+
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
@@ -450,7 +450,7 @@ class Ntttcp(Tool):
             * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
             / client_result.throughput_in_gbps
         )
-        
+
         # Send unified performance messages
         self.send_ntttcp_udp_unified_perf_messages(
             server_result,
@@ -460,7 +460,7 @@ class Ntttcp(Tool):
             test_case_name,
             test_result,
         )
-        
+
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
@@ -478,7 +478,7 @@ class Ntttcp(Tool):
     ) -> None:
         """Helper method to send unified performance metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
-        
+
         for metric in metrics:
             send_unified_perf_message(
                 node=self.node,
@@ -559,8 +559,10 @@ class Ntttcp(Tool):
                 "relativity": MetricRelativity.LowerIsBetter,
             },
         ]
-        
-        self._send_unified_perf_metrics(metrics, test_case_name, test_result, TransportProtocol.Tcp)
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Tcp
+        )
 
     def send_ntttcp_udp_unified_perf_messages(
         self,
@@ -587,7 +589,10 @@ class Ntttcp(Tool):
                 "name": "data_loss",
                 "value": float(
                     100
-                    * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
+                    * (
+                        client_result.throughput_in_gbps
+                        - server_result.throughput_in_gbps
+                    )
                     / client_result.throughput_in_gbps
                 ),
                 "relativity": MetricRelativity.LowerIsBetter,
@@ -613,8 +618,10 @@ class Ntttcp(Tool):
                 "relativity": MetricRelativity.LowerIsBetter,
             },
         ]
-        
-        self._send_unified_perf_metrics(metrics, test_case_name, test_result, TransportProtocol.Udp)
+
+        self._send_unified_perf_metrics(
+            metrics, test_case_name, test_result, TransportProtocol.Udp
+        )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         firewall = self.node.tools[Firewall]
