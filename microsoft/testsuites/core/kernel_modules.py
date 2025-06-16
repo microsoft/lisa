@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import List
+from typing import Dict, List
 
 from assertpy import assert_that
 from semver import VersionInfo
@@ -36,6 +36,11 @@ from lisa.util import LisaException, SkippedException
     requirement=simple_requirement(supported_platform_type=[AZURE, HYPERV, READY]),
 )
 class HvModule(TestSuite):
+    _not_built_in_modules: List[str] = []
+    _not_built_in_hv_modules: List[str] = []
+    _built_in_modules: List[str] = []
+    _built_in_hv_modules: List[str] = []
+
     @TestCaseMetadata(
         description="""
         This test case will
@@ -123,29 +128,6 @@ class HvModule(TestSuite):
             "Required Hyper-V modules are missing from initrd."
         ).is_length(0)
 
-    def _get_built_in_modules(self, node: Node) -> List[str]:
-        """
-        Returns the hv_modules that are directly loaded into the kernel and
-        therefore would not show up in lsmod or be needed in initrd.
-        """
-        hv_modules_configuration = {
-            "hv_storvsc": "CONFIG_HYPERV_STORAGE",
-            "hv_netvsc": "CONFIG_HYPERV_NET",
-            "hv_vmbus": "CONFIG_HYPERV",
-            "hv_utils": "CONFIG_HYPERV_UTILS",
-            "hid_hyperv": "CONFIG_HID_HYPERV_MOUSE",
-            "hv_balloon": "CONFIG_HYPERV_BALLOON",
-            "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
-            "wdt": "CONFIG_WATCHDOG",
-        }
-
-        modules = []
-        for module in hv_modules_configuration:
-            if node.tools[KernelConfig].is_built_in(hv_modules_configuration[module]):
-                modules.append(module)
-
-        return modules
-
     @TestCaseMetadata(
         description="""
         This test case will
@@ -156,7 +138,10 @@ class HvModule(TestSuite):
     )
     def verify_hyperv_modules(self, log: Logger, environment: Environment) -> None:
         node = environment.nodes[0]
-        hv_modules = self._get_not_built_in_modules(node)
+        if not self._not_built_in_hv_modules:
+            self._get_not_built_in_modules(node)
+
+        hv_modules = self._not_built_in_hv_modules
         distro_version = node.os.information.version
         if len(hv_modules) == 0:
             raise SkippedException(
@@ -200,6 +185,36 @@ class HvModule(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        This test case will
+        1. Verify the presence of all essential non Hyper V kernel drivers using lsmod
+           to look for the drivers not directly loaded into the kernel.
+        """,
+        priority=1,
+    )
+    def verify_kernel_modules(self, log: Logger, environment: Environment) -> None:
+        node = environment.nodes[0]
+
+        # Counts the Hyper V drivers loaded as modules
+        missing_modules = []
+        lsmod = node.tools[Lsmod]
+        for module in hv_modules:
+            if lsmod.module_exists(module):
+                log.info(f"Module {module} present")
+            else:
+                log.error(f"Module {module} absent")
+                missing_modules.append(module)
+
+        if (
+            isinstance(environment.platform, AzurePlatform)
+            and "hid_hyperv" in missing_modules
+        ):
+            missing_modules.remove("hid_hyperv")
+        assert_that(missing_modules).described_as(
+            "Not all Hyper V drivers are present."
+        ).is_length(0)
+
+    @TestCaseMetadata(
+        description="""
         This test case will reload hyper-v modules for 100 times.
         """,
         priority=1,
@@ -219,7 +234,9 @@ class HvModule(TestSuite):
             except Exception:
                 log.debug("Updating LIS failed. Moving on to attempt reload.")
 
-        if module not in self._get_not_built_in_modules(node):
+        if not self._not_built_in_hv_modules:
+            self._get_not_built_in_modules(node)
+        if module not in self._not_built_in_hv_modules:
             raise SkippedException(
                 f"{module} is loaded statically into the "
                 "kernel and therefore can not be reloaded"
@@ -246,19 +263,33 @@ class HvModule(TestSuite):
             f"Expected {module} to be inserted {loop_count} times"
         ).is_equal_to(loop_count)
 
-    def _get_not_built_in_modules(self, node: Node) -> List[str]:
+    def _get_kernel_modules_configuration(self, node: Node) -> Dict[str, str]:
         """
-        Returns the hv_modules that are not directly loaded into the kernel and
-        therefore would be expected to show up in lsmod.
+        Returns a dictionary of kernel modules and their configuration names.
+        This is used to determine which modules are built into the kernel
+        and which are not. The configuration names are used to check if the
+        modules are built-in or not.
+        """
+        return {
+            "wdt": "CONFIG_WATCHDOG",
+            "cifs": "CONFIG_CIFS",
+        }
+
+    def _get_hv_kernel_modules_configuration(self, node: Node) -> Dict[str, str]:
+        """
+        Returns a dictionary of hv kernel modules and their configuration names.
+        This is used to determine which modules are built into the kernel
+        and which are not. The configuration names are used to check if the
+        modules are built-in or not.
         """
         if isinstance(node.os, BSD):
-            hv_modules_configuration = {
+            return {
                 "hv_storvsc": "vmbus/storvsc",
                 "hv_netvsc": "vmbus/hn",
                 "hyperv_keyboard": "vmbus/hv_kbd",
             }
         else:
-            hv_modules_configuration = {
+            return {
                 "hv_storvsc": "CONFIG_HYPERV_STORAGE",
                 "hv_netvsc": "CONFIG_HYPERV_NET",
                 "hv_vmbus": "CONFIG_HYPERV",
@@ -267,11 +298,44 @@ class HvModule(TestSuite):
                 "hv_balloon": "CONFIG_HYPERV_BALLOON",
                 "hyperv_keyboard": "CONFIG_HYPERV_KEYBOARD",
             }
-        modules = []
+
+    def _get_built_in_modules(self, node: Node) -> None:
+        """
+        Returns the hv_modules that are directly loaded into the kernel and
+        therefore would not show up in lsmod or be needed in initrd.
+        """
+        if self._built_in_hv_modules and self._built_in_modules:
+            return
+        hv_modules_configuration = self._get_hv_kernel_modules_configuration(node)
+
         for module in hv_modules_configuration:
-            if not node.tools[KernelConfig].is_built_in(
+            if node.tools[KernelConfig].is_built_in(
                 hv_modules_configuration[module]
             ):
-                modules.append(module)
+                self._built_in_hv_modules.append(module)
+        kernel_modules_configuration = self._get_kernel_modules_configuration(node)
+        for module in kernel_modules_configuration:
+            if node.tools[KernelConfig].is_built_in(
+                kernel_modules_configuration[module]
+            ):
+                self._built_in_modules.append(module)
 
-        return modules
+    def _get_not_built_in_modules(self, node: Node) -> None:
+        """
+        Returns the kernel modules that are not directly loaded into the kernel and
+        therefore would be expected to show up in lsmod.
+        """
+        if self._not_built_in_hv_modules and self._not_built_in_modules:
+            return
+        kernel_modules_configuration = self._get_hv_kernel_modules_configuration(node)
+        for module in kernel_modules_configuration:
+            if not node.tools[KernelConfig].is_built_in(
+                kernel_modules_configuration[module]
+            ):
+                self._not_built_in_hv_modules.append(module)
+        kernel_modules_configuration = self._get_kernel_modules_configuration(node)
+        for module in kernel_modules_configuration:
+            if not node.tools[KernelConfig].is_built_in(
+                kernel_modules_configuration[module]
+            ):
+                self._not_built_in_modules.append(module)
