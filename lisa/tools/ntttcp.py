@@ -405,6 +405,18 @@ class Ntttcp(Tool):
         other_fields["pkts_interrupts"] = client_result.pkts_interrupt
         other_fields["sender_cycles_per_byte"] = client_result.cycles_per_byte
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
+        
+        # Send unified performance messages
+        self.send_ntttcp_tcp_unified_perf_messages(
+            server_result,
+            client_result,
+            latency,
+            connections_num,
+            buffer_size,
+            test_case_name,
+            test_result,
+        )
+        
         return create_perf_message(
             NetworkTCPPerformanceMessage,
             self.node,
@@ -438,6 +450,17 @@ class Ntttcp(Tool):
             * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
             / client_result.throughput_in_gbps
         )
+        
+        # Send unified performance messages
+        self.send_ntttcp_udp_unified_perf_messages(
+            server_result,
+            client_result,
+            connections_num,
+            buffer_size,
+            test_case_name,
+            test_result,
+        )
+        
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,
