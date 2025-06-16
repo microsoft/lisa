@@ -119,7 +119,7 @@ class PerfMessage(MessageBase):
     kernel_version: str = ""
     lis_version: str = ""
     ip_version: str = NetworkProtocol.IPv4
-    protocol_type: str = TransportProtocol.Tcp
+    protocol_type: Optional[str] = None
     data_path: str = ""
     test_date: datetime = datetime.now(timezone.utc)
     role: str = ""
