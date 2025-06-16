@@ -91,7 +91,7 @@ class Xfstests(Tool):
     ]
     debian_dep = [
         "exfatprogs",
-        "f2fs-tools", 
+        "f2fs-tools",
         "ocfs2-tools",
         "udftools",
         "xfsdump",
@@ -976,7 +976,7 @@ class Xfstests(Tool):
                     f"with status {test_status}"
                 )
         return result
-    
+
     def get_os_id_version(self) -> str:
         """
         Extracts OS information from node.os.information.
@@ -985,11 +985,22 @@ class Xfstests(Tool):
         """
         try:
             os_info = self.node.os.information
-            full_version = getattr(os_info, 'full_version', '')
-            major = getattr(os_info.version, 'major', 0) if hasattr(os_info, 'version') else 0
-            minor = getattr(os_info.version, 'minor', 0) if hasattr(os_info, 'version') else 0
-            patch = getattr(os_info.version, 'patch', 0) if hasattr(os_info, 'version') else 0
-
+            full_version = getattr(os_info, "full_version", "")
+            major = (
+                getattr(os_info.version, "major", 0)
+                if hasattr(os_info, "version")
+                else 0
+            )
+            minor = (
+                getattr(os_info.version, "minor", 0)
+                if hasattr(os_info, "version")
+                else 0
+            )
+            patch = (
+                getattr(os_info.version, "patch", 0)
+                if hasattr(os_info, "version")
+                else 0
+            )
             if not full_version:
                 return "unknown"
 
