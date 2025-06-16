@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.messages import (
+    MetricRelativity,
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
     TransportProtocol,
     create_perf_message,
+    send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner
 from lisa.tools import Firewall, Gcc, Git, Lscpu, Make, Sed
@@ -442,6 +444,217 @@ class Ntttcp(Tool):
             test_result,
             test_case_name,
             other_fields,
+        )
+
+    def send_ntttcp_tcp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        latency: Decimal,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for TCP ntttcp metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
+
+        # Send individual metrics with appropriate relativity
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="throughput_in_gbps",
+            metric_value=float(client_result.throughput_in_gbps),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="latency_us",
+            metric_value=float(latency),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="connections_num",
+            metric_value=int(connections_num),
+            metric_relativity=MetricRelativity.NA,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="buffer_size",
+            metric_value=float(buffer_size),
+            metric_relativity=MetricRelativity.NA,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="retrans_segments",
+            metric_value=float(client_result.retrans_segs),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="connections_created_time",
+            metric_value=float(client_result.connections_created_time),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="rx_packets",
+            metric_value=float(server_result.rx_packets),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="tx_packets",
+            metric_value=float(client_result.tx_packets),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="pkts_interrupts",
+            metric_value=float(client_result.pkts_interrupt),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="sender_cycles_per_byte",
+            metric_value=float(client_result.cycles_per_byte),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="receiver_cycles_per_byte",
+            metric_value=float(server_result.cycles_per_byte),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+
+    def send_ntttcp_udp_unified_perf_messages(
+        self,
+        server_result: NtttcpResult,
+        client_result: NtttcpResult,
+        connections_num: str,
+        buffer_size: int,
+        test_case_name: str,
+        test_result: "TestResult",
+    ) -> None:
+        """Send unified performance messages for UDP ntttcp metrics."""
+        tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
+
+        # Send individual metrics with appropriate relativity
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="tx_throughput_in_gbps",
+            metric_value=float(client_result.throughput_in_gbps),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="rx_throughput_in_gbps",
+            metric_value=float(server_result.throughput_in_gbps),
+            metric_relativity=MetricRelativity.HigherIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="data_loss",
+            metric_value=float(
+                100
+                * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
+                / client_result.throughput_in_gbps
+            ),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="connections_num",
+            metric_value=int(connections_num),
+            metric_relativity=MetricRelativity.NA,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="send_buffer_size",
+            metric_value=float(buffer_size),
+            metric_relativity=MetricRelativity.NA,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="connections_created_time",
+            metric_value=float(client_result.connections_created_time),
+            metric_relativity=MetricRelativity.LowerIsBetter,
+        )
+        
+        send_unified_perf_message(
+            node=self.node,
+            test_result=test_result,
+            test_case_name=test_case_name,
+            tool=tool,
+            metric_name="receiver_cycles_per_byte",
+            metric_value=float(server_result.cycles_per_byte),
+            metric_relativity=MetricRelativity.LowerIsBetter,
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
