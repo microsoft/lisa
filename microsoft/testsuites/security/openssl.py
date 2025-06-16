@@ -3,6 +3,7 @@
 
 import json
 from pathlib import Path
+from typing import cast
 
 from assertpy import assert_that
 
@@ -116,7 +117,8 @@ class OpenSSLTestSuite(TestSuite):
         experimental Go system crypto tests and cleans go builds.
         """
         # installs go dependencies for tests
-        node.os.install_packages(
+        az_os = cast(CBLMariner, node.os)
+        az_os.install_packages(
             ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
         )
         # cleans up previous go builds
