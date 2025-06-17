@@ -1616,8 +1616,8 @@ class AzureImageStandard(TestSuite):
 
     def _get_not_enabled_modules(self, node: Node) -> List[str]:
         """
-        Returns the list of essential modules that are neither integrated into the kernel
-        nor compiled as loadable modules.
+        Returns the list of essential kernel modules that are neither integrated
+        into the kernel nor compiled as loadable modules.
         """
         # These modules are essential for Hyper-V / Azure platform.
         essential_modules_configuration = {
