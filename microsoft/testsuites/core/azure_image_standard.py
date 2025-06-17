@@ -3,7 +3,6 @@
 
 import re
 from pathlib import PurePosixPath
-
 from typing import Dict, List, Optional, Pattern, cast
 
 from assertpy.assertpy import assert_that
