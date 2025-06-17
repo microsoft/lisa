@@ -29,6 +29,7 @@ from lisa.operating_system import (
     DebianRepositoryInfo,
     Fedora,
     FreeBSD,
+    Linux,
     Oracle,
     Posix,
     Redhat,
@@ -1528,6 +1529,10 @@ class AzureImageStandard(TestSuite):
         priority=1,
     )
     def verify_essential_kernel_modules(self, node: Node) -> None:
+        if not isinstance(node.os, Linux):
+            raise SkippedException(
+                "This test is only applicable for Linux distributions."
+            )
         not_enabled_modules = self._get_not_enabled_modules(node)
 
         assert_that(not_enabled_modules).described_as(
@@ -1609,26 +1614,21 @@ class AzureImageStandard(TestSuite):
             elif not extended_support_versions:
                 raise LisaException(message + action_message)
 
-    def _get_kernel_modules_configuration(self, node: Node) -> Dict[str, str]:
+    def _get_not_enabled_modules(self, node: Node) -> List[str]:
         """
-        Returns a dictionary of kernel modules and their configuration names.
+        Returns the list of essential modules that are neither integrated into the kernel
+        nor compiled as loadable modules.
         """
-        return {
+        # These modules are essential for Hyper-V / Azure platform.
+        essential_modules_configuration = {
             "wdt": "CONFIG_WATCHDOG",
             "cifs": "CONFIG_CIFS",
         }
-
-    def _get_not_enabled_modules(self, node: Node) -> List[str]:
-        """
-        Returns the list of modules that are neither integrated into the kernel
-        nor compiled as loadable modules.
-        """
         not_built_in_modules = []
 
-        kernel_modules_configuration = self._get_kernel_modules_configuration(node)
-        for module in kernel_modules_configuration:
+        for module in essential_modules_configuration:
             if not node.tools[KernelConfig].is_enabled(
-                kernel_modules_configuration[module]
+                essential_modules_configuration[module]
             ):
                 not_built_in_modules.append(module)
         return not_built_in_modules
