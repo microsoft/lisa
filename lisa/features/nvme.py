@@ -153,10 +153,9 @@ class Nvme(Feature):
         ):
             os_disk_nvme_device = self._get_os_disk_nvme_device()
             # Removing OS disk/device from the list.
-            for disk in disk_list:
+            for disk in disk_list.copy():
                 if os_disk_nvme_device in disk:
                     disk_list.remove(disk)
-                    break
         return disk_list
 
     def get_namespaces_from_cli(self) -> List[str]:
