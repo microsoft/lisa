@@ -111,59 +111,39 @@ class Nvmecli(Tool):
         nvme_devices = json.loads(nvme_list.stdout)
         return nvme_devices["Devices"]
 
+    def _extract_namespaces(self, devices) -> List[Dict[str, int]]:
+        """
+        Recursively extract device paths and namespace ids from both old and new nvme list -o json outputs.
+        Returns a list of dicts: {device_path: nsid}
+        """
+        namespaces = []
+        if isinstance(devices, dict):
+            devices = [devices]
+        for device in devices:
+            # Old format: flat device with DevicePath and NameSpace (int)
+            if "DevicePath" in device and "NameSpace" in device and isinstance(device["NameSpace"], int):
+                namespaces.append({device["DevicePath"]: device["NameSpace"]})
+            # New format: nested under Subsystems -> Controllers -> Namespaces
+            if "Subsystems" in device:
+                for subsystem in device["Subsystems"]:
+                    for controller in subsystem.get("Controllers", []):
+                        for ns in controller.get("Namespaces", []):
+                            # Try to construct device path
+                            ns_name = ns.get("NameSpace")
+                            nsid = ns.get("NSID")
+                            if ns_name and nsid:
+                                device_path = f"/dev/{ns_name}"
+                                namespaces.append({device_path: nsid})
+        return namespaces
+
     def get_disks(self, force_run: bool = False) -> List[str]:
         nvme_devices = self.get_devices(force_run=force_run)
-        disks = []
-        print(f"nvme devices are {nvme_devices}")
-        for device in nvme_devices:
-            print(f"device is {device}")
-            for subsystem in device.get("Subsystems", []):
-                for controller in subsystem.get("Controllers", []):
-                    for namespace in controller.get("Namespaces", []):
-            # Determine device path
-                        if "DevicePath" in namespace:
-                            disks.append(device["DevicePath"])
-                            print(f"DevicePath {device['DevicePath']} "  )
-                        elif "NameSpace" in device :
-                            disks.append(f"/dev/{device['NameSpace']}")
-                            print(f"Namespace {device['NameSpace']} "  )
-                        else:
-                            print(f"Device {device} does not have DevicePath or NameSpace")
-                            continue
-
-        print(f"disks are {disks}")
-        return disks
+        ns_list = self._extract_namespaces(nvme_devices)
+        return [list(ns.keys())[0] for ns in ns_list]
 
     def get_namespace_ids(self, force_run: bool = False) -> List[Dict[str, int]]:
         nvme_devices = self.get_devices(force_run=force_run)
-        ns_list = []
-        for device in nvme_devices:
-            for subsystem in device.get("Subsystems", []):
-                for controller in subsystem.get("Controllers", []):
-                    for namespace in controller.get("Namespaces", []):
-            # Determine device path
-                        if "DevicePath" in namespace:
-                            dev_path = device["DevicePath"]
-                        elif "NameSpace" in namespace :
-                            dev_path = f"/dev/{device['NameSpace']}"
-                        else:
-                            continue
-
-            # Determine namespace id
-            ns_id = None
-            if "NameSpace" in device:
-                if isinstance(device["NameSpace"], int):
-                    ns_id = device["NameSpace"]
-                elif isinstance(device["NameSpace"], str):
-                    # Extract the last integer after 'n' (e.g., nvme0n11 -> 11)
-                    ns_str = device["NameSpace"]
-                    try:
-                        ns_id = int(ns_str.split('n')[-1])
-                    except Exception:
-                        continue
-            if ns_id is not None:
-                ns_list.append({dev_path: ns_id})
-        return ns_list
+        return self._extract_namespaces(nvme_devices)
 
     # NVME namespace ids are unique for each disk under any NVME controller.
     # These are useful in detecting the lun id of the remote azure disk disks.
