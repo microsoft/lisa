@@ -544,19 +544,19 @@ class Ntttcp(Tool):
                 "name": "rx_packets",
                 "value": float(server_result.rx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
-                "unit": "packets",
+                "unit": "",
             },
             {
                 "name": "tx_packets",
                 "value": float(client_result.tx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
-                "unit": "packets",
+                "unit": "",
             },
             {
                 "name": "pkts_interrupts",
                 "value": float(client_result.pkts_interrupt),
                 "relativity": MetricRelativity.HigherIsBetter,
-                "unit": "packets/interrupt",
+                "unit": "",
             },
             {
                 "name": "sender_cycles_per_byte",
