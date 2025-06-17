@@ -526,7 +526,7 @@ class Ntttcp(Tool):
                 "name": "buffer_size",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
-                "unit": "bytes",
+                "unit": "KB",
             },
             {
                 "name": "retrans_segments",
@@ -622,7 +622,7 @@ class Ntttcp(Tool):
                 "name": "send_buffer_size",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
-                "unit": "bytes",
+                "unit": "KB",
             },
             {
                 "name": "connections_created_time",
