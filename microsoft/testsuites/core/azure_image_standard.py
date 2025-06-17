@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePosixPath
-from typing import List, Optional, Pattern, cast
+from typing import List, Optional, Pattern, Dict, cast
 
 from assertpy.assertpy import assert_that
 from packaging.version import Version
@@ -40,7 +40,18 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh, Swap
+from lisa.tools import (
+    Cat,
+    Dmesg,
+    Journalctl,
+    KernelConfig,
+    Ls,
+    Lsblk,
+    Lscpu,
+    Pgrep,
+    Ssh,
+    Swap,
+)
 from lisa.util import (
     LisaException,
     PassedException,
@@ -1509,6 +1520,20 @@ class AzureImageStandard(TestSuite):
                         "has IO issues."
                     )
 
+    @TestCaseMetadata(
+        description="""
+        This test case will verifies the presence of essential kernel modules wdt and
+        cifs.
+        """,
+        priority=1,
+    )
+    def verify_essential_kernel_modules(self, node: Node) -> None:
+        not_enabled_modules = self._get_not_enabled_modules(node)
+
+        assert_that(not_enabled_modules).described_as(
+            "Not all essential kernel modules are enabled for Hyper-V / Azure platform."
+        ).is_length(0)
+
     def _verify_version_by_pattern_value(
         self,
         node: Node,
@@ -1583,3 +1608,27 @@ class AzureImageStandard(TestSuite):
                 raise LisaException(message + action_message)
             elif not extended_support_versions:
                 raise LisaException(message + action_message)
+
+    def _get_kernel_modules_configuration(self, node: Node) -> Dict[str, str]:
+        """
+        Returns a dictionary of kernel modules and their configuration names.
+        """
+        return {
+            "wdt": "CONFIG_WATCHDOG",
+            "cifs": "CONFIG_CIFS",
+        }
+
+    def _get_not_enabled_modules(self, node: Node) -> List[str]:
+        """
+        Returns the list of modules that are neither integrated into the kernel
+        nor compiled as loadable modules.
+        """
+        not_built_in_modules = []
+
+        kernel_modules_configuration = self._get_kernel_modules_configuration(node)
+        for module in kernel_modules_configuration:
+            if not node.tools[KernelConfig].is_enabled(
+                kernel_modules_configuration[module]
+            ):
+                not_built_in_modules.append(module)
+        return not_built_in_modules
