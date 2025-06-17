@@ -1531,7 +1531,7 @@ class AzureImageStandard(TestSuite):
         not_enabled_modules = self._get_not_enabled_modules(node)
 
         assert_that(not_enabled_modules).described_as(
-            "Not all essential kernel modules are enabled for Hyper-V / Azure platform."
+            "Not enabled essential kernel modules for Hyper-V / Azure platform found."
         ).is_length(0)
 
     def _verify_version_by_pattern_value(
