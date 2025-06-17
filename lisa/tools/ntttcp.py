@@ -487,6 +487,7 @@ class Ntttcp(Tool):
                 tool=tool,
                 metric_name=metric["name"],
                 metric_value=metric["value"],
+                metric_unit=metric.get("unit", ""),
                 metric_relativity=metric["relativity"],
                 protocol_type=protocol_type,
             )
@@ -507,56 +508,67 @@ class Ntttcp(Tool):
                 "name": "throughput_in_gbps",
                 "value": float(client_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
             },
             {
                 "name": "latency_us",
                 "value": float(latency),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
             },
             {
                 "name": "connections_num",
                 "value": int(connections_num),
                 "relativity": MetricRelativity.NA,
+                "unit": "",
             },
             {
                 "name": "buffer_size",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
+                "unit": "bytes",
             },
             {
                 "name": "retrans_segments",
                 "value": float(client_result.retrans_segs),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "",
             },
             {
                 "name": "connections_created_time",
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
             },
             {
                 "name": "rx_packets",
                 "value": float(server_result.rx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets",
             },
             {
                 "name": "tx_packets",
                 "value": float(client_result.tx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets",
             },
             {
                 "name": "pkts_interrupts",
                 "value": float(client_result.pkts_interrupt),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "packets/interrupt",
             },
             {
                 "name": "sender_cycles_per_byte",
                 "value": float(client_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
             },
             {
                 "name": "receiver_cycles_per_byte",
                 "value": float(server_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
             },
         ]
 
@@ -579,11 +591,13 @@ class Ntttcp(Tool):
                 "name": "tx_throughput_in_gbps",
                 "value": float(client_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
             },
             {
                 "name": "rx_throughput_in_gbps",
                 "value": float(server_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
+                "unit": "Gbps",
             },
             {
                 "name": "data_loss",
@@ -596,26 +610,31 @@ class Ntttcp(Tool):
                     / client_result.throughput_in_gbps
                 ),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "%",
             },
             {
                 "name": "connections_num",
                 "value": int(connections_num),
                 "relativity": MetricRelativity.NA,
+                "unit": "",
             },
             {
                 "name": "send_buffer_size",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
+                "unit": "bytes",
             },
             {
                 "name": "connections_created_time",
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "microseconds",
             },
             {
                 "name": "receiver_cycles_per_byte",
                 "value": float(server_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
+                "unit": "cycles/byte",
             },
         ]
 
