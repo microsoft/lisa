@@ -24,6 +24,9 @@ from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.node import RemoteNode
 from lisa.operating_system import Debian, Redhat, Suse
+from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
+from lisa.sut_orchestrator.azure.features import Disk
 from lisa.testsuite import TestResult, node_requirement
 from lisa.tools import FileSystem, Lscpu, Mkfs, Mount, NFSClient, NFSServer, Sysctl
 from lisa.util import SkippedException
@@ -174,6 +177,20 @@ class StoragePerformance(TestSuite):
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result, block_size=1024)
+
+    @TestCaseMetadata(
+        description="""
+        This test case uses fio to test data disk performance using 1024K block size.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            # disk=AzureDiskOptionSettings(has_resource_disk=True),
+            supported_platform_type=[AZURE, READY],
+        ),
+    )
+    def perf_resource_disk_1024k(self, node: Node, result: TestResult) -> None:
+        self._perf_resource_disks(node, result, block_size=1024)
 
     @TestCaseMetadata(
         description="""
@@ -562,6 +579,60 @@ class StoragePerformance(TestSuite):
             "At least 1 data disk for fio testing."
         ).is_greater_than(0)
         partition_disks = reset_partitions(node, data_disks)
+        filename = ":".join(partition_disks)
+        cpu = node.tools[Lscpu]
+        core_count = cpu.get_core_count()
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=core_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=disk_type,
+            numjob=core_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+        )
+
+    def _perf_resource_disks(
+        self,
+        node: Node,
+        test_result: TestResult,
+        disk_setup_type: DiskSetupType = DiskSetupType.raw,
+        disk_type: DiskType = DiskType.premiumssd,
+        block_size: int = 4,
+        start_iodepth: int = 1,
+        max_iodepth: int = 256,
+    ) -> None:
+        disk = node.features[Disk]
+        if schema.ResourceDiskType.NVME == disk.get_resource_disk_type():
+            raise SkippedException(
+                "Resource disk type is NVMe. NVMe has 'verify_nvme_function' and "
+                "'verify_nvme_function_unpartitioned' testcases to validate IO operations."  # noqa: E501
+            )
+        resource_disks = Disk.get_resource_disks(self)
+        disk_count = len(resource_disks)
+        assert_that(disk_count).described_as(
+            "At least 1 data disk for fio testing."
+        ).is_greater_than(0)
+        if (
+            disk_count == 1
+            and disk.get_resource_disk_type() == schema.ResourceDiskType.SCSI
+        ):
+            # If there is only one resource disk, it is not partitioned.
+            # So, reset_partitions will return the same disk.
+            # In this case, we can use the disk name directly.
+            partition_disks = resource_disks
+        else:
+            # If there are multiple resource disks, reset_partitions will
+            # partition the disks and return the list of partitioned disks.
+            # So, we need to use the partitioned disks for fio testing.
+            partition_disks = reset_partitions(node, resource_disks)
         filename = ":".join(partition_disks)
         cpu = node.tools[Lscpu]
         core_count = cpu.get_core_count()
