@@ -48,6 +48,20 @@ class OpenSSLTestSuite(TestSuite):
         self._openssl_test_encrypt_decrypt(log, node)
         self._openssl_test_sign_verify(log, node)
 
+    @TestCaseMetadata(
+        description="""
+        This test will use Go experimental system crypto tests
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+        ),
+    )
+    def verify_openssl_golang_sys_crypto_tests(self, log: Logger, node: Node) -> None:
+        """Verifies the Go experimental system crypto tests"""
+        self._run_go_crypto_tests(log, node)
+        return
+
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
         Tests OpenSSL encryption and decryption functionality.
@@ -96,20 +110,6 @@ class OpenSSLTestSuite(TestSuite):
         openssl.verify(plaintext, public_key, signature)
 
         log.debug("Successfully signed and verified a file.")
-
-    @TestCaseMetadata(
-        description="""
-        This test will use Go experimental system crypto tests
-        """,
-        priority=2,
-        requirement=simple_requirement(
-            supported_os=[CBLMariner],
-        ),
-    )
-    def openssl_golang__sys_crypto_tests_verify(self, log: Logger, node: Node) -> None:
-        """Verifies the Go experimental system crypto tests"""
-        self._run_go_crypto_tests(log, node)
-        return
 
     def _run_go_crypto_tests(self, log: Logger, node: Node) -> None:
         """
