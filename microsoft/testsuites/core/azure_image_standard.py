@@ -1522,7 +1522,7 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case will verifies the presence of essential kernel modules wdt and
+        This test case verifies the enablement of essential kernel modules like wdt and
         cifs.
         """,
         priority=1,
