@@ -474,6 +474,7 @@ class Ntttcp(Tool):
         metrics: List[Dict[str, Any]],
         test_case_name: str,
         test_result: "TestResult",
+        protocol_type: str,
     ) -> None:
         """Helper method to send unified performance metrics."""
         tool = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
@@ -488,6 +489,7 @@ class Ntttcp(Tool):
                 metric_value=metric["value"],
                 metric_unit=metric.get("unit", ""),
                 metric_relativity=metric["relativity"],
+                protocol_type=protocol_type,
             )
 
     def send_ntttcp_tcp_unified_perf_messages(
@@ -502,12 +504,6 @@ class Ntttcp(Tool):
     ) -> None:
         """Send unified performance messages for TCP ntttcp metrics."""
         metrics = [
-            {
-                "name": "protocol_type",
-                "value": TransportProtocol.Tcp,
-                "relativity": MetricRelativity.NA,
-                "unit": "",
-            },
             {
                 "name": "throughput_in_gbps",
                 "value": float(client_result.throughput_in_gbps),
@@ -577,7 +573,7 @@ class Ntttcp(Tool):
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result
+            metrics, test_case_name, test_result, TransportProtocol.Tcp
         )
 
     def send_ntttcp_udp_unified_perf_messages(
@@ -591,12 +587,6 @@ class Ntttcp(Tool):
     ) -> None:
         """Send unified performance messages for UDP ntttcp metrics."""
         metrics = [
-            {
-                "name": "protocol_type",
-                "value": TransportProtocol.Udp,
-                "relativity": MetricRelativity.NA,
-                "unit": "",
-            },
             {
                 "name": "tx_throughput_in_gbps",
                 "value": float(client_result.throughput_in_gbps),
@@ -649,7 +639,7 @@ class Ntttcp(Tool):
         ]
 
         self._send_unified_perf_metrics(
-            metrics, test_case_name, test_result
+            metrics, test_case_name, test_result, TransportProtocol.Udp
         )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
