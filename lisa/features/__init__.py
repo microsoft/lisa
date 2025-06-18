@@ -26,6 +26,7 @@ from .nfs import Nfs
 from .nvme import Nvme, NvmeSettings
 from .password_extension import PasswordExtension
 from .resize import Resize, ResizeAction
+from .run_command import RunCommand
 from .security_profile import (
     SecureBootEnabled,
     SecurityProfile,
@@ -64,6 +65,7 @@ __all__ = [
     "PasswordExtension",
     "Resize",
     "ResizeAction",
+    "RunCommand",
     "SecureBootEnabled",
     "SecurityProfile",
     "SecurityProfileSettings",
