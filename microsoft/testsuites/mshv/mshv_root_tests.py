@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 import re
 from pathlib import Path, PurePath
 from typing import Any, Dict
@@ -43,6 +44,7 @@ from lisa.util import LisaException, SkippedException, find_group_in_lines
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")
+    mshvlog_logfile = "/var/log/mshvlog.log"
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
@@ -59,6 +61,7 @@ class MshvHostTestSuite(TestSuite):
         With mshv_diag module loaded, ensure mshvlog.service starts and runs
         successfully on MSHV root partitions. Also confirm there are no errors
         reported by mshv_diag module in dmesg.
+        Lastly, check if logfile from mshvlog.service is not empty.
         """,
         priority=4,
         timeout=30,  # 30 seconds
@@ -78,6 +81,13 @@ class MshvHostTestSuite(TestSuite):
             log.error("mshvlog service is not running on MSHV root partition.")
 
         assert_that(mshvlog_running).is_true()
+
+        # Check the size of mshvlog logfile
+        mshvlog_logfile_size = os.path.getsize(self.mshvlog_logfile)
+
+        assert_that(mshvlog_logfile_size).described_as(
+            "mshvlog logfile should not be empty"
+        ).is_greater_than(0)
 
         dmesg_logs = node.tools[Dmesg].get_output()
         mshvdiag_dmesg_logs = re.search(self.mshvdiag_dmesg_pattern, dmesg_logs)
