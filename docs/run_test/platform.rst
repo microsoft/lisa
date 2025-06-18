@@ -141,9 +141,9 @@ deployment.
       ...
       admin_private_key_file: "<path of private key file>"
       azure:
-         virtual_network_resource_group: $(vnet_resource_group)
-         virtual_network_name: $(vnet_name)
-         subnet_prefix: $(subnet_name)
+         virtual_network_resource_group: $(virtual_network_resource_group)
+         virtual_network_name: $(virtual_network_name)
+         subnet_prefix: $(subnet_prefix)
          use_public_address: "<true or false>"
          create_public_address: "<true or false>"
          use_ipv6: "<true or false>"
