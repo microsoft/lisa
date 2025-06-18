@@ -1528,11 +1528,16 @@ class AzureImageStandard(TestSuite):
         also has IO issues.
 
         Steps:
-        1. Use 'cat /proc/swaps' or 'swapon -s' list all swap devices
+        1. Use 'cat /proc/swaps' or 'swapon -s' to list all swap devices
             Note: For FreeBSD, use 'swapinfo -k'.
-        2. Use 'lsblk' to identify the OS disk and get all the partitions
+        2. Use 'lsblk <swap_part> -P -o NAME' to get the real block device name for
+           each swap partition. If there is no swap partition, pass the case.
+        3. Use 'lsblk' to identify the OS disk and get all its partitions and logical
+           devices through matching the mount point '/'.
             Note: For FreeBSD, if there is no lsblk, install it and run the command
-        3. Verify that no swap partition exists on the OS disk
+        4. Compare if the device name of each swap partition is the same as the device
+           name of one OS disk partition or logical device. If yes, fail the case.
+        5. Pass the case if no swap partition is found on the OS disk.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE]),
@@ -1544,23 +1549,32 @@ class AzureImageStandard(TestSuite):
             return
         node.log.info(f"Swap partitions: {swap_parts}")
 
+        # For some images like audiocodes audcovoc acovoce4azure 8.4.591, the swap
+        # partition is created on a logical device, such as /dev/dm-5. In this case,
+        # we need to get the real block device name.
         lsblk = node.tools[Lsblk]
         os_disk = lsblk.find_disk_by_mountpoint("/")
-        # e.g. os_disk_partitions: ['sda1', 'sda2']
-        os_disk_partitions = [part.name for part in os_disk.partitions]
-        node.log.info(f"OS disk partitions: {os_disk_partitions}")
-
         for swap_part in swap_parts:
-            for os_part in os_disk_partitions:
-                if os_part in swap_part:
-                    raise LisaException(
-                        f"Swap partition '{swap_part}' found on OS disk. There should"
-                        "  be no Swap Partition on OS Disk. OS disk has IOPS limit. "
-                        "When memory pressure causes swapping, IOPS limit may be "
-                        "reached easily and cause VM performance to go down "
-                        "disastrously, because aside from memory issues in now also "
-                        "has IO issues."
-                    )
+            block_name = lsblk.get_block_name(swap_part)
+            if block_name == "":
+                raise LisaException(
+                    f"Failed to get the device name for swap partition '{swap_part}'."
+                )
+            node.log.info(f"Swap partition '{swap_part}' is on device '{block_name}'.")
+            for part in os_disk.partitions:
+                # e.g. 'sda1', 'vg-root', 'vg-home'
+                parts = [part] + part.logical_devices
+                for p in parts:
+                    node.log.info(f"OS disk partition or logical device: {p.name}")
+                    if p.name == block_name:
+                        raise LisaException(
+                            f"Swap partition '{swap_part}' found on OS disk partition "
+                            f"or logical device '{p.name}'. There should be no Swap "
+                            "Partition on OS Disk. OS disk has IOPS limit. When memory"
+                            " pressure causes swapping, IOPS limit may be reached "
+                            "easily and cause VM performance to go down disastrously, "
+                            "as aside from memory issues in now also has IO issues."
+                        )
 
     @TestCaseMetadata(
         description="""
