@@ -893,11 +893,6 @@ class AzurePlatform(Platform):
         result[AZURE_RG_NAME_KEY] = get_environment_context(
             environment
         ).resource_group_name
-        # Get VMM version from the default node if available
-        result[KEY_VMM_VERSION] = self._environment_information_hooks[KEY_VMM_VERSION](environment.default_node)
-        result[KEY_MSHV_VERSION] = self._environment_information_hooks[KEY_MSHV_VERSION](environment.default_node)
-        environment.log.info("mshv version detected: %s", result[KEY_MSHV_VERSION])
-        environment.log.info("vmm version detected: %s", result[KEY_VMM_VERSION])
 
         if azure_runbook.availability_set_properties:
             for (
