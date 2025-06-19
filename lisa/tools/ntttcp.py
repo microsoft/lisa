@@ -392,7 +392,6 @@ class Ntttcp(Tool):
     ) -> NetworkTCPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
-        other_fields["protocol_type"] = TransportProtocol.Tcp
         other_fields["buffer_size"] = Decimal(buffer_size)
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time
@@ -437,7 +436,6 @@ class Ntttcp(Tool):
     ) -> NetworkUDPPerformanceMessage:
         other_fields: Dict[str, Any] = {}
         other_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_NTTTCP
-        other_fields["protocol_type"] = TransportProtocol.Udp
         other_fields["send_buffer_size"] = Decimal(buffer_size)
         other_fields["connections_created_time"] = int(
             client_result.connections_created_time

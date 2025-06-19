@@ -427,7 +427,6 @@ class Iperf3(Tool):
         )
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
-        other_fields["protocol_type"] = TransportProtocol.Udp
         return create_perf_message(
             NetworkUDPPerformanceMessage,
             self.node,

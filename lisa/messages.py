@@ -221,6 +221,7 @@ class NetworkPPSPerformanceMessage(PerfMessage):
     fwd_pps_maximum: Decimal = Decimal(0)
     fwd_pps_average: Decimal = Decimal(0)
     fwd_pps_minimum: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
@@ -244,6 +245,7 @@ class NetworkTCPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     retransmitted_segments: Decimal = Decimal(0)
     congestion_windowsize_kb: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
@@ -258,6 +260,7 @@ class NetworkUDPPerformanceMessage(PerfMessage):
     rx_throughput_in_gbps: Decimal = Decimal(0)
     data_loss: Decimal = Decimal(0)
     packet_size_kbytes: Decimal = Decimal(0)
+    protocol_type: Optional[str] = TransportProtocol.Udp
 
 
 @dataclass
