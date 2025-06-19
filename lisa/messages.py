@@ -204,6 +204,7 @@ class NetworkLatencyPerformanceMessage(PerfMessage):
     latency99_percentile_us: Decimal = Decimal(0)
     interval_us: int = 0
     frequency: int = 0
+    protocol_type: Optional[str] = TransportProtocol.Tcp
 
 
 @dataclass
