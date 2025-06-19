@@ -916,14 +916,15 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check the serial console is enabled from kernel command line.
+        This test verifies that Serial Console is properly enabled in the kernel
+        command line.
 
         Steps:
         1. Get the kernel command line from /var/log/messages, /var/log/syslog,
             dmesg, or journalctl output.
         2. Check expected setting from kernel command line.
-            2.1. Expected to see 'console=ttyAMA0' for aarch64.
-            2.2. Expected to see 'console=ttyS0' for x86_64.
+            2.1. Expected to see 'console [ttyAMA0] enabled' for aarch64.
+            2.2. Expected to see 'console [ttyS0] enabled' for x86_64.
             2.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
@@ -988,17 +989,22 @@ class AzureImageStandard(TestSuite):
                 "Fail to find console enabled line "
                 f"'console [{current_console_device}] enabled' "
                 "or 'uart0: console (115200,n,8,1)' "
-                f"from {', '.join(logs_checked)} output"
+                f"from {', '.join(logs_checked)} output. Serial console might not be "
+                "properly enabled in this image. Please set the kernel parameter to "
+                "enable diagnostic log for troubleshooting an issue related to VM "
+                "deployment."
             )
 
     @TestCaseMetadata(
         description="""
-        This test will check the /root/.bash_history not existing or is empty.
+        This test verifies that root bash history is either non-existent or empty in
+        the image.
 
         Steps:
-        1. Check .bash_history exist or not, if not, the image is prepared well.
-        2. If the .bash_history existed, check the content is empty or not, if not, the
-        image is not prepared well.
+        1. Check if /root/.bash_history file exists. If it doesn't exist, the test
+           passes as this indicates the image is properly prepared.
+        2. If /root/.bash_history exists, verify it is empty. If not empty, the test
+           fails as bash history should be cleared.
         """,
         priority=1,
         use_new_environment=True,
@@ -1118,12 +1124,19 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will check ClientAliveInterval value in sshd config.
+        This test validates ClientAliveInterval setting in sshd config is present and
+        set to an appropriate value.
 
         Steps:
-        1. Find ClientAliveInterval from sshd config.
-        2. Pass with warning if not find it.
-        3. Pass with warning if the value is not between 0 and 180.
+        1. Examine the sshd_config file to locate the ClientAliveInterval parameter.
+           The default sshd config file is /etc/ssh/sshd_config. If the file is not
+           present, use command "find / -name sshd_config" to locate it.
+           For Ubuntu, the ClientAliveInterval is set in
+           /etc/ssh/sshd_config.d/50-cloudimg-settings.conf
+        2. Verify the parameter exists. The test fails if ClientAliveInterval is not
+           found.
+        3. Confirm the value is within the acceptable range (> 0 and < 181 ). The test
+           fails if the value is outside this range.
         """,
         priority=2,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
@@ -1137,8 +1150,9 @@ class AzureImageStandard(TestSuite):
         if not (int(value) > 0 and int(value) < 181):
             raise LisaException(
                 f"The {setting} configuration of OpenSSH is set to {int(value)} "
-                "seconds in this image. Please keep the client alive interval between "
-                "0 seconds and 180 seconds."
+                "seconds in this image. A properly configured ClientAliveInterval "
+                "helps maintain secure SSH connections. Please keep ClientAliveInterval"
+                " between 0 seconds and 180 seconds."
             )
 
     @TestCaseMetadata(
@@ -1418,7 +1432,7 @@ class AzureImageStandard(TestSuite):
 
         Steps:
         1. Retrieve the OS architecture using the Uname tool.
-        2. Verify that the architecture is either x86_64 (AMD64) or aarch64 (ARM64).
+        2. Verify that the architecture is either x86_64/amd64 or aarch64/arm64.
         3. Fail the test if the architecture is not 64-bit.
         """,
         priority=1,
@@ -1437,8 +1451,7 @@ class AzureImageStandard(TestSuite):
     @TestCaseMetadata(
         description="""
         This test verifies the version of the Open Management Infrastructure (OMI)
-        version installed on the system is not vulnerable to the "OMIGOD"
-        vulnerabilities.
+        installed on the system is not vulnerable to the "OMIGOD" vulnerabilities.
 
         The "OMIGOD" vulnerabilities (CVE-2021-38647, CVE-2021-38648,
         CVE-2021-38645, CVE-2021-38649) were fixed in OMI version 1.6.8.1.
@@ -1488,7 +1501,7 @@ class AzureImageStandard(TestSuite):
                     f"version less than {minimum_secure_version}. "
                     f"Please update OMI to the version {minimum_secure_version} or "
                     "later. For more information, please see the OMI update guidance at"
-                    " https://aka.ms/omi-updation."
+                    f" https://aka.ms/omi-updation. Error details: {e}"
                 ) from e
             elif "Failed to retrieve" in str(e):
                 node.log.info("OMI is not installed on the system. Pass the case.")
@@ -1496,7 +1509,8 @@ class AzureImageStandard(TestSuite):
                 raise LisaException(
                     "OMI is installed but could not determine version. Please verify "
                     "manually that the OMI version is at least "
-                    f"{minimum_secure_version} to prevent OMIGOD vulnerabilities."
+                    f"{minimum_secure_version} to prevent OMIGOD vulnerabilities. Error"
+                    f" details: {e}"
                 ) from e
 
     @TestCaseMetadata(
