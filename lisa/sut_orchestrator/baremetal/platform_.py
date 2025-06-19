@@ -11,6 +11,7 @@ from lisa.platform_ import Platform
 from lisa.util.logger import Logger, get_logger, filter_ansi_escape
 from lisa.util.subclasses import Factory
 from lisa.node import Node
+from lisa.sut_orchestrator import platform_utils
 
 from .. import BAREMETAL
 from .bootconfig import BootConfig
@@ -28,9 +29,6 @@ from lisa.util import get_matched_str
 
 KEY_VMM_VERSION = "vmm_version"
 KEY_MSHV_VERSION = "mshv_version"
-
-VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
-MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 class BareMetalPlatform(Platform):
     def __init__(
         self,
@@ -76,49 +74,16 @@ class BareMetalPlatform(Platform):
 
     def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
         information: Dict[str, str] = {}
-
-        # Get VMM/MSHV version from the default node.
-        information[KEY_VMM_VERSION] = self._environment_information_hooks[KEY_VMM_VERSION](environment.default_node)
-        information[KEY_MSHV_VERSION] = self._environment_information_hooks[KEY_MSHV_VERSION](environment.default_node)
+        information[KEY_VMM_VERSION] = self._get_vmm_version(environment.default_node)
+        information[KEY_MSHV_VERSION] = self._get_mshv_version(environment.default_node)
         return information
 
     def _get_vmm_version(self, node: Node) -> str:
-        result: str = "UNKNOWN"  
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("detecting vmm version...")
-                output = node.execute(
-                    "cloud-hypervisor --version",
-                    shell=True,
-                ).stdout
-                output = filter_ansi_escape(output)
-                match = re.search(VMM_VERSION_PATTERN, output.strip())
-                if match:
-                    result = match.group("ch_version")
+        return platform_utils.get_vmm_version(node)
 
-        except Exception as e:
-            # it happens on some error vms. Those error should be caught earlier in
-            # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run vmm: {e}")
-        return result
-    
     def _get_mshv_version(self, node: Node) -> str:
-        result: str = "UNKNOWN"
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("detecting mshv version...")
-                try:
-                    dmesg = node.tools[Dmesg]
-                    result = get_matched_str(
-                        dmesg.get_output(), MSHV_VERSION_PATTERN, first_match=False
-                    )
-                except Exception as e:
-                    node.log.debug(f"error on run dmesg: {e}")
-        except Exception as e:
-            node.log.debug(f"error on run mshv: {e}")
-        
-        return result
-    
+        return platform_utils.get_mshv_version(node)
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 

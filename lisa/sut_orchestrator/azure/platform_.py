@@ -135,6 +135,7 @@ from .common import (
 )
 from .credential import AzureCredential, AzureCredentialSchema
 from .tools import Uname, VmGeneration, Waagent
+from lisa.sut_orchestrator import platform_utils
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -188,8 +189,6 @@ KERNEL_VERSION_PATTERN = re.compile(r"Linux version (?P<kernel_version>.+?) ", r
 WALA_VERSION_PATTERN = re.compile(
     r"Azure Linux Agent Version:(?: WALinuxAgent-)?(?P<wala_version>.+?)[\n\r]", re.M
 )
-VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
-MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 
 KEY_HARDWARE_DISK_CONTROLLER_TYPE = "hardware_disk_controller_type"
 KEY_HOST_VERSION = "host_version"
@@ -805,44 +804,11 @@ class AzurePlatform(Platform):
         return result
 
     def _get_vmm_version(self, node: Node) -> str:
-        result: str = "UNKNOWN"
-        node.log.debug("processing _get_vmm_version...")
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("detecting vmm version...")
-                output = node.execute(
-                    "cloud-hypervisor --version",
-                    shell=True,
-                ).stdout
-                output = filter_ansi_escape(output)
-                match = re.search(VMM_VERSION_PATTERN, output.strip())
-                if match:
-                    result = match.group("ch_version")
+        return platform_utils.get_vmm_version(node)
 
-        except Exception as e:
-            # it happens on some error vms. Those error should be caught earlier in
-            # test cases not here. So ignore any error here to collect information only.
-            node.log.debug(f"error on run vmm: {e}")
-        return result
-    
     def _get_mshv_version(self, node: Node) -> str:
-        result: str = "UNKNOWN"
-        node.log.debug("processing _get_mshv_version...")
-        try:
-            if node.is_connected and node.is_posix:
-                node.log.debug("detecting mshv version...")
-                try:
-                    dmesg = node.tools[Dmesg]
-                    result = get_matched_str(
-                        dmesg.get_output(), MSHV_VERSION_PATTERN, first_match=False
-                    )
-                except Exception as e:
-                    node.log.debug(f"error on run dmesg: {e}")
-        except Exception as e:
-            node.log.debug(f"error on run mshv: {e}")
-        
-        return result
-    
+        return platform_utils.get_mshv_version(node)
+
     def _get_host_version(self, node: Node) -> str:
         result: str = ""
 
@@ -1985,6 +1951,7 @@ class AzurePlatform(Platform):
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
+           
             # refer
             # https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
