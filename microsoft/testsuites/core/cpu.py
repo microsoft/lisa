@@ -195,12 +195,10 @@ class CPU(TestSuite):
             )
             if not is_hyperv_interrupt:
                 continue
-            log.info(f"Processing Hyper-V interrupt : {interrupt}")
-            if not isinstance(node.os, BSD):
-                assert_that(
-                    len(interrupt.cpu_counter),
-                    "Hyper-v interrupts should have count for each cpu.",
-                ).is_equal_to(cpu_count)
+            assert_that(
+                len(interrupt.cpu_counter),
+                "Hyper-v interrupts should have count for each cpu.",
+            ).is_equal_to(cpu_count)
             if interrupt.irq_number == "HRE" or "reenlightenment" in interrupt.metadata:
                 assert_that(
                     all(
@@ -233,6 +231,16 @@ class CPU(TestSuite):
                     ),
                     "Hypervisor synthetic timer interrupt should be processed by "
                     "all vCPU's",
+                ).is_equal_to(True)
+            elif isinstance(node.os, BSD):
+                assert_that(
+                    all(
+                        [
+                            interrupt_count > 0
+                            for interrupt_count in interrupt.cpu_counter
+                        ]
+                    ),
+                    "Hypervisor interrupts should be processed by all vCPU's",
                 ).is_equal_to(True)
             else:
                 continue
