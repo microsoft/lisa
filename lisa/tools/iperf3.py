@@ -12,7 +12,6 @@ from lisa.executable import Tool
 from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
-    TransportProtocol,
     create_perf_message,
 )
 from lisa.operating_system import Posix
