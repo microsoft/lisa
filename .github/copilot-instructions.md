@@ -1,6 +1,6 @@
 ## Test Suggestions
 
-When converting a PR from WIP to publish, provide a concise test plan.
+When converting a PR from WIP to publish, ensure adequate test coverage.
 
 - **Select Key Test Cases:** List only the essential test cases to validate the PR. When the change is not related to specific test cases, choose the test cases that can test the change. Use pipe '|' to separate names (e.g., test1|test2|test3).
 - **List Impacted LISA Features:** Mention only the relevant LISA features affected by this PR.
