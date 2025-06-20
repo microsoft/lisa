@@ -110,4 +110,5 @@ class AzureHookSpecDefaultImpl:
 
 
 plugin_manager.add_hookspecs(AzureHookSpec)
-plugin_manager.register(AzureHookSpecDefaultImpl())
+if not plugin_manager.is_registered(AzureHookSpecDefaultImpl):
+    plugin_manager.register(AzureHookSpecDefaultImpl())

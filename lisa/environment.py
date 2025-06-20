@@ -583,4 +583,5 @@ class EnvironmentHookImpl:
 
 
 plugin_manager.add_hookspecs(EnvironmentHookSpec)
-plugin_manager.register(EnvironmentHookImpl())
+if not plugin_manager.is_registered(EnvironmentHookImpl):
+    plugin_manager.register(EnvironmentHookImpl())
