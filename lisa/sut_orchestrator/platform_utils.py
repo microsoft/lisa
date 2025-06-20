@@ -1,18 +1,20 @@
 import re
 
+from lisa.node import Node
 from lisa.tools import Dmesg
 from lisa.util import get_matched_str
 from lisa.util.logger import filter_ansi_escape
 
-#$ cloud-hypervisor --version
-#cloud-hypervisor v41.0.0-41.0.120.g4ea35aaf
+# $ cloud-hypervisor --version
+# cloud-hypervisor v41.0.0-41.0.120.g4ea35aaf
 VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 
-#MSHV version:
-#[    2.353669] misc mshv: Versions: current: 27818  min: 27744  max: 27751
+# MSHV version:
+# [    2.353669] misc mshv: Versions: current: 27818  min: 27744  max: 27751
 MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 
-def get_vmm_version(node) -> str:
+
+def get_vmm_version(node: Node) -> str:
     result: str = "UNKNOWN"
     try:
         if node.is_connected and node.is_posix:
@@ -29,7 +31,8 @@ def get_vmm_version(node) -> str:
         node.log.debug(f"error on run vmm: {e}")
     return result
 
-def get_mshv_version(node) -> str:
+
+def get_mshv_version(node: Node) -> str:
     result: str = "UNKNOWN"
     try:
         if node.is_connected and node.is_posix:
@@ -42,5 +45,5 @@ def get_mshv_version(node) -> str:
             except Exception as e:
                 node.log.debug(f"error on run dmesg: {e}")
     except Exception as e:
-            node.log.debug(f"error on run mshv: {e}")
+        node.log.debug(f"error on run mshv: {e}")
     return result

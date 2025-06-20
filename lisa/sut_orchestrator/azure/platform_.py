@@ -62,6 +62,7 @@ from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import add_secret
+from lisa.sut_orchestrator import platform_utils
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -89,7 +90,7 @@ from lisa.util import (
     subclasses,
     truncate_keep_prefix,
 )
-from lisa.util.logger import Logger, get_logger, filter_ansi_escape
+from lisa.util.logger import Logger, get_logger
 from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
@@ -135,7 +136,6 @@ from .common import (
 )
 from .credential import AzureCredential, AzureCredentialSchema
 from .tools import Uname, VmGeneration, Waagent
-from lisa.sut_orchestrator import platform_utils
 
 # used by azure
 AZURE_DEPLOYMENT_NAME = "lisa_default_deployment_script"
@@ -1946,7 +1946,6 @@ class AzurePlatform(Platform):
 
         # set AN
         if azure_raw_capabilities.get("AcceleratedNetworkingEnabled", None) == "True":
-           
             # refer
             # https://docs.microsoft.com/en-us/azure/virtual-machines/dcv2-series#configuration
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv2-series
@@ -3045,7 +3044,7 @@ def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
 
 
 def _get_gallery_image_generation(
-    image: Union[GalleryImage, CommunityGalleryImage]
+    image: Union[GalleryImage, CommunityGalleryImage],
 ) -> int:
     assert (
         hasattr(image, "hyper_v_generation") and image.hyper_v_generation

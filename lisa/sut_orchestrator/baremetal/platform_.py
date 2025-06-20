@@ -2,16 +2,15 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, List, Optional, Type, Dict
-import re
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
-from lisa.platform_ import Platform
-from lisa.util.logger import Logger, get_logger, filter_ansi_escape
-from lisa.util.subclasses import Factory
 from lisa.node import Node
+from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
+from lisa.util.logger import Logger
+from lisa.util.subclasses import Factory
 
 from .. import BAREMETAL
 from .bootconfig import BootConfig
@@ -24,11 +23,11 @@ from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
-from lisa.tools import Dmesg
-from lisa.util import get_matched_str
 
 KEY_VMM_VERSION = "vmm_version"
 KEY_MSHV_VERSION = "mshv_version"
+
+
 class BareMetalPlatform(Platform):
     def __init__(
         self,
