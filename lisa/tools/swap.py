@@ -70,6 +70,9 @@ class Swap(Tool):
         # run 'cat /proc/swaps' or 'swapon -s' and parse the output
         # The output is in the following format:
         # <Filename> <Type> <Size> <Used> <Priority>
+        # Filename       Type       Size     Used     Priority
+        # /dev/dm-5      partition  3891196  1820932  -2
+        # /mnt/swapfile  file       4194300  0        -3
         cat = self.node.tools[Cat]
         swap_result = cat.run("/proc/swaps", shell=True, sudo=True)
         if swap_result.exit_code != 0:
