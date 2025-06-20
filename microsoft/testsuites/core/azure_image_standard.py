@@ -71,6 +71,11 @@ from lisa.util import (
     """,
 )
 class AzureImageStandard(TestSuite):
+    # These modules are essential for Hyper-V / Azure platform.
+    _essential_modules_configuration = {
+        "wdt": "CONFIG_WATCHDOG",
+        "cifs": "CONFIG_CIFS",
+    }
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
@@ -1619,16 +1624,11 @@ class AzureImageStandard(TestSuite):
         Returns the list of essential kernel modules that are neither integrated
         into the kernel nor compiled as loadable modules.
         """
-        # These modules are essential for Hyper-V / Azure platform.
-        essential_modules_configuration = {
-            "wdt": "CONFIG_WATCHDOG",
-            "cifs": "CONFIG_CIFS",
-        }
-        not_built_in_modules = []
+        not_enabled_modules = []
 
-        for module in essential_modules_configuration:
+        for module in self._essential_modules_configuration:
             if not node.tools[KernelConfig].is_enabled(
-                essential_modules_configuration[module]
+                self._essential_modules_configuration[module]
             ):
-                not_built_in_modules.append(module)
-        return not_built_in_modules
+                not_enabled_modules.append(module)
+        return not_enabled_modules
