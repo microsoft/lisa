@@ -2,11 +2,13 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
+from lisa.node import Node
 from lisa.platform_ import Platform
+from lisa.sut_orchestrator import platform_utils
 from lisa.util.logger import Logger
 from lisa.util.subclasses import Factory
 
@@ -22,6 +24,9 @@ from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
 
+KEY_VMM_VERSION = "vmm_version"
+KEY_MSHV_VERSION = "mshv_version"
+
 
 class BareMetalPlatform(Platform):
     def __init__(
@@ -29,6 +34,11 @@ class BareMetalPlatform(Platform):
         runbook: schema.Platform,
     ) -> None:
         super().__init__(runbook=runbook)
+
+        self._environment_information_hooks = {
+            KEY_VMM_VERSION: self._get_vmm_version,
+            KEY_MSHV_VERSION: self._get_mshv_version,
+        }
 
     @classmethod
     def type_name(cls) -> str:
@@ -60,6 +70,18 @@ class BareMetalPlatform(Platform):
             self._cluster_runbook, parent_logger=self._log
         )
         self.cluster.initialize()
+
+    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        information[KEY_VMM_VERSION] = self._get_vmm_version(environment.default_node)
+        information[KEY_MSHV_VERSION] = self._get_mshv_version(environment.default_node)
+        return information
+
+    def _get_vmm_version(self, node: Node) -> str:
+        return platform_utils.get_vmm_version(node)
+
+    def _get_mshv_version(self, node: Node) -> str:
+        return platform_utils.get_mshv_version(node)
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
