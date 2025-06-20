@@ -71,12 +71,6 @@ class BareMetalPlatform(Platform):
         )
         self.cluster.initialize()
 
-    def _get_environment_information(self, environment: Environment) -> Dict[str, str]:
-        information: Dict[str, str] = {}
-        information[KEY_VMM_VERSION] = self._get_vmm_version(environment.default_node)
-        information[KEY_MSHV_VERSION] = self._get_mshv_version(environment.default_node)
-        return information
-
     def _get_vmm_version(self, node: Node) -> str:
         return platform_utils.get_vmm_version(node)
 
