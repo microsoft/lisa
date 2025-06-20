@@ -52,6 +52,25 @@ class BinaryInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    additional_grub_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+    target_grub_file_path: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+    default_grub_id: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+
 
 class BinaryInstaller(BaseInstaller):
     @classmethod
@@ -80,6 +99,9 @@ class BinaryInstaller(BaseInstaller):
         initrd_image_path: str = runbook.initrd_image_path
         kernel_modules_path: str = runbook.kernel_modules_path
         kernel_config_path: str = runbook.kernel_config_path
+        additional_grub_file: str = runbook.additional_grub_file
+        target_grub_file_path: str = runbook.target_grub_file_path
+        default_grub_id: str = runbook.default_grub_id
 
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
@@ -170,12 +192,65 @@ class BinaryInstaller(BaseInstaller):
                 node.get_pure_path(f"/boot/config-{new_kernel}"),
             )
 
-        _update_mariner_config(
-            node,
-            current_kernel,
-            new_kernel,
-            mariner_version,
+        # _update_mariner_config(
+        #     node,
+        #     current_kernel,
+        #     new_kernel,
+        #     mariner_version,
+        # )
+
+        node.shell.copy(
+            PurePath(additional_grub_file),
+            node.get_pure_path("/var/tmp/additional_grub_file"),
         )
+        _copy_kernel_binary(
+            node,
+            node.get_pure_path("/var/tmp/additional_grub_file"),
+            node.get_pure_path(f"{target_grub_file_path}"),
+        )
+        vmlinuz_regexp = "REPL_KERNEL_VERSION"
+        vmlinuz_replacement = f"vmlinuz-{new_kernel}"
+        initrd_regexp = "REPL_INITRD_VERSION"
+        initrd_replacement = f"initramfs-{new_kernel}.img"
+
+        sed = node.tools[Sed]
+        sed.substitute(
+            regexp=vmlinuz_regexp,
+            replacement=vmlinuz_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        # Modify file to point new initrd binary
+        sed.substitute(
+            regexp=initrd_regexp,
+            replacement=initrd_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        sed.substitute(
+            regexp="^GRUB_DEFAULT=",
+            replacement="#GRUB_DEFAULT=",
+            file="/etc/default/grub",
+            sudo=True,
+        )
+
+        node.execute(
+            f"sed -i.bak '1i GRUB_DEFAULT={default_grub_id}' /etc/default/grub",
+            shell=True,
+            sudo=True,
+        )
+
+        cat = node.tools[Cat]
+        cat.read('/etc/default/grub', sudo=True, force_run=True)
+
+        node.execute(
+            "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            sudo=True,
+            shell=True,
+        )
+        cat.read('/boot/grub2/grub.cfg', sudo=True, force_run=True)
 
         return new_kernel
 
