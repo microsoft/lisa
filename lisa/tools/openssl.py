@@ -2,9 +2,10 @@
 # Licensed under the MIT license.
 
 import shlex
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional
 
 from lisa.executable import Tool
+from lisa.util.process import ExecutableResult
 
 if TYPE_CHECKING:
     from lisa.operating_system import Posix
@@ -119,6 +120,21 @@ class OpenSSL(Tool):
             expected_exit_code_failure_message=(
                 "Failed to verify signature with OpenSSL."
             ),
+        )
+
+    def speed(self, sec: Optional[int] = None) -> ExecutableResult:
+        """
+        Run OpenSSL speed test to validate the performance
+        of cryptographic functions.
+        """
+        cmd = "speed"
+        if sec is not None:
+            cmd = f"{cmd} -seconds {sec}"
+        return self.run(
+            cmd,
+            timeout=3600,  # 1 hour
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )
 
     def _run_with_piped_input(

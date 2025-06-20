@@ -86,6 +86,22 @@ class OpenSSLTestSuite(TestSuite):
             ),
         )
 
+    @TestCaseMetadata(
+        description="""
+        This test runs OpenSSL speed test this test will
+        run performance tests on OpenSSL cryptography tests,
+        not only giving us a performance baseline but also
+        testing to make sure crypto functions of openssl are working.
+        """,
+        priority=2,
+        timeout=3600,  # 1 hour
+    )
+    def verify_openssl_speed_test(self, node: Node) -> None:
+        """This function runs OpenSSL speed test to validate the
+        performance of cryptographic functions."""
+        openssl = node.tools[OpenSSL]
+        openssl.speed(sec=1)
+
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
         Tests OpenSSL encryption and decryption functionality.
