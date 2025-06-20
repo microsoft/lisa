@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import shlex
-from typing import TYPE_CHECKING, Tuple, Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from lisa.executable import Tool
 from lisa.util.process import ExecutableResult
