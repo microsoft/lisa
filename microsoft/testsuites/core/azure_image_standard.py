@@ -472,14 +472,18 @@ class AzureImageStandard(TestSuite):
             if node.os.information.version >= "39.0.0":
                 # Check if the autoconnect is enabled for eth0
                 autoconnect_result = node.execute(
-                    "nmcli -g connection.autoconnect connection show 'cloud-init eth0'", shell=True)
+                    "nmcli -g connection.autoconnect connection show"
+                    " 'cloud-init eth0'",
+                    shell=True,
+                )
                 assert_that(
                     autoconnect_result.stdout.strip(),
                     "connection.autoconnect should be 'yes' for eth0",
                 ).is_equal_to("yes")
                 # Check if the connection is set to use DHCP
                 dhcp_result = node.execute(
-                    "nmcli -g ipv4.method connection show 'cloud-init eth0'", shell=True)
+                    "nmcli -g ipv4.method connection show 'cloud-init eth0'", shell=True
+                )
                 assert_that(
                     dhcp_result.stdout.strip(),
                     "connection.ipv4.method should be 'auto' for eth0",
