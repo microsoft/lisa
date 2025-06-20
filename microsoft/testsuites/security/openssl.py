@@ -2,7 +2,6 @@
 # Licensed under the MIT license.
 
 import json
-from pathlib import Path
 from typing import cast
 
 from assertpy import assert_that
@@ -57,7 +56,7 @@ class OpenSSLTestSuite(TestSuite):
             supported_os=[CBLMariner],
         ),
     )
-    def verify_golang_sys_crypto(self, log: Logger, node: Node) -> None:
+    def verify_golang_sys_crypto(self, node: Node) -> None:
         """
         This test sets up the dependencies to run the
         experimental Go system crypto tests and cleans go builds.
@@ -70,14 +69,14 @@ class OpenSSLTestSuite(TestSuite):
         # cleans up previous go builds
         node.execute(
             "go clean -testcache",
-            cwd=Path("/usr/lib/golang/src"),
+            cwd=node.get_pure_path("/usr/lib/golang/src"),
             expected_exit_code=0,
             expected_exit_code_failure_message=("Go clean up failed."),
             shell=True,
         )
         node.execute(
             "go test -short ./crypto/...",
-            cwd=Path("/usr/lib/golang/src"),
+            cwd=node.get_pure_path("/usr/lib/golang/src"),
             update_envs={
                 "GOEXPERIMENT": "systemcrypto",
             },
