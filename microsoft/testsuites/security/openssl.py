@@ -2,10 +2,19 @@
 # Licensed under the MIT license.
 
 import json
+from typing import cast
 
 from assertpy import assert_that
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+    simple_requirement,
+)
+from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import OpenSSL
 
 
@@ -37,6 +46,45 @@ class OpenSSLTestSuite(TestSuite):
         OpenSSL by calling helper functions"""
         self._openssl_test_encrypt_decrypt(log, node)
         self._openssl_test_sign_verify(log, node)
+
+    @TestCaseMetadata(
+        description="""
+        This test will use Go experimental system crypto tests
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            supported_os=[CBLMariner],
+        ),
+    )
+    def verify_golang_sys_crypto(self, node: Node) -> None:
+        """
+        This test sets up the dependencies to run the
+        experimental Go system crypto tests and cleans go builds.
+        """
+        # installs go dependencies for tests
+        posix_os = cast(Posix, node.os)
+        posix_os.install_packages(
+            ["golang", "glibc-devel", "gcc", "binutils", "kernel-headers"]
+        )
+        # cleans up previous go builds
+        node.execute(
+            "go clean -testcache",
+            cwd=node.get_pure_path("/usr/lib/golang/src"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=("Go clean up failed."),
+            shell=True,
+        )
+        node.execute(
+            "go test -short ./crypto/...",
+            cwd=node.get_pure_path("/usr/lib/golang/src"),
+            update_envs={
+                "GOEXPERIMENT": "systemcrypto",
+            },
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Setting up Go system crypto environment failed."
+            ),
+        )
 
     def _openssl_test_encrypt_decrypt(self, log: Logger, node: Node) -> None:
         """
