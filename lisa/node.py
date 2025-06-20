@@ -1231,7 +1231,8 @@ class NodeHookImpl:
 
 
 plugin_manager.add_hookspecs(NodeHookSpec)
-plugin_manager.register(NodeHookImpl())
+if not plugin_manager.is_registered(NodeHookImpl):
+    plugin_manager.register(NodeHookImpl())
 
 
 def create_nics(node: Node) -> Nics:
