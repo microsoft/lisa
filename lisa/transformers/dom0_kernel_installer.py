@@ -10,7 +10,7 @@ from dataclasses_json import dataclass_json
 from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner
-from lisa.tools import Cat, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
+from lisa.tools import Cat, Chmod, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
 from lisa.util import UnsupportedDistroException, field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
@@ -52,6 +52,25 @@ class BinaryInstallerSchema(BaseInstallerSchema):
         ),
     )
 
+    additional_grub_file: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+    target_grub_file_path: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+    default_grub_id: str = field(
+        default="",
+        metadata=field_metadata(
+            required=False,
+        ),
+    )
+
 
 class BinaryInstaller(BaseInstaller):
     @classmethod
@@ -80,11 +99,17 @@ class BinaryInstaller(BaseInstaller):
         initrd_image_path: str = runbook.initrd_image_path
         kernel_modules_path: str = runbook.kernel_modules_path
         kernel_config_path: str = runbook.kernel_config_path
+        additional_grub_file: str = runbook.additional_grub_file
+        target_grub_file_path: str = runbook.target_grub_file_path
+        default_grub_id: str = runbook.default_grub_id
 
         uname = node.tools[Uname]
         current_kernel = uname.get_linux_information().kernel_version_raw
 
         mariner_version = int(node.os.information.version.major)
+
+        if mariner_version != 2:
+            assert additional_grub_file, "additional_grub_file for new kernel is required"
 
         # Kernel absolute path: /home/user/vmlinuz-5.15.57.1+
         # Naming convention : vmlinuz-<version>
@@ -170,12 +195,90 @@ class BinaryInstaller(BaseInstaller):
                 node.get_pure_path(f"/boot/config-{new_kernel}"),
             )
 
-        _update_mariner_config(
-            node,
-            current_kernel,
-            new_kernel,
-            mariner_version,
+        if mariner_version == 2:
+            _update_mariner_config(
+                node,
+                current_kernel,
+                new_kernel,
+                mariner_version,
+            )
+
+            return new_kernel
+
+        node.shell.copy(
+            PurePath(additional_grub_file),
+            node.get_pure_path("/var/tmp/additional_grub_file"),
         )
+        if not target_grub_file_path:
+            target_grub_file_path = "/etc/grub.d/40_custom_kernel"
+        _copy_kernel_binary(
+            node,
+            node.get_pure_path("/var/tmp/additional_grub_file"),
+            node.get_pure_path(f"{target_grub_file_path}"),
+        )
+        node.tools[Chmod].chmod(
+            path=target_grub_file_path,
+            permission="755",
+            sudo=True,
+        )
+
+        cat = node.tools[Cat]
+        sed = node.tools[Sed]
+
+        # Replace all the placeholders in the additional grub file
+        vmlinuz_replacement = f"vmlinuz-{new_kernel}"
+        initrd_replacement = f"initramfs-{new_kernel}.img"
+        sed.substitute(
+            regexp="REPL_KERNEL_VERSION",
+            replacement=vmlinuz_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="REPL_INITRD_VERSION",
+            replacement=initrd_replacement,
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        lsblk = node.tools[Lsblk]
+        root_partition = lsblk.find_partition_by_mountpoint("/", force_run=True)
+        sed.substitute(
+            regexp="REPL_UUID",
+            replacement=f"{root_partition.uuid}",
+            file=target_grub_file_path,
+            sudo=True,
+        )
+        sed.substitute(
+            regexp="REPL_PARTUUID",
+            replacement=f"{root_partition.part_uuid}",
+            file=target_grub_file_path,
+            sudo=True,
+        )
+
+        # Comment out the existing GRUB_DEFAULT line ane
+        grub_default_file = "/etc/default/grub"
+        sed.substitute(
+            regexp="^GRUB_DEFAULT=",
+            replacement="#GRUB_DEFAULT=",
+            file=grub_default_file,
+            sudo=True,
+        )
+        # Add the new GRUB_DEFAULT line with the new kernel
+        node.execute(
+            f"sed -i.bak '1i GRUB_DEFAULT={default_grub_id}' {grub_default_file}",
+            shell=True,
+            sudo=True,
+        )
+        cat.read(grub_default_file, sudo=True, force_run=True)
+
+        grub_cfg = "/boot/grub2/grub.cfg"
+        node.execute(
+            f"grub2-mkconfig -o {grub_cfg}",
+            sudo=True,
+            shell=True,
+        )
+        cat.read(grub_cfg, sudo=True, force_run=True)
 
         return new_kernel
 
