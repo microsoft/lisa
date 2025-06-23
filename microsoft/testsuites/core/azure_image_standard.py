@@ -29,6 +29,7 @@ from lisa.operating_system import (
     DebianRepositoryInfo,
     Fedora,
     FreeBSD,
+    Linux,
     Oracle,
     Posix,
     Redhat,
@@ -40,7 +41,18 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
-from lisa.tools import Cat, Dmesg, Journalctl, Ls, Lsblk, Lscpu, Pgrep, Ssh, Swap
+from lisa.tools import (
+    Cat,
+    Dmesg,
+    Journalctl,
+    KernelConfig,
+    Ls,
+    Lsblk,
+    Lscpu,
+    Pgrep,
+    Ssh,
+    Swap,
+)
 from lisa.util import (
     LisaException,
     PassedException,
@@ -59,6 +71,11 @@ from lisa.util import (
     """,
 )
 class AzureImageStandard(TestSuite):
+    # These modules are essential for Hyper-V / Azure platform.
+    _essential_modules_configuration = {
+        "wdt": "CONFIG_WATCHDOG",
+        "cifs": "CONFIG_CIFS",
+    }
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
         r"(\nDefaults\s+targetpw)|(^Defaults\s+targetpw.*)"
@@ -1509,6 +1526,24 @@ class AzureImageStandard(TestSuite):
                         "has IO issues."
                     )
 
+    @TestCaseMetadata(
+        description="""
+        This test case verifies the enablement of essential kernel modules like wdt and
+        cifs.
+        """,
+        priority=1,
+    )
+    def verify_essential_kernel_modules(self, node: Node) -> None:
+        if not isinstance(node.os, Linux):
+            raise SkippedException(
+                "This test is only applicable for Linux distributions."
+            )
+        not_enabled_modules = self._get_not_enabled_modules(node)
+
+        assert_that(not_enabled_modules).described_as(
+            "Not enabled essential kernel modules for Hyper-V / Azure platform found."
+        ).is_length(0)
+
     def _verify_version_by_pattern_value(
         self,
         node: Node,
@@ -1583,3 +1618,17 @@ class AzureImageStandard(TestSuite):
                 raise LisaException(message + action_message)
             elif not extended_support_versions:
                 raise LisaException(message + action_message)
+
+    def _get_not_enabled_modules(self, node: Node) -> List[str]:
+        """
+        Returns the list of essential kernel modules that are neither integrated
+        into the kernel nor compiled as loadable modules.
+        """
+        not_enabled_modules = []
+
+        for module in self._essential_modules_configuration:
+            if not node.tools[KernelConfig].is_enabled(
+                self._essential_modules_configuration[module]
+            ):
+                not_enabled_modules.append(module)
+        return not_enabled_modules
