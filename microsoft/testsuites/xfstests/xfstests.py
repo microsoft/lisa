@@ -413,8 +413,8 @@ class Xfstests(Tool):
 
     def _install(
         self,
-        branch: str | None = None,
-        repo: str | None = None,
+        branch: str = None,
+        repo: str = None,
     ) -> bool:
         """
         About:This method will download and install XFSTest on a given node.
