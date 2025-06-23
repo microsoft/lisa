@@ -10,6 +10,21 @@ When reviewing or creating PRs, follow these three key areas of testing guidance
 2. **Feature Impact Analysis** - Determine affected LISA features
 3. **Image Selection** - Choose appropriate Azure marketplace images
 
+## Copilot Instructions for Code Reviews
+
+**MANDATORY REQUIREMENT:** Every code review must include a test suggestion using the Quick Reference Template provided below. This is required for all pull request reviews to ensure consistent test coverage guidance.
+
+When reviewing any pull request, you must:
+
+1. **Always generate and present the test suggestion block** as part of your review
+2. **Use the exact Quick Reference Template format** (found at the bottom of this document) for copy-paste convenience
+3. **Include all three required components:**
+   - Essential integration/end-to-end test method names (using exact method names separated by `|`)
+   - Directly impacted LISA feature class names (using exact class names as they appear in codebase)
+   - Minimal set of Azure Marketplace images required for validation (using exact image strings from the provided list)
+
+This ensures every code review provides actionable, standardized test guidance that reviewers and contributors can immediately use for validation.
+
 ## Test Case Selection Guidelines
 
 ### Unit Tests
