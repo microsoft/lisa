@@ -57,8 +57,10 @@ class Dom0SecureBootTestSuite(TestSuite):
         3. Await the VM to be ready by checking TCP port connectivity
         4. Verify that secure boot is enabled by checking
             journalctl for "Secure boot enabled"
-        5. Verify that the Dom0 stack is running by checking
+        5. Verify that the Dom0 stack is **NOT** running by checking
             journalctl for "Hyper-V: running as root partition"
+            NOTE: The Dom0 stack is currently not secure boot signed,
+            so it will not run in secure boot mode.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -103,10 +105,10 @@ class Dom0SecureBootTestSuite(TestSuite):
         if is_ready:
             journalctl = node.tools[Journalctl].logs_for_kernel()
             # 4. Verify that secure boot is enabled
-            # 5. Verify that the Dom0 stack is running
+            # 5. Verify that the Dom0 stack is **NOT** running under secure boot
             assert (
                 "Secure boot enabled" in journalctl
-                and "Hyper-V: running as root partition" in journalctl
+                and "Hyper-V: running as root partition" not in journalctl
             )
         else:
             raise TcpConnectionException(
