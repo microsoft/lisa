@@ -43,16 +43,13 @@ class Xfstests(Tool):
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
     branch = "master"
     # This hash table contains recommended tags for different OS versions
-    # based on our findings.
-    # Since not all distros are updated to the latest build tools
-    # XFStests may not compile and/or run correctly.
-    # This is a workaround to ensure that the tests run on the maximum
-    # recommended tag for the OS version.
-    # The format for key is "<full_version>_< major>_<minor>_<patch>"
+    # based on our findings that are known to build without issues.
+    # The format for key is "<vendor>_<release>"
+    # NOTE: The release and vendor information is case sensitive.
     # This information is derived from node.os.information
     # Logic : the method "get_os_id_version" will return a string
-    # in the format "<full_version>_<major>_<minor>_<patch>"
-    # Example: "SUSE Linux Enterprise Server 15 SP5_15_5_0"
+    # in the format "<vendor>_<release>"
+    # Example: "SLES_15_5_0"
     # This string is used to lookup the recommended key-value pair from
     # the hash table. If a match is found, the value is used as the
     # recommended tag for the OS version.
@@ -60,13 +57,16 @@ class Xfstests(Tool):
     # "unknown" and a corresponding value will be used from the hash table.
     # If the OS Version is not found in the hash table,
     # the default branch will be used from line 45.
+    # NOTE: This table should be updated on a regular basis when the distros
+    # are updated to support newer versions of xfstests.
     os_recommended_tags: Dict[str, str] = {
-        "SUSE Linux Enterprise Server 15 SP5_15_5_0": "v2025.04.27",
-        "SUSE Linux Enterprise Server 12 SP5_12_5_0": "v2024.12.22",
-        "Debian GNU/Linux 11 (bullseye)_11_11_0": "v2024.12.22",
-        "Ubuntu 18.04.6 LTS_18_4_0": "v2024.12.22",
-        "Ubuntu 20.04.6 LTS_20_4_0": "v2024.12.22",
-        "Red Hat Enterprise Linux Server release 7.8 (Maipo)_7_8_0": "v2024.02.09",
+        "SLES_15.5": "v2025.04.27",
+        "SLES_12.5": "v2024.12.22",
+        "Debian GNU/Linux_11.11": "v2024.12.22",
+        "Ubuntu_18.04": "v2024.12.22",
+        "Ubuntu_20.04": "v2024.12.22",
+        "Ubuntu_24.10": "v2024.12.22",
+        "Red Hat_7.8": "v2024.02.09",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
     # for all other distros not part of the above hash table,
@@ -413,8 +413,8 @@ class Xfstests(Tool):
 
     def _install(
         self,
-        branch: Optional[str] = None,
-        repo: Optional[str] = None,
+        branch: str | None = None,
+        repo: str | None = None,
     ) -> bool:
         """
         About:This method will download and install XFSTest on a given node.
@@ -990,30 +990,17 @@ class Xfstests(Tool):
     def get_os_id_version(self) -> str:
         """
         Extracts OS information from node.os.information.
-        Returns a string in the format <full_version>_<major>_<minor>_<patch>.
+        Returns a string in the format "<vendor>_<release>".
         If OS information is not available, returns "unknown".
         """
         try:
             os_info = self.node.os.information
-            full_version = getattr(os_info, "full_version", "")
-            major = (
-                getattr(os_info.version, "major", 0)
-                if hasattr(os_info, "version")
-                else 0
-            )
-            minor = (
-                getattr(os_info.version, "minor", 0)
-                if hasattr(os_info, "version")
-                else 0
-            )
-            patch = (
-                getattr(os_info.version, "patch", 0)
-                if hasattr(os_info, "version")
-                else 0
-            )
-            if not full_version:
+            vendor = getattr(os_info, "vendor", "")
+            release = getattr(os_info, "release", "")
+
+            if not vendor or not release:
                 return "unknown"
 
-            return f"{full_version}_{major}_{minor}_{patch}"
+            return f"{vendor}_{release}"
         except Exception:
             return "unknown"
