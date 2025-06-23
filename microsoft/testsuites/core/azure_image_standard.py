@@ -485,25 +485,47 @@ class AzureImageStandard(TestSuite):
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
-            ifcfg_eth0 = node.tools[Cat].read(
-                "/etc/sysconfig/network-scripts/ifcfg-eth0"
-            )
+            # Fedora 39 and later use NetworkManager and do not have ifcfg-eth0
+            if node.os.information.version >= "39.0.0":
+                # Check if the autoconnect is enabled for eth0
+                autoconnect_result = node.execute(
+                    "nmcli -g connection.autoconnect connection show"
+                    " 'cloud-init eth0'",
+                    shell=True,
+                )
+                assert_that(
+                    autoconnect_result.stdout.strip(),
+                    "connection.autoconnect should be 'yes' for eth0",
+                ).is_equal_to("yes")
+                # Check if the connection is set to use DHCP
+                dhcp_result = node.execute(
+                    "nmcli -g ipv4.method connection show 'cloud-init eth0'", shell=True
+                )
+                assert_that(
+                    dhcp_result.stdout.strip(),
+                    "connection.ipv4.method should be 'auto' for eth0",
+                ).is_equal_to("auto")
+            else:
+                # For Fedora versions < 39, check ifcfg-eth0 file
+                ifcfg_eth0 = node.tools[Cat].read(
+                    "/etc/sysconfig/network-scripts/ifcfg-eth0"
+                )
 
-            assert_that(
-                ifcfg_eth0,
-                "DEVICE=eth0 should be present in "
-                "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
-            ).contains("DEVICE=eth0")
-            assert_that(
-                ifcfg_eth0,
-                "BOOTPROTO=dhcp should be present in "
-                "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
-            ).contains("BOOTPROTO=dhcp")
-            assert_that(
-                ifcfg_eth0,
-                "ONBOOT=yes should be present in "
-                "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
-            ).contains("ONBOOT=yes")
+                assert_that(
+                    ifcfg_eth0,
+                    "DEVICE=eth0 should be present in "
+                    "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
+                ).contains("DEVICE=eth0")
+                assert_that(
+                    ifcfg_eth0,
+                    "BOOTPROTO=dhcp should be present in "
+                    "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
+                ).contains("BOOTPROTO=dhcp")
+                assert_that(
+                    ifcfg_eth0,
+                    "ONBOOT=yes should be present in "
+                    "/etc/sysconfig/network-scripts/ifcfg-eth0 file",
+                ).contains("ONBOOT=yes")
         else:
             raise SkippedException(f"unsupported distro type: {type(node.os)}")
 
