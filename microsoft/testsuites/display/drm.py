@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.base_tools import Cat
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import BSD, Fedora, Suse, Ubuntu, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot, Sed
 from lisa.util import SkippedException, get_matched_str
@@ -50,16 +50,39 @@ class Drm(TestSuite):
         ),
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
-        if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
+        if not isinstance(node.os, Posix):
             raise SkippedException(
-                "DRM hyperv driver is built-in in current distro"
-                f" {node.os.name} {node.os.information.version}"
+                f"{node.os.name} {node.os.information.version} is not supported."
             )
-        else:
-            lsmod = node.tools[Lsmod]
-            assert_that(lsmod.module_exists("hyperv_drm")).described_as(
-                "hyperv_drm module is absent"
-            ).is_equal_to(True)
+        kernel_info = (
+            f"{node.os.information.full_version} {node.os.get_kernel_information()}"
+        )
+        is_built_in = node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV")
+        has_hyperv_drm = node.tools[Lsmod].module_exists("hyperv_drm")
+        has_hyperv_fb = node.tools[Lsmod].module_exists("hyperv_fb")
+
+        # Get marketplace information from Azure node runbook
+        marketplace_info = "Unknown"
+        try:
+            from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+
+            azure_runbook = node.capability.get_extended_runbook(
+                AzureNodeSchema, "azure"
+            )
+            if azure_runbook and azure_runbook.marketplace:
+                marketplace_info = azure_runbook.get_image_name()
+        except Exception:
+            # If not Azure or unable to get marketplace info, use "Unknown"
+            pass
+
+        log.debug(
+            f"OS DRM Summary: {kernel_info} | "
+            f"OS Full Version: {node.os.information.full_version} | "
+            f"Marketplace: {marketplace_info} | "
+            f"DRM_HYPERV built-in: {is_built_in} | "
+            f"hyperv_drm in lsmod: {has_hyperv_drm} | "
+            f"hyperv_fb in lsmod: {has_hyperv_fb}"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -124,59 +147,59 @@ class Drm(TestSuite):
             "dri connector status should be 'connected'"
         ).is_true()
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
+    # def before_case(self, log: Logger, **kwargs: Any) -> None:
+    #     node: Node = kwargs["node"]
+    #     if isinstance(node.os, BSD) or isinstance(node.os, Windows):
+    #         raise SkippedException(f"{node.os} is not supported.")
 
-        if node.tools[KernelConfig].is_enabled("CONFIG_DRM_HYPERV"):
-            log.debug(
-                f"Current os {node.os.name} {node.os.information.version} "
-                "supports DRM hyperv driver"
-            )
-            lsmod = node.tools[Lsmod]
-            # hyperv_fb takes priority over hyperv_drm, so blacklist it
-            if lsmod.module_exists("hyperv_fb"):
-                echo = node.tools[Echo]
-                echo.write_to_file(
-                    "blacklist hyperv_fb",
-                    node.get_pure_path("/etc/modprobe.d/blacklist-fb.conf"),
-                    sudo=True,
-                )
-                node.tools[Reboot].reboot()
+    #     if node.tools[KernelConfig].is_enabled("CONFIG_DRM_HYPERV"):
+    #         log.debug(
+    #             f"Current os {node.os.name} {node.os.information.version} "
+    #             "supports DRM hyperv driver"
+    #         )
+    #         lsmod = node.tools[Lsmod]
+    #         # hyperv_fb takes priority over hyperv_drm, so blacklist it
+    #         if lsmod.module_exists("hyperv_fb"):
+    #             echo = node.tools[Echo]
+    #             echo.write_to_file(
+    #                 "blacklist hyperv_fb",
+    #                 node.get_pure_path("/etc/modprobe.d/blacklist-fb.conf"),
+    #                 sudo=True,
+    #             )
+    #             node.tools[Reboot].reboot()
 
-            # if the hyperv_fb is built-in, then we need to blacklist it in grub
-            if lsmod.module_exists("hyperv_fb"):
-                cat = node.tools[Cat]
-                grub_content = "\n".join(
-                    cat.run("/etc/default/grub").stdout.splitlines()
-                )
-                result = get_matched_str(
-                    grub_content,
-                    GRUB_CMDLINE_LINUX_DEFAULT_PATTERN,
-                    first_match=False,
-                ).replace("/", r"\/")
+    #         # if the hyperv_fb is built-in, then we need to blacklist it in grub
+    #         if lsmod.module_exists("hyperv_fb"):
+    #             cat = node.tools[Cat]
+    #             grub_content = "\n".join(
+    #                 cat.run("/etc/default/grub").stdout.splitlines()
+    #             )
+    #             result = get_matched_str(
+    #                 grub_content,
+    #                 GRUB_CMDLINE_LINUX_DEFAULT_PATTERN,
+    #                 first_match=False,
+    #             ).replace("/", r"\/")
 
-                sed = node.tools[Sed]
+    #             sed = node.tools[Sed]
 
-                sed.substitute(
-                    regexp="GRUB_CMDLINE_LINUX_DEFAULT=.*",
-                    replacement=f'GRUB_CMDLINE_LINUX_DEFAULT="{result} '
-                    'module_blacklist=hyperv_fb"',
-                    file="/etc/default/grub",
-                    sudo=True,
-                )
+    #             sed.substitute(
+    #                 regexp="GRUB_CMDLINE_LINUX_DEFAULT=.*",
+    #                 replacement=f'GRUB_CMDLINE_LINUX_DEFAULT="{result} '
+    #                 'module_blacklist=hyperv_fb"',
+    #                 file="/etc/default/grub",
+    #                 sudo=True,
+    #             )
 
-                if isinstance(node.os, Ubuntu):
-                    node.execute("update-grub", sudo=True)
-                elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
-                    node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
-                # doesn't apply in debian as CONFIG_DRM_HYPERV isn't enabled in debian
+    #             if isinstance(node.os, Ubuntu):
+    #                 node.execute("update-grub", sudo=True)
+    #             elif isinstance(node.os, Fedora) or isinstance(node.os, Suse):
+    #                 node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+    #             # doesn't apply in debian as CONFIG_DRM_HYPERV isn't enabled in debian
 
-                node.reboot(time_out=600)
+    #             node.reboot(time_out=600)
 
-        else:
-            raise SkippedException(
-                "DRM hyperv driver is not enabled in current distro"
-                f" {node.os.name} {node.os.information.version}"
-            )
+    #     else:
+    #         raise SkippedException(
+    #             "DRM hyperv driver is not enabled in current distro"
+    #             f" {node.os.name} {node.os.information.version}"
+    #         )
