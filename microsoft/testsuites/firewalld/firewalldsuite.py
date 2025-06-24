@@ -52,10 +52,10 @@ def _update_test_result(
     total_tests = node.execute(cmd_total, sudo=True, shell=True)
 
     cmd_fail = f"cat {log_file} | grep \"failed unexpectedly\" | cut -d' ' -f 1"
-    num_tests_failed = node.execute(cmd_fail, sudo=True, shell=True)
+    tests_failed = node.execute(cmd_fail, sudo=True, shell=True)
 
     cmd_skip = f"cat {log_file} | grep \"were skipped\" | cut -d' ' -f 1"
-    num_tests_skipped = node.execute(cmd_skip, sudo=True, shell=True)
+    tests_skipped = node.execute(cmd_skip, sudo=True, shell=True)
 
     # Logs dir contains the list of failed tests.
     fail_testcase_num: List[str] = []
@@ -67,9 +67,21 @@ def _update_test_result(
     # based expressions in kernel.
     # This is a temporary known (and constant) list of failures
     known_fail_testcase_num = [
-        "061", "107", "120", "124", "192",
-        "193", "194", "195", "196", "197",
-        "200", "240", "252", "306", "324"
+        "061",
+        "107",
+        "120",
+        "124",
+        "192",
+        "193",
+        "194",
+        "195",
+        "196",
+        "197",
+        "200",
+        "240",
+        "252",
+        "306",
+        "324",
     ]
 
     status = TestStatus.PASSED
@@ -79,7 +91,7 @@ def _update_test_result(
     # Update the test result data
     result.set_status(
         status,
-        f"TOTAL:{total_tests}\nFAILED:{num_tests_failed}\nSKIPPED:{num_tests_skipped}\n"
+        f"TOTAL:{total_tests}\nFAILED:{tests_failed}\nSKIPPED:{tests_skipped}\n",
     )
 
 
@@ -114,20 +126,23 @@ class FirewalldSuite(TestSuite):
         result: TestResult,
     ) -> None:
         # Install the dependencies for running the test suite
-        node.os.install_packages(
-            [
-                "ebtables", "nftables", "python3-dbus",
-                "iproute", "firewalld", "firewalld-test"
-            ]
-        )
+        if isinstance(node.os, CBLMariner):
+            node.os.install_packages(
+                [
+                    "ebtables",
+                    "nftables",
+                    "python3-dbus",
+                    "iproute",
+                    "firewalld",
+                    "firewalld-test",
+                ]
+            )
 
         # Check if ipv6_rpfilter config is supported
         # Note: Right now, this is the only known config which
         # causes failure in starting firewalld daemon.
         if not _supports_ipv6_rpfilter_config(node):
-            raise SkippedException(
-                "Skipping test, unsupported kernel config"
-            )
+            raise SkippedException("Skipping test, unsupported kernel config")
 
         # these paths are specific to testsuite.
         test_suite_dir = "/usr/share/firewalld/testsuite"
