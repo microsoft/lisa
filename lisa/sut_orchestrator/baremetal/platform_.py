@@ -36,8 +36,8 @@ class BareMetalPlatform(Platform):
         super().__init__(runbook=runbook)
 
         self._environment_information_hooks = {
-            KEY_VMM_VERSION: self._get_vmm_version,
-            KEY_MSHV_VERSION: self._get_mshv_version,
+            KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
 
     @classmethod
@@ -71,11 +71,17 @@ class BareMetalPlatform(Platform):
         )
         self.cluster.initialize()
 
-    def _get_vmm_version(self, node: Node) -> str:
-        return platform_utils.get_vmm_version(node)
-
-    def _get_mshv_version(self, node: Node) -> str:
-        return platform_utils.get_mshv_version(node)
+    def _get_node_information(self, node: Node) -> Dict[str, str]:
+        information: Dict[str, str] = {}
+        for key, method in self._environment_information_hooks.items():
+            node.log.debug(f"detecting {key} ...")
+            try:
+                value = method(node)
+                if value:
+                    information[key] = value
+            except Exception as e:
+                node.log.exception(f"error on get {key}.", exc_info=e)
+        return information
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
