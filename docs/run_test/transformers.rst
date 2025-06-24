@@ -272,7 +272,7 @@ resource_group_name
 
 type: string
 
-Name of the resource group in which VM should be deployed. Creates a new RG if not specified.
+Name of the resource group in which VM should be deployed. Creates a new RG if not specified. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different resource group requirements, it can be overwritten here.
 
 requirement
 ^^^^^^^^^^^
@@ -296,7 +296,7 @@ source_address_prefixes
 ^^^^^^^^^^^^^^^^^^^^^^^
 type: Optional[Union[str, List[str]]] | Default: None
 
-Source address prefixes for network security rules. Can be a single string, a comma-separated string, or a list of strings. When not specified, defaults to the current public IP address for security.
+Source address prefixes for network security rules. Can be a single string, a comma-separated string, or a list of strings. When not specified, defaults to the current public IP address for security. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different network infrastructure requirements, it can be overwritten here.
 
 
 Use Delete Transformer
