@@ -959,12 +959,16 @@ class AzureImageStandard(TestSuite):
         command line.
 
         Steps:
-        1. Get the kernel command line from /var/log/messages, /var/log/syslog,
-            dmesg, or journalctl output.
-        2. Check expected setting from kernel command line.
-            2.1. Expected to see 'console [ttyAMA0] enabled' for aarch64.
-            2.2. Expected to see 'console [ttyS0] enabled' for x86_64.
-            2.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
+        1. Check the kernel command line by "cat proc/cmdline" for the console device
+           1.1. Expected to see 'console=ttyAMA0' for aarch64.
+           1.2. Expected to see 'console=ttyS0' for x86_64.
+           FreeBSD doesn't have /proc/cmdline, then check the logs.
+        2. If there is no expected pattern, get the kernel command line from
+           /var/log/messages, /var/log/syslog, dmesg, or journalctl output.
+        3. Check expected setting from kernel command line.
+            3.1. Expected to see 'console [ttyAMA0] enabled' for aarch64.
+            3.2. Expected to see 'console [ttyS0] enabled' for x86_64.
+            3.3. Expected to see 'uart0: console (115200,n,8,1)' for FreeBSD.
         """,
         priority=1,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
@@ -982,11 +986,23 @@ class AzureImageStandard(TestSuite):
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         current_console_device = console_device[arch]
+
+        # Check /proc/cmdline for the console device firstly
+        console_enabled_pattern = re.compile(rf"console={current_console_device}")
+        cmdline_path = "/proc/cmdline"
+        if not isinstance(node.os, FreeBSD):
+            cmdline = node.tools[Cat].read(cmdline_path)
+            if get_matched_str(cmdline, console_enabled_pattern):
+                # Pass the test
+                return
+
+        # Check logs for the console device
         console_enabled_pattern = re.compile(
             rf"^(.*console \[{current_console_device}\] enabled.*)$", re.M
         )
         freebsd_pattern = re.compile(r"^(.*uart0: console \(115200,n,8,1\).*)$", re.M)
         patterns = [console_enabled_pattern, freebsd_pattern]
+        key_word = "console"
         logs_checked = []
         pattern_found = False
         # Check dmesg output for the patterns if certain OS detected
@@ -1008,7 +1024,9 @@ class AzureImageStandard(TestSuite):
             ]
             for log_file, tool in log_sources:
                 if node.shell.exists(node.get_pure_path(log_file)):
-                    current_log_output = tool.read(log_file, force_run=True, sudo=True)
+                    current_log_output = tool.read_with_filter(
+                        log_file, key_word, sudo=True, ignore_error=True
+                    )
                     if current_log_output:
                         logs_checked.append(log_file)
                         if any(find_patterns_in_lines(current_log_output, patterns)):
@@ -1017,7 +1035,7 @@ class AzureImageStandard(TestSuite):
             # Check journalctl logs if patterns were not found in other log sources
             journalctl_tool = node.tools[Journalctl]
             if not pattern_found and journalctl_tool.exists:
-                current_log_output = journalctl_tool.first_n_logs_from_boot()
+                current_log_output = journalctl_tool.filter_logs_by_pattern(key_word)
                 if current_log_output:
                     logs_checked.append(f"{journalctl_tool.command}")
                     if any(find_patterns_in_lines(current_log_output, patterns)):
