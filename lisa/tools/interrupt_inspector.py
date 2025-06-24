@@ -181,7 +181,7 @@ class InterruptInspectorBSD(InterruptInspector):
                 if not exists:
                     newinterrupt = Interrupt(
                         irq_number=matched.group("irq_type"),
-                        cpu_counter=[0]*core_count,
+                        cpu_counter=[0] * core_count,
                         counter_sum=int(matched.group("irq_count")),
                         metadata=matched.group("irq_type"),
                     )
