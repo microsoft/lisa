@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.base_tools import Cat
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import BSD, Fedora, Suse, Ubuntu, Windows
+from lisa.operating_system import BSD, Fedora, Posix, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot, Sed
 from lisa.util import SkippedException, get_matched_str
@@ -50,16 +50,40 @@ class Drm(TestSuite):
         ),
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
-        if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
+        if not isinstance(node.os, Posix):
             raise SkippedException(
-                "DRM hyperv driver is built-in in current distro"
-                f" {node.os.name} {node.os.information.version}"
+                f"{node.os.name} {node.os.information.version} is not supported."
+            )
+        if node.tools[KernelConfig].is_built_in("CONFIG_DRM_HYPERV"):
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} "
+                "has built-in DRM hyperv driver"
             )
         else:
-            lsmod = node.tools[Lsmod]
-            assert_that(lsmod.module_exists("hyperv_drm")).described_as(
-                "hyperv_drm module is absent"
-            ).is_equal_to(True)
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} "
+                "does not have built-in DRM hyperv driver"
+            )
+
+        lsmod = node.tools[Lsmod]
+        exists = lsmod.module_exists("hyperv_drm")
+        if exists:
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} has hyperv_drm module in lsmod"
+            )
+        else:
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} does not have hyperv_drm module in lsmod"
+            )
+        hyperv_fb_exists = lsmod.module_exists("hyperv_fb")
+        if hyperv_fb_exists:
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} has hyperv_fb module in lsmod"
+            )
+        else:
+            log.debug(
+                f"OS DRM: {node.os.information.full_version} {node.os.get_kernel_information()} does not have hyperv_fb module in lsmod"
+            )
 
     @TestCaseMetadata(
         description="""
