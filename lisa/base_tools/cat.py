@@ -38,6 +38,7 @@ class Cat(Tool):
         force_run: bool = False,
         sudo: bool = False,
         invert_match: bool = False,
+        ignore_error: bool = False,
     ) -> str:
         # Combining cat with grep
         if invert_match:
@@ -45,5 +46,6 @@ class Cat(Tool):
         else:
             params = f'{file} | grep "{grep_string}"'
         result = self.run(params, force_run=force_run, sudo=sudo, shell=True)
-        result.assert_exit_code(message=f"Error : {result.stdout}")
+        if not ignore_error:
+            result.assert_exit_code(message=f"Error : {result.stdout}")
         return result.stdout
