@@ -300,7 +300,7 @@ class JUnit(Notifier):
             raise LisaException("Test suite not started.")
 
         runbook: JUnitSchema = cast(JUnitSchema, self.runbook)
-        
+
         testcase = ET.SubElement(testsuite_info.xml, "testcase")
         if runbook.append_message_id:
             testcase.attrib["name"] = f"{message.name} ({message.id_})"
