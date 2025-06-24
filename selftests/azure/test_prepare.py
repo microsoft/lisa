@@ -64,7 +64,9 @@ class AzurePrepareTestCase(TestCase):
                 "restrictions": [],
             }
         )
-        node = self._platform._resource_sku_to_capability("eastus", resource_sku)
+        node = self._platform._resource_sku_to_capability(
+            "eastus", resource_sku, self._platform._log
+        )
         self.assertEqual(48, node.core_count)
         self.assertEqual(458752, node.memory_mb)
         assert node.network_interface
