@@ -99,6 +99,6 @@ class Uname(Tool):
 
 class FreeBSDUname(Uname):
     _key_info_pattern = re.compile(
-        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) "
-        r"(?P<platform>[\w\W]+?) (?P<uname_version>[\w\W]+?)$"
+        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) [^ ]*? [\w\W]*? "
+        r"(?P<uname_version>[\w\W]+?) (?P<platform>[\w\W]+?)$"
     )
