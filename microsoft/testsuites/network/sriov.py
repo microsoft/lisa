@@ -78,9 +78,10 @@ class Sriov(TestSuite):
         environment: Environment = kwargs.pop("environment")
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
-            node.features[NetworkInterface].switch_sriov(
-                enable=True, wait=True, reset_connections=True
-            )
+            if node.features.is_supported(NetworkInterface):
+                node.features[NetworkInterface].switch_sriov(
+                    enable=True, wait=True, reset_connections=True
+                )
 
     @TestCaseMetadata(
         description="""
@@ -354,10 +355,11 @@ class Sriov(TestSuite):
                 initialize_nic_info(environment)
                 sriov_basic_test(environment)
             else:
-                serial_console = node.features[SerialConsole]
-                serial_console.check_panic(
-                    saved_path=log_path, stage="after_attach_nics"
-                )
+                if node.features.is_supported(SerialConsole):
+                    serial_console = node.features[SerialConsole]
+                    serial_console.check_panic(
+                        saved_path=log_path, stage="after_attach_nics"
+                    )
                 raise TcpConnectionException(
                     node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS],
                     node.connection_info[constants.ENVIRONMENTS_NODES_REMOTE_PORT],
