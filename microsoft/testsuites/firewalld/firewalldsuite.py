@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Any, List
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
@@ -10,7 +11,7 @@ from lisa.tools import Cat, KernelConfig, Ls
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 
-def _supports_ipv6_rpfilter_config(node: Node) -> bool:
+def _is_ipv6_rpfilter_supported(node: Node) -> bool:
     # If IPv6 reverse path filtering is enabled in firewalld's
     # configuration (IPv6_rpfilter=yes), check if node's kernel
     # is built with the necessary configs, otherwise the firewalld
@@ -41,6 +42,7 @@ def _update_test_result(
     # - summary of the tests (Total/Skipped/Failed)
     # - list of failed & skipped tests
     # - overall status (PASSED/FAILED)
+    cat = node.tools[Cat]
     ls = node.tools[Ls]
     if not ls.path_exists(log_file):
         raise LisaException(
@@ -48,25 +50,40 @@ def _update_test_result(
             "please check if testing runs well or not."
         )
 
-    cmd_total = f"cat {log_file} | grep \"tests were run\" | cut -d' ' -f 2"
-    total_tests = node.execute(cmd_total, sudo=True, shell=True)
+    total_tests = None
+    failed_tests = None
+    skipped_tests = None
+    num_regex = r"\d+ "
 
-    cmd_fail = f"cat {log_file} | grep \"failed unexpectedly\" | cut -d' ' -f 1"
-    tests_failed = node.execute(cmd_fail, sudo=True, shell=True)
+    total_str = cat.read_with_filter(f"{log_file}", "tests were run", sudo=True)
+    m = re.search(num_regex, total_str)
+    if m:
+        total_tests = m[0]
 
-    cmd_skip = f"cat {log_file} | grep \"were skipped\" | cut -d' ' -f 1"
-    tests_skipped = node.execute(cmd_skip, sudo=True, shell=True)
+    failed_str = cat.read_with_filter(f"{log_file}", "failed unexpectedly", sudo=True)
+    m = re.search(num_regex, failed_str)
+    if m:
+        failed_tests = m[0]
+
+    skipped_str = cat.read_with_filter(f"{log_file}", "were skipped", sudo=True)
+    m = re.search(num_regex, skipped_str)
+    if m:
+        skipped_tests = m[0]
 
     # Logs dir contains the list of failed tests.
-    fail_testcase_num: List[str] = []
+    current_failures: List[str] = []
     failed_tests_list = ls.list_dir(log_dir, sudo=True)
     for test in failed_tests_list:
-        fail_testcase_num.append(test.split("/")[-2])
+        # each entry in this list looks like
+        # "/usr/share/firewalld/testsuite/testsuite.dir/123/"
+        # using / as delimiter, we extract the test case number
+        # in this case 123
+        current_failures.append(test.split("/")[-2])
 
     # Note: There are known failures due to missing support for `FIB`
     # based expressions in kernel.
-    # This is a temporary known (and constant) list of failures
-    known_fail_testcase_num = [
+    # This is a constant list of failing test cases in each run.
+    known_failures = [
         "061",
         "107",
         "120",
@@ -84,14 +101,17 @@ def _update_test_result(
         "324",
     ]
 
-    status = TestStatus.PASSED
-    if known_fail_testcase_num != fail_testcase_num:
-        status = TestStatus.FAILED
+    if set(known_failures) != set(current_failures):
+        raise LisaException(
+            "Found unexpected failures, check logs for details\n"
+            f"expected failure list: {known_failures}\n"
+            f"actual failure list:   {current_failures}\n"
+        )
 
     # Update the test result data
     result.set_status(
-        status,
-        f"TOTAL:{total_tests}\nFAILED:{tests_failed}\nSKIPPED:{tests_skipped}\n",
+        TestStatus.PASSED,
+        f"TOTAL:{total_tests}\nFAILED:{failed_tests}\nSKIPPED:{skipped_tests}\n",
     )
 
 
@@ -114,7 +134,16 @@ class FirewalldSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test runs the firewalld testsuite.
+        This test case runs the firewalld testsuite.
+        The test suite is a collection of tests which run against
+        a local firewalld installation.
+        These tests interacts with both iptables & nftables as backend.
+        The set of tests run are
+        1. cli: firewall-cmd client tests
+        2. dbus: dbus interface tests
+        3. python: python binding tests
+        4. features: firewalld daemon functional tests
+        5. regressions: regression tests
         The testsuite is provided by the firewalld-test rpm.
         """,
         priority=3,
@@ -141,8 +170,12 @@ class FirewalldSuite(TestSuite):
         # Check if ipv6_rpfilter config is supported
         # Note: Right now, this is the only known config which
         # causes failure in starting firewalld daemon.
-        if not _supports_ipv6_rpfilter_config(node):
-            raise SkippedException("Skipping test, unsupported kernel config")
+        if not _is_ipv6_rpfilter_supported(node):
+            raise SkippedException(
+                "Skipping tests. Needs kernel config CONFIG_FIB_INET &"
+                "CONFIG_FIB_IPV6 enabled to use fib based expressions for"
+                "ipv6_rpfilter configuration."
+            )
 
         # these paths are specific to testsuite.
         test_suite_dir = "/usr/share/firewalld/testsuite"
@@ -151,8 +184,17 @@ class FirewalldSuite(TestSuite):
         test_log = "/usr/share/firewalld/testsuite/testsuite.log"
 
         # these commands are specific to testsuite binary.
-        clean_command = f"{test_suite_binary} -c -C {test_suite_dir}"
-        test_command = f"{test_suite_binary} -j4 -C {test_suite_dir}"
+        # arg to set log directory
+        set_logs_dir_arg = f"-C {test_suite_dir}"
+
+        # arg to clean test artifacts
+        clean_arg = "-c"
+
+        # arg to set number of jobs
+        jobs_arg = "-j4"
+
+        clean_command = f"{test_suite_binary} {clean_arg} {set_logs_dir_arg}"
+        test_command = f"{test_suite_binary} {jobs_arg} {set_logs_dir_arg}"
 
         ls = node.tools[Ls]
         # Remove any artifacts generated by the testsuite.
@@ -168,6 +210,7 @@ class FirewalldSuite(TestSuite):
             node.execute(cmd, sudo=True, shell=False)
 
         # Run the test
+        log.info("Running tests")
         node.execute(test_command, sudo=True, shell=True, timeout=3000)
 
         # Update the test result
