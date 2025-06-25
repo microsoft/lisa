@@ -24,9 +24,6 @@ from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
 
-KEY_VMM_VERSION = "vmm_version"
-KEY_MSHV_VERSION = "mshv_version"
-
 
 class BareMetalPlatform(Platform):
     def __init__(
@@ -36,8 +33,8 @@ class BareMetalPlatform(Platform):
         super().__init__(runbook=runbook)
 
         self._environment_information_hooks = {
-            KEY_VMM_VERSION: platform_utils.get_vmm_version,
-            KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
 
     @classmethod

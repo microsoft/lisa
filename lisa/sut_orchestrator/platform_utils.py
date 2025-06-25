@@ -13,6 +13,8 @@ VMM_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
 # [    2.353669] misc mshv: Versions: current: 27818  min: 27744  max: 27751
 MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 
+KEY_VMM_VERSION = "vmm_version"
+KEY_MSHV_VERSION = "mshv_version"
 
 def get_vmm_version(node: Node) -> str:
     result: str = "UNKNOWN"

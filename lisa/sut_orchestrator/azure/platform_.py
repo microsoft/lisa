@@ -200,8 +200,7 @@ KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
-KEY_VMM_VERSION = "vmm_version"
-KEY_MSHV_VERSION = "mshv_version"
+
 
 CLOUD: Dict[str, Dict[str, Any]] = {
     "azurecloud": AZURE_PUBLIC_CLOUD,
@@ -463,8 +462,8 @@ class AzurePlatform(Platform):
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
-            KEY_VMM_VERSION: platform_utils.get_vmm_version,
-            KEY_MSHV_VERSION: platform_utils.get_mshv_version,
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
 
     @classmethod
@@ -802,12 +801,6 @@ class AzurePlatform(Platform):
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
         return result
-
-    def _get_vmm_version(self, node: Node) -> str:
-        return platform_utils.get_vmm_version(node)
-
-    def _get_mshv_version(self, node: Node) -> str:
-        return platform_utils.get_mshv_version(node)
 
     def _get_host_version(self, node: Node) -> str:
         result: str = ""
