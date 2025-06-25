@@ -469,7 +469,7 @@ class CloudHypervisorMsftSourceInstaller(CloudHypervisorSourceInstaller):
         code_path = _get_source_code(runbook, self._node, self.type_name(), self._log)
 
         self._log.info("Building source code of Cloudhypervisor...")
-        self._build_cmd = "cargo build --release --features=kvm,mshv,igvm,snp"
+        self._build_cmd = "cargo build --release --features=kvm,mshv,igvm,sev_snp"
         self._build_and_install(code_path)
         return self._get_version()
 
