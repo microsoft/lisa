@@ -101,7 +101,10 @@ def _update_test_result(
         "324",
     ]
 
-    if set(known_failures) != set(current_failures):
+    # Aarch64 kernel config has some additional FIB enabled
+    # configs compared to x86_64.
+    # Aarch64 failures list is thus a subset of known failures.
+    if not set(current_failures).issubset(set(known_failures)):
         raise LisaException(
             "Found unexpected failures, check logs for details\n"
             f"expected failure list: {known_failures}\n"
