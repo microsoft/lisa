@@ -272,7 +272,7 @@ resource_group_name
 
 type: string
 
-Name of the resource group in which VM should be deployed. Creates a new RG if not specified. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different resource group requirements, it can be overwritten here.
+Name of the resource group in which VM should be deployed. Creates a new RG if not specified. When not provided, the platform configuration will be used for the transformer. When the VM of transformer has different resource group requirements, it can be overwritten here. This only works for new fresh deployment - if the resource group already exists, it does nothing.
 
 requirement
 ^^^^^^^^^^^
