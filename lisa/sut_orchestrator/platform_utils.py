@@ -16,6 +16,7 @@ MSHV_VERSION_PATTERN = re.compile(r"current:\s*(?P<mshv_version>\d+)", re.M)
 KEY_VMM_VERSION = "vmm_version"
 KEY_MSHV_VERSION = "mshv_version"
 
+
 def get_vmm_version(node: Node) -> str:
     result: str = "UNKNOWN"
     try:
