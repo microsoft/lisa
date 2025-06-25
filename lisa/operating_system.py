@@ -77,7 +77,6 @@ class CpuArchitecture(str, Enum):
     X64 = "x86_64"
     ARM64 = "aarch64"
     I386 = "i386"
-    BSDARM64 = "arm64"
     UNKNOWN = "unknown"
 
 
@@ -1420,6 +1419,23 @@ class FreeBSD(BSD):
         r"\s+(\w+):\s*{(?:[^}]*url\s*:\s*\"([^\"]+)\"[^}]*enabled\s*:\s*(\w+))+[^}]*}",
         re.DOTALL,
     )
+
+    def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
+        uname = self._node.tools[Uname]
+        uname_result = uname.get_linux_information(force_run=force_run)
+
+        parts: List[str] = [str(x) for x in uname_result.kernel_version]
+        if uname_result.hardware_platform == "arm64":
+            uname_result.hardware_platform = "aarch64"
+        kernel_information = KernelInformation(
+            version=uname_result.kernel_version,
+            raw_version=uname_result.kernel_version_raw,
+            hardware_platform=uname_result.hardware_platform,
+            operating_system=uname_result.operating_system,
+            version_parts=parts,
+        )
+
+        return kernel_information
 
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()

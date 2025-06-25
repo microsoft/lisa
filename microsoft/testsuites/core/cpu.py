@@ -251,7 +251,6 @@ class CPU(TestSuite):
         # Fail test execution if these hyper-v interrupts are not showing up
         if (
             arch != CpuArchitecture.ARM64
-            and arch != CpuArchitecture.BSDARM64
             and not found_hyperv_interrupt
         ):
             raise LisaException("Hyper-V interrupts are not recorded.")
