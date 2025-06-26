@@ -88,6 +88,7 @@ from .nproc import Nproc
 from .ntp import Ntp
 from .ntpstat import Ntpstat
 from .ntttcp import Ntttcp
+from .numactl import NumaCtl
 from .nvidiasmi import NvidiaSmi
 from .nvmecli import Nvmecli
 from .parted import Parted
@@ -220,6 +221,7 @@ __all__ = [
     "Ntp",
     "Ntpstat",
     "Ntttcp",
+    "NumaCtl",
     "NvidiaSmi",
     "Nvmecli",
     "Parted",

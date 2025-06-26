@@ -24,9 +24,12 @@ from lisa.tools import (
     Git,
     Ls,
     Lsblk,
+    Lscpu,
     Mkdir,
     Modprobe,
+    NumaCtl,
     Sed,
+    TaskSet,
     Whoami,
 )
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
@@ -81,6 +84,10 @@ class CloudHypervisorTests(Tool):
 
     cmd_path: PurePath
     repo_root: PurePath
+    
+    # NUMA affinity configuration
+    _numa_enabled: bool = False
+    _numa_bind_prefix: str = ""
 
     @property
     def command(self) -> str:
@@ -177,6 +184,9 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        # Setup NUMA affinity for stable test results on multi-NUMA systems
+        self._setup_numa_affinity()
+        
         disk_name = ""
         if self.use_pmem:
             disk_name = self._get_pmem_for_block_tests()
@@ -221,7 +231,7 @@ class CloudHypervisorTests(Tool):
                 cmd_timeout = self.PERF_CMD_TIME_OUT
                 if self.clh_guest_vm_type == "CVM":
                     cmd_timeout = cmd_timeout + 300
-                result = self.run(
+                result = self._execute_with_numa_binding(
                     cmd_args,
                     timeout=cmd_timeout,
                     force_run=True,
@@ -600,6 +610,72 @@ class CloudHypervisorTests(Tool):
 
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
+
+    def _setup_numa_affinity(self) -> None:
+        """
+        Set up NUMA affinity for Cloud Hypervisor tests.
+        This ensures both CPU and memory are allocated from the same NUMA node.
+        """
+        try:
+            lscpu = self.node.tools[Lscpu]
+            numa_node_count = lscpu.get_numa_node_count()
+            
+            self._log.info(f"Detected {numa_node_count} NUMA nodes")
+            
+            if numa_node_count <= 1:
+                self._log.info("Single NUMA node system - no NUMA binding needed")
+                return
+            
+            # Try to use numactl first, fallback to taskset
+            numa_tool = None
+            try:
+                numa_tool = self.node.tools[NumaCtl]
+                if not numa_tool._check_exists():
+                    numa_tool._install()
+                
+                # Get the best NUMA node to use
+                selected_node, cpu_range = numa_tool.get_best_numa_node()
+                self._numa_bind_prefix = numa_tool.bind_to_node(
+                    selected_node, ""
+                ).strip()
+                self._numa_enabled = True
+                
+                self._log.info(
+                    f"NUMA affinity enabled using numactl: node={selected_node}, "
+                    f"cpu_range={cpu_range}"
+                )
+                
+            except Exception as e:
+                self._log.debug(f"numactl not available: {e}")
+                try:
+                    # Fallback to taskset for CPU affinity only
+                    taskset = self.node.tools[TaskSet]
+                    start_cpu, end_cpu = lscpu.get_cpu_range_in_numa_node(0)
+                    cpu_range = f"{start_cpu}-{end_cpu}"
+                    self._numa_bind_prefix = f"{taskset.command} -c {cpu_range}"
+                    self._numa_enabled = True
+                    
+                    self._log.info(
+                        f"NUMA CPU affinity enabled using taskset: "
+                        f"cpu_range={cpu_range} (memory not bound)"
+                    )
+                    
+                except Exception as e2:
+                    self._log.warning(f"No NUMA binding tools available: {e2}")
+                    
+        except Exception as e:
+            self._log.warning(f"Failed to setup NUMA affinity: {e}")
+
+    def _execute_with_numa_binding(self, command: str, **kwargs) -> Any:
+        """
+        Execute a command with NUMA binding if enabled.
+        """
+        if self._numa_enabled and self._numa_bind_prefix:
+            bound_command = f"{self._numa_bind_prefix} {command}"
+            self._log.debug(f"Executing with NUMA binding: {bound_command}")
+            return self.run(bound_command, **kwargs)
+        else:
+            return self.run(command, **kwargs)
 
 
 def extract_jsons(input_string: str) -> List[Any]:
