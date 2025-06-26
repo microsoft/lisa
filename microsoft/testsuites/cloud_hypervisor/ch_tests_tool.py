@@ -25,9 +25,12 @@ from lisa.tools import (
     Git,
     Ls,
     Lsblk,
+    Lscpu,
     Mkdir,
     Modprobe,
+    NumaCtl,
     Sed,
+    TaskSet,
     Whoami,
 )
 from lisa.util import LisaException, UnsupportedDistroException, find_groups_in_lines
@@ -82,6 +85,13 @@ class CloudHypervisorTests(Tool):
 
     cmd_path: PurePath
     repo_root: PurePath
+
+    # NUMA affinity configuration
+    _numa_enabled: bool = False
+    _numa_bind_prefix: str = ""
+    _numa_selected_node: int = 0
+    _numa_cpu_range: str = ""
+    _numa_tool_name: str = "none"
 
     @property
     def command(self) -> str:
@@ -351,6 +361,9 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         subtest_timeout: Optional[int] = None,
     ) -> None:
+        # Setup NUMA affinity for stable test results on multi-NUMA systems
+        self._setup_numa_affinity()
+
         self._setup_disk_for_metrics(log_path)
 
         if ref:
@@ -429,6 +442,11 @@ class CloudHypervisorTests(Tool):
             test_name = f"ch_metrics_{safe_tc}_{hypervisor}"
 
             try:
+                # Save NUMA metadata for A/B comparison across test runs
+                self._save_numa_metadata(log_path, test_name)
+
+                # Run with enhanced diagnostics
+                # NUMA binding is applied inside the bash script wrapper
                 result = self._run_with_enhanced_diagnostics(
                     cmd_args=cmd_args,
                     timeout=cmd_timeout,
@@ -760,11 +778,14 @@ core_bt_file="{test_name}_core_bt.txt"
 
 rm -f "$log_file" "$live_bt_file" "$core_bt_file"
 
+# Apply NUMA binding prefix if configured
+numa_prefix="{self._numa_bind_prefix if self._numa_enabled else ''}"
+
 # start tests, line-buffered if available, stream to log
 if command -v stdbuf >/dev/null; then
-  ( stdbuf -oL -eL scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( stdbuf -oL -eL $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 else
-  ( scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
+  ( $numa_prefix scripts/dev_cli.sh {cmd_args} | tee "$log_file" ) &
 fi
 pid=$!
 
@@ -1310,6 +1331,112 @@ exit $ec
 
             if block_size:
                 self.env_vars[block_size_env_var] = block_size
+
+    def _setup_numa_affinity(self) -> None:
+        """
+        Set up NUMA affinity for Cloud Hypervisor tests.
+        This ensures both CPU and memory are allocated from the same NUMA node.
+        """
+        try:
+            lscpu = self.node.tools[Lscpu]
+            numa_node_count = lscpu.get_numa_node_count()
+
+            self._log.debug(f"NUMA nodes detected={numa_node_count}")
+
+            if numa_node_count <= 1:
+                self._log.debug("NUMA binding skipped: single node system")
+                return
+
+            # Try to use numactl first, fallback to taskset
+            selected_node = 0
+            cpu_range = ""
+
+            try:
+                numa_tool = self.node.tools[NumaCtl]
+                # Get the best NUMA node (most free memory)
+                selected_node, cpu_range = numa_tool.get_best_numa_node()
+                self._numa_bind_prefix = numa_tool.bind_to_node(
+                    selected_node, ""
+                ).strip()
+                self._numa_enabled = True
+                self._numa_selected_node = selected_node
+                self._numa_cpu_range = cpu_range
+                self._numa_tool_name = "numactl"
+
+                self._log.info(
+                    f"NUMA enabled tool=numactl node={selected_node} cpus={cpu_range}"
+                )
+
+            except Exception as e:
+                self._log.debug(f"numactl not available: {e}")
+                try:
+                    # Fallback to taskset for CPU affinity only
+                    # Select the same best node that numactl would have chosen
+                    taskset = self.node.tools[TaskSet]
+
+                    # Find node with most free memory for consistency
+                    best_node = 0
+                    max_free_memory = 0
+                    for node_id in range(numa_node_count):
+                        try:
+                            result = self.node.execute(
+                                f"cat /sys/devices/system/node/node{node_id}/meminfo",
+                                shell=True,
+                            )
+                            if result.exit_code == 0:
+                                for line in result.stdout.split("\n"):
+                                    if "MemFree:" in line:
+                                        free_kb = int(line.split()[3])
+                                        if free_kb > max_free_memory:
+                                            max_free_memory = free_kb
+                                            best_node = node_id
+                                        break
+                        except Exception:
+                            continue
+
+                    selected_node = best_node
+                    start_cpu, end_cpu = lscpu.get_cpu_range_in_numa_node(selected_node)
+                    cpu_range = f"{start_cpu}-{end_cpu}"
+                    self._numa_bind_prefix = f"{taskset.command} -c {cpu_range}"
+                    self._numa_enabled = True
+                    self._numa_selected_node = selected_node
+                    self._numa_cpu_range = cpu_range
+                    self._numa_tool_name = "taskset"
+
+                    self._log.info(
+                        f"NUMA enabled tool=taskset node={selected_node} "
+                        f"cpus={cpu_range} memory=unbound"
+                    )
+
+                except Exception as e2:
+                    self._log.debug(f"NUMA binding unavailable: {e2}")
+
+        except Exception as e:
+            self._log.debug(f"NUMA setup failed: {e}")
+
+    def _save_numa_metadata(self, log_path: Path, test_name: str) -> None:
+        """
+        Save NUMA binding metadata to JSON for A/B comparison across test runs.
+        This helps verify binding consistency and debug performance variations.
+        """
+        if not self._numa_enabled:
+            return
+
+        numa_meta = {
+            "numa_enabled": self._numa_enabled,
+            "prefix": self._numa_bind_prefix,
+            "selected_node": self._numa_selected_node,
+            "cpu_range": self._numa_cpu_range,
+            "tool": self._numa_tool_name,
+        }
+
+        meta_file = log_path / f"{test_name}_numa_meta.json"
+        try:
+            with open(meta_file, "w") as f:
+                json.dump(numa_meta, f, indent=2)
+            self._log.debug(f"Saved NUMA metadata to {meta_file}")
+        except Exception as e:
+            self._log.debug(f"Failed to save NUMA metadata: {e}")
 
 
 def extract_jsons(input_string: str) -> List[Any]:
