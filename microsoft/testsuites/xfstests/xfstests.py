@@ -413,8 +413,8 @@ class Xfstests(Tool):
 
     def _install(
         self,
-        branch: Optional[str] = None,
-        repo: Optional[str] = None,
+        branch: str = "",
+        repo: str = "",
     ) -> bool:
         """
         About:This method will download and install XFSTest on a given node.
@@ -431,7 +431,7 @@ class Xfstests(Tool):
         )
         """
         # Set the branch to the recommended tag for the OS if not provided
-        if branch is None:
+        if not branch:
             os_id_version = self.get_os_id_version()
             branch = self.os_recommended_tags.get(os_id_version, self.branch)
         repo = repo or self.repo
