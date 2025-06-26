@@ -124,19 +124,19 @@ class OpenSSL(Tool):
 
     def speed(self, sec: Optional[int] = None) -> ExecutableResult:
         """
-         Run OpenSSL speed test that measures the performance
-         of cryptographic functions.
+        Run OpenSSL speed test that measures the performance
+        of cryptographic functions."""
 
-        This breaks out the time input for the speed test
-         so it can be made to be a parameter in the future."""
+        # This breaks out the time input for the speed test
+        # so it can be made to be a parameter in the future.
         cmd = "speed"
         if sec is not None:
             cmd = f"{cmd} -seconds {sec}"
-        # 1 hour timeout to complete all of the cryptographic operations
+        # 20 min timeout to complete all of the cryptographic operations
         # that OpenSSL speed measures.
         return self.run(
             cmd,
-            timeout=3600,
+            timeout=1200,
             expected_exit_code=0,
             expected_exit_code_failure_message=("OpenSSL speed test failed."),
         )
