@@ -63,6 +63,7 @@ from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import add_secret
+from lisa.sut_orchestrator import platform_utils
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -200,6 +201,7 @@ KEY_HARDWARE_PLATFORM = "hardware_platform"
 KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
+
 
 CLOUD: Dict[str, Dict[str, Any]] = {
     "azurecloud": AZURE_PUBLIC_CLOUD,
@@ -462,6 +464,8 @@ class AzurePlatform(Platform):
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
 
     @classmethod
@@ -799,7 +803,6 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
-
         return result
 
     def _get_host_version(self, node: Node) -> str:
@@ -886,6 +889,7 @@ class AzurePlatform(Platform):
         result[AZURE_RG_NAME_KEY] = get_environment_context(
             environment
         ).resource_group_name
+
         if azure_runbook.availability_set_properties:
             for (
                 property_name,
@@ -3066,7 +3070,7 @@ def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
 
 
 def _get_gallery_image_generation(
-    image: Union[GalleryImage, CommunityGalleryImage]
+    image: Union[GalleryImage, CommunityGalleryImage],
 ) -> int:
     assert (
         hasattr(image, "hyper_v_generation") and image.hyper_v_generation
