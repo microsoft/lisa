@@ -122,7 +122,12 @@ def _update_test_result(
     area="firewalld",
     category="functional",
     description="""
-    This test suite is to validate firewalld daemon on Azure Linux 3.0.
+    This test suite validates firewalld.
+    It is a collection of tests which run against
+    a local firewalld installation.
+    It runs isolated inside temporary network namespaces.
+    These tests interact with both iptables & nftables as backend.
+    The testsuite is provided by the firewalld-test rpm.
     """,
 )
 class FirewalldSuite(TestSuite):
@@ -137,17 +142,13 @@ class FirewalldSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case runs the firewalld testsuite.
-        The test suite is a collection of tests which run against
-        a local firewalld installation.
-        These tests interacts with both iptables & nftables as backend.
-        The set of tests run are
+        This test case runs the complete testsuite.
+        The set of tests include
         1. cli: firewall-cmd client tests
         2. dbus: dbus interface tests
         3. python: python binding tests
         4. features: firewalld daemon functional tests
         5. regressions: regression tests
-        The testsuite is provided by the firewalld-test rpm.
         """,
         priority=3,
     )
@@ -176,7 +177,7 @@ class FirewalldSuite(TestSuite):
         if not _is_ipv6_rpfilter_supported(node):
             raise SkippedException(
                 "Skipping tests. Needs kernel config CONFIG_FIB_INET &"
-                "CONFIG_FIB_IPV6 enabled to use fib based expressions for"
+                "CONFIG_FIB_IPV6 enabled to use fib based expressions for "
                 "ipv6_rpfilter configuration."
             )
 
