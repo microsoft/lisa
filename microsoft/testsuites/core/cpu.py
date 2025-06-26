@@ -249,10 +249,7 @@ class CPU(TestSuite):
 
         arch = node.os.get_kernel_information().hardware_platform  # type: ignore
         # Fail test execution if these hyper-v interrupts are not showing up
-        if (
-            arch != CpuArchitecture.ARM64
-            and not found_hyperv_interrupt
-        ):
+        if arch != CpuArchitecture.ARM64 and not found_hyperv_interrupt:
             raise LisaException("Hyper-V interrupts are not recorded.")
 
     def _create_stimer_interrupts(self, node: Node, cpu_count: int) -> None:
