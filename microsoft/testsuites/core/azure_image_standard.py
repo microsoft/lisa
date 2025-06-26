@@ -486,7 +486,16 @@ class AzureImageStandard(TestSuite):
                     file_exists,
                     f"The network file should be present at {network_file_path}",
                 ).is_true()
+                assert_that(
+                    file_exists,
+                    f"The network file should be present at {network_file_path}",
+                ).is_true()
 
+                network_file = node.tools[Cat].read(network_file_path)
+                assert_that(
+                    network_file.upper(),
+                    f"networking=yes should be present in {network_file_path}",
+                ).contains("networking=yes".upper())
                 network_file = node.tools[Cat].read(network_file_path)
                 assert_that(
                     network_file.upper(),
