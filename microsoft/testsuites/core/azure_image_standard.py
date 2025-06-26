@@ -438,7 +438,8 @@ class AzureImageStandard(TestSuite):
     @TestCaseMetadata(
         description="""
         This test will verify that network file exists in /etc/sysconfig and networking
-        is enabled on Fedora based distros.
+        is enabled on Fedora based distros. For fedora verion > 39, it checks if
+        /etc/NetworkManager/system-connections/ exists and is enabled.
 
         Steps:
         1. Verify that network file exists.
@@ -449,19 +450,48 @@ class AzureImageStandard(TestSuite):
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
-            network_file_path = "/etc/sysconfig/network"
-            file_exists = node.shell.exists(PurePosixPath(network_file_path))
+            if node.os.information.version >= "39.0.0":
+                # Fedora 39 and later use NetworkManager
+                # Check if /etc/NetworkManager/system-connections/ exists
+                nm_connections_path = "/etc/NetworkManager/system-connections"
+                eth0_exists = node.shell.exists(
+                    PurePosixPath(f"{nm_connections_path}/eth0.nmconnection")
+                ) or node.shell.exists(
+                    PurePosixPath(f"{nm_connections_path}/cloud-init-eth0.nmconnection")
+                )
+                assert_that(
+                    eth0_exists,
+                    "A NetworkManager connection profile for eth0 or cloud-init-eth0"
+                    "should exist in /etc/NetworkManager/system-connections",
+                ).is_true()
+                connections = node.execute("nmcli -g NAME connection show", shell=True)
+                assert_that(
+                    "eth0" in connections.stdout
+                    or "cloud-init eth0" in connections.stdout,
+                    "A network connection for eth0 shoud exist in NetworkManager",
+                ).is_true()
+                # Check if the connections is active
+                eth0_active = node.execute("nmcli -g DEVICE,STATE device", shell=True)
+                assert_that(
+                    "eth0:connected" in eth0_active.stdout
+                    or "cloud-init eth0:connected" in eth0_active.stdout,
+                    "The eth0 connection should be active in NetworkManager",
+                ).is_true()
+            else:
+                # For fedora < 39, check if /etc/sysconfig/network file exists
+                network_file_path = "/etc/sysconfig/network"
+                file_exists = node.shell.exists(PurePosixPath(network_file_path))
 
-            assert_that(
-                file_exists,
-                f"The network file should be present at {network_file_path}",
-            ).is_true()
+                assert_that(
+                    file_exists,
+                    f"The network file should be present at {network_file_path}",
+                ).is_true()
 
-            network_file = node.tools[Cat].read(network_file_path)
-            assert_that(
-                network_file.upper(),
-                f"networking=yes should be present in {network_file_path}",
-            ).contains("networking=yes".upper())
+                network_file = node.tools[Cat].read(network_file_path)
+                assert_that(
+                    network_file.upper(),
+                    f"networking=yes should be present in {network_file_path}",
+                ).contains("networking=yes".upper())
         elif isinstance(node.os, CBLMariner):
             network_file_path = "/etc/systemd/networkd.conf"
             file_exists = node.shell.exists(PurePosixPath(network_file_path))
