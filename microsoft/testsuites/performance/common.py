@@ -122,8 +122,6 @@ def perf_disk(
     other_fields["disk_type"] = disk_type
     if not test_name:
         test_name = inspect.stack()[1][3]
-
-    # Send both traditional DiskPerformanceMessage and new unified perf messages
     fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
         fio_result_list,
         test_name=test_name,
@@ -132,14 +130,6 @@ def perf_disk(
     )
     for fio_message in fio_messages:
         notifier.notify(fio_message)
-
-    # Send unified performance messages
-    fio.send_fio_unified_perf_messages(
-        fio_result_list,
-        test_name=test_name,
-        test_result=test_result,
-        other_fields=other_fields,
-    )
 
 
 def get_nic_datapath(node: Node) -> str:
