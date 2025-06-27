@@ -264,6 +264,13 @@ class Fio(Tool):
 
             # Send unified performance messages for this qdepth group
             metric_prefix = f"qdepth_{result['qdepth']}"
+            
+            # Add iodepth and numjob to metric prefix
+            if "iodepth" in result:
+                metric_prefix += f"_iodepth_{result['iodepth']}"
+            if "numjob" in result:
+                metric_prefix += f"_numjob_{result['numjob']}"
+                
             if other_fields:
                 if "disk_setup_type" in other_fields:
                     metric_prefix += f"_setup_{other_fields['disk_setup_type'].name}"
