@@ -265,6 +265,8 @@ class Fio(Tool):
             # Send unified performance messages for this qdepth group
             metric_prefix = f"qdepth_{result['qdepth']}"
             if other_fields:
+                if "disk_setup_type" in other_fields:
+                    metric_prefix += f"_setup_{other_fields['disk_setup_type'].name}"
                 if "block_size" in other_fields:
                     metric_prefix += f"_bs_{other_fields['block_size']}k"
                 if "core_count" in other_fields:
