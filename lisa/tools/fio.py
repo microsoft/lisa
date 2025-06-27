@@ -7,7 +7,12 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.executable import Tool
-from lisa.messages import DiskPerformanceMessage, create_perf_message
+from lisa.messages import (
+    DiskPerformanceMessage,
+    MetricRelativity,
+    create_perf_message,
+    send_unified_perf_message,
+)
 from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Posix, Redhat, Suse
 from lisa.util import LisaException, RepoNotExistException, constants
 from lisa.util.process import Process
@@ -256,6 +261,76 @@ class Fio(Tool):
             )
             fio_message.append(fio_result_message)
         return fio_message
+
+    def send_fio_unified_perf_messages(
+        self,
+        fio_results_list: List[FIOResult],
+        test_name: str,
+        test_result: "TestResult",
+        other_fields: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Send unified performance messages for FIO metrics."""
+        tool = constants.DISK_PERFORMANCE_TOOL_FIO
+
+        # Group results by qdepth for consistent aggregation
+        mode_iops_latency: Dict[int, Dict[str, Any]] = {}
+        for fio_result in fio_results_list:
+            temp: Dict[str, Any] = {}
+            if fio_result.qdepth in mode_iops_latency.keys():
+                temp = mode_iops_latency[fio_result.qdepth]
+            temp[f"{fio_result.mode}_iops"] = fio_result.iops
+            temp[f"{fio_result.mode}_lat_usec"] = fio_result.latency
+            temp["iodepth"] = fio_result.iodepth
+            temp["qdepth"] = fio_result.qdepth
+            temp["numjob"] = int(fio_result.qdepth / fio_result.iodepth)
+            mode_iops_latency[fio_result.qdepth] = temp
+
+        # Send unified metrics for each qdepth group
+        for result in mode_iops_latency.values():
+            # Define metric descriptive prefix based on configuration
+            metric_prefix = f"qdepth_{result['qdepth']}"
+            if other_fields:
+                if "block_size" in other_fields:
+                    metric_prefix += f"_bs_{other_fields['block_size']}k"
+                if "core_count" in other_fields:
+                    metric_prefix += f"_cores_{other_fields['core_count']}"
+                if "disk_count" in other_fields:
+                    metric_prefix += f"_disks_{other_fields['disk_count']}"
+
+            # Send IOPS metrics for each mode found in this qdepth group
+            for mode in ["read", "randread", "write", "randwrite"]:
+                iops_key = f"{mode}_iops"
+                latency_key = f"{mode}_lat_usec"
+
+                if iops_key in result:
+                    # Send IOPS metric
+                    send_unified_perf_message(
+                        node=self.node,
+                        test_result=test_result,
+                        test_case_name=test_name,
+                        tool=tool,
+                        metric_name=f"{metric_prefix}_{mode}_iops",
+                        metric_value=float(result[iops_key]),
+                        metric_unit="IOPS",
+                        metric_description=f"FIO {mode} IOPS at queue depth "
+                        f"{result['qdepth']}",
+                        metric_relativity=MetricRelativity.HigherIsBetter,
+                    )
+
+                if latency_key in result:
+                    # Send latency metric
+                    send_unified_perf_message(
+                        node=self.node,
+                        test_result=test_result,
+                        test_case_name=test_name,
+                        tool=tool,
+                        metric_name=f"{metric_prefix}_{mode}_latency",
+                        metric_value=float(result[latency_key]),
+                        metric_unit="microseconds",
+                        metric_description=f"FIO {mode} latency at queue depth "
+                        f"{result['qdepth']}",
+                        metric_relativity=MetricRelativity.LowerIsBetter,
+                    )
 
     def _get_command(  # noqa: C901
         self,
