@@ -990,7 +990,7 @@ class AzureImageStandard(TestSuite):
         # Check /proc/cmdline for the console device firstly
         console_enabled_pattern = re.compile(rf"console={current_console_device}")
         cmdline_path = "/proc/cmdline"
-        if node.shell.exists(node.get_pure_path(cmdline_path)):
+        if not isinstance(node.os, FreeBSD):
             cmdline = node.tools[Cat].read(cmdline_path)
             if get_matched_str(cmdline, console_enabled_pattern):
                 # Pass the test
