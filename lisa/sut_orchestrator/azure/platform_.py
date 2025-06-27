@@ -748,7 +748,10 @@ class AzurePlatform(Platform):
                 information[
                     "security_profile"
                 ] = security_profile.security_profile.value
-                if security_profile.security_profile == SecurityProfileType.CVM:
+                if (
+                    security_profile.security_profile == SecurityProfileType.CVM
+                    and isinstance(security_profile.encrypt_disk, bool)
+                ):
                     information["encrypt_disk"] = security_profile.encrypt_disk
 
             if node.capture_kernel_config:
