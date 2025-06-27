@@ -1042,6 +1042,8 @@ class AzureImageStandard(TestSuite):
                         pattern_found = True
         # Raise an exception if the patterns were not found in any of the checked logs
         if not pattern_found:
+            # "Fail to find console enabled line" is the failure triage pattern. Please
+            # be careful when changing this string.
             raise LisaException(
                 "Fail to find console enabled line "
                 f"'console [{current_console_device}] enabled' "
@@ -1073,6 +1075,8 @@ class AzureImageStandard(TestSuite):
         if 0 == cmd_result.exit_code:
             cat = node.tools[Cat]
             bash_history = cat.read(path_bash_history, sudo=True)
+            # "bash_history is not empty" is the failure triage pattern. Please be
+            # careful when changing this string.
             assert_that(bash_history).described_as(
                 "/root/.bash_history is not empty. This could include private "
                 "information or plain-text credentials for other systems. It might be "
@@ -1205,6 +1209,8 @@ class AzureImageStandard(TestSuite):
         if not value:
             raise LisaException(f"not find {setting} in sshd_config")
         if not (int(value) > 0 and int(value) < 181):
+            # "The ClientAliveInterval configuration of OpenSSH is set to" is the
+            # failure triage pattern. Please be careful when changing this string.
             raise LisaException(
                 f"The {setting} configuration of OpenSSH is set to {int(value)} "
                 "seconds in this image. A properly configured ClientAliveInterval "
@@ -1420,6 +1426,9 @@ class AzureImageStandard(TestSuite):
         if current_version < minimum_version:
             waagent_auto_update_enabled = waagent.is_autoupdate_enabled()
             if not waagent_auto_update_enabled:
+                # "The waagent version.*is lower than the required version.*and auto
+                # update is not enabled" is the failure triage pattern. Please be
+                # careful when changing this string.
                 raise LisaException(
                     f"The waagent version {waagent_version} is lower than the required "
                     f"version {minimum_version} and auto update is not enabled. Please "
@@ -1500,6 +1509,8 @@ class AzureImageStandard(TestSuite):
         arch = uname_tool.get_machine_architecture()
         arch_64bit = [CpuArchitecture.X64, CpuArchitecture.ARM64]
         if arch not in arch_64bit:
+            # "Architecture .* is not supported" is the failure triage pattern. Please
+            # be careful when changing this string.
             raise LisaException(
                 f"Architecture '{arch.value}' is not supported. Azure only supports "
                 f"64-bit architectures: {', '.join(str(a.value) for a in arch_64bit)}."
@@ -1553,6 +1564,8 @@ class AzureImageStandard(TestSuite):
             )
         except LisaException as e:
             if "lower than the required version" in str(e):
+                # "Vulnerable OMI version detected" is the failure triage pattern.
+                # Please be careful when changing this string.
                 raise LisaException(
                     f"Vulnerable OMI version detected. You have an OMI framework "
                     f"version less than {minimum_secure_version}. "
@@ -1624,13 +1637,16 @@ class AzureImageStandard(TestSuite):
                 for p in parts:
                     node.log.info(f"OS disk partition or logical device: {p.name}")
                     if p.name == block_name:
+                        # "Swap partition .* is found on OS disk" is a failure triage
+                        # pattern. Please be careful when changing this string.
                         raise LisaException(
-                            f"Swap partition '{swap_part}' found on OS disk partition "
-                            f"or logical device '{p.name}'. There should be no Swap "
-                            "Partition on OS Disk. OS disk has IOPS limit. When memory"
-                            " pressure causes swapping, IOPS limit may be reached "
-                            "easily and cause VM performance to go down disastrously, "
-                            "as aside from memory issues in now also has IO issues."
+                            f"Swap partition '{swap_part}' is found on OS disk "
+                            f"partition or logical device '{p.name}'. There should be "
+                            "no Swap Partition on OS Disk. OS disk has IOPS limit. "
+                            "When memory pressure causes swapping, IOPS limit may be "
+                            "reached easily and cause VM performance to go down "
+                            "disastrously, as aside from memory issues in now also has"
+                            " IO issues."
                         )
 
     @TestCaseMetadata(
@@ -1705,6 +1721,10 @@ class AzureImageStandard(TestSuite):
         #
         # e.g. the version of OMI has the format of "1.9.0-1". Changing it to "1.9.0.1"
         # allows proper comparison with the minimum version.
+        #
+        # "The .* version .* is lower than the required version .* Please update .* to
+        # a version.*" is the failure triage pattern. Please be careful when changing
+        # this string.
         current_version = Version(match.group(group_index).replace("-", "."))
         if current_version < minimum_version:
             message = (
