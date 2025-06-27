@@ -235,7 +235,7 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -261,7 +261,7 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
@@ -290,7 +290,7 @@ class Stress(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=4,
             network_interface=features.Sriov(),
         ),
     )
