@@ -51,7 +51,7 @@ from lisa.features.security_profile import (
 from lisa.features.startstop import VMStatus
 from lisa.node import Node, RemoteNode
 from lisa.operating_system import BSD, CBLMariner, CentOs, Redhat, Suse, Ubuntu
-from lisa.search_space import RequirementMethod
+from lisa.search_space import RequirementMethod, decode_set_space_by_type
 from lisa.secret import add_secret
 from lisa.tools import (
     Cat,
@@ -2707,9 +2707,12 @@ class Availability(AzureFeatureMixin, features.Availability):
             availability_settings.availability_type.add(
                 AvailabilityType.AvailabilityZone
             )
-            availability_settings.availability_zones = search_space.SetSpace(
-                is_allow_set=True, items=availability_zones
-            )
+            set_space = decode_set_space_by_type(data=availability_zones, base_type=int)
+            if not isinstance(set_space, search_space.SetSpace):
+                raise LisaException(
+                    f"Failed to parse availability zones: {availability_zones}."
+                )
+            availability_settings.availability_zones = set_space
 
         return availability_settings
 
