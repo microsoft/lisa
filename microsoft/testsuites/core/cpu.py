@@ -195,6 +195,7 @@ class CPU(TestSuite):
             )
             if not is_hyperv_interrupt:
                 continue
+            log.debug(f"Processing Hyper-V interrupt : {interrupt}")
             assert_that(
                 len(interrupt.cpu_counter),
                 "Hyper-v interrupts should have count for each cpu.",
