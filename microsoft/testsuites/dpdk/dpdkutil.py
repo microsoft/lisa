@@ -1052,6 +1052,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             buffer_size=64,
             test_case_name="verify_dpdk_l3fwd_ntttcp_tcp",
             test_result=test_result,
+            ip_version="IPv4",
+            num_receivers=1,  # default number of ports
+            num_senders=64,   # ntttcp_threads_count
         )
         notifier.notify(msg)
 

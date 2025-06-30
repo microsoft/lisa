@@ -410,6 +410,9 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
+                    "IPv4",  # ip_version
+                    num_threads_p,  # num_receivers
+                    num_threads_n,  # num_senders
                 )
             else:
                 ntttcp_message = client_ntttcp.create_ntttcp_tcp_performance_message(
@@ -420,6 +423,9 @@ def perf_ntttcp(  # noqa: C901
                     buffer_size,
                     test_case_name,
                     test_result,
+                    "IPv4",  # ip_version
+                    num_threads_p,  # num_receivers
+                    num_threads_n,  # num_senders
                 )
             notifier.notify(ntttcp_message)
             perf_ntttcp_message_list.append(ntttcp_message)
