@@ -502,69 +502,66 @@ class Ntttcp(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for TCP ntttcp metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+        
         metrics = [
             {
-                "name": "throughput_in_gbps",
+                "name": f"throughput_in_gbps{conn_suffix}",
                 "value": float(client_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "latency_us",
+                "name": f"latency_us{conn_suffix}",
                 "value": float(latency),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "microseconds",
             },
             {
-                "name": "connections_num",
-                "value": int(connections_num),
-                "relativity": MetricRelativity.NA,
-                "unit": "",
-            },
-            {
-                "name": "buffer_size",
+                "name": f"buffer_size{conn_suffix}",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
                 "unit": "KB",
             },
             {
-                "name": "retrans_segments",
+                "name": f"retrans_segments{conn_suffix}",
                 "value": float(client_result.retrans_segs),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "",
             },
             {
-                "name": "connections_created_time",
+                "name": f"connections_created_time{conn_suffix}",
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "microseconds",
             },
             {
-                "name": "rx_packets",
+                "name": f"rx_packets{conn_suffix}",
                 "value": float(server_result.rx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "",
             },
             {
-                "name": "tx_packets",
+                "name": f"tx_packets{conn_suffix}",
                 "value": float(client_result.tx_packets),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "",
             },
             {
-                "name": "pkts_interrupts",
+                "name": f"pkts_interrupts{conn_suffix}",
                 "value": float(client_result.pkts_interrupt),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "",
             },
             {
-                "name": "sender_cycles_per_byte",
+                "name": f"sender_cycles_per_byte{conn_suffix}",
                 "value": float(client_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "cycles/byte",
             },
             {
-                "name": "receiver_cycles_per_byte",
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
                 "value": float(server_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "cycles/byte",
@@ -585,21 +582,24 @@ class Ntttcp(Tool):
         test_result: "TestResult",
     ) -> None:
         """Send unified performance messages for UDP ntttcp metrics."""
+        # Include connections_num in metric names to distinguish results
+        conn_suffix = f"_conn_{connections_num}"
+        
         metrics = [
             {
-                "name": "tx_throughput_in_gbps",
+                "name": f"tx_throughput_in_gbps{conn_suffix}",
                 "value": float(client_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "rx_throughput_in_gbps",
+                "name": f"rx_throughput_in_gbps{conn_suffix}",
                 "value": float(server_result.throughput_in_gbps),
                 "relativity": MetricRelativity.HigherIsBetter,
                 "unit": "Gbps",
             },
             {
-                "name": "data_loss",
+                "name": f"data_loss{conn_suffix}",
                 "value": float(
                     100
                     * (
@@ -612,25 +612,19 @@ class Ntttcp(Tool):
                 "unit": "%",
             },
             {
-                "name": "connections_num",
-                "value": int(connections_num),
-                "relativity": MetricRelativity.NA,
-                "unit": "",
-            },
-            {
-                "name": "send_buffer_size",
+                "name": f"send_buffer_size{conn_suffix}",
                 "value": float(buffer_size),
                 "relativity": MetricRelativity.NA,
                 "unit": "KB",
             },
             {
-                "name": "connections_created_time",
+                "name": f"connections_created_time{conn_suffix}",
                 "value": float(client_result.connections_created_time),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "microseconds",
             },
             {
-                "name": "receiver_cycles_per_byte",
+                "name": f"receiver_cycles_per_byte{conn_suffix}",
                 "value": float(server_result.cycles_per_byte),
                 "relativity": MetricRelativity.LowerIsBetter,
                 "unit": "cycles/byte",
