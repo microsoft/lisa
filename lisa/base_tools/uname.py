@@ -64,7 +64,6 @@ class Uname(Tool):
         cmd_result = self.run(
             "-vrmo", force_run=force_run, no_error_log=no_error_log, no_info_log=True
         )
-        self.node.log.info(f"Uname command output: {cmd_result.stdout}")
         if cmd_result.exit_code != 0:
             result = UnameResult(False, VersionInfo(0))
         else:
