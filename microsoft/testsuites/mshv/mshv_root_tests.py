@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import os
 import re
+import time
 from pathlib import Path, PurePath
 from typing import Any, Dict
 
@@ -28,9 +28,11 @@ from lisa.tools import (
     RemoteCopy,
     Sed,
     Service,
+    Stat,
     Tar,
 )
 from lisa.util import LisaException, SkippedException, find_group_in_lines
+from lisa.util.perf_timer import create_timer
 
 
 @TestSuiteMetadata(
@@ -44,7 +46,7 @@ from lisa.util import LisaException, SkippedException, find_group_in_lines
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")
-    mshvlog_logfile = "/var/log/mshvlog.log"
+    mshvlog_logfile = "/var/log/mshv_diag/mshv.log"
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
@@ -75,15 +77,24 @@ class MshvHostTestSuite(TestSuite):
         log_path: Path,
         result: TestResult,
     ) -> None:
+        mshvlog_logfile_size = 0
         self._save_dmesg_logs(node, log_path)
         mshvlog_running = node.tools[Service].is_service_running("mshvlog")
         if not mshvlog_running:
             log.error("mshvlog service is not running on MSHV root partition.")
 
         assert_that(mshvlog_running).is_true()
-
-        # Check the size of mshvlog logfile
-        mshvlog_logfile_size = os.path.getsize(self.mshvlog_logfile)
+        # mshvlog service writes to logfile every 5 seconds. Check for non-zero
+        # size of the logfile for 10 seconds.
+        timeout = 10
+        timer = create_timer()
+        while timeout > timer.elapsed(False):
+            mshvlog_logfile_size = node.tools[Stat].get_total_size(
+                self.mshvlog_logfile, sudo=True
+            )
+            if mshvlog_logfile_size > 0:
+                break
+            time.sleep(1)
 
         assert_that(mshvlog_logfile_size).described_as(
             "mshvlog logfile should not be empty"
