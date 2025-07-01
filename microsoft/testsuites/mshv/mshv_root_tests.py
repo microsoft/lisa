@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import time
 from pathlib import Path, PurePath
 from typing import Any, Dict
 
@@ -44,7 +45,7 @@ from lisa.util import LisaException, SkippedException, find_group_in_lines
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")
-    mshvlog_logfile = "/var/log/mshvlog.log"
+    mshvlog_logfile = "/var/log/mshv_diag/mshv.log"
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
@@ -81,7 +82,10 @@ class MshvHostTestSuite(TestSuite):
             log.error("mshvlog service is not running on MSHV root partition.")
 
         assert_that(mshvlog_running).is_true()
-
+        # mshvlog service writes to logfile every 5 seconds.
+        # Wait for 10 seconds to ensure the service writes to the logfile,
+        # before checking the size of the logfile.
+        time.sleep(10)
         # Check the size of mshvlog logfile
         mshvlog_logfile_size = os.path.getsize(self.mshvlog_logfile)
 
