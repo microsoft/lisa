@@ -160,7 +160,7 @@ class InterruptInspectorBSD(InterruptInspector):
         result = self.run(force_run=True)
         mappings = result.stdout.splitlines(keepends=False)[1:-1]
         assert mappings
-        interrupts = []
+        interrupts: List[Interrupt] = []
         for line in mappings:
             matched = self._interrupt_regex.fullmatch(line)
             assert matched
