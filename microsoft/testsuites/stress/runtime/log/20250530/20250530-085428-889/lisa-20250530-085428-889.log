@@ -1,0 +1,20 @@
+2025-05-30 08:54:28.890[129011551625216][INFO] lisa. Python version: 3.10.12 (main, Feb  4 2025, 14:57:36) [GCC 11.4.0]
+2025-05-30 08:54:28.891[129011551625216][INFO] lisa. local time: 2025-05-30 14:24:28.891001+05:30
+2025-05-30 08:54:28.901[129011551625216][INFO] lisa. git head: ecea995792cd0d295423e682773be027c884e448 (HEAD -> main, origin/main, origin/HEAD) 2025-05-28 11:30:15 -0700, Add documentation for script_file transformer (#3826)
+2025-05-30 08:54:28.950[129011551625216][DEBUG] lisa. command line args: ['/home/bala/lisa/.venv/bin/lisa']
+2025-05-30 08:54:28.950[129011551625216][INFO] lisa. run log path: /home/bala/lisa/microsoft/testsuites/stress/runtime/log/20250530/20250530-085428-889, working path: /home/bala/lisa/microsoft/testsuites/stress/runtime/working/20250530/20250530-085428-889
+2025-05-30 08:54:28.950[129011551625216][INFO] lisa.init[runbook] loading runbook: /home/bala/lisa/microsoft/testsuites/stress/examples/runbook/hello_world.yml
+2025-05-30 08:54:28.950[129011551625216][INFO] lisa. completed in 0.066 sec
+2025-05-30 08:54:28.951[129011551625216][ERROR] lisa. [Errno 2] No such file or directory: '/home/bala/lisa/microsoft/testsuites/stress/examples/runbook/hello_world.yml'
+Traceback (most recent call last):
+  File "/home/bala/lisa/lisa/main.py", line 159, in cli
+    exit_code = main()
+  File "/home/bala/lisa/lisa/main.py", line 141, in main
+    exit_code = args.func(args)
+  File "/home/bala/lisa/lisa/commands.py", line 23, in run
+    builder = RunbookBuilder.from_path(args.runbook, args.variables)
+  File "/home/bala/lisa/lisa/parameter_parser/runbook.py", line 65, in from_path
+    data = builder._load_data(
+  File "/home/bala/lisa/lisa/parameter_parser/runbook.py", line 335, in _load_data
+    with open(path, "r") as file:
+FileNotFoundError: [Errno 2] No such file or directory: '/home/bala/lisa/microsoft/testsuites/stress/examples/runbook/hello_world.yml'

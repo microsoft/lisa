@@ -795,6 +795,14 @@
       "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
       "tags": "[variables('combined_vm_tags')]",
       "plan": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].purchase_plan]",
+      "identity": {
+        "type": "SystemAssigned, UserAssigned",
+        "userAssignedIdentities": {
+            "/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourceGroups/AzSecPackAutoConfigRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/AzSecPackAutoConfigUA-westus2": {},
+            "/subscriptions/e7eb2257-46e4-4826-94df-153853fea38f/resourceGroups/gsatestresourcegroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/gsateststorage-blobreader": {},
+            "/subscriptions/11764614-ffac-4e4d-8506-bdf64388ce6c/resourcegroups/Bala-LisaTestResourcesRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/lisatestaccessidentity": {}
+        }
+    },
       "properties": {
         "availabilitySet": "[variables('availability_set_value')]",
         "hardwareProfile": {
