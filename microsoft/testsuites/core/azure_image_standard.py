@@ -44,6 +44,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
 from lisa.tools import (
     Cat,
     Dmesg,
+    Find,
     Journalctl,
     KernelConfig,
     Ls,
@@ -51,6 +52,7 @@ from lisa.tools import (
     Lscpu,
     Pgrep,
     Ssh,
+    Stat,
     Swap,
 )
 from lisa.util import (
@@ -58,6 +60,7 @@ from lisa.util import (
     PassedException,
     SkippedException,
     UnsupportedDistroException,
+    find_patterns_groups_in_lines,
     find_patterns_in_lines,
     get_matched_str,
 )
@@ -318,6 +321,15 @@ class AzureImageStandard(TestSuite):
     # omi-1.9.1-0.x86_64
     _omi_version_pattern = re.compile(
         r"(?:OMI-|omi\s+|omi-)(\d+\.\d+\.\d+(?:\.\d+|-\d+)?)"
+    )
+
+    # /etc/passwd
+    # root:x:0:0:root:/root:/bin/bash
+    # shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+    # platform:x:998:995::/home/platform:/sbin/nologin
+    # username (no colons):password (usually x or *):UID (numeric):GID (numeric):GECOS field (can be empty):home directory:shell (rest of line)  # noqa: E501
+    _passwd_entry_regex = re.compile(
+        r"^(?P<username>[^:]+):(?P<password>[^:]*):(?P<uid>\d+):(?P<gid>\d+):(?P<gecos>[^:]*):(?P<home_dir>[^:]*):(?P<shell>.*)$"  # noqa: E501
     )
 
     @TestCaseMetadata(
@@ -1056,33 +1068,81 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test verifies that root bash history is either non-existent or empty in
-        the image.
+        This test verifies that bash/shell history files of all the bash/shell users
+        are either non-existent or empty in the image.
 
         Steps:
-        1. Check if /root/.bash_history file exists. If it doesn't exist, the test
-           passes as this indicates the image is properly prepared.
-        2. If /root/.bash_history exists, verify it is empty. If not empty, the test
+        1. Get all the bash/shell users' main directory from /etc/passwd file.
+        2. Using command 'find <user_main_dir> -type f
+           (-name ".*sh_history" -o -name ".history")' to get all the history files.
+        3. Using command 'ls -lt <history_file>' to check if the history file exists.
+        4. If it doesn't exist, the test passes as this indicates the image is properly
+           prepared.
+        5. If the history file exists, verify it is empty. If not empty, the test
            fails as bash history should be cleared.
+
+        The history file name of the users of "/bin/bash" and "/bin/sh" is
+        ".bash_history". The following shell types and their history file names
+        are listed below:
+        /bin/tcsh: .history
+        /bin/csh: .history
+        /bin/zsh: .zsh_history
+        /bin/ksh: .sh_history
+        /bin/dash: .sh_history
+        /bin/ash: .sh_history
+        /bin/pdksh: .sh_history
+        /bin/mksh: .sh_history
         """,
         priority=1,
         use_new_environment=True,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
-        path_bash_history = "/root/.bash_history"
-        cmd_result = node.execute(f"ls -lt {path_bash_history}", sudo=True, shell=True)
-        if 0 == cmd_result.exit_code:
-            cat = node.tools[Cat]
-            bash_history = cat.read(path_bash_history, sudo=True)
-            # "bash_history is not empty" is the failure triage pattern. Please be
-            # careful when changing this string.
-            assert_that(bash_history).described_as(
-                "/root/.bash_history is not empty. This could include private "
-                "information or plain-text credentials for other systems. It might be "
-                "vulnerable and exposing sensitive data. Please remove the bash "
-                "history completely using command 'sudo rm -f ~/.bash_history'."
-            ).is_empty()
+        remote_node = cast(RemoteNode, node)
+        current_user = str(remote_node.connection_info.get("username"))
+
+        # Get the bash and shell users' main directory from /etc/passwd file
+        cat = node.tools[Cat]
+        passwd_file = "/etc/passwd"
+        outputs = cat.read_with_filter(passwd_file, current_user, True, True, True)
+        passwd_entries = find_patterns_groups_in_lines(
+            outputs, [self._passwd_entry_regex]
+        )[0]
+
+        for entry in passwd_entries:
+            home_dir = entry["home_dir"]
+            shell_type = entry["shell"]
+
+            if shell_type.endswith("bash") or shell_type.endswith("sh"):
+                find = node.tools[Find]
+                hist_files = find.find_files(
+                    start_path=node.get_pure_path(home_dir),
+                    name_pattern=[".*sh_history", ".history"],
+                    file_type="f",
+                    sudo=True,
+                    ignore_not_exist=True,
+                )
+                for hist_file in hist_files:
+                    cmd_result = node.execute(
+                        f"ls -lt {hist_file}",
+                        sudo=True,
+                        shell=True,
+                    )
+                    if 0 != cmd_result.exit_code:
+                        continue
+
+                    stat = node.tools[Stat]
+                    hist_size = stat.get_total_size(hist_file, sudo=True)
+                    # ".*history is not empty, containing .* bytes" is the failure
+                    # triage pattern. Please be careful when changing this string.
+                    if hist_size:
+                        raise LisaException(
+                            f"{hist_file} is not empty, containing {hist_size} bytes. "
+                            "This could include private information or plain-text "
+                            "credentials for other systems. It might be vulnerable and"
+                            " exposing sensitive data. Please remove the bash/shell "
+                            "history completely."
+                        )
 
     @TestCaseMetadata(
         description="""
