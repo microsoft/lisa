@@ -14,7 +14,7 @@ from lisa.messages import KernelBuildMessage
 from lisa.node import Node
 from lisa.operating_system import Posix, Ubuntu
 from lisa.secret import PATTERN_HEADTAIL, add_secret
-from lisa.tools import Uname
+from lisa.tools import Curl, Uname
 from lisa.transformers.deployment_transformer import (
     DeploymentTransformer,
     DeploymentTransformerSchema,
@@ -328,13 +328,20 @@ class PpaInstaller(RepoInstaller):
 
     def install(self) -> str:
         runbook: PpaInstallerSchema = self.runbook
-        node: Node = self._node
-        if runbook.openpgp_key and isinstance(node.os, Ubuntu):
-            node.os.add_key(
-                server_name="keyserver.ubuntu.com",
-                key=runbook.openpgp_key,
-            )
 
+        # the key is optional
+        if runbook.openpgp_key:
+            curl = self._node.tools[Curl]
+
+            curl.fetch(
+                arg="-o /etc/apt/trusted.gpg.d/proposed.gpg",
+                execute_arg="",
+                url=(
+                    f"https://keyserver.ubuntu.com/pks/lookup?"
+                    f"op=get&search=0x{runbook.openpgp_key}"
+                ),
+                sudo=True,
+            )
         # replace default repo url
         self.repo_url = runbook.ppa_url
 
