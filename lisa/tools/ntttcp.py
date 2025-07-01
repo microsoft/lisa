@@ -504,7 +504,7 @@ class Ntttcp(Tool):
         """Send unified performance messages for TCP ntttcp metrics."""
         # Include connections_num in metric names to distinguish results
         conn_suffix = f"_conn_{connections_num}"
-        
+
         metrics = [
             {
                 "name": f"throughput_in_gbps{conn_suffix}",
@@ -584,7 +584,7 @@ class Ntttcp(Tool):
         """Send unified performance messages for UDP ntttcp metrics."""
         # Include connections_num in metric names to distinguish results
         conn_suffix = f"_conn_{connections_num}"
-        
+
         metrics = [
             {
                 "name": f"tx_throughput_in_gbps{conn_suffix}",
