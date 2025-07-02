@@ -161,6 +161,7 @@ class KernelInstallerTransformer(DeploymentTransformer):
             # the installed kernel version is lower than current kernel version.
             from lisa.transformers.dom0_kernel_installer import Dom0Installer
             from lisa.transformers.kernel_source_installer import SourceInstaller
+            from lisa.transformers.rpm_kernel_installer import RPMInstaller
 
             if (
                 isinstance(installer, RepoInstaller)
@@ -171,6 +172,9 @@ class KernelInstallerTransformer(DeploymentTransformer):
             ):
                 posix = cast(Posix, node.os)
                 posix.replace_boot_kernel(installed_kernel_version)
+            elif isinstance(installer, RPMInstaller):
+                # For kernels installed via RPM, always set as default boot option
+                self._configure_installed_kernel_boot_order(node, installed_kernel_version)
             elif (
                 isinstance(installer, RepoInstaller)
                 and "fde" in installer.runbook.source
@@ -218,6 +222,36 @@ class KernelInstallerTransformer(DeploymentTransformer):
             self._information_output_name: self._information,
             self._is_success_output_name: build_sucess and boot_success,
         }
+
+    def _configure_installed_kernel_boot_order(self, node: Node, kernel_version: str) -> None:
+        """Configure newly installed kernel as default boot option using grubby."""
+        try:
+            # Extract the actual kernel version from the RPM name
+            # Examples:
+            # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
+            # kernel-5.15.185.1-2.cm2.x86_64 -> 5.15.185.1-2.cm2
+            if kernel_version.startswith("kernel-lvbs-"):
+                actual_version = kernel_version.replace("kernel-lvbs-", "").rsplit(".", 1)[0]
+            elif kernel_version.startswith("kernel-"):
+                actual_version = kernel_version.replace("kernel-", "").rsplit(".", 1)[0]
+            else:
+                actual_version = kernel_version
+            
+            # Use grubby to set the newly installed kernel as default
+            kernel_path = f"/boot/vmlinuz-{actual_version}"
+            
+            # Set the installed kernel as default boot entry
+            result = node.execute(
+                f"grubby --set-default={kernel_path}",
+                sudo=True,
+                expected_exit_code=0,
+            )
+            
+            self._log.info(f"Set installed kernel {kernel_path} as default boot entry")
+            
+        except Exception as e:
+            self._log.warning(f"Failed to configure kernel boot order: {e}")
+            # Don't fail the installation, just log the warning
 
 
 class RepoInstaller(BaseInstaller):

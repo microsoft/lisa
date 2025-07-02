@@ -7,7 +7,7 @@ from typing import Type
 from dataclasses_json import dataclass_json
 
 from lisa import schema
-from lisa.operating_system import RPMDistro
+from lisa.operating_system import CBLMariner, RPMDistro
 from lisa.tools import Rpm
 from lisa.util import UnsupportedDistroException, field_metadata
 
@@ -60,4 +60,39 @@ class RPMInstaller(BaseInstaller):
         filename = PurePath(kernel_rpm_path).name
         installed_kernel_version = filename[: -len(".rpm")]
 
+        # Always configure newly installed kernel as default boot option
+        if isinstance(node.os, CBLMariner):
+            self._configure_installed_kernel_boot(node, installed_kernel_version)
+
         return installed_kernel_version
+
+
+    def _configure_installed_kernel_boot(self, node, kernel_version: str) -> None:
+        """Configure newly installed kernel as default boot option using grubby."""
+        try:
+            # Extract the actual kernel version from the RPM name
+            # Examples:
+            # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
+            # kernel-5.15.185.1-2.cm2.x86_64 -> 5.15.185.1-2.cm2
+            if kernel_version.startswith("kernel-lvbs-"):
+                actual_version = kernel_version.replace("kernel-lvbs-", "").rsplit(".", 1)[0]
+            elif kernel_version.startswith("kernel-"):
+                actual_version = kernel_version.replace("kernel-", "").rsplit(".", 1)[0]
+            else:
+                actual_version = kernel_version
+            
+            # Use grubby to set the newly installed kernel as default
+            kernel_path = f"/boot/vmlinuz-{actual_version}"
+            
+            # Set the installed kernel as default boot entry
+            result = node.execute(
+                f"grubby --set-default={kernel_path}",
+                sudo=True,
+                expected_exit_code=0,
+            )
+            
+            self._log.info(f"Set installed kernel {kernel_path} as default boot entry")
+            
+        except Exception as e:
+            self._log.warning(f"Failed to configure kernel boot order: {e}")
+            # Don't fail the installation, just log the warning
