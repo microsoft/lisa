@@ -1585,21 +1585,22 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test verifies that there is no swap partition on the OS disk.
+        This test verifies that there is no swap partition or swap file on the OS disk
 
         Azure's policy 200.3.3 Linux:
         No swap partition on the OS disk. Swap can be requested for creation on the
         local resource disk by the Linux Agent. It is recommended that a single root
         partition is created for the OS disk.
 
-        There should be no Swap Partition on OS Disk. OS disk has IOPS limit. When
-        memory pressure causes swapping, IOPS limit may be reached easily and cause VM
-        performance to go down disastrously, because aside from memory issues in now
-        also has IO issues.
+        There should be no Swap Partition or swap file on OS Disk. OS disk has IOPS
+        limit. When memory pressure causes swapping, IOPS limit may be reached easily
+        and cause VM performance to go down disastrously, because aside from memory
+        issues it now also has IO issues.
 
         Steps:
-        1. Use 'cat /proc/swaps' or 'swapon -s' to list all swap devices
-            Note: For FreeBSD, use 'swapinfo -k'.
+        1. Use 'cat /proc/swaps' or 'swapon -s' to list all swap devices and swap files
+            If it is a swap file, use 'df <swap_file>' to get the partition name.
+            Note: For FreeBSD, use 'swapinfo -k'. FreeBSD only supports swap partition.
         2. Use 'lsblk <swap_part> -P -o NAME' to get the real block device name for
            each swap partition. If there is no swap partition, pass the case.
         3. Use 'lsblk' to identify the OS disk and get all its partitions and logical
@@ -1625,12 +1626,15 @@ class AzureImageStandard(TestSuite):
         lsblk = node.tools[Lsblk]
         os_disk = lsblk.find_disk_by_mountpoint("/")
         for swap_part in swap_parts:
-            block_name = lsblk.get_block_name(swap_part)
+            block_name = lsblk.get_block_name(swap_part.partition)
             if block_name == "":
                 raise LisaException(
-                    f"Failed to get the device name for swap partition '{swap_part}'."
+                    "Failed to get the device name for swap partition/file "
+                    f"'{swap_part.filename}'."
                 )
-            node.log.info(f"Swap partition '{swap_part}' is on device '{block_name}'.")
+            node.log.info(
+                f"Swap partition '{swap_part.filename}' is on device '{block_name}'."
+            )
             for part in os_disk.partitions:
                 # e.g. 'sda1', 'vg-root', 'vg-home'
                 parts = [part] + part.logical_devices
@@ -1640,13 +1644,13 @@ class AzureImageStandard(TestSuite):
                         # "Swap partition .* is found on OS disk" is a failure triage
                         # pattern. Please be careful when changing this string.
                         raise LisaException(
-                            f"Swap partition '{swap_part}' is found on OS disk "
-                            f"partition or logical device '{p.name}'. There should be "
-                            "no Swap Partition on OS Disk. OS disk has IOPS limit. "
-                            "When memory pressure causes swapping, IOPS limit may be "
-                            "reached easily and cause VM performance to go down "
-                            "disastrously, as aside from memory issues in now also has"
-                            " IO issues."
+                            f"Swap partition/file '{swap_part.filename}' is found on "
+                            f"OS disk partition or logical device '{p.name}'. There "
+                            "should be no Swap Partition on OS Disk. OS disk has IOPS"
+                            " limit. When memory pressure causes swapping, IOPS limit"
+                            " may be reached easily and cause VM performance to go "
+                            "down disastrously, as aside from memory issues it now "
+                            "also has IO issues."
                         )
 
     @TestCaseMetadata(
