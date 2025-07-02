@@ -309,12 +309,25 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         kernel_path = found_kernels[0].split()[-1]
                         self._log.info(f"Found alternative kernel path: {kernel_path}")
             
-            # Try to set the kernel as default
+            # Try multiple approaches to set the kernel as default
+            # First try: direct kernel path
             result = node.execute(
                 f"grubby --set-default={kernel_path}",
                 sudo=True,
                 expected_exit_code=[0, 1],  # Allow failure for further handling
             )
+            
+            # If that fails, try with the kernel entry title format
+            if result.exit_code != 0:
+                self._log.info(f"Direct path failed, trying entry title format...")
+                title_result = node.execute(
+                    f"grubby --set-default-index=0",  # Set newest kernel first
+                    sudo=True,
+                    expected_exit_code=[0, 1],
+                )
+                if title_result.exit_code == 0:
+                    result = title_result  # Use this successful result
+                    self._log.info("Successfully set kernel using index 0")
             
             if result.exit_code == 0:
                 self._log.info(f"Successfully set installed kernel {kernel_path} as default boot entry")
@@ -374,14 +387,31 @@ class KernelInstallerTransformer(DeploymentTransformer):
                     menu_title = menu_match.group(1)
                     self._log.info(f"Extracted menu title: {menu_title}")
                     
-                    # Set GRUB_DEFAULT to the menu title
-                    sed_cmd = f"sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=\"{menu_title}\"/' /etc/default/grub"
-                    node.execute(sed_cmd, sudo=True)
+                    # Set GRUB_DEFAULT to the menu title (escape special characters)
+                    import shlex
+                    escaped_title = shlex.quote(menu_title)
+                    sed_cmd = f"sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT={escaped_title}/' /etc/default/grub"
+                    sed_result = node.execute(sed_cmd, sudo=True, expected_exit_code=[0, 1])
+                    if sed_result.exit_code != 0:
+                        self._log.warning(f"SED command failed: {sed_result.stderr}")
+                        # Try alternative approach with printf
+                        printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} > /tmp/grub_default && sudo cp /tmp/grub_default /etc/default/grub"
+                        node.execute(printf_cmd, shell=True, sudo=False)
                     
                     # Regenerate GRUB configuration
-                    node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
-                    
-                    self._log.info(f"Set GRUB_DEFAULT to '{menu_title}' and regenerated GRUB config")
+                    grub_regen = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True, expected_exit_code=[0, 1])
+                    if grub_regen.exit_code == 0:
+                        self._log.info(f"Set GRUB_DEFAULT to '{menu_title}' and regenerated GRUB config")
+                    else:
+                        self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
+                        
+                    # Verify the default was set correctly
+                    verify_cmd = "grub2-editenv list | grep saved_entry"
+                    verify_result = node.execute(verify_cmd, sudo=True, shell=True, expected_exit_code=[0, 1])
+                    if verify_result.exit_code == 0:
+                        self._log.info(f"GRUB default verification: {verify_result.stdout}")
+                    else:
+                        self._log.info("Could not verify GRUB default setting")
                 else:
                     self._log.warning("Could not extract menu entry title from GRUB config")
             else:
