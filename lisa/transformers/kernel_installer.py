@@ -176,10 +176,21 @@ class KernelInstallerTransformer(DeploymentTransformer):
                 # For kernels installed via RPM, always set as default boot option
                 self._log.info(f"Node OS type: {type(node.os)}, name: {node.os.name}")
                 from lisa.operating_system import CBLMariner
-                if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
-                    self._configure_installed_kernel_boot_order(node, installed_kernel_version)
+                
+                # Extract actual kernel version and verify files exist
+                actual_kernel_version = self._extract_kernel_version_from_rpm(installed_kernel_version)
+                self._log.info(f"Extracted kernel version for boot config: {actual_kernel_version}")
+                
+                # Verify kernel files exist before attempting boot configuration
+                if self._verify_kernel_files_exist(node, actual_kernel_version):
+                    if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
+                        self._configure_installed_kernel_boot_order(node, actual_kernel_version)
+                    else:
+                        self._log.warning(f"Skipping boot configuration - OS type {type(node.os)} not supported or grubby not available")
                 else:
-                    self._log.warning(f"Skipping boot configuration - OS type {type(node.os)} not supported or grubby not available")
+                    self._log.error(f"Kernel files not found after RPM installation - cannot configure boot")
+                    self._log.error(f"Expected kernel files for version: {actual_kernel_version}")
+                    # Don't fail the installation completely, but this is a serious issue
             elif (
                 isinstance(installer, RepoInstaller)
                 and "fde" in installer.runbook.source
@@ -250,12 +261,18 @@ class KernelInstallerTransformer(DeploymentTransformer):
             # Examples:
             # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
             # kernel-5.15.185.1-2.cm2.x86_64 -> 5.15.185.1-2.cm2
-            if kernel_version.startswith("kernel-lvbs-"):
-                actual_version = kernel_version.replace("kernel-lvbs-", "").rsplit(".", 1)[0]
-            elif kernel_version.startswith("kernel-"):
-                actual_version = kernel_version.replace("kernel-", "").rsplit(".", 1)[0]
-            else:
-                actual_version = kernel_version
+            actual_version = self._extract_kernel_version_from_rpm(kernel_version)
+            
+            # Force GRUB configuration update before checking with grubby
+            self._log.info("Forcing GRUB configuration update...")
+            grub_result = node.execute(
+                "grub2-mkconfig -o /boot/grub2/grub.cfg",
+                sudo=True,
+                expected_exit_code=[0, 1],  # Allow failure
+            )
+            self._log.info(f"GRUB config update output: {grub_result.stdout}")
+            if grub_result.stderr:
+                self._log.info(f"GRUB config update stderr: {grub_result.stderr}")
             
             # First, let's see what kernels grubby can find
             available_kernels = node.execute(
@@ -326,10 +343,113 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         self._log.warning(f"Index-based setting also failed: {index_result.stdout}")
                 else:
                     self._log.warning(f"Kernel version {actual_version} not found in grubby info")
+                    # Last resort: Try direct GRUB default setting
+                    self._log.info("Attempting direct GRUB default configuration...")
+                    self._set_grub_default_directly(node, actual_version)
             
         except Exception as e:
             self._log.warning(f"Failed to configure kernel boot order: {e}")
             # Don't fail the installation, just log the warning
+
+    def _set_grub_default_directly(self, node: Node, kernel_version: str) -> None:
+        """Directly set GRUB default by modifying GRUB configuration."""
+        try:
+            # Find the menu entry for our kernel in grub.cfg
+            grub_search = node.execute(
+                f"grep -n 'menuentry.*{kernel_version}' /boot/grub2/grub.cfg | head -1",
+                sudo=True,
+                shell=True,
+                expected_exit_code=[0, 1],
+            )
+            
+            if grub_search.exit_code == 0 and grub_search.stdout.strip():
+                self._log.info(f"Found GRUB menu entry for {kernel_version}: {grub_search.stdout.strip()}")
+                
+                # Extract menu entry title
+                menu_entry_line = grub_search.stdout.strip()
+                # Try to extract the menu entry name between quotes
+                import re
+                menu_match = re.search(r"menuentry ['\"]([^'\"]+)['\"]", menu_entry_line)
+                if menu_match:
+                    menu_title = menu_match.group(1)
+                    self._log.info(f"Extracted menu title: {menu_title}")
+                    
+                    # Set GRUB_DEFAULT to the menu title
+                    sed_cmd = f"sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=\"{menu_title}\"/' /etc/default/grub"
+                    node.execute(sed_cmd, sudo=True)
+                    
+                    # Regenerate GRUB configuration
+                    node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True)
+                    
+                    self._log.info(f"Set GRUB_DEFAULT to '{menu_title}' and regenerated GRUB config")
+                else:
+                    self._log.warning("Could not extract menu entry title from GRUB config")
+            else:
+                self._log.warning(f"Could not find menu entry for kernel {kernel_version} in GRUB config")
+                
+        except Exception as e:
+            self._log.warning(f"Direct GRUB configuration failed: {e}")
+    
+    def _extract_kernel_version_from_rpm(self, rpm_name: str) -> str:
+        """Extract the actual kernel version from RPM name."""
+        # Handle formats like:
+        # kernel-5.15.185.1-2.cm2.x86_64 -> 5.15.185.1-2.cm2
+        # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
+        if rpm_name.startswith("kernel-lvbs-"):
+            # Remove "kernel-lvbs-" prefix and ".x86_64" suffix
+            version = rpm_name.replace("kernel-lvbs-", "")
+            if ".x86_64" in version:
+                version = version.replace(".x86_64", "")
+            return version
+        elif rpm_name.startswith("kernel-"):
+            # Remove "kernel-" prefix and ".x86_64" suffix
+            version = rpm_name.replace("kernel-", "")
+            if ".x86_64" in version:
+                version = version.replace(".x86_64", "")
+            return version
+        else:
+            # Fallback - return as is
+            return rpm_name
+    
+    def _verify_kernel_files_exist(self, node: Node, kernel_version: str) -> bool:
+        """Verify that kernel files exist in /boot/ after installation."""
+        try:
+            # Check for vmlinuz file
+            vmlinuz_path = f"/boot/vmlinuz-{kernel_version}"
+            vmlinuz_check = node.execute(
+                f"ls -la {vmlinuz_path}",
+                sudo=True,
+                expected_exit_code=[0, 2]
+            )
+            
+            if vmlinuz_check.exit_code == 0:
+                self._log.info(f"Found kernel image: {vmlinuz_path}")
+                return True
+            else:
+                self._log.warning(f"Kernel image not found: {vmlinuz_path}")
+                
+                # Try to find any kernel files with similar version
+                search_result = node.execute(
+                    f"ls -la /boot/vmlinuz-*{kernel_version}* || ls -la /boot/vmlinuz-* | grep {kernel_version.split('-')[0]}",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=[0, 1, 2]
+                )
+                if search_result.exit_code == 0 and search_result.stdout.strip():
+                    self._log.info(f"Found similar kernel files: {search_result.stdout}")
+                    # Check if any of the found files match our expected pattern
+                    lines = search_result.stdout.strip().split('\n')
+                    for line in lines:
+                        if f"vmlinuz-{kernel_version}" in line:
+                            self._log.info(f"Found exact match in search results: {line}")
+                            return True
+                else:
+                    self._log.warning("No similar kernel files found")
+                return False
+                
+        except Exception as e:
+            self._log.error(f"Error checking kernel files: {e}")
+            return False
 
 
 class RepoInstaller(BaseInstaller):
