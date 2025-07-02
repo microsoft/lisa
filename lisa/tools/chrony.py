@@ -13,10 +13,10 @@ from lisa.operating_system import (
     Cat,
     CBLMariner,
     Debian,
+    Fedora,
     Posix,
     Redhat,
     Suse,
-    Fedora,
 )
 from lisa.tools.ls import Ls
 from lisa.util import LisaException
