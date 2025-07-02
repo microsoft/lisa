@@ -237,17 +237,75 @@ class KernelInstallerTransformer(DeploymentTransformer):
             else:
                 actual_version = kernel_version
             
-            # Use grubby to set the newly installed kernel as default
+            # First, let's see what kernels grubby can find
+            available_kernels = node.execute(
+                "grubby --info=ALL | grep '^kernel=' | cut -d= -f2",
+                sudo=True,
+                shell=True,
+            )
+            self._log.info(f"Available kernels found by grubby: {available_kernels.stdout}")
+            
+            # Construct the expected kernel path
             kernel_path = f"/boot/vmlinuz-{actual_version}"
             
-            # Set the installed kernel as default boot entry
+            # Check if the kernel file exists
+            kernel_check = node.execute(
+                f"ls -la {kernel_path}",
+                sudo=True,
+                expected_exit_code=[0, 2],  # Allow file not found
+            )
+            
+            if kernel_check.exit_code != 0:
+                self._log.warning(f"Kernel file {kernel_path} not found, searching for alternatives...")
+                # Try to find the kernel by pattern
+                kernel_search = node.execute(
+                    f"ls -la /boot/vmlinuz-*{actual_version}*",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=[0, 2],
+                )
+                if kernel_search.exit_code == 0:
+                    # Extract the first found kernel
+                    found_kernels = kernel_search.stdout.strip().split('\n')
+                    if found_kernels:
+                        # Get the kernel path from the ls output
+                        kernel_path = found_kernels[0].split()[-1]
+                        self._log.info(f"Found alternative kernel path: {kernel_path}")
+            
+            # Try to set the kernel as default
             result = node.execute(
                 f"grubby --set-default={kernel_path}",
                 sudo=True,
-                expected_exit_code=0,
+                expected_exit_code=[0, 1],  # Allow failure for further handling
             )
             
-            self._log.info(f"Set installed kernel {kernel_path} as default boot entry")
+            if result.exit_code == 0:
+                self._log.info(f"Successfully set installed kernel {kernel_path} as default boot entry")
+            else:
+                # If direct path fails, try using grubby's kernel discovery
+                self._log.warning(f"Direct path failed, trying alternative approach: {result.stdout}")
+                
+                # List all kernels and find the one matching our version
+                info_result = node.execute(
+                    "grubby --info=ALL",
+                    sudo=True,
+                )
+                
+                # Look for our kernel version in the output
+                if actual_version in info_result.stdout:
+                    self._log.info(f"Found kernel {actual_version} in grubby info, attempting index-based setting")
+                    # Try setting by index (newest kernel is usually index 0)
+                    index_result = node.execute(
+                        "grubby --set-default-index=0",
+                        sudo=True,
+                        expected_exit_code=[0, 1],
+                    )
+                    if index_result.exit_code == 0:
+                        self._log.info("Successfully set kernel as default using index 0")
+                    else:
+                        self._log.warning(f"Index-based setting also failed: {index_result.stdout}")
+                else:
+                    self._log.warning(f"Kernel version {actual_version} not found in grubby info")
             
         except Exception as e:
             self._log.warning(f"Failed to configure kernel boot order: {e}")
