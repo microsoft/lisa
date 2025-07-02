@@ -394,9 +394,9 @@ class KvpClient(Tool):
             self.node.os.install_packages("kernel-headers glibc-devel binutils")
         gcc = self.node.tools[Gcc]
         # in C90, the status returned is undefined
-        # use c99 to make sure the return value is correct
+        # use gnu89 to make sure the return value is correct
         gcc.compile(
-            filename=source_file, output_name=self.command, arguments="-std=c99"
+            filename=source_file, output_name=self.command, arguments="-std=gnu89"
         )
 
 
