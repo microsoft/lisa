@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+from dataclasses import dataclass
 from typing import List, Optional, Type
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
+from lisa.tools.df import Df
 from lisa.tools.lsblk import Lsblk
 from lisa.tools.rm import Rm
 from lisa.util import (
@@ -12,6 +14,13 @@ from lisa.util import (
     find_patterns_groups_in_lines,
     find_patterns_in_lines,
 )
+
+
+@dataclass
+class SwapPartition(object):
+    filename: str = ""
+    type: str = ""
+    partition: str = ""
 
 
 class SwapOn(Tool):
@@ -66,7 +75,7 @@ class Swap(Tool):
         lsblk = self.node.tools[Lsblk].run().stdout
         return "SWAP" in lsblk
 
-    def get_swap_partitions(self) -> List[str]:
+    def get_swap_partitions(self) -> List[SwapPartition]:
         # run 'cat /proc/swaps' or 'swapon -s' and parse the output
         # The output is in the following format:
         # <Filename> <Type> <Size> <Used> <Priority>
@@ -82,11 +91,25 @@ class Swap(Tool):
                 raise LisaException("Failed to get swap information")
 
         output = swap_result.stdout
-        swap_parts: List[str] = []
+        swap_parts: List[SwapPartition] = []
         swap_entries = find_patterns_groups_in_lines(output, [self._SWAPS_PATTERN])[0]
         for swap_entry in swap_entries:
-            if swap_entry["type"] == "partition":
-                swap_parts.append(swap_entry["filename"])
+            filename = swap_entry["filename"]
+            file_type = swap_entry["type"]
+            if file_type == "partition":
+                partition = filename
+            else:
+                # For swap files, get the partition information
+                part = self.node.tools[Df].get_partition_by_path(filename)
+                if not part:
+                    raise LisaException(
+                        f"Failed to get partition information for {filename}"
+                    )
+                partition = part.name
+            swap_parts.append(
+                SwapPartition(filename=filename, type=file_type, partition=partition)
+            )
+
         return swap_parts
 
     def create_swap(
@@ -121,7 +144,7 @@ class SwapInfoBSD(Swap):
 
         return False
 
-    def get_swap_partitions(self) -> List[str]:
+    def get_swap_partitions(self) -> List[SwapPartition]:
         # run 'swapinfo -k' and parse the output
         # The output is in the following format:
         # <Device> <1K-blocks> <Used> <Avail> <Capacity>
@@ -130,9 +153,15 @@ class SwapInfoBSD(Swap):
             raise LisaException("Failed to get swap information")
 
         output = swap_result.stdout
-        swap_parts: List[str] = []
+        swap_parts: List[SwapPartition] = []
         swap_entries = find_patterns_groups_in_lines(output, [self._SWAP_ENTRIES])[0]
         # FreeBSD doesn't have swap files, only partitions
         for swap_entry in swap_entries:
-            swap_parts.append(swap_entry["device"])
+            swap_parts.append(
+                SwapPartition(
+                    filename=swap_entry["device"],
+                    type="partition",
+                    partition=swap_entry["device"],
+                )
+            )
         return swap_parts
