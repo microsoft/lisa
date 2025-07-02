@@ -183,8 +183,8 @@ class StoragePerformance(TestSuite):
         timeout=TIME_OUT,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
-                data_disk_type=schema.DiskType.PremiumSSDLRS,
-                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_type=schema.DiskType.StandardHDDLRS,
+                os_disk_type=schema.DiskType.StandardHDDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
                 data_disk_count=search_space.IntRange(min=24),
             ),
@@ -550,7 +550,7 @@ class StoragePerformance(TestSuite):
         node: Node,
         test_result: TestResult,
         disk_setup_type: DiskSetupType = DiskSetupType.raw,
-        disk_type: DiskType = DiskType.premiumssd,
+        disk_type: DiskType = DiskType.standardhdd,
         block_size: int = 4,
         start_iodepth: int = 1,
         max_iodepth: int = 256,
