@@ -174,7 +174,12 @@ class KernelInstallerTransformer(DeploymentTransformer):
                 posix.replace_boot_kernel(installed_kernel_version)
             elif isinstance(installer, RPMInstaller):
                 # For kernels installed via RPM, always set as default boot option
-                self._configure_installed_kernel_boot_order(node, installed_kernel_version)
+                self._log.info(f"Node OS type: {type(node.os)}, name: {node.os.name}")
+                from lisa.operating_system import CBLMariner
+                if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
+                    self._configure_installed_kernel_boot_order(node, installed_kernel_version)
+                else:
+                    self._log.warning(f"Skipping boot configuration - OS type {type(node.os)} not supported or grubby not available")
             elif (
                 isinstance(installer, RepoInstaller)
                 and "fde" in installer.runbook.source
@@ -222,6 +227,21 @@ class KernelInstallerTransformer(DeploymentTransformer):
             self._information_output_name: self._information,
             self._is_success_output_name: build_sucess and boot_success,
         }
+
+    def _has_grubby_available(self, node: Node) -> bool:
+        """Check if grubby command is available on the system."""
+        try:
+            result = node.execute(
+                "command -v grubby",
+                shell=True,
+                expected_exit_code=[0, 1],
+            )
+            available = result.exit_code == 0
+            self._log.info(f"Grubby availability check: {available}")
+            return available
+        except Exception as e:
+            self._log.info(f"Grubby availability check failed: {e}")
+            return False
 
     def _configure_installed_kernel_boot_order(self, node: Node, kernel_version: str) -> None:
         """Configure newly installed kernel as default boot option using grubby."""

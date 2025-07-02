@@ -61,11 +61,31 @@ class RPMInstaller(BaseInstaller):
         installed_kernel_version = filename[: -len(".rpm")]
 
         # Always configure newly installed kernel as default boot option
-        if isinstance(node.os, CBLMariner):
+        self._log.info(f"Node OS type: {type(node.os)}, name: {node.os.name}")
+        self._log.info(f"Is CBLMariner: {isinstance(node.os, CBLMariner)}")
+        
+        # Configure boot for any RPM-based system that has grubby available
+        if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
             self._configure_installed_kernel_boot(node, installed_kernel_version)
+        else:
+            self._log.warning(f"Skipping boot configuration - OS type {type(node.os)} not supported or grubby not available")
 
         return installed_kernel_version
 
+    def _has_grubby_available(self, node) -> bool:
+        """Check if grubby command is available on the system."""
+        try:
+            result = node.execute(
+                "command -v grubby",
+                shell=True,
+                expected_exit_code=[0, 1],
+            )
+            available = result.exit_code == 0
+            self._log.info(f"Grubby availability check: {available}")
+            return available
+        except Exception as e:
+            self._log.info(f"Grubby availability check failed: {e}")
+            return False
 
     def _configure_installed_kernel_boot(self, node, kernel_version: str) -> None:
         """Configure newly installed kernel as default boot option using grubby."""
