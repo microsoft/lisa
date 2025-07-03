@@ -98,7 +98,8 @@ class Uname(Tool):
 
 
 class FreeBSDUname(Uname):
+    # FreeBSD 14.1-RELEASE-p7 FreeBSD 14.1-RELEASE-p7 GENERIC arm64
     _key_info_pattern = re.compile(
-        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) "
-        r"(?P<platform>[\w\W]+?) (?P<uname_version>[\w\W]+?)$"
+        r"^(?P<os>[^ ]*?) (?P<kernel_version>[\w\W]*?) [^ ]*? [\w\W]*? "
+        r"(?P<uname_version>[\w\W]+?) (?P<platform>[\w\W]+?)$"
     )

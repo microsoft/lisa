@@ -63,6 +63,7 @@ from lisa.features.availability import AvailabilityType
 from lisa.node import Node, RemoteNode, local
 from lisa.platform_ import Platform
 from lisa.secret import add_secret
+from lisa.sut_orchestrator import platform_utils
 from lisa.tools import Dmesg, Hostname, KernelConfig, Modinfo, Whoami
 from lisa.tools.lsinitrd import Lsinitrd
 from lisa.util import (
@@ -201,6 +202,7 @@ KEY_MANA_DRIVER_ENABLED = "mana_driver_enabled"
 KEY_NVME_ENABLED = "nvme_enabled"
 ATTRIBUTE_FEATURES = "features"
 
+
 CLOUD: Dict[str, Dict[str, Any]] = {
     "azurecloud": AZURE_PUBLIC_CLOUD,
     "azurechinacloud": AZURE_CHINA_CLOUD,
@@ -279,6 +281,7 @@ class AzurePlatformSchema:
     # specify shared resource group location
     shared_resource_group_location: str = field(default=RESOURCE_GROUP_LOCATION)
     resource_group_managed_by: str = field(default="")
+    resource_group_tags: Optional[Dict[str, str]] = field(default=None)
     # specify the locations which used to retrieve marketplace image information
     # example: westus, westus2
     marketplace_image_information_location: Optional[Union[str, List[str]]] = field(
@@ -461,6 +464,8 @@ class AzurePlatform(Platform):
             KEY_WALA_VERSION: self._get_wala_version,
             KEY_WALA_DISTRO_VERSION: self._get_wala_distro_version,
             KEY_HARDWARE_PLATFORM: self._get_hardware_platform,
+            platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
+            platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
         }
 
     @classmethod
@@ -627,6 +632,7 @@ class AzurePlatform(Platform):
                         location=location,
                         log=log,
                         managed_by=self.resource_group_managed_by,
+                        resource_group_tags=self._azure_runbook.resource_group_tags,
                     )
                 else:
                     log.info(f"reusing resource group: [{resource_group_name}]")
@@ -742,7 +748,10 @@ class AzurePlatform(Platform):
                 information[
                     "security_profile"
                 ] = security_profile.security_profile.value
-                if security_profile.security_profile == SecurityProfileType.CVM:
+                if (
+                    security_profile.security_profile == SecurityProfileType.CVM
+                    and isinstance(security_profile.encrypt_disk, bool)
+                ):
                     information["encrypt_disk"] = security_profile.encrypt_disk
 
             if node.capture_kernel_config:
@@ -797,7 +806,6 @@ class AzurePlatform(Platform):
                 node.log.debug("detecting kernel version from serial log...")
                 serial_console = node.features[features.SerialConsole]
                 result = serial_console.get_matched_str(KERNEL_VERSION_PATTERN)
-
         return result
 
     def _get_host_version(self, node: Node) -> str:
@@ -884,6 +892,7 @@ class AzurePlatform(Platform):
         result[AZURE_RG_NAME_KEY] = get_environment_context(
             environment
         ).resource_group_name
+
         if azure_runbook.availability_set_properties:
             for (
                 property_name,
@@ -957,6 +966,7 @@ class AzurePlatform(Platform):
             azure_runbook.shared_resource_group_location,
             self._log,
             azure_runbook.resource_group_managed_by,
+            azure_runbook.resource_group_tags,
         )
 
         self._rm_client = get_resource_management_client(
@@ -1118,7 +1128,7 @@ class AzurePlatform(Platform):
                                 continue
                             resource_sku = sku_obj.as_dict()
                             capability = self._resource_sku_to_capability(
-                                location, sku_obj
+                                location, sku_obj, self._log
                             )
 
                             # estimate vm cost for priority
@@ -1787,8 +1797,9 @@ class AzurePlatform(Platform):
             ]
         )
 
+    @classmethod
     def _resource_sku_to_capability(  # noqa: C901
-        self, location: str, resource_sku: ResourceSku
+        cls, location: str, resource_sku: ResourceSku, log: Logger
     ) -> schema.NodeSpace:
         # fill in default values, in case no capability meet.
         node_space = schema.NodeSpace(
@@ -1916,7 +1927,7 @@ class AzurePlatform(Platform):
                         schema.DiskControllerType(allowed_type)
                     )
                 except ValueError:
-                    self._log.error(
+                    log.error(
                         f"'{allowed_type}' is not a known Disk Controller Type "
                         f"({[x for x in schema.DiskControllerType]})"
                     )
@@ -1940,7 +1951,7 @@ class AzurePlatform(Platform):
                             DiskPlacementType(allowed_type)
                         )
                     except ValueError:
-                        self._log.error(
+                        log.error(
                             f"'{allowed_type}' is not a known Ephemeral Disk Placement"
                             f" Type "
                             f"({[x for x in DiskPlacementType]})"
@@ -2045,7 +2056,7 @@ class AzurePlatform(Platform):
         else:
             node_space.disk.has_resource_disk = False
 
-        for supported_feature in self.supported_features():
+        for supported_feature in cls.supported_features():
             if supported_feature.name() in [
                 features.Disk.name(),
                 features.NetworkInterface.name(),
@@ -3063,7 +3074,7 @@ def _get_vhd_generation(image_info: VirtualMachineImage) -> int:
 
 
 def _get_gallery_image_generation(
-    image: Union[GalleryImage, CommunityGalleryImage]
+    image: Union[GalleryImage, CommunityGalleryImage],
 ) -> int:
     assert (
         hasattr(image, "hyper_v_generation") and image.hyper_v_generation

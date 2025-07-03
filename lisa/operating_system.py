@@ -19,6 +19,7 @@ from typing import (
     Type,
     Union,
 )
+from urllib.parse import urlparse
 
 from assertpy import assert_that
 from retry import retry
@@ -377,6 +378,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         )
 
         return kernel_information
+
+    def add_repository(self, repo: str, **kwargs: Any) -> None:
+        raise NotImplementedError()
 
     def install_packages(
         self,
@@ -985,6 +989,7 @@ class Debian(Linux):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._initialize_package_installation()
         if keys_location:
@@ -1420,6 +1425,23 @@ class FreeBSD(BSD):
         re.DOTALL,
     )
 
+    def get_kernel_information(self, force_run: bool = False) -> KernelInformation:
+        uname = self._node.tools[Uname]
+        uname_result = uname.get_linux_information(force_run=force_run)
+
+        parts: List[str] = [str(x) for x in uname_result.kernel_version]
+        if uname_result.hardware_platform == "arm64":
+            uname_result.hardware_platform = "aarch64"
+        kernel_information = KernelInformation(
+            version=uname_result.kernel_version,
+            raw_version=uname_result.kernel_version_raw,
+            hardware_platform=uname_result.hardware_platform,
+            operating_system=uname_result.operating_system,
+            version_parts=parts,
+        )
+
+        return kernel_information
+
     def get_repositories(self) -> List[RepositoryInfo]:
         self._initialize_package_installation()
         repo_list_str = self._node.execute("pkg -vv", sudo=True).stdout
@@ -1537,6 +1559,7 @@ class RPMDistro(Linux):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
 
@@ -1955,6 +1978,35 @@ class CBLMariner(RPMDistro):
             sudo=True,
         )
 
+    def add_repository(
+        self,
+        repo: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
+        parsed_url = urlparse(repo)
+        if parsed_url.scheme and parsed_url.netloc:
+            self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
+        else:
+            self._create_local_repo(Path(repo))
+
+    def _create_local_repo(self, source_tarball: Path) -> None:
+        from lisa.tools import CreateRepo, RemoteCopy
+
+        working_path = Path(self._node.get_working_path())
+        tarball_file = source_tarball.name
+        tarball_path = working_path / tarball_file
+
+        # copy tarball to remote node
+        result = self._node.tools[RemoteCopy].copy_to_remote(
+            src=source_tarball, dest=working_path
+        )
+        self._log.debug(f"tarball copied to: {result}")
+
+        self._node.tools[CreateRepo].create_repo_from_tarball(tarball_path)
+
     # Disable KillUserProcesses to avoid test processes being terminated when
     # the SSH session is reset
     def set_kill_user_processes(self) -> None:
@@ -2054,6 +2106,7 @@ class Suse(Linux):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         self._initialize_package_installation()
         cmd = "zypper ar"
@@ -2187,6 +2240,7 @@ class SlMicro(Suse):
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> None:
         raise SkippedException(
             UnsupportedDistroException(
