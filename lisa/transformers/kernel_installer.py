@@ -387,31 +387,58 @@ class KernelInstallerTransformer(DeploymentTransformer):
                     menu_title = menu_match.group(1)
                     self._log.info(f"Extracted menu title: {menu_title}")
                     
-                    # Set GRUB_DEFAULT to the menu title (escape special characters)
+                    # Set GRUB_DEFAULT to the menu title (properly escape for shell)
                     import shlex
                     escaped_title = shlex.quote(menu_title)
-                    sed_cmd = f"sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT={escaped_title}/' /etc/default/grub"
-                    sed_result = node.execute(sed_cmd, sudo=True, expected_exit_code=[0, 1])
-                    if sed_result.exit_code != 0:
-                        self._log.warning(f"SED command failed: {sed_result.stderr}")
-                        # Try alternative approach with printf
-                        printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} > /tmp/grub_default && sudo cp /tmp/grub_default /etc/default/grub"
-                        node.execute(printf_cmd, shell=True, sudo=False)
                     
-                    # Regenerate GRUB configuration
-                    grub_regen = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True, expected_exit_code=[0, 1])
-                    if grub_regen.exit_code == 0:
-                        self._log.info(f"Set GRUB_DEFAULT to '{menu_title}' and regenerated GRUB config")
-                    else:
-                        self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
+                    # First backup the current grub config
+                    backup_result = node.execute(
+                        "sudo cp /etc/default/grub /etc/default/grub.backup",
+                        shell=True,
+                        expected_exit_code=[0, 1]
+                    )
+                    
+                    # Use printf to safely write the GRUB_DEFAULT line
+                    printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} | sudo tee /tmp/grub_default_new > /dev/null"
+                    printf_result = node.execute(printf_cmd, shell=True, expected_exit_code=[0, 1])
+                    
+                    if printf_result.exit_code == 0:
+                        # Replace the GRUB_DEFAULT line in the config
+                        sed_cmd = "sudo sed -i '/^GRUB_DEFAULT=/d' /etc/default/grub && sudo cat /tmp/grub_default_new >> /etc/default/grub"
+                        sed_result = node.execute(sed_cmd, shell=True, expected_exit_code=[0, 1])
                         
-                    # Verify the default was set correctly
-                    verify_cmd = "grub2-editenv list | grep saved_entry"
-                    verify_result = node.execute(verify_cmd, sudo=True, shell=True, expected_exit_code=[0, 1])
-                    if verify_result.exit_code == 0:
-                        self._log.info(f"GRUB default verification: {verify_result.stdout}")
+                        if sed_result.exit_code != 0:
+                            self._log.warning(f"Failed to update GRUB config, restoring backup")
+                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                        else:
+                            self._log.info(f"Successfully set GRUB_DEFAULT to {escaped_title}")
                     else:
-                        self._log.info("Could not verify GRUB default setting")
+                        self._log.warning(f"Printf command failed: {printf_result.stderr}")
+                    
+                    # Verify grub config syntax before regenerating
+                    verify_syntax = node.execute(
+                        "sudo bash -n /etc/default/grub",
+                        shell=True,
+                        expected_exit_code=[0, 1]
+                    )
+                    
+                    if verify_syntax.exit_code == 0:
+                        # Regenerate GRUB configuration
+                        grub_regen = node.execute("sudo grub2-mkconfig -o /boot/grub2/grub.cfg", shell=True, expected_exit_code=[0, 1])
+                        if grub_regen.exit_code == 0:
+                            self._log.info(f"Successfully regenerated GRUB config with new default")
+                            
+                            # Verify the default was set correctly
+                            verify_cmd = "sudo grub2-editenv list 2>/dev/null | grep saved_entry || echo 'No saved_entry found'"
+                            verify_result = node.execute(verify_cmd, shell=True, expected_exit_code=[0, 1])
+                            self._log.info(f"GRUB default verification: {verify_result.stdout.strip()}")
+                        else:
+                            self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
+                            # Restore backup on failure
+                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                    else:
+                        self._log.error("GRUB config syntax error detected, restoring backup")
+                        node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
                 else:
                     self._log.warning("Could not extract menu entry title from GRUB config")
             else:

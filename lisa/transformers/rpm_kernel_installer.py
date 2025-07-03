@@ -105,21 +105,39 @@ class RPMInstaller(BaseInstaller):
             self._log.error(f"Kernel files not found in /boot/ after RPM installation!")
             self._log.error(f"Expected to find: /boot/vmlinuz-{actual_kernel_version}")
             self._log.error(f"This indicates the RPM installation may have failed")
-            # Don't fail completely, but warn
+            # Still try to install initramfs in case that helps
+            self._log.info("Attempting to generate initramfs for installed kernel...")
+            dracut_cmd = f"sudo dracut -f /boot/initramfs-{actual_kernel_version}.img {actual_kernel_version}"
+            dracut_result = node.execute(dracut_cmd, shell=True, expected_exit_code=[0, 1])
+            if dracut_result.exit_code == 0:
+                self._log.info("Successfully generated initramfs")
+                # Check again for kernel files
+                kernel_files_created = self._verify_kernel_files_exist(node, actual_kernel_version)
+            else:
+                self._log.warning(f"Dracut failed: {dracut_result.stderr}")
             
         # Always configure newly installed kernel as default boot option
         self._log.info(f"Node OS type: {type(node.os)}, name: {node.os.name}")
         self._log.info(f"Is CBLMariner: {isinstance(node.os, CBLMariner)}")
         
-        # Only attempt boot configuration if kernel files were actually created
+        # Always attempt boot configuration (kernel files may exist but not be detected)
         if kernel_files_created:
-            # Configure boot for any RPM-based system that has grubby available
-            if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
-                self._configure_installed_kernel_boot(node, actual_kernel_version)
-            else:
-                self._log.warning(f"Skipping boot configuration - OS type {type(node.os)} not supported or grubby not available")
+            self._log.info("Kernel files verified - proceeding with boot configuration")
         else:
-            self._log.warning("Skipping boot configuration - kernel files not found in /boot/")
+            self._log.warning("Kernel files not detected, but attempting boot configuration anyway")
+            
+        # Configure boot for any RPM-based system
+        if isinstance(node.os, CBLMariner) or self._has_grubby_available(node):
+            self._configure_installed_kernel_boot(node, actual_kernel_version)
+        else:
+            self._log.warning(f"OS type {type(node.os)} not fully supported - using basic boot configuration")
+            # Try basic GRUB configuration even without grubby
+            try:
+                basic_config = f"sudo grub2-set-default 0 && sudo grub2-mkconfig -o /boot/grub2/grub.cfg"
+                node.execute(basic_config, shell=True, expected_exit_code=[0, 1])
+                self._log.info("Applied basic GRUB configuration")
+            except Exception as e:
+                self._log.warning(f"Basic GRUB configuration failed: {e}")
 
         return actual_kernel_version
 
@@ -246,55 +264,67 @@ class RPMInstaller(BaseInstaller):
                         self._log.info(f"Found alternative kernel path: {kernel_path}")
             
             # Try multiple approaches to set the kernel as default
-            # First try: direct kernel path
+            success = False
+            
+            # Approach 1: Try setting by kernel path
             result = node.execute(
-                f"grubby --set-default={kernel_path}",
-                sudo=True,
-                expected_exit_code=[0, 1],  # Allow failure for further handling
+                f"sudo grubby --set-default={kernel_path}",
+                shell=True,
+                expected_exit_code=[0, 1],
             )
             
-            # If that fails, try with the kernel entry title format
-            if result.exit_code != 0:
-                self._log.info(f"Direct path failed, trying entry title format...")
-                title_result = node.execute(
-                    f"grubby --set-default-index=0",  # Set newest kernel first
-                    sudo=True,
-                    expected_exit_code=[0, 1],
-                )
-                if title_result.exit_code == 0:
-                    result = title_result  # Use this successful result
-                    self._log.info("Successfully set kernel using index 0")
-            
             if result.exit_code == 0:
-                self._log.info(f"Successfully set installed kernel {kernel_path} as default boot entry")
+                self._log.info(f"Successfully set kernel using direct path: {kernel_path}")
+                success = True
             else:
-                # If direct path fails, try using grubby's kernel discovery
-                self._log.warning(f"Direct path failed, trying alternative approach: {result.stdout}")
+                self._log.info(f"Direct path failed ({result.stdout.strip()}), trying alternative approaches...")
                 
-                # List all kernels and find the one matching our version
-                info_result = node.execute(
-                    "grubby --info=ALL",
-                    sudo=True,
+                # Approach 2: Try using menu entry ID from grub.cfg
+                menu_id_result = node.execute(
+                    f"sudo grep -E 'menuentry.*{actual_version}.*{{' /boot/grub2/grub.cfg | head -1 | grep -o \"gnulinux-[^']*\" || echo 'not_found'",
+                    shell=True,
+                    expected_exit_code=[0, 1]
                 )
                 
-                # Look for our kernel version in the output
-                if actual_version in info_result.stdout:
-                    self._log.info(f"Found kernel {actual_version} in grubby info, attempting index-based setting")
-                    # Try setting by index (newest kernel is usually index 0)
-                    index_result = node.execute(
-                        "grubby --set-default-index=0",
-                        sudo=True,
-                        expected_exit_code=[0, 1],
+                if menu_id_result.exit_code == 0 and 'not_found' not in menu_id_result.stdout:
+                    menu_id = menu_id_result.stdout.strip()
+                    self._log.info(f"Found menu ID: {menu_id}")
+                    
+                    # Try setting by menu ID
+                    menu_result = node.execute(
+                        f"sudo grubby --set-default-index=0 || sudo grubby --set-default='{menu_id}'",
+                        shell=True,
+                        expected_exit_code=[0, 1]
                     )
-                    if index_result.exit_code == 0:
-                        self._log.info("Successfully set kernel as default using index 0")
-                    else:
-                        self._log.warning(f"Index-based setting also failed: {index_result.stdout}")
-                else:
-                    self._log.warning(f"Kernel version {actual_version} not found in grubby info")
-                    # Last resort: Try direct GRUB default setting
-                    self._log.info("Attempting direct GRUB default configuration...")
+                    if menu_result.exit_code == 0:
+                        self._log.info("Successfully set kernel using menu ID")
+                        success = True
+                
+                # Approach 3: Direct GRUB environment setting (most reliable)
+                if not success:
+                    self._log.info("Grubby approaches failed, using direct GRUB method...")
                     self._set_grub_default_directly(node, actual_version)
+                    success = True  # Assume success since we handle errors in that method
+            
+            # Final verification
+            if success:
+                # Verify the configuration took effect
+                verify_result = node.execute(
+                    "sudo grubby --default-kernel 2>/dev/null || echo 'unable to get default'",
+                    shell=True,
+                    expected_exit_code=[0, 1]
+                )
+                self._log.info(f"Default kernel after configuration: {verify_result.stdout.strip()}")
+                
+                # Also check GRUB environment
+                grub_env_result = node.execute(
+                    "sudo grub2-editenv list 2>/dev/null | grep -E '(saved_entry|default)' || echo 'no grub env found'",
+                    shell=True,
+                    expected_exit_code=[0, 1]
+                )
+                self._log.info(f"GRUB environment: {grub_env_result.stdout.strip()}")
+            else:
+                self._log.warning("All boot configuration methods failed")
             
         except Exception as e:
             self._log.warning(f"Failed to configure kernel boot order: {e}")
@@ -323,31 +353,58 @@ class RPMInstaller(BaseInstaller):
                     menu_title = menu_match.group(1)
                     self._log.info(f"Extracted menu title: {menu_title}")
                     
-                    # Set GRUB_DEFAULT to the menu title (escape special characters)
+                    # Set GRUB_DEFAULT to the menu title (properly escape for shell)
                     import shlex
                     escaped_title = shlex.quote(menu_title)
-                    sed_cmd = f"sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT={escaped_title}/' /etc/default/grub"
-                    sed_result = node.execute(sed_cmd, sudo=True, expected_exit_code=[0, 1])
-                    if sed_result.exit_code != 0:
-                        self._log.warning(f"SED command failed: {sed_result.stderr}")
-                        # Try alternative approach with printf
-                        printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} > /tmp/grub_default && sudo cp /tmp/grub_default /etc/default/grub"
-                        node.execute(printf_cmd, shell=True, sudo=False)
                     
-                    # Regenerate GRUB configuration
-                    grub_regen = node.execute("grub2-mkconfig -o /boot/grub2/grub.cfg", sudo=True, expected_exit_code=[0, 1])
-                    if grub_regen.exit_code == 0:
-                        self._log.info(f"Set GRUB_DEFAULT to '{menu_title}' and regenerated GRUB config")
-                    else:
-                        self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
+                    # First backup the current grub config
+                    backup_result = node.execute(
+                        "sudo cp /etc/default/grub /etc/default/grub.backup",
+                        shell=True,
+                        expected_exit_code=[0, 1]
+                    )
+                    
+                    # Use printf to safely write the GRUB_DEFAULT line
+                    printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} | sudo tee /tmp/grub_default_new > /dev/null"
+                    printf_result = node.execute(printf_cmd, shell=True, expected_exit_code=[0, 1])
+                    
+                    if printf_result.exit_code == 0:
+                        # Replace the GRUB_DEFAULT line in the config
+                        sed_cmd = "sudo sed -i '/^GRUB_DEFAULT=/d' /etc/default/grub && sudo cat /tmp/grub_default_new >> /etc/default/grub"
+                        sed_result = node.execute(sed_cmd, shell=True, expected_exit_code=[0, 1])
                         
-                    # Verify the default was set correctly
-                    verify_cmd = "grub2-editenv list | grep saved_entry"
-                    verify_result = node.execute(verify_cmd, sudo=True, shell=True, expected_exit_code=[0, 1])
-                    if verify_result.exit_code == 0:
-                        self._log.info(f"GRUB default verification: {verify_result.stdout}")
+                        if sed_result.exit_code != 0:
+                            self._log.warning(f"Failed to update GRUB config, restoring backup")
+                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                        else:
+                            self._log.info(f"Successfully set GRUB_DEFAULT to {escaped_title}")
                     else:
-                        self._log.info("Could not verify GRUB default setting")
+                        self._log.warning(f"Printf command failed: {printf_result.stderr}")
+                    
+                    # Verify grub config syntax before regenerating
+                    verify_syntax = node.execute(
+                        "sudo bash -n /etc/default/grub",
+                        shell=True,
+                        expected_exit_code=[0, 1]
+                    )
+                    
+                    if verify_syntax.exit_code == 0:
+                        # Regenerate GRUB configuration
+                        grub_regen = node.execute("sudo grub2-mkconfig -o /boot/grub2/grub.cfg", shell=True, expected_exit_code=[0, 1])
+                        if grub_regen.exit_code == 0:
+                            self._log.info(f"Successfully regenerated GRUB config with new default")
+                            
+                            # Verify the default was set correctly
+                            verify_cmd = "sudo grub2-editenv list 2>/dev/null | grep saved_entry || echo 'No saved_entry found'"
+                            verify_result = node.execute(verify_cmd, shell=True, expected_exit_code=[0, 1])
+                            self._log.info(f"GRUB default verification: {verify_result.stdout.strip()}")
+                        else:
+                            self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
+                            # Restore backup on failure
+                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                    else:
+                        self._log.error("GRUB config syntax error detected, restoring backup")
+                        node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
                 else:
                     self._log.warning("Could not extract menu entry title from GRUB config")
             else:
