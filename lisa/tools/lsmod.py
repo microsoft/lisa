@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 from lisa.executable import Tool
 from lisa.util import find_patterns_groups_in_lines, find_patterns_in_lines
@@ -91,3 +91,19 @@ class Lsmod(Tool):
         usedby_modules = usedby_split[1] if len(usedby_split) > 1 else ""
 
         return usedby_count, usedby_modules
+
+    def list_modules(self) -> List[str]:
+        """
+        List all loaded kernel modules.
+        This method runs the `lsmod` command and parses its output to return
+        a list of module names.
+
+        It skips the header line and returns only the module names.
+        :return: A list of loaded kernel module names.
+        """
+        result = self.run(sudo=True, force_run=True)
+        module_info = find_patterns_in_lines(result.stdout, [self.__output_pattern])
+        if not module_info:
+            return []
+        module_info[0] = module_info[0][1:]  # Skip the header line
+        return [info[0] for sublist in module_info for info in sublist]
