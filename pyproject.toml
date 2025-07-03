@@ -27,7 +27,7 @@ dependencies = [
     "spurplus ~= 2.3.5",
     "websockets ~= 10.3",
     "charset_normalizer ~= 2.1.1",
-    "requests ~= 2.32.0",
+    "requests ~= 2.32.4",
 ]
 dynamic = ["version"]
 license = {text = "MIT"}
