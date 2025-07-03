@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -378,6 +379,9 @@ class Posix(OperatingSystem, BaseClassMixin):
         )
 
         return kernel_information
+
+    def add_key(self, server_name: str, key: str = "") -> None:
+        raise NotImplementedError()
 
     def add_repository(self, repo: str, **kwargs: Any) -> None:
         raise NotImplementedError()
@@ -850,11 +854,62 @@ class Debian(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^debian|Forcepoint|Kali$")
 
-    def add_key(self, server_name: str, key: str) -> None:
-        self._node.execute(
-            f"apt-key adv --keyserver {server_name} --recv-keys {key}",
-            sudo=True,
-        )
+    def add_key(self, server_name: str, key: str = "") -> None:
+        # apt-key add is deprecated starting from Ubuntu 2504.
+        # Use gpg to import the key instead.
+        apt_key_available = False
+        if (
+            self._node.execute("command -v apt-key", shell=True, sudo=True).exit_code
+            == 0
+        ):
+            apt_key_available = True
+
+        if key == "":
+            # if key is not provided, get the key from server_name.
+            wget = self._node.tools[Wget]
+            key_file_path = wget.get(
+                url=server_name,
+                file_path=str(self._node.working_path),
+                force_run=True,
+            )
+            if not apt_key_available:
+                key_file_name = os.path.basename(key_file_path)
+                self._node.execute(
+                    cmd=f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_file_name}.gpg {key_file_path}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add gpg key",
+                )
+            else:
+                self._node.execute(
+                    cmd=f"apt-key add {key_file_path}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add apt key",
+                )
+        else:
+            if not apt_key_available:
+                # get the key from server_name, and export it to /etc/apt/trusted.gpg.d
+                self._node.execute(
+                    cmd=f"gpg --keyserver {server_name} --recv-keys {key}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to get gpg key",
+                )
+                self._node.execute(
+                    cmd=f"gpg --export {key} > /etc/apt/trusted.gpg.d/{key}.gpg",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to export gpg key",
+                    shell=True,
+                )
+            else:
+                self._node.execute(
+                    cmd=f"apt-key adv --keyserver {server_name} --recv-keys {key}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add apt key",
+                )
 
     def get_apt_error(self, stdout: str) -> List[str]:
         error_lines: List[str] = []
@@ -994,18 +1049,7 @@ class Debian(Linux):
         self._initialize_package_installation()
         if keys_location:
             for key_location in keys_location:
-                wget = self._node.tools[Wget]
-                key_file_path = wget.get(
-                    url=key_location,
-                    file_path=str(self._node.working_path),
-                    force_run=True,
-                )
-                self._node.execute(
-                    cmd=f"apt-key add {key_file_path}",
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="fail to add apt key",
-                )
+                self.add_key(server_name=key_location)
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
