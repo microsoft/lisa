@@ -362,7 +362,8 @@ class KernelInstallerTransformer(DeploymentTransformer):
             
         except Exception as e:
             self._log.warning(f"Failed to configure kernel boot order: {e}")
-            # Don't fail the installation, just log the warning
+            # Try fallback methods before giving up
+            self._attempt_grub_fallback_methods(node, "0")
 
     def _set_grub_default_directly(self, node: Node, kernel_version: str) -> None:
         """Directly set GRUB default by modifying GRUB configuration."""
@@ -398,22 +399,46 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         expected_exit_code=[0, 1]
                     )
                     
-                    # Use printf to safely write the GRUB_DEFAULT line
-                    printf_cmd = f"printf 'GRUB_DEFAULT=%s\n' {escaped_title} | sudo tee /tmp/grub_default_new > /dev/null"
-                    printf_result = node.execute(printf_cmd, shell=True, expected_exit_code=[0, 1])
+                    # Check file permissions and fix if needed
+                    perm_check = node.execute(
+                        "sudo ls -la /etc/default/grub",
+                        shell=True,
+                        expected_exit_code=[0, 1]
+                    )
+                    self._log.info(f"GRUB config file permissions: {perm_check.stdout.strip()}")
                     
-                    if printf_result.exit_code == 0:
-                        # Replace the GRUB_DEFAULT line in the config
-                        sed_cmd = "sudo sed -i '/^GRUB_DEFAULT=/d' /etc/default/grub && sudo cat /tmp/grub_default_new >> /etc/default/grub"
-                        sed_result = node.execute(sed_cmd, shell=True, expected_exit_code=[0, 1])
+                    # Method 1: Direct file replacement (most reliable)
+                    temp_grub_file = "/tmp/grub_default_complete"
+                    
+                    # Copy existing config and modify it
+                    copy_cmd = f"sudo cp /etc/default/grub {temp_grub_file}"
+                    copy_result = node.execute(copy_cmd, shell=True, expected_exit_code=[0, 1])
+                    
+                    if copy_result.exit_code == 0:
+                        # Remove any existing GRUB_DEFAULT lines and add new one
+                        modify_cmd = f"sudo sed -i '/^GRUB_DEFAULT=/d' {temp_grub_file} && echo 'GRUB_DEFAULT={escaped_title}' | sudo tee -a {temp_grub_file} > /dev/null"
+                        modify_result = node.execute(modify_cmd, shell=True, expected_exit_code=[0, 1])
                         
-                        if sed_result.exit_code != 0:
-                            self._log.warning(f"Failed to update GRUB config, restoring backup")
-                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                        if modify_result.exit_code == 0:
+                            # Replace the original file
+                            replace_cmd = f"sudo cp {temp_grub_file} /etc/default/grub"
+                            replace_result = node.execute(replace_cmd, shell=True, expected_exit_code=[0, 1])
+                            
+                            if replace_result.exit_code == 0:
+                                self._log.info(f"Successfully set GRUB_DEFAULT to {escaped_title} via file replacement")
+                            else:
+                                self._log.warning(f"File replacement failed: {replace_result.stderr}")
+                                # Try fallback method
+                                self._attempt_grub_fallback_methods(node, "0")
                         else:
-                            self._log.info(f"Successfully set GRUB_DEFAULT to {escaped_title}")
+                            self._log.warning(f"Temporary file modification failed: {modify_result.stderr}")
+                            self._attempt_grub_fallback_methods(node, "0")
                     else:
-                        self._log.warning(f"Printf command failed: {printf_result.stderr}")
+                        self._log.warning(f"Could not copy GRUB config: {copy_result.stderr}")
+                        self._attempt_grub_fallback_methods(node, "0")
+                    
+                    # Always try fallback methods for maximum reliability
+                    self._attempt_grub_fallback_methods(node, "0")
                     
                     # Verify grub config syntax before regenerating
                     verify_syntax = node.execute(
@@ -428,24 +453,114 @@ class KernelInstallerTransformer(DeploymentTransformer):
                         if grub_regen.exit_code == 0:
                             self._log.info(f"Successfully regenerated GRUB config with new default")
                             
-                            # Verify the default was set correctly
+                            # Verify the default was set correctly  
                             verify_cmd = "sudo grub2-editenv list 2>/dev/null | grep saved_entry || echo 'No saved_entry found'"
                             verify_result = node.execute(verify_cmd, shell=True, expected_exit_code=[0, 1])
                             self._log.info(f"GRUB default verification: {verify_result.stdout.strip()}")
+                            
+                            # Additional verification - check if our kernel is listed first
+                            kernel_order_cmd = "sudo grub2-mkconfig -o /dev/stdout 2>/dev/null | grep 'Found linux image' | head -2"
+                            order_result = node.execute(kernel_order_cmd, shell=True, expected_exit_code=[0, 1])
+                            self._log.info(f"GRUB kernel detection order: {order_result.stdout.strip()}")
                         else:
                             self._log.warning(f"GRUB config regeneration failed: {grub_regen.stderr}")
-                            # Restore backup on failure
-                            node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
+                            # Don't restore backup here, fallback methods may still work
                     else:
                         self._log.error("GRUB config syntax error detected, restoring backup")
                         node.execute("sudo cp /etc/default/grub.backup /etc/default/grub", shell=True)
                 else:
                     self._log.warning("Could not extract menu entry title from GRUB config")
+                    # Try fallback methods
+                    self._attempt_grub_fallback_methods(node, "0")
             else:
                 self._log.warning(f"Could not find menu entry for kernel {kernel_version} in GRUB config")
+                # Try fallback methods
+                self._attempt_grub_fallback_methods(node, "0")
                 
         except Exception as e:
             self._log.warning(f"Direct GRUB configuration failed: {e}")
+            # Try fallback methods
+            self._attempt_grub_fallback_methods(node, "0")
+    
+    def _attempt_grub_fallback_methods(self, node: Node, default_value: str) -> None:
+        """Attempt multiple GRUB fallback methods for setting boot default."""
+        self._log.info(f"Attempting GRUB fallback methods with default value: {default_value}")
+        
+        # Method 1: grub2-set-default (most reliable)
+        try:
+            cmd1 = f"sudo grub2-set-default {default_value}"
+            result1 = node.execute(cmd1, shell=True, expected_exit_code=[0, 1])
+            if result1.exit_code == 0:
+                self._log.info(f"Successfully set GRUB default using grub2-set-default {default_value}")
+                return
+            else:
+                self._log.info(f"grub2-set-default failed: {result1.stderr}")
+        except Exception as e:
+            self._log.info(f"grub2-set-default exception: {e}")
+        
+        # Method 2: grub2-editenv (direct environment variable)
+        try:
+            if default_value == "0":
+                # Set to boot the first (newest) kernel
+                cmd2 = "sudo grub2-editenv - unset saved_entry"
+            else:
+                # Set specific saved entry
+                cmd2 = f"sudo grub2-editenv - set saved_entry='{default_value}'"
+            
+            result2 = node.execute(cmd2, shell=True, expected_exit_code=[0, 1])
+            if result2.exit_code == 0:
+                self._log.info(f"Successfully set GRUB environment using grub2-editenv")
+                return
+            else:
+                self._log.info(f"grub2-editenv failed: {result2.stderr}")
+        except Exception as e:
+            self._log.info(f"grub2-editenv exception: {e}")
+        
+        # Method 3: Direct file manipulation of grubenv
+        try:
+            # Check if grubenv exists and can be modified
+            grubenv_check = node.execute(
+                "sudo ls -la /boot/grub2/grubenv",
+                shell=True,
+                expected_exit_code=[0, 1, 2]
+            )
+            
+            if grubenv_check.exit_code == 0:
+                self._log.info(f"Found grubenv file: {grubenv_check.stdout.strip()}")
+                
+                # Reset saved_entry to let GRUB use default (first entry)
+                cmd3 = "sudo grub2-editenv /boot/grub2/grubenv unset saved_entry"
+                result3 = node.execute(cmd3, shell=True, expected_exit_code=[0, 1])
+                if result3.exit_code == 0:
+                    self._log.info("Successfully reset GRUB environment to use default entry")
+                    return
+                else:
+                    self._log.info(f"Direct grubenv manipulation failed: {result3.stderr}")
+        except Exception as e:
+            self._log.info(f"grubenv manipulation exception: {e}")
+        
+        # Method 4: Kernel reordering (ensure our kernel appears first)
+        try:
+            self._log.info("Attempting kernel reordering to ensure newest kernel is first")
+            
+            # Force regeneration with verbose output to see kernel order
+            regen_cmd = "sudo grub2-mkconfig -o /boot/grub2/grub.cfg"
+            regen_result = node.execute(regen_cmd, shell=True, expected_exit_code=[0, 1])
+            
+            if regen_result.exit_code == 0:
+                self._log.info("GRUB configuration regenerated - newest kernel should be default")
+                
+                # Check the actual order
+                check_order_cmd = "sudo grep 'menuentry ' /boot/grub2/grub.cfg | head -3 | grep -o 'Linux [^']*'"
+                order_result = node.execute(check_order_cmd, shell=True, expected_exit_code=[0, 1])
+                if order_result.exit_code == 0:
+                    self._log.info(f"GRUB menu order after regeneration: {order_result.stdout.strip()}")
+            else:
+                self._log.warning(f"GRUB regeneration failed: {regen_result.stderr}")
+        except Exception as e:
+            self._log.warning(f"Kernel reordering failed: {e}")
+        
+        self._log.warning("All GRUB fallback methods attempted - relying on GRUB default behavior")
     
     def _extract_kernel_version_from_rpm(self, rpm_name: str) -> str:
         """Extract the actual kernel version from RPM name."""
