@@ -783,7 +783,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # To this:
     #    snd_VM      fwd_VM      rcv_VM
     #    |s_nic1 <-> |f_nic1 <-> |r_nic1    10.0.0.0/24 (Subnet A)
-    #    |snd_nic_a <-> |f_nic2     |          10.0.1.0/24 (Subnet B/C)
+    #    |snd_nic_a <-> |f_nic2     |          10.0.1.0/24 (Subnet B/C) 
     #                | ↕ DPDK as NVA forwarding (and filtering) traffic
     #                |f_nic3 <-> |rcv_nic_b   10.0.2.0/24 (Subnet B/C)
     #

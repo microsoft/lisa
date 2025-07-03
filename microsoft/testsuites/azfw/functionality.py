@@ -8,6 +8,7 @@ from lisa import (
     Environment,
     RemoteNode
 )
+from lisa.features import NetworkInterface
 import time
 
 @TestSuiteMetadata(
@@ -16,7 +17,7 @@ import time
     description="""
     This test suite verifies marking in conntrack.
     """,
-    requirement=simple_requirement(min_count=3, min_nic_count=3)
+    requirement=simple_requirement(min_count=2, min_nic_count=2)
 )
 class FunctionalityTest(TestSuite):
     @TestCaseMetadata(
@@ -112,6 +113,38 @@ class FunctionalityTest(TestSuite):
     )
     def createThreeVMs(self, environment: Environment, log: Logger) -> None:
         print("Done with the test. Check the RG to see if three VMs are created in three different subnets.")
+        all_available_nics = []
+        all_available_ips = []
+        firewall,client = environment.nodes.list()
+        for nodes in environment.nodes.list():
+            log.info(f"Node : {nodes}")
+            respectivenics = [
+                nodes.nics.get_nic_by_index(x) for x in range(2)
+            ]
+            print(f"Node {nodes.name} has the following NICs: {[nic for nic in respectivenics]}")
+            for nic in respectivenics:
+                all_available_nics.append(nic)
+                ipaddr = nic.ip_addr+"/32"
+                all_available_ips.append(ipaddr)
+            print(f"Node {nodes.name} has the following IPs: {[nic.ip_addr for nic in respectivenics]}")
+            
+        print("All the available NICs across all nodes:",all_available_nics)
+        client.features[NetworkInterface].create_route_table(
+            nic_name= all_available_nics[2].name,
+            route_name= "clientToFirewall",
+            subnet_mask="10.0.1.0/24",
+            em_first_hop=all_available_ips[2],
+            next_hop_type="VirtualAppliance",
+            dest_hop=all_available_nics[0].ip_addr
+        )
+        firewall.features[NetworkInterface].create_route_table(
+            nic_name= all_available_nics[0].name,
+            route_name= "FirewallRoute",
+            subnet_mask="10.0.0.0/24",
+            em_first_hop="0.0.0.0/0",
+            next_hop_type="VirtualAppliance",
+            dest_hop=all_available_nics[0].ip_addr
+        )
 
 
 def installandsetuppackages(packageName, node, log):
