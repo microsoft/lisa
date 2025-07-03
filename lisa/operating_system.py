@@ -2001,6 +2001,114 @@ class CBLMariner(RPMDistro):
         )
         self._node.tools[Service].restart_service("systemd-logind")
 
+    def replace_boot_kernel(self, kernel_version: str) -> None:
+        # Only configure Grub for Mariner 3.0+ (v6.6+)
+        # For Mariner 2.0, do nothing (no-op)
+        kernel_info = self._node.tools[Uname].get_linux_information()
+        if kernel_info.kernel_version < "6.6":
+            self._log.debug(
+                f"Skipping Grub configuration for Mariner 2.0 "
+                f"(kernel version: {kernel_info.kernel_version})"
+            )
+            return
+
+        self._log.info(
+            f"Configuring Grub to boot into kernel version: {kernel_version}"
+        )
+
+        # First, rebuild GRUB configuration to include the new kernel
+        self._node.execute(
+            "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to rebuild GRUB configuration",
+        )
+
+        # Parse the GRUB configuration to find the correct menu entry name
+        # for the new kernel
+        grub_cfg_result = self._node.execute(
+            "cat /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to read GRUB configuration",
+        )
+
+        # Look for menuentry lines that contain the kernel version
+        menu_entry_pattern = re.compile(
+            rf"menuentry '([^']*{re.escape(kernel_version)}[^']*)'",
+            re.IGNORECASE
+        )
+        
+        menu_entry_name = None
+        for line in grub_cfg_result.stdout.split('\n'):
+            match = menu_entry_pattern.search(line)
+            if match:
+                menu_entry_name = match.group(1)
+                break
+
+        if not menu_entry_name:
+            self._log.warning(
+                f"Could not find GRUB menu entry for kernel {kernel_version}. "
+                f"GRUB configuration may not be updated properly."
+            )
+            return
+
+        self._log.info(f"Found GRUB menu entry: {menu_entry_name}")
+
+        # Update /etc/default/grub to set the new kernel as default
+        from lisa.tools import Sed
+        sed = self._node.tools[Sed]
+        
+        # Remove any existing GRUB_DEFAULT line
+        sed.delete_lines(
+            "GRUB_DEFAULT=",
+            "/etc/default/grub",
+            sudo=True,
+            ignore_error=True,
+        )
+        
+        # Add the new GRUB_DEFAULT line
+        sed.append(
+            text=f'GRUB_DEFAULT="{menu_entry_name}"',
+            file="/etc/default/grub",
+            sudo=True,
+        )
+
+        # Set GRUB timeout to allow menu selection
+        sed.substitute(
+            regexp="^GRUB_TIMEOUT=.*",
+            replacement="GRUB_TIMEOUT=30",
+            file="/etc/default/grub",
+            sudo=True,
+            global_=True,
+        )
+
+        # If no GRUB_TIMEOUT line exists, add it
+        timeout_check = self._node.execute(
+            "grep -q '^GRUB_TIMEOUT=' /etc/default/grub",
+            sudo=True,
+            shell=True,
+            no_info_log=True,
+        )
+        if timeout_check.exit_code != 0:
+            sed.append(
+                text="GRUB_TIMEOUT=30",
+                file="/etc/default/grub",
+                sudo=True,
+            )
+
+        # Rebuild GRUB configuration again to apply the changes
+        self._node.execute(
+            "grub2-mkconfig -o /boot/grub2/grub.cfg",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to rebuild GRUB configuration with new default",
+        )
+
+        self._log.info(
+            f"Successfully configured GRUB to boot into kernel {kernel_version}"
+        )
+
 
 @dataclass
 # `zypper lr` repolist is of the form
