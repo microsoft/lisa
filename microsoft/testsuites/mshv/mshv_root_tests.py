@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import os
 import re
+import time
 from pathlib import Path, PurePath
 from typing import Any, Dict
 
@@ -28,6 +28,7 @@ from lisa.tools import (
     RemoteCopy,
     Sed,
     Service,
+    Stat,
     Tar,
 )
 from lisa.util import LisaException, SkippedException, find_group_in_lines
@@ -44,7 +45,7 @@ from lisa.util import LisaException, SkippedException, find_group_in_lines
 )
 class MshvHostTestSuite(TestSuite):
     mshvdiag_dmesg_pattern = re.compile(r"\[\s+\d+.\d+\]\s+mshv_diag:.*$")
-    mshvlog_logfile = "/var/log/mshvlog.log"
+    mshvlog_logfile = "/var/log/mshv_diag/mshv.log"
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
@@ -81,9 +82,14 @@ class MshvHostTestSuite(TestSuite):
             log.error("mshvlog service is not running on MSHV root partition.")
 
         assert_that(mshvlog_running).is_true()
-
+        # mshvlog service writes to logfile every 5 seconds.
+        # Wait for 10 seconds to ensure the service writes to the logfile,
+        # before checking the size of the logfile.
+        time.sleep(10)
         # Check the size of mshvlog logfile
-        mshvlog_logfile_size = os.path.getsize(self.mshvlog_logfile)
+        mshvlog_logfile_size = node.tools[Stat].get_total_size(
+            self.mshvlog_logfile, sudo=True
+        )
 
         assert_that(mshvlog_logfile_size).described_as(
             "mshvlog logfile should not be empty"
@@ -251,6 +257,66 @@ class MshvHostTestSuite(TestSuite):
             )
         finally:
             node.mark_dirty()
+
+    @TestCaseMetadata(
+        description="""
+        Ensure mshvtrace tool is present, can be executed, and produces
+        output on the MSHV root partition.
+        The test checks:
+        1. mshvtrace binary exists and is executable
+        2. Running mshvtrace with --help returns expected output
+        3. Running mshvtrace for a short duration produces a non-empty trace file
+        """,
+        priority=3,
+        timeout=60,  # 1 minute
+    )
+    def verify_mshvtrace_tool(
+        self,
+        log: Logger,
+        node: Node,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        mshvtrace_path = "/usr/sbin/mshvtrace"
+        temp_dir = node.execute(
+            "mktemp -d /tmp/mshvtrace_test_XXXXXX", sudo=True
+        ).stdout.strip()
+        trace_output = f"{temp_dir}/mshvtrace_output.ETL"
+
+        try:
+            # 1. Check if mshvtrace exists and is executable
+            exists = node.tools[Ls].path_exists(mshvtrace_path, sudo=True)
+            assert_that(exists).described_as("mshvtrace binary should exist").is_true()
+            is_executable = (
+                node.execute(f"test -x {mshvtrace_path}", sudo=True).exit_code == 0
+            )
+            assert_that(is_executable).described_as(
+                "mshvtrace should be executable"
+            ).is_true()
+
+            # 2. Create tracing context
+            create_result = node.execute(f"{mshvtrace_path} create", sudo=True)
+            assert_that(create_result.exit_code).is_equal_to(0)
+
+            # 3. Collect trace for 30 seconds using node.execute with timeout argument
+            _ = node.execute(
+                f"{mshvtrace_path} collect -o {trace_output}", sudo=True, timeout=35
+            )
+            trace_size = node.execute(
+                f"stat -c %s {trace_output}", sudo=True
+            ).stdout.strip()
+            # 8192 is the min size of the trace file.
+            assert_that(int(trace_size)).described_as(
+                "mshvtrace output should be greater than 8192 bytes"
+            ).is_greater_than(8192)
+
+            # 4. Destroy tracing context
+            destroy_result = node.execute(f"{mshvtrace_path} destroy", sudo=True)
+            assert_that(destroy_result.exit_code).is_equal_to(0)
+
+            log.info("mshvtrace integration test (create/collect/destroy) passed.")
+        finally:
+            node.execute(f"rm -rf {temp_dir}", sudo=True)
 
     def _save_dmesg_logs(self, node: Node, log_path: Path) -> None:
         dmesg_str = node.tools[Dmesg].get_output()
