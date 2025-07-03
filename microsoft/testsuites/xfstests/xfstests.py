@@ -70,6 +70,7 @@ class Xfstests(Tool):
         "Debian GNU/Linux_12": "v2024.12.22",
         "Ubuntu_18": "v2024.12.22",
         "Ubuntu_20": "v2024.12.22",
+        "Ubuntu_22": "v2024.12.22",
         "Ubuntu_24": "v2024.12.22",
         "Red Hat_7": "v2024.02.09",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
