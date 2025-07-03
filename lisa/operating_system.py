@@ -875,7 +875,10 @@ class Debian(Linux):
             if not apt_key_available:
                 key_file_name = os.path.basename(key_file_path)
                 self._node.execute(
-                    cmd=f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_file_name}.gpg {key_file_path}",
+                    cmd=(
+                        f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_file_name}.gpg "
+                        f"{key_file_path}"
+                    ),
                     sudo=True,
                     expected_exit_code=0,
                     expected_exit_code_failure_message="fail to add gpg key",
