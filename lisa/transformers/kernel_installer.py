@@ -324,15 +324,10 @@ class PpaInstaller(RepoInstaller):
     def install(self) -> str:
         runbook: PpaInstallerSchema = self.runbook
         node: Node = self._node
-
-        # the key is optional
-        if runbook.openpgp_key:
-            node.execute(
-                f"apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "
-                f"{runbook.openpgp_key}",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="error on import key",
+        if runbook.openpgp_key and isinstance(node.os, Ubuntu):
+            node.os.add_key(
+                server_name="keyserver.ubuntu.com",
+                key=runbook.openpgp_key,
             )
 
         # replace default repo url
