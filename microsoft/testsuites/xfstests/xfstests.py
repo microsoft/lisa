@@ -11,7 +11,6 @@ from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
     CBLMariner,
-    CentOs,
     Debian,
     Oracle,
     Posix,
