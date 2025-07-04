@@ -11,6 +11,7 @@ from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import (
     CBLMariner,
+    CentOs,
     Debian,
     Oracle,
     Posix,
@@ -73,6 +74,7 @@ class Xfstests(Tool):
         "Ubuntu_22": "v2024.12.22",
         "Ubuntu_24": "v2024.12.22",
         "Red Hat_7": "v2024.02.09",
+        "CentOS_7": "v2024.02.09",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
     # for all other distros not part of the above hash table,
@@ -130,8 +132,10 @@ class Xfstests(Tool):
     ]
     fedora_dep = [
         "btrfs-progs",
+        "byacc",
         "exfatprogs",
         "f2fs-tools",
+        "gcc-c++",
         "gdbm-devel",
         "kernel-devel",
         "libacl-devel",
@@ -391,7 +395,7 @@ class Xfstests(Tool):
             )
             self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
             self.node.execute(
-                "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                "ln -s /usr/bin/x86_64-redhat-linux-gcc /bin/gcc",
                 sudo=True,
                 shell=True,
             )
