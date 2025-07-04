@@ -380,9 +380,6 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return kernel_information
 
-    def add_key(self, server_name: str, key: str = "") -> None:
-        raise NotImplementedError()
-
     def add_repository(self, repo: str, **kwargs: Any) -> None:
         raise NotImplementedError()
 
@@ -864,34 +861,15 @@ class Debian(Linux):
         ):
             apt_key_available = True
 
-        if key == "":
-            # if key is not provided, get the key from server_name.
-            wget = self._node.tools[Wget]
-            key_file_path = wget.get(
-                url=server_name,
-                file_path=str(self._node.working_path),
-                force_run=True,
-            )
-            if not apt_key_available:
-                key_file_name = os.path.basename(key_file_path)
+        if key:
+            if apt_key_available:
                 self._node.execute(
-                    cmd=(
-                        f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_file_name}.gpg "
-                        f"{key_file_path}"
-                    ),
-                    sudo=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message="fail to add gpg key",
-                )
-            else:
-                self._node.execute(
-                    cmd=f"apt-key add {key_file_path}",
+                    cmd=f"apt-key adv --keyserver {server_name} --recv-keys {key}",
                     sudo=True,
                     expected_exit_code=0,
                     expected_exit_code_failure_message="fail to add apt key",
                 )
-        else:
-            if not apt_key_available:
+            else:
                 # get the key from server_name, and export it to /etc/apt/trusted.gpg.d
                 self._node.execute(
                     cmd=f"gpg --keyserver {server_name} --recv-keys {key}",
@@ -906,12 +884,32 @@ class Debian(Linux):
                     expected_exit_code_failure_message="fail to export gpg key",
                     shell=True,
                 )
-            else:
+        else:
+            # Sometimes, the key is not provided, but the server_name
+            # is a URL to download the key file.
+            wget = self._node.tools[Wget]
+            key_file_path = wget.get(
+                url=server_name,
+                file_path=str(self._node.working_path),
+                force_run=True,
+            )
+            if apt_key_available:
                 self._node.execute(
-                    cmd=f"apt-key adv --keyserver {server_name} --recv-keys {key}",
+                    cmd=f"apt-key add {key_file_path}",
                     sudo=True,
                     expected_exit_code=0,
                     expected_exit_code_failure_message="fail to add apt key",
+                )
+            else:
+                key_basename = os.path.basename(key_file_path)
+                self._node.execute(
+                    cmd=(
+                        f"gpg --dearmor -o /etc/apt/trusted.gpg.d/{key_basename}.gpg "
+                        f"{key_file_path}"
+                    ),
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="fail to add gpg key",
                 )
 
     def get_apt_error(self, stdout: str) -> List[str]:
