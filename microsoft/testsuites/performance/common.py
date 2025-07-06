@@ -29,6 +29,7 @@ from lisa.operating_system import BSD, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    FIOMODES,
     Echo,
     Fdisk,
     Fio,
@@ -44,7 +45,6 @@ from lisa.tools import (
     Sockperf,
     Ssh,
     Sysctl,
-    FIOMODES,
 )
 from lisa.tools.fio import IoEngine
 from lisa.tools.ntttcp import (
