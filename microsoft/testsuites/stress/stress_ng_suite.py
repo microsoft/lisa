@@ -38,11 +38,37 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         result: TestResult,
     ) -> None:
+        self._log.info("Starting stress_ng_jobfile test case")
+        self._log.debug(f"Looking for variable: '{self.CONFIG_VARIABLE}'")
+        self._log.debug(f"Available variables: {list(variables.keys())}")
+        
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
-            for job_file in jobs:
-                self._run_stress_ng_job(job_file, environment, result)
+            self._log.info(f"Found {self.CONFIG_VARIABLE}: '{jobs}' (type: {type(jobs)})")
+            
+            # Convert single string to list for uniform processing
+            if isinstance(jobs, str):
+                self._log.debug(f"Converting string to list: '{jobs}' -> ['{jobs}']")
+                jobs = [jobs]
+            elif isinstance(jobs, list):
+                self._log.debug(f"Jobs is already a list with {len(jobs)} items: {jobs}")
+            else:
+                self._log.warning(f"Unexpected type for jobs: {type(jobs)}, value: {jobs}")
+                jobs = [str(jobs)]  # Convert to string and then to list
+            
+            self._log.info(f"Final jobs list: {jobs} (length: {len(jobs)})")
+            
+            for i, job_file in enumerate(jobs):
+                self._log.info(f"Processing job file {i+1}/{len(jobs)}: '{job_file}'")
+                try:
+                    self._run_stress_ng_job(job_file, environment, result)
+                    self._log.info(f"Successfully completed job file: '{job_file}'")
+                except Exception as e:
+                    self._log.error(f"Failed to run job file '{job_file}': {e}")
+                    raise
         else:
+            self._log.error(f"Variable '{self.CONFIG_VARIABLE}' not found in variables")
+            self._log.error(f"Available variables: {variables}")
             raise SkippedException("No jobfile provided for stress-ng")
 
     @TestCaseMetadata(
@@ -113,32 +139,70 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         test_result: TestResult,
     ) -> None:
+        self._log.info(f"Starting _run_stress_ng_job with job_file: '{job_file}'")
+        
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
+        self._log.debug(f"Found {len(nodes)} nodes: {[node.name for node in nodes]}")
+        
         procs: List[Process] = []
         job_file_name = Path(job_file).name
+        self._log.debug(f"Job file name: '{job_file_name}'")
+        
         test_status = TestStatus.QUEUED
         test_msg = ""
+        
         try:
-            for node in nodes:
+            for i, node in enumerate(nodes):
+                self._log.debug(f"Processing node {i+1}/{len(nodes)}: {node.name}")
+                
                 remote_working_dir = node.working_path / "stress_ng_jobs"
+                self._log.debug(f"Remote working directory: {remote_working_dir}")
+                
                 node.shell.mkdir(remote_working_dir, exist_ok=True)
+                self._log.debug(f"Created directory: {remote_working_dir}")
+                
                 job_file_dest = remote_working_dir / job_file_name
+                self._log.debug(f"Destination path: {job_file_dest}")
+                
+                self._log.info(f"Copying '{job_file}' -> '{job_file_dest}'")
                 node.shell.copy(PurePath(job_file), job_file_dest)
-                procs.append(node.tools[StressNg].launch_job_async(str(job_file_dest)))
-            for proc in procs:
-                proc.wait_result(expected_exit_code=0)
+                self._log.info(f"Copy completed successfully")
+                
+                self._log.info(f"Launching stress-ng job: {job_file_dest}")
+                proc = node.tools[StressNg].launch_job_async(str(job_file_dest))
+                procs.append(proc)
+                self._log.debug(f"Process launched, PID: {proc.id if hasattr(proc, 'id') else 'unknown'}")
+            
+            self._log.info(f"Waiting for {len(procs)} processes to complete")
+            for i, proc in enumerate(procs):
+                self._log.debug(f"Waiting for process {i+1}/{len(procs)}")
+                result = proc.wait_result(expected_exit_code=0)
+                self._log.debug(f"Process {i+1} completed with exit code: {result.exit_code}")
+                if result.stdout:
+                    self._log.debug(f"Process {i+1} stdout: {result.stdout[:500]}...")  # First 500 chars
+                if result.stderr:
+                    self._log.debug(f"Process {i+1} stderr: {result.stderr[:500]}...")  # First 500 chars
+            
             test_status = TestStatus.PASSED
+            self._log.info(f"All stress-ng processes completed successfully")
+            
         except Exception as e:
             test_status = TestStatus.FAILED
             test_msg = repr(e)
+            self._log.error(f"Error during stress-ng job execution: {e}")
+            self._log.exception("Full exception details:")
+            
         finally:
+            self._log.info(f"Sending test result: status={test_status}, message='{test_msg}'")
             send_sub_test_result_message(
                 test_result=test_result,
                 test_case_name=job_file_name,
                 test_status=test_status,
                 test_message=test_msg,
             )
+            self._log.debug("Checking for kernel panics")
             self._check_panic(nodes)
+            self._log.info(f"Completed _run_stress_ng_job for '{job_file}'")
 
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
