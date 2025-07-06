@@ -54,7 +54,18 @@ def _create_and_verify_extension_run(
         return result
 
     if assert_exception:
-        assert_that(enable_extension).raises(assert_exception).when_called_with()
+        try:
+            enable_extension()
+        except Exception as e:
+            print(f"Caught exception: {e}")
+            assert isinstance(e, assert_exception), f"Expected {assert_exception}, got {type(e)}"
+            # Optionally, check for HTTP status code or error message
+            if hasattr(e, "status_code"):
+                print(f"Exception status code: {e.status_code}")
+            if hasattr(e, "message"):
+                print(f"Exception message: {e.message}")
+        else:
+            assert False, f"Expected {assert_exception} but no exception was raised"
     else:
         result = enable_extension()
         assert_that(result["provisioning_state"]).described_as(
