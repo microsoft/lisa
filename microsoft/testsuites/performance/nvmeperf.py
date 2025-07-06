@@ -49,4 +49,4 @@ class NvmePerformace(TestSuite):
         ),
     )
     def perf_nvme_io_uring(self, node: Node, result: TestResult) -> None:
-        perf_nvme(node, IoEngine.IO_URING, result, max_iodepth=1024)
+        perf_nvme(node, ioengine=IoEngine.IO_URING, result=result, max_iodepth=1024)

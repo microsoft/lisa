@@ -32,7 +32,6 @@ from lisa.tools import (
     Echo,
     Fdisk,
     Fio,
-    FIOMODES,
     FIOResult,
     Iperf3,
     Kill,
@@ -45,6 +44,7 @@ from lisa.tools import (
     Sockperf,
     Ssh,
     Sysctl,
+    FIOMODES,
 )
 from lisa.tools.fio import IoEngine
 from lisa.tools.ntttcp import (
