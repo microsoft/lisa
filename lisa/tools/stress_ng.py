@@ -24,7 +24,7 @@ class StressNg(Tool):
         return True
 
     def install(self) -> bool:
-        posix_os: Posix = cast(Posix, self.node.os)
+        posix_os: Posix = cast(Posix, self.node.os)        
         if posix_os.is_package_in_repo("stress-ng"):
             posix_os.install_packages("stress-ng")
         else:
@@ -57,8 +57,27 @@ class StressNg(Tool):
         cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True, timeout=timeout_in_seconds)
 
-    def launch_job_async(self, job_file: str, sudo: bool = False) -> Process:
-        return self.run_async(f"--job {job_file}", force_run=True, sudo=sudo)
+    def launch_job_async(
+        self, job_file: str, sudo: bool = False, yaml: bool = False
+    ) -> Process:
+        cmd = f"--job {job_file}"
+        if yaml:
+            from pathlib import Path
+            job_filename = Path(job_file).stem  # filename without extension
+            yaml_output_name = f"{job_filename}.yaml"
+            # Create full path to YAML file in working directory
+            yaml_output_path = self.node.working_path / yaml_output_name
+            cmd += f" --yaml {yaml_output_path}"
+            
+            # Print directory contents for debugging
+            self.node.log.info(f"YAML output will be created at: {yaml_output_path}")
+            self.node.log.info(f"Current working directory: {self.node.working_path}")
+            
+            # List current directory contents
+            result = self.node.execute("ls -la", shell=True)
+            self.node.log.info(f"Directory contents before execution:\n{result.stdout}")
+            
+        return self.run_async(cmd, force_run=True, sudo=sudo)
 
     def launch_class_async(
         self,
