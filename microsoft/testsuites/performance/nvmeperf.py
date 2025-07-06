@@ -1,7 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-from assertpy import assert_that
-
 from lisa import (
     Node,
     TestCaseMetadata,
@@ -37,7 +35,7 @@ class NvmePerformace(TestSuite):
         ),
     )
     def perf_nvme(self, node: Node, result: TestResult) -> None:
-        perf_nvme(node, IoEngine.LIBAIO, result)
+        perf_nvme(node, result)
 
     @TestCaseMetadata(
         description="""

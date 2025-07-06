@@ -30,9 +30,9 @@ from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Echo,
-    FIOMODES,
     Fdisk,
     Fio,
+    FIOMODES,
     FIOResult,
     Iperf3,
     Kill,
@@ -86,7 +86,7 @@ def perf_nvme(
     cpu = node.tools[Lscpu]
     core_count = cpu.get_core_count()
     start_iodepth = 1
-    if test_name :
+    if test_name:
         test_name = inspect.stack()[1][3]
 
     perf_disk(

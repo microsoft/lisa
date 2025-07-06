@@ -179,7 +179,7 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test resource disk performance using 1024K block size.
+        This testcase uses fio to test resource disk performance using 1024K block size.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -639,7 +639,7 @@ class StoragePerformance(TestSuite):
             # it will be mounted at /mnt
             # unmount it before resetting partitions.
             if disk_count == 1:
-                node.tools[Mount].umount(resource_disks[0], '/mnt', erase=True)
+                node.tools[Mount].umount(resource_disks[0], "/mnt", erase=True)
                 filename = resource_disks[0]
             else:
                 partition_disks = reset_partitions(node, resource_disks)
