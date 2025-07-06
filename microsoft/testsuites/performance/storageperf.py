@@ -37,7 +37,6 @@ from microsoft.testsuites.performance.common import (
 )
 
 
-
 @TestSuiteMetadata(
     area="storage",
     category="performance",
@@ -180,7 +179,7 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance using 1024K block size.
+        This test case uses fio to test resource disk performance using 1024K block size.
         """,
         priority=3,
         timeout=TIME_OUT,
@@ -193,7 +192,7 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance using 1024K block size.
+        This test case uses fio to test resource disk performance using 4K block size.
         """,
         priority=3,
         timeout=TIME_OUT,
