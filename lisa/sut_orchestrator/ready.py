@@ -100,5 +100,5 @@ class SerialConsole(features.SerialConsole):
     def read(self) -> str:
         return ""
 
-    def write(self, data: str | List[str]) -> None:
+    def write(self, data: str) -> None:
         pass
