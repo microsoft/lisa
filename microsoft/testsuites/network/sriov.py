@@ -404,6 +404,7 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        print(f"Provisioning with {environment.get_variable('nic_count', 2)} nics")
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for node in environment.nodes.list():
