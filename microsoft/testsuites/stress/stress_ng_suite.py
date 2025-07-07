@@ -140,86 +140,311 @@ class StressNgTestSuite(TestSuite):
         job_file: str,
         environment: Environment,
         test_result: TestResult,
-        log: Logger,  # Add this parameter
+        log: Logger,  # Added logger parameter
     ) -> None:
+        """
+        Execute a stress-ng job file on all nodes in the environment.
+        
+        Args:
+            job_file: Path to the stress-ng job file
+            environment: Test environment containing target nodes
+            test_result: Test result object for reporting
+            log: Logger instance for detailed logging
+        """
         log.info(f"Starting _run_stress_ng_job with job_file: '{job_file}'")
         
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         log.debug(f"Found {len(nodes)} nodes: {[node.name for node in nodes]}")
         
-        procs: List[Process] = []
+        stress_processes: List[Process] = []
         job_file_name = Path(job_file).name
         log.debug(f"Job file name: '{job_file_name}'")
         
-        test_status = TestStatus.QUEUED
-        test_msg = ""
+        execution_status = TestStatus.QUEUED
+        execution_summary = ""
+        node_outputs: List[str] = []
         
         try:
-            for i, node in enumerate(nodes):
-                log.debug(f"Processing node {i+1}/{len(nodes)}: {node.name}")
-                
-                remote_working_dir = node.working_path / "stress_ng_jobs"
-                log.debug(f"Remote working directory: {remote_working_dir}")
-                
-                node.shell.mkdir(remote_working_dir, exist_ok=True)
-                log.debug(f"Created directory: {remote_working_dir}")
-                
-                job_file_dest = remote_working_dir / job_file_name
-                log.debug(f"Destination path: {job_file_dest}")
-                
-                log.info(f"Copying '{job_file}' -> '{job_file_dest}'")
-                node.shell.copy(PurePath(job_file), job_file_dest)
-                log.info(f"Copy completed successfully")
-                
-                log.info(f"Launching stress-ng job: {job_file_dest}")
-                proc = node.tools[StressNg].launch_job_async(str(job_file_dest))
-                procs.append(proc)
-                log.debug(f"Process launched, PID: {proc.id if hasattr(proc, 'id') else 'unknown'}")
-            
-            log.info(f"Waiting for {len(procs)} processes to complete")
-            for i, proc in enumerate(procs):
-                log.debug(f"Waiting for process {i+1}/{len(procs)}")
-                result = proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)  # Add timeout=self.TIME_OUT
-                log.debug(f"Process {i+1} completed with exit code: {result.exit_code}")
-                if result.stdout:
-                    log.debug(f"Process {i+1} stdout: {result.stdout[:500]}...")
-                if result.stderr:
-                    log.debug(f"Process {i+1} stderr: {result.stderr[:500]}...")
-            
-            test_status = TestStatus.PASSED
-            log.info(f"All stress-ng processes completed successfully")
-            
-        except Exception as e:
-            test_status = TestStatus.FAILED
-            test_msg = repr(e)
-            log.error(f"Error during stress-ng job execution: {e}")
-            log.exception("Full exception details:")
-            
-            # Send the sub-test result to show the failure
-            send_sub_test_result_message(
-                test_result=test_result,
-                test_case_name=job_file_name,
-                test_status=test_status,
-                test_message=test_msg,
+            # Phase 1: Deploy job files and launch stress tests
+            log.info("Phase 1: Deploying job files and launching stress tests")
+            self._deploy_and_launch_stress_jobs(
+                nodes, job_file, job_file_name, stress_processes, log
             )
             
-            # Re-raise the exception so LISA knows the test failed
-            raise e
-
-        finally:
-            # Only send success result if we get here without exception
-            if test_status == TestStatus.PASSED:
-                send_sub_test_result_message(
-                    test_result=test_result,
-                    test_case_name=job_file_name,
-                    test_status=test_status,
-                    test_message=test_msg,
-                )
+            # Phase 2: Monitor execution and collect results
+            log.info("Phase 2: Monitoring execution and collecting results")
+            node_outputs = self._monitor_stress_execution(stress_processes, nodes, log)
             
-            log.debug("Checking for kernel panics")
-            self._check_panic(nodes)
+            execution_status = TestStatus.PASSED
+            execution_summary = self._format_success_summary(node_outputs, job_file_name)
+            log.info(f"All stress-ng processes completed successfully for '{job_file_name}'")
+            
+        except Exception as execution_error:
+            execution_status = TestStatus.FAILED
+            execution_summary = self._format_failure_summary(
+                execution_error, node_outputs, job_file_name
+            )
+            log.error(f"Error during stress-ng job execution: {execution_error}")
+            log.exception("Full exception details:")
+            
+        finally:
+            log.info("Phase 3: Reporting results and verifying system stability")
+            self._report_test_results(
+                test_result, job_file_name, execution_status, execution_summary
+            )
+            self._verify_system_stability(nodes, log)
             log.info(f"Completed _run_stress_ng_job for '{job_file}'")
 
-    def _check_panic(self, nodes: List[RemoteNode]) -> None:
-        for node in nodes:
-            node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+    def _deploy_and_launch_stress_jobs(
+        self,
+        nodes: List[RemoteNode],
+        job_file: str,
+        job_file_name: str,
+        stress_processes: List[Process],
+        log: Logger,  # Added logger parameter
+    ) -> None:
+        """
+        Deploy job files to nodes and launch stress-ng processes.
+        
+        Args:
+            nodes: List of target nodes
+            job_file: Local path to job file
+            job_file_name: Name of the job file
+            stress_processes: List to store launched processes
+            log: Logger instance for detailed logging
+        """
+        for node_index, node in enumerate(nodes):
+            try:
+                log.debug(f"Processing node {node_index+1}/{len(nodes)}: {node.name}")
+                
+                # Create dedicated workspace for stress-ng jobs
+                remote_workspace = node.working_path / "stress_ng_jobs"
+                log.debug(f"Remote working directory: {remote_workspace}")
+                
+                node.shell.mkdir(remote_workspace, exist_ok=True)
+                log.debug(f"Created directory: {remote_workspace}")
+                
+                # Deploy job file to remote node
+                remote_job_file = remote_workspace / job_file_name
+                log.debug(f"Destination path: {remote_job_file}")
+                
+                log.info(f"Copying '{job_file}' -> '{remote_job_file}'")
+                node.shell.copy(PurePath(job_file), remote_job_file)
+                log.info(f"Copy completed successfully")
+                
+                # Launch stress-ng with the job file
+                log.info(f"Launching stress-ng job: {remote_job_file}")
+                stress_process = node.tools[StressNg].launch_job_async(str(remote_job_file))
+                stress_processes.append(stress_process)
+                
+                log.debug(f"Process launched, PID: {stress_process.id if hasattr(stress_process, 'id') else 'unknown'}")
+                node.log.info(
+                    f"Stress job '{job_file_name}' launched on node {node_index + 1}"
+                )
+                
+            except Exception as deployment_error:
+                log.error(
+                    f"Failed to deploy stress job on node {node_index + 1}: "
+                    f"{deployment_error}"
+                )
+                node.log.error(
+                    f"Failed to deploy stress job on node {node_index + 1}: "
+                    f"{deployment_error}"
+                )
+                raise
+
+    def _monitor_stress_execution(
+        self, 
+        stress_processes: List[Process], 
+        nodes: List[RemoteNode],
+        log: Logger,  # Added logger parameter
+    ) -> List[str]:
+        """
+        Monitor stress-ng process execution and collect output.
+        
+        Args:
+            stress_processes: List of stress-ng processes to monitor
+            nodes: List of nodes for logging context
+            log: Logger instance for detailed logging
+            
+        Returns:
+            List of formatted output strings from each node
+        """
+        node_outputs = []
+        
+        log.info(f"Waiting for {len(stress_processes)} processes to complete")
+        
+        for process_index, stress_process in enumerate(stress_processes):
+            try:
+                log.debug(f"Waiting for process {process_index+1}/{len(stress_processes)}")
+                execution_result = stress_process.wait_result(
+                    timeout=self.TIME_OUT, 
+                    expected_exit_code=0
+                )
+                
+                log.debug(f"Process {process_index+1} completed with exit code: {execution_result.exit_code}")
+                if execution_result.stdout:
+                    log.debug(f"Process {process_index+1} stdout: {execution_result.stdout[:500]}...")
+                if execution_result.stderr:
+                    log.debug(f"Process {process_index+1} stderr: {execution_result.stderr[:500]}...")
+                
+                # Capture and format process output
+                formatted_output = self._format_node_output(
+                    process_index + 1, execution_result
+                )
+                node_outputs.append(formatted_output)
+                
+                nodes[process_index].log.info(
+                    f"Stress execution completed successfully on node {process_index + 1}"
+                )
+                
+            except Exception as execution_error:
+                error_output = f"Node {process_index + 1} - Execution Failed:\n{execution_error}"
+                node_outputs.append(error_output)
+                
+                log.error(f"Stress execution failed on node {process_index + 1}: {execution_error}")
+                nodes[process_index].log.error(
+                    f"Stress execution failed on node {process_index + 1}: "
+                    f"{execution_error}"
+                )
+                raise
+    
+        return node_outputs
+
+    def _format_node_output(self, node_number: int, execution_result) -> str:
+        """
+        Format the output from a stress-ng execution for reporting.
+        
+        Args:
+            node_number: Sequential number of the node
+            execution_result: Process execution result object
+            
+        Returns:
+            Formatted output string
+        """
+        output_sections = [f"=== Node {node_number} Stress Results ==="]
+        
+        if execution_result.stdout:
+            output_sections.extend([
+                "STDOUT:",
+                execution_result.stdout.strip(),
+                ""
+            ])
+        
+        if execution_result.stderr:
+            output_sections.extend([
+                "STDERR:",
+                execution_result.stderr.strip(),
+                ""
+            ])
+        
+        # Add execution metadata
+        output_sections.extend([
+            f"Exit Code: {execution_result.exit_code}",
+            f"Execution Time: {getattr(execution_result, 'elapsed', 'Unknown')}",
+            "=" * 50
+        ])
+        
+        return "\n".join(output_sections)
+
+    def _format_success_summary(self, node_outputs: List[str], job_file_name: str) -> str:
+        """
+        Format a comprehensive summary for successful stress test execution.
+        
+        Args:
+            node_outputs: List of output strings from all nodes
+            job_file_name: Name of the executed job file
+            
+        Returns:
+            Formatted success summary
+        """
+        summary_header = [
+            f"Stress-ng job '{job_file_name}' executed successfully",
+            f"Nodes processed: {len(node_outputs)}",
+            f"Timestamp: {TestStatus.PASSED.name}",
+            "=" * 60
+        ]
+        
+        return "\n".join(summary_header + node_outputs)
+
+    def _format_failure_summary(
+        self, 
+        execution_error: Exception, 
+        node_outputs: List[str], 
+        job_file_name: str
+    ) -> str:
+        """
+        Format a comprehensive summary for failed stress test execution.
+        
+        Args:
+            execution_error: The exception that caused the failure
+            node_outputs: List of output strings from nodes (may be partial)
+            job_file_name: Name of the executed job file
+            
+        Returns:
+            Formatted failure summary
+        """
+        failure_header = [
+            f"Stress-ng job '{job_file_name}' execution failed",
+            f"Error: {type(execution_error).__name__}: {str(execution_error)}",
+            f"Nodes with output: {len(node_outputs)}",
+            "=" * 60
+        ]
+        
+        if node_outputs:
+            failure_header.extend(["", "Partial execution results:"])
+            return "\n".join(failure_header + node_outputs)
+        else:
+            failure_header.append("No execution output captured")
+            return "\n".join(failure_header)
+
+    def _report_test_results(
+        self,
+        test_result: TestResult,
+        job_file_name: str,
+        execution_status: TestStatus,
+        execution_summary: str,
+    ) -> None:
+        """
+        Report the stress test results through LISA's messaging system.
+        
+        Args:
+            test_result: Test result object for reporting
+            job_file_name: Name of the executed job file
+            execution_status: Final test status (PASSED/FAILED)
+            execution_summary: Comprehensive execution summary
+        """
+        send_sub_test_result_message(
+            test_result=test_result,
+            test_case_name=job_file_name,
+            test_status=execution_status,
+            test_message=execution_summary,
+        )
+
+    def _verify_system_stability(self, nodes: List[RemoteNode], log: Logger) -> None:
+        """
+        Verify system stability after stress testing by checking for kernel panics.
+        
+        Args:
+            nodes: List of nodes to check for stability issues
+            log: Logger instance for detailed logging
+        """
+        log.debug("Checking for kernel panics")
+        
+        for node_index, node in enumerate(nodes):
+            try:
+                node.features[SerialConsole].check_panic(
+                    saved_path=None, force_run=True
+                )
+                log.debug(f"System stability verified on node {node_index + 1}")
+                node.log.debug(f"System stability verified on node {node_index + 1}")
+                
+            except Exception as stability_error:
+                log.warning(
+                    f"Stability check failed on node {node_index + 1}: "
+                    f"{stability_error}"
+                )
+                node.log.warning(
+                    f"Stability check failed on node {node_index + 1}: "
+                    f"{stability_error}"
+                )
