@@ -333,12 +333,9 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
         return schema.FeatureSettings.create(cls.name())
 
     @retry(tries=3, delay=5)
-    def write(self, data: str | List[str]) -> None:
+    def write(self, data: str) -> None:
         # websocket connection is not stable, so we need to retry
         try:
-            if isinstance(data, list):
-                # if data is a list, join it with \n and add a newline to the last item
-                data = "\n".join(data) + "\n"
             self._write(data)
             return
         except websockets.ConnectionClosed as e:  # type: ignore
@@ -361,22 +358,6 @@ class SerialConsole(AzureFeatureMixin, features.SerialConsole):
             self._ws = None
             self._get_connection()
             raise e
-
-    def execute_command(self, commands: List[str]) -> str:
-        """
-        Execute a list of commands on the serial console and return the output.
-        This method is used to run multiple commands in sequence.
-        """
-        # read the serial console to clear any previous output
-        _ = self.read()
-
-        # \n is required to ensure that the command is executed
-        for command in commands:
-            self.write(f"{command} \n")
-
-        output = self.read()
-
-        return output
 
     def close(self) -> None:
         if self._ws is not None:
