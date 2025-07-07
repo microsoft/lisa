@@ -1118,9 +1118,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             virtual_network_name=virtual_network_name,
             subnet_name=subnet_name,
         )
-        self._log.debug(f"Checking subnet: {subnet_az.address_prefix} == {subnet_mask}")
+        self._log.debug(f"Checking subnet: {subnet_az.address_prefixes[0]} == {subnet_mask}")
         # Step 4: once we find the matching subnet, assign the routing table to it.
-        if subnet_az.address_prefix == subnet_mask:
+        self._log.debug(f"Subnet Az: {subnet_az}")
+        self._log.debug(f"Type of subnet_az.address_prefixes:{type(subnet_az.address_prefixes[0])}")
+        if subnet_az.address_prefixes[0] == subnet_mask:
             subnet_az.route_table = route_table
             result = network_client.subnets.begin_create_or_update(
                 resource_group_name=self._resource_group_name,
