@@ -195,14 +195,27 @@ class StressNgTestSuite(TestSuite):
             log.error(f"Error during stress-ng job execution: {e}")
             log.exception("Full exception details:")
             
-        finally:
-            log.info(f"Sending test result: status={test_status}, message='{test_msg}'")
+            # Send the sub-test result to show the failure
             send_sub_test_result_message(
                 test_result=test_result,
                 test_case_name=job_file_name,
                 test_status=test_status,
                 test_message=test_msg,
             )
+            
+            # Re-raise the exception so LISA knows the test failed
+            raise e
+
+        finally:
+            # Only send success result if we get here without exception
+            if test_status == TestStatus.PASSED:
+                send_sub_test_result_message(
+                    test_result=test_result,
+                    test_case_name=job_file_name,
+                    test_status=test_status,
+                    test_message=test_msg,
+                )
+            
             log.debug("Checking for kernel panics")
             self._check_panic(nodes)
             log.info(f"Completed _run_stress_ng_job for '{job_file}'")
