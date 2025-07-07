@@ -1,17 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Type
 
 from dataclasses_json import dataclass_json
 
-from lisa import feature, features
+from lisa import feature, features, schema
 from lisa.environment import Environment, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.platform_ import Platform
 from lisa.schema import DiskOptionSettings, NetworkInterfaceOptionSettings
+from lisa.tools import Ip, IpInfo
 from lisa.util.logger import Logger
 
 from . import READY
@@ -102,3 +102,36 @@ class SerialConsole(features.SerialConsole):
 
     def write(self, data: str) -> None:
         pass
+
+
+class NetworkInterface(features.NetworkInterface):
+    @classmethod
+    def settings_type(cls) -> Type[schema.FeatureSettings]:
+        return schema.NetworkInterfaceOptionSettings
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        super()._initialize(*args, **kwargs)
+
+    def _get_network_interfaces(self) -> List[str]:
+        return []
+
+    def switch_sriov(
+        self, enable: bool, wait: bool = True, reset_connections: bool = True
+    ) -> None:
+        pass
+
+    def is_enabled_sriov(self) -> bool:
+        raise NotImplementedError
+
+    def reload_module(self) -> None:
+        raise NotImplementedError
+
+    def get_nic_count(self, is_sriov_enabled: bool = True) -> int:
+        raise NotImplementedError
+
+    def get_all_primary_nics_ip_info(self) -> List[IpInfo]:
+        result: List[IpInfo] = []
+        ip_tool = self._node.tools[Ip]
+        default_nic, _ = ip_tool.get_default_route_info()
+        result = ip_tool.get_info(default_nic)
+        return result
