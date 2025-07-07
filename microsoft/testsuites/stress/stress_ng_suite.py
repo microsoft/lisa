@@ -179,12 +179,12 @@ class StressNgTestSuite(TestSuite):
             log.info(f"Waiting for {len(procs)} processes to complete")
             for i, proc in enumerate(procs):
                 log.debug(f"Waiting for process {i+1}/{len(procs)}")
-                result = proc.wait_result(expected_exit_code=0)
+                result = proc.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)  # Add timeout=self.TIME_OUT
                 log.debug(f"Process {i+1} completed with exit code: {result.exit_code}")
                 if result.stdout:
-                    log.debug(f"Process {i+1} stdout: {result.stdout[:500]}...")  # First 500 chars
+                    log.debug(f"Process {i+1} stdout: {result.stdout[:500]}...")
                 if result.stderr:
-                    log.debug(f"Process {i+1} stderr: {result.stderr[:500]}...")  # First 500 chars
+                    log.debug(f"Process {i+1} stderr: {result.stderr[:500]}...")
             
             test_status = TestStatus.PASSED
             log.info(f"All stress-ng processes completed successfully")
