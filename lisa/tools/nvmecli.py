@@ -181,11 +181,12 @@ class Nvmecli(Tool):
         # skip the test if NameSpace key is not available
         if not nvme_devices or "NameSpace" not in nvme_devices[0]:
             log.debug(
-                "'NameSpace' key is not available in 'nvme -list -o json' output, skip"
+                "'NameSpace' key is not available in 'nvme -list -o json' "
+                "output to get namespace ids."
             )
-            raise SkippedException(
+            raise LisaException(
                 "The version of nvme-cli is too old,"
-                " it doesn't support to get namespace id."
+                " it doesn't support to get namespace ids."
             )
 
         return [
