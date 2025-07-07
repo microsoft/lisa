@@ -158,7 +158,6 @@ class StressNgTestSuite(TestSuite):
         
         stress_processes: List[Process] = []
         job_file_name = Path(job_file).name
-        log.debug(f"Job file name: '{job_file_name}'")
         
         execution_status = TestStatus.QUEUED
         execution_summary = ""
@@ -173,18 +172,16 @@ class StressNgTestSuite(TestSuite):
             
             # Phase 2: Monitor execution and collect results
             log.info("Phase 2: Monitoring execution and collecting results")
-            node_outputs = self._monitor_stress_execution(stress_processes, nodes, log)
+            execution_status, execution_summary = self._monitor_stress_execution(
+                stress_processes, nodes, log, job_file_name
+            )
             
-            execution_status = TestStatus.PASSED
-            execution_summary = self._format_success_summary(node_outputs, job_file_name)
-            log.info(f"All stress-ng processes completed successfully for '{job_file_name}'")
+            log.info(f"Stress-ng job '{job_file_name}' completed with status: {execution_status}")
             
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
-            execution_summary = self._format_failure_summary(
-                execution_error, node_outputs, job_file_name
-            )
-            log.error(f"Error during stress-ng job execution: {execution_error}")
+            execution_summary = f"Deployment/setup failed: {type(execution_error).__name__}: {str(execution_error)}"
+            log.error(f"Error during stress-ng job setup: {execution_error}")
             log.exception("Full exception details:")
             
         finally:
@@ -201,7 +198,7 @@ class StressNgTestSuite(TestSuite):
         job_file: str,
         job_file_name: str,
         stress_processes: List[Process],
-        log: Logger,  # Added logger parameter
+        log: Logger,
     ) -> None:
         """
         Deploy job files to nodes and launch stress-ng processes.
@@ -218,187 +215,80 @@ class StressNgTestSuite(TestSuite):
                 log.debug(f"Processing node {node_index+1}/{len(nodes)}: {node.name}")
                 
                 # Create dedicated workspace for stress-ng jobs
-                remote_workspace = node.working_path / "stress_ng_jobs"
-                log.debug(f"Remote working directory: {remote_workspace}")
-                
+                remote_workspace = node.working_path / "stress_ng_jobs"                
                 node.shell.mkdir(remote_workspace, exist_ok=True)
-                log.debug(f"Created directory: {remote_workspace}")
                 
                 # Deploy job file to remote node
                 remote_job_file = remote_workspace / job_file_name
-                log.debug(f"Destination path: {remote_job_file}")
-                
                 log.info(f"Copying '{job_file}' -> '{remote_job_file}'")
                 node.shell.copy(PurePath(job_file), remote_job_file)
-                log.info(f"Copy completed successfully")
                 
                 # Launch stress-ng with the job file
                 log.info(f"Launching stress-ng job: {remote_job_file}")
                 stress_process = node.tools[StressNg].launch_job_async(str(remote_job_file))
                 stress_processes.append(stress_process)
                 
-                log.debug(f"Process launched, PID: {stress_process.id if hasattr(stress_process, 'id') else 'unknown'}")
-                node.log.info(
-                    f"Stress job '{job_file_name}' launched on node {node_index + 1}"
-                )
-                
             except Exception as deployment_error:
-                log.error(
-                    f"Failed to deploy stress job on node {node_index + 1}: "
-                    f"{deployment_error}"
-                )
-                node.log.error(
-                    f"Failed to deploy stress job on node {node_index + 1}: "
-                    f"{deployment_error}"
-                )
+                log.error(f"Failed to start stress job on node {node_index + 1}: {deployment_error}")
+                if getattr(node, "log", None):
+                    node.log.error(f"Failed to start stress job: {deployment_error}")
                 raise
 
     def _monitor_stress_execution(
         self, 
         stress_processes: List[Process], 
         nodes: List[RemoteNode],
-        log: Logger,  # Added logger parameter
-    ) -> List[str]:
+        log: Logger,
+        job_file_name: str,
+    ) -> tuple[TestStatus, str]:
         """
-        Monitor stress-ng process execution and collect output.
+        Monitor stress-ng execution and capture stress-ng info output.
         
-        Args:
-            stress_processes: List of stress-ng processes to monitor
-            nodes: List of nodes for logging context
-            log: Logger instance for detailed logging
-            
         Returns:
-            List of formatted output strings from each node
+            Tuple of (TestStatus, stress_ng_info_output)
         """
+        log.info(f"Monitoring {len(stress_processes)} stress-ng processes")
+        
+        failed_nodes = 0
         node_outputs = []
         
-        log.info(f"Waiting for {len(stress_processes)} processes to complete")
-        
-        for process_index, stress_process in enumerate(stress_processes):
+        # Wait for all processes and capture their output
+        for i, process in enumerate(stress_processes):
+            node_name = nodes[i].name if i < len(nodes) else f"node-{i+1}"
+            
             try:
-                log.debug(f"Waiting for process {process_index+1}/{len(stress_processes)}")
-                execution_result = stress_process.wait_result(
-                    timeout=self.TIME_OUT, 
-                    expected_exit_code=0
-                )
+                log.debug(f"Waiting for {node_name} to complete")
+                result = process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
+                log.info(f"{node_name} completed successfully")
                 
-                log.debug(f"Process {process_index+1} completed with exit code: {execution_result.exit_code}")
-                if execution_result.stdout:
-                    log.debug(f"Process {process_index+1} stdout: {execution_result.stdout[:500]}...")
-                if execution_result.stderr:
-                    log.debug(f"Process {process_index+1} stderr: {execution_result.stderr[:500]}...")
+                # Extract only stress-ng: info lines from stdout
+                stress_info_lines = []
+                if result.stdout.strip():
+                    for line in result.stdout.strip().split('\n'):
+                        if 'stress-ng: info' in line:
+                            stress_info_lines.append(line.strip())
                 
-                # Capture and format process output
-                formatted_output = self._format_node_output(
-                    process_index + 1, execution_result
-                )
-                node_outputs.append(formatted_output)
+                if stress_info_lines:
+                    node_output = f"=== {node_name} ===\n" + "\n".join(stress_info_lines)
+                else:
+                    node_output = f"=== {node_name} ===\nNo stress-ng info output found"
                 
-                nodes[process_index].log.info(
-                    f"Stress execution completed successfully on node {process_index + 1}"
-                )
+                node_outputs.append(node_output)
                 
-            except Exception as execution_error:
-                error_output = f"Node {process_index + 1} - Execution Failed:\n{execution_error}"
+            except Exception as e:
+                failed_nodes += 1
+                error_output = f"=== {node_name} ===\nERROR: {str(e)}"
                 node_outputs.append(error_output)
-                
-                log.error(f"Stress execution failed on node {process_index + 1}: {execution_error}")
-                nodes[process_index].log.error(
-                    f"Stress execution failed on node {process_index + 1}: "
-                    f"{execution_error}"
-                )
-                raise
-    
-        return node_outputs
+                log.error(f"{node_name} failed: {e}")
+        
+        # Combine all node outputs
+        execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
+        
+        # Return status and stress-ng info output
+        overall_status = TestStatus.PASSED if failed_nodes == 0 else TestStatus.FAILED
+        return overall_status, execution_summary
 
-    def _format_node_output(self, node_number: int, execution_result) -> str:
-        """
-        Format the output from a stress-ng execution for reporting.
-        
-        Args:
-            node_number: Sequential number of the node
-            execution_result: Process execution result object
-            
-        Returns:
-            Formatted output string
-        """
-        output_sections = [f"=== Node {node_number} Stress Results ==="]
-        
-        if execution_result.stdout:
-            output_sections.extend([
-                "STDOUT:",
-                execution_result.stdout.strip(),
-                ""
-            ])
-        
-        if execution_result.stderr:
-            output_sections.extend([
-                "STDERR:",
-                execution_result.stderr.strip(),
-                ""
-            ])
-        
-        # Add execution metadata
-        output_sections.extend([
-            f"Exit Code: {execution_result.exit_code}",
-            f"Execution Time: {getattr(execution_result, 'elapsed', 'Unknown')}",
-            "=" * 50
-        ])
-        
-        return "\n".join(output_sections)
-
-    def _format_success_summary(self, node_outputs: List[str], job_file_name: str) -> str:
-        """
-        Format a comprehensive summary for successful stress test execution.
-        
-        Args:
-            node_outputs: List of output strings from all nodes
-            job_file_name: Name of the executed job file
-            
-        Returns:
-            Formatted success summary
-        """
-        summary_header = [
-            f"Stress-ng job '{job_file_name}' executed successfully",
-            f"Nodes processed: {len(node_outputs)}",
-            f"Timestamp: {TestStatus.PASSED.name}",
-            "=" * 60
-        ]
-        
-        return "\n".join(summary_header + node_outputs)
-
-    def _format_failure_summary(
-        self, 
-        execution_error: Exception, 
-        node_outputs: List[str], 
-        job_file_name: str
-    ) -> str:
-        """
-        Format a comprehensive summary for failed stress test execution.
-        
-        Args:
-            execution_error: The exception that caused the failure
-            node_outputs: List of output strings from nodes (may be partial)
-            job_file_name: Name of the executed job file
-            
-        Returns:
-            Formatted failure summary
-        """
-        failure_header = [
-            f"Stress-ng job '{job_file_name}' execution failed",
-            f"Error: {type(execution_error).__name__}: {str(execution_error)}",
-            f"Nodes with output: {len(node_outputs)}",
-            "=" * 60
-        ]
-        
-        if node_outputs:
-            failure_header.extend(["", "Partial execution results:"])
-            return "\n".join(failure_header + node_outputs)
-        else:
-            failure_header.append("No execution output captured")
-            return "\n".join(failure_header)
-
-    def _report_test_results(
+    def _report_test_results(       
         self,
         test_result: TestResult,
         job_file_name: str,
