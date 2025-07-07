@@ -190,7 +190,7 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_ssd_datadisks_4k(self, node: Node, result: TestResult) -> None:
+    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result)
 
     @TestCaseMetadata(
