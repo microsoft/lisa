@@ -397,7 +397,7 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            min_nic_count=8,
+            min_nic_count=lambda environment: int(environment.get_variable("nic_count", 8)),
             network_interface=features.Sriov(),
         ),
     )
