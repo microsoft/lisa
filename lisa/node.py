@@ -698,29 +698,9 @@ class RemoteNode(Node):
         try:
             super()._initialize(*args, **kwargs)
         except TcpConnectionException as e:
-            from lisa.features.run_command import RunCommand
-
-            run_command = self.features[RunCommand]
-            commands = [
-                "echo 'Executing: ip addr show'",
-                "ip addr show",
-                "echo 'Executing: ip link show'",
-                "ip link show",
-                "echo 'Executing: systemctl status NetworkManager --no-pager --plain'",
-                "systemctl status NetworkManager --no-pager --plain",
-                "echo 'Executing: systemctl status network --no-pager --plain'",
-                "systemctl status network --no-pager --plain",
-                "echo 'Executing: systemctl status systemd-networkd --no-pager --plain'",
-                "systemctl status systemd-networkd --no-pager --plain",
-                "echo 'Executing: ping -c 3 -n 8.8.8.8'",
-                "ping -c 3 -n 8.8.8.8",
-            ]
-            out = run_command.execute(commands=commands)
-            self.log.info(f"Collected information using run_command:\n{out}")
-            self._login_to_serial_console()
-            output = self._collect_info_using_serial_console(commands=commands)
-            self.log.info(f"Collected information using serial console:\n{output}")
-
+            vm_logs = self._collect_logs_using_platform()
+            if vm_logs:
+                self.log.info(f"Collected information using platform:\n{vm_logs}")
             raise e
 
     def get_working_path(self) -> PurePath:
@@ -764,6 +744,33 @@ class RemoteNode(Node):
                 if not self._reset_password():
                     raise RequireUserPasswordException("Reset password failed")
             self._check_password_and_store_prompt()
+
+    def _collect_logs_using_platform(self) -> Optional[str]:
+        """
+        Collects information using the RunCommand feature.
+        This is used when the connection to the node is not stable.
+        """
+        from lisa.features import RunCommand
+
+        if self.features.is_supported(RunCommand):
+            run_command = self.features[RunCommand]
+            commands = [
+                "echo 'Executing: ip addr show'",
+                "ip addr show",
+                "echo 'Executing: ip link show'",
+                "ip link show",
+                "echo 'Executing: systemctl status NetworkManager --no-pager --plain'",
+                "systemctl status NetworkManager --no-pager --plain",
+                "echo 'Executing: systemctl status network --no-pager --plain'",
+                "systemctl status network --no-pager --plain",
+                "echo 'Executing: systemctl status systemd-networkd --no-pager --plain'",
+                "systemctl status systemd-networkd --no-pager --plain",
+                "echo 'Executing: ping -c 3 -n 8.8.8.8'",
+                "ping -c 3 -n 8.8.8.8",
+            ]
+            out = run_command.execute(commands=commands)
+            return out
+        return None
 
     def _check_password_and_store_prompt(self) -> None:
         # self.shell.is_sudo_required_password is true, so running sudo command
@@ -833,32 +840,6 @@ class RemoteNode(Node):
                 self.log.debug(
                     "No login prompt found, serial console is already logged in."
                 )
-
-    def _collect_info_using_serial_console(self, commands: List[str]) -> str:
-        from lisa.features import SerialConsole
-
-        if self.features.is_supported(SerialConsole):
-            serial_console = self.features[SerialConsole]
-            # clear the serial console
-            _ = serial_console.read()
-            commands = [
-                f"echo 'Executing: {cmd}' && {cmd}"
-                for cmd in [
-                    "ip addr show",
-                    "ip link show",
-                    "systemctl status NetworkManager --no-pager --plain",
-                    "systemctl status network --no-pager --plain",
-                    "systemctl status systemd-networkd --no-pager --plain",
-                    "ping -c 3 -n 8.8.8.8",
-                ]
-            ]
-            serial_console.write(data=commands)
-            output = serial_console.read()
-            return output
-        else:
-            raise LisaException(
-                "SerialConsole feature is not supported, cannot collect information."
-            )
 
     def _get_password(self, generate: bool = True) -> str:
         """
