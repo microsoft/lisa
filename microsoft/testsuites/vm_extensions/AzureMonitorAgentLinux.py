@@ -69,7 +69,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             assert_that(extension_result["provisioning_state"]).described_as(
                 "Expected the extension to succeed"
             ).is_equal_to("Succeeded")
-         except HttpResponseError as e:
+        except HttpResponseError as e:
             if "already added" in str(e):
                 node.log.debug(
                     "AzureMonitorLinuxAgent has been installed in current VM."
