@@ -79,7 +79,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 result = extension.get(extension_name)
                 node.log.debug(f"extension status {result.provisioning_state}")
             else:
-                raise e
+                raise
 
         if not is_extension_present:
             # if extension installed by test then delete the extension
