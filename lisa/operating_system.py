@@ -2002,21 +2002,13 @@ class CBLMariner(RPMDistro):
         self._node.tools[Service].restart_service("systemd-logind")
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
-        # Only configure Grub for Mariner 3.0+ (v6.6+)
-        # For Mariner 2.0, do nothing (no-op)
         kernel_info = self._node.tools[Uname].get_linux_information()
-        if kernel_info.kernel_version < "6.6":
-            self._log.debug(
-                f"Skipping Grub configuration for Mariner 2.0 "
-                f"(kernel version: {kernel_info.kernel_version})"
-            )
-            return
 
         self._log.info(
             f"Configuring Grub to boot into kernel version: {kernel_version}"
         )
 
-        # First, rebuild GRUB configuration to include the new kernel
+        # rebuild GRUB configuration to include the new kernel
         self._node.execute(
             "grub2-mkconfig -o /boot/grub2/grub.cfg",
             sudo=True,
