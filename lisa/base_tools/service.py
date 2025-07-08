@@ -141,13 +141,13 @@ class Systemctl(Tool):
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"restart {name}", shell=True, sudo=True, force_run=True)
         if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
-            self._collect_logs(name, "restart")
+            self._collect_logs(name)
         _check_error_codes(cmd_result, ignore_exit_code)
 
     def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
         cmd_result = self.run(f"start {name}", shell=True, sudo=True, force_run=True)
         if cmd_result.exit_code != 0 and cmd_result.exit_code != ignore_exit_code:
-            self._collect_logs(name, "start")
+            self._collect_logs(name)
         _check_error_codes(cmd_result, ignore_exit_code)
 
     def enable_service(self, name: str) -> None:
@@ -222,20 +222,15 @@ class Systemctl(Tool):
             or "not-found" in cmd_result.stdout
         ) and 0 == cmd_result.exit_code
 
-    def _collect_logs(self, service_name: str, operation: str) -> None:
-        self._log.info(
-            (
-                f"Failed to {operation} service '{service_name}'. "
-                "Collecting logs for service failure."
-            )
-        )
+    def _collect_logs(self, service_name: str) -> None:
+        self._log.info(f"Collecting logs for service '{service_name}'.")
 
         # Get detailed status from systemctl status
         status_cmd = f"status {service_name} --no-pager -n 100"
         try:
             _ = self.run(status_cmd, shell=True, sudo=True, force_run=True)
         except Exception as e_status:
-            self._log.warning(f"Failed to get status for {service_name}: {e_status}")
+            self._log.info(f"Failed to get status for {service_name}: {e_status}")
 
         try:
             journal_tail_lines = 50
@@ -248,7 +243,7 @@ class Systemctl(Tool):
                 f"{tail_lines}"
             )
         except Exception as e_journal:
-            self._log.warning(
+            self._log.info(
                 f"Could not retrieve or process journal logs for {service_name}: "
                 f"{e_journal}"
             )
@@ -262,8 +257,8 @@ class Systemctl(Tool):
             self._log.info(
                 f"Last {dmesg_tail_lines} lines of dmesg output:\n{dmesg_out}"
             )
-        except Exception as e:
-            self._log.warning(f"Could not retrieve dmesg output: {e}")
+        except Exception as e_dmesg:
+            self._log.info(f"Could not retrieve dmesg output: {e_dmesg}")
 
 
 def _check_error_codes(cmd_result: ExecutableResult, error_code: int = 0) -> None:
