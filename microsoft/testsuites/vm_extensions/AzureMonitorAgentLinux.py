@@ -57,26 +57,28 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             name=extension_name, ignore_not_found=True
         )
 
-        extension_result = extension.create_or_update(
-            name=extension_name,
-            publisher="Microsoft.Azure.Monitor",
-            type_="AzureMonitorLinuxAgent",
-            type_handler_version="1.0",
-            auto_upgrade_minor_version=True,
-        )
-
-        assert_that(extension_result["provisioning_state"]).described_as(
-            "Expected the extension to succeed"
-        ).is_equal_to("Succeeded")
-
-        if not is_extension_present:
-            # if extension installed by test then delete the extension
-            extension.delete(extension_name)
-
-            assert_that(extension.check_exist(extension_name)).described_as(
-                "Found the VM Extension still unexpectedly exists on the VM"
-                " after deletion"
-            ).is_false()
+        # try installing it only if the delete succeeds
+        if not extension.check_exist(extension_name):
+            extension_result = extension.create_or_update(
+                name=extension_name,
+                publisher="Microsoft.Azure.Monitor",
+                type_="AzureMonitorLinuxAgent",
+                type_handler_version="1.0",
+                auto_upgrade_minor_version=True,
+            )
+    
+            assert_that(extension_result["provisioning_state"]).described_as(
+                "Expected the extension to succeed"
+            ).is_equal_to("Succeeded")
+    
+            if not is_extension_present:
+                # if extension installed by test then delete the extension
+                extension.delete(extension_name)
+    
+                assert_that(extension.check_exist(extension_name)).described_as(
+                    "Found the VM Extension still unexpectedly exists on the VM"
+                    " after deletion"
+                ).is_false()
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions_x86_64 = {
