@@ -24,7 +24,7 @@ class StressNg(Tool):
     def can_install(self) -> bool:
         return True
 
-    def install(self, log: Logger) -> bool:
+    def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         
         # First check if the repository already has the version we want
@@ -32,7 +32,7 @@ class StressNg(Tool):
             # Repository has V0.14.01, use it directly
             #add log to check we are in this function
             
-            log.info("Using existing repository version of stress-ng")
+            #log.info("Using existing repository version of stress-ng")
             posix_os.add_repository("ppa:colin-king/stress-ng")
             posix_os.update_packages()
             posix_os.install_packages("stress-ng")
@@ -40,7 +40,7 @@ class StressNg(Tool):
         else:
             # Repository doesn't have V0.14.01, try Colin King's PPA
             try:
-                log.info("inside else Using existing repository version of stress-ng")
+                #log.info("inside else Using existing repository version of stress-ng")
                 posix_os.add_repository("ppa:colin-king/stress-ng")
                 posix_os.update_packages()
                 posix_os.install_packages("stress-ng")
@@ -127,12 +127,12 @@ class StressNg(Tool):
         make.make_install(cwd=code_path)
         return self._check_exists()
 
-    def _repo_has_required_version(self, log: Logger) -> bool:
+    def _repo_has_required_version(self) -> bool:
         """Check if the repository has stress-ng version V0.14.01"""
         try:
             # Check what version is available in the repository
             result = self.node.execute("apt-cache policy stress-ng", shell=True)
-            log.info(f"apt-cache policy output: {result.stdout}")
+            #log.info(f"apt-cache policy output: {result.stdout}")
             # Look for the candidate version in the output
             # Example output: "Candidate: 0.11.23-1ubuntu1"
             for line in result.stdout.split('\n'):
