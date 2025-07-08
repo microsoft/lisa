@@ -57,8 +57,22 @@ class StressNg(Tool):
         cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True, timeout=timeout_in_seconds)
 
-    def launch_job_async(self, job_file: str, sudo: bool = False) -> Process:
-        return self.run_async(f"--job {job_file}", force_run=True, sudo=sudo)
+    def launch_job_async(
+        self, job_file: str, sudo: bool = False, quiet_brief: bool = False
+    ) -> Process:
+        """
+        Launch stress-ng job asynchronously using a job file.
+
+        Args:
+            job_file: Path to the stress-ng job file
+            sudo: Execute with elevated privileges
+            quiet_brief: Enable quiet brief mode to reduce output verbosity
+
+        Returns:
+            Process: Asynchronous process handle for the stress-ng job
+        """
+        qb_flag = "--quiet-brief" if quiet_brief else ""
+        return self.run_async(f"{qb_flag} --job {job_file}", force_run=True, sudo=sudo)
 
     def launch_class_async(
         self,

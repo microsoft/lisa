@@ -9,7 +9,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
 from lisa.tools import StressNg
 from lisa.util import SkippedException
-from lisa.util.logger import Logger  # Add this import
+from lisa.util.logger import Logger
 from lisa.util.process import Process
 
 
@@ -35,7 +35,7 @@ class StressNgTestSuite(TestSuite):
     )
     def stress_ng_jobfile(
         self,
-        log: Logger,  # Add this parameter
+        log: Logger,
         variables: Dict[str, Any],
         environment: Environment,
         result: TestResult,
@@ -43,11 +43,11 @@ class StressNgTestSuite(TestSuite):
         log.info("Starting stress_ng_jobfile test case")
         log.debug(f"Looking for variable: '{self.CONFIG_VARIABLE}'")
         log.debug(f"Available variables: {list(variables.keys())}")
-        
+
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
             log.info(f"Found {self.CONFIG_VARIABLE}: '{jobs}' (type: {type(jobs)})")
-            
+
             # Convert single string to list for uniform processing
             if isinstance(jobs, str):
                 log.debug(f"Converting string to list: '{jobs}' -> ['{jobs}']")
@@ -57,9 +57,9 @@ class StressNgTestSuite(TestSuite):
             else:
                 log.warning(f"Unexpected type for jobs: {type(jobs)}, value: {jobs}")
                 jobs = [str(jobs)]  # Convert to string and then to list
-            
+
             log.info(f"Final jobs list: {jobs} (length: {len(jobs)})")
-            
+
             for i, job_file in enumerate(jobs):
                 log.info(f"Processing job file {i+1}/{len(jobs)}: '{job_file}'")
                 try:
@@ -140,11 +140,11 @@ class StressNgTestSuite(TestSuite):
         job_file: str,
         environment: Environment,
         test_result: TestResult,
-        log: Logger,  # Added logger parameter
+        log: Logger,
     ) -> None:
         """
         Execute a stress-ng job file on all nodes in the environment.
-        
+
         Args:
             job_file: Path to the stress-ng job file
             environment: Test environment containing target nodes
@@ -152,45 +152,36 @@ class StressNgTestSuite(TestSuite):
             log: Logger instance for detailed logging
         """
         log.info(f"Starting _run_stress_ng_job with job_file: '{job_file}'")
-        
+
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
-        log.debug(f"Found {len(nodes)} nodes: {[node.name for node in nodes]}")
-        
         stress_processes: List[Process] = []
         job_file_name = Path(job_file).name
-        
+
         execution_status = TestStatus.QUEUED
         execution_summary = ""
-        node_outputs: List[str] = []
-        
-        try:
-            # Phase 1: Deploy job files and launch stress tests
-            log.info("Phase 1: Deploying job files and launching stress tests")
+
+        try:     
             self._deploy_and_launch_stress_jobs(
                 nodes, job_file, job_file_name, stress_processes, log
             )
-            
-            # Phase 2: Monitor execution and collect results
-            log.info("Phase 2: Monitoring execution and collecting results")
+
             execution_status, execution_summary = self._monitor_stress_execution(
                 stress_processes, nodes, log, job_file_name
             )
-            
-            log.info(f"Stress-ng job '{job_file_name}' completed with status: {execution_status}")
-            
+
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
-            execution_summary = f"Deployment/setup failed: {type(execution_error).__name__}: {str(execution_error)}"
-            log.error(f"Error during stress-ng job setup: {execution_error}")
-            log.exception("Full exception details:")
-            
-        finally:
-            log.info("Phase 3: Reporting results and verifying system stability")
+            execution_summary = (
+                f"Error : {type(execution_error).__name__}: "
+                f"{str(execution_error)}"
+            )
+            self._check_panic(nodes)
+            raise execution_error
+
+        finally:            
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
-            self._verify_system_stability(nodes, log)
-            log.info(f"Completed _run_stress_ng_job for '{job_file}'")
 
     def _deploy_and_launch_stress_jobs(
         self,
@@ -202,7 +193,7 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         """
         Deploy job files to nodes and launch stress-ng processes.
-        
+
         Args:
             nodes: List of target nodes
             job_file: Local path to job file
@@ -212,83 +203,99 @@ class StressNgTestSuite(TestSuite):
         """
         for node_index, node in enumerate(nodes):
             try:
-                log.debug(f"Processing node {node_index+1}/{len(nodes)}: {node.name}")
-                
+                log.debug(f"Processing node {node_index + 1}/{len(nodes)}: {node.name}")
+
                 # Create dedicated workspace for stress-ng jobs
-                remote_workspace = node.working_path / "stress_ng_jobs"                
+                remote_workspace = node.working_path / "stress_ng_jobs"
                 node.shell.mkdir(remote_workspace, exist_ok=True)
-                
+
                 # Deploy job file to remote node
                 remote_job_file = remote_workspace / job_file_name
-                log.info(f"Copying '{job_file}' -> '{remote_job_file}'")
                 node.shell.copy(PurePath(job_file), remote_job_file)
-                
+
                 # Launch stress-ng with the job file
-                log.info(f"Launching stress-ng job: {remote_job_file}")
-                stress_process = node.tools[StressNg].launch_job_async(str(remote_job_file))
+                stress_process = node.tools[StressNg].launch_job_async(
+                    str(remote_job_file), quiet_brief=True
+                )
                 stress_processes.append(stress_process)
-                
+
             except Exception as deployment_error:
-                log.error(f"Failed to start stress job on node {node_index + 1}: {deployment_error}")
+                log.error(
+                    f"Failed to start stress job on node {node_index + 1}: "
+                    f"{deployment_error}"
+                )
                 if getattr(node, "log", None):
                     node.log.error(f"Failed to start stress job: {deployment_error}")
-                raise
+                raise deployment_error
 
     def _monitor_stress_execution(
-        self, 
-        stress_processes: List[Process], 
+        self,
+        stress_processes: List[Process],
         nodes: List[RemoteNode],
         log: Logger,
         job_file_name: str,
     ) -> tuple[TestStatus, str]:
         """
         Monitor stress-ng execution and capture stress-ng info output.
-        
+
         Returns:
             Tuple of (TestStatus, stress_ng_info_output)
-        """
-        log.info(f"Monitoring {len(stress_processes)} stress-ng processes")
-        
+        """       
+
         failed_nodes = 0
         node_outputs = []
-        
+        exceptions_to_raise = []
+
         # Wait for all processes and capture their output
         for i, process in enumerate(stress_processes):
             node_name = nodes[i].name if i < len(nodes) else f"node-{i+1}"
-            
+
             try:
-                log.debug(f"Waiting for {node_name} to complete")
-                result = process.wait_result(timeout=self.TIME_OUT, expected_exit_code=0)
+                result = process.wait_result(
+                    timeout=self.TIME_OUT, expected_exit_code=0
+                )
                 log.info(f"{node_name} completed successfully")
-                
+
                 # Extract only stress-ng: info lines from stdout
                 stress_info_lines = []
                 if result.stdout.strip():
-                    for line in result.stdout.strip().split('\n'):
-                        if 'stress-ng: info' in line:
+                    for line in result.stdout.strip().split("\n"):
+                        if "stress-ng: info" in line:
                             stress_info_lines.append(line.strip())
-                
+
                 if stress_info_lines:
-                    node_output = f"=== {node_name} ===\n" + "\n".join(stress_info_lines)
+                    node_output = f"=== {node_name} ===\n" + "\n".join(
+                        stress_info_lines
+                    )
                 else:
-                    node_output = f"=== {node_name} ===\nNo stress-ng info output found"
-                
+                    node_output = f"=== {node_name} ===\n No stress-ng info output found"
+
                 node_outputs.append(node_output)
-                
+
             except Exception as e:
                 failed_nodes += 1
                 error_output = f"=== {node_name} ===\nERROR: {str(e)}"
                 node_outputs.append(error_output)
                 log.error(f"{node_name} failed: {e}")
-        
+                # Store the exception to re-raise after collecting all outputs
+                exceptions_to_raise.append(e)
+
         # Combine all node outputs
         execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
-        
+
+        # If any processes failed, re-raise the first exception to fail the test
+        if exceptions_to_raise:
+            log.error(
+                f"Stress-ng job failed on {failed_nodes} node(s). "
+                f"Re-raising first exception to fail the test case."
+            )
+            raise exceptions_to_raise[0]
+
         # Return status and stress-ng info output
         overall_status = TestStatus.PASSED if failed_nodes == 0 else TestStatus.FAILED
         return overall_status, execution_summary
 
-    def _report_test_results(       
+    def _report_test_results(
         self,
         test_result: TestResult,
         job_file_name: str,
@@ -297,7 +304,7 @@ class StressNgTestSuite(TestSuite):
     ) -> None:
         """
         Report the stress test results through LISA's messaging system.
-        
+
         Args:
             test_result: Test result object for reporting
             job_file_name: Name of the executed job file
@@ -310,31 +317,3 @@ class StressNgTestSuite(TestSuite):
             test_status=execution_status,
             test_message=execution_summary,
         )
-
-    def _verify_system_stability(self, nodes: List[RemoteNode], log: Logger) -> None:
-        """
-        Verify system stability after stress testing by checking for kernel panics.
-        
-        Args:
-            nodes: List of nodes to check for stability issues
-            log: Logger instance for detailed logging
-        """
-        log.debug("Checking for kernel panics")
-        
-        for node_index, node in enumerate(nodes):
-            try:
-                node.features[SerialConsole].check_panic(
-                    saved_path=None, force_run=True
-                )
-                log.debug(f"System stability verified on node {node_index + 1}")
-                node.log.debug(f"System stability verified on node {node_index + 1}")
-                
-            except Exception as stability_error:
-                log.warning(
-                    f"Stability check failed on node {node_index + 1}: "
-                    f"{stability_error}"
-                )
-                node.log.warning(
-                    f"Stability check failed on node {node_index + 1}: "
-                    f"{stability_error}"
-                )
