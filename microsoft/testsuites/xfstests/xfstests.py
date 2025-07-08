@@ -44,12 +44,16 @@ class Xfstests(Tool):
     branch = "master"
     # This hash table contains recommended tags for different OS versions
     # based on our findings that are known to build without issues.
-    # The format for key is "<vendor>_<release>"
-    # NOTE: The release and vendor information is case sensitive.
+    # The format for key is either "<vendor>_<release>" or "<vendor>_<major>
+    # NOTE: The vendor field is case sensitive.
     # This information is derived from node.os.information
     # Logic : the method "get_os_id_version" will return a string
     # in the format "<vendor>_<release>"
-    # Example: "SLES_15_5_0"
+    # Example: "SLES_15.5"
+    # Alternatively, a partial lookup for SLES_15.5 can be done against a key
+    # such as "SLES_15" which is used to encompass all SLES 15.x releases.
+    # If you have a specific version of OS with known major and minor version,
+    # please ensure it's added to the top of the hash table above partial match keys
     # This string is used to lookup the recommended key-value pair from
     # the hash table. If a match is found, the value is used as the
     # recommended tag for the OS version.
@@ -62,11 +66,14 @@ class Xfstests(Tool):
     os_recommended_tags: Dict[str, str] = {
         "SLES_15.5": "v2025.04.27",
         "SLES_12.5": "v2024.12.22",
-        "Debian GNU/Linux_11.11": "v2024.12.22",
-        "Ubuntu_18.04": "v2024.12.22",
-        "Ubuntu_20.04": "v2024.12.22",
-        "Ubuntu_24.10": "v2024.12.22",
-        "Red Hat_7.8": "v2024.02.09",
+        "Debian GNU/Linux_11": "v2024.12.22",
+        "Debian GNU/Linux_12": "v2024.12.22",
+        "Ubuntu_18": "v2024.12.22",
+        "Ubuntu_20": "v2024.12.22",
+        "Ubuntu_22": "v2024.12.22",
+        "Ubuntu_24": "v2024.12.22",
+        "Red Hat_7": "v2024.02.09",
+        "CentOS_7": "v2024.02.09",
         "unknown": "v2024.02.09",  # Default tag for distros that cannot be identified
     }
     # for all other distros not part of the above hash table,
@@ -124,8 +131,10 @@ class Xfstests(Tool):
     ]
     fedora_dep = [
         "btrfs-progs",
+        "byacc",
         "exfatprogs",
         "f2fs-tools",
+        "gcc-c++",
         "gdbm-devel",
         "kernel-devel",
         "libacl-devel",
@@ -385,7 +394,7 @@ class Xfstests(Tool):
             )
             self.node.execute("rm -f /bin/gcc", sudo=True, shell=True)
             self.node.execute(
-                "ln -s /opt/rh/devtoolset-7/root/usr/bin/gcc /bin/gcc",
+                "ln -s /usr/bin/x86_64-redhat-linux-gcc /bin/gcc",
                 sudo=True,
                 shell=True,
             )
@@ -433,7 +442,18 @@ class Xfstests(Tool):
         # Set the branch to the recommended tag for the OS if not provided
         if not branch:
             os_id_version = self.get_os_id_version()
-            branch = self.os_recommended_tags.get(os_id_version, self.branch)
+            # First try full match
+            if os_id_version in self.os_recommended_tags:
+                branch = self.os_recommended_tags[os_id_version]
+            else:
+                # Try partial match - check if any key is a prefix of os_id_version
+                # example: "Ubuntu_20.04" match with "Ubuntu_20" from hash table.
+                branch = self.branch  # default fallback
+                for key in self.os_recommended_tags:
+                    if os_id_version.startswith(key):
+                        branch = self.os_recommended_tags[key]
+                        # match found, break loop and exit conditional block
+                        break
         repo = repo or self.repo
         self._install_dep()
         self._add_test_users()
