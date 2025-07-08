@@ -75,7 +75,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 node.log.debug(
                     "AzureMonitorLinuxAgent has been installed in current VM."
                 )
-                result = extension.get("Microsoft.Azure.Monitor.AzureMonitorLinuxAgent")
+                result = extension.get(extension_name)
                 node.log.debug(f"extension status {result.provisioning_state}")
             else:
                 raise e
