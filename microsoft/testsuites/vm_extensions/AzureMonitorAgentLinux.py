@@ -1,5 +1,5 @@
 from typing import Any
-
+from azure.core.exceptions import HttpResponseError
 from assertpy import assert_that
 
 from lisa import (
