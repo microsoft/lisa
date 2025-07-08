@@ -2002,8 +2002,6 @@ class CBLMariner(RPMDistro):
         self._node.tools[Service].restart_service("systemd-logind")
 
     def replace_boot_kernel(self, kernel_version: str) -> None:
-        kernel_info = self._node.tools[Uname].get_linux_information()
-
         self._log.info(
             f"Configuring Grub to boot into kernel version: {kernel_version}"
         )
