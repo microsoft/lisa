@@ -25,10 +25,24 @@ class StressNg(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        if posix_os.is_package_in_repo("stress-ng"):
+        
+        # First check if the repository already has the version we want
+        if self._repo_has_required_version():
+            # Repository has V0.14.01, use it directly
             posix_os.install_packages("stress-ng")
         else:
-            self._install_from_src()
+            # Repository doesn't have V0.14.01, try Colin King's PPA
+            try:
+                posix_os.add_repository("ppa:colin-king/stress-ng")
+                posix_os.update_packages()
+                posix_os.install_packages("stress-ng")
+            except Exception:
+                # PPA failed, fallback to whatever is available
+                if posix_os.is_package_in_repo("stress-ng"):
+                    posix_os.install_packages("stress-ng")
+                else:
+                    self._install_from_src()
+        
         return self._check_exists()
 
     def launch_vm_stressor(
@@ -103,3 +117,12 @@ class StressNg(Tool):
         code_path = tool_path.joinpath("stress-ng")
         make.make_install(cwd=code_path)
         return self._check_exists()
+
+    def _repo_has_required_version(self) -> bool:
+        """Check if the repository has stress-ng version V0.14.01"""
+        try:
+            # Check what version is available in the repository
+            result = self.node.execute("apt-cache policy stress-ng", shell=True)
+            return "0.14.01" in result.stdout
+        except Exception:
+            return False
