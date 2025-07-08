@@ -71,7 +71,7 @@ class StressNg(Tool):
         Returns:
             Process: Asynchronous process handle for the stress-ng job
         """
-        qb_flag = "--quiet --brief" if quiet_brief else ""
+        qb_flag = "--quiet-brief" if quiet_brief else ""
         return self.run_async(f"{qb_flag} --job {job_file}", force_run=True, sudo=sudo)
 
     def launch_class_async(
