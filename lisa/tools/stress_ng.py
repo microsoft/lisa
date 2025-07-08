@@ -25,9 +25,12 @@ class StressNg(Tool):
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
-        if posix_os.is_package_in_repo("stress-ng"):
+        
+        # Check if repository has the version we want
+        if self._repo_has_required_version():
             posix_os.install_packages("stress-ng")
         else:
+            # Install from source to get the specific version we need
             self._install_from_src()
         return self._check_exists()
 
@@ -103,3 +106,12 @@ class StressNg(Tool):
         code_path = tool_path.joinpath("stress-ng")
         make.make_install(cwd=code_path)
         return self._check_exists()
+
+    def _repo_has_required_version(self) -> bool:
+        try:
+            posix_os: Posix = cast(Posix, self.node.os)
+            # Check what version is available in the repository
+            result = self.node.execute("apt-cache policy stress-ng", shell=True)
+            return "0.14.01" in result.stdout
+        except:
+            return False
