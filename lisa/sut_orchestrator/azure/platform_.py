@@ -502,6 +502,7 @@ class AzurePlatform(Platform):
             features.Infiniband,
             features.Hibernation,
             features.RunCommand,
+            features.NonSshExecutor,
         ]
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:

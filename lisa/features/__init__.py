@@ -23,10 +23,10 @@ from .isolated_resource import IsolatedResource
 from .nested_virtualization import NestedVirtualization
 from .network_interface import NetworkInterface, Sriov, Synthetic
 from .nfs import Nfs
+from .non_ssh_executor import NonSshExecutor
 from .nvme import Nvme, NvmeSettings
 from .password_extension import PasswordExtension
 from .resize import Resize, ResizeAction
-from .run_command import RunCommand
 from .security_profile import (
     SecureBootEnabled,
     SecurityProfile,
@@ -65,7 +65,6 @@ __all__ = [
     "PasswordExtension",
     "Resize",
     "ResizeAction",
-    "RunCommand",
     "SecureBootEnabled",
     "SecurityProfile",
     "SecurityProfileSettings",
@@ -75,4 +74,5 @@ __all__ = [
     "VMStatus",
     "Synthetic",
     "StartStop",
+    "NonSshExecutor",
 ]

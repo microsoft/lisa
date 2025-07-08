@@ -3746,7 +3746,7 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             )
 
 
-class RunCommand(AzureFeatureMixin, features.RunCommand):
+class RunCommand(AzureFeatureMixin, Feature):
 
     @classmethod
     def create_setting(
@@ -3774,17 +3774,38 @@ class RunCommand(AzureFeatureMixin, features.RunCommand):
         compute_client = get_compute_client(platform)
 
         # Prepare the RunCommandInput for Azure
-        command = RunCommandInput(
+        run_command_input = RunCommandInput(
             command_id="RunShellScript",
-            script=commands,
+            script=self._add_echo_before_command(commands),
         )
 
         # Execute the command on the VM
         operation = compute_client.virtual_machines.begin_run_command(
             resource_group_name=context.resource_group_name,
             vm_name=context.vm_name,
-            parameters=command,
+            parameters=run_command_input,
         )
         result = wait_operation(operation=operation, failure_identity="run command")
 
         return result["value"][0]["message"]
+
+    def _add_echo_before_command(self, commands: List[str]):
+        """
+        Adds an echo command before each command in the list to ensure
+        that the output of each command is captured in the logs.
+        """
+        return [f"echo 'Running command: {cmd}' && {cmd}" for cmd in commands]
+
+
+class NonSshExecutor(AzureFeatureMixin, features.NonSshExecutor):
+    def execute(
+        self, commands: list[str] = features.NonSshExecutor.COMMANDS_TO_EXECUTE
+    ) -> list[str]:
+        # RunCommand is faster than SerialConsole. Hence attempt to use it first.
+        try:
+            output = self._node.features[RunCommand].execute(commands)
+            return [output]
+        except Exception as e:
+            self._log.info(f"RunCommand failed: {e}")
+            # Fallback to the default non-SSH executor behavior
+            return super().execute(commands)

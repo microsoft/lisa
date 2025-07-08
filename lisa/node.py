@@ -698,9 +698,16 @@ class RemoteNode(Node):
         try:
             super()._initialize(*args, **kwargs)
         except TcpConnectionException as e:
-            vm_logs = self._collect_logs_using_platform()
-            if vm_logs:
-                self.log.info(f"Collected information using platform:\n{vm_logs}")
+            try:
+                vm_logs = self._collect_logs_using_non_ssh_executor()
+                if vm_logs:
+                    self.log.info(
+                        f"Collected information using non-ssh executor:\n{vm_logs}"
+                    )
+            except Exception as log_error:
+                self.log.debug(
+                    f"Failed to collect logs using non-ssh executor: {log_error}"
+                )
             raise e
 
     def get_working_path(self) -> PurePath:
@@ -745,31 +752,22 @@ class RemoteNode(Node):
                     raise RequireUserPasswordException("Reset password failed")
             self._check_password_and_store_prompt()
 
-    def _collect_logs_using_platform(self) -> Optional[str]:
+    def _collect_logs_using_non_ssh_executor(self) -> Optional[str]:
         """
-        Collects information using the RunCommand feature.
+        Collects information using the NonSshExecutor feature.
         This is used when the connection to the node is not stable.
         """
-        from lisa.features import RunCommand
+        from lisa.features import NonSshExecutor
 
-        if self.features.is_supported(RunCommand):
-            run_command = self.features[RunCommand]
-            commands = [
-                "echo 'Executing: ip addr show'",
-                "ip addr show",
-                "echo 'Executing: ip link show'",
-                "ip link show",
-                "echo 'Executing: systemctl status NetworkManager --no-pager --plain'",
-                "systemctl status NetworkManager --no-pager --plain",
-                "echo 'Executing: systemctl status network --no-pager --plain'",
-                "systemctl status network --no-pager --plain",
-                "echo 'Executing: systemctl status systemd-networkd --no-pager --plain'",
-                "systemctl status systemd-networkd --no-pager --plain",
-                "echo 'Executing: ping -c 3 -n 8.8.8.8'",
-                "ping -c 3 -n 8.8.8.8",
-            ]
-            out = run_command.execute(commands=commands)
-            return out
+        if self.features.is_supported(NonSshExecutor):
+            non_ssh_executor = self.features[NonSshExecutor]
+            out = non_ssh_executor.execute()
+            return "\n".join(out)
+        else:
+            self.log.debug(
+                f"NonSshExecutor is not supported on {self.name}, "
+                "cannot collect logs using non-ssh executor."
+            )
         return None
 
     def _check_password_and_store_prompt(self) -> None:
@@ -819,29 +817,7 @@ class RemoteNode(Node):
                     ssh_shell.bash_prompt = bash_prompt
             self.has_checked_bash_prompt = True
 
-    def _login_to_serial_console(self) -> None:
-        from lisa.features import SerialConsole
-
-        if self.features.is_supported(SerialConsole):
-            serial_console = self.features[SerialConsole]
-            # clear the serial console
-            # write \n to serial console to get the prompt
-            # read the serial console output
-            _ = serial_console.read()
-            serial_console.write("\n")
-            serial_read = serial_console.read()
-            if "login" in serial_read:
-                password = self._get_password()
-                serial_console.write(f"{self._connection_info.username}\n")
-                password_prompt = serial_console.read()
-                if "password" in password_prompt.lower():
-                    serial_console.write(f"{password}\n")
-            else:
-                self.log.debug(
-                    "No login prompt found, serial console is already logged in."
-                )
-
-    def _get_password(self, generate: bool = True) -> str:
+    def get_password(self, generate: bool = True) -> str:
         """
         Get the password for the node. If the password is not set, it will
         generate a strong password and reset it.
