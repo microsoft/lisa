@@ -9,7 +9,6 @@ from lisa.util.process import Process
 
 from .git import Git
 from .make import Make
-from lisa.util.logger import Logger
 
 
 class StressNg(Tool):
@@ -90,4 +89,3 @@ class StressNg(Tool):
         code_path = tool_path.joinpath("stress-ng")
         make.make_install(cwd=code_path)
         return self._check_exists()
-

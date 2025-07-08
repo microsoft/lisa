@@ -43,11 +43,17 @@ class StressNgTestSuite(TestSuite):
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
 
-            # Convert single string to list for uniform processing
+            # Handle different input formats: string, comma-separated string, or list
             if isinstance(jobs, str):
-                jobs = [jobs]
+                # Split on comma and strip whitespace from each job
+                jobs = [job.strip() for job in jobs.split(',')]
+            elif isinstance(jobs, list):
+                # Already a list, keep as is
+                log.debug(f"Job list provided as list type with {len(jobs)} job(s)")
+                pass
             else:
-                jobs = [str(jobs)]  # Convert to string and then to list
+                # Convert other types to string and then split
+                jobs = [job.strip() for job in str(jobs).split(',')]
 
             for job_file in jobs:
                 try:
