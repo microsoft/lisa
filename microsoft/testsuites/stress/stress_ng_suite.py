@@ -246,7 +246,7 @@ class StressNgTestSuite(TestSuite):
                 stress_info_lines = []
                 if result.stdout.strip():
                     for line in result.stdout.strip().split("\n"):
-                        if "stress-ng: info" in line:
+                        if "stress-ng: info" in line and "dispatching hogs:" not in line:
                             stress_info_lines.append(line.strip())
 
                 if stress_info_lines:
