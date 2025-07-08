@@ -46,10 +46,7 @@ class StressNgTestSuite(TestSuite):
             # Convert single string to list for uniform processing
             if isinstance(jobs, str):
                 jobs = [jobs]
-            elif isinstance(jobs, list):
-                log.debug(f"Jobs is already a list with {len(jobs)} items: {jobs}")
             else:
-                log.warning(f"Unexpected type for jobs: {type(jobs)}, value: {jobs}")
                 jobs = [str(jobs)]  # Convert to string and then to list
 
             for job_file in jobs:
@@ -200,9 +197,7 @@ class StressNgTestSuite(TestSuite):
                 node.shell.copy(PurePath(job_file), remote_job_file)
 
                 # Launch stress-ng with the job file
-                stress_process = node.tools[StressNg].launch_job_async(
-                    str(remote_job_file), quiet_brief=True
-                )
+                stress_process = node.tools[StressNg].launch_job_async(str(remote_job_file))
                 stress_processes.append(stress_process)
 
             except Exception as deployment_error:
