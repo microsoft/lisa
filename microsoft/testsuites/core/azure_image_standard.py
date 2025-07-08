@@ -1018,8 +1018,10 @@ class AzureImageStandard(TestSuite):
         logs_checked = []
         pattern_found = False
         # Check dmesg output for the patterns if certain OS detected
-        if isinstance(node.os, CBLMariner) or (
-            isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0"
+        if (
+            (isinstance(node.os, Ubuntu) and node.os.information.version >= "22.10.0")
+            or isinstance(node.os, CBLMariner)
+            or isinstance(node.os, FreeBSD)
         ):
             dmesg_tool = node.tools[Dmesg]
             log_output = dmesg_tool.get_output()
