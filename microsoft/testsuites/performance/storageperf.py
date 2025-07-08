@@ -185,12 +185,12 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.StandardSSDLRS,
                 os_disk_type=schema.DiskType.StandardSSDLRS,
-                data_disk_iops=search_space.IntRange(min=500),
+                data_disk_iops=search_space.IntRange(min=2000),
                 data_disk_count=search_space.IntRange(min=16),
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
+    def perf_ssd_datadisks_4k(self, node: Node, result: TestResult) -> None:
         self._perf_premium_datadisks(node, result)
 
     @TestCaseMetadata(
