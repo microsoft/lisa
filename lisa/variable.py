@@ -393,11 +393,6 @@ def _add_variable(
     mask_pattern_name: str = "",
 ) -> None:
     key = key.lower()
-    
-    # Add debug logging for stress_ng_jobs specifically
-    if key == "stress_ng_jobs":
-        print(f"DEBUG: Processing stress_ng_jobs - Raw value: {value}, Type: {type(value)}")
-    
     variable = current_variables.get(key, None)
     if variable:
         variable.data = value
@@ -405,10 +400,6 @@ def _add_variable(
     else:
         variable = VariableEntry(name=key, data=value, is_case_visible=is_case_visible)
         current_variables[key] = variable
-
-    # Add more debug logging
-    if key == "stress_ng_jobs":
-        print(f"DEBUG: Final variable data: {variable.data}, Type: {type(variable.data)}")
 
     pattern = None
     if is_secret:

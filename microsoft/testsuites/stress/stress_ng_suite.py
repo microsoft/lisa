@@ -40,17 +40,11 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         result: TestResult,
     ) -> None:
-        log.info("Starting stress_ng_jobfile test case")
-        log.debug(f"Looking for variable: '{self.CONFIG_VARIABLE}'")
-        log.debug(f"Available variables: {list(variables.keys())}")
-
         if self.CONFIG_VARIABLE in variables:
             jobs = variables[self.CONFIG_VARIABLE]
-            log.info(f"Found {self.CONFIG_VARIABLE}: '{jobs}' (type: {type(jobs)})")
 
             # Convert single string to list for uniform processing
             if isinstance(jobs, str):
-                log.debug(f"Converting string to list: '{jobs}' -> ['{jobs}']")
                 jobs = [jobs]
             elif isinstance(jobs, list):
                 log.debug(f"Jobs is already a list with {len(jobs)} items: {jobs}")
@@ -58,19 +52,13 @@ class StressNgTestSuite(TestSuite):
                 log.warning(f"Unexpected type for jobs: {type(jobs)}, value: {jobs}")
                 jobs = [str(jobs)]  # Convert to string and then to list
 
-            log.info(f"Final jobs list: {jobs} (length: {len(jobs)})")
-
-            for i, job_file in enumerate(jobs):
-                log.info(f"Processing job file {i+1}/{len(jobs)}: '{job_file}'")
+            for job_file in jobs:
                 try:
                     self._run_stress_ng_job(job_file, environment, result, log)
-                    log.info(f"Successfully completed job file: '{job_file}'")
                 except Exception as e:
                     log.error(f"Failed to run job file '{job_file}': {e}")
                     raise
         else:
-            log.error(f"Variable '{self.CONFIG_VARIABLE}' not found in variables")
-            log.error(f"Available variables: {variables}")
             raise SkippedException("No jobfile provided for stress-ng")
 
     @TestCaseMetadata(
@@ -151,7 +139,6 @@ class StressNgTestSuite(TestSuite):
             test_result: Test result object for reporting
             log: Logger instance for detailed logging
         """
-        log.info(f"Starting _run_stress_ng_job with job_file: '{job_file}'")
 
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         stress_processes: List[Process] = []
@@ -160,7 +147,7 @@ class StressNgTestSuite(TestSuite):
         execution_status = TestStatus.QUEUED
         execution_summary = ""
 
-        try:     
+        try:
             self._deploy_and_launch_stress_jobs(
                 nodes, job_file, job_file_name, stress_processes, log
             )
@@ -172,13 +159,12 @@ class StressNgTestSuite(TestSuite):
         except Exception as execution_error:
             execution_status = TestStatus.FAILED
             execution_summary = (
-                f"Error : {type(execution_error).__name__}: "
-                f"{str(execution_error)}"
+                f"Error : {type(execution_error).__name__}: " f"{str(execution_error)}"
             )
             self._check_panic(nodes)
             raise execution_error
 
-        finally:            
+        finally:
             self._report_test_results(
                 test_result, job_file_name, execution_status, execution_summary
             )
@@ -240,7 +226,7 @@ class StressNgTestSuite(TestSuite):
 
         Returns:
             Tuple of (TestStatus, stress_ng_info_output)
-        """       
+        """
 
         failed_nodes = 0
         node_outputs = []
@@ -248,8 +234,7 @@ class StressNgTestSuite(TestSuite):
 
         # Wait for all processes and capture their output
         for i, process in enumerate(stress_processes):
-            node_name = nodes[i].name if i < len(nodes) else f"node-{i+1}"
-
+            node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
             try:
                 result = process.wait_result(
                     timeout=self.TIME_OUT, expected_exit_code=0
@@ -268,7 +253,9 @@ class StressNgTestSuite(TestSuite):
                         stress_info_lines
                     )
                 else:
-                    node_output = f"=== {node_name} ===\n No stress-ng info output found"
+                    node_output = (
+                        f"=== {node_name} ===\n No stress-ng info output found"
+                    )
 
                 node_outputs.append(node_output)
 
@@ -317,3 +304,7 @@ class StressNgTestSuite(TestSuite):
             test_status=execution_status,
             test_message=execution_summary,
         )
+
+    def _check_panic(self, nodes: List[RemoteNode]) -> None:
+        for node in nodes:
+            node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
