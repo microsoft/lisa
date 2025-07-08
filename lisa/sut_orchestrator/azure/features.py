@@ -2036,12 +2036,14 @@ class Disk(AzureFeatureMixin, features.Disk):
     # function returns the type of resource disk/disks available on the VM
     # raises exception if no resource disk is available
     def get_resource_disk_type(self) -> schema.ResourceDiskType:
-        resource_disks = self.get_resource_disks()
-        if not resource_disks:
-            raise LisaException("No Resource disks are available on VM")
-        return schema.ResourceDiskType(
-            self._node.features[Disk].get_disk_type(disk=resource_disks[0])
-        )
+        if self._resource_disk_controller_type is None:
+            resource_disks = self.get_resource_disks()
+            if not resource_disks:
+                raise LisaException("No Resource disks are available on VM")
+            self._resource_disk_controller_type =  schema.ResourceDiskType(
+                self._node.features[Disk].get_disk_type(disk=resource_disks[0])
+            )
+        return self._resource_disk_controller_type
 
     def get_resource_disks(self) -> List[str]:
         resource_disk_list = []
