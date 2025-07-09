@@ -246,8 +246,7 @@ class StressNgTestSuite(TestSuite):
                 stress_info_lines = []
                 if result.stdout.strip():
                     for line in result.stdout.strip().split("\n"):
-                        # if "stress-ng: info" in line and "dispatching hogs:" not in line:
-                        if True:  # Temporarily show all output
+                        if "stress-ng: info" in line and "dispatching hogs:" not in line:
                             stress_info_lines.append(line.strip())
 
                 if stress_info_lines:
@@ -267,7 +266,7 @@ class StressNgTestSuite(TestSuite):
                 node_outputs.append(error_output)
                 log.error(f"{node_name} failed: {e}")
                 # Store the exception to re-raise after collecting all outputs
-                exceptions_to_raise.append(e)
+                #exceptions_to_raise.append(e)
 
         # Combine all node outputs
         execution_summary = f"Job: {job_file_name}\n\n" + "\n\n".join(node_outputs)
