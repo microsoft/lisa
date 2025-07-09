@@ -203,7 +203,10 @@ class StressNgTestSuite(TestSuite):
                 node.shell.copy(PurePath(job_file), remote_job_file)
 
                 # Launch stress-ng with the job file
-                stress_process = node.tools[StressNg].launch_job_async(str(remote_job_file))
+                stress_process = node.tools[StressNg].launch_job_async(
+                    str(remote_job_file),
+                    yaml=True,
+                )
                 stress_processes.append(stress_process)
 
             except Exception as deployment_error:
@@ -258,6 +261,11 @@ class StressNgTestSuite(TestSuite):
                         f"=== {node_name} ===\n No stress-ng info output found"
                     )
 
+                # Process YAML output if applicable
+                node_output = self._process_yaml_output(
+                    nodes[i], job_file_name, node_output, log
+                )
+
                 node_outputs.append(node_output)
 
             except Exception as e:
@@ -309,3 +317,61 @@ class StressNgTestSuite(TestSuite):
     def _check_panic(self, nodes: List[RemoteNode]) -> None:
         for node in nodes:
             node.features[SerialConsole].check_panic(saved_path=None, force_run=True)
+
+    def _process_yaml_output(
+        self,
+        node: RemoteNode,
+        job_file_name: str,
+        node_output: str,
+        log: Logger,
+    ) -> str:
+        """
+        Process YAML output file if it exists and append to node output.
+
+        Args:
+            node: The remote node where the job was executed
+            job_file_name: Name of the job file (used to derive YAML filename)
+            node_output: Current node output string
+            log: Logger instance
+
+        Returns:
+            Updated node output string with YAML content appended
+        """
+        try:
+            import yaml
+            from pathlib import Path
+
+            # Determine YAML file name based on job file name
+            job_stem = Path(job_file_name).stem
+            yaml_filename = f"{job_stem}.yaml"
+
+            # Check if YAML file exists in the working directory
+            yaml_file_path = node.working_path / yaml_filename
+
+            if node.shell.exists(yaml_file_path):
+                log.debug(f"Found YAML output file: {yaml_file_path}")
+
+                # Read YAML file content
+                yaml_content = node.shell.read_text(yaml_file_path)
+                yaml_data = yaml.safe_load(yaml_content)
+
+                # Append YAML content to node output
+                node_output += "\n\n=== YAML Results ==="
+
+                if isinstance(yaml_data, dict):
+                    for key, value in yaml_data.items():
+                        node_output += f"\n{key}: {value}"
+                elif isinstance(yaml_data, list):
+                    for i, item in enumerate(yaml_data):
+                        node_output += f"\n[{i}]: {item}"
+                else:
+                    node_output += f"\n{yaml_data}"
+
+            else:
+                log.debug(f"YAML file not found at: {yaml_file_path}")
+
+        except (yaml.YAMLError, ImportError, Exception) as e:
+            log.warning(f"Could not process YAML output: {e}")
+            node_output += f"\n\n=== YAML Processing Error ===\n{str(e)}"
+
+        return node_output
