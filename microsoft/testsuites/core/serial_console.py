@@ -11,6 +11,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.features import SerialConsole
+from lisa.sut_orchestrator import AZURE
 
 
 @TestSuiteMetadata(
@@ -30,6 +31,7 @@ class SerialConsoleSuite(TestSuite):
         priority=3,
         requirement=simple_requirement(
             supported_features=[SerialConsole],
+            supported_platform_type=[AZURE]),
         ),
     )
     def verify_serial_console(self, log: Logger, node: Node) -> None:
