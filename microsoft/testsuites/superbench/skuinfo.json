@@ -1,0 +1,106 @@
+{
+    "al3" : {
+	"v100": {
+            "sku": "Standard_ND40rs_v2",
+            "count": "8",
+            "gpu": "NVIDIA TESLA V100",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Azure Linux 3.0",
+	    "tag" : "570CMP_1"
+	},
+	"a100": {
+            "sku": "Standard_ND96amsr_A100_v4",
+            "count": "8",
+            "gpu": "NVIDIA A100",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Azure Linux 3.0",
+	    "tag" : "570CMP_1"
+	},
+	"mi300x": {
+            "sku": "Standard_ND96isr_MI300X_v5",
+            "count": "8",
+            "gpu": "AMD Instinct MI300X",
+	    "image version" : "22.04",
+	    "gpu driver version" : "6.2.2",
+	    "driver version" : "6.8.5",
+	    "os" : "Azure Linux 3.0",
+	    "tag" : "622CMP_1"
+	},
+	"h200": {
+            "sku": "Standard_ND96isr_H200_v5",
+            "count": "8",
+            "gpu": "NVIDIA H200 Tensor Core",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Azure Linux 3.0",
+	    "tag" : "570CMP_1"
+	},
+	"h100": {
+            "sku": "Standard_ND96isr_H100_v5",
+            "count": "8",
+            "gpu": "NVIDIA H100 Tensor Core",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Azure Linux 3.0",
+	    "tag" : "570CMP_1"
+	}
+    },
+    "u22" : {
+	"v100": {
+            "sku": "Standard_ND40rs_v2",
+            "count": "8",
+            "gpu": "NVIDIA TESLA V100",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Ubuntu 22.04",
+	    "tag" : "570CMP_1"
+	},
+	"a100": {
+            "sku": "Standard_ND96amsr_A100_v4",
+            "count": "8",
+            "gpu": "NVIDIA A100",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Ubuntu 22.04",
+	    "tag" : "570CMP_1"
+	},
+	"mi300x": {
+            "sku": "Standard_ND96isr_MI300X_v5",
+            "count": "8",
+            "gpu": "AMD Instinct MI300X",
+	    "image version" : "22.04",
+	    "gpu driver version" : "6.2.2",
+	    "driver version" : "6.8.5",
+	    "os" : "Ubuntu 22.04",
+	    "tag" : "622CMP_1"
+	},
+	"h200": {
+            "sku": "Standard_ND96isr_H200_v5",
+            "count": "8",
+            "gpu": "NVIDIA H200 Tensor Core",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Ubuntu 22.04",
+	    "tag" : "570CMP_1"
+	},
+	"h100": {
+            "sku": "Standard_ND96isr_H100_v5",
+            "count": "8",
+            "gpu": "NVIDIA H100 Tensor Core",
+	    "image version" : "3.0",
+	    "gpu driver version" : "12.8",
+	    "driver version" : "570.124.06",
+	    "os" : "Ubuntu 22.04",
+	    "tag" : "570CMP_1"
+	}
+    }
+}
