@@ -24,12 +24,16 @@ class Sed(Tool):
         match_lines: str = "",
         sudo: bool = False,
     ) -> None:
+        # Escape slashes (must be done before crafting sed expression, as we want to preserve slashes after)
+        regexp = regexp.replace("/", r"\/")
+        replacement = replacement.replace("/", r"\/")
+        
         # always force run, make sure it happens every time.
         if match_lines != "":
             expression = f"/{match_lines}/s/{regexp}/{replacement}/g"
         else:
             expression = f"s/{regexp}/{replacement}/g"
-        expression = expression.replace('"', r"\"").replace("$", r"\$").replace("/", r"\/")
+        expression = expression.replace('"', r"\"").replace("$", r"\$")
 
         cmd = f'-i.bak "{expression}" {file}'
 
