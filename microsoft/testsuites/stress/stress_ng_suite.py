@@ -263,8 +263,8 @@ class StressNgTestSuite(TestSuite):
 
         # Combine all node outputs, including node names for clarity
         execution_summary = f"Job: {job_file_name}\n\n"
-        for node, node_output in zip(nodes, node_outputs):
-            node_name = node.name
+        for i, node_output in enumerate(node_outputs):
+            node_name = nodes[i].name if i < len(nodes) else f"node-{i + 1}"
             execution_summary += f"=== {node_name} ===\n{node_output}\n\n"
 
         # If any processes failed, re-raise the first exception to fail the test
@@ -339,18 +339,22 @@ class StressNgTestSuite(TestSuite):
                 result = node.execute(f"cat {yaml_file_path}", shell=True)
                 yaml_content = result.stdout.strip()
                 
-                # Print raw YAML content for debugging
-                log.info(f"Raw YAML file content:\n{yaml_content}")
-                
-                # Return the raw YAML content as string
-                node_output = f"\n\n=== YAML Results ===\n{yaml_content}"
+                if yaml_content:
+                    # Print raw YAML content for debugging
+                    log.info(f"Raw YAML file content:\n{yaml_content}")
+                    
+                    # Return the raw YAML content as string
+                    node_output = f"=== YAML Results ===\n{yaml_content}"
+                else:
+                    log.debug(f"YAML file {yaml_file_path} is empty")
+                    node_output = "=== YAML Results ===\nYAML file is empty"
                 
             else:
                 log.debug(f"YAML file not found at: {yaml_file_path}")
-                node_output = "\n\n=== YAML Results ===\n No YAML output file found"
+                node_output = "=== YAML Results ===\nNo YAML output file found"
 
         except Exception as e:
             log.warning(f"Could not process YAML output: {e}")
-            node_output = f"\n\n=== YAML Processing Error ===\n{str(e)}"
+            node_output = f"=== YAML Processing Error ===\n{str(e)}"
 
         return node_output
