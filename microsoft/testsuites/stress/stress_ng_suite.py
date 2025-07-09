@@ -331,20 +331,56 @@ class StressNgTestSuite(TestSuite):
 
             # Check if YAML file exists in the working directory
             yaml_file_path = node.working_path / yaml_filename
+            log.debug(f"Looking for YAML file at: {yaml_file_path}")
 
             if node.shell.exists(yaml_file_path):
                 log.debug(f"Found YAML output file: {yaml_file_path}")
                 
                 # Read YAML file content using cat command
-                result = node.execute(f"cat {yaml_file_path}", shell=True)
+                result = node.execute(f"cat '{yaml_file_path}'", shell=True)
                 yaml_content = result.stdout.strip()
                 
                 if yaml_content:
                     # Print raw YAML content for debugging
                     log.info(f"Raw YAML file content:\n{yaml_content}")
-                    
-                    # Return the raw YAML content as string
-                    node_output = f"=== YAML Results ===\n{yaml_content}"
+
+                    # Try to parse YAML content and pretty-print key-value pairs
+                    try:
+                        parsed_yaml = yaml.safe_load(yaml_content)
+                        if parsed_yaml is None:
+                            log.warning("YAML file parsed as None (empty or invalid)")
+                            node_output = f"=== YAML Results ===\nYAML file is empty or invalid"
+                        elif isinstance(parsed_yaml, dict):
+                            if parsed_yaml:  # Check if dict is not empty
+                                key_values = []
+                                for k, v in parsed_yaml.items():
+                                    # Handle different value types safely
+                                    if isinstance(v, (dict, list)):
+                                        key_values.append(f"{k}: {yaml.dump(v, default_flow_style=False).strip()}")
+                                    else:
+                                        key_values.append(f"{k}: {v}")
+                                node_output = f"=== YAML Results (Key-Value) ===\n" + "\n".join(key_values)
+                            else:
+                                node_output = f"=== YAML Results ===\nYAML contains empty dictionary"
+                        elif isinstance(parsed_yaml, list):
+                            if parsed_yaml:  # Check if list is not empty
+                                list_items = []
+                                for i, item in enumerate(parsed_yaml):
+                                    if isinstance(item, (dict, list)):
+                                        list_items.append(f"[{i}]: {yaml.dump(item, default_flow_style=False).strip()}")
+                                    else:
+                                        list_items.append(f"[{i}]: {item}")
+                                node_output = f"=== YAML Results (List) ===\n" + "\n".join(list_items)
+                            else:
+                                node_output = f"=== YAML Results ===\nYAML contains empty list"
+                        else:
+                            node_output = f"=== YAML Results ===\n{str(parsed_yaml)}"
+                    except yaml.YAMLError as yaml_error:
+                        log.warning(f"Failed to parse YAML content: {yaml_error}")
+                        node_output = f"=== YAML Results (Raw - Parse Error) ===\n{yaml_content}"
+                    except Exception as parse_error:
+                        log.warning(f"Unexpected error parsing YAML: {parse_error}")
+                        node_output = f"=== YAML Results (Raw - Unexpected Error) ===\n{yaml_content}"
                 else:
                     log.debug(f"YAML file {yaml_file_path} is empty")
                     node_output = "=== YAML Results ===\nYAML file is empty"
